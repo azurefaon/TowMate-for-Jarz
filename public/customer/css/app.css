@@ -1,0 +1,12 @@
+.main-content {
+    margin-left: 240px; /* width ng sidebar */
+    padding: 20px;
+}
+
+/* MOBILE FIX */
+@media (max-width: 768px) {
+    .main-content {
+        margin-left: 0;
+        padding-bottom: 80px; /* space for mobile nav */
+    }
+}

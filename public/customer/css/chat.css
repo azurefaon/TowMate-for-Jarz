@@ -1,0 +1,245 @@
+/* LAYOUT */
+.chat-system {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: calc(100vh - 80px);
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+/* LEFT */
+.chat-list {
+    border-right: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-list-header {
+    padding: 15px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.chat-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px 15px;
+    text-decoration: none;
+    color: #000;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.chat-item:hover {
+    background: #f9fafb;
+}
+
+.chat-avatar {
+    width: 42px;
+    height: 42px;
+    background: #22ce61;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* RIGHT */
+.chat-window {
+    display: flex;
+    flex-direction: column;
+}
+
+/* HEADER */
+.chat-header {
+    padding: 15px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+}
+
+.online {
+    color: #22ce61;
+}
+
+/* MESSAGES */
+.chat-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background: #f9fafb;
+}
+
+.message {
+    max-width: 70%;
+    padding: 10px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+}
+
+.message.user {
+    background: #22ce61;
+    color: #fff;
+    margin-left: auto;
+}
+
+.message.driver {
+    background: #fff;
+}
+
+/* INPUT */
+.chat-input {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.chat-input button {
+    margin-left: 10px;
+    background: #22ce61;
+    color: #fff;
+    padding: 10px 15px;
+    border-radius: 8px;
+}
+
+/* EMPTY */
+.chat-empty {
+    margin: auto;
+    text-align: center;
+    color: #64748b;
+}
+
+@media (max-width: 768px) {
+    .chat-system {
+        grid-template-columns: 1fr;
+    }
+
+    .chat-list {
+        height: 100%;
+    }
+
+    .chat-window {
+        display: none;
+    }
+
+    .chat-window.active {
+        display: flex;
+    }
+}
+
+/* BACKGROUND WRAPPER */
+.chat-system {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: calc(100vh - 80px);
+    background: #f8fafc;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+/* LEFT PANEL */
+.chat-list {
+    background: #ffffff;
+    border-right: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-list-header {
+    padding: 18px;
+    font-weight: 600;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+/* EMPTY LEFT */
+.no-chat-box {
+    text-align: center;
+    margin-top: 50px;
+    color: #64748b;
+}
+
+.no-chat-icon {
+    font-size: 30px;
+    margin-bottom: 10px;
+}
+
+/* RIGHT SIDE CENTER */
+.chat-empty {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* CARD */
+.chat-empty-card {
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+}
+
+/* ICON */
+.chat-empty-icon {
+    font-size: 40px;
+    margin-bottom: 15px;
+}
+
+/* TEXT */
+.chat-empty-card h2 {
+    font-size: 20px;
+    margin-bottom: 10px;
+}
+
+.chat-empty-card p {
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+
+/* BUTTON */
+.primary-btn {
+    background: linear-gradient(135deg, #22ce61, #15803d);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: 0.2s;
+}
+
+.primary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(34, 206, 97, 0.3);
+}
+
+/* CHAT ITEMS */
+.chat-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px 15px;
+    transition: 0.2s;
+    border-radius: 10px;
+    margin: 5px 10px;
+}
+
+.chat-item:hover {
+    background: #f1f5f9;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+    .chat-system {
+        grid-template-columns: 1fr;
+    }
+}

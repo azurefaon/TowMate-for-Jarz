@@ -1,0 +1,196 @@
+/* ===============================
+CREATE USER PAGE
+=============================== */
+
+.create-user-page .form-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: 40px;
+}
+
+.create-user-page .form-card {
+    width: 100%;
+    max-width: 750px;
+    background: #ffffff;
+    padding: 35px;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+/* HEADER */
+
+.create-user-page .form-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.create-user-page .form-icon {
+    width: 55px;
+    height: 55px;
+    background: rgba(110, 168, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    color: #6ea8ff;
+}
+
+.create-user-page .form-header h2 {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.create-user-page .form-header p {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* FORM */
+
+.create-user-page .form-group {
+    margin-bottom: 20px;
+}
+
+.create-user-page .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+/* TWO COLUMN */
+
+.create-user-page .form-row {
+    display: flex;
+    gap: 20px;
+}
+
+.create-user-page .form-row .form-group {
+    flex: 1;
+}
+
+/* INPUT WITH ICON */
+
+.create-user-page .input-with-icon {
+    position: relative;
+    width: 100%;
+}
+
+.create-user-page .input-with-icon svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: #9ca3af;
+}
+
+.create-user-page .input-with-icon input {
+    width: 100%;
+    padding: 12px 12px 12px 45px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    font-size: 14px;
+    transition: 0.2s ease;
+}
+
+.create-user-page .input-with-icon input:focus {
+    border-color: #6ea8ff;
+    background: #fff;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(110, 168, 255, 0.15);
+}
+
+/* SELECT */
+
+.create-user-page select {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.create-user-page select:focus {
+    border-color: #6ea8ff;
+    outline: none;
+}
+
+/* BUTTONS */
+
+.create-user-page .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 25px;
+}
+
+.create-user-page .btn-cancel {
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    text-decoration: none;
+    color: #374151;
+    background: #f3f4f6;
+    transition: 0.2s ease;
+}
+
+.create-user-page .btn-cancel:hover {
+    background: #e5e7eb;
+}
+
+.create-user-page .btn-primary-submit {
+    background: linear-gradient(135deg, #6ea8ff, #5f94f5);
+    color: #fff;
+    border: none;
+    padding: 12px 22px;
+    border-radius: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.create-user-page .btn-primary-submit:hover {
+    box-shadow: 0 6px 18px rgba(110, 168, 255, 0.35);
+}
+
+/* ERROR */
+
+.create-user-page .error-text {
+    color: #e74c3c;
+    font-size: 13px;
+    margin-top: 5px;
+    display: block;
+}
+
+/* MOBILE */
+
+@media (max-width: 768px) {
+    .create-user-page .form-wrapper {
+        padding: 15px;
+    }
+
+    .create-user-page .form-card {
+        padding: 25px;
+    }
+
+    .create-user-page .form-row {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .create-user-page .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .create-user-page .btn-primary-submit {
+        justify-content: center;
+    }
+}

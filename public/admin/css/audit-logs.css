@@ -1,0 +1,260 @@
+/* ====================================
+TOWMATE AUDIT LOGS MODULE
+Simple Clean Version
+==================================== */
+
+/* ====================================
+PAGE HEADER
+==================================== */
+
+.audit-page-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.audit-page-top h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.audit-page-top p {
+    margin-top: 4px;
+    color: #6b7280;
+}
+
+/* ====================================
+SUMMARY CARDS
+==================================== */
+
+.audit-card-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.audit-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.audit-card h3 {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+
+.audit-card p {
+    font-size: 26px;
+    font-weight: 700;
+}
+
+.audit-red {
+    color: #ef4444;
+}
+.audit-blue {
+    color: #3b82f6;
+}
+.audit-purple {
+    color: #9333ea;
+}
+
+/* ====================================
+TABLE CARD
+==================================== */
+
+.audit-table-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #e5e7eb;
+}
+
+/* ====================================
+TABLE HEADER
+==================================== */
+
+.audit-table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.audit-table-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.audit-table-header form {
+    display: flex;
+    gap: 10px;
+}
+
+/* SEARCH INPUT */
+
+.audit-table-header input {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    font-size: 14px;
+    min-width: 260px;
+}
+
+/* SEARCH BUTTON */
+
+.audit-search-btn {
+    padding: 8px 16px;
+    background: #111827;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.audit-search-btn:hover {
+    background: #374151;
+}
+
+/* ====================================
+TABLE
+==================================== */
+
+.audit-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.audit-table thead {
+    background: #f9fafb;
+}
+
+.audit-table th {
+    text-align: left;
+    padding: 12px;
+    font-size: 13px;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.audit-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 14px;
+}
+
+.audit-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+/* ====================================
+PAGINATION
+==================================== */
+
+.audit-pagination {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+/* hide laravel extra text */
+
+.audit-pagination nav > div:first-child {
+    display: none;
+}
+
+/* pagination row */
+
+.audit-pagination nav {
+    display: flex;
+}
+
+/* page list */
+
+.audit-pagination nav ul {
+    display: flex;
+    gap: 6px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* buttons */
+
+.audit-pagination nav ul li a,
+.audit-pagination nav ul li span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 32px;
+    height: 32px;
+
+    border-radius: 8px;
+
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+
+    font-size: 14px;
+    font-weight: 500;
+
+    color: #374151;
+    text-decoration: none;
+
+    transition: 0.15s;
+}
+
+/* hover */
+
+.audit-pagination nav ul li a:hover {
+    background: #e5e7eb;
+}
+
+/* active page */
+
+.audit-pagination nav ul li span[aria-current="page"] {
+    background: #ffffff;
+    border-color: #d1d5db;
+    font-weight: 600;
+}
+
+/* disabled */
+
+.audit-pagination nav ul li span {
+    opacity: 0.45;
+}
+
+/* ====================================
+RESPONSIVE
+==================================== */
+
+@media (max-width: 768px) {
+    .audit-table-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .audit-table-header form {
+        width: 100%;
+    }
+
+    .audit-table-header input {
+        width: 100%;
+    }
+
+    .audit-card-container {
+        grid-template-columns: 1fr;
+    }
+
+    .audit-pagination {
+        justify-content: center;
+    }
+}

@@ -1,0 +1,22 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class TruckType extends Model
+{
+    protected $fillable = [
+        'name',
+        'base_rate',
+        'per_km_rate',
+        'max_tonnage',
+        'description',
+        'status'
+    ];
+
+    public function units()
+    {
+        return $this->hasMany(\App\Models\Unit::class, 'truck_type_id');
+    }
+}

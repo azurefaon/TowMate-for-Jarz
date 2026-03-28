@@ -1,0 +1,271 @@
+/* ====================================
+TOWMATE SYSTEM SETTINGS
+Unique CSS
+==================================== */
+
+.settings-page {
+    max-width: 1100px;
+    margin: auto;
+}
+
+/* HEADER */
+
+.settings-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.settings-header p {
+    margin-top: 4px;
+    color: #6b7280;
+    margin-bottom: 20px;
+}
+
+/* ====================================
+TABS
+==================================== */
+
+.settings-tabs {
+    display: flex;
+    gap: 8px;
+    background: #f3f4f6;
+    padding: 6px;
+    border-radius: 30px;
+    margin-bottom: 20px;
+}
+
+.settings-tab {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 10px;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    color: #374151;
+    transition: 0.2s;
+}
+
+.settings-tab.active {
+    background: #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    font-weight: 600;
+}
+
+/* ====================================
+CARD
+==================================== */
+
+.settings-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    padding: 25px;
+}
+
+/* CARD HEADER */
+
+.settings-card-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.settings-card-header p {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 20px;
+}
+
+/* ====================================
+FORM GRID
+==================================== */
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+/* FIELD */
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.settings-field label {
+    font-size: 13px;
+    color: #374151;
+    font-weight: 500;
+}
+
+.settings-field input,
+.settings-field textarea {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    font-size: 14px;
+    background: #f9fafb;
+}
+
+.settings-field textarea {
+    resize: none;
+    height: 80px;
+}
+
+/* ====================================
+BUTTONS
+==================================== */
+
+.settings-actions {
+    margin-top: 25px;
+    display: flex;
+    gap: 10px;
+}
+
+.settings-save {
+    background: #111827;
+    color: #ffffff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.settings-save:hover {
+    background: #374151;
+}
+
+.settings-reset {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+/* ====================================
+RESPONSIVE
+==================================== */
+
+@media (max-width: 768px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-tabs {
+        flex-wrap: wrap;
+    }
+}
+
+/* ====================================
+SETTINGS SECTIONS
+==================================== */
+
+.settings-section {
+    margin-top: 10px;
+}
+
+.settings-section h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    color: #111827;
+}
+
+/* divider */
+
+.settings-divider {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 25px 0;
+}
+
+/* ====================================
+TOGGLE ROW
+==================================== */
+
+.settings-toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.settings-toggle-row:last-child {
+    border-bottom: none;
+}
+
+.toggle-info strong {
+    font-size: 14px;
+    color: #111827;
+}
+
+.toggle-info p {
+    font-size: 13px;
+    color: #6b7280;
+    margin-top: 3px;
+}
+
+/* ====================================
+SWITCH TOGGLE
+==================================== */
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #d1d5db;
+    border-radius: 24px;
+    transition: 0.2s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.2s;
+}
+
+.switch input:checked + .slider {
+    background: #111827;
+}
+
+.switch input:checked + .slider:before {
+    transform: translateX(20px);
+}
+
+.settings-content {
+    display: none;
+}
+
+.settings-content.active {
+    display: block;
+}
