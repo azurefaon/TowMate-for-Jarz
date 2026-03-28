@@ -9,7 +9,7 @@
     <div class="book-wrapper">
 
         <div class="book-header">
-            <h2>Book a Tow adad</h2>
+            <h2>Book a Tow</h2>
             <p>Enter your details for an instant recovery estimate.</p>
         </div>
 
