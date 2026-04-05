@@ -1,5 +1,21 @@
+const API_KEY =
+    "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImU1YmM4ZDcyNmJiZTQyOTc5NTA0NTRkZjQxYTY5ODZjIiwiaCI6Im11cm11cjY0In0=";
+
+let trackMap;
+let pickupMarker;
+let dropMarker;
+let routeLine;
+
+function updateETA(distanceKm, durationMin) {
+    const etaEl = document.getElementById("eta");
+    const distEl = document.getElementById("distance");
+
+    if (etaEl) etaEl.innerText = Math.ceil(durationMin);
+    if (distEl) distEl.innerText = distanceKm.toFixed(1) + " km away";
+}
+
 setInterval(() => {
-    console.log("Checking updates...");
+    initTrackMap();
 }, 10000);
 
 window.cancelTrackBooking = function (id) {
@@ -19,8 +35,8 @@ window.cancelTrackBooking = function (id) {
         .then(() => {
             location.reload();
         })
-        .catch((err) => {
-            console.error("Cancel error:", err);
+        .catch(() => {
+            alert("Something went wrong");
         });
 };
 
@@ -34,10 +50,76 @@ window.callDriver = function (phone) {
 };
 
 window.initTrackMap = function () {
-    const map = document.getElementById("map");
-    if (!map) return;
+    const mapEl = document.getElementById("map");
+    if (!mapEl || !window.bookingData) return;
 
-    map.classList.add("map-loading");
+    trackMap = L.map("map", {
+        zoomControl: false,
+    }).setView([14.5995, 120.9842], 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap",
+    }).addTo(trackMap);
+
+    const pickup = [
+        window.bookingData.pickup_lat,
+        window.bookingData.pickup_lng,
+    ];
+
+    const drop = [window.bookingData.drop_lat, window.bookingData.drop_lng];
+
+    pickupMarker = L.marker(pickup).addTo(trackMap);
+    dropMarker = L.marker(drop).addTo(trackMap);
+
+    fetch(
+        "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
+        {
+            method: "POST",
+            headers: {
+                Authorization: API_KEY,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                coordinates: [
+                    [pickup[1], pickup[0]],
+                    [drop[1], drop[0]],
+                ],
+            }),
+        },
+    )
+        .then((res) => res.json())
+        .then((data) => {
+            if (!data.features || !data.features.length) return;
+
+            const route = data.features[0];
+
+            const coords = route.geometry.coordinates.map((c) => [c[1], c[0]]);
+
+            routeLine = L.polyline(coords, {
+                color: "#22c55e",
+                weight: 5,
+            }).addTo(trackMap);
+
+            trackMap.fitBounds(routeLine.getBounds(), {
+                padding: [60, 60],
+            });
+
+            const distanceKm = route.properties.summary.distance / 1000;
+            const durationMin = route.properties.summary.duration / 60;
+
+            updateETA(distanceKm, durationMin);
+        })
+        .catch(() => {
+            const fallback = L.polyline([pickup, drop], {
+                color: "#22c55e",
+                weight: 5,
+                dashArray: "5, 10",
+            }).addTo(trackMap);
+
+            trackMap.fitBounds(fallback.getBounds(), {
+                padding: [60, 60],
+            });
+        });
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -45,17 +127,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.addEventListener("click", function (e) {
-    if (e.target.closest(".cancel-track-btn")) {
-        const btn = e.target.closest(".cancel-track-btn");
-        const id = btn.dataset.id;
-
-        cancelTrackBooking(id);
+    const cancelBtn = e.target.closest(".cancel-track-btn");
+    if (cancelBtn) {
+        cancelTrackBooking(cancelBtn.dataset.id);
     }
 
-    if (e.target.closest(".call-driver-btn")) {
-        const btn = e.target.closest(".call-driver-btn");
-        const phone = btn.dataset.phone;
-
-        callDriver(phone);
+    const callBtn = e.target.closest(".call-driver-btn");
+    if (callBtn) {
+        callDriver(callBtn.dataset.phone);
     }
 });
