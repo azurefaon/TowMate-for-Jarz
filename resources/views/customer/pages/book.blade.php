@@ -130,7 +130,7 @@
                         <div class="cost-card">
 
                             <div class="cost-title">
-                                💲 Cost Estimate
+                                Cost Estimate
                             </div>
 
                             <div class="cost-row">
