@@ -8,6 +8,7 @@ let pickupCoords = null;
 let dropCoords = null;
 let debounceTimer;
 let routeLayer;
+let currentRate = 0;
 
 document.addEventListener("DOMContentLoaded", () => {
     map = L.map("map").setView([14.5995, 120.9842], 13);
@@ -16,83 +17,212 @@ document.addEventListener("DOMContentLoaded", () => {
         attribution: "&copy; OpenStreetMap",
     }).addTo(map);
 
-    map.on("click", function (e) {
+    toggleBookBtn();
+
+    map.on("click", async function (e) {
         if (!pickupCoords) {
             pickupCoords = [e.latlng.lng, e.latlng.lat];
 
             if (pickupMarker) map.removeLayer(pickupMarker);
             pickupMarker = L.marker(e.latlng).addTo(map);
 
-            document.getElementById("pickup").value =
-                e.latlng.lat + ", " + e.latlng.lng;
+            const address = await getAddressFromCoords(
+                e.latlng.lat,
+                e.latlng.lng,
+            );
+            document.getElementById("pickup").value = address;
         } else {
             dropCoords = [e.latlng.lng, e.latlng.lat];
 
             if (dropMarker) map.removeLayer(dropMarker);
             dropMarker = L.marker(e.latlng).addTo(map);
 
-            document.getElementById("dropoff").value =
-                e.latlng.lat + ", " + e.latlng.lng;
+            const address = await getAddressFromCoords(
+                e.latlng.lat,
+                e.latlng.lng,
+            );
+            document.getElementById("dropoff").value = address;
 
+            fitBothMarkers();
             calculateEstimate();
         }
+
+        toggleBookBtn();
     });
+
+    const vehicleSelect = document.getElementById("vehicleType");
+
+    vehicleSelect?.addEventListener("change", () => {
+        const selected = vehicleSelect.options[vehicleSelect.selectedIndex];
+        const perKm = selected.getAttribute("data-perkm");
+
+        if (perKm) {
+            currentRate = parseFloat(perKm);
+            document.getElementById("rate").innerText = "₱" + currentRate;
+        }
+
+        calculateEstimate();
+        toggleBookBtn();
+    });
+
+    document.getElementById("pickup")?.addEventListener("input", handleInput);
+    document.getElementById("dropoff")?.addEventListener("input", handleInput);
 
     document
         .getElementById("pickup")
-        ?.addEventListener("blur", calculateEstimate);
+        ?.addEventListener("paste", hideSuggestions);
     document
         .getElementById("dropoff")
-        ?.addEventListener("blur", calculateEstimate);
-    document
-        .getElementById("vehicleType")
-        ?.addEventListener("change", calculateEstimate);
-    document
-        .getElementById("serviceType")
-        ?.addEventListener("change", calculateEstimate);
+        ?.addEventListener("paste", hideSuggestions);
 
-    document.getElementById("pickup")?.addEventListener("input", (e) => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            getSuggestions(e.target.value, "pickupSuggestions", "pickup");
-        }, 400);
+    document.addEventListener("click", (e) => {
+        const isInsideInput = e.target.closest(".input-map-wrapper");
+        const isSuggestion = e.target.closest(".suggestions");
+
+        if (!isInsideInput && !isSuggestion) {
+            hideSuggestions();
+        }
     });
 
-    document.getElementById("dropoff")?.addEventListener("input", (e) => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            getSuggestions(e.target.value, "dropSuggestions", "dropoff");
-        }, 400);
+    document.getElementById("bookBtn")?.addEventListener("click", () => {
+        if (document.getElementById("bookBtn").disabled) return;
+
+        document.getElementById("summaryPickup").innerText =
+            document.getElementById("pickup").value;
+
+        document.getElementById("summaryDropoff").innerText =
+            document.getElementById("dropoff").value;
+
+        const vehicle = document.getElementById("vehicleType");
+        document.getElementById("summaryVehicle").innerText =
+            vehicle.options[vehicle.selectedIndex].text;
+
+        const service = document.getElementById("serviceType");
+        document.getElementById("summaryService").innerText =
+            service.options[service.selectedIndex].text;
+
+        document.getElementById("summaryDistance").innerText =
+            document.getElementById("distance").innerText;
+
+        document.getElementById("summaryPrice").innerText =
+            document.getElementById("price").innerText;
+
+        document.getElementById("confirmModal").classList.remove("hidden");
+    });
+
+    document.getElementById("cancelBtn")?.addEventListener("click", closeModal);
+
+    document.getElementById("confirmBtn")?.addEventListener("click", () => {
+        const btn = document.getElementById("confirmBtn");
+        btn.innerText = "Processing...";
+        btn.disabled = true;
+
+        if (!pickupCoords || !dropCoords) {
+            alert("Please select pickup and dropoff on the map");
+            btn.innerText = "Confirm";
+            btn.disabled = false;
+            return;
+        }
+
+        prepareBookingData();
+        document.getElementById("bookingForm").submit();
+    });
+
+    document.getElementById("confirmModal")?.addEventListener("click", (e) => {
+        if (e.target.id === "confirmModal") closeModal();
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeModal();
     });
 });
 
-async function getCoordinates(address) {
-    const res = await fetch(
-        `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(address)}`,
-    );
+function handleInput(e) {
+    clearTimeout(debounceTimer);
 
-    const data = await res.json();
+    const value = e.target.value.trim();
+    const id = e.target.id;
+    const containerId =
+        id === "pickup" ? "pickupSuggestions" : "dropSuggestions";
 
-    if (!data.features.length) return null;
+    if (!value) {
+        document.getElementById(containerId).innerHTML = "";
 
-    return data.features[0].geometry.coordinates;
+        if (id === "pickup") {
+            pickupCoords = null;
+            if (pickupMarker) map.removeLayer(pickupMarker);
+            pickupMarker = null;
+        } else {
+            dropCoords = null;
+            if (dropMarker) map.removeLayer(dropMarker);
+            dropMarker = null;
+        }
+
+        if (routeLayer) {
+            map.removeLayer(routeLayer);
+            routeLayer = null;
+        }
+
+        document.getElementById("distance").innerText = "0 km";
+        document.getElementById("price").innerText = "₱0.00";
+
+        toggleBookBtn();
+        return;
+    }
+
+    debounceTimer = setTimeout(() => {
+        getSuggestions(value, containerId, id);
+    }, 400);
+
+    toggleBookBtn();
+}
+
+function hideSuggestions() {
+    const pickup = document.getElementById("pickupSuggestions");
+    const drop = document.getElementById("dropSuggestions");
+
+    if (pickup) pickup.innerHTML = "";
+    if (drop) drop.innerHTML = "";
+}
+
+function closeModal() {
+    const modal = document.getElementById("confirmModal");
+    const confirmBtn = document.getElementById("confirmBtn");
+
+    modal.classList.add("hidden");
+    confirmBtn.innerText = "Confirm";
+    confirmBtn.disabled = false;
+}
+
+function toggleBookBtn() {
+    const pickup = document.getElementById("pickup")?.value.trim();
+    const dropoff = document.getElementById("dropoff")?.value.trim();
+    const bookBtn = document.getElementById("bookBtn");
+
+    if (!bookBtn) return;
+
+    if (pickup && dropoff && currentRate > 0) {
+        bookBtn.disabled = false;
+        bookBtn.classList.remove("disabled");
+    } else {
+        bookBtn.disabled = true;
+        bookBtn.classList.add("disabled");
+    }
+}
+
+function fitBothMarkers() {
+    if (!pickupCoords || !dropCoords) return;
+
+    const bounds = L.latLngBounds([
+        [pickupCoords[1], pickupCoords[0]],
+        [dropCoords[1], dropCoords[0]],
+    ]);
+
+    map.fitBounds(bounds, { padding: [50, 50] });
 }
 
 async function calculateEstimate() {
-    let start = pickupCoords;
-    let end = dropCoords;
-
-    if (!start) {
-        const pickup = document.getElementById("pickup").value;
-        start = await getCoordinates(pickup);
-    }
-
-    if (!end) {
-        const drop = document.getElementById("dropoff").value;
-        end = await getCoordinates(drop);
-    }
-
-    if (!start || !end) return;
+    if (!pickupCoords || !dropCoords) return;
 
     const vehicleSelect = document.getElementById("vehicleType");
     const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
@@ -104,7 +234,7 @@ async function calculateEstimate() {
     const serviceType = document.getElementById("serviceType").value;
 
     const res = await fetch(
-        "https://api.openrouteservice.org/v2/directions/driving-car",
+        "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
         {
             method: "POST",
             headers: {
@@ -112,30 +242,29 @@ async function calculateEstimate() {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                coordinates: [start, end],
+                coordinates: [pickupCoords, dropCoords],
             }),
         },
     );
 
     const data = await res.json();
+    if (!data.features || !data.features.length) return;
 
-    if (routeLayer) {
-        map.removeLayer(routeLayer);
-    }
+    if (routeLayer) map.removeLayer(routeLayer);
 
-    const routeCoords = data.routes[0].geometry.coordinates.map((c) => [
+    const routeCoords = data.features[0].geometry.coordinates.map((c) => [
         c[1],
         c[0],
     ]);
 
     routeLayer = L.polyline(routeCoords, {
-        color: "#16a34a",
+        color: "#22c55e",
         weight: 5,
     }).addTo(map);
 
     map.fitBounds(routeLayer.getBounds());
 
-    const distanceKm = data.routes[0].summary.distance / 1000;
+    const distanceKm = data.features[0].properties.summary.distance / 1000;
 
     let multiplier = 1;
     if (serviceType === "express") multiplier = 1.5;
@@ -145,39 +274,27 @@ async function calculateEstimate() {
 
     document.getElementById("distance").innerText =
         distanceKm.toFixed(2) + " km";
-
     document.getElementById("price").innerText = "₱" + total.toFixed(2);
 }
 
-window.openConfirmModal = function () {
-    const pickup = document.getElementById("pickup").value;
-    const drop = document.getElementById("dropoff").value;
-
-    if (!pickup || !drop) return;
-
-    document.getElementById("confirmModal")?.classList.remove("hidden");
-};
-
-window.closeConfirmModal = function () {
-    document.getElementById("confirmModal")?.classList.add("hidden");
-};
-
-window.submitBooking = async function () {
-    await calculateEstimate();
-
-    const success = document.getElementById("successModal");
-    if (success) success.classList.remove("hidden");
-
-    setTimeout(() => {
-        document.getElementById("bookingForm").submit();
-    }, 1200);
-};
+function prepareBookingData() {
+    document.getElementById("pickup_lat").value = pickupCoords[1];
+    document.getElementById("pickup_lng").value = pickupCoords[0];
+    document.getElementById("drop_lat").value = dropCoords[1];
+    document.getElementById("drop_lng").value = dropCoords[0];
+    document.getElementById("distance_input").value = document
+        .getElementById("distance")
+        .innerText.replace(" km", "");
+    document.getElementById("price_input").value = document
+        .getElementById("price")
+        .innerText.replace("₱", "");
+}
 
 async function getSuggestions(query, containerId, type) {
     if (!query) return;
 
     const res = await fetch(
-        `https://api.openrouteservice.org/geocode/autocomplete?api_key=${API_KEY}&text=${encodeURIComponent(query)}`,
+        `https://api.openrouteservice.org/geocode/autocomplete?api_key=${API_KEY}&text=${encodeURIComponent(query)}&boundary.country=PH&size=5`,
     );
 
     const data = await res.json();
@@ -196,22 +313,31 @@ async function getSuggestions(query, containerId, type) {
 
             if (type === "pickup") {
                 pickupCoords = coords;
-
                 if (pickupMarker) map.removeLayer(pickupMarker);
                 pickupMarker = L.marker([coords[1], coords[0]]).addTo(map);
                 map.setView([coords[1], coords[0]], 15);
             } else {
                 dropCoords = coords;
-
                 if (dropMarker) map.removeLayer(dropMarker);
                 dropMarker = L.marker([coords[1], coords[0]]).addTo(map);
             }
 
             container.innerHTML = "";
 
+            fitBothMarkers();
             calculateEstimate();
+            toggleBookBtn();
         };
 
         container.appendChild(div);
     });
+}
+
+async function getAddressFromCoords(lat, lng) {
+    const res = await fetch(
+        `https://api.openrouteservice.org/geocode/reverse?api_key=${API_KEY}&point.lat=${lat}&point.lon=${lng}`,
+    );
+
+    const data = await res.json();
+    return data.features?.[0]?.properties?.label || "Unknown location";
 }

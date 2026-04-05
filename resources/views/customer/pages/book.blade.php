@@ -63,6 +63,13 @@
                 <form id="bookingForm" method="POST" action="{{ route('customer.book.store') }}">
                     @csrf
 
+                    <input type="hidden" name="pickup_lat" id="pickup_lat">
+                    <input type="hidden" name="pickup_lng" id="pickup_lng">
+                    <input type="hidden" name="drop_lat" id="drop_lat">
+                    <input type="hidden" name="drop_lng" id="drop_lng">
+                    <input type="hidden" name="distance" id="distance_input">
+                    <input type="hidden" name="price" id="price_input">
+
                     <div class="form-card">
                         <div class="form-inner">
 
@@ -72,7 +79,7 @@
                                     <div class="input-wrapper">
                                         <label>Pickup Location</label>
                                         <div class="input-map-wrapper">
-                                            <input type="text" id="pickup" name="pickup_address">
+                                            <input type="text" id="pickup" name="pickup_address" required>
                                             <div id="pickupSuggestions" class="suggestions"></div>
                                         </div>
                                     </div>
@@ -82,7 +89,7 @@
                                     <div class="input-wrapper">
                                         <label>Dropoff Location</label>
                                         <div class="input-map-wrapper">
-                                            <input type="text" id="dropoff" name="dropoff_address">
+                                            <input type="text" id="dropoff" name="dropoff_address" required>
                                             <div id="dropSuggestions" class="suggestions"></div>
                                         </div>
                                     </div>
@@ -121,19 +128,34 @@
                         </div>
 
                         <div class="cost-card">
+
+                            <div class="cost-title">
+                                💲 Cost Estimate
+                            </div>
+
                             <div class="cost-row">
-                                <span>Distance</span>
+                                <span>Distance:</span>
                                 <strong id="distance">0 km</strong>
                             </div>
 
-                            <div class="cost-total">
-                                <span>Total</span>
-                                <h2 id="price">₱0</h2>
+                            <div class="cost-row">
+                                <span>Rate per KM:</span>
+                                <strong id="rate">₱0</strong>
                             </div>
 
-                            <button type="button" id="bookBtn" onclick="openConfirmModal()">
-                                Book Now
+                            <div class="cost-total">
+                                <span>Estimated Total:</span>
+                                <h2 id="price">₱0.00</h2>
+                            </div>
+
+                            <div class="cost-note">
+                                This is an estimated cost. Final price may vary based on actual conditions.
+                            </div>
+
+                            <button type="button" id="bookBtn">
+                                Request Towing Service
                             </button>
+
                         </div>
 
                     </div>
@@ -141,8 +163,69 @@
             </div>
 
         </div>
+
+        <div id="confirmModal" class="confirm-modal hidden">
+
+            <div class="booking-modal">
+
+                <!-- HEADER -->
+                <div class="modal-header">
+                    <h3>Confirm Booking</h3>
+                    <p>Please review your booking details</p>
+                </div>
+
+                <!-- SUMMARY -->
+                <div class="modal-body">
+
+                    <div class="summary-card">
+
+                        <div class="summary-row">
+                            <span>Pickup</span>
+                            <strong id="summaryPickup"></strong>
+                        </div>
+
+                        <div class="summary-row">
+                            <span>Dropoff</span>
+                            <strong id="summaryDropoff"></strong>
+                        </div>
+
+                        <div class="summary-row">
+                            <span>Vehicle</span>
+                            <strong id="summaryVehicle"></strong>
+                        </div>
+
+                        <div class="summary-row">
+                            <span>Service</span>
+                            <strong id="summaryService"></strong>
+                        </div>
+
+                        <div class="summary-row">
+                            <span>Distance</span>
+                            <strong id="summaryDistance"></strong>
+                        </div>
+
+                        <div class="summary-total">
+                            <span>Total</span>
+                            <h2 id="summaryPrice"></h2>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-actions">
+                    <button id="cancelBtn">Cancel</button>
+                    <button id="confirmBtn">Confirm Booking</button>
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="{{ asset('customer/js/map.js') }}"></script>
+    <script src="{{ asset('customer/js/dashboard.js') }}"></script>
+    <script src="{{ asset('customer/js/history.js') }}"></script>
 @endsection
