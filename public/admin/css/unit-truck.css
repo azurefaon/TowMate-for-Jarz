@@ -1,7 +1,3 @@
-/* =====================================
-PAGE LAYOUT
-===================================== */
-
 .page-container {
     padding: 30px 40px;
     width: 100%;
@@ -18,68 +14,74 @@ PAGE LAYOUT
     flex-wrap: wrap;
 }
 
-/* =====================================
+/* ======================
 FLEET SUMMARY
-===================================== */
+====================== */
 
 .fleet-summary {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 20px;
     margin-bottom: 30px;
 }
 
 .summary-card {
+    position: relative;
     background: white;
     border-radius: 14px;
-    padding: 20px 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    padding: 22px 24px;
+    overflow: hidden;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    transition: 0.2s ease;
 }
 
-.summary-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+.summary-card::after {
+    content: "";
+    position: absolute;
+    right: -20px;
+    top: -20px;
+    width: 90px;
+    height: 90px;
+    border-radius: 20px;
+    opacity: 0.15;
+}
+
+.summary-card.blue::after {
+    background: #3b82f6;
+}
+.summary-card.green::after {
+    background: #22c55e;
+}
+.summary-card.orange::after {
+    background: #f59e0b;
+}
+
+.summary-card.blue {
+    border-left: 4px solid #3b82f6;
+}
+.summary-card.green {
+    border-left: 4px solid #22c55e;
+}
+.summary-card.orange {
+    border-left: 4px solid #f59e0b;
+}
+
+.summary-icon {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    opacity: 0.08;
+    transform: scale(2.5);
 }
 
 .summary-left p {
-    font-size: 14px;
+    font-size: 13px;
     color: #6b7280;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
 }
 
 .summary-left h3 {
-    font-size: 30px;
+    font-size: 26px;
     font-weight: 700;
-}
-
-/* ICON */
-
-.summary-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.summary-icon.blue {
-    background: #e0e7ff;
-    color: #3b82f6;
-}
-
-.summary-icon.green {
-    background: #dcfce7;
-    color: #22c55e;
-}
-
-.summary-icon.gray {
-    background: #f3f4f6;
-    color: #6b7280;
 }
 
 .green {
@@ -88,13 +90,10 @@ FLEET SUMMARY
 .blue {
     color: #3b82f6;
 }
-.gray {
-    color: #6b7280;
-}
 
-/* =====================================
+/* ======================
 TABLE CARD
-===================================== */
+====================== */
 
 .table-card {
     background: white;
@@ -103,24 +102,20 @@ TABLE CARD
     overflow: hidden;
 }
 
-/* =====================================
-TABLE HEADER
-===================================== */
+/* HEADER */
 
 .table-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
+    padding: 18px 20px;
     border-bottom: 1px solid #eee;
-    gap: 15px;
-    flex-wrap: wrap;
 }
 
 .table-controls {
     display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
 }
 
 /* SEARCH */
@@ -130,76 +125,78 @@ TABLE HEADER
     align-items: center;
     gap: 8px;
     background: #f3f4f6;
-    padding: 8px 12px;
+    padding: 0 12px;
     border-radius: 10px;
+    height: 42px;
+    min-width: 220px;
 }
 
 .search-box input {
     border: none;
     background: none;
     outline: none;
+    width: 100%;
 }
 
 /* FILTER */
 
 .status-filter {
-    appearance: none;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    height: 42px;
+    min-width: 140px;
     border-radius: 10px;
-    padding: 9px 12px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    padding: 0 12px;
     font-size: 14px;
     cursor: pointer;
 }
 
-/* =====================================
-TABLE
-===================================== */
+/* ======================
+TABLE (COMPACT)
+====================== */
 
 .modern-table {
     width: 100%;
     border-collapse: separate;
-    border-spacing: 0 12px;
+    border-spacing: 0 8px;
 }
 
 .modern-table th {
     text-align: left;
-    font-size: 13px;
+    font-size: 12px;
     color: #6b7280;
-    padding: 14px 18px;
+    padding: 10px 16px;
 }
 
 .modern-table td {
-    padding: 18px;
+    padding: 14px 16px;
     background: white;
-    border: none;
 }
 
+/* ROW STYLE */
+
 .modern-table tbody tr {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid #f1f1f1;
     transition: 0.2s ease;
 }
 
 .modern-table tbody tr:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    border-color: #e5e7eb;
 }
 
-/* rounded card corners */
+/* ROUNDED */
 
 .modern-table tbody tr td:first-child {
-    border-top-left-radius: 12px;
-    border-bottom-left-radius: 12px;
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
 }
 
 .modern-table tbody tr td:last-child {
-    border-top-right-radius: 12px;
-    border-bottom-right-radius: 12px;
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
-/* =====================================
-UNIT CELL
-===================================== */
+/* UNIT */
 
 .unit-cell {
     display: flex;
@@ -208,79 +205,47 @@ UNIT CELL
 }
 
 .unit-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
     background: #e0e7ff;
     color: #4f46e5;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 12px;
     font-weight: 600;
 }
 
 .unit-name {
+    font-size: 14px;
     font-weight: 600;
 }
 
-/* PLATE */
+/* BADGES */
 
 .plate-badge {
     background: #f3f4f6;
-    padding: 6px 10px;
+    padding: 4px 8px;
     border-radius: 6px;
-    font-size: 13px;
-}
-
-/* TRUCK */
-
-.truck-cell {
-    text-align: center;
+    font-size: 12px;
 }
 
 .truck-badge {
     display: inline-block;
     background: #e0e7ff;
     color: #3730a3;
-    padding: 6px 14px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 500;
-}
-
-/* USERS */
-
-.user-cell {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
+    padding: 4px 10px;
+    border-radius: 8px;
     font-size: 12px;
-    font-weight: 600;
-}
-
-.avatar.blue {
-    background: #3b82f6;
-}
-.avatar.green {
-    background: #22c55e;
 }
 
 /* STATUS */
 
 .status-pill {
-    padding: 6px 14px;
+    padding: 4px 10px;
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
 }
 
@@ -300,7 +265,6 @@ UNIT CELL
 }
 
 /* BUTTON */
-
 .btn-secondary {
     display: inline-flex;
     align-items: center;
@@ -322,86 +286,9 @@ UNIT CELL
     font-size: 13px;
 }
 
-/* =====================================
-MOBILE TABLE → CARD MODE
-===================================== */
-
-@media (max-width: 768px) {
-    /* remove big white wrapper */
-    .table-card {
-        background: transparent;
-        box-shadow: none;
-        padding: 0;
-    }
-
-    /* hide table header */
-    .modern-table thead {
-        display: none;
-    }
-
-    /* convert table to block layout */
-    .modern-table,
-    .modern-table tbody,
-    .modern-table tr,
-    .modern-table td {
-        display: block;
-        width: 100%;
-    }
-
-    /* row becomes card */
-    .modern-table tr {
-        background: white;
-        border-radius: 14px;
-        padding: 16px;
-        margin-bottom: 18px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    }
-
-    /* remove default cell padding */
-    .modern-table td {
-        padding: 10px 0;
-        border-bottom: 1px solid #f1f1f1;
-    }
-
-    /* remove border on last row */
-    .modern-table td:last-child {
-        border-bottom: none;
-    }
-
-    /* field label */
-    .modern-table td::before {
-        display: block;
-        font-size: 12px;
-        font-weight: 600;
-        color: #6b7280;
-        margin-bottom: 4px;
-    }
-
-    /* labels */
-
-    .modern-table td:nth-child(1)::before {
-        content: "Unit";
-    }
-    .modern-table td:nth-child(2)::before {
-        content: "Plate";
-    }
-    .modern-table td:nth-child(3)::before {
-        content: "Truck Type";
-    }
-    .modern-table td:nth-child(4)::before {
-        content: "Team Leader";
-    }
-    .modern-table td:nth-child(5)::before {
-        content: "Driver";
-    }
-    .modern-table td:nth-child(6)::before {
-        content: "Status";
-    }
-}
-
-/* =====================================
+/* ======================
 RESPONSIVE
-===================================== */
+====================== */
 
 @media (max-width: 900px) {
     .fleet-summary {
@@ -419,15 +306,6 @@ RESPONSIVE
         align-items: flex-start;
     }
 
-    .header-actions {
-        width: 100%;
-    }
-
-    .btn-secondary {
-        width: 100%;
-        justify-content: center;
-    }
-
     .fleet-summary {
         grid-template-columns: 1fr;
     }
@@ -435,6 +313,7 @@ RESPONSIVE
     .table-header {
         flex-direction: column;
         align-items: flex-start;
+        gap: 10px;
     }
 
     .table-controls {
@@ -442,14 +321,7 @@ RESPONSIVE
         flex-direction: column;
     }
 
-    .search-box {
-        width: 100%;
-    }
-
-    .search-box input {
-        width: 100%;
-    }
-
+    .search-box,
     .status-filter {
         width: 100%;
     }

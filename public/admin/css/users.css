@@ -15,17 +15,16 @@
 }
 
 .user-management-page .filters {
+    display: flex;
     align-items: center;
-    border-radius: 12px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-    flex-wrap: wrap;
     gap: 12px;
+    flex-wrap: nowrap;
 }
 
 .user-management-page .search-container {
     position: relative;
-    width: 400px;
-    max-width: 100%;
+    width: 520px;
+    max-width: 150%;
 }
 
 .user-management-page .search-icon {
@@ -51,6 +50,8 @@
     border-radius: 10px;
     border: 1px solid #e5e7eb;
     font-size: 14px;
+    width: 180px;
+    height: 42px;
 }
 
 .user-management-page .btn-filter {

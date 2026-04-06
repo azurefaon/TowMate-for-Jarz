@@ -10,28 +10,24 @@
                 <p>Monitor and review all towing service bookings in the system.</p>
             </div>
 
-            <div class="booking-filters">
+            <form method="GET" class="booking-filters">
 
                 <div class="search-box">
                     <i data-lucide="search"></i>
-                    <input type="text" id="bookingSearch" placeholder="Search bookings, customers, or locations">
+                    <input type="text" name="search" value="{{ request('search') }}"
+                        placeholder="Search bookings, customers, or locations">
                 </div>
 
-                <select id="statusFilter">
+                <select name="status" onchange="this.form.submit()">
                     <option value="">All Status</option>
-                    <option value="requested">Requested</option>
-                    <option value="assigned">Assigned</option>
-                    <option value="on_job">On Job</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
+                    <option value="requested" {{ request('status') == 'requested' ? 'selected' : '' }}>Requests</option>
+                    <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
+                    <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
                 </select>
 
-            </div>
+            </form>
 
         </div>
-
-
-        {{-- SUMMARY CARDS --}}
 
         <div class="booking-summary">
 
@@ -39,48 +35,35 @@
                 <div class="summary-icon blue">
                     <i data-lucide="clipboard"></i>
                 </div>
-
-                <div class="summary-number">{{ $bookings->count() }}</div>
+                <div class="summary-number">{{ $bookings->total() }}</div>
                 <div class="summary-title">Total Bookings</div>
-                <div class="summary-desc">Total number of bookings in the system</div>
             </div>
-
 
             <div class="summary-card">
                 <div class="summary-icon yellow">
                     <i data-lucide="clock"></i>
                 </div>
-
                 <div class="summary-number">{{ $bookings->where('status', 'requested')->count() }}</div>
-                <div class="summary-title">Pending Requests</div>
-                <div class="summary-desc">Bookings waiting for dispatch</div>
+                <div class="summary-title">Requests</div>
             </div>
-
 
             <div class="summary-card">
                 <div class="summary-icon orange">
                     <i data-lucide="truck"></i>
                 </div>
-
-                <div class="summary-number">{{ $bookings->where('status', 'on_job')->count() }}</div>
-                <div class="summary-title">Active Jobs</div>
-                <div class="summary-desc">Units currently on job</div>
+                <div class="summary-number">{{ $bookings->whereIn('status', ['assigned', 'on_job'])->count() }}</div>
+                <div class="summary-title">Active</div>
             </div>
-
 
             <div class="summary-card">
                 <div class="summary-icon green">
                     <i data-lucide="check-circle"></i>
                 </div>
-
                 <div class="summary-number">{{ $bookings->where('status', 'completed')->count() }}</div>
-                <div class="summary-title">Completed Today</div>
-                <div class="summary-desc">Successfully completed bookings today</div>
+                <div class="summary-title">Completed</div>
             </div>
 
         </div>
-
-        {{-- BOOKINGS TABLE --}}
 
         <div class="booking-table-card">
 
@@ -88,39 +71,40 @@
 
                 <thead>
                     <tr>
-                        <th>BOOKING ID</th>
-                        <th>CUSTOMER</th>
-                        <th>TRUCK TYPE</th>
-                        <th>ASSIGNED UNIT</th>
-                        <th>PICKUP LOCATION</th>
-                        <th>DROP-OFF LOCATION</th>
-                        <th>DISTANCE</th>
-                        <th>TOTAL PRICE</th>
-                        <th>STATUS</th>
-                        <th>RECEIPT</th>
-                        <th>ACTION</th>
+                        <th>ID</th>
+                        <th>Customer</th>
+                        <th>Truck</th>
+                        <th>Unit</th>
+                        <th>Pickup</th>
+                        <th>Drop-off</th>
+                        <th>Distance</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th></th>
                     </tr>
                 </thead>
-
 
                 <tbody>
 
                     @foreach ($bookings as $booking)
-                        <tr data-status="{{ $booking->status }}"
-                            data-search="
-        {{ strtolower($booking->customer->full_name) }}
-        {{ strtolower($booking->pickup_address) }}
-        {{ strtolower($booking->dropoff_address) }}
-        {{ strtolower($booking->truckType->name) }} ">
+                        <tr>
 
-                            <td>BK-{{ $booking->id }}</td>
-                            <td>{{ $booking->customer->full_name }}</td>
+                            <td class="booking-id">BK-{{ $booking->id }}</td>
+
+                            <td>
+                                <div class="customer-name">{{ $booking->customer->full_name }}</div>
+                            </td>
+
                             <td>{{ $booking->truckType->name }}</td>
+
                             <td>{{ $booking->unit->name ?? 'Unassigned' }}</td>
-                            <td>{{ $booking->pickup_address }}</td>
-                            <td>{{ $booking->dropoff_address }}</td>
+
+                            <td class="location">{{ $booking->pickup_address }}</td>
+                            <td class="location">{{ $booking->dropoff_address }}</td>
+
                             <td>{{ $booking->distance_km }} km</td>
-                            <td>₱{{ number_format($booking->final_total, 2) }}</td>
+
+                            <td class="price">₱{{ number_format($booking->final_total, 2) }}</td>
 
                             <td>
                                 <span class="status {{ $booking->status }}">
@@ -129,18 +113,8 @@
                             </td>
 
                             <td>
-                                @if ($booking->receipt)
-                                    <a href="{{ asset($booking->receipt->pdf_path) }}" class="receipt-download">
-                                        Download
-                                    </a>
-                                @else
-                                    <span class="no-receipt">No Receipt</span>
-                                @endif
-                            </td>
-
-                            <td>
                                 <button onclick="openBooking({{ $booking->id }})" class="view-btn">
-                                    View Booking
+                                    View
                                 </button>
                             </td>
 
@@ -150,6 +124,7 @@
                 </tbody>
 
             </table>
+
             <div class="pagination-container">
                 {{ $bookings->links() }}
             </div>
@@ -158,14 +133,87 @@
 
     </div>
 
-    @include('superadmin.bookings.modal')
+    <div id="bookingModal" class="booking-modal">
+
+        <div class="booking-modal-content">
+
+            <div class="modal-header">
+                <h2 id="m_id"></h2>
+                <button onclick="closeBooking()">✕</button>
+            </div>
+
+            <div class="modal-grid">
+
+                <div class="modal-card">
+
+                    <div class="modal-section">
+                        <span class="label">Customer</span>
+                        <h3 id="m_customer"></h3>
+                    </div>
+
+                    <div class="modal-section">
+                        <span class="label">Truck</span>
+                        <h3 id="m_truck"></h3>
+                    </div>
+
+                    <div class="modal-section">
+                        <span class="label">Assigned Unit</span>
+                        <h3 id="m_unit"></h3>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="modal-section">
+                        <span class="label">Pickup</span>
+                        <p id="m_pickup"></p>
+                    </div>
+
+                    <div class="modal-section">
+                        <span class="label">Drop-off</span>
+                        <p id="m_dropoff"></p>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="modal-inline">
+                        <div>
+                            <span class="label">Distance</span>
+                            <h4 id="m_distance"></h4>
+                        </div>
+                        <div>
+                            <span class="label">Total</span>
+                            <h4 id="m_total"></h4>
+                        </div>
+                    </div>
+
+                    <span id="m_status" class="status"></span>
+
+                </div>
+
+                <div class="modal-card receipt">
+
+                    <span class="label">Receipt</span>
+                    <h3 id="m_receipt"></h3>
+
+                    <a id="m_download" class="download-btn">Download Receipt</a>
+
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button onclick="closeBooking()" class="close-btn">Close</button>
+            </div>
+
+        </div>
+
+    </div>
 @endsection
 
 
 @push('scripts')
     <script>
         function openBooking(id) {
-
             fetch(`/superadmin/bookings/${id}`)
                 .then(res => res.json())
                 .then(data => {
@@ -179,59 +227,34 @@
                     document.getElementById('m_dropoff').innerText = data.dropoff_address
 
                     document.getElementById('m_distance').innerText = data.distance_km + " km"
-                    document.getElementById('m_base').innerText = "₱" + data.base_rate
-                    document.getElementById('m_km').innerText = "₱" + data.per_km_rate
-
                     document.getElementById('m_total').innerText = "₱" + data.final_total
                     document.getElementById('m_status').innerText = data.status
 
                     if (data.receipt) {
                         document.getElementById('m_receipt').innerText = data.receipt.receipt_number
                         document.getElementById('m_download').href = "/" + data.receipt.pdf_path
+                    } else {
+                        document.getElementById('m_receipt').innerText = "No receipt"
+                        document.getElementById('m_download').style.display = "none"
                     }
 
                     document.getElementById('bookingModal').style.display = "flex"
-
                 })
-
         }
 
         function closeBooking() {
             document.getElementById('bookingModal').style.display = "none"
         }
 
-        document.addEventListener("DOMContentLoaded", function() {
+        const searchInput = document.querySelector('[name="search"]');
 
-            const searchInput = document.getElementById("bookingSearch")
-            const statusFilter = document.getElementById("statusFilter")
-            const rows = document.querySelectorAll(".booking-table tbody tr")
+        let timer;
 
-            function filterBookings() {
-
-                const searchValue = searchInput.value.toLowerCase()
-                const statusValue = statusFilter.value
-
-                rows.forEach(row => {
-
-                    const searchData = row.dataset.search
-                    const statusData = row.dataset.status
-
-                    const matchSearch = searchData.includes(searchValue)
-                    const matchStatus = statusValue === "" || statusData === statusValue
-
-                    if (matchSearch && matchStatus) {
-                        row.style.display = ""
-                    } else {
-                        row.style.display = "none"
-                    }
-
-                })
-
-            }
-
-            searchInput.addEventListener("keyup", filterBookings)
-            statusFilter.addEventListener("change", filterBookings)
-
-        })
+        searchInput.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                searchInput.form.submit();
+            }, 500);
+        });
     </script>
 @endpush

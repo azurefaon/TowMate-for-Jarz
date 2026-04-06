@@ -12,54 +12,33 @@
 
         <div class="table-card">
 
-            {{-- TABLE HEADER FILTER BAR --}}
             <div class="table-header">
 
                 <form method="GET" class="filters">
 
                     <div class="search-container">
                         <i data-lucide="search" class="search-icon"></i>
-
                         <input type="text" name="search" value="{{ request('search') }}"
                             placeholder="Search by name or email..." class="search-input">
                     </div>
 
                     <select name="role" class="filter-select">
                         <option value="">All Roles</option>
-
                         @foreach ($roles as $role)
                             <option value="{{ $role->id }}" {{ request('role') == $role->id ? 'selected' : '' }}>
                                 {{ $role->name }}
                             </option>
                         @endforeach
-
                     </select>
 
                     <select name="status" class="filter-select">
-
                         <option value="">All Status</option>
-
-                        <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>
-                            Active
-                        </option>
-
-                        <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>
-                            Inactive
-                        </option>
-
+                        <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
+                        <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Inactive</option>
                     </select>
-
-                    <button type="submit" class="btn-filter">
-                        Filter
-                    </button>
-
-                    <a href="{{ route('superadmin.users.index') }}" class="btn-reset">
-                        Reset
-                    </a>
 
                 </form>
 
-                {{-- RIGHT SIDE ACTIONS --}}
                 <div class="table-actions-right">
 
                     <span class="table-count">
@@ -147,12 +126,10 @@
                 </table>
             </div>
 
-            {{-- Pagination --}}
             {{ $users->appends(request()->query())->links('vendor.pagination.custom') }}
 
         </div>
 
-        {{-- EDIT MODAL --}}
         <div id="editModal" class="modal">
 
             <div class="modal-card">
@@ -212,6 +189,26 @@
                 const modal = document.getElementById('editModal');
                 const form = document.getElementById('editForm');
                 let currentUserId = null;
+
+                const filterForm = document.querySelector('.filters');
+
+                const inputs = filterForm.querySelectorAll('input, select');
+
+                let debounceTimer;
+
+                inputs.forEach(input => {
+                    input.addEventListener('input', () => {
+                        clearTimeout(debounceTimer);
+
+                        debounceTimer = setTimeout(() => {
+                            filterForm.submit();
+                        }, 400);
+                    });
+
+                    input.addEventListener('change', () => {
+                        filterForm.submit();
+                    });
+                });
 
                 document.querySelectorAll('.edit-btn').forEach(btn => {
                     btn.addEventListener('click', function() {

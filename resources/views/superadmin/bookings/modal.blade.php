@@ -4,67 +4,87 @@
 
         <div class="modal-header">
 
-            <h2>Booking Details</h2>
-
             <button onclick="closeBooking()">✕</button>
 
         </div>
 
 
-        <div class="modal-grid">
+        <div id="bookingModal" class="booking-modal">
 
-            {{-- LEFT CARD --}}
+            <div class="booking-modal-content">
 
-            <div class="modal-card">
+                <div class="modal-header">
+                    <h2>BK-<span id="m_id"></span></h2>
+                    <button onclick="closeBooking()">✕</button>
+                </div>
 
-                <h3>Booking Information</h3>
+                <div class="modal-grid">
 
-                <p><strong>Booking ID:</strong> <span id="m_id"></span></p>
-                <p><strong>Customer:</strong> <span id="m_customer"></span></p>
-                <p><strong>Truck Type:</strong> <span id="m_truck"></span></p>
-                <p><strong>Assigned Unit:</strong> <span id="m_unit"></span></p>
+                    <div class="modal-card">
 
-                <hr>
+                        <div class="modal-section">
+                            <span class="label">Customer</span>
+                            <h3 id="m_customer"></h3>
+                        </div>
 
-                <p><strong>Pickup:</strong> <span id="m_pickup"></span></p>
-                <p><strong>Dropoff:</strong> <span id="m_dropoff"></span></p>
+                        <div class="modal-section">
+                            <span class="label">Truck Type</span>
+                            <h3 id="m_truck"></h3>
+                        </div>
 
-                <hr>
+                        <div class="modal-section">
+                            <span class="label">Assigned Unit</span>
+                            <h3 id="m_unit"></h3>
+                        </div>
 
-                <p><strong>Distance:</strong> <span id="m_distance"></span></p>
-                <p><strong>Base Rate:</strong> <span id="m_base"></span></p>
-                <p><strong>Per KM Rate:</strong> <span id="m_km"></span></p>
+                        <div class="divider"></div>
 
-                <h2 id="m_total"></h2>
+                        <div class="modal-section">
+                            <span class="label">Pickup</span>
+                            <p id="m_pickup"></p>
+                        </div>
 
-                <span id="m_status" class="status"></span>
+                        <div class="modal-section">
+                            <span class="label">Drop-off</span>
+                            <p id="m_dropoff"></p>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div class="modal-inline">
+                            <div>
+                                <span class="label">Distance</span>
+                                <h4 id="m_distance"></h4>
+                            </div>
+                            <div>
+                                <span class="label">Total</span>
+                                <h4 id="m_total"></h4>
+                            </div>
+                        </div>
+
+                        <span id="m_status" class="status"></span>
+
+                    </div>
+
+                    <div class="modal-card receipt">
+
+                        <span class="label">Receipt</span>
+
+                        <h3 id="m_receipt"></h3>
+
+                        <a id="m_download" class="download-btn">
+                            Download Receipt
+                        </a>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+                    <button onclick="closeBooking()" class="close-btn">Close</button>
+                </div>
 
             </div>
-
-
-            {{-- RECEIPT CARD --}}
-
-            <div class="modal-card">
-
-                <h3>Receipt Panel</h3>
-
-                <p>Receipt Number</p>
-                <strong id="m_receipt"></strong>
-
-                <a id="m_download" class="download-btn">
-                    Download Receipt
-                </a>
-
-            </div>
-
-        </div>
-
-
-        <div class="modal-footer">
-
-            <button onclick="closeBooking()" class="close-btn">
-                Close
-            </button>
 
         </div>
 

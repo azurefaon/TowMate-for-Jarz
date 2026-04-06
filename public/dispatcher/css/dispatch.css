@@ -1,0 +1,164 @@
+.incoming-section {
+    margin-bottom: 30px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.section-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.section-header .count {
+    background: #15803d;
+    color: #fff;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.incoming-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.incoming-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: 0.2s;
+}
+
+.incoming-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.05);
+}
+
+.incoming-info p {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.time {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.incoming-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-assign {
+    background: #15803d;
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-assign:hover {
+    background: #166534;
+}
+
+.empty {
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+.section-sub {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.incoming-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.25s ease;
+}
+
+.incoming-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+
+.incoming-left {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.incoming-route {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.incoming-route strong {
+    color: #0f172a;
+}
+
+.arrow {
+    color: #94a3b8;
+}
+
+.incoming-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.time {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.status-badge {
+    font-size: 11px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.status-badge.new {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.btn-assign {
+    background: #15803d;
+    color: #fff;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-assign:hover {
+    background: #166534;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 20px;
+    color: #94a3b8;
+}

@@ -9,18 +9,37 @@ use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $bookings = \App\Models\Booking::with([
+        $query = Booking::with([
             'customer',
             'truckType',
             'unit',
             'receipt'
-        ])->latest()->paginate(7);
+        ]);
+
+        if ($request->search) {
+            $query->where(function ($q) use ($request) {
+                $q->whereHas('customer', function ($q2) use ($request) {
+                    $q2->where('full_name', 'like', '%' . $request->search . '%');
+                })
+                    ->orWhere('pickup_address', 'like', '%' . $request->search . '%')
+                    ->orWhere('dropoff_address', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        if ($request->status) {
+            if ($request->status === 'active') {
+                $query->whereIn('status', ['assigned', 'on_job']);
+            } else {
+                $query->where('status', $request->status);
+            }
+        }
+
+        $bookings = $query->latest()->paginate(10)->withQueryString();
 
         return view('superadmin.bookings.index', compact('bookings'));
     }
-
 
     public function show($id)
     {
@@ -31,7 +50,7 @@ class BookingController extends Controller
             'receipt'
         ])->findOrFail($id);
 
-        return view('superadmin.bookings.show', compact('booking'));
+        return response()->json($booking);
     }
 
     public function store(Request $request)
@@ -39,24 +58,31 @@ class BookingController extends Controller
         $customer = Auth::user()->customer;
         $admin = \App\Models\User::where('role_id', 1)->first();
 
+        $truck = \App\Models\TruckType::findOrFail($request->truck_type_id);
+
+        $distanceKm = $request->distance_km ?? 0;
+
+        $base = $truck->base_rate;
+        $perKm = $truck->per_km_rate;
+
+        $extraKm = max(0, $distanceKm - 4);
+        $distanceCost = $extraKm * $perKm;
+
+        $total = $base + $distanceCost;
+
         Booking::create([
             'customer_id' => $customer->id,
-
-            'truck_type_id' => 1,
-
+            'truck_type_id' => $truck->id,
             'pickup_address' => $request->pickup_address,
             'dropoff_address' => $request->dropoff_address,
-
-            'distance_km' => 0,
-            'base_rate' => 100,
-            'per_km_rate' => 50,
-            'final_total' => 0,
-
+            'distance_km' => $distanceKm,
+            'base_rate' => $base,
+            'per_km_rate' => $perKm,
+            'final_total' => $total,
             'status' => 'requested',
-
             'created_by_admin_id' => $admin->id,
         ]);
 
-        return redirect()->back()->with('success', 'Booking Created');
+        return back();
     }
 }

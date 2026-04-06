@@ -26,7 +26,7 @@ class TruckTypeController extends Controller
 
         TruckType::create($validated);
 
-        return redirect() ->route('superadmin.truck-types.index') ->with('success', 'Truck type created successfully.');
+        return redirect()->route('superadmin.truck-types.index')->with('success', 'Truck type created successfully.');
     }
 
     public function update(Request $request, TruckType $truckType)
@@ -41,9 +41,7 @@ class TruckTypeController extends Controller
 
         $truckType->update($validated);
 
-        return redirect()
-            ->route('superadmin.truck-types.index')
-            ->with('success', 'Truck type updated successfully.');
+        return redirect()->route('superadmin.truck-types.index');
     }
 
     public function toggleStatus(TruckType $truckType)
@@ -52,6 +50,6 @@ class TruckTypeController extends Controller
             'status' => $truckType->status === 'active' ? 'inactive' : 'active'
         ]);
 
-        return back()->with('success', 'Truck type status updated.');
+        return back();
     }
 }

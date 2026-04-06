@@ -9,6 +9,9 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\VerificationController;
 
+use App\Http\Controllers\Admin\DashboardController as AdminController;
+use App\Http\Controllers\Admin\DispatchController;
+
 use App\Http\Controllers\Customer\DashboardController;
 use App\Http\Controllers\Customer\HistoryController;
 use App\Http\Controllers\Customer\TrackController;
@@ -27,7 +30,7 @@ Route::get('/dashboard', function () {
     $role = Auth::user()->role_id;
 
     if ($role == 1) return redirect('/superadmin');
-    if ($role == 2) return redirect('/admin');
+    if ($role == 2) return redirect('/admin-dashboard');
     if ($role == 3) return redirect('/teamleader');
     if ($role == 5) return redirect()->route('customer.dashboard');
 
@@ -42,7 +45,6 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__ . '/auth.php';
 
-Route::get('/admin', fn() => view('admin.dashboard'))->middleware(['auth', 'role:2']);
 Route::get('/teamleader', fn() => view('teamleader.dashboard'))->middleware(['auth', 'role:3']);
 Route::get('/driver', fn() => view('driver.dashboard'))->middleware(['auth', 'role:4']);
 
@@ -51,6 +53,23 @@ Route::get(
     fn() =>
     \App\Models\Booking::where('status', 'request')->count()
 );
+
+Route::prefix('admin-dashboard')
+    ->name('admin.')
+    ->middleware(['auth', 'role:2'])
+    ->group(function () {
+
+        Route::get('/', [AdminController::class, 'index'])->name('dashboard');
+
+        Route::get('/available-units', [UnitController::class, 'available'])
+            ->name('available-units');
+
+        Route::get('/dispatch', [DispatchController::class, 'index'])->name('dispatch');
+
+        Route::get('/jobs', function () {
+            return 'Jobs Page';
+        })->name('jobs');
+    });
 
 Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'role:1'])->group(function () {
 
