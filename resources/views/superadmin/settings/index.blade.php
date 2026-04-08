@@ -22,56 +22,131 @@
             <button class="settings-tab" data-tab="appearance">Appearance</button>
         </div>
 
+        <div class="settings-content active" id="company">
 
-
-        <form method="POST" action="{{ route('superadmin.settings.update') }}">
-            @csrf
-
-
-
-            <!-- COMPANY -->
-
-            <div class="settings-content active" id="company">
+            <form action="{{ route('superadmin.settings.landing.update') }}" method="POST" enctype="multipart/form-data">
+                @csrf
 
                 <div class="settings-card">
 
                     <div class="settings-card-header">
                         <h3>Company Information</h3>
-                        <p>Update your company details and contact information</p>
+                        <p>Manage landing page content</p>
                     </div>
 
                     <div class="settings-grid">
 
                         <div class="settings-field">
                             <label>Company Name</label>
-                            <input type="text" name="settings[company_name]"
-                                value="{{ $settings['company_name'] ?? '' }}">
+                            <input type="text" value="JARZ" disabled>
                         </div>
 
                         <div class="settings-field">
-                            <label>Email Address</label>
-                            <input type="email" name="settings[company_email]"
-                                value="{{ $settings['company_email'] ?? '' }}">
+                            <label>Phone</label>
+                            <input type="text" name="contact_phone" value="{{ $landing->contact_phone ?? '' }}"
+                                placeholder="09123456789" pattern="^09\d{9}$" maxlength="11" inputmode="numeric" required>
                         </div>
 
                         <div class="settings-field">
-                            <label>Phone Number</label>
-                            <input type="text" name="settings[company_phone]"
-                                value="{{ $settings['company_phone'] ?? '' }}">
+                            <label>Email</label>
+                            <input type="email" name="contact_email" value="{{ $landing->contact_email ?? '' }}"
+                                placeholder="company@gmail.com" pattern="^[a-zA-Z0-9._%+-]+@gmail\.com$" required>
                         </div>
 
                         <div class="settings-field">
-                            <label>Business Address</label>
-                            <textarea name="settings[company_address]">{{ $settings['company_address'] ?? '' }}</textarea>
+                            <label>Location</label>
+                            <input type="text" name="contact_location" value="{{ $landing->contact_location ?? '' }}"
+                                placeholder="City, Philippines">
                         </div>
 
                     </div>
 
+                    <hr class="settings-divider">
+
+                    <div class="settings-section">
+                        <h4>Landing Page Images</h4>
+
+                        <div class="settings-grid">
+
+                            <!-- HERO -->
+                            <div class="settings-field">
+                                <label>Hero Section Image (Top Banner)</label>
+
+                                @if ($landing && $landing->hero_image)
+                                    <img src="{{ asset('storage/' . $landing->hero_image) }}" class="preview-img">
+                                @endif
+
+                                <input type="file" name="hero_image">
+                            </div>
+
+                            <!-- ABOUT -->
+                            <div class="settings-field">
+                                <label>About Section Image</label>
+
+                                @if ($landing && $landing->about_image)
+                                    <img src="{{ asset('storage/' . $landing->about_image) }}" class="preview-img">
+                                @endif
+
+                                <input type="file" name="about_image">
+                            </div>
+
+                            <!-- FEATURED WORK -->
+                            <div class="settings-field">
+                                <label>Featured Work Image (Large)</label>
+
+                                @if ($landing && $landing->portfolio_main)
+                                    <img src="{{ asset('storage/' . $landing->portfolio_main) }}" class="preview-img">
+                                @endif
+
+                                <input type="file" name="portfolio_main">
+                            </div>
+
+                            <!-- COMPLETED JOBS -->
+                            <div class="settings-field">
+                                <label>Completed Job Image #1</label>
+
+                                @if ($landing && $landing->portfolio_1)
+                                    <img src="{{ asset('storage/' . $landing->portfolio_1) }}" class="preview-img">
+                                @endif
+
+                                <input type="file" name="portfolio_1">
+                            </div>
+
+                            <div class="settings-field">
+                                <label>Completed Job Image #2</label>
+
+                                @if ($landing && $landing->portfolio_2)
+                                    <img src="{{ asset('storage/' . $landing->portfolio_2) }}" class="preview-img">
+                                @endif
+
+                                <input type="file" name="portfolio_2">
+                            </div>
+
+                            <div class="settings-field">
+                                <label>Completed Job Image #3</label>
+
+                                @if ($landing && $landing->portfolio_3)
+                                    <img src="{{ asset('storage/' . $landing->portfolio_3) }}" class="preview-img">
+                                @endif
+
+                                <input type="file" name="portfolio_3">
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button type="submit" class="settings-save">Save Landing Page</button>
+                    </div>
+
                 </div>
 
-            </div>
+            </form>
 
+        </div>
 
+        <form method="POST" action="{{ route('superadmin.settings.update') }}">
+            @csrf
 
             <!-- NOTIFICATIONS -->
 
@@ -401,8 +476,6 @@
 
             </div>
 
-
-
             <!-- SAVE BUTTON -->
 
             <div class="settings-actions">
@@ -427,6 +500,27 @@
     <script>
         const tabs = document.querySelectorAll(".settings-tab");
         const contents = document.querySelectorAll(".settings-content");
+
+        const phoneInput = document.querySelector('input[name="contact_phone"]');
+        const emailInput = document.querySelector('input[name="contact_email"]');
+
+        // numbers only max 11
+        phoneInput.addEventListener("input", () => {
+            phoneInput.value = phoneInput.value.replace(/[^0-9]/g, "");
+
+            if (phoneInput.value.length > 11) {
+                phoneInput.value = phoneInput.value.slice(0, 11);
+            }
+        });
+
+        // gmail only
+        emailInput.addEventListener("input", () => {
+            if (!emailInput.value.endsWith("@gmail.com")) {
+                emailInput.setCustomValidity("Gmail only allowed");
+            } else {
+                emailInput.setCustomValidity("");
+            }
+        });
 
         tabs.forEach(tab => {
 

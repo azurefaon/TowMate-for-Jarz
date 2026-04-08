@@ -14,7 +14,7 @@ class SystemSetting extends Model
     public static function allCached()
     {
         return Cache::rememberForever(self::$cacheKey, function () {
-            return self::all()->pluck('setting_value', 'key');
+            return self::all()->pluck('value', 'key');
         });
     }
 

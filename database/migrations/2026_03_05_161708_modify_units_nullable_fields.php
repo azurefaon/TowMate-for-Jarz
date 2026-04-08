@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('unit-truck', function (Blueprint $table) {
+        Schema::table('units', function (Blueprint $table) {
             $table->unsignedBigInteger('team_leader_id')->nullable()->change();
             $table->unsignedBigInteger('driver_id')->nullable()->change();
         });
@@ -22,7 +22,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('unit-truck', function (Blueprint $table) {
+        Schema::table('units', function (Blueprint $table) {
             $table->unsignedBigInteger('team_leader_id')->nullable(false)->change();
             $table->unsignedBigInteger('driver_id')->nullable(false)->change();
         });

@@ -9,6 +9,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\VerificationController;
 
+use App\Http\Controllers\LandingController;
+
 use App\Http\Controllers\Admin\DashboardController as AdminController;
 use App\Http\Controllers\Admin\DispatchController;
 
@@ -16,6 +18,7 @@ use App\Http\Controllers\Customer\DashboardController;
 use App\Http\Controllers\Customer\HistoryController;
 use App\Http\Controllers\Customer\TrackController;
 use App\Http\Controllers\Customer\BookingController as CustomerBookingController;
+use App\Http\Controllers\TeamLeaderController;
 
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\TruckTypeController;
@@ -24,7 +27,20 @@ use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingContro
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\SystemSettingsController;
 
-Route::get('/', fn() => redirect('/login'));
+// Route::get('/', fn() => redirect('/login'));
+
+Route::get('/book', function () {
+    $truckTypes = TruckType::all();
+    return view('landing.form', compact('truckTypes'));
+})->name('landing.book');
+
+// =================================================================================
+
+Route::get('/', [LandingController::class, 'index'])->name('landing');
+
+
+Route::post('/book', [CustomerBookingController::class, 'landingStore'])
+    ->name('landing.book.store');
 
 Route::get('/dashboard', function () {
     $role = Auth::user()->role_id;
@@ -46,12 +62,13 @@ Route::middleware('auth')->group(function () {
 require __DIR__ . '/auth.php';
 
 Route::get('/teamleader', fn() => view('teamleader.dashboard'))->middleware(['auth', 'role:3']);
+Route::get('/teamleader/bookings', [TeamLeaderController::class, 'index'])->middleware(['auth', 'role:3'])->name('teamleader.bookings');
 Route::get('/driver', fn() => view('driver.dashboard'))->middleware(['auth', 'role:4']);
 
 Route::get(
     '/admin/pending-bookings-count',
     fn() =>
-    \App\Models\Booking::where('status', 'request')->count()
+    \App\Models\Booking::where('status', 'requested')->count()
 );
 
 Route::prefix('admin-dashboard')
@@ -65,6 +82,9 @@ Route::prefix('admin-dashboard')
             ->name('available-units');
 
         Route::get('/dispatch', [DispatchController::class, 'index'])->name('dispatch');
+
+        Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])
+            ->name('booking.assign');
 
         Route::get('/jobs', function () {
             return 'Jobs Page';
@@ -93,6 +113,9 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'role:1'])
 
     Route::get('/settings', [SystemSettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/update', [SystemSettingsController::class, 'update'])->name('settings.update');
+
+    Route::post('/settings/landing', [SystemSettingsController::class, 'updateLanding'])
+        ->name('settings.landing.update');
 
     Route::get('/dashboard-stats', function () {
 

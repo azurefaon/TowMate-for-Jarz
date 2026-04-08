@@ -4,9 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title')</title>
 
     <link rel="stylesheet" href="{{ asset('dispatcher/css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ asset('dispatcher/css/sidebar.css') }}">
     <link rel="stylesheet" href="{{ asset('dispatcher/css/dispatch.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -46,7 +48,12 @@
 
     <script src="{{ asset('dispatcher/js/dispatch.js') }}"></script>
     <script>
-        lucide.createIcons();
+        window.PusherConfig = {
+            key: '{{ config('broadcasting.connections.pusher.key', 'local') }}',
+            cluster: '{{ config('broadcasting.connections.pusher.options.cluster', 'mt1') }}'
+        };
+    </script>
+    lucide.createIcons();
     </script>
 
 </body>

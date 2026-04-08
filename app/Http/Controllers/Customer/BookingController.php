@@ -2,53 +2,100 @@
 
 namespace App\Http\Controllers\Customer;
 
+use App\Events\NewBooking;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\BookingRequest;
+use App\Http\Requests\LandingBookingRequest;
+use App\Mail\BookingReceiptMail;
+use App\Services\BookingService;
 use App\Models\Booking;
+use App\Models\TruckType;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class BookingController extends Controller
 {
-    public function store(Request $request)
+    protected BookingService $bookingService;
+
+    public function __construct(BookingService $bookingService)
     {
-        $request->validate([
-            'pickup_address' => 'required|string',
-            'dropoff_address' => 'required|string',
-            'pickup_lat' => 'required',
-            'pickup_lng' => 'required',
-            'drop_lat' => 'required',
-            'drop_lng' => 'required',
-            'truck_type_id' => 'required',
-            'distance' => 'required',
-            'price' => 'required',
+        $this->bookingService = $bookingService;
+    }
+
+    public function store(BookingRequest $request)
+    {
+        $booking = $this->bookingService->createBooking($request->validatedData(), Auth::user());
+
+        broadcast(new NewBooking($booking));
+
+        return redirect()->route('landing')
+            ->with('success', 'Booking created successfully! Booking ID: #' . $booking->id . '. We will contact you shortly.');
+    }
+
+    public function landingStore(LandingBookingRequest $request)
+    {
+        $data = $request->validatedData();
+
+        // Find truck type by name
+        $truckType = \App\Models\TruckType::where('name', 'like', '%' . $data['truck_type_id'] . '%')->first();
+        if (!$truckType) {
+            // If not found, default to first available
+            $truckType = \App\Models\TruckType::first();
+        }
+        if (!$truckType) {
+            // If still no truck type, return error
+            return back()->withErrors(['truck_type_id' => 'No vehicle types available. Please contact support.']);
+        }
+        $data['truck_type_id'] = $truckType->id;
+
+        // Create customer
+        $customer = \App\Models\Customer::create([
+            'full_name' => $data['full_name'],
+            'age' => $data['age'],
+            'phone' => $data['phone'],
+            'email' => $data['email'] ?? null,
+            'is_pwd' => $data['is_pwd'],
+            'is_senior' => $data['is_senior'],
         ]);
 
-        $customer = Auth::user()->customer;
+        // Handle image upload
+        if ($request->hasFile('vehicle_image')) {
+            $imagePath = $request->file('vehicle_image')->store('vehicle_images', 'public');
+            $data['vehicle_image'] = $imagePath;
+        }
 
-        $distance = floatval(str_replace(' km', '', $request->distance));
-        $price = floatval(str_replace(['₱', ','], '', $request->price));
-
-        $booking = Booking::create([
+        // Create booking
+        $booking = \App\Models\Booking::create([
             'customer_id' => $customer->id,
-
-            'truck_type_id' => $request->truck_type_id,
-
-            'pickup_address' => $request->pickup_address,
-            'pickup_lat' => $request->pickup_lat,
-            'pickup_lng' => $request->pickup_lng,
-
-            'dropoff_address' => $request->dropoff_address,
-            'dropoff_lat' => $request->drop_lat,
-            'dropoff_lng' => $request->drop_lng,
-
-            'distance_km' => $distance,
-            'base_rate' => 100,
-            'per_km_rate' => 50,
-            'final_total' => $price,
-
-            'status' => 'requested',
+            'truck_type_id' => $data['truck_type_id'],
+            'age' => $data['age'],
+            'created_by_admin_id' => null, // Landing booking, no admin
+            'pickup_address' => $data['pickup_address'],
+            'pickup_lat' => $data['pickup_lat'],
+            'pickup_lng' => $data['pickup_lng'],
+            'dropoff_address' => $data['dropoff_address'],
+            'drop_lat' => $data['drop_lat'],
+            'drop_lng' => $data['drop_lng'],
+            'notes' => $data['notes'],
+            'status' => 'requested', // Requested status for dispatcher to assign
         ]);
 
-        return redirect()->route('customer.track', $booking->id);
+        if ($customer->email) {
+            try {
+                Mail::to($customer->email)->send(new BookingReceiptMail($booking));
+            } catch (\Exception $e) {
+                Log::error('Failed to send booking receipt email', [
+                    'booking_id' => $booking->id,
+                    'customer_email' => $customer->email,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        broadcast(new NewBooking($booking));
+
+        return redirect()->route('landing')
+            ->with('success', 'Booking created successfully! Booking ID: #' . $booking->id . '. We will contact you shortly.' . ($customer->email ? ' A receipt has been sent to ' . $customer->email . '.' : ''));
     }
 }

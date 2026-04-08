@@ -18,6 +18,8 @@ class Booking extends Model
         'customer_id',
         'truck_type_id',
         'assigned_unit_id',
+        'created_by_admin_id',
+        'age',
 
         'pickup_address',
         'pickup_lat',
@@ -30,10 +32,14 @@ class Booking extends Model
         'distance_km',
         'base_rate',
         'per_km_rate',
+        'computed_total',
         'final_total',
+        'notes',
+        'quotation_number',
+        'quotation_generated',
+        'rejection_reason',
 
         'status',
-        'created_by_admin_id',
     ];
 
     public function customer()

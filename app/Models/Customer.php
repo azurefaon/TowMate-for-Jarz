@@ -14,8 +14,11 @@ class Customer extends Model
         'user_id',
         'customer_code',
         'full_name',
+        'age',
         'phone',
         'email',
+        'is_pwd',
+        'is_senior',
     ];
 
     public function bookings()

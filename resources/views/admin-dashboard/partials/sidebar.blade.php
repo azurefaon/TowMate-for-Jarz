@@ -9,24 +9,27 @@
 
         <p class="menu-label">MAIN</p>
 
-        <a href="{{ route('admin.dashboard') }}" class="menu-item active">
+        <a href="{{ route('admin.dashboard') }}"
+            class="menu-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
             <i data-lucide="layout-dashboard"></i>
             <span>Dashboard</span>
         </a>
 
         <p class="menu-label">OPERATIONS</p>
 
-        <a href="{{ route('admin.dispatch') }}" class="menu-item">
+        <a href="{{ route('admin.dispatch') }}"
+            class="menu-item {{ request()->routeIs('admin.dispatch') ? 'active' : '' }}">
             <i data-lucide="inbox"></i>
             <span>Incoming Requests</span>
         </a>
 
-        <a href="{{ route('admin.available-units') }}" class="menu-item">
+        <a href="{{ route('admin.available-units') }}"
+            class="menu-item {{ request()->routeIs('admin.available-units') ? 'active' : '' }}">
             <i data-lucide="inbox"></i>
             <span>Available Units</span>
         </a>
 
-        <a href="{{ route('admin.jobs') }}" class="menu-item">
+        <a href="{{ route('admin.jobs') }}" class="menu-item {{ request()->routeIs('admin.jobs') ? 'active' : '' }}">
             <i data-lucide="truck"></i>
             <span>Active Jobs</span>
         </a>
