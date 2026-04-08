@@ -75,19 +75,20 @@
         </div>
 
         <div id="actionModal" class="logout-modal hidden">
-            <div class="logout-card">
+            <div class="modal-card">
+
+                <div class="modal-icon" id="modalIcon"></div>
 
                 <h3 id="modalTitle">Confirm Action</h3>
                 <p id="modalText">Are you sure?</p>
 
-                <div id="rejectReasonWrapper" style="display:none; margin-bottom:15px;">
-                    <input type="text" id="rejectReasonInput" placeholder="Enter reason..."
-                        style="width:100%; padding:10px; border-radius:8px; border:1px solid #e5e7eb;">
+                <div id="rejectReasonWrapper" class="modal-input">
+                    <input type="text" id="rejectReasonInput" placeholder="Enter rejection reason..." />
                 </div>
 
-                <div class="logout-actions">
-                    <button class="cancel-btn" onclick="closeActionModal()">Cancel</button>
-                    <button class="confirm-btn" id="confirmActionBtn">Confirm</button>
+                <div class="modal-actions">
+                    <button class="btn-secondary" id="cancelModalBtn">Cancel</button>
+                    <button class="btn-primary" id="confirmActionBtn">Confirm</button>
                 </div>
 
             </div>
@@ -95,7 +96,6 @@
 
     </div>
 
-
-    <script src="{{ asset('dispatcher/js/dispatch.js') }}"></script>
+    <script src="{{ asset('dispatcher/js/dashboard.js') }}"></script>
 
 @endsection

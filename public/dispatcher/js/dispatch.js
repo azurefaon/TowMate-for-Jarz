@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", function () {
     let pusher = null;
     let pollingInterval = null;
 
-    console.log("DISPATCH JS LOADED");
+    document.getElementById("actionModal").classList.add("hidden");
 
     function initializeViewToggle() {
         const incomingList = document.getElementById("incomingList");
@@ -148,32 +148,7 @@ document.addEventListener("DOMContentLoaded", function () {
             .catch((error) => console.error("Polling error:", error));
     }
 
-    document.addEventListener("click", function (e) {
-        const target = e.target;
-        if (target.classList.contains("btn-accept")) {
-            reviewBooking(target.getAttribute("data-id"), "accept", target);
-        } else if (target.classList.contains("btn-reject")) {
-            const reason = prompt(
-                "Please provide a short reason for rejecting this request.",
-            );
-            if (reason !== null)
-                reviewBooking(
-                    target.getAttribute("data-id"),
-                    "reject",
-                    target,
-                    reason,
-                );
-        }
-    });
-
     function reviewBooking(bookingId, action, button, rejectionReason = null) {
-        const confirmationText =
-            action === "accept"
-                ? "Accept this booking and generate the quotation?"
-                : "Reject this booking and cancel the request?";
-
-        // if (!confirm(confirmationText)) return;
-
         const originalText = button.textContent;
         button.textContent =
             action === "accept" ? "Accepting..." : "Rejecting...";
@@ -222,8 +197,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     );
                 }
             })
-            .catch((error) => {
-                console.error("Error:", error);
+            .catch(() => {
                 button.textContent = originalText;
                 button.disabled = false;
                 showNotification("Error processing booking action.", "error");
@@ -275,24 +249,29 @@ document.addEventListener("DOMContentLoaded", function () {
         }, 3000);
     }
 
-    function openActionModal(id, action) {
-        selectedBookingId = id;
-        selectedAction = action;
-
+    function openActionModal() {
         const modal = document.getElementById("actionModal");
         const title = document.getElementById("modalTitle");
         const text = document.getElementById("modalText");
         const reasonWrapper = document.getElementById("rejectReasonWrapper");
+        const icon = document.getElementById("modalIcon");
 
-        if (action === "accept") {
+        icon.className = "modal-icon";
+
+        if (selectedAction === "accept") {
             title.innerText = "Accept Booking";
-            text.innerText = "Generate quotation and accept this booking?";
+            text.innerText = "Generate quotation and proceed?";
             reasonWrapper.style.display = "none";
+
+            icon.classList.add("accept");
+            icon.innerHTML = "✓";
         } else {
-            title.innerText = "Cancel Booking";
-            text.innerText =
-                "This will notify the user that their booking is cancelled.";
+            title.innerText = "Reject Booking";
+            text.innerText = "This will notify the customer.";
             reasonWrapper.style.display = "block";
+
+            icon.classList.add("reject");
+            icon.innerHTML = "!";
         }
 
         modal.classList.remove("hidden");
@@ -300,6 +279,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function closeActionModal() {
         document.getElementById("actionModal").classList.add("hidden");
+
+        modal.classList.add("hidden");
     }
 
     document
@@ -308,8 +289,12 @@ document.addEventListener("DOMContentLoaded", function () {
             const reason = document.getElementById("rejectReasonInput").value;
 
             const originalBtn = document.querySelector(
-                `.incoming-card[data-id="${selectedBookingId}"] .btn-${selectedAction === "accept" ? "accept" : "reject"}`,
+                `.incoming-card[data-id="${selectedBookingId}"] .btn-${
+                    selectedAction === "accept" ? "accept" : "reject"
+                }`,
             );
+
+            this.disabled = true;
 
             if (!originalBtn) {
                 showNotification("Button not found", "error");
@@ -325,4 +310,30 @@ document.addEventListener("DOMContentLoaded", function () {
 
             closeActionModal();
         });
+
+    document
+        .getElementById("cancelModalBtn")
+        .addEventListener("click", closeActionModal);
+
+    document
+        .getElementById("actionModal")
+        .addEventListener("click", function (e) {
+            if (e.target.id === "actionModal") closeActionModal();
+        });
+
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") closeActionModal();
+    });
+
+    document.addEventListener("click", function (e) {
+        const btn = e.target.closest(".btn-accept, .btn-reject");
+        if (!btn) return;
+
+        selectedBookingId = btn.dataset.id;
+        selectedAction = btn.classList.contains("btn-accept")
+            ? "accept"
+            : "reject";
+
+        openActionModal();
+    });
 });

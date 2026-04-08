@@ -47,14 +47,19 @@
     </div>
 
     <script src="{{ asset('dispatcher/js/dispatch.js') }}"></script>
+
     <script>
         window.PusherConfig = {
             key: '{{ config('broadcasting.connections.pusher.key', 'local') }}',
             cluster: '{{ config('broadcasting.connections.pusher.options.cluster', 'mt1') }}'
         };
+
+        if (typeof lucide !== "undefined") {
+            lucide.createIcons();
+        }
     </script>
-    lucide.createIcons();
-    </script>
+
+    @stack('scripts')
 
 </body>
 
