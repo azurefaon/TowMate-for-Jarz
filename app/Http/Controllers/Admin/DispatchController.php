@@ -50,10 +50,20 @@ class DispatchController extends Controller
             ]);
         }
 
-        $booking->update([
-            'status' => 'rejected',
-            'rejection_reason' => $request->rejection_reason,
-        ]);
+        if ($request->action === 'reject') {
+
+            $booking->update([
+                'status' => 'cancelled',
+                'rejection_reason' => $request->rejection_reason,
+            ]);
+
+            event(new \App\Events\BookingCancelled($booking));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Booking cancelled and user notified.',
+            ]);
+        }
 
         return response()->json([
             'success' => true,

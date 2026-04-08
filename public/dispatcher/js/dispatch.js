@@ -1,6 +1,10 @@
 document.addEventListener("DOMContentLoaded", function () {
+    let selectedBookingId = null;
+    let selectedAction = null;
     let pusher = null;
     let pollingInterval = null;
+
+    console.log("DISPATCH JS LOADED");
 
     function initializeViewToggle() {
         const incomingList = document.getElementById("incomingList");
@@ -168,7 +172,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 ? "Accept this booking and generate the quotation?"
                 : "Reject this booking and cancel the request?";
 
-        if (!confirm(confirmationText)) return;
+        // if (!confirm(confirmationText)) return;
 
         const originalText = button.textContent;
         button.textContent =
@@ -186,6 +190,7 @@ document.addEventListener("DOMContentLoaded", function () {
             body: JSON.stringify({
                 action: action,
                 rejection_reason: rejectionReason,
+                notify_user: action === "reject",
             }),
         })
             .then((response) => response.json())
@@ -269,4 +274,55 @@ document.addEventListener("DOMContentLoaded", function () {
             }, 300);
         }, 3000);
     }
+
+    function openActionModal(id, action) {
+        selectedBookingId = id;
+        selectedAction = action;
+
+        const modal = document.getElementById("actionModal");
+        const title = document.getElementById("modalTitle");
+        const text = document.getElementById("modalText");
+        const reasonWrapper = document.getElementById("rejectReasonWrapper");
+
+        if (action === "accept") {
+            title.innerText = "Accept Booking";
+            text.innerText = "Generate quotation and accept this booking?";
+            reasonWrapper.style.display = "none";
+        } else {
+            title.innerText = "Cancel Booking";
+            text.innerText =
+                "This will notify the user that their booking is cancelled.";
+            reasonWrapper.style.display = "block";
+        }
+
+        modal.classList.remove("hidden");
+    }
+
+    function closeActionModal() {
+        document.getElementById("actionModal").classList.add("hidden");
+    }
+
+    document
+        .getElementById("confirmActionBtn")
+        .addEventListener("click", function () {
+            const reason = document.getElementById("rejectReasonInput").value;
+
+            const originalBtn = document.querySelector(
+                `.incoming-card[data-id="${selectedBookingId}"] .btn-${selectedAction === "accept" ? "accept" : "reject"}`,
+            );
+
+            if (!originalBtn) {
+                showNotification("Button not found", "error");
+                return;
+            }
+
+            reviewBooking(
+                selectedBookingId,
+                selectedAction,
+                originalBtn,
+                reason,
+            );
+
+            closeActionModal();
+        });
 });
