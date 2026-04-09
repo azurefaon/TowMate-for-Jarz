@@ -1,29 +1,16 @@
 .incoming-section {
     margin-bottom: 40px;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(12px);
+    background: #ffffff;
     border-radius: 20px;
     padding: 32px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 10px 26px rgba(17, 24, 39, 0.05);
+    border: 1px solid #ece7d8;
     position: relative;
     will-change: transform;
 }
 
 .incoming-section::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(
-        135deg,
-        rgba(250, 204, 21, 0.03) 0%,
-        rgba(255, 255, 255, 0.08) 100%
-    );
-    border-radius: 20px;
-    pointer-events: none;
+    content: none;
 }
 
 .section-header {
@@ -31,9 +18,8 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 24px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
-    background: rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid #f1ead8;
+    background: #fffdf7;
     border-radius: 12px;
     padding: 16px 20px;
 }
@@ -46,11 +32,11 @@
 
 .view-toggle {
     display: flex;
-    background: rgba(255, 255, 255, 0.8);
+    background: #ffffff;
     border-radius: 12px;
     padding: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 1px solid #ece7d8;
+    box-shadow: 0 2px 8px rgba(17, 24, 39, 0.05);
 }
 
 .view-btn {
@@ -69,14 +55,14 @@
 }
 
 .view-btn:hover {
-    background: rgba(250, 204, 21, 0.1);
-    color: #facc15;
+    background: #fff7d6;
+    color: #7c5a00;
 }
 
 .view-btn.active {
-    background: rgba(250, 204, 21, 0.9);
-    color: #92400e;
-    box-shadow: 0 2px 8px rgba(250, 204, 21, 0.2);
+    background: #fef3c7;
+    color: #7c5a00;
+    box-shadow: none;
 }
 
 .view-btn i {
@@ -185,9 +171,8 @@
 }
 
 .incoming-card {
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: #ffffff;
+    border: 1px solid #ece7d8;
     border-radius: 16px;
     padding: 20px;
     display: flex;
@@ -196,7 +181,7 @@
     transition: all 0.2s ease;
     position: relative;
     overflow: visible;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 6px 18px rgba(17, 24, 39, 0.05);
     will-change: transform;
 }
 
@@ -207,7 +192,7 @@
     top: 0;
     height: 100%;
     width: 4px;
-    background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
+    background: #facc15;
     transform: scaleY(0);
     transition: transform 0.3s ease;
     border-radius: 0 4px 4px 0;
@@ -301,18 +286,16 @@
     font-size: 12px;
     padding: 6px 12px;
     border-radius: 20px;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid #f5d565;
 }
 
 .status-badge.pending {
-    background: rgba(250, 204, 21, 0.8);
-    color: #92400e;
-    border-color: rgba(250, 204, 21, 0.5);
+    background: #fef3c7;
+    color: #7c5a00;
+    border-color: #f5d565;
 }
 
 .incoming-actions {
@@ -323,7 +306,7 @@
 
 .btn-accept,
 .btn-reject {
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    border: 1px solid transparent;
     padding: 10px 20px;
     border-radius: 12px;
     cursor: pointer;
@@ -332,32 +315,33 @@
     transition: all 0.15s ease;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: none;
     will-change: transform;
 }
 
 .btn-accept {
-    background: rgba(16, 185, 129, 0.8);
+    background: #111827;
     color: white;
 }
 
 .btn-accept:hover {
-    background: rgba(16, 185, 129, 0.95);
+    background: #000000;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
-    border-color: rgba(16, 185, 129, 0.6);
+    box-shadow: 0 8px 18px rgba(17, 24, 39, 0.18);
+    border-color: #111827;
 }
 
 .btn-reject {
-    background: rgba(239, 68, 68, 0.8);
-    color: white;
+    background: #fff1f2;
+    color: #b91c1c;
+    border-color: #fecdd3;
 }
 
 .btn-reject:hover {
-    background: rgba(239, 68, 68, 0.95);
+    background: #ffe4e6;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
-    border-color: rgba(239, 68, 68, 0.6);
+    box-shadow: 0 8px 18px rgba(127, 29, 29, 0.08);
+    border-color: #fda4af;
 }
 
 .btn-accept:disabled,
@@ -371,10 +355,10 @@
     text-align: center;
     padding: 60px 20px;
     color: #6b7280;
-    background: rgba(255, 255, 255, 0.7);
+    background: #fffdf7;
     border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid #ece7d8;
+    box-shadow: none;
 }
 
 .empty-state p {
@@ -401,11 +385,11 @@
 
 @keyframes highlight {
     0% {
-        background: rgba(16, 185, 129, 0.05);
+        background: #fffdf7;
         transform: scale(1);
     }
     50% {
-        background: rgba(16, 185, 129, 0.1);
+        background: #fff8db;
         transform: scale(1.005);
     }
     100% {
@@ -427,9 +411,8 @@
     z-index: 10000;
     transform: translateX(100%);
     transition: transform 0.3s ease;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 18px rgba(17, 24, 39, 0.12);
+    border: 1px solid transparent;
     will-change: transform;
 }
 
@@ -530,24 +513,10 @@
 }
 
 @media (max-width: 768px) and (max-resolution: 150dpi) {
-    .incoming-section {
-        backdrop-filter: none;
-        background: rgba(255, 255, 255, 0.95);
-    }
-
-    .incoming-card {
-        backdrop-filter: none;
-        background: rgba(255, 255, 255, 0.9);
-    }
-
-    .btn-accept,
-    .btn-reject {
-        backdrop-filter: none;
-    }
-
+    .incoming-section,
+    .incoming-card,
     .notification {
-        backdrop-filter: none;
-        background: rgba(16, 185, 129, 0.95);
+        background: #ffffff;
     }
 }
 
@@ -610,12 +579,12 @@
 .modal-card {
     width: 100%;
     max-width: 420px;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(20px);
+    background: #ffffff;
+    border: 1px solid #ece7d8;
     border-radius: 20px;
     padding: 28px;
     text-align: center;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 20px 60px rgba(17, 24, 39, 0.14);
     animation: modalPop 0.25s ease;
 }
 

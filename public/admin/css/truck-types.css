@@ -1,371 +1,525 @@
 .content {
-    background: #f4f7fb;
+    background: #f7f4e8;
 }
 
-/* HEADER */
+.truck-types-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
 
-.page-top {
+.truck-types-page .page-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 25px;
+    gap: 16px;
+    flex-wrap: wrap;
 }
 
-.page-top h1 {
-    font-size: 28px;
-    font-weight: 700;
-    color: #111827;
+.truck-types-page .page-top h1 {
+    margin: 0;
+    font-size: 1.9rem;
+    color: #111111;
 }
 
-.page-top p {
+.truck-types-page .page-top p {
+    margin: 6px 0 0;
     color: #6b7280;
-    margin-top: 6px;
+    max-width: 760px;
 }
 
-.header-actions {
+.truck-types-page .header-actions,
+.truck-types-page .table-controls,
+.truck-types-page .action-buttons,
+.truck-types-page .modal-footer,
+.truck-types-page .modal-actions {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
-/* TABLE */
+.truck-types-page .btn-back,
+.truck-types-page .btn-primary-add,
+.truck-types-page .btn-light,
+.truck-types-page .btn-dark,
+.truck-types-page .btn-cancel,
+.truck-types-page .action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 9px 14px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease;
+}
 
-.table-card {
-    background: #ffffff;
+.truck-types-page .btn-back {
+    background: #111111;
+    color: #facc15;
+}
+
+.truck-types-page .btn-primary-add,
+.truck-types-page .btn-dark {
+    background: linear-gradient(135deg, #facc15, #eab308);
+    color: #111111;
+}
+
+.truck-types-page .btn-light,
+.truck-types-page .btn-cancel {
+    background: #fff;
+    color: #111111;
+    border-color: #eadf9f;
+}
+
+.truck-types-page .edit-btn {
+    background: #111111;
+    color: #facc15;
+}
+
+.truck-types-page .btn-success {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #bbf7d0;
+}
+
+.truck-types-page .btn-danger {
+    background: #fff1f2;
+    color: #be123c;
+    border-color: #fecdd3;
+}
+
+.truck-types-page .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.truck-types-page .overview-card {
+    background: #fff;
+    border: 1px solid rgba(250, 204, 21, 0.28);
     border-radius: 18px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
-    overflow: hidden;
-    margin-top: 20px;
+    padding: 18px;
+    box-shadow: 0 10px 24px rgba(17, 17, 17, 0.04);
 }
 
-.modern-table {
+.truck-types-page .overview-card span {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8a6c00;
+}
+
+.truck-types-page .overview-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 1.9rem;
+    color: #111111;
+}
+
+.truck-types-page .overview-card small {
+    display: block;
+    margin-top: 4px;
+    color: #6b7280;
+}
+
+.truck-types-page .accent-card {
+    background: #fff9db;
+}
+
+.truck-types-page .muted-card {
+    background: #fff;
+}
+
+.truck-types-page .dark-card {
+    background: #111111;
+}
+
+.truck-types-page .dark-card span,
+.truck-types-page .dark-card strong,
+.truck-types-page .dark-card small {
+    color: #f9fafb;
+}
+
+.truck-types-page .table-card {
+    background: #fff;
+    border: 1px solid #f0df93;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 12px 26px rgba(17, 17, 17, 0.04);
+}
+
+.truck-types-page .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 18px;
+    border-bottom: 1px solid #f4e8b4;
+    background: linear-gradient(180deg, #fffef9 0%, #fff7d6 100%);
+}
+
+.truck-types-page .table-header h3 {
+    margin: 0;
+    color: #111111;
+}
+
+.truck-types-page .table-header p {
+    margin: 4px 0 0;
+    color: #6b7280;
+}
+
+.truck-types-page .search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    min-width: 240px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid #eadf9f;
+    background: #fff;
+}
+
+.truck-types-page .search-box input,
+.truck-types-page .status-filter,
+.truck-types-page .form-group input,
+.truck-types-page .form-group textarea {
     width: 100%;
+    border: 1px solid #eadf9f;
+    border-radius: 12px;
+    background: #fffef8;
+    color: #111111;
+    font-size: 14px;
+}
+
+.truck-types-page .search-box input {
+    border: none;
+    background: transparent;
+    outline: none;
+}
+
+.truck-types-page .status-filter {
+    min-height: 42px;
+    min-width: 150px;
+    padding: 0 12px;
+}
+
+.truck-types-page .table-scroll {
+    overflow-x: auto;
+}
+
+.truck-types-page .modern-table {
+    width: 100%;
+    min-width: 920px;
     border-collapse: separate;
     border-spacing: 0;
 }
 
-.modern-table thead {
-    background: linear-gradient(135deg, #7aa9ff, #5f94f5);
+.truck-types-page .modern-table thead {
+    background: #111111;
 }
 
-.modern-table thead th {
+.truck-types-page .modern-table th {
     padding: 14px 16px;
-    color: #ffffff;
-    font-weight: 600;
-    font-size: 13px;
+    color: #facc15;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     text-align: left;
 }
 
-.modern-table tbody td {
+.truck-types-page .modern-table td {
     padding: 16px;
-    border-bottom: 1px solid #f1f5f9;
-    font-size: 14px;
+    border-bottom: 1px solid #f6edc9;
+    color: #1f2937;
+    vertical-align: top;
 }
 
-.modern-table tbody tr:hover {
-    background: #f8fbff;
+.truck-types-page .modern-table tbody tr:hover {
+    background: #fffdf4;
 }
 
-/* STATUS */
-
-.status-pill {
-    padding: 6px 14px;
-    border-radius: 50px;
-    font-size: 12px;
-    font-weight: 600;
-    display: inline-block;
+.truck-types-page .type-name-wrap strong {
+    display: block;
+    color: #111111;
 }
 
-.status-pill.active {
-    background: #e6f9ee;
-    color: #16a34a;
+.truck-types-page .type-name-wrap small,
+.truck-types-page .price-stack small,
+.truck-types-page .empty-state p {
+    color: #6b7280;
 }
 
-.status-pill.inactive {
-    background: #fee2e2;
-    color: #dc2626;
-}
-
-/* BUTTONS */
-
-.btn-primary-add {
-    background: linear-gradient(135deg, #6ea8ff, #5f94f5);
-    color: #ffffff;
-    border: none;
-    padding: 10px 18px;
-    border-radius: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: 0.2s ease;
-}
-
-.btn-primary-add:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(110, 168, 255, 0.35);
-}
-
-.edit-btn {
-    background: #eaf2ff;
-    color: #4f83ff;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 10px;
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.edit-btn:hover {
-    background: #dce8ff;
-}
-
-.btn-success {
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: #ffffff;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.action-buttons {
+.truck-types-page .price-stack {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    gap: 4px;
 }
 
-/* MODAL */
-
-.modal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.modal-card {
-    background: #ffffff;
-    width: 520px;
-    padding: 28px;
-    border-radius: 20px;
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15);
-    animation: fadeIn 0.2s ease;
-    max-height: 90vh;
-    overflow-y: auto;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 20px;
-}
-
-.modal-header h2 {
-    font-size: 20px;
+.truck-types-page .price-stack strong,
+.truck-types-page .price-stack span {
+    color: #111111;
     font-weight: 700;
 }
 
-.modal-header p {
-    font-size: 13px;
-    color: #6b7280;
+.truck-types-page .count-pill,
+.truck-types-page .status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
 }
 
-.modal-close {
-    background: transparent;
-    border: none;
-    font-size: 18px;
-    cursor: pointer;
-    color: #6b7280;
+.truck-types-page .count-pill {
+    background: #fff7d6;
+    color: #8a6c00;
 }
 
-/* FORM */
+.truck-types-page .status-pill.active {
+    background: #dcfce7;
+    color: #166534;
+}
 
-.form-group {
+.truck-types-page .status-pill.inactive {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+.truck-types-page .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 28px 12px;
+    text-align: center;
+}
+
+.truck-types-page .empty-state i {
+    width: 36px;
+    height: 36px;
+    color: #a1a1aa;
+}
+
+.truck-types-page .empty-state h3 {
+    margin: 0;
+    color: #111111;
+}
+
+.truck-types-page .pagination-wrapper {
+    padding: 16px 18px 18px;
+    display: flex;
+    justify-content: center;
+}
+
+.truck-types-page .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(17, 17, 17, 0.42);
+}
+
+.truck-types-page .modal-card,
+.truck-types-page .modal-content {
+    width: 100%;
+    max-width: 540px;
+    background: #fff;
+    border: 1px solid #f0df93;
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 18px 40px rgba(17, 17, 17, 0.16);
+}
+
+.truck-types-page .modal-content {
+    max-width: 420px;
+    text-align: center;
+}
+
+.truck-types-page .danger-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: #fff1f2;
+    color: #e11d48;
+    margin-bottom: 10px;
+}
+
+.truck-types-page .danger-icon i {
+    width: 24px;
+    height: 24px;
+}
+
+.truck-types-page .modal-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
     margin-bottom: 16px;
 }
 
-.form-group label {
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 6px;
-    display: block;
+.truck-types-page .modal-header h2,
+.truck-types-page .modal-content h3 {
+    margin: 0;
+    color: #111111;
 }
 
-.form-group input,
-.form-group textarea,
-select {
-    width: 100%;
-    background: #f3f4f6;
-    border: none;
+.truck-types-page .modal-header p,
+.truck-types-page .modal-content p {
+    margin: 4px 0 0;
+    color: #6b7280;
+}
+
+.truck-types-page .modal-close {
+    width: 34px;
+    height: 34px;
     border-radius: 10px;
+    border: 1px solid #eadf9f;
+    background: #fff;
+    cursor: pointer;
+}
+
+.truck-types-page .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.truck-types-page .form-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.truck-types-page .form-group label {
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #374151;
+}
+
+.truck-types-page .form-group input,
+.truck-types-page .form-group textarea {
+    min-height: 42px;
     padding: 10px 12px;
-    font-size: 13px;
 }
 
-.form-group input:focus,
-.form-group textarea:focus,
-select:focus {
-    outline: none;
-    background: #e5e7eb;
+.truck-types-page .form-group textarea {
+    min-height: 92px;
+    resize: vertical;
 }
 
-.form-row {
-    display: flex;
-    gap: 12px;
+.truck-types-page .input-hint {
+    font-size: 0.78rem;
+    color: #6b7280;
 }
 
-.form-row .form-group {
-    flex: 1;
-}
-
-textarea {
-    height: 80px;
-    resize: none;
-}
-
-/* MODAL FOOTER */
-
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
-
-.btn-light {
-    background: #f3f4f6;
-    border: none;
-    padding: 10px 16px;
-    border-radius: 10px;
-    cursor: pointer;
-}
-
-.btn-dark {
-    background: #0f172a;
-    color: white;
-    border: none;
-    padding: 10px 16px;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-/* DISABLE MODAL */
-
-#disableModal {
-    backdrop-filter: blur(6px);
-}
-
-#disableModal .modal-content {
-    background: #ffffff;
-    width: 420px;
-    padding: 28px;
-    border-radius: 18px;
-    text-align: center;
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2);
-}
-
-.modal-actions {
-    display: flex;
-    justify-content: center;
-    gap: 12px;
-}
-
-.btn-cancel {
-    background: #f3f4f6;
-    border: none;
-    padding: 10px 16px;
-    border-radius: 10px;
-    cursor: pointer;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
+@media (max-width: 1024px) {
+    .truck-types-page .overview-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    to {
-        opacity: 1;
-        transform: translateY(0);
+
+    .truck-types-page .table-header {
+        flex-direction: column;
+        align-items: stretch;
     }
 }
 
-.btn-danger {
-    background: #ff4d4f;
-    color: #ffffff;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 10px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+@media (max-width: 768px) {
+    .truck-types-page .page-top,
+    .truck-types-page .header-actions,
+    .truck-types-page .table-controls,
+    .truck-types-page .action-buttons,
+    .truck-types-page .modal-footer,
+    .truck-types-page .modal-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .truck-types-page .overview-grid,
+    .truck-types-page .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .truck-types-page .search-box,
+    .truck-types-page .status-filter,
+    .truck-types-page .btn-back,
+    .truck-types-page .btn-primary-add,
+    .truck-types-page .action-btn,
+    .truck-types-page .btn-light,
+    .truck-types-page .btn-dark,
+    .truck-types-page .btn-cancel,
+    .truck-types-page .btn-danger {
+        width: 100%;
+    }
+
+    .truck-types-page .modern-table {
+        min-width: 100%;
+    }
+
+    .truck-types-page .modern-table thead {
+        display: none;
+    }
+
+    .truck-types-page .modern-table tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .truck-types-page .modern-table tbody tr {
+        display: block;
+        border: 1px solid #f3ead0;
+        border-radius: 16px;
+        background: #fffefb;
+    }
+
+    .truck-types-page .modern-table td {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 10px 14px;
+    }
+
+    .truck-types-page .modern-table td::before {
+        content: attr(data-label);
+        font-size: 0.74rem;
+        font-weight: 800;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        min-width: 82px;
+    }
 }
 
-.btn-danger:hover {
-    background: #dc2626;
-}
-
-.btn-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: #eef2ff;
-    color: #4f83ff;
-    padding: 8px 12px;
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 14px;
-}
-
-.btn-back:hover {
-    background: #dce8ff;
-}
-
-.btn-success {
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: #ffffff;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: 0.2s ease;
-}
-
-.btn-success:hover {
-    box-shadow: 0 6px 14px rgba(34, 197, 94, 0.35);
-    transform: translateY(-1px);
-}
-
-.toast-success {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: #111827;
-    color: white;
-    padding: 12px 18px;
-    border-radius: 10px;
-    font-size: 14px;
-    z-index: 9999;
-    animation: fadeIn 0.3s ease;
-}
-
-.input-hint {
-    display: block;
-    font-size: 12px;
-    color: #9ca3af;
-    margin-bottom: 6px;
+@media (prefers-reduced-motion: reduce) {
+    .truck-types-page *,
+    .truck-types-page *::before,
+    .truck-types-page *::after {
+        animation: none !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+    }
 }

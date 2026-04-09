@@ -220,12 +220,20 @@
             const confirmBookingBtn = document.getElementById('confirmBookingBtn');
             const editBookingBtn = document.getElementById('editBookingBtn');
 
+            let isConfirmed = false;
+
             bookingForm.addEventListener('submit', function(event) {
-                event.preventDefault();
-                if (!validateBookingForm()) {
-                    return;
+
+                if (!isConfirmed) {
+                    event.preventDefault();
+
+                    if (!validateBookingForm()) {
+                        return;
+                    }
+
+                    showConfirmationSummary();
                 }
-                showConfirmationSummary();
+
             });
 
             function validateBookingForm() {
@@ -242,7 +250,7 @@
                     }
                 });
 
-                // Additional validation for phone number format
+                // validation for phone number format
                 const phoneInput = document.getElementById('phone');
                 const phoneRegex = /^(09\d{9}|\+639\d{9}|639\d{9})$/;
                 if (phoneInput.value && !phoneRegex.test(phoneInput.value)) {
@@ -250,7 +258,7 @@
                     valid = false;
                 }
 
-                // Additional validation for Gmail email
+                // validation for Gmail email
                 const emailInput = document.getElementById('email');
                 const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
                 if (emailInput.value && !emailRegex.test(emailInput.value)) {
@@ -286,7 +294,7 @@
             }
 
             confirmBookingBtn.addEventListener('click', function() {
-                confirmationModal.classList.remove('modal-open');
+                isConfirmed = true;
                 bookingForm.submit();
             });
 

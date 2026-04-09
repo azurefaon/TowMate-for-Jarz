@@ -1,8 +1,10 @@
-<link rel="stylesheet" href="{{ asset('admin/css/dashboard.css') }}">
-<link rel="icon" type="image/png" href="{{ asset('admin/images/logo.png') }}">
-<script src="https://unpkg.com/lucide@latest"></script>
-
 @extends('layouts.superadmin')
+
+@section('title', 'Dashboard')
+
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('superadmin/css/dashboard.css') }}">
+@endpush
 
 @section('content')
     <div class="dashboard-header">
@@ -292,8 +294,8 @@
                 datasets: [{
                     label: 'Bookings',
                     data: [],
-                    borderColor: '#6ea8ff',
-                    backgroundColor: 'rgba(110,168,255,0.2)',
+                    borderColor: '#facc15',
+                    backgroundColor: 'rgba(250, 204, 21, 0.22)',
                     tension: 0.4,
                     fill: true
                 }]

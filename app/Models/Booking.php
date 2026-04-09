@@ -37,6 +37,7 @@ class Booking extends Model
         'notes',
         'quotation_number',
         'quotation_generated',
+        'assigned_at',
         'rejection_reason',
 
         'status',

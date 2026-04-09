@@ -10,6 +10,7 @@ use App\Mail\BookingReceiptMail;
 use App\Services\BookingService;
 use App\Models\Booking;
 use App\Models\TruckType;
+use App\Models\Customer;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -37,27 +38,76 @@ class BookingController extends Controller
     {
         $data = $request->validatedData();
 
-        // Find truck type by name
-        $truckType = \App\Models\TruckType::where('name', 'like', '%' . $data['truck_type_id'] . '%')->first();
-        if (!$truckType) {
-            // If not found, default to first available
-            $truckType = \App\Models\TruckType::first();
+        // BLOCK DUPLICATE / SPAM BOOKINGS
+        $existingCustomer = Customer::where('phone', $data['phone'])
+            ->orWhere('email', $data['email'] ?? '')
+            ->first();
+
+        if ($existingCustomer) {
+
+            // ACTIVE BOOKING CHECK
+            $activeBooking = Booking::where('customer_id', $existingCustomer->id)
+                ->whereIn('status', ['requested', 'assigned', 'on_job'])
+                ->exists();
+
+            if ($activeBooking) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'phone' => 'You already have an ongoing booking. Please wait until it is completed.',
+                    ]);
+            }
+
+            // COOLDOWN 5 mins
+            $recentBooking = Booking::where('customer_id', $existingCustomer->id)
+                ->latest()
+                ->first();
+
+            if ($recentBooking && now()->diffInMinutes($recentBooking->created_at) < 5) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'phone' => 'Please wait a few minutes before booking again.',
+                    ]);
+            }
         }
+
+        //  Find truck type by name
+        $truckType = TruckType::where('name', 'like', '%' . $data['truck_type_id'] . '%')->first();
+
         if (!$truckType) {
-            // If still no truck type, return error
-            return back()->withErrors(['truck_type_id' => 'No vehicle types available. Please contact support.']);
+            $truckType = TruckType::first();
         }
+
+        if (!$truckType) {
+            return back()->withErrors([
+                'truck_type_id' => 'No vehicle types available. Please contact support.'
+            ]);
+        }
+
         $data['truck_type_id'] = $truckType->id;
 
-        // Create customer
-        $customer = \App\Models\Customer::create([
-            'full_name' => $data['full_name'],
-            'age' => $data['age'],
-            'phone' => $data['phone'],
-            'email' => $data['email'] ?? null,
-            'is_pwd' => $data['is_pwd'],
-            'is_senior' => $data['is_senior'],
-        ]);
+        // FIND OR CREATE CUSTOMER OPTIMIZED
+        $customer = Customer::where('phone', $data['phone'])
+            ->orWhere('email', $data['email'] ?? '')
+            ->first();
+
+        if (!$customer) {
+            $customer = Customer::create([
+                'full_name' => $data['full_name'],
+                'age' => $data['age'],
+                'phone' => $data['phone'],
+                'email' => $data['email'] ?? null,
+                'is_pwd' => $data['is_pwd'],
+                'is_senior' => $data['is_senior'],
+            ]);
+        } else {
+            //  update latest info
+            $customer->update([
+                'full_name' => $data['full_name'],
+                'age' => $data['age'],
+            ]);
+        }
 
         // Handle image upload
         if ($request->hasFile('vehicle_image')) {
@@ -66,11 +116,11 @@ class BookingController extends Controller
         }
 
         // Create booking
-        $booking = \App\Models\Booking::create([
+        $booking = Booking::create([
             'customer_id' => $customer->id,
             'truck_type_id' => $data['truck_type_id'],
             'age' => $data['age'],
-            'created_by_admin_id' => null, // Landing booking, no admin
+            'created_by_admin_id' => null,
             'pickup_address' => $data['pickup_address'],
             'pickup_lat' => $data['pickup_lat'],
             'pickup_lng' => $data['pickup_lng'],
@@ -78,9 +128,10 @@ class BookingController extends Controller
             'drop_lat' => $data['drop_lat'],
             'drop_lng' => $data['drop_lng'],
             'notes' => $data['notes'],
-            'status' => 'requested', // Requested status for dispatcher to assign
+            'status' => 'requested',
         ]);
 
+        // Send email 
         if ($customer->email) {
             try {
                 Mail::to($customer->email)->send(new BookingReceiptMail($booking));
@@ -96,6 +147,10 @@ class BookingController extends Controller
         broadcast(new NewBooking($booking));
 
         return redirect()->route('landing')
-            ->with('success', 'Booking created successfully! Booking ID: #' . $booking->id . '. We will contact you shortly.' . ($customer->email ? ' A receipt has been sent to ' . $customer->email . '.' : ''));
+            ->with(
+                'success',
+                'Booking created successfully! Booking ID: #' . $booking->id . '. We will contact you shortly.' .
+                    ($customer->email ? ' A receipt has been sent to ' . $customer->email . '.' : '')
+            );
     }
 }

@@ -11,7 +11,6 @@
             <div class="section-header">
                 <div>
                     <h3>Incoming Requests</h3>
-                    <p class="section-sub">Live booking queue</p>
                 </div>
                 <div class="view-controls">
                     <div class="view-toggle">
@@ -96,6 +95,8 @@
 
     </div>
 
-    <script src="{{ asset('dispatcher/js/dashboard.js') }}"></script>
-
 @endsection
+
+@push('scripts')
+    <script src="{{ asset('dispatcher/js/dispatch.js') }}"></script>
+@endpush

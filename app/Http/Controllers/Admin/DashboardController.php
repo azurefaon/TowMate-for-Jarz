@@ -9,64 +9,56 @@ use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-
     public function index()
     {
-        $drivers = User::where('role_id', 4)->get();
-
-        $available = $drivers->count();
-
-        $activeJobs = Booking::whereIn('status', ['assigned', 'on_job'])->count();
-
-        $delayed = Booking::where('status', 'delayed')->count();
-
-        $fleetHealth = 98;
-
-        $incomingRequests = Booking::where('status', 'requested')
-            ->latest()
-            ->take(5)
+        $teamLeaders = User::where('role_id', 3)
+            ->with(['unit', 'unit.driver'])
             ->get();
 
+        $busyTeamLeaderIds = Booking::whereNotNull('assigned_unit_id')
+            ->whereIn('bookings.status', ['assigned', 'on_job'])
+            ->join('units', 'bookings.assigned_unit_id', '=', 'units.id')
+            ->whereNotNull('units.team_leader_id')
+            ->distinct()
+            ->pluck('units.team_leader_id');
+
+        $busyTeamLeadersCount = $busyTeamLeaderIds->count();
+        $pendingRequests = Booking::where('status', 'requested')->count();
+        $activeJobs = Booking::whereIn('status', ['assigned', 'on_job'])->count();
+        $delayed = Booking::where('status', 'delayed')->count();
+        $completedToday = Booking::where('status', 'completed')
+            ->whereDate('updated_at', today())
+            ->count();
+
+        $available = max($teamLeaders->count() - $busyTeamLeadersCount, 0);
+
+        $fleetHealth = $teamLeaders->count() > 0
+            ? round(($available / $teamLeaders->count()) * 100)
+            : 100;
+
+        $incomingRequests = Booking::with(['customer', 'truckType'])
+            ->where('status', 'requested')
+            ->latest()
+            ->take(6)
+            ->get();
+
+        $chartData = [
+            'completed' => $completedToday,
+            'assigned' => $activeJobs,
+            'pending' => $pendingRequests,
+        ];
+
         return view('admin-dashboard.pages.dashboard', compact(
-            'drivers',
+            'teamLeaders',
             'available',
             'activeJobs',
             'delayed',
-            'fleetHealth'
+            'fleetHealth',
+            'incomingRequests',
+            'busyTeamLeadersCount',
+            'pendingRequests',
+            'completedToday',
+            'chartData'
         ));
     }
-
-    // public function index()
-    // {
-    //     $drivers = User::where('role_id', 4)->get();
-
-    //     $available = $drivers->count();
-
-    //     // $available = $drivers->filter(function ($driver) {
-    //     //     return !Booking::where('driver_id', $driver->id)
-    //     //         ->whereIn('status', ['assigned', 'on_job'])
-    //     //         ->exists();
-    //     // })->count();
-
-    //     $activeJobs = Booking::whereIn('status', ['assigned', 'on_job'])->count();
-
-    //     $delayed = Booking::where('status', 'delayed')->count();
-
-    //     $totalDrivers = $drivers->count();
-    //     $busyDrivers = Booking::whereIn('status', ['assigned', 'on_job'])
-    //         ->distinct('driver_id')
-    //         ->count('driver_id');
-
-    //     $fleetHealth = $totalDrivers > 0
-    //         ? round((($totalDrivers - $busyDrivers) / $totalDrivers) * 100)
-    //         : 100;
-
-    //     return view('admin-dashboard.pages.dashboard', compact(
-    //         'drivers',
-    //         'available',
-    //         'activeJobs',
-    //         'delayed',
-    //         'fleetHealth'
-    //     ));
-    // }
 }

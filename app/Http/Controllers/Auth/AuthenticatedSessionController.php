@@ -29,7 +29,7 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        $user = auth()->user();
+        $user = Auth::user();
 
         return match ($user->role_id) {
             1 => redirect()->route('superadmin.dashboard'),
@@ -37,7 +37,7 @@ class AuthenticatedSessionController extends Controller
             3 => redirect()->route('teamleader.dashboard'),
             4 => redirect()->route('driver.dashboard'),
             5 => redirect()->route('customer.dashboard'),
-            default => redirect('/login'),
+            default => redirect()->route('login'),
         };
     }
 
@@ -49,6 +49,6 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect()->route('landing');
     }
 }

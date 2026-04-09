@@ -1,63 +1,73 @@
 @extends('layouts.superadmin')
 
-@section('content')
-    <div class="page-container">
+@section('title', 'Tow Units')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('admin/css/unit-truck.css') }}">
+@endpush
+
+@section('content')
+    <div class="units-page" data-base-url="{{ url('/superadmin/units') }}">
         <div class="page-top">
             <div>
-                <h1>Unit Overview</h1>
-                <p>Monitor towing fleet availability and assignments</p>
+                <h1>Tow Fleet Units</h1>
+                <p>Track the towing units that are available, dispatched, or under maintenance.</p>
             </div>
 
             <div class="header-actions">
                 <a href="{{ route('superadmin.truck-types.index') }}" class="btn-secondary">
                     <i data-lucide="truck"></i>
-                    <span>Manage Truck Types >></span>
+                    <span>Manage Tow Truck Types</span>
                 </a>
+
+                <button type="button" class="btn-primary-add" data-open-modal="addUnitModal">
+                    <i data-lucide="plus-circle"></i>
+                    <span>Add Unit</span>
+                </button>
             </div>
         </div>
 
         <div class="fleet-summary">
-
-            <div class="summary-card blue">
-                <div class="summary-icon blue"></div>
-                <div class="summary-left">
-                    <p>Total Units</p>
-                    <h3>{{ $units->count() }}</h3>
-                </div>
+            <div class="summary-card total-card">
+                <span>Total Units</span>
+                <strong>{{ $stats['total'] }}</strong>
+                <small>Registered towing units</small>
             </div>
 
-            <div class="summary-card green">
-                <div class="summary-icon green"></div>
-                <div class="summary-left">
-                    <p>Available</p>
-                    <h3 class="green">{{ $units->where('status', 'available')->count() }}</h3>
-                </div>
+            <div class="summary-card available-card">
+                <span>Available</span>
+                <strong>{{ $stats['available'] }}</strong>
+                <small>Ready for dispatch</small>
             </div>
 
-            <div class="summary-card orange">
-                <div class="summary-icon blue"></div>
-                <div class="summary-left">
-                    <p>Maintenance</p>
-                    <h3 class="blue">{{ $units->where('status', 'maintenance')->count() }}</h3>
-                </div>
+            <div class="summary-card on-job-card">
+                <span>On Job</span>
+                <strong>{{ $stats['on_job'] }}</strong>
+                <small>Currently handling tow requests</small>
             </div>
 
+            <div class="summary-card maintenance-card">
+                <span>Maintenance</span>
+                <strong>{{ $stats['maintenance'] }}</strong>
+                <small>Temporarily unavailable</small>
+            </div>
         </div>
 
         <div class="table-card">
-
             <div class="table-header">
-                <h3>Fleet Units</h3>
+                <div>
+                    <h3>Fleet units</h3>
+                    <p>Keep plate records, tow truck assignment, and maintenance notes organized.</p>
+                </div>
 
                 <div class="table-controls">
-                    <div class="search-box">
+                    <label class="search-box">
                         <i data-lucide="search"></i>
-                        <input type="text" id="unitSearch" placeholder="Search units...">
-                    </div>
+                        <input type="text" id="unitSearch" placeholder="Search by unit, plate, or leader...">
+                    </label>
 
                     <select id="statusFilter" class="status-filter">
-                        <option value="all">All</option>
+                        <option value="all">All Status</option>
                         <option value="available">Available</option>
                         <option value="on_job">On Job</option>
                         <option value="maintenance">Maintenance</option>
@@ -65,180 +75,209 @@
                 </div>
             </div>
 
-            <table class="modern-table">
-                <thead>
-                    <tr>
-                        <th>Unit</th>
-                        <th>Plate</th>
-                        <th>Truck</th>
-                        <th>Team Leader</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-
-                <tbody id="unitsTable">
-                    @foreach ($units as $unit)
-                        <tr data-status="{{ $unit->status }}">
-
-                            <td class="unit-cell">
-                                <div class="unit-avatar">
-                                    {{ strtoupper(substr($unit->name, 0, 2)) }}
-                                </div>
-                                <span class="unit-name">{{ $unit->name }}</span>
-                            </td>
-
-                            <td>
-                                <span class="plate-badge">{{ $unit->plate_number }}</span>
-                            </td>
-
-                            <td>
-                                <span class="truck-badge">{{ $unit->truckType->name }}</span>
-                            </td>
-
-                            <td>
-                                @if ($unit->teamLeader)
-                                    {{ $unit->teamLeader->full_name }}
-                                @else
-                                    <span class="not-assigned">Not Assigned</span>
-                                @endif
-                            </td>
-
-                            <td>
-                                <span class="status-pill {{ $unit->status }}">
-                                    {{ ucfirst($unit->status) }}
-                                </span>
-                            </td>
-
-                            <td>
-                                <button class="edit-btn" data-id="{{ $unit->id }}" data-name="{{ $unit->name }}"
-                                    data-plate="{{ $unit->plate_number }}" data-status="{{ $unit->status }}"
-                                    data-issue="{{ $unit->issue_note }}" data-truck="{{ $unit->truck_type_id }}"
-                                    onclick="openEditModal(this)">
-                                    Edit
-                                </button>
-                            </td>
-
+            <div class="table-scroll">
+                <table class="modern-table">
+                    <thead>
+                        <tr>
+                            <th>Unit</th>
+                            <th>Plate</th>
+                            <th>Tow Type</th>
+                            <th>Team Leader</th>
+                            <th>Status</th>
+                            <th>Action</th>
                         </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                    </thead>
+
+                    <tbody id="unitsTable">
+                        @forelse ($units as $unit)
+                            <tr data-status="{{ $unit->status }}">
+                                <td data-label="Unit">
+                                    <div class="unit-cell">
+                                        <div class="unit-avatar">
+                                            {{ strtoupper(substr($unit->name, 0, 2)) }}
+                                        </div>
+                                        <div>
+                                            <span class="unit-name">{{ $unit->name }}</span>
+                                            <small
+                                                class="unit-subtext">{{ $unit->driver->full_name ?? ($unit->driver->name ?? 'No driver assigned') }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <td data-label="Plate">
+                                    <span class="plate-badge">{{ strtoupper($unit->plate_number) }}</span>
+                                </td>
+
+                                <td data-label="Tow Type">
+                                    <span class="truck-badge">{{ $unit->truckType->name ?? 'Unassigned' }}</span>
+                                </td>
+
+                                <td data-label="Team Leader">
+                                    @if ($unit->teamLeader)
+                                        {{ $unit->teamLeader->full_name ?? $unit->teamLeader->name }}
+                                    @else
+                                        <span class="not-assigned">Not assigned</span>
+                                    @endif
+                                </td>
+
+                                <td data-label="Status">
+                                    <div class="status-stack">
+                                        <span
+                                            class="status-pill {{ $unit->status }}">{{ ucwords(str_replace('_', ' ', $unit->status)) }}</span>
+                                        @if ($unit->status === 'maintenance' && $unit->issue_note)
+                                            <small>{{ $unit->issue_note }}</small>
+                                        @elseif ($unit->status === 'on_job')
+                                            <small>Currently dispatched</small>
+                                        @endif
+                                    </div>
+                                </td>
+
+                                <td data-label="Action">
+                                    <button type="button" class="action-btn edit-btn js-edit-unit"
+                                        data-id="{{ $unit->id }}" data-name="{{ $unit->name }}"
+                                        data-plate="{{ strtoupper($unit->plate_number) }}"
+                                        data-status="{{ $unit->status }}" data-issue="{{ $unit->issue_note }}"
+                                        data-truck="{{ $unit->truck_type_id }}">
+                                        <i data-lucide="pencil"></i>
+                                        <span>Edit</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6">
+                                    <div class="empty-state">
+                                        <i data-lucide="truck"></i>
+                                        <h3>No towing units yet</h3>
+                                        <p>Add the first tow unit to start organizing dispatch availability.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
 
             <div class="pagination-wrapper">
-                {{ $units->links() }}
+                {{ $units->onEachSide(1)->links('vendor.pagination.custom') }}
             </div>
-
         </div>
 
-    </div>
+        <div id="addUnitModal" class="modal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div>
+                        <h2>Add Tow Unit</h2>
+                        <p>Register a towing unit with its truck class and initial readiness status.</p>
+                    </div>
+                    <button type="button" class="modal-close" data-close-modal="addUnitModal">✕</button>
+                </div>
 
-    <div id="editModal" class="modal">
-        <div class="modal-card">
+                <form method="POST" action="{{ route('superadmin.units.store') }}">
+                    @csrf
 
-            <div class="modal-header">
-                <h2>Edit Unit</h2>
-                <button onclick="closeEditModal()">✕</button>
+                    <div class="form-group">
+                        <label for="addUnitName">Unit Name</label>
+                        <input id="addUnitName" type="text" name="name" placeholder="Enter unit name" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="addUnitPlate">Plate Number</label>
+                            <input id="addUnitPlate" type="text" name="plate_number" placeholder="ABC 1234" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="addUnitTruckType">Tow Truck Type</label>
+                            <select name="truck_type_id" id="addUnitTruckType" required>
+                                <option value="">Select truck type</option>
+                                @foreach ($truckTypes as $type)
+                                    <option value="{{ $type->id }}">{{ $type->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="addUnitStatus">Initial Status</label>
+                        <select name="status" id="addUnitStatus">
+                            <option value="available">Available</option>
+                            <option value="maintenance">Maintenance</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="addIssueWrapper">
+                        <label for="addUnitIssue">Maintenance Note</label>
+                        <textarea id="addUnitIssue" name="issue_note" placeholder="Brief note if the unit is under maintenance"></textarea>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-light" data-close-modal="addUnitModal">Cancel</button>
+                        <button type="submit" class="btn-dark">Save Unit</button>
+                    </div>
+                </form>
             </div>
+        </div>
 
-            <form method="POST" id="editForm">
-                @csrf
-                @method('PUT')
-
-                <div class="form-group">
-                    <label>Unit Name</label>
-                    <input type="text" name="name" id="editName">
+        <div id="editUnitModal" class="modal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div>
+                        <h2>Edit Tow Unit</h2>
+                        <p>Update the unit record, plate, truck class, and maintenance state.</p>
+                    </div>
+                    <button type="button" class="modal-close" data-close-modal="editUnitModal">✕</button>
                 </div>
 
-                <div class="form-group">
-                    <label>Plate Number</label>
-                    <input type="text" name="plate_number" id="editPlate">
-                </div>
+                <form method="POST" id="editUnitForm">
+                    @csrf
+                    @method('PUT')
 
-                <div class="form-group">
-                    <label>Truck Type</label>
-                    <select name="truck_type_id" id="editTruckType">
-                        @foreach ($truckTypes as $type)
-                            <option value="{{ $type->id }}">
-                                {{ $type->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                    <div class="form-group">
+                        <label for="editName">Unit Name</label>
+                        <input type="text" name="name" id="editName" required>
+                    </div>
 
-                <div class="form-group">
-                    <label>Status</label>
-                    <select name="status" id="editStatus">
-                        <option value="available">Available</option>
-                        <option value="maintenance">Maintenance</option>
-                    </select>
-                </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editPlate">Plate Number</label>
+                            <input type="text" name="plate_number" id="editPlate" required>
+                        </div>
 
-                <div class="form-group" id="issueWrapper">
-                    <label>Issue Note</label>
-                    <textarea name="issue_note" id="editIssue"></textarea>
-                </div>
+                        <div class="form-group">
+                            <label for="editTruckType">Tow Truck Type</label>
+                            <select name="truck_type_id" id="editTruckType" required>
+                                @foreach ($truckTypes as $type)
+                                    <option value="{{ $type->id }}">{{ $type->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
 
-                <div class="modal-footer">
-                    <button type="button" onclick="closeEditModal()">Cancel</button>
-                    <button type="submit">Save</button>
-                </div>
+                    <div class="form-group">
+                        <label for="editStatus">Status</label>
+                        <select name="status" id="editStatus">
+                            <option value="available">Available</option>
+                            <option value="on_job">On Job</option>
+                            <option value="maintenance">Maintenance</option>
+                        </select>
+                    </div>
 
-            </form>
+                    <div class="form-group" id="editIssueWrapper">
+                        <label for="editIssue">Maintenance Note</label>
+                        <textarea name="issue_note" id="editIssue" placeholder="Add maintenance details if needed"></textarea>
+                    </div>
 
+                    <div class="modal-footer">
+                        <button type="button" class="btn-light" data-close-modal="editUnitModal">Cancel</button>
+                        <button type="submit" class="btn-dark">Update Unit</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 @endsection
 
 @push('scripts')
-    <script>
-        function openEditModal(btn) {
-            let id = btn.dataset.id;
-
-            document.getElementById('editName').value = btn.dataset.name;
-            document.getElementById('editPlate').value = btn.dataset.plate;
-            document.getElementById('editStatus').value = btn.dataset.status;
-            document.getElementById('editIssue').value = btn.dataset.issue || '';
-            document.getElementById('editTruckType').value = btn.dataset.truck;
-
-            document.getElementById('editForm').action = `/superadmin/unit-truck/${id}`;
-
-            document.getElementById('editModal').style.display = 'flex';
-            toggleIssue();
-        }
-
-        function closeEditModal() {
-            document.getElementById('editModal').style.display = 'none';
-        }
-
-        const statusSelect = document.getElementById('editStatus');
-        const issueWrapper = document.getElementById('issueWrapper');
-
-        function toggleIssue() {
-            issueWrapper.style.display =
-                statusSelect.value === 'maintenance' ? 'block' : 'none';
-        }
-
-        statusSelect.addEventListener('change', toggleIssue);
-
-        const searchInput = document.getElementById('unitSearch');
-        const statusFilter = document.getElementById('statusFilter');
-
-        searchInput.addEventListener('keyup', filterUnits);
-        statusFilter.addEventListener('change', filterUnits);
-
-        function filterUnits() {
-            let search = searchInput.value.toLowerCase();
-            let status = statusFilter.value;
-
-            document.querySelectorAll('#unitsTable tr').forEach(row => {
-                let text = row.innerText.toLowerCase();
-                let rowStatus = row.dataset.status;
-
-                row.style.display =
-                    text.includes(search) &&
-                    (status === 'all' || status === rowStatus) ?
-                    '' : 'none';
-            });
-        }
-    </script>
+    <script src="{{ asset('admin/js/unit-truck.js') }}" defer></script>
 @endpush

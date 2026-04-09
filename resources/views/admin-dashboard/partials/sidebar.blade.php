@@ -1,60 +1,72 @@
-<div class="sidebar">
+@php
+    $dispatcherUser = auth()->user();
+    $dispatcherName = $dispatcherUser->full_name ?? ($dispatcherUser->name ?? 'Dispatcher');
+@endphp
 
-    <div class="sidebar-brand">
-        <img src="{{ asset('admin/images/logo.png') }}">
-        <span>Dispatch Hub</span>
+<aside class="sidebar">
+    <div class="sidebar-shell">
+        <div class="sidebar-brand">
+            <img src="{{ asset('admin/images/logo.png') }}" alt="TowMate Logo">
+            <div class="brand-copy">
+                <span>TowMate Dispatcher</span>
+                <small>Operations panel</small>
+            </div>
+        </div>
+
+        <div class="menu-label">Operations</div>
+        <nav class="menu">
+            <a href="{{ route('admin.dashboard') }}"
+                class="menu-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+                <i data-lucide="layout-dashboard"></i>
+                <span>Dashboard</span>
+            </a>
+
+            <a href="{{ route('admin.dispatch') }}"
+                class="menu-item {{ request()->routeIs('admin.dispatch') ? 'active' : '' }}">
+                <i data-lucide="clipboard-check"></i>
+                <span>Dispatch Queue</span>
+            </a>
+
+            <a href="{{ route('admin.jobs') }}"
+                class="menu-item {{ request()->routeIs('admin.jobs') ? 'active' : '' }}">
+                <i data-lucide="briefcase-business"></i>
+                <span>Active Jobs</span>
+            </a>
+        </nav>
+
+        <div class="menu-label">Fleet</div>
+        <nav class="menu">
+            <a href="{{ route('admin.drivers') }}"
+                class="menu-item {{ request()->routeIs('admin.drivers') ? 'active' : '' }}">
+                <i data-lucide="users-round"></i>
+                <span>Team Leaders</span>
+            </a>
+
+            <a href="{{ route('admin.available-units') }}"
+                class="menu-item {{ request()->routeIs('admin.available-units') ? 'active' : '' }}">
+                <i data-lucide="truck"></i>
+                <span>Available Units</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-account">
+                <div class="account-avatar">{{ strtoupper(substr($dispatcherName, 0, 1)) }}</div>
+                <div class="account-copy">
+                    <strong>{{ $dispatcherName }}</strong>
+                    <small>Dispatcher session</small>
+                </div>
+            </div>
+
+            <button type="button" class="menu-item logout-btn" onclick="openLogoutModal()" aria-haspopup="dialog">
+                <i data-lucide="log-out"></i>
+                <span>Secure Logout</span>
+                <small class="logout-hint">End session</small>
+            </button>
+        </div>
     </div>
 
-    <div class="menu">
-
-        <p class="menu-label">MAIN</p>
-
-        <a href="{{ route('admin.dashboard') }}"
-            class="menu-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-            <i data-lucide="layout-dashboard"></i>
-            <span>Dashboard</span>
-        </a>
-
-        <p class="menu-label">OPERATIONS</p>
-
-        <a href="{{ route('admin.dispatch') }}"
-            class="menu-item {{ request()->routeIs('admin.dispatch') ? 'active' : '' }}">
-            <i data-lucide="inbox"></i>
-            <span>Incoming Requests</span>
-        </a>
-
-        <a href="{{ route('admin.available-units') }}"
-            class="menu-item {{ request()->routeIs('admin.available-units') ? 'active' : '' }}">
-            <i data-lucide="inbox"></i>
-            <span>Available Units</span>
-        </a>
-
-        <a href="{{ route('admin.jobs') }}" class="menu-item {{ request()->routeIs('admin.jobs') ? 'active' : '' }}">
-            <i data-lucide="truck"></i>
-            <span>Active Jobs</span>
-        </a>
-
-        <p class="menu-label">MANAGEMENT</p>
-
-        <a href="#" class="menu-item">
-            <i data-lucide="users"></i>
-            <span>Drivers</span>
-        </a>
-
-        <a href="#" class="menu-item">
-            <i data-lucide="map"></i>
-            <span>Live Map</span>
-        </a>
-
-    </div>
-
-    <form method="POST" action="{{ route('logout') }}" id="logoutForm">
+    <form id="logoutForm" action="{{ route('logout') }}" method="POST" style="display:none;">
         @csrf
-
-        <button type="button" class="menu-item logout-btn" onclick="openLogoutModal()">
-            <i data-lucide="log-out"></i>
-            <span>Logout</span>
-        </button>
     </form>
-
-</div>
+</aside>

@@ -1,8 +1,12 @@
 @extends('layouts.superadmin')
 
-@section('content')
-    <link rel="stylesheet" href="{{ asset('admin/css/audit-logs.css') }}">
+@section('title', 'Audit Logs')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('admin/css/audit-logs.css') }}">
+@endpush
+
+@section('content')
     <div class="audit-page-top">
 
         <div>

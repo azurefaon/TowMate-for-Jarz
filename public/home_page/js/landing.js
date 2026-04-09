@@ -129,3 +129,23 @@ function closeSuccessMessage() {
         }, 300);
     }
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    const success = document.getElementById("successMessage");
+
+    if (!success) return;
+
+    // slide in from the right
+    setTimeout(() => {
+        success.classList.add("show");
+    }, 100);
+
+    // auto hide
+    setTimeout(() => {
+        success.classList.remove("show");
+
+        setTimeout(() => {
+            success.remove();
+        }, 400);
+    }, 4000);
+});

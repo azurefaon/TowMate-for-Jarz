@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Pagination\Paginator;
 use App\Models\Booking;
@@ -24,25 +26,54 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $settings = SystemSetting::allCached()->toArray();
+        $settings = Schema::hasTable('system_settings')
+            ? SystemSetting::allCached()->toArray()
+            : [];
 
         config([
-            'towmate.settings' => $settings
+            'towmate.settings' => $settings,
         ]);
 
         View::composer('layouts.superadmin', function ($view) {
-            $pendingBookings = Booking::where('status', 'requested')->count();
+            $pendingBookings = Schema::hasTable('bookings')
+                ? Booking::where('status', 'requested')->count()
+                : 0;
 
             $view->with('pendingBookings', $pendingBookings);
         });
+
+        View::composer('admin-dashboard.layouts.app', function ($view) {
+            if (!Schema::hasTable('bookings')) {
+                $view->with([
+                    'dispatcherNotificationCount' => 0,
+                    'dispatcherNotifications' => collect(),
+                ]);
+
+                return;
+            }
+
+            $dispatcherNotifications = Booking::with(['customer', 'truckType'])
+                ->where('status', 'accepted')
+                ->latest('updated_at')
+                ->take(5)
+                ->get();
+
+            $dispatcherNotificationCount = Booking::where('status', 'accepted')
+                ->whereDate('updated_at', today())
+                ->count();
+
+            $view->with(compact('dispatcherNotificationCount', 'dispatcherNotifications'));
+        });
+
         Paginator::useBootstrapFive();
 
         View::composer('*', function ($view) {
-            if (!auth()->check()) return;
+            if (!Auth::check() || !Schema::hasTable('bookings')) {
+                return;
+            }
 
-            $user = auth()->user();
+            $user = Auth::user();
 
-            // get ONLY active booking
             $activeBooking = Booking::where('customer_id', $user->id)
                 ->whereIn('status', ['requested', 'assigned', 'on_job'])
                 ->orderByRaw("
@@ -51,13 +82,12 @@ class AppServiceProvider extends ServiceProvider
                                     WHEN status = 'assigned' THEN 2
                                     WHEN status = 'requested' THEN 3
                                 END
-                            ")->latest()->first();
+                            ")
+                ->latest()
+                ->first();
 
-            $view->with('activeBooking', $activeBooking);
-
-            // fallback for testing UI
             if (!$activeBooking) {
-                $activeBooking = Booking::where('customer_id', auth()->id())
+                $activeBooking = Booking::where('customer_id', Auth::id())
                     ->latest()
                     ->first();
             }

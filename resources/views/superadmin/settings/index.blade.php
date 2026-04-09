@@ -1,8 +1,12 @@
 @extends('layouts.superadmin')
 
-@section('content')
-    <link rel="stylesheet" href="{{ asset('admin/css/system-settings.css') }}">
+@section('title', 'System Settings')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('admin/css/system-settings.css') }}">
+@endpush
+
+@section('content')
     <div class="settings-page">
 
         <div class="settings-header">

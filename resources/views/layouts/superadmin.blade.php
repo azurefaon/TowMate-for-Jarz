@@ -3,18 +3,16 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>TowMate</title>
-    <link rel="stylesheet" href="{{ asset('admin/css/dashboard.css') }}">
-    <link rel="stylesheet" href="{{ asset('admin/css/users.css') }}">
-    <link rel="stylesheet" href="{{ asset('admin/css/truck-types.css') }}">
-    <link rel="stylesheet" href="{{ asset('admin/css/unit-truck.css') }}">
-    <link rel="stylesheet" href="{{ asset('admin/css/bookings.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@yield('title', 'TowMate Super Admin')</title>
     <link rel="icon" type="image/png" href="{{ asset('admin/images/logo.png') }}">
+    @stack('styles')
+    <link rel="stylesheet" href="{{ asset('superadmin/css/panel.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
-<body>
+<body class="superadmin-shell">
 
     <div class="sidebar" id="sidebar">
 
@@ -60,7 +58,8 @@
             </li>
 
             <li>
-                <a href="{{ route('superadmin.bookings.index') }}">
+                <a href="{{ route('superadmin.bookings.index') }}"
+                    class="{{ request()->routeIs('superadmin.bookings.*') ? 'active' : '' }}">
                     <i data-lucide="clipboard-list"></i>
                     <span>Bookings</span>
 
@@ -94,7 +93,7 @@
                 <div class="profile-info">
                     <img src="{{ asset('admin/images/logo.png') }}">
                     <div class="profile-text">
-                        <strong>{{ auth()->user()->full_name }}</strong>
+                        <strong>{{ auth()->user()->full_name ?? auth()->user()->name }}</strong>
                         <small>Super Admin</small>
                     </div>
                 </div>

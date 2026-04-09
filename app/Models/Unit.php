@@ -15,7 +15,8 @@ class Unit extends Model
         'name',
         'plate_number',
         'truck_type_id',
-        'status'
+        'status',
+        'issue_note'
     ];
 
     public function truckType()

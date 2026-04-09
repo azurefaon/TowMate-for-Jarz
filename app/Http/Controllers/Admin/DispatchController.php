@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Services\BookingService;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Http\Request;
 
 class DispatchController extends Controller
@@ -26,6 +27,13 @@ class DispatchController extends Controller
         return view('admin-dashboard.pages.dispatch', compact('incomingRequests'));
     }
 
+    public function pendingBookingsCount()
+    {
+        return response()->json([
+            'count' => Booking::where('status', 'requested')->count(),
+        ]);
+    }
+
     public function assignBooking(Request $request, Booking $booking)
     {
         $request->validate([
@@ -43,15 +51,17 @@ class DispatchController extends Controller
                 'assigned_at' => now(),
             ]);
 
+            // Send accept notification
+            Mail::to($booking->customer->email)->send(new \App\Mail\BookingAcceptedMail($booking));
+
             return response()->json([
                 'success' => true,
-                'message' => 'Booking accepted and quotation generated.',
+                'message' => 'Booking accepted, quotation generated and customer notified.',
                 'quotation_number' => $quotationNumber,
             ]);
         }
 
         if ($request->action === 'reject') {
-
             $booking->update([
                 'status' => 'cancelled',
                 'rejection_reason' => $request->rejection_reason,
@@ -59,9 +69,12 @@ class DispatchController extends Controller
 
             event(new \App\Events\BookingCancelled($booking));
 
+            // Send rejection email via Gmail
+            Mail::to($booking->customer->email)->send(new \App\Mail\BookingRejectedMail($booking));
+
             return response()->json([
                 'success' => true,
-                'message' => 'Booking cancelled and user notified.',
+                'message' => 'Booking rejected and customer notified via email.',
             ]);
         }
 

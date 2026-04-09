@@ -32,7 +32,7 @@
         <span>Book</span>
     </a>
 
-    <a href="{{ route('customer.track') }}" class="{{ request()->routeIs('customer.track') ? 'active' : '' }}">
+    <a href="{{ route('customer.track.index') }}" class="{{ request()->routeIs('customer.track*') ? 'active' : '' }}">
         <i data-lucide="map-pin"></i>
         <span>Track</span>
     </a>
@@ -71,8 +71,8 @@
         <span>Book</span>
     </a>
 
-    <a href="{{ route('customer.track') }}"
-        class="nav-item {{ request()->routeIs('customer.track') ? 'active' : '' }}">
+    <a href="{{ route('customer.track.index') }}"
+        class="nav-item {{ request()->routeIs('customer.track*') ? 'active' : '' }}">
         <i data-lucide="map-pin"></i>
         <span>Track</span>
     </a>

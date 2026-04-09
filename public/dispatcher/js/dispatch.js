@@ -4,11 +4,16 @@ document.addEventListener("DOMContentLoaded", function () {
     let pusher = null;
     let pollingInterval = null;
 
-    document.getElementById("actionModal").classList.add("hidden");
+    const actionModal = document.getElementById("actionModal");
+    actionModal?.classList.add("hidden");
 
     function initializeViewToggle() {
         const incomingList = document.getElementById("incomingList");
         const viewButtons = document.querySelectorAll(".view-btn");
+
+        if (!incomingList || viewButtons.length === 0) {
+            return;
+        }
 
         const savedView = localStorage.getItem("dispatchView") || "list";
         setView(savedView);
@@ -133,15 +138,17 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function checkForNewBookings() {
-        fetch("/admin/pending-bookings-count")
-            .then((response) => response.text())
-            .then((count) => {
+        fetch("/admin-dashboard/pending-bookings-count", {
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+        })
+            .then((response) => response.json())
+            .then((payload) => {
                 const currentCount =
                     parseInt(
                         document.getElementById("requestCount").textContent,
                     ) || 0;
 
-                if (parseInt(count) > currentCount) {
+                if ((Number(payload.count) || 0) > currentCount) {
                     location.reload();
                 }
             })
@@ -184,6 +191,19 @@ document.addEventListener("DOMContentLoaded", function () {
                         action === "accept"
                             ? `Booking accepted. Quotation ${data.quotation_number} generated.`
                             : "Booking rejected and cancelled.";
+
+                    if (
+                        action === "accept" &&
+                        window.dispatcherNotifications &&
+                        typeof window.dispatcherNotifications.add === "function"
+                    ) {
+                        window.dispatcherNotifications.add({
+                            title: `Booking #${bookingId} sent to team leader`,
+                            body: "Dispatcher accepted the request and moved it to the team leader queue.",
+                            time: "Just now",
+                        });
+                    }
+
                     showNotification(
                         message,
                         action === "accept" ? "success" : "error",
@@ -279,14 +299,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function closeActionModal() {
         document.getElementById("actionModal").classList.add("hidden");
-
-        modal.classList.add("hidden");
+        document.getElementById("rejectReasonInput").value = "";
     }
 
     document
         .getElementById("confirmActionBtn")
-        .addEventListener("click", function () {
-            const reason = document.getElementById("rejectReasonInput").value;
+        ?.addEventListener("click", function () {
+            const reason = document.getElementById("rejectReasonInput")?.value;
 
             const originalBtn = document.querySelector(
                 `.incoming-card[data-id="${selectedBookingId}"] .btn-${
@@ -313,11 +332,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
     document
         .getElementById("cancelModalBtn")
-        .addEventListener("click", closeActionModal);
+        ?.addEventListener("click", closeActionModal);
 
     document
         .getElementById("actionModal")
-        .addEventListener("click", function (e) {
+        ?.addEventListener("click", function (e) {
             if (e.target.id === "actionModal") closeActionModal();
         });
 

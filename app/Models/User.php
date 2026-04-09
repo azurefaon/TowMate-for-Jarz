@@ -23,6 +23,7 @@ class User extends Authenticatable
         'password',
         'role_id',
         'status',
+        'archived_at',
         'otp_code',
         'otp_expires_at',
         'otp_attempts',
@@ -64,6 +65,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'archived_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

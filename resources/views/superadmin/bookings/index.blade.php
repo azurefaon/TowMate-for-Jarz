@@ -1,5 +1,11 @@
 @extends('layouts.superadmin')
 
+@section('title', 'Bookings')
+
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('admin/css/bookings.css') }}">
+@endpush
+
 @section('content')
     <div class="booking-container">
 

@@ -3,15 +3,26 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\TruckType;
+use App\Models\Unit;
+use Illuminate\Http\Request;
 
 class TruckTypeController extends Controller
 {
     public function index()
     {
-        $truckTypes = TruckType::paginate(10);
-        return view('superadmin.truck-types.index', compact('truckTypes'));
+        $truckTypes = TruckType::withCount('units')
+            ->orderBy('name')
+            ->paginate(10);
+
+        $stats = [
+            'total' => TruckType::count(),
+            'active' => TruckType::where('status', 'active')->count(),
+            'inactive' => TruckType::where('status', 'inactive')->count(),
+            'units' => Unit::count(),
+        ];
+
+        return view('superadmin.truck-types.index', compact('truckTypes', 'stats'));
     }
 
     public function store(Request $request)
@@ -24,9 +35,12 @@ class TruckTypeController extends Controller
             'description' => 'nullable|string|max:255',
         ]);
 
+        $validated['status'] = 'active';
+
         TruckType::create($validated);
 
-        return redirect()->route('superadmin.truck-types.index')->with('success', 'Truck type created successfully.');
+        return redirect()->route('superadmin.truck-types.index')
+            ->with('success', 'Tow truck type created successfully.');
     }
 
     public function update(Request $request, TruckType $truckType)
@@ -41,15 +55,16 @@ class TruckTypeController extends Controller
 
         $truckType->update($validated);
 
-        return redirect()->route('superadmin.truck-types.index');
+        return redirect()->route('superadmin.truck-types.index')
+            ->with('success', 'Tow truck type updated successfully.');
     }
 
     public function toggleStatus(TruckType $truckType)
     {
         $truckType->update([
-            'status' => $truckType->status === 'active' ? 'inactive' : 'active'
+            'status' => $truckType->status === 'active' ? 'inactive' : 'active',
         ]);
 
-        return back();
+        return back()->with('success', 'Tow truck type status updated successfully.');
     }
 }
