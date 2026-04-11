@@ -19,7 +19,7 @@
 
                             <!-- TOP ROW -->
                             <div class="card-top">
-                                <h4>#TM-{{ $booking->id }}</h4>
+                                <h4>{{ $booking->job_code }}</h4>
                                 <span class="dot">•</span>
                                 <span class="time">{{ $booking->created_at->format('M d, Y • H:i') }}</span>
 
@@ -68,7 +68,7 @@
 
                         <!-- RIGHT -->
                         <div class="card-right">
-                            <a href="{{ route('customer.track', $booking->id) }}" class="btn-view">
+                            <a href="{{ route('customer.track', $booking->job_code) }}" class="btn-view">
                                 Track →
                             </a>
                         </div>

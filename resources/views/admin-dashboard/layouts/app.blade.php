@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title')</title>
+    <title>@yield('title') - Jarz Operations</title>
 
     <link rel="stylesheet" href="{{ asset('dispatcher/css/dashboard.css') }}">
     <link rel="stylesheet" href="{{ asset('dispatcher/css/sidebar.css') }}">
@@ -13,6 +13,145 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     @stack('styles')
     <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --jarz-accent: #FACC15;
+            --jarz-bg: #ffffff;
+            --jarz-surface: #fef3c7;
+            --jarz-text: #111111;
+            --jarz-line: #e5e7eb;
+        }
+
+        body {
+            background: #ffffff;
+            color: var(--jarz-text);
+        }
+
+        .sidebar,
+        .topbar,
+        .chart-card,
+        .actions-card,
+        .activity-card,
+        .stat-card,
+        .units-table-card,
+        .jobs-stat-card,
+        .job-card {
+            border-color: var(--jarz-line) !important;
+        }
+
+        .topbar {
+            position: sticky;
+            top: 12px;
+            z-index: 1200;
+            overflow: visible;
+            background: #ffffff;
+            backdrop-filter: none;
+            border-bottom: 0;
+        }
+
+        .topbar-copy h2 {
+            color: var(--jarz-text);
+        }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+            z-index: 1250;
+        }
+
+        .topbar-date {
+            color: var(--jarz-text);
+            opacity: 0.78;
+            font-weight: 600;
+        }
+
+        .main-content,
+        .page-content {
+            overflow: visible;
+        }
+
+        .notif-dropdown,
+        .profile-dropdown {
+            position: relative;
+            z-index: 1300;
+        }
+
+        .profile-dropdown summary {
+            list-style: none;
+        }
+
+        .profile-dropdown summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .profile-trigger {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 0;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .profile-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--jarz-surface);
+            color: var(--jarz-text);
+            font-weight: 700;
+        }
+
+        .profile-meta {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.15;
+        }
+
+        .profile-meta small {
+            color: rgba(48, 56, 65, 0.68);
+        }
+
+        .profile-menu {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 10px);
+            min-width: 180px;
+            padding: 8px;
+            border-radius: 14px;
+            border: 0;
+            background: #fff;
+            box-shadow: 0 20px 50px rgba(48, 56, 65, 0.12);
+            z-index: 20;
+        }
+
+        .profile-menu a,
+        .profile-menu button {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border: 0;
+            background: transparent;
+            border-radius: 10px;
+            color: var(--jarz-text);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .profile-menu a:hover,
+        .profile-menu button:hover {
+            background: var(--jarz-surface);
+        }
+    </style>
 </head>
 
 <body>
@@ -44,8 +183,8 @@
                     aria-label="Close logout dialog">×</button>
             </div>
 
-            <h3 id="logoutTitle">Sign out of dispatcher panel?</h3>
-            <p>Your current session will end and you will return to the login page.</p>
+            <h3 id="logoutTitle">Sign out of Jarz operations?</h3>
+            <p>Your current session will end and you will return to the secure login page.</p>
 
             <div class="logout-actions">
                 <button type="button" class="cancel-btn" onclick="closeLogoutModal()">Stay here</button>

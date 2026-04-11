@@ -5,6 +5,6 @@
 @section('content')
 
     <h1>Customer Dashboard</h1>
-    <p>Welcome to TowMate!</p>
+    <p>Welcome to Jarz!</p>
 
 @endsection

@@ -38,10 +38,6 @@
                 <span>Ready Team Leaders</span>
                 <strong>{{ $stats['ready_team_leaders'] }}</strong>
             </article>
-            <article class="units-stat-card success">
-                <span>Member Drivers</span>
-                <strong>{{ $stats['member_drivers'] }}</strong>
-            </article>
             <article class="units-stat-card subtle">
                 <span>Truck Types</span>
                 <strong>{{ $stats['truck_types'] }}</strong>
@@ -76,8 +72,7 @@
                     </thead>
                     <tbody id="unitsTable">
                         @forelse ($units as $unit)
-                            <tr data-name="{{ strtolower($unit->name) }}"
-                                data-plate="{{ strtolower($unit->plate_number) }}"
+                            <tr data-name="{{ strtolower($unit->name) }}" data-plate="{{ strtolower($unit->plate_number) }}"
                                 data-type="{{ strtolower(optional($unit->truckType)->name ?? '') }}"
                                 data-teamleader="{{ strtolower(optional($unit->teamLeader)->full_name ?? (optional($unit->teamLeader)->name ?? '')) }}">
                                 <td>

@@ -10,8 +10,8 @@
     <div class="dashboard-header">
 
         <div>
-            <h1>Dashboard Overview</h1>
-            <p>System performance and activity summary</p>
+            <h1>Jarz Owner Overview</h1>
+            <p>Bookings, revenue, and operational health in one clean analytics view.</p>
         </div>
 
         <div class="dashboard-meta">
@@ -38,22 +38,32 @@
             </div>
 
             <div class="stat-card">
+                <div class="stat-icon bookings">
+                    <i data-lucide="clipboard-list"></i>
+                </div>
+                <div>
+                    <span>Total Bookings</span>
+                    <h2 class="counter" data-target="{{ $totalBookings }}">0</h2>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon revenue">
+                    <i data-lucide="banknote"></i>
+                </div>
+                <div>
+                    <span>Revenue Tracked</span>
+                    <h2>₱{{ number_format($totalRevenue, 2) }}</h2>
+                </div>
+            </div>
+
+            <div class="stat-card">
                 <div class="stat-icon trucks">
                     <i data-lucide="truck"></i>
                 </div>
                 <div>
                     <span>Active Units</span>
                     <h2 class="counter" data-target="{{ $activeUnits }}">0</h2>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon types">
-                    <i data-lucide="package"></i>
-                </div>
-                <div>
-                    <span>Truck Types</span>
-                    <h2 class="counter" data-target="{{ $activeTruckTypes }}">0</h2>
                 </div>
             </div>
 
@@ -118,24 +128,23 @@
             </div>
 
 
-            {{-- CANCELLED --}}
-            <div class="metric-card metric-cancelled">
+            <div class="metric-card metric-pending">
 
                 <div class="metric-header">
-                    <span>CANCELLED TODAY</span>
+                    <span>PENDING REVIEW</span>
 
                     <div class="metric-icon">
-                        <i data-lucide="x-circle"></i>
+                        <i data-lucide="hourglass"></i>
                     </div>
                 </div>
 
-                <div class="metric-value" id="cancelledToday">{{ $cancelledToday }}</div>
+                <div class="metric-value" id="pendingBookingsMetric">{{ $pendingBookings }}</div>
 
                 <div class="metric-desc">
-                    @if ($cancelledToday == 0)
-                        No cancellations — great!
+                    @if ($pendingBookings == 0)
+                        Dispatch queues are clear right now
                     @else
-                        Cancelled bookings today
+                        Customer requests are waiting for review
                     @endif
                 </div>
 
@@ -321,9 +330,13 @@
                 .then(res => res.json())
                 .then(data => {
 
-                    document.getElementById('todayBookings').innerText = data.todayBookings;
-                    document.getElementById('completedToday').innerText = data.completedToday;
-                    document.getElementById('cancelledToday').innerText = data.cancelledToday;
+                    const todayBookings = document.getElementById('todayBookings');
+                    const completedToday = document.getElementById('completedToday');
+                    const pendingBookingsMetric = document.getElementById('pendingBookingsMetric');
+
+                    if (todayBookings) todayBookings.innerText = data.todayBookings ?? 0;
+                    if (completedToday) completedToday.innerText = data.completedToday ?? 0;
+                    if (pendingBookingsMetric) pendingBookingsMetric.innerText = data.pendingBookings ?? 0;
 
                     bookingChart.data.datasets[0].data = data.weekBookings;
                     bookingChart.update();

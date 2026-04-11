@@ -1,5 +1,5 @@
 .content {
-    background: #f7f4e8;
+    background: #ffffff;
 }
 
 .units-page {
@@ -60,8 +60,9 @@
 }
 
 .units-page .btn-secondary {
-    background: #111111;
-    color: #facc15;
+    background: #ffffff;
+    color: #111827;
+    border-color: #e5e7eb;
 }
 
 .units-page .btn-primary-add,
@@ -73,12 +74,13 @@
 .units-page .btn-light {
     background: #fff;
     color: #111111;
-    border-color: #eadf9f;
+    border-color: #e5e7eb;
 }
 
 .units-page .edit-btn {
-    background: #111111;
-    color: #facc15;
+    background: #ffffff;
+    color: #111827;
+    border-color: #e5e7eb;
 }
 
 .units-page .fleet-summary {
@@ -89,7 +91,7 @@
 
 .units-page .summary-card {
     background: #fff;
-    border: 1px solid rgba(250, 204, 21, 0.28);
+    border: 1px solid #e5e7eb;
     border-radius: 18px;
     padding: 18px;
     box-shadow: 0 10px 24px rgba(17, 17, 17, 0.04);
@@ -118,20 +120,23 @@
 }
 
 .units-page .available-card {
-    background: #f0fdf4;
+    background: #ffffff;
+    border-color: #bbf7d0;
 }
 
 .units-page .on-job-card {
-    background: #eff6ff;
+    background: #ffffff;
+    border-color: #bfdbfe;
 }
 
 .units-page .maintenance-card {
-    background: #fff7ed;
+    background: #ffffff;
+    border-color: #fed7aa;
 }
 
 .units-page .table-card {
     background: #fff;
-    border: 1px solid #f0df93;
+    border: 1px solid #e5e7eb;
     border-radius: 20px;
     overflow: hidden;
     box-shadow: 0 12px 26px rgba(17, 17, 17, 0.04);
@@ -143,8 +148,8 @@
     align-items: center;
     gap: 16px;
     padding: 18px;
-    border-bottom: 1px solid #f4e8b4;
-    background: linear-gradient(180deg, #fffef9 0%, #fff7d6 100%);
+    border-bottom: 1px solid #e5e7eb;
+    background: #ffffff;
 }
 
 .units-page .table-header h3 {
@@ -165,7 +170,7 @@
     min-width: 260px;
     padding: 0 12px;
     border-radius: 12px;
-    border: 1px solid #eadf9f;
+    border: 1px solid #e5e7eb;
     background: #fff;
 }
 
@@ -175,9 +180,9 @@
 .units-page .form-group select,
 .units-page .form-group textarea {
     width: 100%;
-    border: 1px solid #eadf9f;
+    border: 1px solid #e5e7eb;
     border-radius: 12px;
-    background: #fffef8;
+    background: #ffffff;
     color: #111111;
     font-size: 14px;
 }
@@ -207,17 +212,18 @@
 }
 
 .units-page .modern-table thead {
-    background: #111111;
+    background: #fffdf3;
 }
 
 .units-page .modern-table th {
     padding: 14px 16px;
-    color: #facc15;
+    color: #111827;
     font-size: 0.78rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     text-align: left;
+    border-bottom: 1px solid #f3e8b3;
 }
 
 .units-page .modern-table td {
@@ -241,8 +247,8 @@
     width: 42px;
     height: 42px;
     border-radius: 14px;
-    background: #111111;
-    color: #facc15;
+    background: #facc15;
+    color: #111827;
     display: inline-flex;
     align-items: center;
     justify-content: center;

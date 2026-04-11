@@ -12,7 +12,7 @@
 
         <div>
 
-            <h1>Booking #{{ $booking->id }}</h1>
+            <h1>Booking {{ $booking->job_code }}</h1>
             <p>Booking details and receipt information</p>
 
         </div>

@@ -10,11 +10,11 @@
 @endpush
 
 @section('content')
-    <div class="dispatcher-dashboard">
+    <div class="dispatcher-dashboard" id="dispatcherDashboard" data-live-overview-url="{{ route('admin.live-overview') }}">
         <div class="dashboard-hero">
             <div class="hero-copy">
-                <h1>Command Center</h1>
-                <p>Live dispatcher view for requests, jobs, and team leader availability.</p>
+                <h1>Jarz Command Center</h1>
+                <p>Live operations overview for requests, crew activity, and towing readiness.</p>
             </div>
 
             <div class="hero-tools">
@@ -41,7 +41,7 @@
                     <span class="stat-kicker">Workload</span>
                     <i data-lucide="truck"></i>
                 </div>
-                <div class="stat-number">{{ $activeJobs }}</div>
+                <div class="stat-number" id="activeJobsCount">{{ $activeJobs }}</div>
                 <div class="stat-label">Active Jobs</div>
             </div>
 
@@ -50,28 +50,11 @@
                     <span class="stat-kicker">Leaders</span>
                     <i data-lucide="check-circle"></i>
                 </div>
-                <div class="stat-number">{{ $available }}</div>
+                <div class="stat-number" id="availableLeadersCount">{{ $available }}</div>
                 <div class="stat-label">Available Team Leaders</div>
             </div>
 
-            <div class="stat-card busy-card">
-                <div class="stat-top">
-                    <span class="stat-kicker">Field</span>
-                    <i data-lucide="users-round"></i>
-                </div>
-                <div class="stat-number">{{ $busyTeamLeadersCount }}</div>
-                <div class="stat-label">Active Team Leaders</div>
-            </div>
 
-            <div class="stat-card health-card">
-                <div class="stat-top">
-                    <span class="stat-kicker">Focus</span>
-                    <i data-lucide="triangle-alert"></i>
-                </div>
-                <div class="stat-number">{{ $delayed }}</div>
-                <div class="stat-label">Delayed Jobs</div>
-                <small class="stat-note">Readiness {{ $fleetHealth }}%</small>
-            </div>
         </div>
 
         <div class="dashboard-main-grid">
@@ -95,23 +78,31 @@
             </section>
 
             <aside class="actions-card">
-                <h3>Quick Actions</h3>
+                <div class="actions-head">
+                    <h3>Quick Actions</h3>
+                    <p>Fast dispatcher shortcuts for the live operation board.</p>
+                </div>
+
                 <div class="action-buttons">
                     <a href="{{ route('admin.dispatch') }}" class="action-btn primary">
                         <i data-lucide="inbox"></i>
                         <span>Review Requests</span>
+                        <small>Open the live queue and respond fast.</small>
                     </a>
                     <a href="{{ route('admin.jobs') }}" class="action-btn success">
                         <i data-lucide="briefcase-business"></i>
                         <span>Manage Jobs</span>
+                        <small>Track active tow operations in one place.</small>
                     </a>
                     <a href="{{ route('admin.drivers') }}" class="action-btn info">
                         <i data-lucide="users"></i>
                         <span>View Team Leaders</span>
+                        <small>Check leader availability and assignments.</small>
                     </a>
                     <a href="{{ route('admin.available-units') }}" class="action-btn warning">
                         <i data-lucide="check-square"></i>
                         <span>View Units</span>
+                        <small>See which towing units are ready now.</small>
                     </a>
                 </div>
             </aside>
@@ -129,7 +120,7 @@
                     </div>
                 </div>
 
-                <div class="activity-list">
+                <div class="activity-list" id="incomingRequestList">
                     @forelse ($incomingRequests as $request)
                         <div class="activity-item" data-type="{{ $loop->first ? 'priority' : 'request' }}">
                             <div class="activity-icon request-icon">
@@ -138,14 +129,15 @@
 
                             <div class="activity-content">
                                 <div class="activity-line">
-                                    <strong>{{ $request->customer->full_name ?? 'New Request' }}</strong>
-                                    <span>{{ $request->truckType->name ?? 'Tow request' }}</span>
+                                    <strong>{{ $request['customer_name'] }}</strong>
+                                    <span>{{ $request['truck_type'] }}</span>
                                 </div>
 
                                 <div class="activity-meta">
-                                    <span>{{ $request->created_at->diffForHumans() }}</span>
-                                    <span>{{ Str::limit($request->pickup_address, 28) }}</span>
-                                    <span>{{ Str::limit($request->dropoff_address, 26) }}</span>
+                                    <span>{{ $request['booking_code'] }}</span>
+                                    <span>{{ $request['created_at_human'] }}</span>
+                                    <span>{{ $request['pickup_address'] }}</span>
+                                    <span>{{ $request['dropoff_address'] }}</span>
                                 </div>
                             </div>
 
@@ -155,6 +147,47 @@
                         <div class="no-activity">
                             <i data-lucide="activity"></i>
                             <p>No pending requests right now.</p>
+                        </div>
+                    @endforelse
+                </div>
+            </section>
+
+            <section class="activity-card">
+                <div class="card-header">
+                    <div>
+                        <h3>Current activity</h3>
+                        <p>Live handoffs from team leaders with the assigned unit and driver.</p>
+                    </div>
+                </div>
+
+                <div class="activity-list" id="currentActivityList">
+                    @forelse ($currentActivities as $activity)
+                        <div class="activity-item" data-type="request">
+                            <div class="activity-icon request-icon">
+                                <i data-lucide="truck"></i>
+                            </div>
+
+                            <div class="activity-content">
+                                <div class="activity-line">
+                                    <strong>{{ $activity['booking_code'] }}</strong>
+                                    <span>{{ $activity['status'] }}</span>
+                                </div>
+
+                                <div class="activity-meta">
+                                    <span>{{ $activity['customer_name'] }}</span>
+                                    <span>{{ $activity['unit_name'] }} · {{ $activity['unit_plate'] }}</span>
+                                    <span>{{ $activity['team_leader_name'] }} · {{ $activity['driver_name'] }}</span>
+                                    <span>{{ $activity['team_leader_status_summary'] }}</span>
+                                    <span>{{ $activity['updated_at_human'] }}</span>
+                                </div>
+                            </div>
+
+                            <div class="activity-status available">Live</div>
+                        </div>
+                    @empty
+                        <div class="no-activity">
+                            <i data-lucide="truck"></i>
+                            <p>No jobs are active right now.</p>
                         </div>
                     @endforelse
                 </div>

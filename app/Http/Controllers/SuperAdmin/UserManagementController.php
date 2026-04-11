@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class UserManagementController extends Controller
@@ -124,10 +125,36 @@ class UserManagementController extends Controller
             ], 422);
         }
 
-        $user->update($validator->validated());
+        $validated = $validator->validated();
+        $roleChanged = (int) $user->role_id !== (int) $validated['role_id'];
+        $statusChanged = $user->status !== $validated['status'];
+        $requiresRelogin = $roleChanged || $statusChanged;
+
+        $user->update($validated);
+
+        if ($requiresRelogin) {
+            $user->forceFill([
+                'remember_token' => Str::random(60),
+            ])->save();
+        }
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'user_updated',
+            'entity_type' => 'User',
+            'entity_id' => $user->id,
+            'reference' => $user->name,
+            'description' => $requiresRelogin
+                ? 'Role or status changed — user should sign in again.'
+                : 'Profile details updated.',
+        ]);
 
         return response()->json([
             'success' => true,
+            'requires_relogin' => $requiresRelogin,
+            'message' => $requiresRelogin
+                ? 'User updated. Ask the team member to log out and sign back in so the new access is applied.'
+                : 'User details updated successfully.',
         ]);
     }
 

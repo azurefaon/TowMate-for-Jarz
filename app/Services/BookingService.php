@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\TruckType;
+use App\Models\SystemSetting;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Support\Facades\Schema;
 
 class BookingService
 {
@@ -40,15 +42,41 @@ class BookingService
 
     public function resolveCustomer(array $data, ?Authenticatable $user = null): Customer
     {
-        if ($user && method_exists($user, 'customer') && $user->customer) {
+        if (
+            $user
+            && Schema::hasTable('customers')
+            && Schema::hasColumn('customers', 'user_id')
+            && method_exists($user, 'customer')
+            && $user->customer
+        ) {
             return $user->customer;
         }
 
+        if ($user) {
+            $existingCustomer = Customer::query()
+                ->when(Schema::hasColumn('customers', 'user_id'), function ($query) use ($user) {
+                    $query->where('user_id', $user->getAuthIdentifier());
+                })
+                ->when(filled($user->email ?? null), function ($query) use ($user) {
+                    $query->orWhere('email', $user->email);
+                })
+                ->first();
+
+            if ($existingCustomer) {
+                if (Schema::hasColumn('customers', 'user_id') && ! $existingCustomer->user_id) {
+                    $existingCustomer->update(['user_id' => $user->getAuthIdentifier()]);
+                }
+
+                return $existingCustomer;
+            }
+        }
+
         return Customer::create([
+            ...(Schema::hasColumn('customers', 'user_id') ? ['user_id' => $user?->getAuthIdentifier()] : []),
             'full_name' => $data['full_name'],
             'age' => $data['age'],
             'phone' => $data['phone'],
-            'email' => $data['email'] ?? null,
+            'email' => $data['email'] ?? $user?->email,
             'is_pwd' => $data['is_pwd'] ?? false,
             'is_senior' => $data['is_senior'] ?? false,
         ]);
@@ -56,7 +84,10 @@ class BookingService
 
     public function generateQuotationNumber(Booking $booking): string
     {
-        return sprintf('Q-%s-%04d', now()->format('Ymd'), $booking->id);
+        $prefix = trim((string) SystemSetting::getValue('quote_prefix', 'Q'));
+        $prefix = $prefix !== '' ? strtoupper($prefix) : 'Q';
+
+        return sprintf('%s-%s-%04d', $prefix, now()->format('Ymd'), $booking->id);
     }
 
     protected function parseDistance(string $distance): float
@@ -64,8 +95,10 @@ class BookingService
         return floatval(str_replace([' km', ','], '', $distance));
     }
 
-    protected function parsePrice(string $price): float
+    public function parsePrice(?string $price): float
     {
-        return floatval(str_replace(['₱', ','], '', $price));
+        $normalized = preg_replace('/[^\d.]/', '', (string) $price);
+
+        return $normalized === '' ? 0.0 : (float) $normalized;
     }
 }

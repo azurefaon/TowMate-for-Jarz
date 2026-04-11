@@ -1,11 +1,24 @@
 <?php
 
 use App\Models\User;
+use Database\Seeders\SuperAdminSeeder;
 
 test('login screen can be rendered', function () {
     $response = $this->get('/login');
 
     $response->assertStatus(200);
+});
+
+test('seeded super admin can authenticate with the default credentials', function () {
+    $this->seed(SuperAdminSeeder::class);
+
+    $response = $this->post('/login', [
+        'email' => 'SuperAdmin@Gmail.com',
+        'password' => 'admin123456',
+    ]);
+
+    $this->assertAuthenticated();
+    $response->assertRedirect(route('dashboard', absolute: false));
 });
 
 test('users can authenticate using the login screen', function () {

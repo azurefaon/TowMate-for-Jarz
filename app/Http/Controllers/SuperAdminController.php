@@ -20,6 +20,10 @@ class SuperAdminController extends Controller
 
         $activeTruckTypes = TruckType::where('status', 'active')->count();
 
+        $totalBookings = Booking::count();
+
+        $totalRevenue = (float) Booking::where('status', 'completed')->sum('final_total');
+
         $todayBookings = Booking::whereDate('created_at', today())->count();
 
         $pendingBookings = Booking::where('status', 'requested')->count();
@@ -36,6 +40,8 @@ class SuperAdminController extends Controller
 
         return view('superadmin.dashboard', compact(
             'totalUsers',
+            'totalBookings',
+            'totalRevenue',
             'activeUnits',
             'todayBookings',
             'pendingBookings',

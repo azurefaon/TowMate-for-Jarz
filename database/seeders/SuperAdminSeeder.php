@@ -2,37 +2,49 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-
 use App\Models\User;
-use App\Models\Role;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class SuperAdminSeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
-    public function run()
+    public function run(): void
     {
+        if (! Schema::hasTable('users')) {
+            return;
+        }
 
-        \Illuminate\Support\Facades\DB::table('roles')->insertOrIgnore([
-            ['id' => 1, 'name' => 'Super Admin'],
-            ['id' => 2, 'name' => 'Admin'],
-            ['id' => 3, 'name' => 'Team Leader'],
-            ['id' => 4, 'name' => 'Driver'],
-            ['id' => 5, 'name' => 'Customer'],
-        ]);
+        $email = strtolower((string) env('SUPERADMIN_EMAIL', 'superadmin@gmail.com'));
+        $password = (string) env('SUPERADMIN_PASSWORD', 'admin123456');
+        $name = (string) env('SUPERADMIN_NAME', 'System SuperAdmin');
 
-        \App\Models\User::updateOrCreate(
-            ['email' => 'superadmin@towmate.test'],
-            [
-                'name' => 'System SuperAdmin',
-                'password' => \Illuminate\Support\Facades\Hash::make('admin123456'),
-                'role_id' => 1,
-                'status' => 'active'
-            ]
-        );
+        if (Schema::hasTable('roles')) {
+            DB::table('roles')->insertOrIgnore([
+                ['id' => 1, 'name' => 'Super Admin'],
+                ['id' => 2, 'name' => 'Admin'],
+                ['id' => 3, 'name' => 'Team Leader'],
+                ['id' => 4, 'name' => 'Driver'],
+                ['id' => 5, 'name' => 'Customer'],
+            ]);
+        }
+
+        $values = [
+            'name' => $name,
+            'password' => $password,
+        ];
+
+        if (Schema::hasColumn('users', 'role_id') && Schema::hasTable('roles')) {
+            $values['role_id'] = 1;
+        }
+
+        if (Schema::hasColumn('users', 'status')) {
+            $values['status'] = 'active';
+        }
+
+        User::updateOrCreate(['email' => $email], $values);
     }
 }

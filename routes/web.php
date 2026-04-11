@@ -30,7 +30,6 @@ use App\Http\Controllers\SuperAdmin\TruckTypeController;
 use App\Http\Controllers\SuperAdmin\UnitController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 
-// Landing
 Route::get('/', [LandingController::class, 'index'])->name('landing');
 
 Route::get('/book', function () {
@@ -42,21 +41,30 @@ Route::get('/book', function () {
 Route::post('/book', [CustomerBookingController::class, 'landingStore'])
     ->name('landing.book.store');
 
-// Dashboard redirect
-Route::get('/dashboard', function () {
+Route::get('/quotation/review/{booking}', [CustomerBookingController::class, 'showQuotationReview'])
+    ->middleware(['signed', 'throttle:30,1'])
+    ->name('quotation.review');
+
+Route::post('/quotation/review/{booking}', [CustomerBookingController::class, 'respondToQuotationFromEmail'])
+    ->middleware(['signed', 'throttle:20,1'])
+    ->name('quotation.review.submit');
+
+Route::get('/dashboard', function (Request $request) {
     $role = Auth::user()->role_id ?? 0;
 
+    $baseUrl = rtrim(config('app.url') ?: ($request->getSchemeAndHttpHost() . $request->getBaseUrl()), '/');
+    $redirectTo = fn(string $path) => redirect()->to($baseUrl . $path);
+
     return match ($role) {
-        1 => redirect()->route('superadmin.dashboard'),
-        2 => redirect()->route('admin.dashboard'),
-        3 => redirect()->route('teamleader.dashboard'),
-        4 => redirect()->route('driver.dashboard'),
-        5 => redirect()->route('customer.dashboard'),
+        1 => $redirectTo('/superadmin/dashboard'),
+        2 => $redirectTo('/admin-dashboard'),
+        3 => $redirectTo('/teamleader/dashboard'),
+        4 => $redirectTo('/driver'),
+        5 => $redirectTo('/customer/dashboard'),
         default => view('dashboard'),
     };
 })->middleware(['auth'])->name('dashboard');
 
-// Profile
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -65,35 +73,100 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__ . '/auth.php';
 
-// Team Leader
+Route::get('/teamleader/login', function (Request $request) {
+    $baseUrl = rtrim(config('app.url') ?: ($request->getSchemeAndHttpHost() . $request->getBaseUrl()), '/');
+
+    return redirect()->to($baseUrl . '/login');
+})->name('teamleader.login.redirect');
+
 Route::prefix('teamleader')
     ->name('teamleader.')
     ->middleware(['auth', 'role:3'])
     ->group(function () {
-        Route::get('/', [TeamLeaderController::class, 'index'])->name('dashboard');
-        Route::get('/bookings', [TeamLeaderController::class, 'index'])->name('bookings');
+        Route::redirect('/', '/teamleader/dashboard');
+        Route::get('/dashboard', [TeamLeaderController::class, 'dashboard'])->name('dashboard');
+        Route::get('/tasks', [TeamLeaderController::class, 'tasks'])->name('tasks');
+        Route::get('/bookings', [TeamLeaderController::class, 'tasks'])->name('bookings');
+        Route::get('/task/{booking}', [TeamLeaderController::class, 'showTask'])->name('task.show');
+
+        Route::post('/task/{booking}/accept', [TeamLeaderController::class, 'acceptTask'])
+            ->middleware('throttle:20,1')
+            ->name('task.accept');
+
+        Route::post('/task/{booking}/driver', [TeamLeaderController::class, 'saveDriver'])
+            ->middleware('throttle:20,1')
+            ->name('task.driver');
+
+        Route::post('/task/{booking}/note', [TeamLeaderController::class, 'autosaveNote'])
+            ->middleware('throttle:30,1')
+            ->name('task.note');
+
+        Route::post('/task/{booking}/proceed', [TeamLeaderController::class, 'proceedToLocation'])
+            ->middleware('throttle:20,1')
+            ->name('task.proceed');
+
+        Route::post('/task/{booking}/start', [TeamLeaderController::class, 'startTask'])
+            ->middleware('throttle:20,1')
+            ->name('task.start');
+
+        Route::post('/task/{booking}/complete', [TeamLeaderController::class, 'completeTask'])
+            ->middleware('throttle:10,1')
+            ->name('task.complete');
+
+        Route::post('/task/{booking}/return', [TeamLeaderController::class, 'returnTask'])
+            ->middleware('throttle:10,1')
+            ->name('task.return');
+
+        Route::get('/task/{booking}/status', [TeamLeaderController::class, 'taskStatus'])
+            ->middleware('throttle:30,1')
+            ->name('task.status');
+
+        Route::post('/presence/ping', [TeamLeaderController::class, 'heartbeat'])
+            ->middleware('throttle:60,1')
+            ->name('presence.ping');
+
+        Route::post('/presence/offline', [TeamLeaderController::class, 'goOffline'])
+            ->middleware('throttle:60,1')
+            ->name('presence.offline');
+
+        Route::post('/tasks/{booking}/start', [TeamLeaderController::class, 'startTask'])
+            ->middleware('throttle:20,1')
+            ->name('tasks.start');
+
+        Route::post('/tasks/{booking}/confirm-completion', [TeamLeaderController::class, 'confirmCompletion'])
+            ->middleware('throttle:10,1')
+            ->name('tasks.confirm');
+
+        Route::get('/tasks/{booking}/status', [TeamLeaderController::class, 'taskStatus'])
+            ->middleware('throttle:30,1')
+            ->name('tasks.status');
     });
 
-// Driver
+Route::get('/teamleader/verification/{booking}/{decision}', [TeamLeaderController::class, 'respondToVerification'])
+    ->middleware(['signed', 'throttle:20,1'])
+    ->name('teamleader.verification.respond');
+
 Route::view('/driver', 'dashboard')
     ->middleware(['auth', 'role:4'])
     ->name('driver.dashboard');
 
-// Admin Dashboard (role 2 - Dispatcher)
 Route::prefix('admin-dashboard')
     ->name('admin.')
     ->middleware(['auth', 'role:2'])
     ->group(function () {
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
+        Route::get('/live-overview', [AdminController::class, 'liveOverview'])->name('live-overview');
         Route::get('/dispatch', [DispatchController::class, 'index'])->name('dispatch');
         Route::get('/pending-bookings-count', [DispatchController::class, 'pendingBookingsCount'])->name('pending-bookings-count');
         Route::get('/drivers', [DriversController::class, 'index'])->name('drivers');
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
         Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])->name('booking.assign');
         Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');
+
+        Route::post('/booking/{id}/update-status', [DispatchController::class, 'updateStatus'])
+            ->name('booking.updateStatus');
     });
 
-// SuperAdmin (role 1)
 Route::prefix('superadmin')
     ->name('superadmin.')
     ->middleware(['auth', 'role:1'])
@@ -150,7 +223,6 @@ Route::prefix('superadmin')
         })->name('dashboard.stats');
     });
 
-// Customer
 Route::middleware(['auth', 'role:5'])
     ->prefix('customer')
     ->name('customer.')
@@ -164,6 +236,8 @@ Route::middleware(['auth', 'role:5'])
         })->name('book');
 
         Route::post('/book', [CustomerBookingController::class, 'store'])->name('book.store');
+        Route::post('/booking/{booking}/quotation-response', [CustomerBookingController::class, 'respondToQuotation'])
+            ->name('booking.quotation.respond');
 
         Route::get('/track', [TrackController::class, 'index'])->name('track.index');
         Route::get('/track/{id}', [TrackController::class, 'show'])->name('track');
@@ -178,15 +252,5 @@ Route::middleware(['auth', 'role:5'])
         })->name('help');
     });
 
-// OTP
 Route::post('/send-otp', [VerificationController::class, 'sendOtp'])->middleware(['auth', 'throttle:3,1']);
 Route::post('/verify-otp', [VerificationController::class, 'verifyOtp'])->middleware(['auth', 'throttle:5,1']);
-
-// Logout
-Route::post('/logout', function (Request $request) {
-    Auth::guard('web')->logout();
-    $request->session()->invalidate();
-    $request->session()->regenerateToken();
-
-    return redirect()->route('login');
-})->name('logout');

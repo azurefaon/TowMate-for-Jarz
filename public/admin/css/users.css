@@ -516,6 +516,17 @@
     color: #4b5563;
 }
 
+.user-management-page .form-helper-text {
+    margin: -2px 0 2px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #fffbe8;
+    border: 1px solid #ebdfab;
+    color: #5f6368;
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
 .user-management-page .modal-form input,
 .user-management-page .modal-form select {
     min-height: 42px;

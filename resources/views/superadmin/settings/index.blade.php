@@ -20,10 +20,7 @@
         <div class="settings-tabs">
             <button class="settings-tab active" data-tab="company">Company</button>
             <button class="settings-tab" data-tab="notifications">Notifications</button>
-            <button class="settings-tab" data-tab="security">Security</button>
-            <button class="settings-tab" data-tab="dispatch">Dispatch</button>
-            <button class="settings-tab" data-tab="financial">Financial</button>
-            <button class="settings-tab" data-tab="appearance">Appearance</button>
+            <button class="settings-tab" data-tab="customize-quotation">Customize Quotations</button>
         </div>
 
         <div class="settings-content active" id="company">
@@ -42,7 +39,9 @@
 
                         <div class="settings-field">
                             <label>Company Name</label>
-                            <input type="text" value="JARZ" disabled>
+                            <input type="text" name="company_name"
+                                value="{{ old('company_name', $settings['company_name'] ?? 'JARZ TOWING SERVICES') }}"
+                                placeholder="Company name" required>
                         </div>
 
                         <div class="settings-field">
@@ -62,6 +61,8 @@
                             <input type="text" name="contact_location" value="{{ $landing->contact_location ?? '' }}"
                                 placeholder="City, Philippines">
                         </div>
+
+
 
                     </div>
 
@@ -149,7 +150,7 @@
 
         </div>
 
-        <form method="POST" action="{{ route('superadmin.settings.update') }}">
+        <form method="POST" action="{{ route('superadmin.settings.update') }}" enctype="multipart/form-data">
             @csrf
 
             <!-- NOTIFICATIONS -->
@@ -262,216 +263,85 @@
 
 
 
-            <!-- SECURITY -->
+            <!-- CUSTOMIZE QUOTATIONS -->
 
-            <div class="settings-content" id="security">
-
-                <div class="settings-card">
-
-                    <div class="settings-card-header">
-                        <h3>Security Settings</h3>
-                        <p>Configure security and authentication options</p>
-                    </div>
-
-
-                    <div class="settings-section">
-
-                        <div class="settings-toggle-row">
-
-                            <div class="toggle-info">
-                                <strong>Two-Factor Authentication</strong>
-                                <p>Require 2FA for all user logins</p>
-                            </div>
-
-                            <label class="switch">
-                                <input type="checkbox" name="settings[require_2fa]">
-                                <span class="slider"></span>
-                            </label>
-
-                        </div>
-
-
-                        <div class="settings-toggle-row">
-
-                            <div class="toggle-info">
-                                <strong>Require Strong Passwords</strong>
-                                <p>Enforce password complexity requirements</p>
-                            </div>
-
-                            <label class="switch">
-                                <input type="checkbox" name="settings[strong_password]">
-                                <span class="slider"></span>
-                            </label>
-
-                        </div>
-
-
-                        <div class="settings-toggle-row">
-
-                            <div class="toggle-info">
-                                <strong>Audit Logging</strong>
-                                <p>Track all system activities</p>
-                            </div>
-
-                            <label class="switch">
-                                <input type="checkbox" name="settings[audit_logging]">
-                                <span class="slider"></span>
-                            </label>
-
-                        </div>
-
-                    </div>
-
-
-                    <hr class="settings-divider">
-
-
-                    <div class="settings-grid">
-
-                        <div class="settings-field">
-                            <label>Session Timeout (minutes)</label>
-                            <input type="number" name="settings[session_timeout]" value="30">
-                            <p class="field-help">Auto logout after inactivity period</p>
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-
-            <!-- DISPATCH -->
-
-            <div class="settings-content" id="dispatch">
+            <div class="settings-content" id="customize-quotation">
 
                 <div class="settings-card">
 
                     <div class="settings-card-header">
-                        <h3>Dispatch Configuration</h3>
-                        <p>Configure dispatch and job assignment settings</p>
-                    </div>
-
-
-                    <div class="settings-toggle-row">
-
-                        <div class="toggle-info">
-                            <strong>Automatic Job Assignment</strong>
-                            <p>Automatically assign jobs to available drivers</p>
-                        </div>
-
-                        <label class="switch">
-                            <input type="checkbox" name="settings[auto_dispatch]">
-                            <span class="slider"></span>
-                        </label>
-
-                    </div>
-
-
-                    <hr class="settings-divider">
-
-
-                    <div class="settings-grid">
-
-                        <div class="settings-field">
-                            <label>Maximum Jobs per Driver</label>
-                            <input type="number" name="settings[max_jobs]" value="0">
-                        </div>
-
-
-                        <div class="settings-field">
-                            <label>Default Service Radius (miles)</label>
-                            <input type="number" name="settings[service_radius]" value="0">
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-
-            <!-- FINANCIAL -->
-
-            <div class="settings-content" id="financial">
-
-                <div class="settings-card">
-
-                    <div class="settings-card-header">
-                        <h3>Financial Configuration</h3>
-                        <p>Configure pricing, taxes, and invoice settings</p>
+                        <h3>Customize Quotations</h3>
+                        <p>Manage the logos, signature, and payment details used in quotations and receipts</p>
                     </div>
 
                     <div class="settings-grid">
 
                         <div class="settings-field">
-                            <label>Default Tax Rate (%)</label>
-                            <input type="number" name="settings[tax_rate]" value="0">
+                            <label>Quotation Logo</label>
+                            @if (!empty($settings['company_logo']))
+                                <img src="{{ asset('storage/' . $settings['company_logo']) }}" class="preview-img">
+                            @endif
+                            <input type="file" name="company_logo" accept="image/*">
                         </div>
-
 
                         <div class="settings-field">
-                            <label>Default Payment Terms</label>
-                            <input type="text" name="settings[payment_terms]" value="">
+                            <label>Secondary Logo / Badge</label>
+                            @if (!empty($settings['secondary_logo']))
+                                <img src="{{ asset('storage/' . $settings['secondary_logo']) }}" class="preview-img">
+                            @endif
+                            <input type="file" name="secondary_logo" accept="image/*">
                         </div>
-
 
                         <div class="settings-field">
-                            <label>Invoice Number Prefix</label>
-                            <input type="text" name="settings[invoice_prefix]" value="">
+                            <label>Signature Image</label>
+                            @if (!empty($settings['signature_image']))
+                                <img src="{{ asset('storage/' . $settings['signature_image']) }}" class="preview-img">
+                            @endif
+                            <input type="file" name="signature_image" accept="image/*">
+                            <p class="field-help">This uploaded image will appear as the signatory on quotations and
+                                receipts.</p>
                         </div>
-
 
                         <div class="settings-field">
                             <label>Quotation Number Prefix</label>
-                            <input type="text" name="settings[quote_prefix]" value="">
+                            <input type="text" name="settings[quote_prefix]"
+                                value="{{ $settings['quote_prefix'] ?? 'Q' }}">
                         </div>
 
-                    </div>
-
-                </div>
-
-            </div>
-
-
-
-            <!-- APPEARANCE -->
-
-            <div class="settings-content" id="appearance">
-
-                <div class="settings-card">
-
-                    <div class="settings-card-header">
-                        <h3>Appearance Settings</h3>
-                        <p>Customize the look and feel of your system</p>
-                    </div>
-
-
-                    <div class="settings-grid">
-
-                        <div class="settings-field">
-                            <label>Theme</label>
-                            <input type="text" name="settings[theme]" value="">
+                        <div class="settings-field" style="grid-column: 1 / -1;">
+                            <label>Payment Terms</label>
+                            <input type="text" name="settings[payment_terms]"
+                                value="{{ $settings['payment_terms'] ?? 'Pay upon service confirmation' }}">
                         </div>
 
-
                         <div class="settings-field">
-                            <label>Primary Color</label>
-                            <input type="text" name="settings[primary_color]" value="">
+                            <label>Bank Name</label>
+                            <input type="text" name="settings[bank_name]"
+                                value="{{ $settings['bank_name'] ?? 'BDO Bank' }}">
                         </div>
 
-
                         <div class="settings-field">
-                            <label>Font Size</label>
-                            <input type="text" name="settings[font_size]" value="">
+                            <label>Bank Account Name</label>
+                            <input type="text" name="settings[bank_account_name]"
+                                value="{{ $settings['bank_account_name'] ?? 'SEARLE ANN BARTOLOME' }}">
                         </div>
 
+                        <div class="settings-field">
+                            <label>Bank Account Number</label>
+                            <input type="text" name="settings[bank_account_number]"
+                                value="{{ $settings['bank_account_number'] ?? '012150103970' }}">
+                        </div>
 
                         <div class="settings-field">
-                            <label>Date Format</label>
-                            <input type="text" name="settings[date_format]" value="">
+                            <label>GCash Name</label>
+                            <input type="text" name="settings[gcash_name]"
+                                value="{{ $settings['gcash_name'] ?? 'SHEANNE BARTOLOME FRANCHISEE' }}">
+                        </div>
+
+                        <div class="settings-field">
+                            <label>GCash Number</label>
+                            <input type="text" name="settings[gcash_number]"
+                                value="{{ $settings['gcash_number'] ?? '09426386048' }}">
                         </div>
 
                     </div>

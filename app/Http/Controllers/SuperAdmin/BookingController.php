@@ -23,6 +23,7 @@ class BookingController extends Controller
                 $q->whereHas('customer', function ($q2) use ($request) {
                     $q2->where('full_name', 'like', '%' . $request->search . '%');
                 })
+                    ->orWhere('booking_code', 'like', '%' . $request->search . '%')
                     ->orWhere('pickup_address', 'like', '%' . $request->search . '%')
                     ->orWhere('dropoff_address', 'like', '%' . $request->search . '%');
             });
@@ -48,9 +49,33 @@ class BookingController extends Controller
             'truckType',
             'unit',
             'receipt'
-        ])->findOrFail($id);
+        ])
+            ->where('booking_code', $id)
+            ->orWhere('id', $id)
+            ->firstOrFail();
 
-        return response()->json($booking);
+        return response()->json([
+            'booking_code' => $booking->job_code,
+            'customer' => [
+                'full_name' => $booking->customer->full_name ?? 'N/A',
+            ],
+            'truck_type' => [
+                'name' => $booking->truckType->name ?? 'N/A',
+            ],
+            'unit' => $booking->unit ? [
+                'name' => $booking->unit->name,
+                'plate_number' => $booking->unit->plate_number,
+            ] : null,
+            'pickup_address' => $booking->pickup_address,
+            'dropoff_address' => $booking->dropoff_address,
+            'distance_km' => $booking->distance_km,
+            'final_total' => $booking->final_total,
+            'status' => $booking->status,
+            'receipt' => $booking->receipt ? [
+                'receipt_code' => $booking->receipt->receipt_code ?? $booking->receipt->receipt_number,
+                'pdf_path' => $booking->receipt->pdf_path,
+            ] : null,
+        ]);
     }
 
     public function store(Request $request)

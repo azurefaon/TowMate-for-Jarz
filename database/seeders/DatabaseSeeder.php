@@ -20,10 +20,5 @@ class DatabaseSeeder extends Seeder
             SuperAdminSeeder::class,
             TruckTypeSeeder::class,
         ]);
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
     }
 }

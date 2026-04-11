@@ -1,14 +1,14 @@
 /* SuperAdmin Original Dashboard Styles - Restored */
 :root {
     --primary: #facc15;
-    --primary-dark: #eab308;
-    --success: #facc15;
-    --warning: #f59e0b;
-    --danger: #dc2626;
-    --dark: #111111;
+    --primary-dark: #f59e0b;
+    --success: #ecfdf3;
+    --warning: #fffbeb;
+    --danger: #fee2e2;
+    --dark: #111827;
     --light: #ffffff;
-    --gray: #6b7280;
-    --shadow: 0 18px 40px rgba(17, 17, 17, 0.08);
+    --gray: #64748b;
+    --shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
     --radius: 18px;
 }
 
@@ -17,29 +17,37 @@
 }
 
 .dashboard-header {
-    background: linear-gradient(135deg, #0c0c0c 0%, #1c1c1c 100%);
-    color: white;
-    padding: 2rem 3rem;
-    margin: -3rem -3rem 2rem -3rem;
-    border-radius: 0 0 var(--radius) var(--radius);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: linear-gradient(135deg, #fffdf2 0%, #ffffff 72%);
+    color: var(--dark);
+    padding: 1.75rem 2rem;
+    margin: 0 0 1.5rem;
+    border-radius: var(--radius);
     position: relative;
     overflow: hidden;
-    border-bottom: 3px solid rgba(250, 204, 21, 0.8);
+    z-index: 1;
+    border: 1px solid #e5e7eb;
+    box-shadow: var(--shadow);
 }
 
 .dashboard-header::before {
     content: "";
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    top: -80px;
+    right: -40px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: rgba(250, 204, 21, 0.18);
     pointer-events: none;
 }
 
 .dashboard-header h1 {
-    font-size: 2.5rem;
+    font-size: 2.3rem;
     font-weight: 700;
     margin: 0 0 0.5rem 0;
     position: relative;
@@ -47,11 +55,12 @@
 }
 
 .dashboard-header p {
-    font-size: 1.125rem;
-    opacity: 0.9;
+    font-size: 1rem;
+    opacity: 0.95;
     margin: 0;
     position: relative;
     z-index: 1;
+    color: var(--gray);
 }
 
 .dashboard-meta {
@@ -62,20 +71,22 @@
 }
 
 .date-box {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--radius);
-    backdrop-filter: blur(10px);
+    background: #ffffff;
+    padding: 0.75rem 1rem;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-weight: 500;
+    font-weight: 600;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
 }
 
 .date-box i {
     width: 20px;
     height: 20px;
     opacity: 0.8;
+    color: #d97706;
 }
 
 /* Stats Grid */
@@ -88,24 +99,27 @@
 
 .stat-card {
     background: white;
-    padding: 2rem;
+    padding: 1.5rem;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
+    border: 1px solid #e5e7eb;
     transition:
         transform 0.3s ease,
-        box-shadow 0.3s ease;
+        box-shadow 0.3s ease,
+        border-color 0.3s ease;
     position: relative;
     overflow: hidden;
 }
 
 .stat-card:hover {
-    transform: translateY(-8px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    transform: translateY(-4px);
+    border-color: #fde68a;
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.1);
 }
 
 .stat-icon {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     border-radius: 16px;
     display: flex;
     align-items: center;
@@ -116,14 +130,27 @@
 }
 
 .stat-icon.users {
-    background: linear-gradient(135deg, #111111 0%, #2a2a2a 100%);
-}
-.stat-icon.trucks {
-    background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
     color: #111111;
 }
+.stat-icon.bookings {
+    background: linear-gradient(135deg, #facc15 0%, #f59e0b 100%);
+    color: #111111;
+}
+.stat-icon.revenue {
+    background: linear-gradient(135deg, #dcfce7 0%, #86efac 100%);
+    color: #166534;
+}
+.stat-icon.trucks {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1d4ed8;
+}
 .stat-icon.types {
-    background: linear-gradient(135deg, #1f1f1f 0%, #facc15 100%);
+    background: #fff7d6;
+    border: 1px solid #efe3a0;
+    color: #111111;
 }
 
 .stat-card span {
@@ -135,13 +162,10 @@
 }
 
 .stat-card h2 {
-    font-size: 2.5rem;
+    font-size: 2.2rem;
     font-weight: 700;
     margin: 0.5rem 0 0 0;
-    background: linear-gradient(135deg, var(--dark) 0%, #2c3e50 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--dark);
 }
 
 /* Metric Grid */
@@ -154,16 +178,20 @@
 
 .metric-card {
     background: white;
-    padding: 2.5rem;
+    padding: 1.5rem;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
+    border: 1px solid #e5e7eb;
     position: relative;
     overflow: hidden;
-    transition: transform 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        box-shadow 0.3s ease;
 }
 
 .metric-card:hover {
     transform: translateY(-4px);
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.1);
 }
 
 .metric-card::before {
@@ -181,15 +209,14 @@
 }
 
 .metric-bookings::before {
-    background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
+    background: linear-gradient(135deg, #facc15 0%, #f59e0b 100%);
 }
 .metric-completed::before {
-    background: linear-gradient(135deg, #111111 0%, #2b2b2b 100%);
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
 }
-.metric-cancelled::before {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+.metric-pending::before {
+    background: linear-gradient(135deg, #fef3c7 0%, #f59e0b 100%);
 }
-
 .metric-header {
     display: flex;
     justify-content: space-between;
@@ -217,14 +244,14 @@
 }
 
 .metric-bookings .metric-icon {
-    background: linear-gradient(135deg, #facc15, #eab308);
-    color: #111111;
+    background: linear-gradient(135deg, #facc15, #f59e0b);
+    color: #111827;
 }
 .metric-completed .metric-icon {
-    background: linear-gradient(135deg, #111111, #2b2b2b);
+    background: linear-gradient(135deg, #22c55e, #16a34a);
 }
-.metric-cancelled .metric-icon {
-    background: linear-gradient(135deg, #facc15, #ca8a04);
+.metric-pending .metric-icon {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
     color: #111111;
 }
 
@@ -248,8 +275,8 @@
 }
 
 .metric-chart svg path {
-    fill: rgba(102, 126, 234, 0.1);
-    stroke: var(--primary);
+    fill: rgba(250, 204, 21, 0.14);
+    stroke: #92400e;
     stroke-width: 2;
     stroke-linejoin: round;
 }
@@ -263,14 +290,15 @@
 
 .chart-section {
     background: white;
-    padding: 2.5rem;
+    padding: 1.5rem;
     border-radius: var(--radius);
+    border: 1px solid #e5e7eb;
     box-shadow: var(--shadow);
 }
 
 .chart-section h2 {
-    margin: 0 0 2rem 0;
-    font-size: 1.5rem;
+    margin: 0 0 1.25rem 0;
+    font-size: 1.3rem;
     font-weight: 600;
     color: var(--dark);
 }
@@ -281,8 +309,9 @@
 
 .activity-card {
     background: white;
-    padding: 2.5rem;
+    padding: 1.5rem;
     border-radius: var(--radius);
+    border: 1px solid #e5e7eb;
     box-shadow: var(--shadow);
     height: fit-content;
 }
@@ -302,9 +331,9 @@
 }
 
 .activity-header a {
-    color: var(--primary);
+    color: var(--dark);
     text-decoration: none;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 0.95rem;
 }
 
@@ -391,20 +420,42 @@
 
 @media (max-width: 768px) {
     .dashboard-header {
-        padding: 1.5rem 2rem;
-        margin: -2rem -2rem 1.5rem -2rem;
+        padding: 1.25rem;
+        margin: 0 0 1rem;
     }
 
     .dashboard-header h1 {
-        font-size: 2rem;
+        font-size: 1.8rem;
     }
 
-    .metric-grid {
-        grid-template-columns: 1fr;
+    .dashboard-meta {
+        width: 100%;
     }
 
+    .date-box {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .metric-grid,
     .stats-grid {
         grid-template-columns: 1fr;
+    }
+
+    .metric-card,
+    .chart-section,
+    .activity-card {
+        padding: 1rem;
+    }
+
+    .activity-header,
+    .activity-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .activity-time {
+        margin-left: 0;
     }
 }
 

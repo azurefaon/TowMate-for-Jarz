@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Customer;
+use App\Models\Role;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,11 +29,23 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
+        $customerRole = Role::find(5);
+
+        if (! $customerRole) {
+            $customerRole = new Role([
+                'name' => 'Customer',
+                'description' => 'Customer role',
+            ]);
+            $customerRole->id = 5;
+            $customerRole->save();
+        }
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role_id' => 5,
+            'role_id' => $customerRole->id,
+            'status' => 'active',
         ]);
 
         $lastCustomer = Customer::orderBy('id', 'desc')->first();
@@ -55,8 +68,13 @@ class RegisteredUserController extends Controller
 
         event(new Registered($user));
 
-        Auth::login($user);
+        if (! Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
+            Auth::login($user);
+        }
 
-        return redirect(route('dashboard', absolute: false));
+        Auth::setUser($user);
+        $request->session()->regenerate();
+
+        return redirect()->intended(route('dashboard', absolute: false));
     }
 }

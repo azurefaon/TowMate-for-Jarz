@@ -1,15 +1,15 @@
 .sidebar {
-    width: 286px;
+    width: 290px;
     height: 100vh;
-    background: #fffdf8;
-    border-right: 1px solid #ece7d8;
-    padding: 16px 14px;
+    background: #ffffff;
+    border-right: 0;
+    padding: 18px 14px;
     position: fixed;
     top: 0;
     left: 0;
     z-index: 1000;
     overflow-y: auto;
-    box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
+    box-shadow: 12px 0 30px rgba(17, 24, 39, 0.06);
     transition: transform 0.18s ease;
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
@@ -28,23 +28,24 @@
     min-height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
 }
 
 .sidebar-brand {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px;
-    border-radius: 14px;
+    padding: 14px;
+    border-radius: 18px;
     background: #ffffff;
-    border: 1px solid #e2e8f0;
+    border: 0;
+    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
 }
 
 .sidebar-brand img {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
     object-fit: cover;
 }
 
@@ -55,10 +56,10 @@
 }
 
 .brand-copy span {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #0f172a;
-    line-height: 1.2;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1.15;
 }
 
 .brand-copy small {
@@ -67,10 +68,10 @@
 }
 
 .menu-label {
-    margin: 10px 10px 2px;
-    font-size: 0.68rem;
+    margin: 10px 10px 4px;
+    font-size: 0.66rem;
     font-weight: 800;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #64748b;
 }
@@ -78,28 +79,44 @@
 .menu {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .menu-item {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
     width: 100%;
-    min-height: 44px;
-    padding: 11px 14px;
-    border-radius: 12px;
-    border: 1px solid transparent;
-    background: #f8fafc;
+    min-height: 46px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 0;
+    background: #ffffff;
+    box-shadow: 0 8px 18px rgba(17, 24, 39, 0.05);
     color: #334155;
     text-decoration: none;
     text-align: left;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
+    -webkit-tap-highlight-color: transparent;
     transition:
-        background-color 0.15s ease,
-        border-color 0.15s ease,
-        color 0.15s ease;
+        transform 0.16s ease,
+        background-color 0.16s ease,
+        color 0.16s ease,
+        box-shadow 0.16s ease;
+}
+
+.menu-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 4px;
+    border-radius: 999px;
+    background: transparent;
+    transition: background-color 0.16s ease;
 }
 
 .menu-item span {
@@ -109,25 +126,54 @@
 .menu-item i {
     width: 18px;
     height: 18px;
-    color: #ca8a04;
+    color: #facc15;
     flex-shrink: 0;
+    transition: color 0.16s ease;
 }
 
 .menu-item:hover {
-    background: #fff7d6;
-    border-color: #f3d16b;
+    background: #fff7dc;
     color: #111827;
+    transform: translateX(2px);
+    box-shadow: 0 10px 22px rgba(250, 204, 21, 0.12);
+}
+
+.menu-item:hover::before {
+    background: #facc15;
 }
 
 .menu-item.active {
-    background: #fef3c7;
-    border-color: #facc15;
+    background: #facc15;
+    color: #111827;
+    box-shadow: 0 12px 24px rgba(250, 204, 21, 0.2);
+}
+
+.menu-item.active::before {
+    background: #111827;
+}
+
+.menu-item.active i,
+.menu-item.active span {
     color: #111827;
 }
 
-.menu-item:focus {
-    outline: 2px solid #ca8a04;
-    outline-offset: 2px;
+.menu-item:focus,
+.menu-item:focus-visible,
+.menu-item:active {
+    outline: none;
+    border: 0;
+}
+
+.menu-item:not(.active):focus,
+.menu-item:not(.active):focus-visible,
+.menu-item:not(.active):active {
+    box-shadow: 0 8px 18px rgba(17, 24, 39, 0.05);
+}
+
+.menu-item.active:focus,
+.menu-item.active:focus-visible,
+.menu-item.active:active {
+    box-shadow: 0 12px 24px rgba(17, 24, 39, 0.18);
 }
 
 .sidebar-footer {

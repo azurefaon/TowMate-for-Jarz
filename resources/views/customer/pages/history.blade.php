@@ -50,7 +50,7 @@
                 <div class="card-left">
 
                     <div class="card-id">
-                        <h4>#TM-{{ $booking->id }}</h4>
+                        <h4>{{ $booking->job_code }}</h4>
                         <span>{{ $booking->created_at->format('M d, Y • H:i') }}</span>
 
                         <span class="status-badge {{ $booking->status }}">
@@ -117,7 +117,7 @@
             <tbody>
                 @foreach ($bookings as $booking)
                     <tr>
-                        <td>#TM-{{ $booking->id }}</td>
+                        <td>{{ $booking->job_code }}</td>
                         <td>{{ $booking->pickup_address }} → {{ $booking->dropoff_address }}</td>
                         <td>{{ $booking->truckType->name ?? '-' }}</td>
                         <td>{{ $booking->unit->driver->name ?? 'Not Assigned' }}</td>

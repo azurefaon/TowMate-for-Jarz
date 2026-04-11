@@ -2,7 +2,7 @@
 
     <div class="sidebar-brand">
         <img src="{{ asset('admin/images/logo.png') }}">
-        <span>TowMate</span>
+        <span>Jarz</span>
     </div>
 
     <div class="sidebar-menu">

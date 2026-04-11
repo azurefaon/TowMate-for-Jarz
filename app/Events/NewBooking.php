@@ -50,13 +50,18 @@ class NewBooking implements ShouldBroadcast
      */
     public function broadcastWith(): array
     {
+        $this->booking->loadMissing(['customer', 'truckType']);
+
         return [
-            'id' => $this->booking->id,
-            'pickup_location' => $this->booking->pickup_address,
-            'dropoff_location' => $this->booking->dropoff_address,
-            'created_at' => $this->booking->created_at->diffForHumans(),
-            'truck_type' => $this->booking->truckType->name ?? 'Unknown',
-            'customer' => $this->booking->customer->name ?? 'Unknown',
+            'id' => $this->booking->booking_code ?: $this->booking->id,
+            'booking_code' => $this->booking->job_code,
+            'pickup_address' => $this->booking->pickup_address,
+            'dropoff_address' => $this->booking->dropoff_address,
+            'created_at' => optional($this->booking->created_at)->toISOString(),
+            'created_at_human' => optional($this->booking->created_at)->diffForHumans() ?? 'Just now',
+            'truck_type_name' => $this->booking->truckType->name ?? 'Unknown',
+            'customer_name' => $this->booking->customer->full_name ?? 'Unknown',
+            'customer_phone' => $this->booking->customer->phone ?? 'N/A',
         ];
     }
 }

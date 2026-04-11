@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Concerns\GeneratesPublicCode;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, GeneratesPublicCode;
 
     /**
      * The attributes that are mass assignable.
@@ -18,6 +19,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'user_code',
         'name',
         'email',
         'password',
@@ -31,6 +33,15 @@ class User extends Authenticatable
         'email_verified_at',
     ];
 
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            if (blank($user->user_code)) {
+                $user->user_code = static::nextPublicCode('user_code');
+            }
+        });
+    }
+
     public function role()
     {
         return $this->belongsTo(\App\Models\Role::class, 'role_id');
@@ -39,6 +50,11 @@ class User extends Authenticatable
     public function customer()
     {
         return $this->hasOne(\App\Models\Customer::class);
+    }
+
+    public function unit()
+    {
+        return $this->hasOne(\App\Models\Unit::class, 'team_leader_id');
     }
 
     public function user()

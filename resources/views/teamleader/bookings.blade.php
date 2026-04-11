@@ -3,54 +3,66 @@
 @php use Illuminate\Support\Str; @endphp
 
 @section('title', 'Accepted Bookings')
+@section('page_title', 'Accepted Bookings')
 
 @section('content')
-    <div class="dashboard-container">
-        <div class="section-header">
-            <div>
-                <h3>Accepted Requests</h3>
-                <p>Review jobs approved by dispatch for your team.</p>
+    <div class="tl-task-board">
+        <section class="tl-section-card tl-section-card--compact">
+            <div class="tl-section-card__header">
+                <div>
+                    <p class="tl-eyebrow">Approved Jobs</p>
+                    <h3>Accepted requests</h3>
+                    <p>Review jobs approved by dispatch for your team.</p>
+                </div>
+                <span class="tl-soft-badge">{{ $bookings->count() }} visible</span>
             </div>
-        </div>
+
+            <div class="tl-task-card__note">
+                These jobs are already approved and ready for the next towing step with your crew.
+            </div>
+        </section>
 
         @if ($bookings->count())
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Booking ID</th>
-                            <th>Customer</th>
-                            <th>Pickup → Dropoff</th>
-                            <th>Vehicle</th>
-                            <th>Distance</th>
-                            <th>Price</th>
-                            <th>Quotation</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($bookings as $booking)
-                            <tr>
-                                <td>#{{ $booking->id }}</td>
-                                <td>{{ $booking->customer->full_name }}<br><small>{{ $booking->customer->phone }}</small>
-                                </td>
-                                <td>{{ Str::limit($booking->pickup_address, 25) }} →
-                                    {{ Str::limit($booking->dropoff_address, 25) }}</td>
-                                <td>{{ $booking->truckType->name ?? 'Unknown' }}</td>
-                                <td>{{ number_format($booking->distance_km, 1) }} km</td>
-                                <td>₱{{ number_format($booking->final_total, 2) }}</td>
-                                <td>{{ $booking->quotation_number ?? 'Pending' }}</td>
-                                <td><span class="status-badge accepted">Accepted</span></td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+            <section class="tl-task-grid">
+                @foreach ($bookings as $booking)
+                    <article class="tl-task-card">
+                        <div class="tl-task-card__header">
+                            <div>
+                                <p class="tl-task-card__eyebrow">Booking {{ $booking->job_code }}</p>
+                                <h3>{{ Str::limit($booking->pickup_address, 32) }} →
+                                    {{ Str::limit($booking->dropoff_address, 32) }}</h3>
+                            </div>
+                            <span class="tl-status-badge assigned">Accepted</span>
+                        </div>
 
-            {{ $bookings->links() }}
+                        <div class="tl-task-card__meta">
+                            <div>
+                                <small>Customer</small>
+                                <p>{{ $booking->customer->full_name }}</p>
+                                <span>{{ $booking->customer->phone }}</span>
+                            </div>
+                            <div>
+                                <small>Vehicle</small>
+                                <p>{{ $booking->truckType->name ?? 'Unknown' }}</p>
+                                <span>{{ number_format($booking->distance_km, 1) }} km</span>
+                            </div>
+                            <div>
+                                <small>Payment</small>
+                                <p>₱{{ number_format($booking->final_total, 2) }}</p>
+                                <span>{{ $booking->quotation_number ?? 'Pending quotation' }}</span>
+                            </div>
+                        </div>
+                    </article>
+                @endforeach
+            </section>
+
+            <section class="tl-section-card">
+                {{ $bookings->links() }}
+            </section>
         @else
-            <div class="empty-state">
-                <p>No accepted bookings available yet.</p>
+            <div class="tl-empty-state">
+                <h3>No accepted bookings available yet</h3>
+                <p>Once dispatch approves more jobs for your unit, they will appear here.</p>
             </div>
         @endif
     </div>

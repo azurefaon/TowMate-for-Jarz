@@ -6,9 +6,9 @@
 <aside class="sidebar">
     <div class="sidebar-shell">
         <div class="sidebar-brand">
-            <img src="{{ asset('admin/images/logo.png') }}" alt="TowMate Logo">
+            <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Logo">
             <div class="brand-copy">
-                <span>TowMate Dispatcher</span>
+                <span>Jarz Dispatch</span>
                 <small>Operations panel</small>
             </div>
         </div>
@@ -49,21 +49,6 @@
             </a>
         </nav>
 
-        <div class="sidebar-footer">
-            <div class="sidebar-account">
-                <div class="account-avatar">{{ strtoupper(substr($dispatcherName, 0, 1)) }}</div>
-                <div class="account-copy">
-                    <strong>{{ $dispatcherName }}</strong>
-                    <small>Dispatcher session</small>
-                </div>
-            </div>
-
-            <button type="button" class="menu-item logout-btn" onclick="openLogoutModal()" aria-haspopup="dialog">
-                <i data-lucide="log-out"></i>
-                <span>Secure Logout</span>
-                <small class="logout-hint">End session</small>
-            </button>
-        </div>
     </div>
 
     <form id="logoutForm" action="{{ route('logout') }}" method="POST" style="display:none;">

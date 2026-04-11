@@ -37,7 +37,9 @@ return new class extends Migration
             }
         });
 
-        DB::statement("ALTER TABLE `bookings` MODIFY `status` ENUM('requested','accepted','assigned','on_job','rejected','completed','cancelled') NOT NULL DEFAULT 'requested'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE `bookings` MODIFY `status` ENUM('requested','accepted','assigned','on_job','rejected','completed','cancelled') NOT NULL DEFAULT 'requested'");
+        }
     }
 
     public function down(): void
@@ -66,6 +68,8 @@ return new class extends Migration
             }
         });
 
-        DB::statement("ALTER TABLE `bookings` MODIFY `status` ENUM('requested','assigned','on_job','completed','cancelled') NOT NULL DEFAULT 'requested'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE `bookings` MODIFY `status` ENUM('requested','assigned','on_job','completed','cancelled') NOT NULL DEFAULT 'requested'");
+        }
     }
 };

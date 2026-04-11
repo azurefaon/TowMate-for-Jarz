@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Pagination\Paginator;
 use App\Models\Booking;
+use App\Models\Customer;
 use App\Models\SystemSetting;
 
 
@@ -36,7 +37,7 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.superadmin', function ($view) {
             $pendingBookings = Schema::hasTable('bookings')
-                ? Booking::where('status', 'requested')->count()
+                ? Booking::whereIn('status', ['requested', 'reviewed'])->count()
                 : 0;
 
             $view->with('pendingBookings', $pendingBookings);
@@ -52,13 +53,15 @@ class AppServiceProvider extends ServiceProvider
                 return;
             }
 
-            $dispatcherNotifications = Booking::with(['customer', 'truckType'])
-                ->where('status', 'accepted')
+            $dispatcherStatuses = ['reviewed', 'quoted', 'quotation_sent', 'confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification'];
+
+            $dispatcherNotifications = Booking::with(['customer', 'truckType', 'assignedTeamLeader', 'unit.teamLeader'])
+                ->whereIn('status', $dispatcherStatuses)
                 ->latest('updated_at')
-                ->take(5)
+                ->take(6)
                 ->get();
 
-            $dispatcherNotificationCount = Booking::where('status', 'accepted')
+            $dispatcherNotificationCount = Booking::whereIn('status', $dispatcherStatuses)
                 ->whereDate('updated_at', today())
                 ->count();
 
@@ -73,21 +76,50 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $user = Auth::user();
+            $customerId = null;
 
-            $activeBooking = Booking::where('customer_id', $user->id)
-                ->whereIn('status', ['requested', 'assigned', 'on_job'])
+            if (Schema::hasTable('customers') && Schema::hasColumn('customers', 'user_id')) {
+                $customerId = optional($user->customer)->id;
+            }
+
+            if (! $customerId && Schema::hasTable('customers')) {
+                $customerId = Customer::query()
+                    ->when(Schema::hasColumn('customers', 'user_id'), function ($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    })
+                    ->when(filled($user->email ?? null), function ($query) use ($user) {
+                        $query->orWhere('email', $user->email);
+                    })
+                    ->value('id');
+            }
+
+            if (! $customerId) {
+                $view->with('activeBooking', null);
+                return;
+            }
+
+            $activeBooking = Booking::where('customer_id', $customerId)
+                ->whereIn('status', ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'])
                 ->orderByRaw("
-                                CASE 
-                                    WHEN status = 'on_job' THEN 1
-                                    WHEN status = 'assigned' THEN 2
-                                    WHEN status = 'requested' THEN 3
+                                CASE
+                                    WHEN status = 'waiting_verification' THEN 1
+                                    WHEN status = 'in_progress' THEN 2
+                                    WHEN status = 'on_the_way' THEN 3
+                                    WHEN status = 'on_job' THEN 4
+                                    WHEN status = 'assigned' THEN 5
+                                    WHEN status = 'confirmed' THEN 6
+                                    WHEN status = 'quotation_sent' THEN 7
+                                    WHEN status = 'quoted' THEN 8
+                                    WHEN status = 'reviewed' THEN 9
+                                    WHEN status = 'accepted' THEN 10
+                                    WHEN status = 'requested' THEN 11
                                 END
                             ")
-                ->latest()
+                ->latest('updated_at')
                 ->first();
 
-            if (!$activeBooking) {
-                $activeBooking = Booking::where('customer_id', Auth::id())
+            if (! $activeBooking) {
+                $activeBooking = Booking::where('customer_id', $customerId)
                     ->latest()
                     ->first();
             }

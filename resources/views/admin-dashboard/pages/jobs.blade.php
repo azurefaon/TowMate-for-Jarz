@@ -9,51 +9,89 @@
 @section('content')
     <div class="jobs-page">
         <div class="jobs-hero">
-            <div>
+            <div class="jobs-hero-copy">
+                <p class="jobs-eyebrow">Dispatcher view</p>
                 <h1 class="jobs-title">Active Jobs</h1>
-                <p class="jobs-subtitle">Assigned and in-progress towing work.</p>
+                <p class="jobs-subtitle">Taken jobs, en-route crews, and live towing operations.</p>
             </div>
 
-            <a href="{{ route('admin.dispatch') }}" class="jobs-link-btn">
-                <i data-lucide="arrow-left"></i>
-                <span>Back to Dispatch</span>
-            </a>
+            <div class="jobs-hero-actions">
+                <span class="jobs-status-pill">
+                    <i data-lucide="truck"></i>
+                    <span>{{ $stats['total'] }} live jobs</span>
+                </span>
+
+                <a href="{{ route('admin.dispatch') }}" class="jobs-link-btn">
+                    <i data-lucide="arrow-left"></i>
+                    <span>Back to Dispatch</span>
+                </a>
+            </div>
         </div>
 
         <div class="jobs-stats-grid">
             <div class="jobs-stat-card">
                 <span>Total Active</span>
                 <strong>{{ $stats['total'] }}</strong>
+                <small>All taken and moving tow jobs.</small>
             </div>
             <div class="jobs-stat-card info">
                 <span>Assigned</span>
                 <strong>{{ $stats['assigned'] }}</strong>
+                <small>Queued with a field team.</small>
             </div>
             <div class="jobs-stat-card success">
-                <span>On Job</span>
+                <span>Active Towing</span>
                 <strong>{{ $stats['on_job'] }}</strong>
+                <small>Currently in live roadside service.</small>
             </div>
             <div class="jobs-stat-card warning">
                 <span>Delayed</span>
                 <strong>{{ $stats['delayed'] }}</strong>
+                <small>Needs dispatcher attention.</small>
+            </div>
+        </div>
+
+        <div class="jobs-section-head">
+            <div>
+                <h2>Live job board</h2>
+                <p>Current dispatcher handoffs, route details, and assigned towing crews.</p <strong>
+                {{ $stats['assigned'] }}</strong>
+                <small>Queued with a field team.</small>
+            </div>
+            <div class="jobs-stat-card success">
+                <span>Active Towing</span>
+                <strong>{{ $stats['on_job'] }}</strong>
+                <small>Currently in live roadside service.</small>
+            </div>
+            <div class="jobs-stat-card warning">
+                <span>Delayed</span>
+                <strong>{{ $stats['delayed'] }}</strong>
+                <small>Needs dispatcher attention.</small>
+            </div>
+        </div>
+
+        <div class="jobs-section-head">
+            <div>
+                <h2>Live job board</h2>
+                <p>Current dispatcher handoffs, route details, and assigned towing crews.</p>
             </div>
         </div>
 
         <div class="jobs-grid">
             @forelse ($jobs as $job)
-                <article class="job-card" data-job-id="{{ $job->id }}"
+                <article class="job-card" data-job-id="{{ $job->job_code }}"
                     data-customer="{{ optional($job->customer)->full_name ?? (optional($job->customer)->name ?? 'Customer unavailable') }}"
                     data-service="{{ optional($job->truckType)->name ?? 'General Tow' }}"
                     data-status="{{ ucwords(str_replace('_', ' ', $job->status)) }}"
                     data-unit="{{ optional($job->unit)->name ?? 'Unassigned' }}"
-                    data-teamleader="{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? 'Unassigned') }}"
-                    data-driver="{{ optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned') }}"
+                    data-teamleader="{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? (optional($job->assignedTeamLeader)->name ?? 'Unassigned')) }}"
+                    data-driver="{{ $job->driver_name ?? (optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned')) }}"
                     data-created="{{ $job->created_at->diffForHumans() }}"
                     data-pickup="{{ $job->pickup_address ?? 'Pickup location pending' }}"
                     data-dropoff="{{ $job->dropoff_address ?? 'Drop-off location pending' }}">
 
                     <div class="job-header">
-                        <span class="job-id">Job #{{ $job->id }}</span>
+                        <span class="job-id">Job {{ $job->job_code }}</span>
                         <span class="status-badge status-{{ str_replace('_', '-', $job->status) }}">
                             {{ ucwords(str_replace('_', ' ', $job->status)) }}
                         </span>
@@ -83,12 +121,12 @@
                             <div class="job-meta-item">
                                 <span class="job-label">Team Leader</span>
                                 <span
-                                    class="job-value">{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? 'Unassigned') }}</span>
+                                    class="job-value">{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? (optional($job->assignedTeamLeader)->name ?? 'Unassigned')) }}</span>
                             </div>
                             <div class="job-meta-item full-width">
                                 <span class="job-label">Member Driver</span>
                                 <span
-                                    class="job-value">{{ optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned') }}</span>
+                                    class="job-value">{{ $job->driver_name ?? (optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned')) }}</span>
                             </div>
                         </div>
 
@@ -102,7 +140,7 @@
                 <div class="empty-state jobs-empty-state">
                     <i data-lucide="clipboard-list"></i>
                     <h3>No active jobs</h3>
-                    <p>Accepted towing requests will appear here once assigned to a unit and team leader.</p>
+                    <p>Team Leader-taken and active towing jobs will appear here as soon as the field crew starts work.</p>
                 </div>
             @endforelse
         </div>

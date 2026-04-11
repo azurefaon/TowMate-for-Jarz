@@ -231,6 +231,9 @@
                         </select>
                     </div>
 
+                    <p class="form-helper-text">If you change the role or status, ask the user to log out and sign back in
+                        so the new access loads correctly.</p>
+
                     <div class="modal-actions">
                         <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
                         <button type="submit" class="btn-save">Save Changes</button>
@@ -252,6 +255,8 @@
             const editRole = document.getElementById('editRole');
             const editStatus = document.getElementById('editStatus');
             let currentUserId = null;
+            let originalRole = null;
+            let originalStatus = null;
             let debounceTimer;
 
             if (filterForm) {
@@ -268,6 +273,8 @@
             document.querySelectorAll('.edit-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     currentUserId = this.dataset.id;
+                    originalRole = this.dataset.role;
+                    originalStatus = this.dataset.status;
                     editName.value = this.dataset.name;
                     editEmail.value = this.dataset.email;
                     editRole.value = this.dataset.role;
@@ -291,6 +298,15 @@
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
 
+                const roleChanged = String(editRole.value) !== String(originalRole);
+                const statusChanged = String(editStatus.value) !== String(originalStatus);
+
+                if ((roleChanged || statusChanged) && !window.confirm(
+                        'This team member should log out and sign in again after the access change so the new role loads correctly. Continue saving?'
+                    )) {
+                    return;
+                }
+
                 const data = new FormData(form);
 
                 fetch(`/superadmin/users/${currentUserId}`, {
@@ -303,15 +319,22 @@
                         body: data
                     })
                     .then(async response => {
+                        const payload = await response.json().catch(() => ({}));
+
                         if (!response.ok) {
-                            const payload = await response.json();
                             throw new Error(payload?.errors ? Object.values(payload.errors).flat()
                                 .join('\n') : 'Unable to update user.');
                         }
 
-                        return response.json();
+                        return payload;
                     })
-                    .then(() => window.location.reload())
+                    .then(payload => {
+                        if (payload?.requires_relogin && payload?.message) {
+                            alert(payload.message);
+                        }
+
+                        window.location.reload();
+                    })
                     .catch(error => alert(error.message));
             });
         });

@@ -1,4 +1,4 @@
-<h2>TowMate Email Verification</h2>
+<h2>Jarz Email Verification</h2>
 
 <p>Your verification code is:</p>
 
@@ -10,5 +10,5 @@
 
 <hr>
 <p style="font-size:12px;color:#888;">
-    TowMate System • Secure Verification
+    Jarz System • Secure Verification
 </p>

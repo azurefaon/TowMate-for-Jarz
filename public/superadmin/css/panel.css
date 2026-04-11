@@ -1,16 +1,16 @@
 :root {
-    --sa-bg: #f7f5ee;
+    --sa-bg: #f8fafc;
     --sa-surface: #ffffff;
-    --sa-sidebar-start: #090909;
-    --sa-sidebar-end: #171717;
+    --sa-sidebar-start: #ffffff;
+    --sa-sidebar-end: #fffdf5;
     --sa-primary: #facc15;
-    --sa-primary-dark: #eab308;
-    --sa-primary-soft: rgba(250, 204, 21, 0.18);
-    --sa-text: #111111;
-    --sa-muted: #625b45;
-    --sa-border: #eee2a8;
+    --sa-primary-dark: #f59e0b;
+    --sa-primary-soft: rgba(250, 204, 21, 0.16);
+    --sa-text: #111827;
+    --sa-muted: #64748b;
+    --sa-border: #e5e7eb;
     --sa-danger: #dc2626;
-    --sa-shadow: 0 20px 45px rgba(17, 17, 17, 0.08);
+    --sa-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
     --sa-radius: 18px;
 }
 
@@ -25,13 +25,7 @@ html {
 body.superadmin-shell {
     margin: 0;
     font-family: "Inter", "Segoe UI", Arial, sans-serif;
-    background:
-        radial-gradient(
-            circle at top right,
-            rgba(250, 204, 21, 0.14),
-            transparent 22%
-        ),
-        linear-gradient(180deg, #fffef8 0%, var(--sa-bg) 100%);
+    background: #ffffff;
     color: var(--sa-text);
 }
 
@@ -59,8 +53,9 @@ textarea {
         var(--sa-sidebar-start) 0%,
         var(--sa-sidebar-end) 100%
     );
-    color: #f8fafc;
-    box-shadow: 8px 0 30px rgba(15, 23, 42, 0.2);
+    color: var(--sa-text);
+    border-right: 1px solid var(--sa-border);
+    box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
     transition:
         width 0.25s ease,
         transform 0.25s ease;
@@ -88,14 +83,16 @@ textarea {
     height: 44px;
     object-fit: contain;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.12);
+    background: #fef9c3;
     padding: 7px;
+    border: 1px solid #fde68a;
 }
 
 .brand-text {
     font-size: 1.1rem;
     font-weight: 700;
     letter-spacing: -0.02em;
+    color: #111827;
 }
 
 .sidebar-section {
@@ -104,13 +101,13 @@ textarea {
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: rgba(226, 232, 240, 0.58);
+    color: #b45309;
 }
 
 .sidebar-divider {
     height: 1px;
     margin: 12px 10px;
-    background: rgba(148, 163, 184, 0.22);
+    background: #eef2f7;
 }
 
 .sidebar li {
@@ -120,9 +117,9 @@ textarea {
 .sidebar a,
 .sidebar button {
     width: 100%;
-    border: 0;
+    border: 1px solid transparent;
     background: transparent;
-    color: rgba(248, 250, 252, 0.84);
+    color: #475569;
     text-decoration: none;
     padding: 11px 12px;
     border-radius: 12px;
@@ -134,21 +131,25 @@ textarea {
     transition:
         background 0.2s ease,
         transform 0.2s ease,
-        color 0.2s ease;
+        color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
 }
 
 .sidebar a:hover,
 .sidebar button:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #ffffff;
+    background: #fffbea;
+    color: #111827;
+    border-color: #fde68a;
     transform: translateX(2px);
 }
 
 .sidebar a.active,
 .sidebar button.active {
-    background: linear-gradient(135deg, #facc15, #eab308);
+    background: linear-gradient(135deg, #fef9c3, #fde68a);
     color: #111111;
-    box-shadow: 0 10px 18px rgba(250, 204, 21, 0.28);
+    border-color: #facc15;
+    box-shadow: 0 10px 18px rgba(250, 204, 21, 0.18);
 }
 
 .sidebar a i,
@@ -188,8 +189,8 @@ textarea {
     gap: 12px;
     padding: 12px;
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: #fffdf3;
+    border: 1px solid #fde68a;
 }
 
 .profile-info img {
@@ -197,27 +198,28 @@ textarea {
     height: 42px;
     border-radius: 50%;
     object-fit: cover;
-    background: rgba(255, 255, 255, 0.12);
+    background: #fef9c3;
     padding: 6px;
 }
 
 .profile-text strong {
     display: block;
     font-size: 0.92rem;
-    color: #fff;
+    color: #111827;
 }
 
 .profile-text small {
-    color: rgba(226, 232, 240, 0.72);
+    color: #64748b;
 }
 
 .sidebar button[onclick="confirmLogout()"] {
-    color: #fecaca;
+    color: #b91c1c;
 }
 
 .sidebar button[onclick="confirmLogout()"]:hover {
-    background: rgba(239, 68, 68, 0.12);
-    color: #fff;
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fecaca;
 }
 
 .content {
@@ -353,9 +355,9 @@ textarea {
 
 .btn-back,
 .btn-light {
-    background: #111111;
-    color: #facc15;
-    border: 1px solid #facc15;
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid var(--sa-border);
 }
 
 .btn-dark,
@@ -366,6 +368,7 @@ textarea {
         var(--sa-primary-dark)
     );
     color: #111111;
+    box-shadow: 0 10px 22px rgba(250, 204, 21, 0.2);
 }
 
 .btn-danger {
@@ -416,16 +419,16 @@ textarea {
 }
 
 .superadmin-shell .sidebar-section {
-    color: rgba(250, 204, 21, 0.74);
+    color: #b45309;
 }
 
 .superadmin-shell .sidebar-divider {
-    background: rgba(250, 204, 21, 0.2);
+    background: #eef2f7;
 }
 
 .superadmin-shell .profile-info {
-    background: rgba(250, 204, 21, 0.08);
-    border-color: rgba(250, 204, 21, 0.18);
+    background: #fffdf3;
+    border-color: #fde68a;
 }
 
 .superadmin-shell .table-card,
@@ -439,26 +442,27 @@ textarea {
 .superadmin-shell .metric-card,
 .superadmin-shell .details-card,
 .superadmin-shell .form-card {
-    border-color: rgba(250, 204, 21, 0.3);
-    box-shadow: 0 18px 38px rgba(17, 17, 17, 0.07);
+    border-color: #e5e7eb;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 
 .superadmin-shell .modern-table thead,
 .superadmin-shell .booking-table thead,
 .superadmin-shell .audit-table thead {
-    background: linear-gradient(135deg, #111111, #242424) !important;
+    background: #fffdf3 !important;
 }
 
 .superadmin-shell .modern-table th,
 .superadmin-shell .booking-table th,
 .superadmin-shell .audit-table th {
-    color: #facc15 !important;
+    color: #111827 !important;
+    border-bottom: 1px solid #f3e8b3;
 }
 
 .superadmin-shell .modern-table tbody tr:hover,
 .superadmin-shell .booking-table tbody tr:hover,
 .superadmin-shell .audit-table tbody tr:hover {
-    background: #fffbea !important;
+    background: #fffdf4 !important;
 }
 
 .superadmin-shell .btn-primary-add,
@@ -469,9 +473,9 @@ textarea {
 .superadmin-shell .btn-save,
 .superadmin-shell .settings-save,
 .superadmin-shell .btn-filter {
-    background: linear-gradient(135deg, #facc15, #eab308) !important;
+    background: linear-gradient(135deg, #facc15, #f59e0b) !important;
     color: #111111 !important;
-    box-shadow: 0 12px 24px rgba(250, 204, 21, 0.24);
+    box-shadow: 0 12px 24px rgba(250, 204, 21, 0.2);
 }
 
 .superadmin-shell .btn-primary-add:hover,
@@ -488,10 +492,22 @@ textarea {
 .superadmin-shell .edit-btn,
 .superadmin-shell .btn-back,
 .superadmin-shell .btn-light,
-.superadmin-shell .btn-cancel {
-    background: #111111 !important;
-    color: #facc15 !important;
-    border: 1px solid #facc15 !important;
+.superadmin-shell .btn-cancel,
+.superadmin-shell .btn-reset,
+.superadmin-shell .btn-secondary-link {
+    background: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #e5e7eb !important;
+}
+
+.superadmin-shell .edit-btn:hover,
+.superadmin-shell .btn-back:hover,
+.superadmin-shell .btn-light:hover,
+.superadmin-shell .btn-cancel:hover,
+.superadmin-shell .btn-reset:hover,
+.superadmin-shell .btn-secondary-link:hover {
+    background: #fffbea !important;
+    border-color: #fde68a !important;
 }
 
 .superadmin-shell .search-box,
@@ -505,7 +521,7 @@ textarea {
 .superadmin-shell .form-group textarea,
 .superadmin-shell .form-group select {
     background: #ffffff !important;
-    border-color: #eadf9f !important;
+    border-color: #e5e7eb !important;
 }
 
 .superadmin-shell input:focus,
@@ -536,6 +552,7 @@ textarea {
 
 @media (max-width: 1024px) {
     .sidebar {
+        width: min(86vw, 300px);
         transform: translateX(-100%);
     }
 
@@ -551,12 +568,35 @@ textarea {
 
     .mobile-menu {
         display: block;
+        position: sticky;
+        top: 0;
+        z-index: 130;
+        padding-bottom: 12px;
+        background: linear-gradient(
+            180deg,
+            rgba(248, 250, 252, 0.98) 0%,
+            rgba(248, 250, 252, 0.86) 100%
+        );
     }
 }
 
 @media (max-width: 640px) {
     .brand-text {
         font-size: 1rem;
+    }
+
+    .page-top,
+    .header-actions {
+        gap: 12px;
+    }
+
+    .page-top .btn-primary-add,
+    .page-top .btn-back,
+    .page-top .btn-light,
+    .page-top .btn-secondary-link,
+    .page-top .btn-reset {
+        width: 100%;
+        justify-content: center;
     }
 
     .success-popup {

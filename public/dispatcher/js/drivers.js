@@ -1,89 +1,73 @@
-document.addEventListener("DOMContentLoaded", function () {
-    const toggles = document.querySelectorAll(".availability-toggle input");
+document.addEventListener("DOMContentLoaded", () => {
+    const cards = Array.from(document.querySelectorAll(".driver-card"));
+    const filterButtons = Array.from(document.querySelectorAll(".filter-btn"));
+    const filtersWrap = document.querySelector(".drivers-filters");
+    const emptyState = document.getElementById("driversEmptyFiltered");
+    const defaultFilter = filtersWrap?.dataset.defaultFilter || "all";
 
-    toggles.forEach((toggle) => {
-        toggle.addEventListener("change", function () {
-            const card = this.closest(".driver-card");
-            const driverId = this.dataset.driverId;
-            const isAvailable = this.checked;
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
 
-            updateDriverStatus(card, isAvailable);
-            updateDriverAvailability(driverId, isAvailable);
+    const setActiveButton = (filter) => {
+        filterButtons.forEach((btn) => {
+            btn.classList.toggle(
+                "is-active",
+                (btn.dataset.filter || "all") === filter,
+            );
+        });
+    };
+
+    const applyFilter = (requestedFilter) => {
+        let filter = requestedFilter;
+
+        if (
+            filter === "online" &&
+            !cards.some(
+                (card) => (card.dataset.presence || "offline") === "online",
+            )
+        ) {
+            filter = "all";
+        }
+
+        let visibleCount = 0;
+
+        cards.forEach((card) => {
+            const presence = card.dataset.presence || "offline";
+            const matches = filter === "all" || presence === filter;
+
+            card.classList.toggle("is-hidden", !matches);
+
+            if (matches) {
+                visibleCount += 1;
+            }
+        });
+
+        setActiveButton(filter);
+
+        if (emptyState) {
+            emptyState.hidden = visibleCount !== 0;
+        }
+    };
+
+    filterButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            applyFilter(button.dataset.filter || "all");
         });
     });
 
-    startLocationUpdates();
-
-    animateCards();
+    animateCards(cards);
+    applyFilter(defaultFilter);
 });
 
-function updateDriverStatus(card, isAvailable) {
-    const statusEl = card.querySelector(".driver-status");
-
-    if (isAvailable) {
-        statusEl.textContent = "Available";
-        statusEl.className = "driver-status status-available";
-    } else {
-        statusEl.textContent = "Busy";
-        statusEl.className = "driver-status status-busy";
-    }
-
-    statusEl.style.transform = "scale(1.05)";
-    setTimeout(() => {
-        statusEl.style.transform = "scale(1)";
-    }, 200);
-}
-
-async function updateDriverAvailability(driverId, isAvailable) {
-    if (!driverId) return;
-
-    try {
-        const response = await fetch(`/api/drivers/${driverId}/availability`, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRF-TOKEN": document
-                    .querySelector('meta[name="csrf-token"]')
-                    .getAttribute("content"),
-            },
-            body: JSON.stringify({ available: isAvailable }),
-        });
-
-        if (!response.ok) throw new Error();
-    } catch {
-        location.reload();
-    }
-}
-
-function startLocationUpdates() {
-    setInterval(() => {
-        document.querySelectorAll(".driver-location").forEach((loc) => {
-            loc.textContent = generateRandomLocation();
-        });
-    }, 30000);
-}
-
-function generateRandomLocation() {
-    const locations = [
-        "Dispatch Yard",
-        "On the way",
-        "Customer Location",
-        "Highway",
-        "Returning to base",
-    ];
-    return locations[Math.floor(Math.random() * locations.length)];
-}
-
-function animateCards() {
-    const cards = document.querySelectorAll(".driver-card");
-
+function animateCards(cards) {
     cards.forEach((card, index) => {
         card.style.opacity = "0";
-        card.style.transform = "translateY(20px)";
+        card.style.transform = "translateY(18px)";
 
-        setTimeout(() => {
+        window.setTimeout(() => {
             card.style.opacity = "1";
             card.style.transform = "translateY(0)";
-        }, index * 120);
+        }, index * 90);
     });
 }

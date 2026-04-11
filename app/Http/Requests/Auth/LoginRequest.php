@@ -6,11 +6,22 @@ use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
+    /**
+     * Normalize login inputs before validation/authentication.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'email' => Str::lower(trim((string) $this->input('email'))),
+        ]);
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -48,8 +59,8 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        // Block inactive users
-        if (Auth::user()->status !== 'active') {
+        // Block inactive users only when the status column exists.
+        if (Schema::hasColumn('users', 'status') && Auth::user()?->status !== 'active') {
             Auth::logout();
 
             throw ValidationException::withMessages([
@@ -88,6 +99,6 @@ class LoginRequest extends FormRequest
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        return Str::transliterate(Str::lower($this->string('email')) . '|' . $this->ip());
     }
 }

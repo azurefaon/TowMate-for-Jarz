@@ -37,7 +37,7 @@
 
         <div class="booking-summary">
 
-            <div class="summary-card">
+            <div class="summary-card blue-card">
                 <div class="summary-icon blue">
                     <i data-lucide="clipboard"></i>
                 </div>
@@ -45,7 +45,7 @@
                 <div class="summary-title">Total Bookings</div>
             </div>
 
-            <div class="summary-card">
+            <div class="summary-card yellow-card">
                 <div class="summary-icon yellow">
                     <i data-lucide="clock"></i>
                 </div>
@@ -53,7 +53,7 @@
                 <div class="summary-title">Requests</div>
             </div>
 
-            <div class="summary-card">
+            <div class="summary-card orange-card">
                 <div class="summary-icon orange">
                     <i data-lucide="truck"></i>
                 </div>
@@ -61,7 +61,7 @@
                 <div class="summary-title">Active</div>
             </div>
 
-            <div class="summary-card">
+            <div class="summary-card green-card">
                 <div class="summary-icon green">
                     <i data-lucide="check-circle"></i>
                 </div>
@@ -95,7 +95,7 @@
                     @foreach ($bookings as $booking)
                         <tr>
 
-                            <td class="booking-id">BK-{{ $booking->id }}</td>
+                            <td class="booking-id">{{ $booking->job_code }}</td>
 
                             <td>
                                 <div class="customer-name">{{ $booking->customer->full_name }}</div>
@@ -119,7 +119,7 @@
                             </td>
 
                             <td>
-                                <button onclick="openBooking({{ $booking->id }})" class="view-btn">
+                                <button onclick="openBooking('{{ $booking->job_code }}')" class="view-btn">
                                     View
                                 </button>
                             </td>
@@ -224,7 +224,7 @@
                 .then(res => res.json())
                 .then(data => {
 
-                    document.getElementById('m_id').innerText = "BK-" + data.id
+                    document.getElementById('m_id').innerText = data.booking_code ?? data.id
                     document.getElementById('m_customer').innerText = data.customer.full_name
                     document.getElementById('m_truck').innerText = data.truck_type.name
                     document.getElementById('m_unit').innerText = data.unit?.name ?? "Unassigned"
@@ -237,7 +237,8 @@
                     document.getElementById('m_status').innerText = data.status
 
                     if (data.receipt) {
-                        document.getElementById('m_receipt').innerText = data.receipt.receipt_number
+                        document.getElementById('m_receipt').innerText = data.receipt.receipt_code ?? data.receipt
+                            .receipt_number
                         document.getElementById('m_download').href = "/" + data.receipt.pdf_path
                     } else {
                         document.getElementById('m_receipt').innerText = "No receipt"

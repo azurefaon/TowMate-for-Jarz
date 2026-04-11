@@ -41,7 +41,6 @@ class AvailableUnitsController extends Controller
         $stats = [
             'available' => Unit::where('status', 'available')->count(),
             'ready_team_leaders' => Unit::where('status', 'available')->whereNotNull('team_leader_id')->count(),
-            'member_drivers' => Unit::where('status', 'available')->whereNotNull('driver_id')->count(),
             'truck_types' => $truckTypes->count(),
         ];
 

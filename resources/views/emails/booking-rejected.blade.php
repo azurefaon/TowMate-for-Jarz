@@ -67,25 +67,26 @@
         th {
             background: #f8f9fa;
             font-weight: 600;
+            width: 35%;
         }
     </style>
 </head>
 
 <body>
     <div class="header">
-        <h1>🚛 TowMate</h1>
-        <p>Your booking request has been reviewed</p>
+        <h1>🚛 Jarz</h1>
+        <p>Your booking request has been reviewed by dispatch.</p>
     </div>
 
     <div class="content">
-        <h2>Booking #{{ $booking->id }} Rejected</h2>
-        <p>Dear {{ $booking->customer->name }},</p>
+        <h2>Booking {{ $booking->job_code }} Rejected</h2>
+        <p>Dear {{ $booking->customer->full_name ?? 'Customer' }},</p>
 
-        <p>Unfortunately, your towing request could not be accepted at this time.</p>
+        <p>Unfortunately, your towing request could not be accommodated at this time.</p>
 
         <div class="reject-reason">
             <h4>Reason for Rejection:</h4>
-            <p>{{ $booking->rejection_reason }}</p>
+            <p>{{ $booking->rejection_reason ?: 'No specific reason was provided by the dispatcher.' }}</p>
         </div>
 
         <table>
@@ -94,29 +95,35 @@
                 <td>{{ $booking->truckType->name ?? 'General Towing' }}</td>
             </tr>
             <tr>
-                <th>Location</th>
-                <td>{{ $booking->pickup_location }}</td>
+                <th>Pickup</th>
+                <td>{{ $booking->pickup_address ?? 'Not provided' }}</td>
             </tr>
             <tr>
-                <th>Date</th>
+                <th>Drop-off</th>
+                <td>{{ $booking->dropoff_address ?? 'Not provided' }}</td>
+            </tr>
+            <tr>
+                <th>Date Submitted</th>
                 <td>{{ $booking->created_at->format('M d, Y g:i A') }}</td>
             </tr>
         </table>
 
-        <p>We apologize for any inconvenience. Please make a new booking when ready.</p>
+        <p>We apologize for any inconvenience. You may submit a new request once you're ready.</p>
 
         <p style="text-align: center; margin: 30px 0;">
-            <a href="{{ config('app.frontend_url', 'https://towmate.com') }}/book" class="btn">📞 Book New Tow</a>
+            <a href="{{ rtrim(config('app.url', 'http://localhost'), '/') }}/book" class="btn">Book New Tow</a>
         </p>
 
         <hr>
 
-        <p>Need immediate help? Call our 24/7 dispatch:
-            <strong>{{ config('app.dispatch_phone', '(555) 123-4567') }}</strong></p>
+        <p>
+            Need immediate help? Call our dispatch line:
+            <strong>{{ config('app.dispatch_phone', '(555) 123-4567') }}</strong>
+        </p>
     </div>
 
     <div class="footer">
-        <p>&copy; {{ date('Y') }} TowMate. All rights reserved.</p>
+        <p>&copy; {{ date('Y') }} Jarz. All rights reserved.</p>
         <p>Fast. Reliable. Always ready to tow.</p>
     </div>
 </body>

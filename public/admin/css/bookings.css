@@ -65,50 +65,137 @@
 .summary-card {
     background: #fff;
     border-radius: 16px;
-    padding: 24px;
+    padding: 22px 72px 22px 24px;
     border: 1px solid #f1f5f9;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    min-height: 108px;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.summary-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: #e5e7eb;
+}
+
+.summary-card.blue-card {
+    background: #eaf3f9;
+    border-color: #c9deed;
+}
+
+.summary-card.blue-card::before {
+    background: #2d9cdb;
+}
+
+.summary-card.yellow-card {
+    background: #efe9c8;
+    border-color: #e7da8e;
+}
+
+.summary-card.yellow-card::before {
+    background: #f0c419;
+}
+
+.summary-card.orange-card {
+    background: #efe2d3;
+    border-color: #efc49c;
+}
+
+.summary-card.orange-card::before {
+    background: #f28c38;
+}
+
+.summary-card.green-card {
+    background: #d8ebe0;
+    border-color: #9fd6b2;
+}
+
+.summary-card.green-card::before {
+    background: #20b26b;
 }
 
 .summary-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-35%);
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 14px;
+    margin-bottom: 0;
+    pointer-events: none;
+    opacity: 0.32;
+    background: transparent !important;
+    box-shadow: none;
+    z-index: 0;
+}
+
+.summary-icon i {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2;
+}
+
+.summary-number,
+.summary-title,
+.summary-desc {
+    position: relative;
+    z-index: 1;
 }
 
 .summary-icon.blue {
-    background: #e0f2fe;
-    color: #0284c7;
+    color: #54a8d8;
 }
 .summary-icon.yellow {
-    background: #fef9c3;
-    color: #ca8a04;
+    color: #d2b233;
 }
 .summary-icon.orange {
-    background: #ffedd5;
-    color: #ea580c;
+    color: #d88c57;
 }
 .summary-icon.green {
-    background: #d1fae5;
-    color: #059669;
+    color: #68bb92;
 }
 
 .summary-number {
-    font-size: 28px;
+    font-size: 2rem;
     font-weight: 700;
-    margin: 8px 0 4px;
+    line-height: 1;
+    margin: 0 0 8px;
     color: #1a1f36;
 }
 
+.blue-card .summary-title,
+.blue-card .summary-number {
+    color: #0f4c81;
+}
+
+.yellow-card .summary-title,
+.yellow-card .summary-number {
+    color: #8a5a00;
+}
+
+.orange-card .summary-title,
+.orange-card .summary-number {
+    color: #9a3412;
+}
+
+.green-card .summary-title,
+.green-card .summary-number {
+    color: #166534;
+}
+
 .summary-title {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 500;
 }
 
 .summary-desc {
@@ -358,6 +445,22 @@
 
     .booking-summary {
         grid-template-columns: 1fr;
+    }
+
+    .summary-card {
+        padding: 18px 64px 18px 18px;
+        min-height: 96px;
+    }
+
+    .summary-icon {
+        right: 16px;
+        width: 24px;
+        height: 24px;
+    }
+
+    .summary-icon i {
+        width: 18px;
+        height: 18px;
     }
 }
 

@@ -21,10 +21,19 @@ class SystemSettingsController extends Controller
 
     public function update(Request $request)
     {
-
         $settings = $request->input('settings', []);
 
+        foreach (['company_logo', 'secondary_logo', 'signature_image'] as $fileKey) {
+            if ($request->hasFile($fileKey)) {
+                $settings[$fileKey] = $request->file($fileKey)->store('settings', 'public');
+            }
+        }
+
         foreach ($settings as $key => $value) {
+            if (is_array($value)) {
+                continue;
+            }
+
             SystemSetting::setValue($key, $value);
         }
 
@@ -35,8 +44,12 @@ class SystemSettingsController extends Controller
     {
 
         $request->validate([
+            'company_name' => ['required', 'string', 'max:255'],
             'contact_phone' => ['required', 'regex:/^09\d{9}$/'],
             'contact_email' => ['required', 'email', 'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/'],
+            'company_logo' => ['nullable', 'image', 'max:2048'],
+            'secondary_logo' => ['nullable', 'image', 'max:2048'],
+            'signature_image' => ['nullable', 'image', 'max:2048'],
         ]);
 
         $landing = LandingSetting::first() ?? new LandingSetting();
@@ -70,6 +83,17 @@ class SystemSettingsController extends Controller
         $landing->contact_location = $request->contact_location;
 
         $landing->save();
+
+        SystemSetting::setValue('company_name', $request->company_name);
+        SystemSetting::setValue('company_phone', $request->contact_phone);
+        SystemSetting::setValue('company_email', $request->contact_email);
+        SystemSetting::setValue('company_address', $request->contact_location);
+
+        foreach (['company_logo', 'secondary_logo', 'signature_image'] as $fileKey) {
+            if ($request->hasFile($fileKey)) {
+                SystemSetting::setValue($fileKey, $request->file($fileKey)->store('settings', 'public'));
+            }
+        }
 
         return back()->with('success', 'Landing page updated!');
     }

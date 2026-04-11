@@ -24,8 +24,8 @@
             <div class="brand">
                 <img src="{{ asset('admin/images/logo.png') }}" class="logo">
                 <div>
-                    <h2>TowMate</h2>
-                    <p>Admin Control Panel</p>
+                    <h2>Jarz</h2>
+                    <p>Operations Control Panel</p>
                 </div>
             </div>
 
@@ -46,7 +46,7 @@
                     <div id="emailLogin" class="auth-view">
 
                         <h1>Log In</h1>
-                        <p class="subtitle">Login to your TowMate account</p>
+                        <p class="subtitle">Login to your Jarz account</p>
 
                         <div class="input-group">
                             <label>Email</label>
@@ -140,7 +140,7 @@
                             </div>
 
                             <h2>Create your account</h2>
-                            <p class="signup-sub">Choose how you want to create your TowMate account</p>
+                            <p class="signup-sub">Choose how you want to create your Jarz account</p>
 
                         </div>
 

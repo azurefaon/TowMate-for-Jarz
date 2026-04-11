@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\TeamLeaderAvailabilityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,26 +30,29 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        $user = Auth::user();
-
-        return match ($user->role_id) {
-            1 => redirect()->route('superadmin.dashboard'),
-            2 => redirect()->route('admin.dashboard'),
-            3 => redirect()->route('teamleader.dashboard'),
-            4 => redirect()->route('driver.dashboard'),
-            5 => redirect()->route('customer.dashboard'),
-            default => redirect()->route('login'),
-        };
+        return redirect()->intended(route('dashboard', absolute: false));
     }
 
     public function destroy(Request $request): RedirectResponse
     {
+        $user = $request->user();
+
+        if ((int) optional($user)->role_id === 3) {
+            app(TeamLeaderAvailabilityService::class)->markOffline($user);
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
 
         $request->session()->regenerateToken();
 
-        return redirect()->route('landing');
+        $baseUrl = rtrim(config('app.url') ?: ($request->getSchemeAndHttpHost() . $request->getBaseUrl()), '/');
+
+        if (filled($user?->role_id)) {
+            return redirect()->to($baseUrl . '/login');
+        }
+
+        return redirect('/');
     }
 }
