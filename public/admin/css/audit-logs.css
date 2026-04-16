@@ -1,131 +1,237 @@
 /* ====================================
-TOWMATE AUDIT LOGS MODULE
-Simple Clean Version
-==================================== */
-
-/* ====================================
-PAGE HEADER
+AUDIT LOGS · MODERN SAAS POLISH
 ==================================== */
 
 .audit-page-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 25px;
+    margin-bottom: 24px;
+}
+
+.audit-eyebrow {
+    margin: 0 0 6px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #b45309;
 }
 
 .audit-page-top h1 {
-    font-size: 28px;
+    margin: 0;
+    font-size: clamp(1.7rem, 2.5vw, 2rem);
     font-weight: 700;
     color: #111827;
 }
 
 .audit-page-top p {
-    margin-top: 4px;
+    margin: 6px 0 0;
     color: #6b7280;
 }
-
-/* ====================================
-SUMMARY CARDS
-==================================== */
 
 .audit-card-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 20px;
-    margin-bottom: 25px;
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
 .audit-card {
+    position: relative;
+    overflow: hidden;
     background: #ffffff;
-    border-radius: 12px;
-    padding: 20px;
+    border-radius: 18px;
+    padding: 18px;
     border: 1px solid #e5e7eb;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+}
+
+.audit-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 4px;
+    background: #e5e7eb;
+}
+
+.audit-card-neutral {
+    background: linear-gradient(135deg, #f8fbff 0%, #ffffff 78%);
+    border-color: #dbeafe;
+}
+
+.audit-card-neutral::before {
+    background: linear-gradient(135deg, #60a5fa, #2563eb);
+}
+
+.audit-card-danger {
+    background: linear-gradient(135deg, #fff7f7 0%, #ffffff 78%);
+    border-color: #fecaca;
+}
+
+.audit-card-danger::before {
+    background: linear-gradient(135deg, #f87171, #dc2626);
+}
+
+.audit-card-info {
+    background: linear-gradient(135deg, #f7fbff 0%, #ffffff 78%);
+    border-color: #bfdbfe;
+}
+
+.audit-card-info::before {
+    background: linear-gradient(135deg, #38bdf8, #2563eb);
+}
+
+.audit-card-accent {
+    background: linear-gradient(135deg, #fffaf0 0%, #ffffff 78%);
+    border-color: #fde68a;
+}
+
+.audit-card-accent::before {
+    background: linear-gradient(135deg, #facc15, #f59e0b);
+}
+
+.audit-card-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    background: #f8fafc;
+    color: #475569;
+}
+
+.audit-card-neutral .audit-card-icon {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.audit-card-danger .audit-card-icon {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.audit-card-info .audit-card-icon {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+.audit-card-accent .audit-card-icon {
+    background: #fef3c7;
+    color: #ca8a04;
+}
+
+.audit-card-icon i {
+    width: 18px;
+    height: 18px;
 }
 
 .audit-card h3 {
-    font-size: 14px;
+    font-size: 0.9rem;
     color: #6b7280;
-    margin-bottom: 8px;
+    margin: 0 0 8px;
 }
 
 .audit-card p {
-    font-size: 26px;
+    margin: 0;
+    font-size: 1.9rem;
     font-weight: 700;
+    color: #111827;
 }
 
 .audit-red {
-    color: #ef4444;
-}
-.audit-blue {
-    color: #3b82f6;
-}
-.audit-purple {
-    color: #9333ea;
+    color: #dc2626;
 }
 
-/* ====================================
-TABLE CARD
-==================================== */
+.audit-blue {
+    color: #2563eb;
+}
+
+.audit-purple {
+    color: #ca8a04;
+}
 
 .audit-table-card {
     background: #ffffff;
-    border-radius: 12px;
+    border-radius: 18px;
     padding: 20px;
     border: 1px solid #e5e7eb;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
 }
-
-/* ====================================
-TABLE HEADER
-==================================== */
 
 .audit-table-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 18px;
 }
 
 .audit-table-header h3 {
-    font-size: 18px;
-    font-weight: 600;
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #111827;
 }
 
-.audit-table-header form {
+.audit-table-header p {
+    margin: 4px 0 0;
+    color: #6b7280;
+    font-size: 0.92rem;
+}
+
+.audit-filter-form {
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
-/* SEARCH INPUT */
+.audit-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    min-width: 320px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+}
+
+.audit-search-wrap i {
+    width: 16px;
+    height: 16px;
+    color: #94a3b8;
+}
 
 .audit-table-header input {
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid #e5e7eb;
+    padding: 0;
+    border-radius: 0;
+    border: none;
     font-size: 14px;
     min-width: 260px;
+    width: 100%;
+    background: transparent;
+    outline: none;
 }
 
-/* SEARCH BUTTON */
-
 .audit-search-btn {
-    padding: 8px 16px;
-    background: #111827;
-    color: #ffffff;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #facc15, #f59e0b);
+    color: #111827;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
-    transition: 0.2s;
+    font-weight: 700;
+    transition: 0.2s ease;
+    box-shadow: 0 10px 20px rgba(250, 204, 21, 0.18);
 }
 
 .audit-search-btn:hover {
-    background: #374151;
+    filter: brightness(0.98);
 }
-
-/* ====================================
-TABLE
-==================================== */
 
 .audit-table {
     width: 100%;
@@ -133,30 +239,29 @@ TABLE
 }
 
 .audit-table thead {
-    background: #f9fafb;
+    background: #fffdf3;
 }
 
 .audit-table th {
     text-align: left;
     padding: 12px;
-    font-size: 13px;
-    color: #6b7280;
-    border-bottom: 1px solid #e5e7eb;
+    font-size: 12px;
+    color: #475569;
+    border-bottom: 1px solid #f3e8b3;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
 .audit-table td {
-    padding: 12px;
+    padding: 13px 12px;
     border-bottom: 1px solid #f3f4f6;
     font-size: 14px;
+    color: #1f2937;
 }
 
 .audit-table tbody tr:hover {
-    background: #f9fafb;
+    background: #fffdf8;
 }
-
-/* ====================================
-PAGINATION
-==================================== */
 
 .audit-pagination {
     display: flex;
@@ -164,19 +269,13 @@ PAGINATION
     margin-top: 20px;
 }
 
-/* hide laravel extra text */
-
 .audit-pagination nav > div:first-child {
     display: none;
 }
 
-/* pagination row */
-
 .audit-pagination nav {
     display: flex;
 }
-
-/* page list */
 
 .audit-pagination nav ul {
     display: flex;
@@ -186,67 +285,52 @@ PAGINATION
     margin: 0;
 }
 
-/* buttons */
-
 .audit-pagination nav ul li a,
 .audit-pagination nav ul li span {
     display: flex;
     align-items: center;
     justify-content: center;
-
-    width: 32px;
-    height: 32px;
-
-    border-radius: 8px;
-
-    background: #f3f4f6;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #ffffff;
     border: 1px solid #e5e7eb;
-
     font-size: 14px;
     font-weight: 500;
-
     color: #374151;
     text-decoration: none;
-
     transition: 0.15s;
 }
 
-/* hover */
-
 .audit-pagination nav ul li a:hover {
-    background: #e5e7eb;
+    background: #fffbea;
+    border-color: #fde68a;
 }
-
-/* active page */
 
 .audit-pagination nav ul li span[aria-current="page"] {
-    background: #ffffff;
-    border-color: #d1d5db;
-    font-weight: 600;
+    background: #fef3c7;
+    border-color: #facc15;
+    font-weight: 700;
+    color: #111827;
 }
-
-/* disabled */
 
 .audit-pagination nav ul li span {
-    opacity: 0.45;
+    opacity: 0.5;
 }
-
-/* ====================================
-RESPONSIVE
-==================================== */
 
 @media (max-width: 768px) {
     .audit-table-header {
         flex-direction: column;
         align-items: flex-start;
-        gap: 10px;
     }
 
-    .audit-table-header form {
+    .audit-filter-form {
         width: 100%;
+        flex-direction: column;
     }
 
-    .audit-table-header input {
+    .audit-search-wrap,
+    .audit-search-btn {
         width: 100%;
     }
 
@@ -254,7 +338,17 @@ RESPONSIVE
         grid-template-columns: 1fr;
     }
 
-    .audit-pagination {
-        justify-content: center;
+    .audit-table-card {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 640px) {
+    .audit-page-top {
+        margin-bottom: 18px;
+    }
+
+    .audit-card {
+        padding: 16px;
     }
 }

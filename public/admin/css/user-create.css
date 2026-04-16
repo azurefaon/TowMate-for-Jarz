@@ -54,9 +54,23 @@ CREATE USER PAGE
 }
 
 .create-user-page .form-group label {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
     margin-bottom: 8px;
     font-weight: 600;
+}
+
+.create-user-page .required-mark {
+    color: #dc2626;
+    font-weight: 800;
+}
+
+.create-user-page .field-optional {
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 /* TWO COLUMN */
@@ -158,6 +172,54 @@ CREATE USER PAGE
 
 .create-user-page .btn-primary-submit:hover {
     box-shadow: 0 6px 18px rgba(110, 168, 255, 0.35);
+}
+
+/* PASSWORD REQUIREMENTS */
+
+.create-user-page .password-requirements {
+    margin: -4px 0 16px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+}
+
+.create-user-page .password-requirements p {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #374151;
+}
+
+.create-user-page .password-requirements ul {
+    list-style: none;
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+}
+
+.create-user-page .password-requirements li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.create-user-page .password-requirements .requirement-icon {
+    width: 16px;
+    font-weight: 800;
+    color: #9ca3af;
+}
+
+.create-user-page .password-requirements li.met {
+    color: #15803d;
+    font-weight: 700;
+}
+
+.create-user-page .password-requirements li.met .requirement-icon {
+    color: #16a34a;
 }
 
 /* ERROR */

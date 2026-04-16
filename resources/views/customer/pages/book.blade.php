@@ -60,7 +60,8 @@
             </div>
 
             <div class="right-side">
-                <form id="bookingForm" method="POST" action="{{ route('customer.book.store') }}">
+                <form id="bookingForm" method="POST" action="{{ route('customer.book.store') }}"
+                    enctype="multipart/form-data">
                     @csrf
 
                     <input type="hidden" name="pickup_lat" id="pickup_lat">
@@ -72,6 +73,72 @@
 
                     <div class="form-card">
                         <div class="form-inner">
+
+                            <input type="hidden" name="confirmation_type" value="system">
+
+                            <div class="row">
+                                <div class="input-group">
+                                    <label>First Name</label>
+                                    <input type="text" name="first_name"
+                                        value="{{ old('first_name', optional(Auth::user())->first_name) }}" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>Middle Name</label>
+                                    <input type="text" name="middle_name"
+                                        value="{{ old('middle_name', optional(Auth::user())->middle_name) }}">
+                                </div>
+                                <div class="input-group">
+                                    <label>Last Name</label>
+                                    <input type="text" name="last_name"
+                                        value="{{ old('last_name', optional(Auth::user())->last_name) }}" required>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="input-group">
+                                    <label>Age</label>
+                                    <input type="number" name="age" min="1" max="120"
+                                        value="{{ old('age', optional(optional(Auth::user())->customer)->age) }}" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>Phone Number</label>
+                                    <input type="tel" id="customer_phone" name="phone"
+                                        value="{{ old('phone', optional(optional(Auth::user())->customer)->phone) }}"
+                                        placeholder="09123456789" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>Email</label>
+                                    <input type="email" name="email"
+                                        value="{{ old('email', optional(Auth::user())->email) }}"
+                                        placeholder="yourname@gmail.com">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="input-group">
+                                    <label>Customer Type</label>
+                                    <select name="customer_type" required>
+                                        <option value="regular"
+                                            {{ old('customer_type', optional(optional(Auth::user())->customer)->customer_type ?? 'regular') === 'regular' ? 'selected' : '' }}>
+                                            Regular</option>
+                                        <option value="pwd"
+                                            {{ old('customer_type', optional(optional(Auth::user())->customer)->customer_type) === 'pwd' ? 'selected' : '' }}>
+                                            PWD</option>
+                                        <option value="senior"
+                                            {{ old('customer_type', optional(optional(Auth::user())->customer)->customer_type) === 'senior' ? 'selected' : '' }}>
+                                            Senior</option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <label>Vehicle Image</label>
+                                    <input type="file" name="vehicle_image" accept=".jpg,.jpeg,.png">
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label>Special Notes</label>
+                                <textarea name="notes" rows="3" placeholder="Any special instructions or notes...">{{ old('notes') }}</textarea>
+                            </div>
 
                             <div class="location-group">
 
@@ -228,4 +295,103 @@
     <script src="{{ asset('customer/js/map.js') }}"></script>
     <script src="{{ asset('customer/js/dashboard.js') }}"></script>
     <script src="{{ asset('customer/js/history.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const bookingForm = document.getElementById('bookingForm');
+            const phoneInput = document.getElementById('customer_phone');
+            const imageInput = document.querySelector('input[name="vehicle_image"]');
+
+            function ensureFieldErrorElement(input) {
+                const container = input.closest('.input-group') || input.closest('.input-wrapper');
+
+                if (!container) {
+                    return null;
+                }
+
+                let errorElement = container.querySelector('.client-error-message');
+
+                if (!errorElement) {
+                    errorElement = document.createElement('small');
+                    errorElement.className = 'client-error-message';
+                    errorElement.style.display = 'block';
+                    errorElement.style.marginTop = '6px';
+                    errorElement.style.color = '#dc2626';
+                    container.appendChild(errorElement);
+                }
+
+                return errorElement;
+            }
+
+            function setFieldError(input, message) {
+                if (!input) {
+                    return;
+                }
+
+                input.classList.add('input-error');
+                input.setAttribute('aria-invalid', 'true');
+                input.setCustomValidity(message);
+
+                const errorElement = ensureFieldErrorElement(input);
+                if (errorElement) {
+                    errorElement.textContent = message;
+                }
+            }
+
+            function clearFieldError(input) {
+                if (!input) {
+                    return;
+                }
+
+                input.classList.remove('input-error');
+                input.removeAttribute('aria-invalid');
+                input.setCustomValidity('');
+
+                const container = input.closest('.input-group') || input.closest('.input-wrapper');
+                const errorElement = container ? container.querySelector('.client-error-message') : null;
+
+                if (errorElement) {
+                    errorElement.textContent = '';
+                }
+            }
+
+            window.showBookingFieldError = setFieldError;
+            window.clearBookingFieldError = clearFieldError;
+
+            bookingForm?.querySelectorAll('input, select, textarea').forEach(function(field) {
+                const eventName = field.type === 'file' || field.tagName === 'SELECT' ? 'change' : 'input';
+
+                field.addEventListener(eventName, function() {
+                    clearFieldError(field);
+                });
+            });
+
+            phoneInput?.addEventListener('blur', function() {
+                const value = this.value.trim();
+                if (/^9\d{9}$/.test(value)) {
+                    this.value = '0' + value;
+                }
+
+                if (this.value && !/^(09\d{9}|\+639\d{9})$/.test(this.value)) {
+                    setFieldError(this, 'Please enter a valid Philippine phone number.');
+                    this.reportValidity();
+                    return;
+                }
+
+                clearFieldError(this);
+            });
+
+            imageInput?.addEventListener('change', function() {
+                clearFieldError(this);
+
+                const file = this.files?.[0];
+                const allowedTypes = ['image/jpeg', 'image/png'];
+
+                if (file && !allowedTypes.includes(file.type)) {
+                    this.value = '';
+                    setFieldError(this, 'Vehicle image must be a JPG or PNG file only.');
+                    this.reportValidity();
+                }
+            });
+        });
+    </script>
 @endsection

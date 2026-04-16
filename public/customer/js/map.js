@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 e.latlng.lng,
             );
             document.getElementById("pickup").value = address;
+            clearLocationFieldError(document.getElementById("pickup"));
         } else {
             dropCoords = [e.latlng.lng, e.latlng.lat];
 
@@ -42,6 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 e.latlng.lng,
             );
             document.getElementById("dropoff").value = address;
+            clearLocationFieldError(document.getElementById("dropoff"));
 
             fitBothMarkers();
             calculateEstimate();
@@ -114,18 +116,60 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("confirmBtn")?.addEventListener("click", () => {
         const btn = document.getElementById("confirmBtn");
+        const form = document.getElementById("bookingForm");
+        const pickupInput = document.getElementById("pickup");
+        const dropoffInput = document.getElementById("dropoff");
+
         btn.innerText = "Processing...";
         btn.disabled = true;
 
+        clearLocationFieldError(pickupInput);
+        clearLocationFieldError(dropoffInput);
+
+        if (!form.checkValidity()) {
+            closeModal();
+            form.reportValidity();
+            btn.innerText = "Confirm";
+            btn.disabled = false;
+            return;
+        }
+
         if (!pickupCoords || !dropCoords) {
-            alert("Please select pickup and dropoff on the map");
+            if (!pickupCoords) {
+                setLocationFieldError(
+                    pickupInput,
+                    "Please select a pickup location from the map or suggestions.",
+                );
+            }
+
+            if (!dropCoords) {
+                setLocationFieldError(
+                    dropoffInput,
+                    "Please select a dropoff location from the map or suggestions.",
+                );
+            }
+
+            closeModal();
+
+            const firstInvalidLocation = pickupInput?.validationMessage
+                ? pickupInput
+                : dropoffInput;
+            firstInvalidLocation?.focus();
+            firstInvalidLocation?.reportValidity();
+
             btn.innerText = "Confirm";
             btn.disabled = false;
             return;
         }
 
         prepareBookingData();
-        document.getElementById("bookingForm").submit();
+
+        if (typeof form.requestSubmit === "function") {
+            form.requestSubmit();
+            return;
+        }
+
+        form.submit();
     });
 
     document.getElementById("confirmModal")?.addEventListener("click", (e) => {
@@ -139,6 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function handleInput(e) {
     clearTimeout(debounceTimer);
+    clearLocationFieldError(e.target);
 
     const value = e.target.value.trim();
     const id = e.target.id;
@@ -192,6 +237,32 @@ function closeModal() {
     modal.classList.add("hidden");
     confirmBtn.innerText = "Confirm";
     confirmBtn.disabled = false;
+}
+
+function setLocationFieldError(input, message) {
+    if (!input) return;
+
+    if (typeof window.showBookingFieldError === "function") {
+        window.showBookingFieldError(input, message);
+        return;
+    }
+
+    input.classList.add("input-error");
+    input.setAttribute("aria-invalid", "true");
+    input.setCustomValidity(message);
+}
+
+function clearLocationFieldError(input) {
+    if (!input) return;
+
+    if (typeof window.clearBookingFieldError === "function") {
+        window.clearBookingFieldError(input);
+        return;
+    }
+
+    input.classList.remove("input-error");
+    input.removeAttribute("aria-invalid");
+    input.setCustomValidity("");
 }
 
 function toggleBookBtn() {
@@ -308,6 +379,7 @@ async function getSuggestions(query, containerId, type) {
 
         div.onclick = () => {
             document.getElementById(type).value = place.properties.label;
+            clearLocationFieldError(document.getElementById(type));
 
             const coords = place.geometry.coordinates;
 

@@ -21,12 +21,17 @@ class User extends Authenticatable
     protected $fillable = [
         'user_code',
         'name',
+        'first_name',
+        'middle_name',
+        'last_name',
         'email',
+        'phone',
         'password',
         'role_id',
         'status',
         'archived_at',
         'otp_code',
+        'otp_plain_code',
         'otp_expires_at',
         'otp_attempts',
         'otp_last_sent_at',
@@ -40,6 +45,21 @@ class User extends Authenticatable
                 $user->user_code = static::nextPublicCode('user_code');
             }
         });
+
+        static::saving(function (User $user) {
+            $user->name = build_full_name(
+                $user->first_name,
+                $user->middle_name,
+                $user->last_name,
+            ) ?: $user->name;
+
+            $user->email = strtolower(trim((string) $user->email));
+        });
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return build_full_name($this->first_name, $this->middle_name, $this->last_name) ?: (string) $this->name;
     }
 
     public function role()

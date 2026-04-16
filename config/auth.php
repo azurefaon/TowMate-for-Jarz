@@ -40,6 +40,21 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'superadmin' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
+
+        'dispatcher' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
+
+        'teamleader' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
     ],
 
     /*

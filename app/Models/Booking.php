@@ -2,15 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GeneratesPublicCode;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-
-use App\Models\Concerns\GeneratesPublicCode;
-use App\Models\Customer;
-use App\Models\TruckType;
-use App\Models\Unit;
-use App\Models\Receipt;
-use App\Models\User;
 
 class Booking extends Model
 {
@@ -37,8 +31,15 @@ class Booking extends Model
         'base_rate',
         'per_km_rate',
         'computed_total',
+        'discount_percentage',
+        'discount_reason',
+        'additional_fee',
         'final_total',
+        'customer_type',
+        'confirmation_type',
+        'vehicle_image_path',
         'notes',
+        'remarks',
         'quotation_number',
         'initial_quote_path',
         'final_quote_path',
@@ -88,6 +89,12 @@ class Booking extends Model
             'counter_offer_amount' => 'decimal:2',
             'completion_requested_at' => 'datetime',
             'customer_verified_at' => 'datetime',
+            'base_rate' => 'decimal:2',
+            'per_km_rate' => 'decimal:2',
+            'computed_total' => 'decimal:2',
+            'discount_percentage' => 'decimal:2',
+            'additional_fee' => 'decimal:2',
+            'final_total' => 'decimal:2',
         ];
     }
 
@@ -99,6 +106,33 @@ class Booking extends Model
     public function getJobCodeAttribute(): string
     {
         return $this->booking_code ?: str_pad((string) $this->getKey(), 7, '0', STR_PAD_LEFT);
+    }
+
+    public function getDistanceFeeAmountAttribute(): float
+    {
+        $baseRate = (float) ($this->base_rate ?? 0);
+        $computedTotal = (float) ($this->computed_total ?? ($baseRate + ((float) ($this->distance_km ?? 0) * (float) ($this->per_km_rate ?? 0))));
+
+        return max(round($computedTotal - $baseRate, 2), 0);
+    }
+
+    public function getDiscountAmountAttribute(): float
+    {
+        $computedTotal = (float) ($this->computed_total ?? 0);
+        $discountPercentage = (float) ($this->discount_percentage ?? 0);
+
+        return round($computedTotal * ($discountPercentage / 100), 2);
+    }
+
+    public function getQuotationBreakdownAttribute(): array
+    {
+        return [
+            'base_rate' => (float) ($this->base_rate ?? 0),
+            'distance_fee' => $this->distance_fee_amount,
+            'additional_fee' => (float) ($this->additional_fee ?? 0),
+            'discount' => $this->discount_amount,
+            'final_total' => (float) ($this->final_total ?? 0),
+        ];
     }
 
     public function customer()

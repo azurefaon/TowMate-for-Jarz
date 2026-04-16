@@ -12,7 +12,7 @@
         {{-- {{ dd($landing) }} --}}
 
         <nav class="landing-nav">
-            <h2 class="logo">JARZ</h2>
+            <h2 class="logo">JARZ Towing Services</h2>
 
             <div class="nav-links" id="navMenu">
                 <span class="nav-indicator"></span>

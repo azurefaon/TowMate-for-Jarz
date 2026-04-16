@@ -267,3 +267,16 @@ it('shows dispatcher notifications and active jobs once a team leader takes the 
         ->assertSee($booking->job_code, false)
         ->assertSee('On The Way', false);
 });
+
+it('automatically unassigns the team leader unit when they go offline', function () {
+    [$teamLeader] = makeTeamLeaderScenario();
+
+    $unit = $teamLeader->unit()->firstOrFail();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.presence.offline'))
+        ->assertOk()
+        ->assertJsonPath('presence', 'offline');
+
+    expect($unit->fresh()->team_leader_id)->toBeNull();
+});

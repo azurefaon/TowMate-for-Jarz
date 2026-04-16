@@ -133,6 +133,54 @@ it('shows the assigned unit and saved driver in the dispatcher team leaders dash
         ->assertSee('Mario Dela Cruz');
 });
 
+it('lets the dispatcher assign a unit to a team leader from the team leaders module', function () {
+    Role::query()->create(['name' => 'Super Admin']);
+    Role::query()->create(['name' => 'Dispatcher']);
+    Role::query()->create(['name' => 'Team Leader']);
+
+    $dispatcher = User::factory()->create([
+        'role_id' => 2,
+    ]);
+
+    $teamLeader = User::factory()->create([
+        'role_id' => 3,
+        'name' => 'TL Navarro',
+    ]);
+
+    $truckType = TruckType::create([
+        'name' => 'Rescue Unit',
+        'base_rate' => 1700,
+        'per_km_rate' => 85,
+        'max_tonnage' => 5,
+        'description' => 'Daily dispatch assignment',
+    ]);
+
+    $unit = Unit::create([
+        'name' => 'Unit 45',
+        'plate_number' => 'TL-4501',
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+    ]);
+
+    Cache::put("teamleader:presence:{$teamLeader->id}", now()->timestamp, now()->addMinutes(2));
+
+    $this->actingAs($dispatcher)
+        ->post(route('admin.drivers.assign-unit', $teamLeader), [
+            'unit_id' => $unit->id,
+        ])
+        ->assertRedirect(route('admin.drivers'));
+
+    $unit->refresh();
+
+    expect($unit->team_leader_id)->toBe($teamLeader->id);
+
+    $this->actingAs($dispatcher)
+        ->get(route('admin.drivers'))
+        ->assertOk()
+        ->assertSee('TL Navarro')
+        ->assertSee('Unit 45');
+});
+
 it('shows online leaders first but falls back to view all when everyone is offline', function () {
     Cache::flush();
 
@@ -170,6 +218,52 @@ it('shows online leaders first but falls back to view all when everyone is offli
         ->get(route('admin.drivers'))
         ->assertOk()
         ->assertSee('data-default-filter="online"', false);
+});
+
+it('disables unit assignment controls and blocks saving for offline team leaders', function () {
+    Cache::flush();
+
+    Role::query()->create(['name' => 'Super Admin']);
+    Role::query()->create(['name' => 'Dispatcher']);
+    Role::query()->create(['name' => 'Team Leader']);
+
+    $dispatcher = User::factory()->create([
+        'role_id' => 2,
+    ]);
+
+    $teamLeader = User::factory()->create([
+        'role_id' => 3,
+        'name' => 'TL Offline Lock',
+    ]);
+
+    $truckType = TruckType::create([
+        'name' => 'Light Duty',
+        'base_rate' => 1500,
+        'per_km_rate' => 75,
+        'max_tonnage' => 4,
+        'description' => 'Offline assignment guard test',
+    ]);
+
+    $unit = Unit::create([
+        'name' => 'Unit 70',
+        'plate_number' => 'OFF-7001',
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+    ]);
+
+    $this->actingAs($dispatcher)
+        ->get(route('admin.drivers'))
+        ->assertOk()
+        ->assertSee('TL Offline Lock');
+
+    $this->actingAs($dispatcher)
+        ->post(route('admin.drivers.assign-unit', $teamLeader), [
+            'unit_id' => $unit->id,
+        ])
+        ->assertRedirect(route('admin.drivers'))
+        ->assertSessionHasErrors(['unit_id']);
+
+    expect($unit->fresh()->team_leader_id)->toBeNull();
 });
 
 it('redirects logout to the login page on the configured local app url', function () {

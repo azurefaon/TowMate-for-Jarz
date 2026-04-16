@@ -4,308 +4,302 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Review your quotation - Jarz</title>
+    <title>Quotation Review</title>
     <style>
         :root {
-            --bg: #f7f7f5;
-            --card: #ffffff;
-            --text: #111111;
-            --muted: #5f5f5f;
-            --line: #ece7d8;
-            --yellow: #ffeb00;
-            --yellow-soft: #fffde7;
-            --green: #0f8a4b;
-            --green-soft: #ecfdf3;
-            --dark: #111111;
-            --shadow: 0 18px 45px rgba(17, 17, 17, 0.08);
+            --ink: #111827;
+            --ink-soft: #374151;
+            --muted: #6b7280;
+            --accent: #facc15;
+            --accent-soft: #fefce8;
+            --page: #f8fafc;
+            --panel: #ffffff;
+            --line: #e5e7eb;
+            --shadow: 0 16px 40px rgba(17, 24, 39, 0.06);
         }
 
         * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            margin: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(180deg, #fffef7 0%, var(--bg) 180px);
-            color: var(--text);
+            background: linear-gradient(180deg, #ffffff 0%, var(--page) 100%);
+            color: var(--ink);
+            line-height: 1.6;
+            padding: 24px 16px;
         }
 
-        .page {
+        .shell {
             max-width: 1040px;
             margin: 0 auto;
-            padding: 32px 16px 56px;
-        }
-
-        .hero {
-            background: linear-gradient(135deg, #ffffff 0%, #fffdf6 100%);
-            color: var(--text);
-            border-radius: 26px;
-            padding: 28px 24px;
-            box-shadow: var(--shadow);
+            background: var(--panel);
             border: 1px solid var(--line);
-            position: relative;
+            border-radius: 24px;
+            box-shadow: var(--shadow);
             overflow: hidden;
         }
 
-        .hero::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 160px;
-            height: 160px;
-            background: radial-gradient(circle, rgba(255, 235, 0, 0.18) 0%, rgba(255, 235, 0, 0) 70%);
-            pointer-events: none;
-        }
-
-        .hero-top {
+        .topbar {
             display: flex;
-            align-items: flex-start;
             justify-content: space-between;
-            gap: 18px;
-            position: relative;
-            z-index: 1;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 28px;
+            border-bottom: 1px solid var(--line);
+            background: #fcfcfd;
         }
 
-        .hero-brand {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .hero span {
+        .eyebrow {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: var(--yellow-soft);
             padding: 6px 10px;
+            border: 1px solid #fde68a;
             border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--ink);
             font-size: 12px;
             font-weight: 700;
             letter-spacing: 0.04em;
-            margin-bottom: 12px;
-            color: #7a6500;
+            margin-bottom: 10px;
         }
 
-        .hero-logo {
-            width: 150px;
-            height: auto;
-            object-fit: contain;
-            flex-shrink: 0;
-            filter: drop-shadow(0 8px 18px rgba(17, 17, 17, 0.12));
+        .topbar h1 {
+            font-size: clamp(28px, 4vw, 36px);
+            line-height: 1.15;
+            margin-bottom: 8px;
         }
 
-        .hero h1 {
-            margin: 0 0 8px;
-            font-size: clamp(28px, 4vw, 40px);
-        }
-
-        .hero p {
-            margin: 0;
+        .topbar p {
             color: var(--muted);
-            max-width: 760px;
+            max-width: 640px;
         }
 
-        .flash {
-            margin-top: 16px;
-            border-radius: 14px;
-            padding: 14px 16px;
-            font-weight: 600;
+        .status-chip {
+            white-space: nowrap;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--ink-soft);
+            font-size: 12px;
+            font-weight: 700;
         }
 
-        .flash.success {
-            background: var(--green-soft);
-            color: var(--green);
-            border: 1px solid #b7ebc9;
+        .status-chip.quoted,
+        .status-chip.quotation_sent {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #92400e;
         }
 
-        .flash.error {
-            background: #fef2f2;
-            color: #dc2626;
-            border: 1px solid #fecaca;
+        .status-chip.reviewed {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
         }
 
-        .grid {
+        .status-chip.confirmed {
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+            color: #047857;
+        }
+
+        .content {
+            padding: 28px;
+        }
+
+        .layout {
             display: grid;
-            grid-template-columns: 1.15fr 0.85fr;
+            grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
             gap: 20px;
-            margin-top: 20px;
             align-items: start;
         }
 
-        .card {
-            background: var(--card);
+        .panel {
+            background: #fff;
             border: 1px solid var(--line);
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: var(--shadow);
+            border-radius: 20px;
+            padding: 20px;
         }
 
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            padding: 6px 12px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            margin-bottom: 12px;
+        .panel h2 {
+            font-size: 20px;
+            margin-bottom: 6px;
         }
 
-        .status-pill.quoted,
-        .status-pill.quotation_sent {
-            background: var(--yellow-soft);
-            color: #7a6500;
+        .panel-intro {
+            color: var(--muted);
+            margin-bottom: 16px;
+            font-size: 14px;
         }
 
-        .status-pill.reviewed {
-            background: #fff7ed;
-            color: #b45309;
-        }
-
-        .status-pill.confirmed {
-            background: var(--green-soft);
-            color: var(--green);
-        }
-
-        .summary-grid {
+        .detail-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 12px;
-            margin-top: 16px;
         }
 
-        .summary-item {
-            background: linear-gradient(180deg, #ffffff 0%, #fafaf8 100%);
+        .detail-card {
+            border: 1px solid var(--line);
             border-radius: 16px;
-            padding: 14px 15px;
-            border: 1px solid #f0ead6;
-            min-height: 82px;
+            padding: 14px;
+            background: #fcfcfd;
         }
 
-        .summary-item.highlight {
-            background: linear-gradient(180deg, #fffef5 0%, #fff9d8 100%);
-            border-color: #f4df68;
-        }
-
-        .summary-item span {
+        .detail-card span {
             display: block;
-            color: var(--muted);
             font-size: 12px;
-            margin-bottom: 4px;
-        }
-
-        .summary-item strong,
-        .summary-item p {
-            margin: 0;
-            word-break: break-word;
-        }
-
-        .price-box {
-            margin-top: 20px;
-            padding: 20px;
-            border-radius: 18px;
-            background: linear-gradient(180deg, #fffdf2 0%, #fff8c9 100%);
-            border: 1px solid #f6e889;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
-        }
-
-        .price-box small {
-            color: #7a6500;
             font-weight: 700;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
             letter-spacing: 0.04em;
         }
 
-        .price-box h2 {
-            margin: 8px 0 0;
-            font-size: clamp(32px, 4vw, 40px);
-            color: var(--dark);
+        .detail-card strong,
+        .detail-card p {
+            margin: 0;
+            color: var(--ink);
+            word-break: break-word;
+            font-size: 14px;
         }
 
-        .note-box {
-            margin-top: 16px;
-            padding: 14px 16px;
-            border-radius: 14px;
-            background: #fffdf2;
-            border: 1px solid #f6e889;
-            border-left: 4px solid #facc15;
-            color: #6f5d00;
+        .price-panel {
+            position: sticky;
+            top: 16px;
         }
 
-        .note-box.blue {
-            background: #fafaf8;
-            border-color: #ece7d8;
-            color: #444444;
-        }
-
-        .actions {
+        .price-list {
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
+            gap: 10px;
+            margin-top: 14px;
         }
 
-        .form-stack {
+        .price-row {
             display: flex;
-            flex-direction: column;
+            justify-content: space-between;
             gap: 12px;
-            margin-top: 0;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--line);
+            font-size: 14px;
+        }
+
+        .price-row:last-child {
+            border-bottom: 0;
+        }
+
+        .price-row span {
+            color: var(--muted);
+        }
+
+        .price-row strong {
+            color: var(--ink);
+        }
+
+        .price-row.discount strong {
+            color: #b45309;
+        }
+
+        .total-box {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid #fde68a;
+            background: #fffdfa;
+        }
+
+        .total-box.confirmed {
+            border-color: #a7f3d0;
+            background: #f0fdf4;
+        }
+
+        .total-box span {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .total-box strong {
+            font-size: 32px;
+            line-height: 1;
+            color: var(--ink);
+        }
+
+        .meta-note,
+        .state-box {
+            margin-top: 16px;
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: #fcfcfd;
+            color: var(--ink-soft);
+            font-size: 14px;
+        }
+
+        .state-box.success {
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+            color: #047857;
+        }
+
+        .meta-note {
+            border-left: 4px solid var(--accent);
         }
 
         .btn {
             width: 100%;
-            border: 0;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            padding: 13px 16px;
+            margin-top: 16px;
             border-radius: 12px;
-            padding: 14px 16px;
+            border: 1px solid var(--ink);
+            background: #ffffff;
+            color: var(--ink);
+            text-decoration: none;
             font-weight: 700;
             cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--dark);
-            color: #ffffff;
-            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         }
 
         .btn:hover {
-            background: #222222;
             transform: translateY(-1px);
-            box-shadow: 0 10px 24px rgba(17, 17, 17, 0.18);
+            box-shadow: 0 10px 20px rgba(17, 24, 39, 0.08);
+            border-color: #ca8a04;
         }
 
-        .state-box {
-            border-radius: 16px;
-            padding: 16px;
-            background: #fafaf8;
-            color: #334155;
-            border: 1px solid var(--line);
-        }
-
-        .footer-note {
-            margin-top: 18px;
-            padding-top: 12px;
-            border-top: 1px dashed var(--line);
-            font-size: 12px;
+        .footer {
+            padding: 18px 28px 24px;
+            border-top: 1px solid var(--line);
             color: var(--muted);
             text-align: center;
+            font-size: 12px;
         }
 
         @media (max-width: 900px) {
-            .grid {
+
+            .topbar,
+            .layout,
+            .detail-grid {
                 grid-template-columns: 1fr;
             }
 
-            .summary-grid {
-                grid-template-columns: 1fr;
+            .topbar {
+                flex-direction: column;
             }
 
-            .hero-top {
-                flex-direction: column-reverse;
-            }
-
-            .hero-logo {
-                width: 72px;
-                align-self: flex-end;
+            .price-panel {
+                position: static;
             }
         }
     </style>
@@ -313,132 +307,129 @@
 
 <body>
     @php
-        $statusLabel = strtoupper(str_replace('_', ' ', $booking->status));
-        $statusMessage = match ($booking->status) {
-            'quoted', 'quotation_sent' => 'Your quotation is ready for approval.',
-            'reviewed' => 'Your adjustment request has been sent back to dispatch.',
-            'confirmed' => 'Your quotation is already approved. Dispatch can now continue with the towing job.',
-            default => 'This quotation has already been updated.',
-        };
+        $breakdown = $booking->quotation_breakdown ?? [];
+        $statusLabel = strtoupper(str_replace('_', ' ', (string) $booking->status));
+        $distanceKm = (float) ($booking->distance_km ?? 0);
+        $perKmRate = (float) ($booking->per_km_rate ?? 0);
+        $discountAmount = (float) ($breakdown['discount'] ?? 0);
+
+        $priceRows = [
+            ['label' => 'Base rate', 'value' => (float) ($breakdown['base_rate'] ?? 0)],
+            ['label' => 'Distance fee', 'value' => (float) ($breakdown['distance_fee'] ?? 0)],
+        ];
+
+        if ((float) ($breakdown['additional_fee'] ?? 0) > 0) {
+            $priceRows[] = ['label' => 'Additional fee', 'value' => (float) $breakdown['additional_fee']];
+        }
     @endphp
 
-    <div class="page">
-        <div class="hero">
-            <div class="hero-top">
-                <div class="hero-brand">
-                    <span>📩 Jarz quotation</span>
-                    <h1>Review your quotation</h1>
-                    <p>{{ $statusMessage }}</p>
-                </div>
-                <img src="{{ asset('customer/image/TowingLogo.png') }}" alt="Jarz logo" class="hero-logo">
+    <div class="shell">
+        <div class="topbar">
+            <div>
+                <span class="eyebrow">Secure quotation review</span>
+                <h1>Review your quotation</h1>
+                <p>Everything below is pulled from the latest booking pricing so the total stays up to date.</p>
+            </div>
+            <div class="status-chip {{ strtolower((string) $booking->status) }}">{{ $statusLabel }}</div>
+        </div>
+
+        <div class="content">
+            <div class="layout">
+                <section class="panel">
+                    <h2>Trip summary</h2>
+                    <p class="panel-intro">A quick overview of your towing request and route details.</p>
+
+                    <div class="detail-grid">
+                        <div class="detail-card">
+                            <span>Customer</span>
+                            <strong>{{ $booking->customer->full_name ?? 'N/A' }}</strong>
+                        </div>
+                        <div class="detail-card">
+                            <span>Vehicle type</span>
+                            <p>{{ $booking->truckType->name ?? 'N/A' }}</p>
+                        </div>
+                        <div class="detail-card">
+                            <span>Booking reference</span>
+                            <p>{{ $booking->job_code }}</p>
+                        </div>
+                        <div class="detail-card">
+                            <span>Quotation number</span>
+                            <p>{{ $booking->quotation_number ?? 'Pending' }}</p>
+                        </div>
+                        <div class="detail-card">
+                            <span>Pickup</span>
+                            <p>{{ $booking->pickup_address ?? 'N/A' }}</p>
+                        </div>
+                        <div class="detail-card">
+                            <span>Drop-off</span>
+                            <p>{{ $booking->dropoff_address ?? 'N/A' }}</p>
+                        </div>
+                    </div>
+
+                    @if ($distanceKm > 0 || $perKmRate > 0)
+                        <div class="meta-note">
+                            Route distance: <strong>{{ number_format($distanceKm, 2) }} km</strong>
+                            @if ($perKmRate > 0)
+                                • Rate per km: <strong>₱{{ number_format($perKmRate, 2) }}</strong>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if (filled($booking->dispatcher_note))
+                        <div class="meta-note">
+                            <strong>Dispatcher note:</strong><br>
+                            {{ $booking->dispatcher_note }}
+                        </div>
+                    @endif
+                </section>
+
+                <aside class="panel price-panel">
+                    <h2>Price Breakdown</h2>
+                    <p class="panel-intro">This summary is calculated from your actual booking rates.</p>
+
+                    <div class="price-list">
+                        @foreach ($priceRows as $row)
+                            <div class="price-row">
+                                <span>{{ $row['label'] }}</span>
+                                <strong>₱{{ number_format((float) $row['value'], 2) }}</strong>
+                            </div>
+                        @endforeach
+
+                        @if ($discountAmount > 0)
+                            <div class="price-row discount">
+                                <span>
+                                    Discount{{ filled($booking->discount_reason) ? ' • ' . $booking->discount_reason : '' }}
+                                </span>
+                                <strong>- ₱{{ number_format($discountAmount, 2) }}</strong>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="total-box {{ $booking->status === 'confirmed' ? 'confirmed' : '' }}">
+                        <span>Final total</span>
+                        <strong>₱{{ number_format((float) ($breakdown['final_total'] ?? ($booking->final_total ?? 0)), 2) }}</strong>
+                    </div>
+
+                    @if (in_array($booking->status, ['quoted', 'quotation_sent'], true))
+                        <form method="POST" action="{{ $signedActionUrl }}">
+                            @csrf
+                            <input type="hidden" name="action" value="accept">
+                            <button type="submit" class="btn">Approve quotation</button>
+                        </form>
+                    @elseif ($booking->status === 'reviewed')
+                        <div class="state-box">Your adjustment request is already with dispatch.</div>
+                    @elseif ($booking->status === 'confirmed')
+                        <div class="state-box success"><strong>✓ Approved and done</strong><br>Your quotation has been
+                            confirmed successfully. Dispatch can now continue your towing service.</div>
+                    @else
+                        <div class="state-box">This quotation is no longer available for response.</div>
+                    @endif
+                </aside>
             </div>
         </div>
 
-        @if (session('success'))
-            <div class="flash success">{{ session('success') }}</div>
-        @endif
-
-        @if (session('error'))
-            <div class="flash error">{{ session('error') }}</div>
-        @endif
-
-        <div class="grid">
-            <section class="card">
-                <span class="status-pill {{ strtolower($booking->status) }}">{{ $statusLabel }}</span>
-                <h2 style="margin: 0 0 8px;">Quotation Summary</h2>
-                <p style="margin: 0; color: var(--muted);">Review the trip details and final amount before continuing.
-                </p>
-
-                <div class="summary-grid">
-                    <div class="summary-item highlight">
-                        <span>Quotation Reference</span>
-                        <strong>{{ $booking->quotation_number ?? 'Pending' }}</strong>
-                    </div>
-                    <div class="summary-item">
-                        <span>Current Status</span>
-                        <p>{{ ucwords(str_replace('_', ' ', $booking->status)) }}</p>
-                    </div>
-                    <div class="summary-item">
-                        <span>Vehicle Type</span>
-                        <p>{{ $booking->truckType->name ?? '-' }}</p>
-                    </div>
-                    <div class="summary-item">
-                        <span>Customer</span>
-                        <p>{{ $booking->customer->full_name ?? 'Customer' }}</p>
-                    </div>
-                    <div class="summary-item">
-                        <span>Pickup</span>
-                        <p>{{ $booking->pickup_address }}</p>
-                    </div>
-                    <div class="summary-item">
-                        <span>Drop-off</span>
-                        <p>{{ $booking->dropoff_address }}</p>
-                    </div>
-                </div>
-
-                <div class="price-box">
-                    <small>FINAL PRICE</small>
-                    <h2>₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}</h2>
-
-                    @if (in_array($booking->status, ['quoted', 'quotation_sent'], true))
-                        <form method="POST" action="{{ $signedActionUrl }}" class="form-stack"
-                            style="margin-top: 16px;">
-                            @csrf
-                            <input type="hidden" name="action" value="accept">
-                            <button type="submit" class="btn">Accept & continue</button>
-                        </form>
-                    @endif
-                </div>
-
-                @if (filled($booking->dispatcher_note))
-                    <div class="note-box">
-                        <strong>Dispatch message</strong><br>
-                        {{ $booking->dispatcher_note }}
-                    </div>
-                @endif
-
-                @if (filled($booking->customer_response_note) || filled($booking->counter_offer_amount))
-                    <div class="note-box blue">
-                        <strong>Your latest request</strong><br>
-                        @if (filled($booking->counter_offer_amount))
-                            Counter-offer: ₱{{ number_format((float) $booking->counter_offer_amount, 2) }}<br>
-                        @endif
-                        {{ $booking->customer_response_note ?? 'Requested a price adjustment.' }}
-                    </div>
-                @endif
-            </section>
-
-            <aside class="card actions">
-                @if ($booking->status === 'quoted')
-                    <div class="state-box" style="background:#fffdf2; border-color:#f6e889; color:#6f5d00;">
-                        <h2 style="margin-top: 0;">Almost done</h2>
-                        <p style="margin-bottom: 0;">Review the details on the left, then use the button under the
-                            quoted amount to approve and continue.</p>
-                    </div>
-                @elseif ($booking->status === 'reviewed')
-                    <div class="state-box">
-                        <h2 style="margin-top: 0;">Adjustment sent</h2>
-                        <p style="margin-bottom: 0;">Your request is already with dispatch. Once they update the
-                            quotation, you can review the new amount from the latest email or this same secure page.</p>
-                    </div>
-                @elseif ($booking->status === 'confirmed')
-                    <div class="state-box"
-                        style="background: var(--green-soft); color: var(--green); border-color: #a7f3d0;">
-                        <h2 style="margin-top: 0;">Quotation approved</h2>
-                        <p style="margin-bottom: 0;">Your approval has been recorded successfully. Dispatch can now
-                            assign the towing unit and continue the service.</p>
-                    </div>
-                @else
-                    <div class="state-box">
-                        <h2 style="margin-top: 0;">Quotation unavailable</h2>
-                        <p style="margin-bottom: 0;">This booking is no longer waiting for a quotation response.</p>
-                    </div>
-                @endif
-
-                <div class="footer-note">
-                    Secure review link • Final customer approval required
-                </div>
-            </aside>
+        <div class="footer">
+            Secure review link • Pricing updates reflect the latest booking values
         </div>
     </div>
 </body>

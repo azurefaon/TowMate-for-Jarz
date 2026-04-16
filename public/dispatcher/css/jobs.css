@@ -65,37 +65,8 @@
 .jobs-status-pill i {
     width: 16px;
     height: 16px;
-    color: #f59e0buppercase;
     color: #d97706;
 }
-
-.jobs-title {
-    margin: 0;
-    font-size: 2rem;
-    color: #0f172a;
-}
-
-.jobs-subtitle {
-    margin: 8px 0 0;
-    color: #64748b;
-    max-width: 760px;
-}
-
-.jobs-hero-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.jobs-status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 42px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    background: #f3f4f6;
 
 .jobs-section-head {
     display: flex;
@@ -116,15 +87,18 @@
     color: #64748b;
     font-size: 0.88rem;
 }
-    color: #334155;
-    font-size: 0.85rem;
-    font-weight: 700;
-}
 
-.jobs-status-pill i {
-    width: 16px;
-    height: 16px;
-    color: #f59e0b;
+.jobs-section-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 0.8rem;
+    font-weight: 800;
 }
 
 .jobs-link-btn {
@@ -258,9 +232,20 @@
     color: #92400e;
 }
 
+.status-on-the-way {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.status-in-progress,
 .status-on-job {
     background: #dcfce7;
     color: #166534;
+}
+
+.status-waiting-verification {
+    background: #eff6ff;
+    color: #1d4ed8;
 }
 
 .status-delayed {
@@ -459,24 +444,22 @@
     gap: 8px;
     min-height: 42px;
     padding: 10px 14px;
-    bjobs-hero-actions,
-    .modal-actions {
-        flex-direction: column;
-        align-items: stretch;
-    }
+    border-radius: 12px;
+    border: 0;
+    text-decoration: none;
+    font-weight: 700;
+    cursor: pointer;
+}
 
-    .jobs-stats-grid,
-    .jobs-grid,
-    .job-meta-grid {
-        grid-template-columns: 1fr;
-    }
+.btn-primary {
+    background: #facc15;
+    color: #111827;
+    box-shadow: 0 10px 20px rgba(250, 204, 21, 0.16);
+}
 
-    .jobs-status-pill,
-    .jobs-link-btn,
-    .btn,
-    .job-view-btn {
-        width: 100%;
-        justify-content: center
+.btn-secondary {
+    background: #f3f4f6;
+    color: #334155;
 }
 
 .jobs-empty-state {

@@ -11,13 +11,49 @@ class BookingRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $nameParts = split_full_name($this->input('full_name') ?: optional($this->user())->name);
+
+        $firstName = trim((string) ($this->input('first_name') ?: $nameParts['first_name']));
+        $middleName = trim((string) ($this->input('middle_name') ?: $nameParts['middle_name']));
+        $lastName = trim((string) ($this->input('last_name') ?: $nameParts['last_name']));
+        $customerType = $this->input('customer_type');
+
+        if (! in_array($customerType, ['regular', 'pwd', 'senior'], true)) {
+            $customerType = $this->boolean('is_pwd') ? 'pwd' : ($this->boolean('is_senior') ? 'senior' : 'regular');
+        }
+
+        $this->merge([
+            'first_name' => $firstName !== '' ? $firstName : null,
+            'middle_name' => $middleName !== '' ? $middleName : null,
+            'last_name' => $lastName !== '' ? $lastName : null,
+            'full_name' => build_full_name($firstName, $middleName, $lastName),
+            'phone' => normalize_ph_phone($this->input('phone')) ?? $this->input('phone'),
+            'email' => filled($this->input('email')) ? strtolower(trim((string) $this->input('email'))) : optional($this->user())->email,
+            'customer_type' => $customerType,
+            'confirmation_type' => $this->input('confirmation_type', 'system'),
+        ]);
+    }
+
     public function rules()
     {
         return [
-            'full_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name' => 'required|string|max:100',
             'age' => 'required|integer|min:1|max:120',
-            'phone' => 'required|string|max:30',
-            'email' => 'nullable|email|max:255',
+            'phone' => ['required', 'regex:/^\+639\d{9}$/'],
+            'email' => [
+                'nullable',
+                'email:rfc',
+                'max:255',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if ($value && ! is_public_email((string) $value)) {
+                        $fail('Email must be valid and able to receive system notifications and receipts.');
+                    }
+                },
+            ],
             'truck_type_id' => 'required|exists:truck_types,id',
             'pickup_address' => 'required|string|max:1000',
             'pickup_lat' => 'required|numeric',
@@ -25,21 +61,30 @@ class BookingRequest extends FormRequest
             'dropoff_address' => 'required|string|max:1000',
             'drop_lat' => 'required|numeric',
             'drop_lng' => 'required|numeric',
-            'distance' => 'required|string|max:50',
-            'price' => 'required|string|max:50',
-            'base_rate' => 'required|numeric',
-            'per_km_rate' => 'required|numeric',
+            'distance' => 'nullable|string|max:50',
+            'price' => 'nullable|string|max:50',
             'notes' => 'nullable|string|max:1000',
-            'is_pwd' => 'nullable|boolean',
-            'is_senior' => 'nullable|boolean',
+            'vehicle_image' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
+            'customer_type' => 'required|in:regular,pwd,senior',
+            'confirmation_type' => 'nullable|in:call,system',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'phone.regex' => 'Please enter a valid Philippine phone number.',
+            'vehicle_image.mimes' => 'Vehicle image must be a JPG or PNG file only.',
         ];
     }
 
     public function validatedData(): array
     {
-        return array_merge(parent::validated(), [
-            'is_pwd' => $this->has('is_pwd'),
-            'is_senior' => $this->has('is_senior'),
+        $validated = parent::validated();
+
+        return array_merge($validated, [
+            'is_pwd' => ($validated['customer_type'] ?? 'regular') === 'pwd',
+            'is_senior' => ($validated['customer_type'] ?? 'regular') === 'senior',
         ]);
     }
 }

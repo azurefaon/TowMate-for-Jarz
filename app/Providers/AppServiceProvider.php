@@ -2,15 +2,14 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\View;
-use Illuminate\Pagination\Paginator;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\SystemSetting;
-
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,29 +21,44 @@ class AppServiceProvider extends ServiceProvider
         //
     }
 
+    protected function databaseReady(): bool
+    {
+        try {
+            return Schema::hasTable('migrations');
+        } catch (\Throwable $exception) {
+            return false;
+        }
+    }
+
     /**
      * Bootstrap any application services.
      */
     public function boot(): void
     {
-        $settings = Schema::hasTable('system_settings')
-            ? SystemSetting::allCached()->toArray()
-            : [];
+        $settings = [];
+
+        if ($this->databaseReady()) {
+            $settings = Schema::hasTable('system_settings')
+                ? SystemSetting::allCached()->toArray()
+                : [];
+        }
 
         config([
             'towmate.settings' => $settings,
         ]);
 
         View::composer('layouts.superadmin', function ($view) {
-            $pendingBookings = Schema::hasTable('bookings')
-                ? Booking::whereIn('status', ['requested', 'reviewed'])->count()
-                : 0;
+            $pendingBookings = 0;
+
+            if ($this->databaseReady() && Schema::hasTable('bookings')) {
+                $pendingBookings = Booking::whereIn('status', ['requested', 'reviewed'])->count();
+            }
 
             $view->with('pendingBookings', $pendingBookings);
         });
 
         View::composer('admin-dashboard.layouts.app', function ($view) {
-            if (!Schema::hasTable('bookings')) {
+            if (! $this->databaseReady() || ! Schema::hasTable('bookings')) {
                 $view->with([
                     'dispatcherNotificationCount' => 0,
                     'dispatcherNotifications' => collect(),
@@ -71,7 +85,7 @@ class AppServiceProvider extends ServiceProvider
         Paginator::useBootstrapFive();
 
         View::composer('*', function ($view) {
-            if (!Auth::check() || !Schema::hasTable('bookings')) {
+            if (! Auth::check() || ! $this->databaseReady() || ! Schema::hasTable('bookings')) {
                 return;
             }
 

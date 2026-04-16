@@ -4,314 +4,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="stylesheet" href="{{ asset('admin/css/login.css') }}">
     <link rel="icon" href="{{ asset('admin/images/logo.png') }}">
-
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
-
-    <title>Login</title>
+    <title>{{ $loginConfig['pageTitle'] ?? 'TowMate Login' }}</title>
 </head>
 
-<body>
+<body class="login-page">
+    @php
+        $role = old('role', $loginConfig['role'] ?? 'superadmin');
+    @endphp
 
-    <div class="container">
-
-        <div class="left">
-
-            <div class="brand">
-                <img src="{{ asset('admin/images/logo.png') }}" class="logo">
-                <div>
-                    <h2>Jarz</h2>
-                    <p>Operations Control Panel</p>
+    <div class="auth-shell">
+        <aside class="auth-brand-panel">
+            <div class="brand-top">
+                <div class="brand-lockup">
+                    <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Towing logo" class="brand-logo">
+                    <div>
+                        <h2>Jarz Towing</h2>
+                        <p class="brand-subtitle">{{ $loginConfig['panelTitle'] ?? 'Portal' }}</p>
+                    </div>
                 </div>
             </div>
 
-            <img src="{{ asset('admin/images/GIF-towmate.gif') }}" class="illustration">
-
-        </div>
-
-        <div class="right">
-
-            <div class="glass-card">
-
-                <form id="loginForm" autocomplete="off" method="POST" action="{{ route('login') }}">
-                    @csrf
-
-                    <input type="text" style="display:none">
-                    <input type="password" style="display:none">
-
-                    <div id="emailLogin" class="auth-view">
-
-                        <h1>Log In</h1>
-                        <p class="subtitle">Login to your Jarz account</p>
-
-                        <div class="input-group">
-                            <label>Email</label>
-                            <input type="email" name="email" value="{{ old('email') }}"
-                                placeholder="Enter your Email" required maxlength="100" autocomplete="username"
-                                inputmode="email" spellcheck="false">
-                        </div>
-
-                        <div class="input-group">
-
-                            <label>Password</label>
-
-                            <div class="password-group">
-                                <input type="password" name="password" id="password" placeholder="Enter password"
-                                    required maxlength="128" autocomplete="current-password">
-                                <img src="{{ asset('admin/images/open-eye-icon.png') }}" class="eye"
-                                    id="togglePassword" draggable="false">
-                            </div>
-
-                            <small class="error-text">
-                                @if ($errors->login->any())
-                                    {{ $errors->login->first() }}
-                                @endif
-                            </small>
-
-                        </div>
-
-                        <div class="login-options">
-                            <a href="{{ route('password.request') }}" class="forgot-link">
-                                Forgot password?
-                            </a>
-                        </div>
-
-                        <button type="submit" id="loginBtn">
-
-                            <span class="btn-text">Login</span>
-
-                            <span class="tow-loading">
-                                <img src="{{ asset('admin/images/towtruck-icon-login.png') }}" class="tow-truck">
-                                <span class="road"></span>
-                            </span>
-
-                        </button>
-
-                        <div class="signup-switch">
-                            <button type="button" id="signupTab">Sign up</button>
-                        </div>
-
-                    </div>
-
-                    <div id="phoneLogin" class="auth-view" style="display:none">
-
-                        <h1>Phone Registration</h1>
-
-                        <div class="back-option" id="backToOptions">
-                            ← Back
-                        </div>
-
-                        <div class="input-group">
-                            <label>Full Name</label>
-                            <input type="text" name="full_name" placeholder="your name" maxlength="80"
-                                pattern="^[A-Za-z\s]{2,80}$" title="Only letters and spaces allowed">
-                        </div>
-
-                        <div class="input-group">
-                            <label>Phone Number</label>
-                            <input type="tel" id="phoneInput" name="phone" placeholder="+63 912 345 6789"
-                                maxlength="15" pattern="^\+?[0-9]{10,15}$" inputmode="numeric">
-                        </div>
-
-                        <div class="input-group" id="otpGroup" style="display:none">
-                            <label>Enter OTP</label>
-                            <input type="text" maxlength="6" pattern="[0-9]{6}" inputmode="numeric"
-                                placeholder="6 digit code" autocomplete="one-time-code">
-                        </div>
-
-                        <button type="button" id="sendOtpBtn" class="otp-btn">
-                            Send Verification OTP
-                        </button>
-
-                    </div>
-
-                    <div id="registerOptions" class="auth-view" style="display:none">
-
-                        <h1>Registration</h1>
-
-                        <div class="signup-header">
-
-                            <div class="back-option" id="backToLoginMain">
-                                ← Back
-                            </div>
-
-                            <h2>Create your account</h2>
-                            <p class="signup-sub">Choose how you want to create your Jarz account</p>
-
-                        </div>
-
-                        <div class="signup-methods">
-
-                            <div class="signup-card" id="registerEmailBtn">
-
-                                <div class="signup-icon">
-                                    <i data-lucide="mail"></i>
-                                </div>
-
-                                <div class="signup-text">
-                                    <h4>Email Registration</h4>
-                                    <p>Create account using your email and password</p>
-                                </div>
-
-                            </div>
-
-                            <div class="signup-card" id="registerPhoneBtn">
-
-                                <div class="signup-icon">
-                                    <i data-lucide="phone"></i>
-                                </div>
-
-                                <div class="signup-text">
-                                    <h4>Phone Registration</h4>
-                                    <p>Register quickly using your mobile number</p>
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                </form>
-
-                <form method="POST" action="{{ route('register') }}">
-                    @csrf
-
-                    <div id="registerEmail" class="auth-view" style="display:none">
-
-                        <h1>Email Registration</h1>
-
-                        <div class="back-option" id="backToRegisterOptions">
-                            <i data-lucide="arrow-left"></i>
-                        </div>
-
-                        <div class="register-group">
-
-                            <label>Full Name</label>
-
-                            <div class="register-input">
-                                <i data-lucide="user"></i>
-                                <input type="text" name="name" placeholder="Your Name" required>
-                            </div>
-
-                        </div>
-
-                        <div class="register-group">
-
-                            <label>Email</label>
-
-                            <div class="register-input">
-                                <i data-lucide="mail"></i>
-                                <input type="email" name="email" placeholder="your.email@email.com"
-                                    maxlength="100" autocomplete="email" required>
-                            </div>
-
-                            @if ($errors->any())
-                                <div style="color: #e74c3c; margin-bottom:10px;">
-                                    @foreach ($errors->all() as $error)
-                                        <div>{{ $error }}</div>
-                                    @endforeach
-                                </div>
-                            @endif
-
-                        </div>
-
-                        <div class="register-group password-hint-wrapper">
-
-                            <label>Password</label>
-
-                            <div class="register-input password-box">
-
-                                <i data-lucide="lock"></i>
-
-                                <input type="password" id="registerPassword" name="password"
-                                    placeholder="Create strong password" maxlength="128" autocomplete="new-password"
-                                    required>
-
-                                <img src="{{ asset('admin/images/open-eye-icon.png') }}" class="toggle-eye-img"
-                                    id="toggleRegisterPass" draggable="false">
-
-                            </div>
-
-                            <div class="password-hint" id="passwordHint">
-
-                                <h4>Password must following requirements:</h4>
-
-                                <ul class="password-checklist">
-
-                                    <li id="check-length">
-                                        <span class="check-icon">○</span>
-                                        8+ characters
-                                    </li>
-
-                                    <li id="check-upper">
-                                        <span class="check-icon">○</span>
-                                        One uppercase letter
-                                    </li>
-
-                                    <li id="check-lower">
-                                        <span class="check-icon">○</span>
-                                        One lowercase letter
-                                    </li>
-
-                                    <li id="check-number">
-                                        <span class="check-icon">○</span>
-                                        One number
-                                    </li>
-
-                                    <li id="check-special">
-                                        <span class="check-icon">○</span>
-                                        One special character
-                                    </li>
-
-                                </ul>
-
-                            </div>
-
-                        </div>
-
-                        <div class="register-group">
-
-                            <label>Confirm Password</label>
-
-                            <div class="register-input password-box">
-
-                                <i data-lucide="lock"></i>
-
-                                <input type="password" id="confirmPassword" name="password_confirmation"
-                                    placeholder="Confirm password" maxlength="128" autocomplete="new-password"
-                                    required>
-
-                                <img src="{{ asset('admin/images/open-eye-icon.png') }}" class="toggle-eye-img"
-                                    id="toggleConfirmPass" draggable="false">
-
-                            </div>
-
-                        </div>
-
-                        <button type="submit" class="register-btn">
-                            Create Account
-                        </button>
-
-                    </div>
-                </form>
-
+            <div class="brand-copy">
+                <h1>Welcome back</h1>
+                <p>{{ $loginConfig['panelText'] ?? 'Sign in to continue.' }}</p>
             </div>
-        </div>
+
+            <div class="brand-showcase" aria-hidden="true">
+                <div class="showcase-card">
+                    <div class="showcase-card-header">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <div class="showcase-card-body">
+                        <div class="showcase-lines">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="showcase-dots">
+                    <span class="is-active"></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+
+            <div class="brand-meta">
+                <span>{{ now()->format('M d, Y') }}</span>
+                <span>{{ $loginConfig['panelTitle'] ?? 'TowMate' }}</span>
+            </div>
+        </aside>
+
+        <main class="auth-panel">
+            <section class="auth-card">
+                <div class="auth-header">
+                    <h3>{{ $loginConfig['heading'] ?? 'Welcome back' }}</h3>
+                    <p>{{ $loginConfig['subtitle'] ?? 'Sign in to continue.' }}</p>
+                </div>
+
+                @if (session('status'))
+                    <div class="auth-alert success">{{ session('status') }}</div>
+                @endif
+
+                @if ($errors->login->any())
+                    <div class="auth-alert error">{{ $errors->login->first('auth') ?: $errors->login->first() }}</div>
+                @endif
+
+                <form method="POST" action="{{ route('login') }}" id="secureLoginForm" novalidate>
+                    @csrf
+                    <input type="hidden" name="role" id="roleInput" value="{{ $role }}">
+                    <input type="hidden" name="login_method" value="password">
+
+                    <div id="emailPasswordFields" class="field-stack">
+                        <div class="input-group">
+                            <label for="email">Email address</label>
+                            <input id="email" type="email" name="email" value="{{ old('email') }}"
+                                placeholder="name@towmate.com" autocomplete="username" maxlength="150">
+                            @error('email')
+                                <span class="field-error">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        <div class="input-group">
+                            <label for="password">Password</label>
+                            <div class="password-wrap">
+                                <input id="password" type="password" name="password" placeholder="Enter your password"
+                                    autocomplete="current-password" maxlength="128">
+                                <button type="button" class="toggle-password" id="togglePassword"
+                                    aria-label="Show password">
+                                    <i data-lucide="eye"></i>
+                                </button>
+                            </div>
+                            @error('password')
+                                <span class="field-error">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                    </div>
+
+                    <div class="form-footer">
+                        <a href="{{ route('password.request') }}" class="forgot-link" id="forgotPasswordLink">Forgot
+                            password?</a>
+                    </div>
+
+                    <button type="submit" class="primary-btn" id="loginButton">
+                        <span class="btn-label">Log in</span>
+                        <span class="btn-loader" aria-hidden="true"></span>
+                    </button>
+                </form>
+
+                <div class="portal-links">
+                    @if (($loginConfig['role'] ?? 'superadmin') !== 'superadmin')
+                        <a href="{{ route('login') }}">Super Admin</a>
+                    @endif
+                    @if (($loginConfig['role'] ?? 'superadmin') !== 'dispatcher')
+                        <a href="{{ route('dispatcher.login') }}">Dispatcher</a>
+                    @endif
+                    @if (($loginConfig['role'] ?? 'superadmin') !== 'teamleader')
+                        <a href="{{ route('teamleader.login') }}">Team Leader</a>
+                    @endif
+                </div>
+            </section>
+        </main>
     </div>
 
-
-
-    <script src="{{ asset('admin/js/login.js') }}"></script>
-
     <script>
-        lucide.createIcons();
+        const form = document.getElementById('secureLoginForm');
+        const loginButton = document.getElementById('loginButton');
+        const passwordInput = document.getElementById('password');
+        const togglePassword = document.getElementById('togglePassword');
+
+        togglePassword?.addEventListener('click', () => {
+            const nextType = passwordInput.type === 'password' ? 'text' : 'password';
+            passwordInput.type = nextType;
+            togglePassword.innerHTML = nextType === 'password' ?
+                '<i data-lucide="eye"></i>' :
+                '<i data-lucide="eye-off"></i>';
+            window.lucide?.createIcons();
+        });
+
+        form?.addEventListener('submit', () => {
+            loginButton.disabled = true;
+            loginButton.classList.add('is-loading');
+        });
+
+        window.lucide?.createIcons();
     </script>
-
-</body>
-
-</html>

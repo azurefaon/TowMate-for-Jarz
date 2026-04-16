@@ -73,12 +73,6 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__ . '/auth.php';
 
-Route::get('/teamleader/login', function (Request $request) {
-    $baseUrl = rtrim(config('app.url') ?: ($request->getSchemeAndHttpHost() . $request->getBaseUrl()), '/');
-
-    return redirect()->to($baseUrl . '/login');
-})->name('teamleader.login.redirect');
-
 Route::prefix('teamleader')
     ->name('teamleader.')
     ->middleware(['auth', 'role:3'])
@@ -159,6 +153,7 @@ Route::prefix('admin-dashboard')
         Route::get('/dispatch', [DispatchController::class, 'index'])->name('dispatch');
         Route::get('/pending-bookings-count', [DispatchController::class, 'pendingBookingsCount'])->name('pending-bookings-count');
         Route::get('/drivers', [DriversController::class, 'index'])->name('drivers');
+        Route::post('/drivers/{teamLeader}/assign-unit', [DriversController::class, 'assignUnit'])->name('drivers.assign-unit');
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
         Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])->name('booking.assign');
         Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');

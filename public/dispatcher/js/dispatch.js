@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
         selectedButton: null,
         selectedCard: null,
         pollingInterval: null,
+        reviewData: null,
     };
 
     var actionModal = document.getElementById("actionModal");
@@ -15,6 +16,66 @@ document.addEventListener("DOMContentLoaded", function () {
     var priceInput = document.getElementById("priceInput");
     var priceHelper = document.getElementById("priceHelper");
     var dispatcherNoteInput = document.getElementById("dispatcherNoteInput");
+    var unitSelect = document.getElementById("unitSelect");
+    var unitHelper = document.getElementById("unitHelper");
+    var quotationReviewGrid = document.getElementById("quotationReviewGrid");
+    var finalTotalPreview = document.getElementById("finalTotalPreview");
+    var discountLabel = document.getElementById("discountLabel");
+    var discountBadge = document.getElementById("discountBadge");
+    var distanceInput = document.getElementById("distanceInput");
+    var distanceFeeInput = document.getElementById("distanceFeeInput");
+    var discountPercentInput = document.getElementById("discountPercentInput");
+    var quoteValidationSummary = document.getElementById(
+        "quoteValidationSummary",
+    );
+    function clearZeroLikeOnFocus(input) {
+        if (!input) {
+            return;
+        }
+
+        input.addEventListener("focus", function () {
+            var raw = String(this.value || "")
+                .replace(/,/g, "")
+                .trim();
+
+            if (raw === "0" || raw === "0.0" || raw === "0.00") {
+                this.value = "";
+            }
+        });
+    }
+
+    function isRegularCustomerType() {
+        return (
+            String(
+                (state.reviewData && state.reviewData.customerType) ||
+                    "Regular",
+            )
+                .trim()
+                .toLowerCase() === "regular"
+        );
+    }
+
+    function syncDiscountInputState() {
+        if (!discountPercentInput) {
+            return;
+        }
+
+        var shouldLock = isRegularCustomerType();
+
+        discountPercentInput.disabled = shouldLock;
+        discountPercentInput.readOnly = shouldLock;
+        discountPercentInput.classList.toggle("is-locked", shouldLock);
+        discountPercentInput.setAttribute(
+            "aria-disabled",
+            shouldLock ? "true" : "false",
+        );
+
+        if (shouldLock) {
+            discountPercentInput.value = roundValue(
+                (state.reviewData && state.reviewData.discountRate) || 0,
+            ).toFixed(2);
+        }
+    }
 
     if (!queueList) {
         return;
@@ -29,6 +90,12 @@ document.addEventListener("DOMContentLoaded", function () {
     initializeViewToggle();
     initializeRealtimeUpdates();
     initializePriceInput();
+    initializeUnitSelector();
+    initializeComputationInputs();
+
+    clearZeroLikeOnFocus(distanceInput);
+    clearZeroLikeOnFocus(discountPercentInput);
+    clearZeroLikeOnFocus(priceInput);
 
     if (
         typeof lucide !== "undefined" &&
@@ -158,7 +225,9 @@ document.addEventListener("DOMContentLoaded", function () {
             var digitsBeforeCursor = countDigitsBeforeCursor(this);
             this.value = formatPriceInputValue(this.value, false);
             restoreCursorByDigitCount(this, digitsBeforeCursor);
+            clearFieldError(this);
             updatePriceHelper(this.value);
+            updateConfirmButtonState();
         });
 
         priceInput.addEventListener("blur", function () {
@@ -168,8 +237,210 @@ document.addEventListener("DOMContentLoaded", function () {
                 this.value = formatPriceInputValue(parsed.toFixed(2), true);
             }
 
+            clearFieldError(this);
             updatePriceHelper(this.value);
+            updateConfirmButtonState();
         });
+    }
+
+    function initializeUnitSelector() {
+        if (!unitSelect) {
+            return;
+        }
+
+        unitSelect.addEventListener("change", function () {
+            clearFieldError(this);
+            updateUnitHelper();
+            updateConfirmButtonState();
+        });
+    }
+
+    function initializeComputationInputs() {
+        if (distanceInput) {
+            distanceInput.addEventListener("input", function () {
+                clearFieldError(this);
+                updateQuotationPreview(priceInput ? priceInput.value : "");
+                updateConfirmButtonState();
+            });
+        }
+
+        if (discountPercentInput) {
+            discountPercentInput.addEventListener("input", function () {
+                clearFieldError(this);
+                updateQuotationPreview(priceInput ? priceInput.value : "");
+                updateConfirmButtonState();
+            });
+        }
+    }
+
+    function showValidationSummary(messages) {
+        if (!quoteValidationSummary) {
+            return;
+        }
+
+        quoteValidationSummary.innerHTML = "";
+        quoteValidationSummary.classList.remove("show");
+    }
+
+    function clearValidationSummary() {
+        if (!quoteValidationSummary) {
+            return;
+        }
+
+        quoteValidationSummary.innerHTML = "";
+        quoteValidationSummary.classList.remove("show");
+    }
+
+    function setFieldError(field, message) {
+        if (!field) {
+            return;
+        }
+
+        field.classList.add("is-invalid");
+        field.setCustomValidity(message || "Invalid value.");
+
+        var errorNode = document.getElementById(field.id + "Error");
+        if (errorNode) {
+            errorNode.textContent = message || "Invalid value.";
+            errorNode.classList.add("show");
+        }
+    }
+
+    function clearFieldError(field) {
+        if (!field) {
+            return;
+        }
+
+        field.classList.remove("is-invalid");
+        field.setCustomValidity("");
+
+        var errorNode = document.getElementById(field.id + "Error");
+        if (errorNode) {
+            errorNode.textContent = "";
+            errorNode.classList.remove("show");
+        }
+    }
+
+    function validateAcceptForm(showErrors) {
+        if (state.selectedAction !== "accept") {
+            clearValidationSummary();
+            return true;
+        }
+
+        var shouldShowErrors = showErrors === true;
+        var messages = [];
+        var firstInvalidField = null;
+
+        var distanceValue = parseFloat(distanceInput ? distanceInput.value : 0);
+        var distanceFeeValue = parseNumericPrice(
+            distanceFeeInput ? distanceFeeInput.value : 0,
+        );
+        var discountPercentValue = parseFloat(
+            discountPercentInput ? discountPercentInput.value : 0,
+        );
+        var expectedDistanceFee = roundValue(
+            distanceValue * (state.reviewData ? state.reviewData.perKmRate : 0),
+        );
+
+        if (unitSelect) {
+            clearFieldError(unitSelect);
+        }
+        if (distanceInput) {
+            clearFieldError(distanceInput);
+        }
+        if (distanceFeeInput) {
+            clearFieldError(distanceFeeInput);
+        }
+        if (discountPercentInput) {
+            clearFieldError(discountPercentInput);
+        }
+
+        function rememberError(field, message) {
+            messages.push(message);
+
+            if (shouldShowErrors) {
+                setFieldError(field, message);
+            }
+
+            if (!firstInvalidField && field) {
+                firstInvalidField = field;
+            }
+        }
+
+        if (!unitSelect || !unitSelect.value) {
+            rememberError(unitSelect, "Available unit is required.");
+        } else if (
+            unitSelect.options[unitSelect.selectedIndex] &&
+            unitSelect.options[unitSelect.selectedIndex].getAttribute(
+                "data-selectable",
+            ) === "0"
+        ) {
+            rememberError(
+                unitSelect,
+                "Selected unit does not have an available team leader.",
+            );
+        }
+
+        if (!Number.isFinite(distanceValue) || distanceValue <= 0) {
+            rememberError(distanceInput, "Distance is required.");
+        }
+
+        if (Math.abs(distanceFeeValue - expectedDistanceFee) > 0.11) {
+            rememberError(
+                distanceFeeInput,
+                "Distance fee must match the distance and per KM rate.",
+            );
+        }
+
+        if (
+            !discountPercentInput ||
+            (!discountPercentInput.disabled &&
+                (!Number.isFinite(discountPercentValue) ||
+                    discountPercentValue < 0 ||
+                    discountPercentValue > 100))
+        ) {
+            rememberError(
+                discountPercentInput,
+                "Review the discount percentage before sending.",
+            );
+        }
+
+        if (messages.length) {
+            showValidationSummary(messages);
+
+            if (shouldShowErrors && firstInvalidField) {
+                firstInvalidField.focus();
+            }
+
+            return false;
+        }
+
+        clearValidationSummary();
+        return true;
+    }
+
+    function updateConfirmButtonState() {
+        if (!confirmActionBtn) {
+            return;
+        }
+
+        if (state.selectedAction !== "accept") {
+            confirmActionBtn.disabled = false;
+            clearValidationSummary();
+            return;
+        }
+
+        var hasUnit =
+            unitSelect &&
+            unitSelect.value &&
+            unitSelect.options[unitSelect.selectedIndex] &&
+            unitSelect.options[unitSelect.selectedIndex].getAttribute(
+                "data-selectable",
+            ) !== "0";
+
+        confirmActionBtn.disabled = !hasUnit;
+
+        clearValidationSummary();
     }
 
     function handleQueueClick(event) {
@@ -371,6 +642,10 @@ document.addEventListener("DOMContentLoaded", function () {
         rejectionReason,
         quotedPrice,
         dispatcherNote,
+        assignedUnitId,
+        distanceKm,
+        distanceFee,
+        discountPercentage,
     ) {
         var originalText = button.textContent;
         var csrfNode = document.querySelector('meta[name="csrf-token"]');
@@ -393,6 +668,12 @@ document.addEventListener("DOMContentLoaded", function () {
             body: JSON.stringify({
                 action: action,
                 price: quotedPrice,
+                additional_fee: quotedPrice,
+                assigned_unit_id: assignedUnitId,
+                distance_km: distanceKm,
+                distance_fee: parseNumericPrice(distanceFee).toFixed(2),
+                discount_percentage: discountPercentage,
+                remarks: dispatcherNote,
                 dispatcher_note: dispatcherNote,
                 rejection_reason: rejectionReason,
                 reason: rejectionReason,
@@ -556,15 +837,7 @@ document.addEventListener("DOMContentLoaded", function () {
         var negotiationHintText = document.getElementById(
             "negotiationHintText",
         );
-        var modalIcon = document.getElementById("modalIcon");
-
-        if (
-            !actionModal ||
-            !modalTitle ||
-            !modalText ||
-            !rejectReasonWrapper ||
-            !modalIcon
-        ) {
+        if (!actionModal || !modalTitle || !modalText || !rejectReasonWrapper) {
             if (state.selectedButton) {
                 reviewBooking(
                     state.selectedBookingId,
@@ -575,12 +848,11 @@ document.addEventListener("DOMContentLoaded", function () {
                     dispatcherNoteInput
                         ? dispatcherNoteInput.value.trim()
                         : null,
+                    unitSelect ? unitSelect.value : null,
                 );
             }
             return;
         }
-
-        modalIcon.className = "modal-icon";
 
         if (state.selectedAction === "accept") {
             var currentStatus = state.selectedCard
@@ -588,6 +860,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 : "requested";
             var currentPrice = state.selectedCard
                 ? state.selectedCard.getAttribute("data-current-price")
+                : "";
+            var currentAdditional = state.selectedCard
+                ? state.selectedCard.getAttribute("data-current-additional")
                 : "";
             var customerNote = state.selectedCard
                 ? state.selectedCard.getAttribute("data-customer-note")
@@ -598,18 +873,64 @@ document.addEventListener("DOMContentLoaded", function () {
             var currentDispatcherNote = state.selectedCard
                 ? state.selectedCard.getAttribute("data-dispatcher-note")
                 : "";
+            var assignedUnitId = state.selectedCard
+                ? state.selectedCard.getAttribute("data-assigned-unit")
+                : "";
 
             var counterOfferValue = parseNumericPrice(counterOffer);
             var currentPriceValue = parseNumericPrice(currentPrice);
+            var currentAdditionalValue = parseNumericPrice(currentAdditional);
             var suggestedPrice =
-                currentPriceValue > 0 ? currentPriceValue : counterOfferValue;
+                currentAdditionalValue > 0 ? currentAdditionalValue : 0;
+
+            state.reviewData = {
+                truckType: state.selectedCard
+                    ? state.selectedCard.getAttribute("data-truck-type")
+                    : "Unknown",
+                distanceKm: parseNumericPrice(
+                    state.selectedCard
+                        ? state.selectedCard.getAttribute("data-distance-km")
+                        : 0,
+                ),
+                baseRate: parseNumericPrice(
+                    state.selectedCard
+                        ? state.selectedCard.getAttribute("data-base-rate")
+                        : 0,
+                ),
+                perKmRate: parseNumericPrice(
+                    state.selectedCard
+                        ? state.selectedCard.getAttribute("data-per-km-rate")
+                        : 0,
+                ),
+                distanceFee: parseNumericPrice(
+                    state.selectedCard
+                        ? state.selectedCard.getAttribute("data-distance-fee")
+                        : 0,
+                ),
+                discount: parseNumericPrice(
+                    state.selectedCard
+                        ? state.selectedCard.getAttribute("data-discount")
+                        : 0,
+                ),
+                discountRate: parseNumericPrice(
+                    state.selectedCard
+                        ? state.selectedCard.getAttribute("data-discount-rate")
+                        : 0,
+                ),
+                customerType: state.selectedCard
+                    ? state.selectedCard.getAttribute("data-customer-type")
+                    : "Regular",
+            };
 
             modalTitle.innerText =
                 currentStatus === "reviewed"
                     ? "Update Quotation"
                     : "Review & Send Quotation";
             modalText.innerText =
-                "Set the final numeric price and send the quote to the customer for approval.";
+                "Review the automatic pricing, add an optional dispatcher adjustment, and reserve a ready unit for the team leader.";
+            if (quotationReviewGrid) {
+                quotationReviewGrid.style.display = "grid";
+            }
             if (priceWrapper) {
                 priceWrapper.style.display = "block";
             }
@@ -632,11 +953,34 @@ document.addEventListener("DOMContentLoaded", function () {
                     negotiationHintText.innerText = "";
                 }
             }
+            if (distanceInput) {
+                distanceInput.value =
+                    state.reviewData.distanceKm > 0
+                        ? (state.reviewData.distanceKm || 0).toFixed(2)
+                        : "";
+                clearFieldError(distanceInput);
+            }
+            if (distanceFeeInput) {
+                distanceFeeInput.value = formatPriceInputValue(
+                    (state.reviewData.distanceFee || 0).toFixed(2),
+                    true,
+                );
+                clearFieldError(distanceFeeInput);
+            }
+            if (discountPercentInput) {
+                discountPercentInput.value =
+                    state.reviewData.discountRate > 0
+                        ? (state.reviewData.discountRate || 0).toFixed(2)
+                        : "0.00";
+                clearFieldError(discountPercentInput);
+                syncDiscountInputState();
+            }
             if (priceInput) {
                 priceInput.value =
                     suggestedPrice > 0
                         ? formatPriceInputValue(suggestedPrice.toFixed(2), true)
                         : "";
+                clearFieldError(priceInput);
                 updatePriceHelper(
                     priceInput.value,
                     counterOfferValue,
@@ -647,6 +991,11 @@ document.addEventListener("DOMContentLoaded", function () {
                     priceInput.select();
                 }, 30);
             }
+            if (unitSelect) {
+                unitSelect.value = assignedUnitId || "";
+                clearFieldError(unitSelect);
+                updateUnitHelper();
+            }
             if (dispatcherNoteInput) {
                 dispatcherNoteInput.value = currentDispatcherNote || "";
             }
@@ -656,12 +1005,16 @@ document.addEventListener("DOMContentLoaded", function () {
                         ? "Update Quote"
                         : "Send Quote";
             }
-            modalIcon.classList.add("accept");
-            modalIcon.innerHTML = "₱";
+            updateQuotationPreview(priceInput ? priceInput.value : "");
+            updateConfirmButtonState();
         } else {
             modalTitle.innerText = "Reject Booking";
             modalText.innerText =
                 "This will email the customer with the rejection reason and close the request.";
+            state.reviewData = null;
+            if (quotationReviewGrid) {
+                quotationReviewGrid.style.display = "none";
+            }
             if (priceWrapper) {
                 priceWrapper.style.display = "none";
             }
@@ -674,14 +1027,13 @@ document.addEventListener("DOMContentLoaded", function () {
             rejectReasonWrapper.style.display = "block";
             if (confirmActionBtn) {
                 confirmActionBtn.textContent = "Reject Booking";
+                confirmActionBtn.disabled = false;
             }
             if (rejectReasonInput) {
                 window.setTimeout(function () {
                     rejectReasonInput.focus();
                 }, 30);
             }
-            modalIcon.classList.add("reject");
-            modalIcon.innerHTML = "!";
         }
 
         actionModal.classList.remove("hidden");
@@ -705,11 +1057,39 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (priceInput) {
             priceInput.value = "";
+            clearFieldError(priceInput);
+        }
+
+        if (distanceInput) {
+            distanceInput.value = "";
+            clearFieldError(distanceInput);
+        }
+
+        if (distanceFeeInput) {
+            distanceFeeInput.value = "";
+            clearFieldError(distanceFeeInput);
+        }
+
+        if (discountPercentInput) {
+            discountPercentInput.value = "";
+            discountPercentInput.disabled = false;
+            discountPercentInput.readOnly = false;
+            discountPercentInput.classList.remove("is-locked");
+            clearFieldError(discountPercentInput);
         }
 
         if (dispatcherNoteInput) {
             dispatcherNoteInput.value = "";
         }
+
+        if (unitSelect) {
+            unitSelect.value = "";
+            clearFieldError(unitSelect);
+            updateUnitHelper();
+        }
+
+        state.reviewData = null;
+        clearValidationSummary();
 
         if (confirmActionBtn) {
             confirmActionBtn.disabled = false;
@@ -722,19 +1102,13 @@ document.addEventListener("DOMContentLoaded", function () {
         var dispatcherNote = dispatcherNoteInput
             ? dispatcherNoteInput.value.trim()
             : "";
+        var selectedUnitId = unitSelect ? unitSelect.value : "";
+        var distanceKm = distanceInput ? distanceInput.value.trim() : "";
+        var distanceFee = distanceFeeInput ? distanceFeeInput.value.trim() : "";
+        var discountPercentage = discountPercentInput
+            ? discountPercentInput.value.trim()
+            : "";
         var parsedQuote = parseNumericPrice(quotedPrice);
-
-        if (state.selectedAction === "accept" && parsedQuote <= 0) {
-            showNotification(
-                "Enter a valid numeric quotation amount before sending it to the customer.",
-                "error",
-            );
-
-            if (priceInput) {
-                priceInput.focus();
-            }
-            return;
-        }
 
         if (state.selectedAction === "reject" && !reason) {
             showNotification(
@@ -745,6 +1119,14 @@ document.addEventListener("DOMContentLoaded", function () {
             if (rejectReasonInput) {
                 rejectReasonInput.focus();
             }
+            return;
+        }
+
+        if (state.selectedAction === "accept" && !validateAcceptForm(true)) {
+            showNotification(
+                "Please complete the required quotation details before sending.",
+                "error",
+            );
             return;
         }
 
@@ -764,6 +1146,10 @@ document.addEventListener("DOMContentLoaded", function () {
             reason || null,
             parsedQuote > 0 ? parsedQuote.toFixed(2) : null,
             dispatcherNote || null,
+            selectedUnitId || null,
+            distanceKm || null,
+            distanceFee || null,
+            discountPercentage || null,
         );
     }
 
@@ -832,6 +1218,17 @@ document.addEventListener("DOMContentLoaded", function () {
         }).format(parseNumericPrice(value));
     }
 
+    function formatNumberValue(value) {
+        return new Intl.NumberFormat("en-PH", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(Number.isFinite(Number(value)) ? Number(value) : 0);
+    }
+
+    function roundValue(value) {
+        return Math.round((Number(value) || 0) * 100) / 100;
+    }
+
     function updatePriceHelper(value, counterOffer, currentPrice) {
         if (!priceHelper) {
             return;
@@ -843,24 +1240,146 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (parsedValue > 0) {
             priceHelper.textContent =
-                "Quote to send: ₱" + formatCurrencyValue(parsedValue);
-            return;
-        }
-
-        if (counterOfferValue > 0) {
+                "Additional dispatcher fee: ₱" +
+                formatCurrencyValue(parsedValue);
+        } else if (counterOfferValue > 0) {
             priceHelper.textContent =
                 "Customer counter-offer: ₱" +
                 formatCurrencyValue(counterOfferValue);
-            return;
-        }
-
-        if (currentPriceValue > 0) {
+        } else if (currentPriceValue > 0) {
             priceHelper.textContent =
-                "Current quote: ₱" + formatCurrencyValue(currentPriceValue);
+                "Current final quote: ₱" +
+                formatCurrencyValue(currentPriceValue);
+        } else {
+            priceHelper.textContent =
+                "Leave blank to keep the auto-computed quotation total.";
+        }
+
+        updateQuotationPreview(value);
+    }
+
+    function setText(id, value) {
+        var element = document.getElementById(id);
+
+        if (element) {
+            element.textContent = value;
+        }
+    }
+
+    function updateUnitHelper() {
+        if (!unitSelect || !unitHelper) {
             return;
         }
 
-        priceHelper.textContent = "";
+        var selectedOption = unitSelect.options[unitSelect.selectedIndex];
+
+        if (!selectedOption || !selectedOption.value) {
+            unitHelper.textContent =
+                "Choose a unit first. Only online, ready team leaders are listed here.";
+            return;
+        }
+
+        var statusSummary = selectedOption.getAttribute("data-summary") || "";
+        var teamLeaderName =
+            selectedOption.getAttribute("data-team-leader") || "No team leader";
+        var driverName =
+            selectedOption.getAttribute("data-driver") || "No saved driver";
+
+        unitHelper.textContent =
+            "Team Leader: " +
+            teamLeaderName +
+            " · Driver: " +
+            driverName +
+            " · " +
+            statusSummary;
+    }
+
+    function updateQuotationPreview(value) {
+        if (!state.reviewData) {
+            return;
+        }
+
+        var additionalFee = parseNumericPrice(value);
+        var distanceKm = parseFloat(distanceInput ? distanceInput.value : 0);
+        var discountRate = parseFloat(
+            discountPercentInput ? discountPercentInput.value : 0,
+        );
+
+        distanceKm =
+            Number.isFinite(distanceKm) && distanceKm > 0 ? distanceKm : 0;
+        discountRate =
+            Number.isFinite(discountRate) && discountRate >= 0
+                ? discountRate
+                : 0;
+
+        var distanceFee = roundValue(distanceKm * state.reviewData.perKmRate);
+        var computedTotal = roundValue(state.reviewData.baseRate + distanceFee);
+        var discountAmount = roundValue(computedTotal * (discountRate / 100));
+        var finalTotal = Math.max(
+            roundValue(computedTotal - discountAmount + additionalFee),
+            0,
+        );
+
+        state.reviewData.distanceKm = distanceKm;
+        state.reviewData.distanceFee = distanceFee;
+        state.reviewData.discountRate = discountRate;
+        state.reviewData.discount = discountAmount;
+
+        if (distanceFeeInput) {
+            distanceFeeInput.value = formatPriceInputValue(
+                distanceFee.toFixed(2),
+                true,
+            );
+        }
+
+        setText("summaryTruckType", state.reviewData.truckType || "Unknown");
+        setText("summaryDistanceKm", formatNumberValue(distanceKm) + " km");
+        setText(
+            "summaryBaseRate",
+            "₱" + formatCurrencyValue(state.reviewData.baseRate),
+        );
+        setText(
+            "summaryPerKmRate",
+            "₱" + formatCurrencyValue(state.reviewData.perKmRate),
+        );
+        setText(
+            "summaryCustomerType",
+            state.reviewData.customerType || "Regular",
+        );
+        setText(
+            "summaryBaseFee",
+            "₱" + formatCurrencyValue(state.reviewData.baseRate),
+        );
+        setText("summaryDistanceFee", "₱" + formatCurrencyValue(distanceFee));
+        setText("summaryDiscount", "- ₱" + formatCurrencyValue(discountAmount));
+        setText(
+            "summaryAdditionalFee",
+            "₱" + formatCurrencyValue(additionalFee),
+        );
+        setText("summaryFinalTotal", "₱" + formatCurrencyValue(finalTotal));
+
+        syncDiscountInputState();
+
+        if (discountLabel) {
+            discountLabel.textContent = isRegularCustomerType()
+                ? "Regular customer discount is fixed and cannot be edited."
+                : discountAmount > 0
+                  ? (state.reviewData.customerType || "Customer") +
+                    " discount auto-applied at " +
+                    formatNumberValue(discountRate) +
+                    "%"
+                  : "No discount applied for this customer type.";
+        }
+
+        if (discountBadge) {
+            discountBadge.textContent =
+                "- ₱" + formatCurrencyValue(discountAmount);
+        }
+
+        if (finalTotalPreview) {
+            finalTotalPreview.textContent =
+                "₱" + formatCurrencyValue(finalTotal);
+        }
     }
 
     function escapeHtml(value) {

@@ -51,13 +51,32 @@
 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="full_name">Full Name *</label>
-                                        <input type="text" id="full_name" name="full_name" required
-                                            value="{{ old('full_name') }}">
-                                        @error('full_name')
+                                        <label for="first_name">First Name *</label>
+                                        <input type="text" id="first_name" name="first_name" required
+                                            value="{{ old('first_name') }}">
+                                        @error('first_name')
                                             <span class="error-message">{{ $message }}</span>
                                         @enderror
                                     </div>
+                                    <div class="form-group">
+                                        <label for="middle_name">Middle Name</label>
+                                        <input type="text" id="middle_name" name="middle_name"
+                                            value="{{ old('middle_name') }}">
+                                        @error('middle_name')
+                                            <span class="error-message">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="last_name">Last Name *</label>
+                                        <input type="text" id="last_name" name="last_name" required
+                                            value="{{ old('last_name') }}">
+                                        @error('last_name')
+                                            <span class="error-message">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="age">Age *</label>
                                         <input type="number" id="age" name="age" min="1" max="120"
@@ -66,15 +85,30 @@
                                             <span class="error-message">{{ $message }}</span>
                                         @enderror
                                     </div>
+                                    <div class="form-group">
+                                        <label for="customer_type">Customer Type *</label>
+                                        <select id="customer_type" name="customer_type" required>
+                                            <option value="regular"
+                                                {{ old('customer_type', 'regular') === 'regular' ? 'selected' : '' }}>
+                                                Regular</option>
+                                            <option value="pwd" {{ old('customer_type') === 'pwd' ? 'selected' : '' }}>
+                                                PWD</option>
+                                            <option value="senior"
+                                                {{ old('customer_type') === 'senior' ? 'selected' : '' }}>Senior</option>
+                                        </select>
+                                        @error('customer_type')
+                                            <span class="error-message">{{ $message }}</span>
+                                        @enderror
+                                    </div>
                                 </div>
 
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="phone">Phone Number *</label>
-                                        <input type="tel" id="phone" name="phone"
-                                            placeholder="09123456789 or +639123456789" required
-                                            value="{{ old('phone') }}">
-                                        <small class="form-help">Enter Philippine mobile number (e.g., 09123456789)</small>
+                                        <input type="tel" id="phone" name="phone" placeholder="09123456789"
+                                            required value="{{ old('phone') }}">
+                                        <small class="form-help">If you enter 9XXXXXXXXX, it will be corrected
+                                            automatically.</small>
                                         @error('phone')
                                             <span class="error-message">{{ $message }}</span>
                                         @enderror
@@ -83,12 +117,15 @@
                                         <label for="email">Email Address</label>
                                         <input type="email" id="email" name="email" placeholder="yourname@gmail.com"
                                             value="{{ old('email') }}">
-                                        <small class="form-help">Only Gmail addresses are accepted</small>
+                                        <small class="form-help">Email must be valid and able to receive system
+                                            notifications and receipts.</small>
                                         @error('email')
                                             <span class="error-message">{{ $message }}</span>
                                         @enderror
                                     </div>
                                 </div>
+
+                                <input type="hidden" name="confirmation_type" value="system">
 
 
                                 <div class="form-section">
@@ -96,10 +133,18 @@
 
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <input type="text" id="truck_type_id" name="truck_type_id"
-                                                placeholder="Your Vehicle Type *" required>
-                                            <small class="form-help">If unsure, select based on your car size: Sedan
-                                                (compact), SUV (larger), Truck (commercial)</small>
+                                            <label for="truck_type_id">Vehicle Type *</label>
+                                            <select id="truck_type_id" name="truck_type_id" required>
+                                                <option value="">Select vehicle type</option>
+                                                @foreach ($truckTypes as $type)
+                                                    <option value="{{ $type->id }}"
+                                                        {{ (string) old('truck_type_id') === (string) $type->id ? 'selected' : '' }}>
+                                                        {{ $type->name }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                            <small class="form-help">Rates are loaded automatically from the active truck
+                                                type.</small>
                                             @error('truck_type_id')
                                                 <span class="error-message">{{ $message }}</span>
                                             @enderror
@@ -136,7 +181,9 @@
 
                                     <div class="form-group">
                                         <label for="vehicle_image">Vehicle Image</label>
-                                        <input type="file" id="vehicle_image" name="vehicle_image" accept="image/*">
+                                        <input type="file" id="vehicle_image" name="vehicle_image"
+                                            accept=".jpg,.jpeg,.png">
+                                        <small class="form-help">Accepted formats: JPG, JPEG, PNG only.</small>
                                         @error('vehicle_image')
                                             <span class="error-message">{{ $message }}</span>
                                         @enderror
@@ -150,21 +197,7 @@
                                         @enderror
                                     </div>
 
-                                    <div class="form-checkboxes">
-                                        <label class="checkbox-label">
-                                            <input type="checkbox" name="is_pwd" value="1"
-                                                {{ old('is_pwd') ? 'checked' : '' }}>
-                                            <span class="checkmark"></span>
-                                            Person With Disability (PWD)
-                                        </label>
 
-                                        <label class="checkbox-label">
-                                            <input type="checkbox" name="is_senior" value="1"
-                                                {{ old('is_senior') ? 'checked' : '' }}>
-                                            <span class="checkmark"></span>
-                                            Senior Citizen (60+ years)
-                                        </label>
-                                    </div>
                                 </div>
 
                                 <div class="form-actions">
@@ -222,8 +255,67 @@
 
             let isConfirmed = false;
 
-            bookingForm.addEventListener('submit', function(event) {
+            const formFields = bookingForm.querySelectorAll('input, select, textarea');
 
+            formFields.forEach(function(field) {
+                const eventName = field.type === 'file' || field.tagName === 'SELECT' ? 'change' : 'input';
+
+                field.addEventListener(eventName, function() {
+                    clearFieldError(field);
+                });
+            });
+
+            function ensureErrorElement(input) {
+                const container = input.closest('.form-group');
+
+                if (!container) {
+                    return null;
+                }
+
+                let errorElement = container.querySelector('.client-error-message');
+
+                if (!errorElement) {
+                    errorElement = document.createElement('span');
+                    errorElement.className = 'error-message client-error-message';
+                    container.appendChild(errorElement);
+                }
+
+                return errorElement;
+            }
+
+            function setFieldError(input, message) {
+                if (!input) {
+                    return;
+                }
+
+                input.classList.add('input-error');
+                input.setAttribute('aria-invalid', 'true');
+                input.setCustomValidity(message);
+
+                const errorElement = ensureErrorElement(input);
+                if (errorElement) {
+                    errorElement.textContent = message;
+                }
+            }
+
+            function clearFieldError(input) {
+                if (!input) {
+                    return;
+                }
+
+                input.classList.remove('input-error');
+                input.removeAttribute('aria-invalid');
+                input.setCustomValidity('');
+
+                const container = input.closest('.form-group');
+                const errorElement = container ? container.querySelector('.client-error-message') : null;
+
+                if (errorElement) {
+                    errorElement.textContent = '';
+                }
+            }
+
+            bookingForm.addEventListener('submit', function(event) {
                 if (!isConfirmed) {
                     event.preventDefault();
 
@@ -233,41 +325,66 @@
 
                     showConfirmationSummary();
                 }
-
             });
 
             function validateBookingForm() {
-                const requiredFields = ['full_name', 'age', 'phone', 'truck_type_id', 'pickup_address', 'dropoff_address'];
+                const requiredFields = ['first_name', 'last_name', 'age', 'phone', 'truck_type_id', 'pickup_address',
+                    'dropoff_address', 'customer_type'
+                ];
                 let valid = true;
+                let firstInvalidField = null;
 
                 requiredFields.forEach(function(field) {
                     const input = document.getElementById(field);
-                    if (!input || !input.value || input.value.trim() === '') {
-                        input.classList.add('input-error');
+
+                    if (!input) {
+                        return;
+                    }
+
+                    clearFieldError(input);
+
+                    if (!input.value || input.value.trim() === '') {
+                        setFieldError(input, 'This field is required.');
+                        firstInvalidField = firstInvalidField || input;
                         valid = false;
-                    } else {
-                        input.classList.remove('input-error');
                     }
                 });
 
-                // validation for phone number format
                 const phoneInput = document.getElementById('phone');
-                const phoneRegex = /^(09\d{9}|\+639\d{9}|639\d{9})$/;
+                const rawPhone = phoneInput.value.trim();
+                if (/^9\d{9}$/.test(rawPhone)) {
+                    phoneInput.value = '0' + rawPhone;
+                }
+
+                const phoneRegex = /^(09\d{9}|\+639\d{9}|9\d{9})$/;
                 if (phoneInput.value && !phoneRegex.test(phoneInput.value)) {
-                    phoneInput.classList.add('input-error');
+                    setFieldError(phoneInput, 'Please enter a valid Philippine phone number.');
+                    firstInvalidField = firstInvalidField || phoneInput;
                     valid = false;
                 }
 
-                // validation for Gmail email
                 const emailInput = document.getElementById('email');
-                const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+                const emailRegex =
+                    /^[^\s@]+@(gmail\.com|yahoo\.com|ymail\.com|outlook\.com|hotmail\.com|live\.com|icloud\.com|aol\.com|gmx\.com|proton\.me|protonmail\.com|example\.com)$/i;
                 if (emailInput.value && !emailRegex.test(emailInput.value)) {
-                    emailInput.classList.add('input-error');
+                    setFieldError(emailInput,
+                        'Email must be valid and able to receive system notifications and receipts.');
+                    firstInvalidField = firstInvalidField || emailInput;
                     valid = false;
                 }
 
-                if (!valid) {
-                    alert('Please fill in all required fields with valid information before submitting.');
+                const vehicleImageInput = document.getElementById('vehicle_image');
+                const file = vehicleImageInput?.files?.[0];
+                const allowedTypes = ['image/jpeg', 'image/png'];
+                if (file && !allowedTypes.includes(file.type)) {
+                    setFieldError(vehicleImageInput, 'Vehicle image must be a JPG or PNG file only.');
+                    firstInvalidField = firstInvalidField || vehicleImageInput;
+                    valid = false;
+                }
+
+                if (!valid && firstInvalidField) {
+                    firstInvalidField.focus();
+                    firstInvalidField.reportValidity();
                 }
 
                 return valid;
@@ -276,14 +393,21 @@
             function showConfirmationSummary() {
                 const pickup = document.getElementById('pickup_address').value;
                 const dropoff = document.getElementById('dropoff_address').value;
-                const vehicle = document.getElementById('truck_type_id').value;
+                const vehicleSelect = document.getElementById('truck_type_id');
+                const vehicle = vehicleSelect.options[vehicleSelect.selectedIndex]?.text || '';
                 const phone = document.getElementById('phone').value;
                 const email = document.getElementById('email').value;
+                const fullName = [
+                    document.getElementById('first_name').value,
+                    document.getElementById('middle_name').value,
+                    document.getElementById('last_name').value,
+                ].filter(Boolean).join(' ');
                 const summaryHtml = `
-                    <p><strong>Name:</strong> ${document.getElementById('full_name').value}</p>
+                    <p><strong>Name:</strong> ${fullName}</p>
                     <p><strong>Age:</strong> ${document.getElementById('age').value}</p>
                     <p><strong>Phone:</strong> ${phone}</p>
                     <p><strong>Email:</strong> ${email || 'N/A'}</p>
+                    <p><strong>Customer Type:</strong> ${document.getElementById('customer_type').value.toUpperCase()}</p>
                     <p><strong>Vehicle Type:</strong> ${vehicle}</p>
                     <p><strong>Pickup:</strong> ${pickup}</p>
                     <p><strong>Drop-off:</strong> ${dropoff}</p>
@@ -295,6 +419,12 @@
 
             confirmBookingBtn.addEventListener('click', function() {
                 isConfirmed = true;
+
+                if (typeof bookingForm.requestSubmit === 'function') {
+                    bookingForm.requestSubmit();
+                    return;
+                }
+
                 bookingForm.submit();
             });
 

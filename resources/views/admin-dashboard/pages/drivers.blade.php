@@ -16,6 +16,14 @@
     @endphp
 
     <div class="drivers-container">
+        @if (session('success'))
+            <div class="drivers-feedback drivers-feedback--success">{{ session('success') }}</div>
+        @endif
+
+        @if ($errors->any())
+            <div class="drivers-feedback drivers-feedback--error">{{ $errors->first() }}</div>
+        @endif
+
         <div class="drivers-header">
             <div>
                 <p class="drivers-eyebrow">Dispatcher view</p>
@@ -82,6 +90,7 @@
             @forelse($teamLeaders as $teamLeader)
                 @php
                     $leaderState = $teamLeaderStatuses->get($teamLeader->id) ?? [];
+                    $isOffline = ($leaderState['presence'] ?? 'offline') !== 'online';
                 @endphp
                 <div class="driver-card {{ $defaultFilter === 'online' && ($leaderState['presence'] ?? 'offline') !== 'online' ? 'is-hidden' : '' }}"
                     data-driver-id="{{ $teamLeader->id }}" data-presence="{{ $leaderState['presence'] ?? 'offline' }}"
@@ -116,6 +125,55 @@
                             <div class="driver-status presence-status-{{ $leaderState['presence'] ?? 'offline' }}">
                                 {{ $leaderState['presence_label'] ?? 'Offline' }}
                             </div>
+                        </div>
+
+                        <div class="driver-assignment-panel {{ $isOffline ? 'driver-assignment-panel--disabled' : '' }}">
+                            <div>
+                                <p class="driver-assignment-title">Dispatch assignment flow</p>
+                                <p class="driver-assignment-copy">Assign the towing unit that this team leader will use in
+                                    the Team Leaders module.</p>
+                                @if ($isOffline)
+                                    <p class="driver-assignment-note">Assignment is unavailable while this team leader is
+                                        offline.</p>
+                                @endif
+                            </div>
+
+                            <form method="POST" action="{{ route('admin.drivers.assign-unit', $teamLeader) }}"
+                                class="driver-assignment-form">
+                                @csrf
+                                <select name="unit_id" class="driver-assignment-select" required
+                                    @disabled($isOffline)>
+                                    <option value="">{{ $isOffline ? 'Team leader is offline' : 'Select unit' }}
+                                    </option>
+                                    @foreach ($assignableUnits as $unit)
+                                        @php
+                                            $isCurrentUnit = (int) optional($teamLeader->unit)->id === (int) $unit->id;
+                                            $canUseUnit = $isCurrentUnit || $unit->status === 'available';
+                                            $optionLabel = $unit->name . ' · ' . ($unit->plate_number ?? 'No plate');
+
+                                            if ($unit->truckType) {
+                                                $optionLabel .= ' · ' . $unit->truckType->name;
+                                            }
+
+                                            if (
+                                                $unit->teamLeader &&
+                                                (int) $unit->teamLeader->id !== (int) $teamLeader->id
+                                            ) {
+                                                $optionLabel .=
+                                                    ' · Currently with ' .
+                                                    ($unit->teamLeader->full_name ?? $unit->teamLeader->name);
+                                            }
+                                        @endphp
+                                        <option value="{{ $unit->id }}" @selected($isCurrentUnit)
+                                            @disabled(!$canUseUnit)>
+                                            {{ $optionLabel }}
+                                        </option>
+                                    @endforeach
+                                </select>
+
+                                <button type="submit" class="driver-assignment-btn" @disabled($isOffline)>Save
+                                    Unit</button>
+                            </form>
                         </div>
                     </div>
                 </div>

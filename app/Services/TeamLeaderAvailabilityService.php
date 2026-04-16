@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -34,6 +35,10 @@ class TeamLeaderAvailabilityService
         }
 
         Cache::forget($this->cacheKey($user->id));
+
+        Unit::query()
+            ->where('team_leader_id', $user->id)
+            ->update(['team_leader_id' => null]);
     }
 
     public function isOnline(?User $user): bool
@@ -81,6 +86,30 @@ class TeamLeaderAvailabilityService
             ->unique()
             ->values();
 
+        $teamLeaderIds = $teamLeaders
+            ->pluck('id')
+            ->filter()
+            ->map(fn($id) => (int) $id)
+            ->values();
+
+        $offlineLeaderIds = $teamLeaders
+            ->filter(fn(User $teamLeader) => ! $this->isOnline($teamLeader))
+            ->pluck('id')
+            ->filter()
+            ->map(fn($id) => (int) $id)
+            ->values();
+
+        if ($offlineLeaderIds->isNotEmpty()) {
+            Unit::query()
+                ->whereIn('team_leader_id', $offlineLeaderIds->all())
+                ->update(['team_leader_id' => null]);
+        }
+
+        $assignedUnitsByLeaderId = Unit::with('driver')
+            ->whereIn('team_leader_id', $teamLeaderIds->all())
+            ->get()
+            ->keyBy(fn(Unit $unit) => (int) $unit->team_leader_id);
+
         $activeBookingsByLeaderId = Booking::with(['unit.driver'])
             ->whereIn('status', $this->busyStatuses)
             ->latest('updated_at')
@@ -92,12 +121,14 @@ class TeamLeaderAvailabilityService
             });
 
         $leaders = $teamLeaders
-            ->map(function (User $teamLeader) use ($busyIds, $activeBookingsByLeaderId) {
+            ->map(function (User $teamLeader) use ($busyIds, $activeBookingsByLeaderId, $assignedUnitsByLeaderId) {
                 $isOnline = $this->isOnline($teamLeader);
                 $isBusy = $busyIds->contains((int) $teamLeader->id);
                 $activeBooking = $activeBookingsByLeaderId->get((int) $teamLeader->id);
-                $assignedUnit = $activeBooking?->unit ?? $teamLeader->unit;
-                $savedDriverName = $activeBooking?->driver_name;
+                $assignedUnit = $isOnline
+                    ? ($activeBooking?->unit ?? $assignedUnitsByLeaderId->get((int) $teamLeader->id))
+                    : null;
+                $savedDriverName = $isOnline ? $activeBooking?->driver_name : null;
 
                 $workload = $isBusy ? 'busy' : ($isOnline ? 'available' : 'unavailable');
                 $workloadLabel = $isBusy ? 'Busy' : ($isOnline ? 'Available' : 'Not Available');

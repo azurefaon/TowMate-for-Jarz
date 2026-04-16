@@ -216,7 +216,7 @@
 
                     <div class="form-group">
                         <label>Role</label>
-                        <select name="role_id" id="editRole">
+                        <select name="role_id" id="editRole" disabled>
                             @foreach ($roles as $role)
                                 <option value="{{ $role->id }}">{{ $role->name }}</option>
                             @endforeach
@@ -231,8 +231,8 @@
                         </select>
                     </div>
 
-                    <p class="form-helper-text">If you change the role or status, ask the user to log out and sign back in
-                        so the new access loads correctly.</p>
+                    <p class="form-helper-text">Role is locked after user creation. Only name, email, and status can be
+                        updated here.</p>
 
                     <div class="modal-actions">
                         <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
@@ -255,7 +255,6 @@
             const editRole = document.getElementById('editRole');
             const editStatus = document.getElementById('editStatus');
             let currentUserId = null;
-            let originalRole = null;
             let originalStatus = null;
             let debounceTimer;
 
@@ -273,7 +272,6 @@
             document.querySelectorAll('.edit-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     currentUserId = this.dataset.id;
-                    originalRole = this.dataset.role;
                     originalStatus = this.dataset.status;
                     editName.value = this.dataset.name;
                     editEmail.value = this.dataset.email;
@@ -298,11 +296,10 @@
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
 
-                const roleChanged = String(editRole.value) !== String(originalRole);
                 const statusChanged = String(editStatus.value) !== String(originalStatus);
 
-                if ((roleChanged || statusChanged) && !window.confirm(
-                        'This team member should log out and sign in again after the access change so the new role loads correctly. Continue saving?'
+                if (statusChanged && !window.confirm(
+                        'This team member should log out and sign in again after the status change. Continue saving?'
                     )) {
                     return;
                 }

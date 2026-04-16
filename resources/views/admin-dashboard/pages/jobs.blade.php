@@ -54,27 +54,9 @@
         <div class="jobs-section-head">
             <div>
                 <h2>Live job board</h2>
-                <p>Current dispatcher handoffs, route details, and assigned towing crews.</p <strong>
-                {{ $stats['assigned'] }}</strong>
-                <small>Queued with a field team.</small>
-            </div>
-            <div class="jobs-stat-card success">
-                <span>Active Towing</span>
-                <strong>{{ $stats['on_job'] }}</strong>
-                <small>Currently in live roadside service.</small>
-            </div>
-            <div class="jobs-stat-card warning">
-                <span>Delayed</span>
-                <strong>{{ $stats['delayed'] }}</strong>
-                <small>Needs dispatcher attention.</small>
-            </div>
-        </div>
-
-        <div class="jobs-section-head">
-            <div>
-                <h2>Live job board</h2>
                 <p>Current dispatcher handoffs, route details, and assigned towing crews.</p>
             </div>
+            <span class="jobs-section-pill">{{ $stats['total'] }} active now</span>
         </div>
 
         <div class="jobs-grid">

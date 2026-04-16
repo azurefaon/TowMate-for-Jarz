@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class UserManagementController extends Controller
 {
@@ -63,13 +64,56 @@ class UserManagementController extends Controller
         ];
     }
 
+    protected function normalizeUserInput(Request $request): void
+    {
+        $nameParts = split_full_name($request->input('name'));
+        $firstName = trim((string) ($request->input('first_name') ?: $nameParts['first_name']));
+        $middleName = trim((string) ($request->input('middle_name') ?: $nameParts['middle_name']));
+        $lastName = trim((string) ($request->input('last_name') ?: $nameParts['last_name']));
+
+        $request->merge([
+            'first_name' => $firstName !== '' ? $firstName : null,
+            'middle_name' => $middleName !== '' ? $middleName : null,
+            'last_name' => $lastName !== '' ? $lastName : null,
+            'name' => build_full_name($firstName, $middleName, $lastName),
+            'email' => strtolower(trim((string) $request->input('email'))),
+        ]);
+    }
+
+    protected function emailRules(?User $user = null): array
+    {
+        $rules = [
+            'required',
+            'email:rfc',
+            'max:150',
+            function (string $attribute, mixed $value, \Closure $fail) {
+                if (! is_public_email((string) $value)) {
+                    $fail('Email must be valid and able to receive system notifications and receipts.');
+                }
+            },
+        ];
+
+        $rules[] = $user
+            ? Rule::unique('users', 'email')->ignore($user->id)
+            : 'unique:users,email';
+
+        return $rules;
+    }
+
+    protected function manageableRoles()
+    {
+        return Role::whereNotIn('name', ['Super Admin', 'Driver', 'Customer'])
+            ->orderBy('name')
+            ->get();
+    }
+
     public function index(Request $request)
     {
         $users = $this->applyFilters($this->baseUserQuery(), $request)
             ->latest()
             ->paginate(10);
 
-        $roles = Role::where('name', '!=', 'Super Admin')->get();
+        $roles = $this->manageableRoles();
         $stats = $this->getUserStats();
 
         return view('superadmin.users.index', compact('users', 'roles', 'stats'));
@@ -81,7 +125,7 @@ class UserManagementController extends Controller
             ->latest('archived_at')
             ->paginate(10);
 
-        $roles = Role::where('name', '!=', 'Super Admin')->get();
+        $roles = $this->manageableRoles();
         $stats = $this->getUserStats();
 
         return view('superadmin.users.archived', compact('archivedUsers', 'roles', 'stats'));
@@ -97,26 +141,26 @@ class UserManagementController extends Controller
 
     public function update(Request $request, User $user)
     {
-        $request->merge([
-            'email' => strtolower($request->email),
-        ]);
+        $this->normalizeUserInput($request);
 
         if ($user->role->name === 'Super Admin') {
             abort(403, 'Cannot modify Super Admin.');
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => [
-                'required',
-                'email:rfc,dns',
-                'max:150',
-                Rule::unique('users', 'email')->ignore($user->id),
-            ],
-            'role_id' => 'required|exists:roles,id',
+            'first_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'email' => $this->emailRules($user),
             'status' => 'required|in:active,inactive',
-        ], [
-            'email.email' => 'Please enter a valid email address (example: name@gmail.com).',
+            'role_id' => [
+                'nullable',
+                function (string $attribute, mixed $value, \Closure $fail) use ($user) {
+                    if ($value !== null && (int) $value !== (int) $user->role_id) {
+                        $fail('Role cannot be changed after user creation.');
+                    }
+                },
+            ],
         ]);
 
         if ($validator->fails()) {
@@ -126,11 +170,17 @@ class UserManagementController extends Controller
         }
 
         $validated = $validator->validated();
-        $roleChanged = (int) $user->role_id !== (int) $validated['role_id'];
         $statusChanged = $user->status !== $validated['status'];
-        $requiresRelogin = $roleChanged || $statusChanged;
+        $requiresRelogin = $statusChanged;
 
-        $user->update($validated);
+        $user->update([
+            'name' => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
+            'email' => $validated['email'],
+            'status' => $validated['status'],
+        ]);
 
         if ($requiresRelogin) {
             $user->forceFill([
@@ -145,7 +195,7 @@ class UserManagementController extends Controller
             'entity_id' => $user->id,
             'reference' => $user->name,
             'description' => $requiresRelogin
-                ? 'Role or status changed — user should sign in again.'
+                ? 'Status changed — user should sign in again.'
                 : 'Profile details updated.',
         ]);
 
@@ -160,36 +210,34 @@ class UserManagementController extends Controller
 
     public function create()
     {
-        $roles = Role::where('name', '!=', 'Super Admin')->get();
+        $roles = $this->manageableRoles();
 
         return view('superadmin.users.create', compact('roles'));
     }
 
     public function store(Request $request)
     {
-        $request->merge([
-            'email' => strtolower($request->email),
-        ]);
+        $this->normalizeUserInput($request);
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => [
-                'required',
-                'email:rfc,dns',
-                'max:150',
-                'unique:users,email',
-            ],
-            'password' => 'required|min:8|confirmed',
+            'first_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'email' => $this->emailRules(),
+            'password' => ['required', 'confirmed', Password::min(12)->mixedCase()->numbers()->symbols()],
             'role_id' => 'required|exists:roles,id',
             'status' => 'required|in:active,inactive',
         ], [
             'email.required' => 'Email is required.',
-            'email.email' => 'Please enter a valid email address (example: name@gmail.com).',
             'email.unique' => 'This email is already registered.',
+            'password.confirmed' => 'Password confirmation does not match.',
         ]);
 
         $user = User::create([
-            'name' => $validated['name'],
+            'name' => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role_id' => $validated['role_id'],
