@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\SystemSetting;
 use App\Models\TruckType;
+use Carbon\Carbon;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Schema;
 
@@ -15,6 +16,8 @@ class BookingService
     {
         $customer = $this->resolveCustomer($data, $user);
         $pricing = $this->calculatePricing($data);
+        $serviceType = $this->resolveServiceType($data);
+        $scheduledFor = $this->resolveScheduledFor($data, $serviceType);
 
         $payload = $this->filterPayloadForTable('bookings', [
             'customer_id' => $customer->id,
@@ -36,9 +39,13 @@ class BookingService
             'additional_fee' => $pricing['additional_fee'],
             'final_total' => $pricing['final_total'],
             'customer_type' => $pricing['customer_type'],
+            'service_type' => $serviceType,
+            'scheduled_date' => $scheduledFor?->toDateString(),
+            'scheduled_time' => $scheduledFor?->format('H:i'),
+            'scheduled_for' => $scheduledFor,
             'confirmation_type' => $data['confirmation_type'] ?? 'system',
             'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
-            'notes' => $this->sanitizeText($data['notes'] ?? null),
+            'notes' => $this->composeNotes($data['notes'] ?? null, $serviceType, $scheduledFor),
             'status' => 'requested',
             'quotation_generated' => false,
         ]);
@@ -179,7 +186,12 @@ class BookingService
         $resolvedDistanceKm = max(round((float) ($distanceKm ?? ($booking->distance_km ?? 0)), 2), 0);
         $distanceFee = round($resolvedDistanceKm * $perKmRate, 2);
         $computedTotal = round($baseRate + $distanceFee, 2);
-        $resolvedDiscountPercentage = max(round((float) ($discountPercentage ?? ($booking->discount_percentage ?? 0)), 2), 0);
+
+        $customerType = strtolower((string) ($booking->customer_type ?: $booking->customer?->customer_type ?: 'regular'));
+        $resolvedDiscountPercentage = in_array($customerType, ['pwd', 'senior'], true)
+            ? max(round((float) ($discountPercentage ?? ($booking->discount_percentage ?? 0)), 2), 0)
+            : 0.0;
+
         $discountAmount = round($computedTotal * ($resolvedDiscountPercentage / 100), 2);
         $resolvedAdditionalFee = $this->parsePrice($additionalFee);
 
@@ -233,6 +245,27 @@ class BookingService
         return 'regular';
     }
 
+    protected function resolveServiceType(array $data): string
+    {
+        return ($data['service_type'] ?? 'book_now') === 'schedule' ? 'schedule' : 'book_now';
+    }
+
+    protected function resolveScheduledFor(array $data, string $serviceType): ?Carbon
+    {
+        if ($serviceType !== 'schedule') {
+            return null;
+        }
+
+        $scheduledDate = trim((string) ($data['scheduled_date'] ?? ''));
+        $scheduledTime = trim((string) ($data['scheduled_time'] ?? '')) ?: '00:00';
+
+        if ($scheduledDate === '') {
+            return null;
+        }
+
+        return Carbon::parse(trim($scheduledDate . ' ' . $scheduledTime));
+    }
+
     protected function resolveDistanceKm(array $data): float
     {
         $pickupLat = $data['pickup_lat'] ?? null;
@@ -264,6 +297,23 @@ class BookingService
         $cleaned = trim(strip_tags((string) $value));
 
         return $cleaned === '' ? null : $cleaned;
+    }
+
+    protected function composeNotes(?string $value, string $serviceType, ?Carbon $scheduledFor): ?string
+    {
+        $cleaned = $this->sanitizeText($value);
+
+        if ($serviceType !== 'schedule') {
+            return $cleaned;
+        }
+
+        $scheduleLine = 'Requested schedule: ' . ($scheduledFor ? $scheduledFor->format('Y-m-d H:i') : 'Date pending');
+
+        if ($cleaned && str_contains($cleaned, 'Requested schedule:')) {
+            return $cleaned;
+        }
+
+        return trim($scheduleLine . ($cleaned ? PHP_EOL . $cleaned : ''));
     }
 
     protected function parseDistance(?string $distance): float

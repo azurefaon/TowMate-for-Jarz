@@ -50,15 +50,76 @@ class DispatchController extends Controller
 
     public function index()
     {
-        $incomingRequests = Booking::with(['customer', 'truckType', 'unit.teamLeader'])
-            ->whereIn('status', ['requested', 'reviewed'])
-            ->oldest('updated_at')
+        $queueBase = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'returnedByTeamLeader'])
+            ->where(function ($query) {
+                $query->whereIn('status', ['requested', 'reviewed'])
+                    ->orWhere(function ($returnedQuery) {
+                        $returnedQuery->whereIn('status', ['confirmed', 'accepted', 'assigned'])
+                            ->whereNotNull('returned_at');
+                    });
+            })
             ->get();
+
+        $returnedRequests = $queueBase
+            ->filter(fn(Booking $booking) => $booking->needs_reassignment)
+            ->sortByDesc(fn(Booking $booking) => $booking->returned_at?->getTimestamp() ?? 0)
+            ->values()
+            ->map(function (Booking $booking) {
+                $booking->queue_bucket = 'returned';
+
+                return $booking;
+            });
+
+        $bookNowRequests = $queueBase
+            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment && $booking->status !== 'reviewed' && (! $booking->is_scheduled || $booking->is_due_for_dispatch))
+            ->sortBy(fn(Booking $booking) => $booking->is_due_for_dispatch
+                ? ($booking->scheduled_for?->getTimestamp() ?? 0)
+                : ($booking->created_at?->getTimestamp() ?? 0))
+            ->values()
+            ->map(function (Booking $booking) {
+                $booking->queue_bucket = 'book-now';
+
+                return $booking;
+            });
+
+        $scheduledRequests = $queueBase
+            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment && $booking->status !== 'reviewed' && $booking->is_scheduled && ! $booking->is_due_for_dispatch)
+            ->sortBy(fn(Booking $booking) => $booking->scheduled_for?->getTimestamp() ?? PHP_INT_MAX)
+            ->values()
+            ->map(function (Booking $booking) {
+                $booking->queue_bucket = 'scheduled';
+
+                return $booking;
+            });
+
+        $negotiationRequests = $queueBase
+            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment && $booking->status === 'reviewed')
+            ->sortByDesc(fn(Booking $booking) => $booking->updated_at?->getTimestamp() ?? 0)
+            ->values()
+            ->map(function (Booking $booking) {
+                $booking->queue_bucket = 'negotiation';
+
+                return $booking;
+            });
+
+        $incomingRequests = $returnedRequests
+            ->concat($bookNowRequests)
+            ->concat($scheduledRequests)
+            ->concat($negotiationRequests)
+            ->values();
+
+        $queueCounts = [
+            'all' => $incomingRequests->count(),
+            'returned' => $returnedRequests->count(),
+            'book-now' => $bookNowRequests->count(),
+            'scheduled' => $scheduledRequests->count(),
+            'negotiation' => $negotiationRequests->count(),
+        ];
 
         $busyTeamLeaderIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
         $teamLeaderStatuses = $this->teamLeaderAvailability
             ->summarize(
-                User::where('role_id', 3)->with(['unit', 'unit.driver'])->get(),
+                User::visibleToOperations()->where('role_id', 3)->with(['unit', 'unit.driver'])->get(),
                 $busyTeamLeaderIds,
             )['leaders']
             ->keyBy('id');
@@ -87,13 +148,19 @@ class DispatchController extends Controller
             ->filter(fn(array $unit) => $unit['selectable'])
             ->values();
 
-        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits'));
+        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts'));
     }
 
     public function pendingBookingsCount()
     {
         return response()->json([
-            'count' => Booking::whereIn('status', ['requested', 'reviewed'])->count(),
+            'count' => Booking::where(function ($query) {
+                $query->whereIn('status', ['requested', 'reviewed'])
+                    ->orWhere(function ($returnedQuery) {
+                        $returnedQuery->whereIn('status', ['confirmed', 'accepted', 'assigned'])
+                            ->whereNotNull('returned_at');
+                    });
+            })->count(),
         ]);
     }
 
@@ -183,21 +250,12 @@ class DispatchController extends Controller
                 'numeric',
                 'min:0',
                 'max:100',
-                function (string $attribute, mixed $value, \Closure $fail) use ($request, $booking) {
-                    if ($request->input('action') !== 'accept' || $value === null || $value === '') {
-                        return;
-                    }
-
-                    $expectedDiscount = round((float) ($booking->discount_percentage ?? 0), 2);
-
-                    if (abs($expectedDiscount - (float) $value) > 0.11) {
-                        $fail('Discount percent is auto-computed from the customer type.');
-                    }
-                },
             ],
         ]);
 
-        if (! in_array($booking->status, $this->reviewableStatuses, true)) {
+        $isReturnedTask = $booking->needs_reassignment;
+
+        if (! in_array($booking->status, $this->reviewableStatuses, true) && ! $isReturnedTask) {
             return response()->json([
                 'success' => false,
                 'message' => 'This booking can no longer be revised from the dispatcher queue.',
@@ -229,6 +287,35 @@ class DispatchController extends Controller
             $dispatcherNote = filled($validated['dispatcher_note'] ?? null)
                 ? trim(strip_tags((string) $validated['dispatcher_note']))
                 : null;
+
+            if ($isReturnedTask) {
+                $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+                    'status' => 'confirmed',
+                    'assigned_unit_id' => $selectedUnit?->id ?? $booking->assigned_unit_id,
+                    'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,
+                    'assigned_at' => now(),
+                    'driver_name' => null,
+                    'dispatcher_note' => $dispatcherNote,
+                    'returned_at' => null,
+                    'return_reason' => null,
+                    'returned_by_team_leader_id' => null,
+                    'customer_verification_status' => null,
+                    'customer_verified_at' => null,
+                    'completion_requested_at' => null,
+                    'customer_verification_note' => null,
+                ]));
+
+                $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
+                event(new BookingStatusUpdated($booking));
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Returned task reassigned successfully. The selected team leader can accept it now.',
+                    'status' => $booking->status,
+                    'assigned_unit' => $selectedUnit?->name,
+                    'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
+                ]);
+            }
             $remarks = filled($validated['remarks'] ?? null)
                 ? trim(strip_tags((string) $validated['remarks']))
                 : $dispatcherNote;
@@ -245,7 +332,7 @@ class DispatchController extends Controller
             $booking->update($this->bookingService->filterPayloadForTable('bookings', [
                 'status' => 'quotation_sent',
                 'assigned_unit_id' => $selectedUnit?->id ?? $booking->assigned_unit_id,
-                'assigned_team_leader_id' => null,
+                'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,
                 'distance_km' => $totals['distance_km'],
                 'computed_total' => $totals['computed_total'],
                 'discount_percentage' => $totals['discount_percentage'],

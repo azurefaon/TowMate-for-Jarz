@@ -181,11 +181,22 @@
         $teamLeaderRootUrl = $teamLeaderAppUrl . '/teamleader';
         $teamLeaderDashboardUrl = $teamLeaderRootUrl . '/dashboard';
         $teamLeaderTasksUrl = $teamLeaderRootUrl . '/tasks';
+        $teamLeaderActiveTask = auth()->check()
+            ? \App\Models\Booking::query()
+                ->where('assigned_team_leader_id', auth()->id())
+                ->whereIn('status', ['assigned', 'on_the_way', 'in_progress', 'waiting_verification'])
+                ->latest('updated_at')
+                ->first()
+            : null;
+        $teamLeaderFocusLocked = filled($teamLeaderActiveTask);
+        $teamLeaderFocusUrl = $teamLeaderFocusLocked
+            ? route('teamleader.task.show', $teamLeaderActiveTask)
+            : $teamLeaderDashboardUrl;
     @endphp
 
     <div class="tl-shell">
         <aside class="tl-sidebar">
-            <a href="{{ $teamLeaderDashboardUrl }}" class="tl-brand">
+            <a href="{{ $teamLeaderFocusUrl }}" class="tl-brand">
                 <span class="tl-brand__logo">JR</span>
                 <div>
                     <strong>Jarz</strong>
@@ -194,17 +205,24 @@
             </a>
 
             <nav class="tl-nav" aria-label="Team leader navigation">
-                <a href="{{ $teamLeaderDashboardUrl }}"
-                    class="tl-nav__link {{ request()->routeIs('teamleader.dashboard') ? 'is-active' : '' }}">
-                    <i data-lucide="layout-dashboard"></i>
-                    <span>Dashboard</span>
-                </a>
+                @if ($teamLeaderFocusLocked)
+                    <a href="{{ $teamLeaderFocusUrl }}" class="tl-nav__link is-active">
+                        <i data-lucide="crosshair"></i>
+                        <span>Current Job Focus</span>
+                    </a>
+                @else
+                    <a href="{{ $teamLeaderDashboardUrl }}"
+                        class="tl-nav__link {{ request()->routeIs('teamleader.dashboard') ? 'is-active' : '' }}">
+                        <i data-lucide="layout-dashboard"></i>
+                        <span>Dashboard</span>
+                    </a>
 
-                <a href="{{ $teamLeaderTasksUrl }}"
-                    class="tl-nav__link {{ request()->routeIs('teamleader.tasks') || request()->routeIs('teamleader.bookings') || request()->routeIs('teamleader.task.*') ? 'is-active' : '' }}">
-                    <i data-lucide="clipboard-list"></i>
-                    <span>Tasks</span>
-                </a>
+                    <a href="{{ $teamLeaderTasksUrl }}"
+                        class="tl-nav__link {{ request()->routeIs('teamleader.tasks') || request()->routeIs('teamleader.bookings') || request()->routeIs('teamleader.task.*') ? 'is-active' : '' }}">
+                        <i data-lucide="clipboard-list"></i>
+                        <span>Tasks</span>
+                    </a>
+                @endif
             </nav>
 
         </aside>
@@ -214,6 +232,10 @@
                 <div>
                     <p class="tl-eyebrow">Jarz Field Operations</p>
                     <h1>@yield('page_title', 'Team Leader Dashboard')</h1>
+                    @if ($teamLeaderFocusLocked)
+                        <small class="tl-input-hint">Focus mode is active. Complete or return the current job to unlock
+                            navigation.</small>
+                    @endif
                 </div>
 
                 <div class="tl-topbar__actions">
@@ -227,10 +249,12 @@
                         </summary>
 
                         <div class="tl-profile-menu">
-                            <a href="{{ route('profile.edit') }}">
-                                <i data-lucide="settings"></i>
-                                <span>Settings</span>
-                            </a>
+                            @unless ($teamLeaderFocusLocked)
+                                <a href="{{ route('profile.edit') }}">
+                                    <i data-lucide="settings"></i>
+                                    <span>Settings</span>
+                                </a>
+                            @endunless
                             <button type="button" onclick="openTeamLeaderLogoutModal()">
                                 <i data-lucide="log-out"></i>
                                 <span>Logout</span>
@@ -329,7 +353,6 @@
         window.pingTeamLeaderPresence();
         window.setInterval(window.pingTeamLeaderPresence, 45000);
         window.addEventListener('focus', window.pingTeamLeaderPresence);
-        window.addEventListener('pagehide', window.teamLeaderGoOffline);
         document.addEventListener('visibilitychange', function() {
             if (document.visibilityState === 'visible') {
                 window.pingTeamLeaderPresence();

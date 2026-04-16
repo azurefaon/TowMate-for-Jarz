@@ -79,7 +79,7 @@ class LoginRequest extends FormRequest
 
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        if (! RateLimiter::tooManyAttempts($this->throttleKey(), $this->maxAttempts())) {
             return;
         }
 
@@ -114,6 +114,20 @@ class LoginRequest extends FormRequest
         };
     }
 
+    protected function maxAttempts(): int
+    {
+        if ($this->input('role') === 'teamleader') {
+            return $this->loginMethod() === 'otp' ? 8 : 10;
+        }
+
+        return 5;
+    }
+
+    protected function decaySeconds(): int
+    {
+        return $this->input('role') === 'teamleader' ? 45 : 60;
+    }
+
     protected function loginMethod(): string
     {
         $role = $this->input('role');
@@ -135,6 +149,7 @@ class LoginRequest extends FormRequest
         }
 
         $user = User::query()
+            ->visibleToOperations()
             ->whereRaw('LOWER(email) = ?', [$email])
             ->where('role_id', $this->requestedRoleId())
             ->first();
@@ -164,6 +179,7 @@ class LoginRequest extends FormRequest
         }
 
         $user = User::query()
+            ->visibleToOperations()
             ->where('role_id', 3)
             ->where('phone', $phone)
             ->first();
@@ -216,7 +232,7 @@ class LoginRequest extends FormRequest
 
     protected function throwInvalidCredentials(): never
     {
-        RateLimiter::hit($this->throttleKey());
+        RateLimiter::hit($this->throttleKey(), $this->decaySeconds());
 
         throw ValidationException::withMessages([
             'auth' => 'Invalid credentials',

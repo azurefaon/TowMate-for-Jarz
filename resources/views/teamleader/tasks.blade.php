@@ -25,8 +25,8 @@
         <section class="tl-section-card tl-section-card--compact">
             <div class="tl-section-card__header">
                 <div>
-                    <p class="tl-eyebrow">Open Jobs</p>
-                    <h3>Choose the next towing request for your crew</h3>
+                    <p class="tl-eyebrow">Approved Jobs</p>
+                    <h3>Only customer-approved bookings can be accepted by your crew</h3>
                 </div>
                 <div class="tl-stat-pills">
                     <span class="tl-stat-pill">Queue: <strong
@@ -41,7 +41,15 @@
             </div>
 
             <div class="tl-task-card__note">
-                Once you accept a job, we’ll take you straight to its live task page until it’s completed or returned.
+                @if (!empty($focusLocked))
+                    Your current task stays visible here after refresh. Accept it again to return to the focus screen until
+                    it is completed or
+                    returned.
+                @else
+                    Bookings appear here after the customer approves the quotation. Once accepted, the task stays locked to
+                    your
+                    focused work screen until it is completed or returned.
+                @endif
             </div>
         </section>
 
@@ -54,7 +62,10 @@
                             <p class="tl-task-card__eyebrow">Task {{ $booking->job_code }}</p>
                             <h3>{{ $booking->pickup_address }} → {{ $booking->dropoff_address }}</h3>
                         </div>
-                        <span class="tl-status-badge assigned">Ready</span>
+                        <span
+                            class="tl-status-badge {{ $booking->needs_reassignment ? 'waiting-verification' : 'assigned' }}">
+                            {{ $booking->needs_reassignment ? 'Returned' : 'Ready' }}
+                        </span>
                     </div>
 
                     <div class="tl-task-card__meta">
@@ -78,15 +89,28 @@
                     </div>
 
                     <div class="tl-task-card__note">
-                        Your assigned truck is linked automatically when you accept this job, so your crew can move right
-                        away.
+                        @if ($booking->needs_reassignment)
+                            This task was returned to dispatch and is still visible here while reassignment is being
+                            reviewed.
+                            <br>
+                            <strong>Reason:</strong> {{ $booking->return_reason ?? 'Awaiting dispatch review.' }}
+                        @else
+                            Your assigned truck is linked automatically when you accept this job, so your crew can move
+                            right
+                            away.
+                        @endif
                     </div>
 
                     <div class="tl-task-card__actions">
-                        <button type="button" class="tl-btn tl-btn--primary tl-btn--full" data-booking-action="accept"
-                            data-endpoint="{{ route('teamleader.task.accept', $booking) }}">
-                            Accept Task
-                        </button>
+                        @if (
+                            !$booking->needs_reassignment &&
+                                (empty($booking->assigned_team_leader_id) || (int) $booking->assigned_team_leader_id === (int) auth()->id()) &&
+                                in_array($booking->status, ['confirmed', 'accepted', 'assigned'], true))
+                            <button type="button" class="tl-btn tl-btn--primary tl-btn--full" data-booking-action="accept"
+                                data-endpoint="{{ route('teamleader.task.accept', $booking) }}">
+                                Accept Task
+                            </button>
+                        @endif
                     </div>
                 </article>
             @empty

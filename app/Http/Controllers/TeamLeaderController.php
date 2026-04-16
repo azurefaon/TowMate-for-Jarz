@@ -6,9 +6,11 @@ use App\Events\BookingStatusUpdated;
 use App\Mail\BookingReceiptMail;
 use App\Mail\TaskCompletionVerificationMail;
 use App\Models\Booking;
+use App\Models\Unit;
 use App\Services\DocumentGenerationService;
 use App\Services\TeamLeaderAvailabilityService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -53,40 +55,61 @@ class TeamLeaderController extends Controller
     {
         $this->touchPresence();
 
-        if ($activeTask = $this->activeTask()) {
-            if ($request->expectsJson() || $request->ajax()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Finish or return your active task before opening the queue again.',
-                    'active_task_id' => $activeTask->job_code,
-                    'redirect_url' => route('teamleader.task.show', $activeTask),
-                ], 409);
-            }
-
-            return redirect()->route('teamleader.task.show', $activeTask);
-        }
-
         $stats = $this->buildStats($this->overviewBookingsQuery());
-        $bookings = $this->queueBookingsQuery()
-            ->latest('updated_at')
-            ->get();
+        $activeTask = $this->activeTask();
+
+        $bookings = $activeTask
+            ? collect([$activeTask])
+            : $this->queueBookingsQuery()->latest('updated_at')->get();
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
+                'focus_locked' => filled($activeTask),
+                'active_task_id' => $activeTask?->job_code,
+                'redirect_url' => $activeTask ? route('teamleader.task.show', $activeTask) : null,
                 'stats' => $stats,
                 'tasks' => $bookings->map(fn(Booking $booking) => $this->transformBooking($booking))->values(),
             ]);
         }
 
-        return view('teamleader.tasks', compact('bookings', 'stats'));
+        $focusLocked = filled($activeTask);
+
+        return view('teamleader.tasks', compact('bookings', 'stats', 'focusLocked'));
     }
 
     public function showTask(Booking $booking)
     {
         $this->touchPresence();
 
-        $task = $this->resolveOwnedTask($booking, true);
+        if ($activeTask = $this->activeTask()) {
+            if ((int) $activeTask->id !== (int) $booking->id) {
+                if (request()->expectsJson() || request()->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Focus mode is active on another job.',
+                        'redirect_url' => route('teamleader.task.show', $activeTask),
+                    ], 409);
+                }
+
+                return redirect()->route('teamleader.task.show', $activeTask);
+            }
+        }
+
+        $task = $this->ownedTasksQuery(true)->find($booking->id);
+
+        if (! $task) {
+            if (request()->expectsJson() || request()->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Claim a booking from the task list first.',
+                    'redirect_url' => route('teamleader.tasks'),
+                ], 409);
+            }
+
+            return redirect()->route('teamleader.tasks')
+                ->with('info', 'Claim a booking from the task list first.');
+        }
 
         return view('teamleader.task-focus', [
             'booking' => $task,
@@ -116,6 +139,8 @@ class TeamLeaderController extends Controller
 
     public function acceptTask(Request $request, Booking $booking)
     {
+        $this->touchPresence();
+
         $teamLeaderId = Auth::id();
         $activeTask = $this->activeTask();
 
@@ -128,23 +153,47 @@ class TeamLeaderController extends Controller
             ], 422);
         }
 
-        $task = $this->queueBookingsQuery()->findOrFail($booking->id);
-
-        if ((int) $task->assigned_team_leader_id === (int) $teamLeaderId) {
+        if (in_array($booking->status, ['quoted', 'quotation_sent', 'reviewed'], true)) {
             return response()->json([
-                'success' => true,
-                'message' => 'Task is already assigned to you.',
-                'status' => $task->status,
-                'task' => $this->transformBooking($task),
-                'redirect_url' => route('teamleader.task.show', $task),
-            ]);
+                'success' => false,
+                'message' => 'Wait for the customer to approve the quotation before accepting this task.',
+            ], 422);
+        }
+
+        // Try to get from the approved queue first, if not found check if already assigned to you
+        $task = $this->queueBookingsQuery()->find($booking->id);
+
+        if (!$task) {
+            // Check if it's already assigned to you (any status)
+            $task = Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
+                ->where('id', $booking->id)
+                ->where('assigned_team_leader_id', $teamLeaderId)
+                ->whereIn('status', ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed'])
+                ->first();
+
+            if ($task) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Task is already in your queue.',
+                    'status' => $task->status,
+                    'task' => $this->transformBooking($task),
+                    'redirect_url' => route('teamleader.task.show', $task),
+                ]);
+            }
+
+            abort(404, 'This task is not available for you to accept.');
         }
 
         $assignedUnitId = $task->assigned_unit_id ?: optional(Auth::user()->unit)->id;
 
+        // Allow accepting a booking that is unclaimed OR pre-assigned to this TL (e.g., dispatcher
+        // already linked the TL when sending the quotation — TL still needs to formally accept).
         $updated = Booking::query()
             ->whereKey($task->id)
-            ->whereNull('assigned_team_leader_id')
+            ->where(function (Builder $q) use ($teamLeaderId) {
+                $q->whereNull('assigned_team_leader_id')
+                    ->orWhere('assigned_team_leader_id', $teamLeaderId);
+            })
             ->whereIn('status', ['confirmed', 'accepted', 'assigned'])
             ->update([
                 'assigned_team_leader_id' => $teamLeaderId,
@@ -155,9 +204,29 @@ class TeamLeaderController extends Controller
                 'customer_verified_at' => null,
                 'completion_requested_at' => null,
                 'customer_verification_note' => null,
+                'returned_at' => null,
+                'return_reason' => null,
+                'returned_by_team_leader_id' => null,
             ]);
 
         if (! $updated) {
+            // Already past the accept point for this TL (on_the_way, in_progress, etc.)
+            $alreadyActive = Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
+                ->whereKey($task->id)
+                ->where('assigned_team_leader_id', $teamLeaderId)
+                ->whereIn('status', $this->activeStatuses)
+                ->first();
+
+            if ($alreadyActive) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Task is already in progress.',
+                    'status' => $alreadyActive->status,
+                    'task' => $this->transformBooking($alreadyActive),
+                    'redirect_url' => route('teamleader.task.show', $alreadyActive),
+                ]);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'This task was already accepted by another team leader.',
@@ -165,11 +234,12 @@ class TeamLeaderController extends Controller
         }
 
         $task = $this->resolveOwnedTask($booking->fresh(), true);
+        $this->syncAssignedUnitStatus($task, 'on_job');
         event(new BookingStatusUpdated($task));
 
         return response()->json([
             'success' => true,
-            'message' => 'Task accepted. Focus mode is now active.',
+            'message' => 'Task claimed successfully. Focus mode is now active.',
             'status' => $task->status,
             'task' => $this->transformBooking($task),
             'redirect_url' => route('teamleader.task.show', $task),
@@ -178,6 +248,8 @@ class TeamLeaderController extends Controller
 
     public function saveDriver(Request $request, Booking $booking)
     {
+        $this->touchPresence();
+
         $task = $this->resolveOwnedTask($booking, true);
 
         if ($task->status !== 'assigned') {
@@ -209,6 +281,8 @@ class TeamLeaderController extends Controller
 
     public function autosaveNote(Request $request, Booking $booking)
     {
+        $this->touchPresence();
+
         $task = $this->resolveOwnedTask($booking, true);
 
         if (! in_array($task->status, ['assigned', 'on_the_way', 'in_progress', 'waiting_verification'], true)) {
@@ -240,6 +314,8 @@ class TeamLeaderController extends Controller
 
     public function proceedToLocation(Request $request, Booking $booking)
     {
+        $this->touchPresence();
+
         $task = $this->resolveOwnedTask($booking, true);
 
         if ($task->status !== 'assigned') {
@@ -261,11 +337,12 @@ class TeamLeaderController extends Controller
         ]);
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+        $this->syncAssignedUnitStatus($task, 'on_job');
         event(new BookingStatusUpdated($task));
 
         return response()->json([
             'success' => true,
-            'message' => 'Crew is now on the way to the customer location.',
+            'message' => 'Navigation started. Head to the pickup location now.',
             'status' => $task->status,
             'task' => $this->transformBooking($task),
         ]);
@@ -273,6 +350,8 @@ class TeamLeaderController extends Controller
 
     public function startTask(Request $request, Booking $booking)
     {
+        $this->touchPresence();
+
         $task = $this->resolveOwnedTask($booking, true);
 
         if ($task->status !== 'on_the_way') {
@@ -290,11 +369,12 @@ class TeamLeaderController extends Controller
         ]);
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+        $this->syncAssignedUnitStatus($task, 'on_job');
         event(new BookingStatusUpdated($task));
 
         return response()->json([
             'success' => true,
-            'message' => 'Towing has started.',
+            'message' => 'Arrival confirmed. The job is now in progress.',
             'status' => $task->status,
             'task' => $this->transformBooking($task),
         ]);
@@ -302,6 +382,8 @@ class TeamLeaderController extends Controller
 
     public function completeTask(Request $request, Booking $booking)
     {
+        $this->touchPresence();
+
         $task = $this->resolveOwnedTask($booking, true);
 
         $validated = $request->validate([
@@ -339,6 +421,7 @@ class TeamLeaderController extends Controller
         ]);
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+        $this->syncAssignedUnitStatus($task, 'available');
         event(new BookingStatusUpdated($task));
 
         Mail::to($task->customer->email)->send(
@@ -347,7 +430,7 @@ class TeamLeaderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Customer verification was sent successfully.',
+            'message' => 'Job marked complete and sent for customer confirmation.',
             'status' => $task->status,
             'task' => $this->transformBooking($task),
         ]);
@@ -355,32 +438,50 @@ class TeamLeaderController extends Controller
 
     public function returnTask(Request $request, Booking $booking)
     {
+        $this->touchPresence();
+
         $task = $this->resolveOwnedTask($booking, true);
 
-        if (! in_array($task->status, ['assigned', 'on_the_way', 'in_progress'], true)) {
+        if ($task->status === 'in_progress') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This task can no longer be returned after the job has started.',
+            ], 422);
+        }
+
+        if (! in_array($task->status, ['assigned', 'on_the_way'], true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'This task can no longer be returned from its current state.',
             ], 422);
         }
 
+        $validated = $request->validate([
+            'return_reason' => 'required|string|max:1000',
+        ]);
+
+        $returnReason = trim(strip_tags((string) $validated['return_reason']));
+
         $task->update([
             'assigned_team_leader_id' => null,
-            'driver_name' => null,
             'status' => 'assigned',
             'completion_requested_at' => null,
             'customer_verified_at' => null,
             'customer_verification_status' => null,
-            'customer_verification_note' => null,
+            'returned_at' => now(),
+            'return_reason' => $returnReason,
+            'returned_by_team_leader_id' => Auth::id(),
         ]);
 
-        $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+        $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'returnedByTeamLeader']);
+        $this->syncAssignedUnitStatus($task, 'available');
         event(new BookingStatusUpdated($task));
 
         return response()->json([
             'success' => true,
-            'message' => 'Task returned to the queue.',
+            'message' => 'Task returned to dispatch for reassignment.',
             'status' => 'assigned',
+            'return_reason' => $returnReason,
             'redirect_url' => route('teamleader.tasks'),
         ]);
     }
@@ -392,6 +493,8 @@ class TeamLeaderController extends Controller
 
     public function taskStatus(Booking $booking)
     {
+        $this->touchPresence();
+
         $task = $this->resolveOwnedTask($booking, true);
 
         return response()->json([
@@ -417,6 +520,7 @@ class TeamLeaderController extends Controller
             ]);
 
             $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
+            $this->syncAssignedUnitStatus($booking, 'available');
             event(new BookingStatusUpdated($booking));
 
             $receipt = app(DocumentGenerationService::class)->generateReceipt($booking);
@@ -438,7 +542,9 @@ class TeamLeaderController extends Controller
             'customer_verified_at' => null,
         ]);
 
-        event(new BookingStatusUpdated($booking->fresh(['customer', 'truckType', 'unit', 'assignedTeamLeader'])));
+        $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+        $this->syncAssignedUnitStatus($booking, 'on_job');
+        event(new BookingStatusUpdated($booking));
 
         return response($this->verificationResponseHtml(
             'Verification requires retry',
@@ -454,18 +560,27 @@ class TeamLeaderController extends Controller
     protected function overviewBookingsQuery(): Builder
     {
         $teamLeaderId = Auth::id();
+        $userUnit = Auth::user()?->unit;
 
         return Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
             ->whereIn('status', ['confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed'])
-            ->where(function (Builder $query) use ($teamLeaderId) {
+            ->where(function (Builder $query) use ($teamLeaderId, $userUnit) {
                 $query->where('assigned_team_leader_id', $teamLeaderId)
-                    ->orWhere(function (Builder $subQuery) use ($teamLeaderId) {
+                    ->orWhere(function (Builder $subQuery) use ($teamLeaderId, $userUnit) {
                         $subQuery->whereNull('assigned_team_leader_id')
-                            ->where(function (Builder $visibilityQuery) use ($teamLeaderId) {
-                                $visibilityQuery->whereNull('assigned_unit_id')
-                                    ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
-                                        $unitQuery->where('team_leader_id', $teamLeaderId);
-                                    });
+                            ->where(function (Builder $visibilityQuery) use ($teamLeaderId, $userUnit) {
+                                if ($userUnit) {
+                                    $visibilityQuery->whereNull('assigned_unit_id')
+                                        ->orWhere('assigned_unit_id', $userUnit->id)
+                                        ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
+                                            $unitQuery->where('team_leader_id', $teamLeaderId);
+                                        });
+                                } else {
+                                    $visibilityQuery->whereNull('assigned_unit_id')
+                                        ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
+                                            $unitQuery->where('team_leader_id', $teamLeaderId);
+                                        });
+                                }
                             });
                     });
             });
@@ -474,14 +589,28 @@ class TeamLeaderController extends Controller
     protected function queueBookingsQuery(): Builder
     {
         $teamLeaderId = Auth::id();
+        $userUnit = Auth::user()?->unit;
 
         return Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
-            ->whereIn('status', ['confirmed', 'accepted', 'assigned'])
-            ->whereNull('assigned_team_leader_id')
-            ->where(function (Builder $query) use ($teamLeaderId) {
-                $query->whereNull('assigned_unit_id')
-                    ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
-                        $unitQuery->where('team_leader_id', $teamLeaderId);
+            ->whereIn('status', ['confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress'])
+            ->where(function (Builder $query) use ($teamLeaderId, $userUnit) {
+                $query->where('assigned_team_leader_id', $teamLeaderId)
+                    ->orWhere(function (Builder $q) use ($teamLeaderId, $userUnit) {
+                        $q->whereNull('assigned_team_leader_id')
+                            ->where(function (Builder $sub) use ($teamLeaderId, $userUnit) {
+                                if ($userUnit) {
+                                    $sub->whereNull('assigned_unit_id')
+                                        ->orWhere('assigned_unit_id', $userUnit->id)
+                                        ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
+                                            $unitQuery->where('team_leader_id', $teamLeaderId);
+                                        });
+                                } else {
+                                    $sub->whereNull('assigned_unit_id')
+                                        ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
+                                            $unitQuery->where('team_leader_id', $teamLeaderId);
+                                        });
+                                }
+                            });
                     });
             });
     }
@@ -500,7 +629,74 @@ class TeamLeaderController extends Controller
 
     protected function resolveOwnedTask(Booking $booking, bool $includeCompleted = false): Booking
     {
-        return $this->ownedTasksQuery($includeCompleted)->findOrFail($booking->id);
+        $task = $this->ownedTasksQuery($includeCompleted)->find($booking->id);
+
+        if ($task) {
+            return $task;
+        }
+
+        // Fallback: booking is pre-assigned to this TL but still in `confirmed` status
+        // (dispatcher set assigned_team_leader_id when sending the quotation and the TL
+        // has not yet formally accepted).  Auto-advance it to `assigned` so every
+        // downstream action (saveDriver, proceedToLocation, etc.) works normally.
+        $confirmedTask = Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
+            ->whereKey($booking->id)
+            ->where('assigned_team_leader_id', Auth::id())
+            ->where('status', 'confirmed')
+            ->first();
+
+        if ($confirmedTask) {
+            $assignedUnitId = $confirmedTask->assigned_unit_id ?: optional(Auth::user()->unit)->id;
+
+            Booking::query()
+                ->whereKey($confirmedTask->id)
+                ->where('assigned_team_leader_id', Auth::id())
+                ->where('status', 'confirmed')
+                ->update([
+                    'status'     => 'assigned',
+                    'assigned_unit_id' => $assignedUnitId,
+                    'assigned_at' => now(),
+                    'customer_verification_status' => null,
+                    'customer_verified_at' => null,
+                    'completion_requested_at' => null,
+                    'customer_verification_note' => null,
+                ]);
+
+            $confirmedTask = $this->ownedTasksQuery($includeCompleted)->find($booking->id);
+
+            if ($confirmedTask) {
+                $this->syncAssignedUnitStatus($confirmedTask, 'on_job');
+                event(new BookingStatusUpdated($confirmedTask));
+
+                return $confirmedTask;
+            }
+        }
+
+        if (request()->expectsJson() || request()->ajax()) {
+            throw new HttpResponseException(response()->json([
+                'success' => false,
+                'message' => 'This task is no longer assigned to you.',
+                'redirect_url' => route('teamleader.tasks'),
+            ], 409));
+        }
+
+        throw new HttpResponseException(
+            redirect()->route('teamleader.tasks')
+                ->with('info', 'This task is no longer assigned to you.')
+        );
+    }
+
+    protected function syncAssignedUnitStatus(Booking $booking, string $status): void
+    {
+        $unitId = $booking->assigned_unit_id ?: optional($booking->unit)->id ?: optional(Auth::user()->unit)->id;
+
+        if (! $unitId) {
+            return;
+        }
+
+        Unit::query()
+            ->whereKey($unitId)
+            ->update(['status' => $status]);
     }
 
     protected function buildStats(Builder $query): array
@@ -518,14 +714,16 @@ class TeamLeaderController extends Controller
 
     protected function transformBooking(Booking $booking): array
     {
-        $uiStatus = match ($booking->status) {
-            'confirmed', 'accepted', 'assigned' => 'assigned',
-            'on_the_way' => 'on_the_way',
-            'in_progress' => 'in_progress',
-            'waiting_verification' => 'waiting_verification',
-            'completed' => 'completed',
-            default => $booking->status,
-        };
+        $uiStatus = $booking->needs_reassignment
+            ? 'returned'
+            : match ($booking->status) {
+                'confirmed', 'accepted', 'assigned', 'quotation_sent' => 'assigned',
+                'on_the_way' => 'on_the_way',
+                'in_progress' => 'in_progress',
+                'waiting_verification' => 'waiting_verification',
+                'completed' => 'completed',
+                default => $booking->status,
+            };
 
         return [
             'id' => $booking->booking_code ?: $booking->id,
@@ -533,6 +731,7 @@ class TeamLeaderController extends Controller
             'status' => $booking->status,
             'ui_status' => $uiStatus,
             'status_label' => match ($uiStatus) {
+                'returned' => 'Returned to Dispatch',
                 'assigned' => 'Ready',
                 'on_the_way' => 'On the Way',
                 'in_progress' => 'Towing in Progress',
@@ -541,6 +740,7 @@ class TeamLeaderController extends Controller
                 default => ucfirst(str_replace('_', ' ', $booking->status)),
             },
             'status_note' => match ($uiStatus) {
+                'returned' => 'This task has been returned to dispatch and is waiting for reassignment review.',
                 'assigned' => filled($booking->driver_name)
                     ? 'Driver details are saved. You can still change the driver before leaving.'
                     : 'Add the driver name so this job is ready to leave.',
@@ -561,12 +761,17 @@ class TeamLeaderController extends Controller
             'driver_name' => $booking->driver_name,
             'updated_at_human' => optional($booking->updated_at)->diffForHumans() ?? 'Just now',
             'completion_note' => $booking->customer_verification_note,
+            'return_reason' => $booking->return_reason,
+            'returned_at_human' => optional($booking->returned_at)->diffForHumans(),
+            'returned_by' => $booking->returnedByTeamLeader->full_name ?? $booking->returnedByTeamLeader->name ?? null,
+            'is_returned' => $booking->needs_reassignment,
             'assigned_to_me' => (int) $booking->assigned_team_leader_id === (int) Auth::id(),
-            'can_accept' => in_array($booking->status, ['confirmed', 'accepted', 'assigned'], true) && empty($booking->assigned_team_leader_id),
+            'can_accept' => ! $booking->needs_reassignment && in_array($booking->status, ['confirmed', 'accepted', 'assigned'], true) && empty($booking->assigned_team_leader_id),
+            'can_open' => (int) $booking->assigned_team_leader_id === (int) Auth::id() && $booking->status !== 'completed',
             'can_proceed' => $booking->status === 'assigned',
             'can_start' => $booking->status === 'on_the_way',
             'can_complete' => $booking->status === 'in_progress',
-            'can_return' => in_array($booking->status, ['assigned', 'on_the_way', 'in_progress'], true),
+            'can_return' => in_array($booking->status, ['assigned', 'on_the_way'], true),
             'driver_locked' => $booking->status === 'assigned' && filled($booking->driver_name),
             'can_edit_driver' => $booking->status === 'assigned' && filled($booking->driver_name),
             'completion_note_locked' => $booking->status !== 'in_progress',

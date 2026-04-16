@@ -62,6 +62,10 @@ class NewBooking implements ShouldBroadcast
             'truck_type_name' => $this->booking->truckType->name ?? 'Unknown',
             'customer_name' => $this->booking->customer->full_name ?? 'Unknown',
             'customer_phone' => $this->booking->customer->phone ?? 'N/A',
+            'service_type' => $this->booking->service_mode,
+            'service_mode_label' => $this->booking->service_mode_label,
+            'scheduled_for' => optional($this->booking->scheduled_for)->toISOString(),
+            'schedule_window_label' => $this->booking->schedule_window_label,
         ];
     }
 }

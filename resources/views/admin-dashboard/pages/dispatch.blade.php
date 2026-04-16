@@ -21,8 +21,10 @@
             width: min(1000px, 96vw);
             max-width: 1000px;
             max-height: calc(100vh - 20px);
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
             padding: 16px;
+            scrollbar-gutter: stable;
         }
 
         .review-surface {
@@ -144,6 +146,13 @@
             cursor: not-allowed;
         }
 
+        .review-field-input.is-locked {
+            background: #f8fafc;
+            border-style: dashed;
+            border-color: #cbd5e1;
+            color: #64748b;
+        }
+
         .unit-select-shell {
             border: 1px solid #e2e8f0;
             background: linear-gradient(135deg, #fffdf5, #f8fafc);
@@ -177,6 +186,105 @@
             display: none !important;
         }
 
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .section-header p {
+            margin: 6px 0 0;
+            color: #64748b;
+        }
+
+        .queue-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 16px 0 14px;
+        }
+
+        .queue-filter-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid #dbe2ea;
+            background: #fff;
+            color: #0f172a;
+            border-radius: 999px;
+            padding: 10px 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .queue-tab-count {
+            min-width: 20px;
+            height: 20px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0 6px;
+            border-radius: 999px;
+            background: #dc2626;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+            box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+        }
+
+        .queue-tab-count.has-count {
+            display: inline-flex;
+        }
+
+        .queue-filter-btn.is-active {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+
+        .incoming-card.is-hidden {
+            display: none;
+        }
+
+        .queue-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .queue-chip.book-now {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .queue-chip.scheduled {
+            background: #e0f2fe;
+            color: #075985;
+        }
+
+        .queue-chip.due-now {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .queue-chip.negotiation {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .queue-chip.returned {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
         @media (max-width: 860px) {
 
             .review-input-grid,
@@ -203,29 +311,83 @@
 
             <div class="section-header">
                 <div>
-                    <h3>Incoming & Negotiation Requests</h3>
+                    <h3>Dispatcher Booking Queue</h3>
+                    <p>Immediate requests, scheduled work, and returned tasks are separated so reassignment stays fast and
+                        clear.</p>
                 </div>
                 <div class="view-controls">
-                    <div class="view-toggle">
-                        <button class="view-btn active" data-view="list" title="List View">
-                            <i data-lucide="list"></i>
-                        </button>
-                        <button class="view-btn" data-view="grid" title="Grid View">
-                            <i data-lucide="grid-3x3"></i>
-                        </button>
-                    </div>
-                    <span class="count" id="requestCount">{{ $incomingRequests->count() }}</span>
+                    <span class="count" id="requestCount">{{ $queueCounts['book-now'] ?? $incomingRequests->count() }}</span>
                 </div>
             </div>
 
-            <div class="incoming-list" id="incomingList"
+            <div class="queue-tabs" id="dispatchQueueTabs">
+                <button type="button" class="queue-filter-btn" data-filter="returned">
+                    <span>Returned</span>
+                    <span class="queue-tab-count {{ ($queueCounts['returned'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="returned">
+                        {{ $queueCounts['returned'] ?? 0 }}
+                    </span>
+                </button>
+                <button type="button" class="queue-filter-btn is-active" data-filter="book-now">
+                    <span>Book Now</span>
+                    <span class="queue-tab-count {{ ($queueCounts['book-now'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="book-now">
+                        {{ $queueCounts['book-now'] ?? 0 }}
+                    </span>
+                </button>
+                <button type="button" class="queue-filter-btn" data-filter="scheduled">
+                    <span>Scheduled</span>
+                    <span class="queue-tab-count {{ ($queueCounts['scheduled'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="scheduled">
+                        {{ $queueCounts['scheduled'] ?? 0 }}
+                    </span>
+                </button>
+                <button type="button" class="queue-filter-btn" data-filter="all">
+                    <span>All</span>
+                    <span class="queue-tab-count {{ ($queueCounts['all'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="all">
+                        {{ $queueCounts['all'] ?? 0 }}
+                    </span>
+                </button>
+            </div>
+
+            <div class="incoming-list" id="incomingList" data-default-filter="book-now"
                 data-assign-url-template="{{ url('/admin-dashboard/booking/__BOOKING__/assign') }}">
 
                 @forelse($incomingRequests as $booking)
+                    @php
+                        $queueBucket =
+                            $booking->queue_bucket ??
+                            ($booking->needs_reassignment
+                                ? 'returned'
+                                : ($booking->status === 'reviewed'
+                                    ? 'negotiation'
+                                    : ($booking->is_scheduled && !$booking->is_due_for_dispatch
+                                        ? 'scheduled'
+                                        : 'book-now')));
+                        $timingTone = $booking->needs_reassignment
+                            ? 'returned'
+                            : ($booking->status === 'reviewed'
+                                ? 'negotiation'
+                                : ($booking->is_due_for_dispatch
+                                    ? 'due-now'
+                                    : ($booking->is_scheduled
+                                        ? 'scheduled'
+                                        : 'book-now')));
+                        $timingLabel = $booking->needs_reassignment
+                            ? 'Returned'
+                            : ($booking->status === 'reviewed'
+                                ? 'Negotiation'
+                                : ($booking->is_due_for_dispatch
+                                    ? 'Due Now'
+                                    : $booking->service_mode_label));
+                    @endphp
                     <div class="incoming-card" data-id="{{ $booking->job_code }}" data-status="{{ $booking->status }}"
+                        data-queue="{{ $queueBucket }}" data-service-mode="{{ $booking->service_mode }}"
+                        data-scheduled-for="{{ optional($booking->scheduled_for)->toIso8601String() }}"
                         data-current-price="{{ $booking->final_total }}"
-                        data-current-additional="{{ $booking->additional_fee }}" data-base-rate="{{ $booking->base_rate }}"
-                        data-distance-fee="{{ $booking->distance_fee_amount }}"
+                        data-current-additional="{{ $booking->additional_fee }}"
+                        data-base-rate="{{ $booking->base_rate }}" data-distance-fee="{{ $booking->distance_fee_amount }}"
                         data-distance-km="{{ $booking->distance_km }}" data-per-km-rate="{{ $booking->per_km_rate }}"
                         data-customer-type="{{ ucfirst($booking->customer_type ?? (optional($booking->customer)->customer_type ?? 'regular')) }}"
                         data-truck-type="{{ e($booking->truckType->name ?? 'Unknown') }}"
@@ -235,6 +397,9 @@
                         data-customer-note="{{ e($booking->customer_response_note ?? '') }}"
                         data-counter-offer="{{ $booking->counter_offer_amount }}"
                         data-dispatcher-note="{{ e($booking->remarks ?? ($booking->dispatcher_note ?? '')) }}"
+                        data-return-reason="{{ e($booking->return_reason ?? '') }}"
+                        data-returned-by="{{ e($booking->returnedByTeamLeader->full_name ?? ($booking->returnedByTeamLeader->name ?? '')) }}"
+                        data-returned-at="{{ optional($booking->returned_at)->toIso8601String() }}"
                         data-created-at="{{ $booking->created_at->toISOString() }}">
 
                         <div class="incoming-left">
@@ -256,10 +421,26 @@
                                 <span class="time">
                                     {{ $booking->created_at->diffForHumans() }}
                                 </span>
-                                <span class="status-badge pending">
-                                    {{ $booking->status === 'reviewed' ? 'Negotiation Request' : 'Requested' }}
+                                <span class="queue-chip {{ $timingTone }}">
+                                    {{ $timingLabel }}
+                                </span>
+                                <span class="status-badge {{ $booking->needs_reassignment ? 'returned' : 'pending' }}">
+                                    {{ $booking->needs_reassignment ? 'Needs Reassignment' : ($booking->status === 'reviewed' ? 'Negotiation Request' : 'Requested') }}
                                 </span>
                             </div>
+
+                            <div class="incoming-details" style="margin-top: 10px;">
+                                <span><strong>Dispatch Timing:</strong> {{ $booking->schedule_window_label }}</span>
+                            </div>
+
+                            @if ($booking->needs_reassignment)
+                                <div class="incoming-details" style="margin-top: 10px;">
+                                    <span><strong>Returned by:</strong>
+                                        {{ $booking->returnedByTeamLeader->full_name ?? ($booking->returnedByTeamLeader->name ?? 'Team Leader') }}</span>
+                                    <span><strong>Reason:</strong>
+                                        {{ $booking->return_reason ?? 'Needs reassignment.' }}</span>
+                                </div>
+                            @endif
 
                         </div>
 
@@ -274,16 +455,16 @@
 
                         <div class="incoming-actions">
                             <button type="button" class="btn-accept" data-id="{{ $booking->job_code }}"
-                                data-action="accept">{{ $booking->status === 'reviewed' ? 'Update Quote' : 'Review & Quote' }}</button>
+                                data-action="accept">{{ $booking->needs_reassignment ? 'Reassign Task' : ($booking->status === 'reviewed' ? 'Update Quote' : 'Review & Quote') }}</button>
                             <button type="button" class="btn-reject" data-id="{{ $booking->job_code }}"
-                                data-action="reject">Reject</button>
+                                data-action="reject">{{ $booking->needs_reassignment ? 'Cancel Booking' : 'Reject' }}</button>
                         </div>
 
                     </div>
 
                 @empty
                     <div class="empty-state" id="emptyState">
-                        <p>No incoming requests</p>
+                        <p>No bookings in this queue right now.</p>
                     </div>
                 @endforelse
 
@@ -319,10 +500,10 @@
 
                             <div id="discountDisplayWrapper" class="modal-input modal-field">
                                 <label for="discountPercentInput" class="field-label">Discount (%)</label>
-                                <input type="number" id="discountPercentInput" class="review-field-input" min="0"
-                                    max="100" step="0.01" placeholder="0.00" required>
-                                <small class="field-help" id="discountLabel">Auto from customer type. Regular bookings are
-                                    locked.</small>
+                                <input type="number" id="discountPercentInput" class="review-field-input"
+                                    min="0" max="100" step="0.01" placeholder="0.00" required>
+                                <small class="field-help" id="discountLabel">Regular customers keep the discount field
+                                    locked. It opens only for PWD or Senior bookings.</small>
                                 <small class="inline-field-error" id="discountPercentInputError"></small>
                             </div>
 

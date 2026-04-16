@@ -100,8 +100,22 @@ document.addEventListener("DOMContentLoaded", () => {
             vehicle.options[vehicle.selectedIndex].text;
 
         const service = document.getElementById("serviceType");
+        const scheduledDate = document.getElementById("scheduledDate");
+        const scheduledTime = document.getElementById("scheduledTime");
+        const isScheduled = service && service.value === "schedule";
+
         document.getElementById("summaryService").innerText =
             service.options[service.selectedIndex].text;
+
+        const summarySchedule = document.getElementById("summarySchedule");
+        if (summarySchedule) {
+            summarySchedule.innerText = isScheduled
+                ? [
+                      scheduledDate?.value || "Date pending",
+                      scheduledTime?.value || "Time pending",
+                  ].join(" ")
+                : "Immediate dispatch";
+        }
 
         document.getElementById("summaryDistance").innerText =
             document.getElementById("distance").innerText;
@@ -336,12 +350,7 @@ async function calculateEstimate() {
     map.fitBounds(routeLayer.getBounds());
 
     const distanceKm = data.features[0].properties.summary.distance / 1000;
-
-    let multiplier = 1;
-    if (serviceType === "express") multiplier = 1.5;
-    if (serviceType === "scheduled") multiplier = 1.2;
-
-    const total = (baseRate + distanceKm * perKmRate) * multiplier;
+    const total = baseRate + distanceKm * perKmRate;
 
     document.getElementById("distance").innerText =
         distanceKm.toFixed(2) + " km";

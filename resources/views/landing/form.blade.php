@@ -35,8 +35,8 @@
                 <div class="booking-header">
                     <h2>Book Your Towing Service</h2>
                     <p class="booking-sub">
-                        Fill out the form below to schedule your towing service.
-                        We'll dispatch the nearest available unit to your location.
+                        Choose Book Now for urgent towing or Schedule Later for a planned pickup. We'll route your request
+                        to the dispatcher with the right timing.
                     </p>
                 </div>
 
@@ -127,6 +127,48 @@
 
                                 <input type="hidden" name="confirmation_type" value="system">
 
+                                <div class="form-section">
+                                    <h3>Service Timing</h3>
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="service_type">Booking Mode *</label>
+                                            <select id="service_type" name="service_type" required>
+                                                <option value="book_now"
+                                                    {{ old('service_type', 'book_now') === 'book_now' ? 'selected' : '' }}>
+                                                    Book Now</option>
+                                                <option value="schedule"
+                                                    {{ old('service_type') === 'schedule' ? 'selected' : '' }}>Schedule
+                                                    Later</option>
+                                            </select>
+                                            <small class="form-help">Choose Book Now for urgent towing or Schedule Later
+                                                for a planned pickup.</small>
+                                            @error('service_type')
+                                                <span class="error-message">{{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row" id="scheduleFields"
+                                        style="display: {{ old('service_type') === 'schedule' ? 'grid' : 'none' }};">
+                                        <div class="form-group">
+                                            <label for="scheduled_date">Preferred Date</label>
+                                            <input type="date" id="scheduled_date" name="scheduled_date"
+                                                min="{{ now()->toDateString() }}" value="{{ old('scheduled_date') }}">
+                                            @error('scheduled_date')
+                                                <span class="error-message">{{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="scheduled_time">Preferred Time</label>
+                                            <input type="time" id="scheduled_time" name="scheduled_time"
+                                                value="{{ old('scheduled_time') }}">
+                                            @error('scheduled_time')
+                                                <span class="error-message">{{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <div class="form-section">
                                     <h3>Service Details</h3>
@@ -205,7 +247,7 @@
                                         <i class='bx bx-arrow-back'></i>
                                         Back
                                     </button>
-                                    <button type="submit" class="btn-primary">
+                                    <button type="submit" class="btn-primary" id="submitBookingBtn">
                                         <span>Book Now</span>
                                         <i class='bx bx-check-circle'></i>
                                     </button>
@@ -329,7 +371,7 @@
 
             function validateBookingForm() {
                 const requiredFields = ['first_name', 'last_name', 'age', 'phone', 'truck_type_id', 'pickup_address',
-                    'dropoff_address', 'customer_type'
+                    'dropoff_address', 'customer_type', 'service_type'
                 ];
                 let valid = true;
                 let firstInvalidField = null;
@@ -349,6 +391,24 @@
                         valid = false;
                     }
                 });
+
+                const serviceTypeInput = document.getElementById('service_type');
+                const scheduleDateInput = document.getElementById('scheduled_date');
+                const scheduleTimeInput = document.getElementById('scheduled_time');
+
+                if (serviceTypeInput && serviceTypeInput.value === 'schedule') {
+                    if (!scheduleDateInput.value) {
+                        setFieldError(scheduleDateInput, 'Please choose a preferred date.');
+                        firstInvalidField = firstInvalidField || scheduleDateInput;
+                        valid = false;
+                    }
+
+                    if (!scheduleTimeInput.value) {
+                        setFieldError(scheduleTimeInput, 'Please choose a preferred time.');
+                        firstInvalidField = firstInvalidField || scheduleTimeInput;
+                        valid = false;
+                    }
+                }
 
                 const phoneInput = document.getElementById('phone');
                 const rawPhone = phoneInput.value.trim();
@@ -390,6 +450,36 @@
                 return valid;
             }
 
+            const serviceTypeInput = document.getElementById('service_type');
+            const scheduleFields = document.getElementById('scheduleFields');
+            const scheduledDateInput = document.getElementById('scheduled_date');
+            const scheduledTimeInput = document.getElementById('scheduled_time');
+            const submitBookingBtn = document.getElementById('submitBookingBtn');
+
+            function toggleScheduleFields() {
+                if (!serviceTypeInput || !scheduleFields) {
+                    return;
+                }
+
+                const isScheduled = serviceTypeInput.value === 'schedule';
+                scheduleFields.style.display = isScheduled ? 'grid' : 'none';
+
+                if (scheduledDateInput) {
+                    scheduledDateInput.required = isScheduled;
+                }
+
+                if (scheduledTimeInput) {
+                    scheduledTimeInput.required = isScheduled;
+                }
+
+                if (submitBookingBtn) {
+                    submitBookingBtn.querySelector('span').textContent = isScheduled ? 'Schedule Booking' : 'Book Now';
+                }
+            }
+
+            toggleScheduleFields();
+            serviceTypeInput?.addEventListener('change', toggleScheduleFields);
+
             function showConfirmationSummary() {
                 const pickup = document.getElementById('pickup_address').value;
                 const dropoff = document.getElementById('dropoff_address').value;
@@ -397,6 +487,9 @@
                 const vehicle = vehicleSelect.options[vehicleSelect.selectedIndex]?.text || '';
                 const phone = document.getElementById('phone').value;
                 const email = document.getElementById('email').value;
+                const serviceType = serviceTypeInput?.value === 'schedule' ? 'Scheduled Later' : 'Book Now';
+                const scheduleText = serviceTypeInput?.value === 'schedule' ?
+                    `${scheduledDateInput?.value || 'N/A'} ${scheduledTimeInput?.value || ''}`.trim() : 'Immediate dispatch';
                 const fullName = [
                     document.getElementById('first_name').value,
                     document.getElementById('middle_name').value,
@@ -408,6 +501,8 @@
                     <p><strong>Phone:</strong> ${phone}</p>
                     <p><strong>Email:</strong> ${email || 'N/A'}</p>
                     <p><strong>Customer Type:</strong> ${document.getElementById('customer_type').value.toUpperCase()}</p>
+                    <p><strong>Booking Mode:</strong> ${serviceType}</p>
+                    <p><strong>Preferred Dispatch:</strong> ${scheduleText}</p>
                     <p><strong>Vehicle Type:</strong> ${vehicle}</p>
                     <p><strong>Pickup:</strong> ${pickup}</p>
                     <p><strong>Drop-off:</strong> ${dropoff}</p>

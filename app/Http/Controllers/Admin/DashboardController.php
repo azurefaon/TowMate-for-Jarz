@@ -12,9 +12,14 @@ use Illuminate\Support\Str;
 
 class DashboardController extends Controller
 {
-    public function __construct(protected TeamLeaderAvailabilityService $teamLeaderAvailability) {}
+    protected TeamLeaderAvailabilityService $teamLeaderAvailability;
 
     protected array $activeStatuses = ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
+
+    public function __construct(TeamLeaderAvailabilityService $teamLeaderAvailability)
+    {
+        $this->teamLeaderAvailability = $teamLeaderAvailability;
+    }
 
     public function index(Request $request)
     {
@@ -28,7 +33,8 @@ class DashboardController extends Controller
 
     protected function buildPayload(): array
     {
-        $teamLeaders = User::where('role_id', 3)
+        $teamLeaders = User::visibleToOperations()
+            ->where('role_id', 3)
             ->with(['unit', 'unit.driver'])
             ->get();
 
@@ -84,6 +90,46 @@ class DashboardController extends Controller
             ])
             ->values();
 
+        $scheduledOverviewBookings = Booking::with(['customer', 'truckType'])
+            ->whereNotIn('status', array_merge($this->activeStatuses, ['completed', 'cancelled', 'rejected']))
+            ->latest('updated_at')
+            ->get()
+            ->filter(fn(Booking $booking) => $booking->is_scheduled)
+            ->sortBy(fn(Booking $booking) => $booking->scheduled_for?->getTimestamp() ?? PHP_INT_MAX)
+            ->values();
+
+        $dueNowScheduledCount = $scheduledOverviewBookings
+            ->filter(fn(Booking $booking) => $booking->is_due_for_dispatch)
+            ->count();
+
+        $scheduledTodayCount = $scheduledOverviewBookings
+            ->filter(fn(Booking $booking) => $booking->scheduled_for?->isToday())
+            ->count();
+
+        $upcomingScheduledCount = $scheduledOverviewBookings
+            ->filter(fn(Booking $booking) => $booking->scheduled_for?->isFuture())
+            ->count();
+
+        $scheduleOverview = $scheduledOverviewBookings
+            ->take(6)
+            ->map(function (Booking $booking) {
+                $tone = $booking->is_due_for_dispatch
+                    ? 'due-now'
+                    : ($booking->scheduled_for?->isToday() ? 'today' : 'upcoming');
+
+                return [
+                    'booking_code' => $booking->job_code,
+                    'customer_name' => $booking->customer->full_name ?? 'Customer',
+                    'truck_type' => $booking->truckType->name ?? 'Tow request',
+                    'pickup_address' => Str::limit($booking->pickup_address ?? 'Unknown pickup', 28),
+                    'dropoff_address' => Str::limit($booking->dropoff_address ?? 'Unknown drop-off', 26),
+                    'schedule_window_label' => $booking->schedule_window_label,
+                    'status' => str($booking->status)->replace('_', ' ')->title()->toString(),
+                    'tone' => $tone,
+                ];
+            })
+            ->values();
+
         $currentActivities = $activeBookings
             ->take(6)
             ->map(function (Booking $booking) use ($teamLeaderStatusMap) {
@@ -131,6 +177,10 @@ class DashboardController extends Controller
             'offlineTeamLeadersCount',
             'pendingRequests',
             'completedToday',
+            'scheduleOverview',
+            'dueNowScheduledCount',
+            'scheduledTodayCount',
+            'upcomingScheduledCount',
             'chartData'
         );
     }

@@ -125,6 +125,46 @@ document.addEventListener("DOMContentLoaded", function () {
             .join("");
     }
 
+    function renderScheduleOverview(items) {
+        const list = document.getElementById("scheduleOverviewList");
+        if (!list) {
+            return;
+        }
+
+        if (!Array.isArray(items) || !items.length) {
+            list.innerHTML = `
+                <div class="no-activity">
+                    <i data-lucide="calendar-clock"></i>
+                    <p>No scheduled bookings are waiting right now.</p>
+                </div>`;
+            return;
+        }
+
+        list.innerHTML = items
+            .map((item) => {
+                return `
+                    <div class="activity-item" data-type="schedule">
+                        <div class="activity-icon request-icon">
+                            <i data-lucide="calendar-clock"></i>
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-line">
+                                <strong>${escapeHtml(item.booking_code)}</strong>
+                                <span>${escapeHtml(item.truck_type)}</span>
+                            </div>
+                            <div class="activity-meta">
+                                <span>${escapeHtml(item.customer_name)}</span>
+                                <span>${escapeHtml(item.schedule_window_label)}</span>
+                                <span>${escapeHtml(item.pickup_address)}</span>
+                                <span>${escapeHtml(item.dropoff_address)}</span>
+                            </div>
+                        </div>
+                        <div class="schedule-status ${escapeHtml(item.tone || "upcoming")}">${escapeHtml(item.status)}</div>
+                    </div>`;
+            })
+            .join("");
+    }
+
     function renderTeamLeaderStatuses(items) {
         const list = document.getElementById("teamLeaderStatusList");
         if (!list) {
@@ -235,6 +275,23 @@ document.addEventListener("DOMContentLoaded", function () {
                     Number(payload.available || 0),
                 );
                 setText(
+                    "scheduledQueueCount",
+                    Number(payload.scheduledTodayCount || 0) +
+                        Number(payload.upcomingScheduledCount || 0),
+                );
+                setText(
+                    "dueNowScheduledCount",
+                    Number(payload.dueNowScheduledCount || 0),
+                );
+                setText(
+                    "scheduledTodayCount",
+                    Number(payload.scheduledTodayCount || 0),
+                );
+                setText(
+                    "upcomingScheduledCount",
+                    Number(payload.upcomingScheduledCount || 0),
+                );
+                setText(
                     "busyLeadersCount",
                     Number(payload.busyTeamLeadersCount || 0),
                 );
@@ -249,6 +306,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 );
 
                 renderIncomingRequests(payload.incomingRequests || []);
+                renderScheduleOverview(payload.scheduleOverview || []);
                 renderCurrentActivity(payload.currentActivities || []);
                 renderTeamLeaderStatuses(payload.teamLeaderStatuses || []);
                 updateChart(payload.chartData || {});

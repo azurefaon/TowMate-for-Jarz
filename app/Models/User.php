@@ -29,6 +29,10 @@ class User extends Authenticatable
         'password',
         'role_id',
         'status',
+        'password_request_status',
+        'password_requested_at',
+        'password_request_note',
+        'password_request_resolved_at',
         'archived_at',
         'otp_code',
         'otp_plain_code',
@@ -60,6 +64,11 @@ class User extends Authenticatable
     public function getFullNameAttribute(): string
     {
         return build_full_name($this->first_name, $this->middle_name, $this->last_name) ?: (string) $this->name;
+    }
+
+    public function scopeVisibleToOperations($query)
+    {
+        return $query->whereNull('archived_at');
     }
 
     public function role()
@@ -102,6 +111,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'archived_at' => 'datetime',
+            'password_requested_at' => 'datetime',
+            'password_request_resolved_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

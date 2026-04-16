@@ -17,7 +17,7 @@ class TeamLeaderAvailabilityService
 
     public function markOnline(?User $user): void
     {
-        if (! $user || (int) $user->role_id !== 3) {
+        if (! $user || (int) $user->role_id !== 3 || $user->archived_at) {
             return;
         }
 
@@ -36,14 +36,15 @@ class TeamLeaderAvailabilityService
 
         Cache::forget($this->cacheKey($user->id));
 
-        Unit::query()
-            ->where('team_leader_id', $user->id)
-            ->update(['team_leader_id' => null]);
+        $leaderIds = collect([(int) $user->id]);
+
+        $this->releaseBookingsForOfflineLeaderIds($leaderIds);
+        $this->releaseUnitsForOfflineLeaderIds($leaderIds);
     }
 
     public function isOnline(?User $user): bool
     {
-        if (! $user || blank($user->id)) {
+        if (! $user || blank($user->id) || $user->archived_at) {
             return false;
         }
 
@@ -99,11 +100,8 @@ class TeamLeaderAvailabilityService
             ->map(fn($id) => (int) $id)
             ->values();
 
-        if ($offlineLeaderIds->isNotEmpty()) {
-            Unit::query()
-                ->whereIn('team_leader_id', $offlineLeaderIds->all())
-                ->update(['team_leader_id' => null]);
-        }
+        // Keep summary generation read-only so dispatcher polling never removes
+        // the dispatcher’s permanent unit ownership assignments.
 
         $assignedUnitsByLeaderId = Unit::with('driver')
             ->whereIn('team_leader_id', $teamLeaderIds->all())
@@ -125,10 +123,8 @@ class TeamLeaderAvailabilityService
                 $isOnline = $this->isOnline($teamLeader);
                 $isBusy = $busyIds->contains((int) $teamLeader->id);
                 $activeBooking = $activeBookingsByLeaderId->get((int) $teamLeader->id);
-                $assignedUnit = $isOnline
-                    ? ($activeBooking?->unit ?? $assignedUnitsByLeaderId->get((int) $teamLeader->id))
-                    : null;
-                $savedDriverName = $isOnline ? $activeBooking?->driver_name : null;
+                $assignedUnit = $activeBooking?->unit ?? $assignedUnitsByLeaderId->get((int) $teamLeader->id);
+                $savedDriverName = $activeBooking?->driver_name;
 
                 $workload = $isBusy ? 'busy' : ($isOnline ? 'available' : 'unavailable');
                 $workloadLabel = $isBusy ? 'Busy' : ($isOnline ? 'Available' : 'Not Available');
@@ -164,6 +160,46 @@ class TeamLeaderAvailabilityService
             'busy_count' => $leaders->where('workload', 'busy')->count(),
             'available_count' => $leaders->where('workload', 'available')->count(),
         ];
+    }
+
+    protected function releaseBookingsForOfflineLeaderIds(Collection $leaderIds): void
+    {
+        if ($leaderIds->isEmpty()) {
+            return;
+        }
+
+        Booking::query()
+            ->whereIn('assigned_team_leader_id', $leaderIds->all())
+            ->whereIn('status', ['assigned', 'on_the_way', 'in_progress'])
+            ->update([
+                'assigned_team_leader_id' => null,
+                'status' => 'assigned',
+                'driver_name' => null,
+                'completion_requested_at' => null,
+                'customer_verified_at' => null,
+                'customer_verification_status' => null,
+            ]);
+
+        Booking::query()
+            ->whereIn('assigned_team_leader_id', $leaderIds->all())
+            ->where('status', 'waiting_verification')
+            ->update([
+                'assigned_team_leader_id' => null,
+            ]);
+    }
+
+    protected function releaseUnitsForOfflineLeaderIds(Collection $leaderIds): void
+    {
+        if ($leaderIds->isEmpty()) {
+            return;
+        }
+
+        Unit::query()
+            ->whereIn('team_leader_id', $leaderIds->all())
+            ->update([
+                'team_leader_id' => null,
+                'status' => 'available',
+            ]);
     }
 
     protected function cacheKey(int $teamLeaderId): string

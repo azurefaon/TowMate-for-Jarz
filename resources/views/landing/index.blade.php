@@ -52,11 +52,16 @@
                 <div class="text">
                     <h1>Fast, Reliable & Professional Towing Service You Can Trust</h1>
                     <p>
-                        Experience stress-free roadside assistance anytime, anywhere.
-                        Whether you're stuck, broken down, or need urgent help — JARZ is ready to respond
-                        with speed, safety, and professionalism.
+                        Need help right now or planning a later pickup? JARZ gives you a fast Book Now option for urgent
+                        roadside service and a cleaner Schedule Later flow for planned towing.
                     </p>
-                    <a href="{{ route('landing.book') }}" class="hero-btn">Book Now</a>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+                        <a href="{{ route('landing.book') }}" class="hero-btn">Book Now</a>
+                        <a href="{{ route('landing.book') }}" class="hero-btn"
+                            style="background:#ffffff;border:1px solid #d1d5db;box-shadow:none;">Schedule Later</a>
+                    </div>
+                    <p style="margin-top:14px;font-size:14px;color:#666;">Urgent towing and planned dispatch are both
+                        available in one simple booking flow.</p>
                 </div>
 
                 <div class="image-box"

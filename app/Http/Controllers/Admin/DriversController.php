@@ -11,11 +11,17 @@ use Illuminate\Http\Request;
 
 class DriversController extends Controller
 {
-    public function __construct(protected TeamLeaderAvailabilityService $teamLeaderAvailability) {}
+    protected TeamLeaderAvailabilityService $teamLeaderAvailability;
+
+    public function __construct(TeamLeaderAvailabilityService $teamLeaderAvailability)
+    {
+        $this->teamLeaderAvailability = $teamLeaderAvailability;
+    }
 
     public function index()
     {
-        $teamLeaders = User::where('role_id', 3)
+        $teamLeaders = User::visibleToOperations()
+            ->where('role_id', 3)
             ->with(['unit', 'unit.driver'])
             ->get();
 

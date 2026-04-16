@@ -17,6 +17,12 @@ document.addEventListener("DOMContentLoaded", function () {
     var completeTaskBtn = document.getElementById("completeTaskBtn");
     var returnTaskBtn = document.getElementById("returnTaskBtn");
     var backToDashboardBtn = document.getElementById("backToDashboardBtn");
+    var returnTaskModal = document.getElementById("returnTaskModal");
+    var returnReasonPreset = document.getElementById("returnReasonPreset");
+    var returnReasonNote = document.getElementById("returnReasonNote");
+    var returnReasonError = document.getElementById("returnReasonError");
+    var cancelReturnBtn = document.getElementById("cancelReturnBtn");
+    var confirmReturnBtn = document.getElementById("confirmReturnBtn");
 
     var toastWrap = document.createElement("div");
     toastWrap.className = "tl-toast-wrap";
@@ -117,10 +123,34 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     returnTaskBtn?.addEventListener("click", function () {
-        submitAction(panel.dataset.returnEndpoint, {}, true);
+        openReturnModal();
+    });
+
+    cancelReturnBtn?.addEventListener("click", function () {
+        closeReturnModal();
+    });
+
+    confirmReturnBtn?.addEventListener("click", function () {
+        var returnReason = buildReturnReason();
+
+        if (!returnReason) {
+            setReturnError(
+                "Please select or enter a reason before returning the task.",
+            );
+            return;
+        }
+
+        setReturnError("");
+        closeReturnModal();
+        submitAction(
+            panel.dataset.returnEndpoint,
+            { return_reason: returnReason },
+            true,
+        );
     });
 
     applyStatus(panel.dataset.currentStatus || "assigned");
+    updateFlowSteps(panel.dataset.currentStatus || "assigned");
     startPolling();
 
     function submitAction(endpoint, payload, redirectAfter, silent) {
@@ -159,6 +189,13 @@ document.addEventListener("DOMContentLoaded", function () {
             })
             .then(function (result) {
                 if (!result.ok || !result.data.success) {
+                    if (result.data && result.data.redirect_url) {
+                        stopPolling();
+                        window.setTimeout(function () {
+                            window.location.replace(result.data.redirect_url);
+                        }, 200);
+                    }
+
                     throw new Error(
                         result.data.message || "Unable to update the task.",
                     );
@@ -227,6 +264,30 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         applyStatus(task.status || "assigned", task);
+        updateFlowSteps(task.status || "assigned");
+    }
+
+    function updateFlowSteps(status) {
+        var order = ["claimed", "navigate", "work", "verify", "done"];
+        var current = "claimed";
+
+        if (status === "on_the_way") {
+            current = "navigate";
+        } else if (status === "in_progress") {
+            current = "work";
+        } else if (status === "waiting_verification") {
+            current = "verify";
+        } else if (status === "completed") {
+            current = "done";
+        }
+
+        var currentIndex = order.indexOf(current);
+
+        document.querySelectorAll("[data-step]").forEach(function (node) {
+            var stepIndex = order.indexOf(node.dataset.step);
+            node.classList.toggle("is-complete", stepIndex < currentIndex);
+            node.classList.toggle("is-active", stepIndex === currentIndex);
+        });
     }
 
     function applyStatus(status, task) {
@@ -234,10 +295,7 @@ document.addEventListener("DOMContentLoaded", function () {
             can_proceed: status === "assigned",
             can_start: status === "on_the_way",
             can_complete: status === "in_progress",
-            can_return:
-                status === "assigned" ||
-                status === "on_the_way" ||
-                status === "in_progress",
+            can_return: status === "assigned" || status === "on_the_way",
             driver_locked:
                 status === "assigned" &&
                 Boolean((driverNameInput?.value || "").trim()),
@@ -310,6 +368,65 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     }
 
+    function openReturnModal() {
+        if (!returnTaskModal) {
+            setFeedback("Return dialog is unavailable right now.", true);
+            return;
+        }
+
+        if (returnReasonPreset) {
+            returnReasonPreset.value = "";
+        }
+
+        if (returnReasonNote) {
+            returnReasonNote.value = "";
+        }
+
+        setReturnError("");
+        returnTaskModal.classList.remove("hidden");
+        returnTaskModal.setAttribute("aria-hidden", "false");
+
+        window.setTimeout(function () {
+            if (returnReasonPreset) {
+                returnReasonPreset.focus();
+            }
+        }, 30);
+    }
+
+    function closeReturnModal() {
+        if (!returnTaskModal) {
+            return;
+        }
+
+        returnTaskModal.classList.add("hidden");
+        returnTaskModal.setAttribute("aria-hidden", "true");
+        setReturnError("");
+    }
+
+    function buildReturnReason() {
+        var preset = (returnReasonPreset?.value || "").trim();
+        var note = (returnReasonNote?.value || "").trim();
+
+        if (preset === "Other") {
+            return note;
+        }
+
+        if (preset && note && note.toLowerCase() !== preset.toLowerCase()) {
+            return preset + " — " + note;
+        }
+
+        return note || preset;
+    }
+
+    function setReturnError(message) {
+        if (!returnReasonError) {
+            return;
+        }
+
+        returnReasonError.textContent = message || "";
+        toggleHidden(returnReasonError, !message);
+    }
+
     function startPolling() {
         if (pollTimer) {
             return;
@@ -323,11 +440,29 @@ document.addEventListener("DOMContentLoaded", function () {
                 },
             })
                 .then(function (response) {
-                    return response.json();
+                    return response
+                        .json()
+                        .catch(function () {
+                            return {};
+                        })
+                        .then(function (data) {
+                            return {
+                                ok: response.ok,
+                                data: data,
+                            };
+                        });
                 })
-                .then(function (payload) {
-                    if (payload && payload.task) {
-                        applyTask(payload.task);
+                .then(function (result) {
+                    if (!result.ok || result.data.success === false) {
+                        if (result.data && result.data.redirect_url) {
+                            stopPolling();
+                            window.location.replace(result.data.redirect_url);
+                        }
+                        return;
+                    }
+
+                    if (result.data && result.data.task) {
+                        applyTask(result.data.task);
                     }
                 })
                 .catch(function () {

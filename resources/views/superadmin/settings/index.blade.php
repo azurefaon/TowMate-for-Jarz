@@ -19,7 +19,6 @@
 
         <div class="settings-tabs">
             <button class="settings-tab active" data-tab="company">Company</button>
-            <button class="settings-tab" data-tab="notifications">Notifications</button>
             <button class="settings-tab" data-tab="customize-quotation">Customize Quotations</button>
         </div>
 
@@ -153,219 +152,111 @@
         <form method="POST" action="{{ route('superadmin.settings.update') }}" enctype="multipart/form-data">
             @csrf
 
-            <!-- NOTIFICATIONS -->
-
-            <div class="settings-content" id="notifications">
-
-                <div class="settings-card">
-
-                    <div class="settings-card-header">
-                        <h3>Notification Preferences</h3>
-                        <p>Manage how and when you receive notifications</p>
-                    </div>
+    </div>
 
 
-                    <div class="settings-section">
 
-                        <h4>Notification Channels</h4>
+    <!-- CUSTOMIZE QUOTATIONS -->
 
-                        <div class="settings-toggle-row">
+    <div class="settings-content" id="customize-quotation">
 
-                            <div class="toggle-info">
-                                <strong>Email Notifications</strong>
-                                <p>Receive notifications via email</p>
-                            </div>
+        <div class="settings-card">
 
-                            <label class="switch">
-                                <input type="checkbox" name="settings[email_notifications]">
-                                <span class="slider"></span>
-                            </label>
+            <div class="settings-card-header">
+                <h3>Customize Quotations</h3>
+                <p>Manage the logos, signature, and payment details used in quotations and receipts</p>
+            </div>
 
-                        </div>
+            <div class="settings-grid">
 
+                <div class="settings-field">
+                    <label>Quotation Logo</label>
+                    @if (!empty($settings['company_logo']))
+                        <img src="{{ asset('storage/' . $settings['company_logo']) }}" class="preview-img">
+                    @endif
+                    <input type="file" name="company_logo" accept="image/*">
+                </div>
 
-                        <div class="settings-toggle-row">
+                <div class="settings-field">
+                    <label>Secondary Logo / Badge</label>
+                    @if (!empty($settings['secondary_logo']))
+                        <img src="{{ asset('storage/' . $settings['secondary_logo']) }}" class="preview-img">
+                    @endif
+                    <input type="file" name="secondary_logo" accept="image/*">
+                </div>
 
-                            <div class="toggle-info">
-                                <strong>SMS Notifications</strong>
-                                <p>Receive notifications via SMS</p>
-                            </div>
+                <div class="settings-field">
+                    <label>Signature Image</label>
+                    @if (!empty($settings['signature_image']))
+                        <img src="{{ asset('storage/' . $settings['signature_image']) }}" class="preview-img">
+                    @endif
+                    <input type="file" name="signature_image" accept="image/*">
+                    <p class="field-help">This uploaded image will appear as the signatory on quotations and
+                        receipts.</p>
+                </div>
 
-                            <label class="switch">
-                                <input type="checkbox" name="settings[sms_notifications]">
-                                <span class="slider"></span>
-                            </label>
+                <div class="settings-field">
+                    <label>Quotation Number Prefix</label>
+                    <input type="text" name="settings[quote_prefix]" value="{{ $settings['quote_prefix'] ?? 'Q' }}">
+                </div>
 
-                        </div>
+                <div class="settings-field" style="grid-column: 1 / -1;">
+                    <label>Payment Terms</label>
+                    <input type="text" name="settings[payment_terms]"
+                        value="{{ $settings['payment_terms'] ?? 'Pay upon service confirmation' }}">
+                </div>
 
-                    </div>
+                <div class="settings-field">
+                    <label>Bank Name</label>
+                    <input type="text" name="settings[bank_name]" value="{{ $settings['bank_name'] ?? 'BDO Bank' }}">
+                </div>
 
+                <div class="settings-field">
+                    <label>Bank Account Name</label>
+                    <input type="text" name="settings[bank_account_name]"
+                        value="{{ $settings['bank_account_name'] ?? 'SEARLE ANN BARTOLOME' }}">
+                </div>
 
-                    <hr class="settings-divider">
+                <div class="settings-field">
+                    <label>Bank Account Number</label>
+                    <input type="text" name="settings[bank_account_number]"
+                        value="{{ $settings['bank_account_number'] ?? '012150103970' }}">
+                </div>
 
+                <div class="settings-field">
+                    <label>GCash Name</label>
+                    <input type="text" name="settings[gcash_name]"
+                        value="{{ $settings['gcash_name'] ?? 'SHEANNE BARTOLOME FRANCHISEE' }}">
+                </div>
 
-                    <div class="settings-section">
-
-                        <h4>Alert Types</h4>
-
-                        <div class="settings-toggle-row">
-                            <div class="toggle-info">
-                                <strong>New Job Alerts</strong>
-                                <p>Notify when new jobs are created</p>
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox" name="settings[new_job_alert]">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-
-
-                        <div class="settings-toggle-row">
-                            <div class="toggle-info">
-                                <strong>Status Update Alerts</strong>
-                                <p>Notify when job status changes</p>
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox" name="settings[status_update_alert]">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-
-
-                        <div class="settings-toggle-row">
-                            <div class="toggle-info">
-                                <strong>Quotation Alerts</strong>
-                                <p>Notify about quotation requests and approvals</p>
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox" name="settings[quotation_alert]">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-
-
-                        <div class="settings-toggle-row">
-                            <div class="toggle-info">
-                                <strong>Payment Alerts</strong>
-                                <p>Notify about payment transactions</p>
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox" name="settings[payment_alert]">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-
-                    </div>
-
+                <div class="settings-field">
+                    <label>GCash Number</label>
+                    <input type="text" name="settings[gcash_number]"
+                        value="{{ $settings['gcash_number'] ?? '09426386048' }}">
                 </div>
 
             </div>
 
+        </div>
+
+    </div>
+
+    <!-- SAVE BUTTON -->
+
+    <div class="settings-actions">
+
+        <button type="submit" class="settings-save">
+            Save Changes
+        </button>
+
+        <button type="button" class="settings-reset">
+            Reset to Defaults
+        </button>
+
+    </div>
 
 
-            <!-- CUSTOMIZE QUOTATIONS -->
-
-            <div class="settings-content" id="customize-quotation">
-
-                <div class="settings-card">
-
-                    <div class="settings-card-header">
-                        <h3>Customize Quotations</h3>
-                        <p>Manage the logos, signature, and payment details used in quotations and receipts</p>
-                    </div>
-
-                    <div class="settings-grid">
-
-                        <div class="settings-field">
-                            <label>Quotation Logo</label>
-                            @if (!empty($settings['company_logo']))
-                                <img src="{{ asset('storage/' . $settings['company_logo']) }}" class="preview-img">
-                            @endif
-                            <input type="file" name="company_logo" accept="image/*">
-                        </div>
-
-                        <div class="settings-field">
-                            <label>Secondary Logo / Badge</label>
-                            @if (!empty($settings['secondary_logo']))
-                                <img src="{{ asset('storage/' . $settings['secondary_logo']) }}" class="preview-img">
-                            @endif
-                            <input type="file" name="secondary_logo" accept="image/*">
-                        </div>
-
-                        <div class="settings-field">
-                            <label>Signature Image</label>
-                            @if (!empty($settings['signature_image']))
-                                <img src="{{ asset('storage/' . $settings['signature_image']) }}" class="preview-img">
-                            @endif
-                            <input type="file" name="signature_image" accept="image/*">
-                            <p class="field-help">This uploaded image will appear as the signatory on quotations and
-                                receipts.</p>
-                        </div>
-
-                        <div class="settings-field">
-                            <label>Quotation Number Prefix</label>
-                            <input type="text" name="settings[quote_prefix]"
-                                value="{{ $settings['quote_prefix'] ?? 'Q' }}">
-                        </div>
-
-                        <div class="settings-field" style="grid-column: 1 / -1;">
-                            <label>Payment Terms</label>
-                            <input type="text" name="settings[payment_terms]"
-                                value="{{ $settings['payment_terms'] ?? 'Pay upon service confirmation' }}">
-                        </div>
-
-                        <div class="settings-field">
-                            <label>Bank Name</label>
-                            <input type="text" name="settings[bank_name]"
-                                value="{{ $settings['bank_name'] ?? 'BDO Bank' }}">
-                        </div>
-
-                        <div class="settings-field">
-                            <label>Bank Account Name</label>
-                            <input type="text" name="settings[bank_account_name]"
-                                value="{{ $settings['bank_account_name'] ?? 'SEARLE ANN BARTOLOME' }}">
-                        </div>
-
-                        <div class="settings-field">
-                            <label>Bank Account Number</label>
-                            <input type="text" name="settings[bank_account_number]"
-                                value="{{ $settings['bank_account_number'] ?? '012150103970' }}">
-                        </div>
-
-                        <div class="settings-field">
-                            <label>GCash Name</label>
-                            <input type="text" name="settings[gcash_name]"
-                                value="{{ $settings['gcash_name'] ?? 'SHEANNE BARTOLOME FRANCHISEE' }}">
-                        </div>
-
-                        <div class="settings-field">
-                            <label>GCash Number</label>
-                            <input type="text" name="settings[gcash_number]"
-                                value="{{ $settings['gcash_number'] ?? '09426386048' }}">
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-            <!-- SAVE BUTTON -->
-
-            <div class="settings-actions">
-
-                <button type="submit" class="settings-save">
-                    Save Changes
-                </button>
-
-                <button type="button" class="settings-reset">
-                    Reset to Defaults
-                </button>
-
-            </div>
-
-
-        </form>
+    </form>
 
     </div>
 

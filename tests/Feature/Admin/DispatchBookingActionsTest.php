@@ -254,6 +254,34 @@ it('requires the dispatcher to complete the quotation details before sending', f
         ->assertJsonValidationErrors(['distance_km']);
 });
 
+it('keeps the discount locked for regular customers even if a manual value is submitted', function () {
+    Mail::fake();
+
+    [$dispatcher, $booking] = makeDispatchScenario();
+    $unit = makeReadyUnitForBooking($booking);
+
+    $booking->update([
+        'customer_type' => 'regular',
+        'discount_percentage' => 0,
+    ]);
+
+    $response = $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
+        'action' => 'accept',
+        'assigned_unit_id' => $unit->id,
+        'distance_km' => '12.50',
+        'distance_fee' => '937.50',
+        'discount_percentage' => '25',
+        'dispatcher_note' => 'Regular customer discounts should stay locked.',
+    ]);
+
+    $response->assertOk()->assertJsonPath('success', true);
+
+    $booking->refresh();
+
+    expect((float) $booking->discount_percentage)->toBe(0.0)
+        ->and((float) $booking->final_total)->toBe(2437.5);
+});
+
 it('reminds the dispatcher to choose a unit before sending a quotation', function () {
     Mail::fake();
 

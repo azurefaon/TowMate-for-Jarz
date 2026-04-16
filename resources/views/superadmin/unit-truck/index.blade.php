@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Tow Units')
+@section('title', 'Units Overview')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/unit-truck.css') }}">
@@ -10,8 +10,8 @@
     <div class="units-page" data-base-url="{{ url('/superadmin/units') }}">
         <div class="page-top">
             <div>
-                <h1>Tow Fleet Units</h1>
-                <p>Track the towing units that are available, dispatched, or under maintenance.</p>
+                <h1>Units Overview</h1>
+                <p>Track towing units, their current status, and dispatcher-managed availability.</p>
             </div>
 
             <div class="header-actions">
@@ -19,11 +19,6 @@
                     <i data-lucide="truck"></i>
                     <span>Manage Tow Truck Types</span>
                 </a>
-
-                <button type="button" class="btn-primary-add" data-open-modal="addUnitModal">
-                    <i data-lucide="plus-circle"></i>
-                    <span>Add Unit</span>
-                </button>
             </div>
         </div>
 
@@ -56,8 +51,8 @@
         <div class="table-card">
             <div class="table-header">
                 <div>
-                    <h3>Fleet units</h3>
-                    <p>Keep plate records, tow truck assignment, and maintenance notes organized.</p>
+                    <h3>Units overview</h3>
+                    <p>Keep unit records, plate details, and maintenance notes organized.</p>
                 </div>
 
                 <div class="table-controls">
@@ -133,14 +128,7 @@
                                 </td>
 
                                 <td data-label="Action">
-                                    <button type="button" class="action-btn edit-btn js-edit-unit"
-                                        data-id="{{ $unit->id }}" data-name="{{ $unit->name }}"
-                                        data-plate="{{ strtoupper($unit->plate_number) }}"
-                                        data-status="{{ $unit->status }}" data-issue="{{ $unit->issue_note }}"
-                                        data-truck="{{ $unit->truck_type_id }}">
-                                        <i data-lucide="pencil"></i>
-                                        <span>Edit</span>
-                                    </button>
+                                    <span class="truck-badge">View only</span>
                                 </td>
                             </tr>
                         @empty

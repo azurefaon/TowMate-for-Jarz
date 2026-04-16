@@ -34,18 +34,18 @@
             </a>
         </nav>
 
-        <div class="menu-label">Fleet</div>
+        <div class="menu-label">Units</div>
         <nav class="menu">
             <a href="{{ route('admin.drivers') }}"
                 class="menu-item {{ request()->routeIs('admin.drivers') ? 'active' : '' }}">
                 <i data-lucide="users-round"></i>
-                <span>Team Leaders</span>
+                <span>Units & Leaders</span>
             </a>
 
             <a href="{{ route('admin.available-units') }}"
                 class="menu-item {{ request()->routeIs('admin.available-units') ? 'active' : '' }}">
                 <i data-lucide="truck"></i>
-                <span>Available Units</span>
+                <span>Unit Availability</span>
             </a>
         </nav>
 

@@ -18,6 +18,62 @@
             {!! file_get_contents($teamLeaderTasksCssPath) !!}
         </style>
     @endif
+
+    <style>
+        .tl-dialog-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            z-index: 1200;
+        }
+
+        .tl-dialog-backdrop.hidden {
+            display: none;
+        }
+
+        .tl-dialog-card {
+            width: min(520px, 100%);
+            background: #fff;
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+        }
+
+        .tl-dialog-card h3 {
+            margin: 6px 0 8px;
+        }
+
+        .tl-dialog-card p {
+            margin: 0 0 12px;
+            color: #475569;
+        }
+
+        .tl-dialog-card select,
+        .tl-dialog-card textarea {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font: inherit;
+            margin-top: 8px;
+        }
+
+        .tl-dialog-card textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+
+        .tl-dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 14px;
+        }
+    </style>
 @endpush
 
 @section('content')
@@ -42,7 +98,49 @@
                 <span class="tl-status-badge {{ str_replace('_', '-', $task['ui_status']) }}" id="focusStatusBadge">
                     {{ $task['status_label'] }}
                 </span>
-                <span class="tl-hero-card__hint">Assigned to your crew</span>
+                <span class="tl-hero-card__hint">Assigned exclusively to your crew</span>
+            </div>
+        </section>
+
+        <section class="tl-section-card tl-focus-panel">
+            <div class="tl-section-card__header">
+                <div>
+                    <p class="tl-eyebrow">Focus Mode</p>
+                    <h3>Stay on this booking until it is completed or returned</h3>
+                </div>
+            </div>
+
+            <div class="tl-task-card__note">
+                This booking is locked to your team. Only the next valid action is shown so the workflow stays clear and
+                mistake-free.
+            </div>
+
+            <div class="tl-focus-stepper" id="focusStepper">
+                <div class="tl-focus-step" data-step="claimed">
+                    <span>1</span>
+                    <strong>Claimed</strong>
+                    <small>Reserved to your crew</small>
+                </div>
+                <div class="tl-focus-step" data-step="navigate">
+                    <span>2</span>
+                    <strong>Navigate</strong>
+                    <small>Head to pickup</small>
+                </div>
+                <div class="tl-focus-step" data-step="work">
+                    <span>3</span>
+                    <strong>Start Job</strong>
+                    <small>Begin towing</small>
+                </div>
+                <div class="tl-focus-step" data-step="verify">
+                    <span>4</span>
+                    <strong>Verify</strong>
+                    <small>Send completion to customer</small>
+                </div>
+                <div class="tl-focus-step" data-step="done">
+                    <span>5</span>
+                    <strong>Complete</strong>
+                    <small>Finish and unlock</small>
+                </div>
             </div>
         </section>
 
@@ -115,22 +213,22 @@
                     <button type="button"
                         class="tl-btn tl-btn--primary tl-btn--full {{ $task['can_proceed'] ? '' : 'hidden' }}"
                         id="proceedBtn">
-                        Proceed to Location
+                        Navigate to Pickup
                     </button>
                     <button type="button"
                         class="tl-btn tl-btn--primary tl-btn--full {{ $task['can_start'] ? '' : 'hidden' }}"
                         id="startTowBtn">
-                        Start Towing
+                        Arrived - Start Job
                     </button>
                     <button type="button"
                         class="tl-btn tl-btn--primary tl-btn--full {{ $task['can_complete'] ? '' : 'hidden' }}"
                         id="completeTaskBtn">
-                        Confirm Completion
+                        Complete Job
                     </button>
                     <button type="button"
                         class="tl-btn tl-btn--ghost tl-btn--full {{ $task['can_return'] ? '' : 'hidden' }}"
                         id="returnTaskBtn">
-                        Return Task
+                        Return to Dispatch
                     </button>
                     <a href="{{ route('teamleader.dashboard') }}" class="tl-btn tl-btn--success tl-btn--full hidden"
                         id="backToDashboardBtn">
@@ -141,6 +239,35 @@
                 <p class="tl-focus-feedback" id="focusFeedback">Use the buttons below to keep this job updated.</p>
                 <small class="tl-input-hint">Jarz keeps this task synced with dispatch in real time.</small>
             </section>
+        </div>
+    </div>
+
+    <div class="tl-dialog-backdrop hidden" id="returnTaskModal" aria-hidden="true">
+        <div class="tl-dialog-card">
+            <p class="tl-eyebrow">Return to Dispatch</p>
+            <h3>Why are you returning this booking?</h3>
+            <p>Dispatch will be notified right away so the task can be reassigned quickly.</p>
+
+            <label for="returnReasonPreset">Reason</label>
+            <select id="returnReasonPreset">
+                <option value="">Select a reason</option>
+                <option value="Wrong assignment">Wrong assignment</option>
+                <option value="Vehicle issue">Vehicle issue</option>
+                <option value="Customer unreachable">Customer unreachable</option>
+                <option value="Unsafe location">Unsafe location</option>
+                <option value="Emergency situation">Emergency situation</option>
+                <option value="Other">Other</option>
+            </select>
+
+            <label for="returnReasonNote" style="display:block; margin-top:12px;">Notes for dispatch</label>
+            <textarea id="returnReasonNote" placeholder="Add a short explanation so dispatch can act faster..."></textarea>
+
+            <p class="tl-focus-feedback is-error hidden" id="returnReasonError"></p>
+
+            <div class="tl-dialog-actions">
+                <button type="button" class="tl-btn tl-btn--ghost" id="cancelReturnBtn">Cancel</button>
+                <button type="button" class="tl-btn tl-btn--primary" id="confirmReturnBtn">Confirm Return</button>
+            </div>
         </div>
     </div>
 @endsection

@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Password;
 use Illuminate\View\View;
 
 class PasswordResetLinkController extends Controller
@@ -19,26 +20,44 @@ class PasswordResetLinkController extends Controller
     }
 
     /**
-     * Handle an incoming password reset link request.
-     *
-     * @throws \Illuminate\Validation\ValidationException
+     * Handle an incoming account access request for superadmin review.
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'email' => ['required', 'email'],
+            'note' => ['nullable', 'string', 'max:500'],
         ]);
 
-        // We will send the password reset link to this user. Once we have attempted
-        // to send the link, we will examine the response then see the message we
-        // need to show to the user. Finally, we'll send out a proper response.
-        $status = Password::sendResetLink(
-            $request->only('email')
-        );
+        $email = strtolower(trim((string) $validated['email']));
 
-        return $status == Password::RESET_LINK_SENT
-                    ? back()->with('status', __($status))
-                    : back()->withInput($request->only('email'))
-                        ->withErrors(['email' => __($status)]);
+        $user = User::with('role')
+            ->where('email', $email)
+            ->whereNull('archived_at')
+            ->whereHas('role', function ($query) {
+                $query->whereNotIn('name', ['Super Admin', 'Customer', 'Driver']);
+            })
+            ->first();
+
+        if ($user) {
+            $user->forceFill([
+                'password_request_status' => 'pending',
+                'password_requested_at' => now(),
+                'password_request_note' => filled($validated['note'] ?? null)
+                    ? trim((string) $validated['note'])
+                    : null,
+                'password_request_resolved_at' => null,
+            ])->save();
+
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'password_help_requested',
+                'entity_type' => 'User',
+                'entity_id' => $user->id,
+            ]);
+        }
+
+        return back()
+            ->with('status', 'If the email matches a managed account, the Super Admin has received the account access request.');
     }
 }

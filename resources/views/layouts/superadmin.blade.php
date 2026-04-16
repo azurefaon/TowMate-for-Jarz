@@ -133,6 +133,125 @@
             background: #f8fafc;
         }
 
+        .sa-profile-meta strong {
+            display: block;
+            font-size: 0.95rem;
+            line-height: 1.2;
+        }
+
+        .sa-profile-meta small {
+            display: block;
+            margin-top: 2px;
+            color: #64748b;
+            font-size: 0.76rem;
+        }
+
+        .sa-profile-dropdown .sa-logout-trigger {
+            color: #b91c1c;
+        }
+
+        .sa-profile-dropdown .sa-logout-trigger:hover {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .sa-logout-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1800;
+        }
+
+        .sa-logout-modal.is-open {
+            display: flex;
+        }
+
+        .sa-logout-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(4px);
+        }
+
+        .sa-logout-card {
+            position: relative;
+            width: min(420px, calc(100% - 24px));
+            padding: 22px;
+            border-radius: 20px;
+            background: #fff;
+            border: 1px solid var(--jarz-line);
+            box-shadow: 0 30px 70px rgba(15, 23, 42, 0.22);
+        }
+
+        .sa-logout-card-head {
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-start;
+            margin-bottom: 6px;
+        }
+
+        .sa-logout-close {
+            width: 36px;
+            height: 36px;
+            border: 0;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #64748b;
+            cursor: pointer;
+        }
+
+        .sa-logout-close:hover {
+            background: #eef2f7;
+            color: #0f172a;
+        }
+
+        .sa-logout-card h3 {
+            margin: 0 0 8px;
+            font-size: 1.2rem;
+            color: #0f172a;
+        }
+
+        .sa-logout-card p {
+            margin: 0;
+            color: #64748b;
+            line-height: 1.55;
+        }
+
+
+        .sa-logout-actions {
+            margin-top: 18px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .sa-logout-actions button {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .sa-logout-actions .secondary {
+            background: #f8fafc;
+            color: #0f172a;
+            border: 1px solid #e2e8f0;
+        }
+
+        .sa-logout-actions .primary {
+            background: #111827;
+            color: #fff;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+        }
+
+        .sa-logout-actions .primary:hover {
+            background: #1f2937;
+        }
+
         @media (max-width: 768px) {
             .sa-topbar {
                 position: static;
@@ -155,7 +274,6 @@
             }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
@@ -189,6 +307,14 @@
             </li>
 
             <li>
+                <a href="{{ route('superadmin.monitoring.index') }}"
+                    class="{{ request()->routeIs('superadmin.monitoring.*') ? 'active' : '' }}">
+                    <i data-lucide="activity"></i>
+                    <span>Monitoring</span>
+                </a>
+            </li>
+
+            <li>
                 <a href="{{ route('superadmin.users.index') }}"
                     class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
                     <i data-lucide="users"></i>
@@ -200,7 +326,7 @@
                 <a href="{{ route('superadmin.unit-truck.index') }}"
                     class="{{ request()->routeIs('superadmin.unit-truck.*') ? 'active' : '' }}">
                     <i data-lucide="truck"></i>
-                    <span>Units</span>
+                    <span>Units Overview</span>
                 </a>
             </li>
 
@@ -272,8 +398,9 @@
             <details class="sa-profile-menu">
                 <summary class="sa-profile-trigger">
                     <span class="sa-profile-avatar">{{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}</span>
-                    <div>
+                    <div class="sa-profile-meta">
                         <strong>{{ auth()->user()->full_name ?? auth()->user()->name }}</strong>
+                        <small>Super Admin</small>
                     </div>
                 </summary>
 
@@ -282,7 +409,7 @@
                         <i data-lucide="settings"></i>
                         <span>Settings</span>
                     </a>
-                    <button type="button" onclick="confirmLogout()">
+                    <button type="button" class="sa-logout-trigger" onclick="confirmLogout()">
                         <i data-lucide="log-out"></i>
                         <span>Logout</span>
                     </button>
@@ -291,6 +418,24 @@
         </div>
 
         @yield('content')
+
+        <div class="sa-logout-modal" id="superadminLogoutModal" aria-hidden="true">
+            <div class="sa-logout-backdrop" onclick="closeSuperadminLogoutModal()"></div>
+            <div class="sa-logout-card" role="dialog" aria-modal="true" aria-labelledby="superadminLogoutTitle">
+                <div class="sa-logout-card-head">
+                    <button type="button" class="sa-logout-close" onclick="closeSuperadminLogoutModal()"
+                        aria-label="Close sign out dialog">×</button>
+                </div>
+
+                <h3 id="superadminLogoutTitle">Sign out of the control panel?</h3>
+                <p>Your session will close securely, and you can sign back in anytime.</p>
+
+                <div class="sa-logout-actions">
+                    <button type="button" class="secondary" onclick="closeSuperadminLogoutModal()">Stay here</button>
+                    <button type="button" class="primary" onclick="submitSuperadminLogout()">Log out</button>
+                </div>
+            </div>
+        </div>
 
     </div>
 
@@ -347,37 +492,43 @@
         });
 
         function confirmLogout() {
-
-            Swal.fire({
-                title: 'Logout from Jarz?',
-                text: 'Your session will be securely closed.',
-                icon: 'question',
-
-                showCancelButton: true,
-
-                confirmButtonText: 'Logout',
-                cancelButtonText: 'Stay Logged In',
-
-                background: '#ffffff',
-                backdrop: 'rgba(15,23,42,0.6)',
-
-                customClass: {
-                    popup: 'towmate-logout-popup',
-                    confirmButton: 'towmate-btn-logout',
-                    cancelButton: 'towmate-btn-cancel'
-                },
-
-                buttonsStyling: false
-
-            }).then((result) => {
-
-                if (result.isConfirmed) {
-                    document.getElementById('logout-form').submit();
-                }
-
-            });
-
+            openSuperadminLogoutModal();
         }
+
+        function openSuperadminLogoutModal() {
+            const modal = document.getElementById('superadminLogoutModal');
+            if (!modal) {
+                return;
+            }
+
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSuperadminLogoutModal() {
+            const modal = document.getElementById('superadminLogoutModal');
+            if (!modal) {
+                return;
+            }
+
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+
+            if (!sidebar.classList.contains('open')) {
+                document.body.style.overflow = '';
+            }
+        }
+
+        function submitSuperadminLogout() {
+            document.getElementById('logout-form')?.submit();
+        }
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                closeSuperadminLogoutModal();
+            }
+        });
     </script>
 
     @stack('scripts')

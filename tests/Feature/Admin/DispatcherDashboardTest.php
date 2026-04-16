@@ -65,6 +65,48 @@ it('removes the legacy member drivers stat card from the available units module'
         ->assertDontSee('Member Drivers');
 });
 
+it('lets the dispatcher toggle a unit between available and not available', function () {
+    Role::query()->create(['name' => 'Super Admin']);
+    Role::query()->create(['name' => 'Dispatcher']);
+
+    $dispatcher = User::factory()->create([
+        'role_id' => 2,
+    ]);
+
+    $truckType = TruckType::create([
+        'name' => 'Toggle Truck',
+        'base_rate' => 1500,
+        'per_km_rate' => 75,
+        'max_tonnage' => 5,
+        'description' => 'Toggle visibility test',
+    ]);
+
+    $unit = Unit::create([
+        'name' => 'Unit Toggle 1',
+        'plate_number' => 'TGL-1001',
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+    ]);
+
+    $this->actingAs($dispatcher)
+        ->patch(route('admin.available-units.toggle', $unit))
+        ->assertRedirect(route('admin.available-units'));
+
+    expect($unit->fresh()->status)->toBe('maintenance');
+
+    $this->actingAs($dispatcher)
+        ->get(route('admin.available-units'))
+        ->assertOk()
+        ->assertSee('Unit Toggle 1')
+        ->assertSee('Not Available');
+
+    $this->actingAs($dispatcher)
+        ->patch(route('admin.available-units.toggle', $unit))
+        ->assertRedirect(route('admin.available-units'));
+
+    expect($unit->fresh()->status)->toBe('available');
+});
+
 it('shows the assigned unit and saved driver in the dispatcher team leaders dashboard', function () {
     Role::query()->create(['name' => 'Super Admin']);
     Role::query()->create(['name' => 'Dispatcher']);
@@ -131,6 +173,72 @@ it('shows the assigned unit and saved driver in the dispatcher team leaders dash
         ->assertSee('TL Ramos')
         ->assertSee('Unit 21')
         ->assertSee('Mario Dela Cruz');
+});
+
+it('shows returned tasks in the dispatcher queue with the return reason', function () {
+    Role::query()->create(['name' => 'Super Admin']);
+    Role::query()->create(['name' => 'Dispatcher']);
+    Role::query()->create(['name' => 'Team Leader']);
+
+    $dispatcher = User::factory()->create([
+        'role_id' => 2,
+    ]);
+
+    $teamLeader = User::factory()->create([
+        'role_id' => 3,
+        'name' => 'TL Returner',
+    ]);
+
+    $truckType = TruckType::create([
+        'name' => 'Recovery Unit',
+        'base_rate' => 1600,
+        'per_km_rate' => 80,
+        'max_tonnage' => 5,
+        'description' => 'Returned task visibility',
+    ]);
+
+    $unit = Unit::create([
+        'name' => 'Unit 99',
+        'plate_number' => 'RET-0099',
+        'truck_type_id' => $truckType->id,
+        'team_leader_id' => $teamLeader->id,
+        'status' => 'available',
+    ]);
+
+    $customer = Customer::create([
+        'full_name' => 'Ana Return',
+        'age' => 30,
+        'phone' => '09170000000',
+        'email' => 'ana@return.test',
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $truckType->id,
+        'assigned_unit_id' => $unit->id,
+        'created_by_admin_id' => $dispatcher->id,
+        'age' => 30,
+        'pickup_address' => 'Cubao',
+        'dropoff_address' => 'Pasay',
+        'distance_km' => 10,
+        'base_rate' => 1600,
+        'per_km_rate' => 80,
+        'computed_total' => 2400,
+        'final_total' => 2400,
+        'quotation_generated' => true,
+        'quotation_number' => 'Q-RETURN-1',
+        'status' => 'assigned',
+        'returned_at' => now(),
+        'return_reason' => 'Vehicle issue during pickup.',
+        'returned_by_team_leader_id' => $teamLeader->id,
+    ]);
+
+    $this->actingAs($dispatcher)
+        ->get(route('admin.dispatch'))
+        ->assertOk()
+        ->assertSee('Returned')
+        ->assertSee('Vehicle issue during pickup.')
+        ->assertSee($booking->job_code);
 });
 
 it('lets the dispatcher assign a unit to a team leader from the team leaders module', function () {

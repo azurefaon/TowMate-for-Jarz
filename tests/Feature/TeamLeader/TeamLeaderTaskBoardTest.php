@@ -110,7 +110,9 @@ it('lets a team leader accept one task and locks the rest of the queue', functio
 
     $this->actingAs($teamLeader)
         ->get(route('teamleader.tasks'))
-        ->assertRedirect(route('teamleader.task.show', $booking));
+        ->assertOk()
+        ->assertSee($booking->job_code, false)
+        ->assertDontSee($secondBooking->job_code, false);
 
     $this->actingAs($teamLeader)
         ->postJson(route('teamleader.task.accept', $secondBooking))
@@ -200,7 +202,49 @@ it('allows a team leader to change the saved driver before leaving the assigned 
     expect($booking->fresh()->driver_name)->toBe('Pedro Reyes');
 });
 
-it('allows a team leader to return an accepted task back to the queue', function () {
+it('allows a team leader to return an accepted task back to the queue with a reason', function () {
+    [$teamLeader, $booking] = makeTeamLeaderScenario();
+
+    $unit = $teamLeader->unit()->firstOrFail();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.accept', $booking))
+        ->assertOk();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.return', $booking), [
+            'return_reason' => 'Customer is unreachable at the pickup area.',
+        ])
+        ->assertOk()
+        ->assertJsonPath('status', 'assigned')
+        ->assertJsonPath('return_reason', 'Customer is unreachable at the pickup area.');
+
+    $booking->refresh();
+
+    expect($booking->assigned_team_leader_id)->toBeNull()
+        ->and($booking->assigned_unit_id)->toBe($unit->id)
+        ->and($booking->status)->toBe('assigned')
+        ->and($booking->return_reason)->toBe('Customer is unreachable at the pickup area.')
+        ->and($booking->returned_by_team_leader_id)->toBe($teamLeader->id)
+        ->and($booking->returned_at)->not->toBeNull()
+        ->and($unit->fresh()->team_leader_id)->toBe($teamLeader->id);
+
+    $this->actingAs($teamLeader)
+        ->get(route('teamleader.tasks'))
+        ->assertOk()
+        ->assertSee($booking->job_code, false)
+        ->assertSee('Accept Task');
+
+    $this->actingAs($teamLeader)
+        ->getJson(route('teamleader.tasks'))
+        ->assertOk()
+        ->assertJsonFragment([
+            'booking_code' => $booking->fresh()->job_code,
+            'status' => 'assigned',
+        ]);
+});
+
+it('requires a reason before a team leader can return a task', function () {
     [$teamLeader, $booking] = makeTeamLeaderScenario();
 
     $this->actingAs($teamLeader)
@@ -208,18 +252,42 @@ it('allows a team leader to return an accepted task back to the queue', function
         ->assertOk();
 
     $this->actingAs($teamLeader)
-        ->postJson(route('teamleader.task.return', $booking))
-        ->assertOk()
-        ->assertJsonPath('status', 'assigned');
+        ->postJson(route('teamleader.task.return', $booking), [
+            'return_reason' => '',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['return_reason']);
+});
 
-    $booking->refresh();
-
-    expect($booking->assigned_team_leader_id)->toBeNull()
-        ->and($booking->status)->toBe('assigned');
+it('does not allow a team leader to return a task after the job has started', function () {
+    [$teamLeader, $booking] = makeTeamLeaderScenario();
 
     $this->actingAs($teamLeader)
-        ->get(route('teamleader.tasks'))
+        ->postJson(route('teamleader.task.accept', $booking))
         ->assertOk();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.driver', $booking), [
+            'driver_name' => 'Juan Dela Cruz',
+        ])
+        ->assertOk();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.proceed', $booking))
+        ->assertOk()
+        ->assertJsonPath('status', 'on_the_way');
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.start', $booking))
+        ->assertOk()
+        ->assertJsonPath('status', 'in_progress');
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.return', $booking), [
+            'return_reason' => 'Need to return after starting.',
+        ])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'This task can no longer be returned after the job has started.');
 });
 
 it('shows dispatcher notifications and active jobs once a team leader takes the booking', function () {
@@ -268,7 +336,7 @@ it('shows dispatcher notifications and active jobs once a team leader takes the 
         ->assertSee('On The Way', false);
 });
 
-it('automatically unassigns the team leader unit when they go offline', function () {
+it('removes the team leader unit assignment when they go offline', function () {
     [$teamLeader] = makeTeamLeaderScenario();
 
     $unit = $teamLeader->unit()->firstOrFail();
@@ -278,5 +346,145 @@ it('automatically unassigns the team leader unit when they go offline', function
         ->assertOk()
         ->assertJsonPath('presence', 'offline');
 
-    expect($unit->fresh()->team_leader_id)->toBeNull();
+    expect($unit->fresh()->team_leader_id)->toBeNull()
+        ->and($unit->fresh()->status)->toBe('available');
+});
+
+it('returns an active booking to dispatch when the team leader goes offline', function () {
+    [$teamLeader, $booking] = makeTeamLeaderScenario();
+
+    $unit = $teamLeader->unit()->firstOrFail();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.accept', $booking))
+        ->assertOk();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.presence.offline'))
+        ->assertOk();
+
+    expect($booking->fresh()->assigned_team_leader_id)->toBeNull()
+        ->and($booking->fresh()->assigned_unit_id)->toBe($unit->id)
+        ->and($booking->fresh()->status)->toBe('assigned');
+});
+
+it('keeps the dispatcher assigned unit owned by the same team leader across the full job lifecycle', function () {
+    [$teamLeader, $booking] = makeTeamLeaderScenario();
+
+    $unit = $teamLeader->unit()->firstOrFail();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.accept', $booking))
+        ->assertOk();
+
+    expect($unit->fresh()->status)->toBe('on_job')
+        ->and($unit->fresh()->team_leader_id)->toBe($teamLeader->id);
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.driver', $booking), [
+            'driver_name' => 'Jordan Tow',
+        ])
+        ->assertOk();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.proceed', $booking))
+        ->assertOk();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.start', $booking))
+        ->assertOk();
+
+    $this->actingAs($teamLeader)
+        ->postJson(route('teamleader.task.complete', $booking), [
+            'completion_note' => 'Service complete',
+        ])
+        ->assertOk();
+
+    expect($unit->fresh()->status)->toBe('available')
+        ->and($unit->fresh()->team_leader_id)->toBe($teamLeader->id);
+});
+
+it('keeps an approved booking visible after refresh even when the saved status is accepted', function () {
+    [$teamLeader, $booking] = makeTeamLeaderScenario();
+
+    $booking->update([
+        'status' => 'accepted',
+        'assigned_team_leader_id' => null,
+        'assigned_unit_id' => $teamLeader->unit()->firstOrFail()->id,
+    ]);
+
+    $this->actingAs($teamLeader)
+        ->getJson(route('teamleader.tasks'))
+        ->assertOk()
+        ->assertJsonFragment([
+            'booking_code' => $booking->fresh()->job_code,
+            'status' => 'accepted',
+        ]);
+});
+
+it('does not remove the team leader unit just because the dispatcher dashboard refreshes', function () {
+    [$teamLeader, $booking] = makeTeamLeaderScenario();
+
+    $booking->update([
+        'status' => 'confirmed',
+        'assigned_team_leader_id' => null,
+        'assigned_unit_id' => $teamLeader->unit()->firstOrFail()->id,
+    ]);
+
+    app(\App\Services\TeamLeaderAvailabilityService::class)
+        ->summarize(collect([$teamLeader]));
+
+    expect($teamLeader->unit()->firstOrFail()->team_leader_id)->toBe($teamLeader->id)
+        ->and($booking->fresh()->assigned_unit_id)->toBe($teamLeader->unit()->firstOrFail()->id);
+});
+
+it('returns a safe redirect instead of a booking not found error during realtime polling', function () {
+    [$teamLeader, $booking] = makeTeamLeaderScenario();
+
+    $booking->update([
+        'assigned_team_leader_id' => null,
+        'status' => 'assigned',
+    ]);
+
+    $this->actingAs($teamLeader)
+        ->getJson(route('teamleader.task.status', $booking))
+        ->assertStatus(409)
+        ->assertJsonPath('success', false)
+        ->assertJsonPath('redirect_url', route('teamleader.tasks'));
+});
+
+it('only shows a confirmed booking to the team leader who owns the assigned unit', function () {
+    [$ownerLeader, $booking] = makeTeamLeaderScenario();
+
+    $otherLeader = User::factory()->create([
+        'role_id' => 3,
+    ]);
+
+    Unit::create([
+        'name' => 'Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $booking->truck_type_id,
+        'team_leader_id' => $otherLeader->id,
+        'status' => 'available',
+    ]);
+
+    $booking->update([
+        'status' => 'confirmed',
+        'assigned_team_leader_id' => null,
+        'assigned_unit_id' => $ownerLeader->unit()->firstOrFail()->id,
+    ]);
+
+    $this->actingAs($ownerLeader)
+        ->getJson(route('teamleader.tasks'))
+        ->assertOk()
+        ->assertJsonFragment([
+            'booking_code' => $booking->fresh()->job_code,
+        ]);
+
+    $this->actingAs($otherLeader)
+        ->getJson(route('teamleader.tasks'))
+        ->assertOk()
+        ->assertJsonMissing([
+            'booking_code' => $booking->fresh()->job_code,
+        ]);
 });

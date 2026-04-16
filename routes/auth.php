@@ -29,11 +29,10 @@ Route::middleware('guest')->group(function () {
         ->middleware('guest')
         ->name('teamleader.login');
 
-    Route::post('login', [AuthenticatedSessionController::class, 'store'])
-        ->middleware('throttle:5,1');
+    Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
     Route::post('login/teamleader/otp/send', [AuthenticatedSessionController::class, 'sendTeamLeaderOtp'])
-        ->middleware('throttle:3,1')
+        ->middleware('throttle:6,1')
         ->name('login.teamleader.otp.send');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])

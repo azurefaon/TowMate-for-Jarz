@@ -10,29 +10,29 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|unique:users',
-            'password' => 'required|string|min:6',
-            'role' => 'required|string'
-        ]);
+    // public function register(Request $request)
+    // {
+    //     $request->validate([
+    //         'name' => 'required|string|max:255',
+    //         'email' => 'required|string|email|unique:users',
+    //         'password' => 'required|string|min:6',
+    //         'role' => 'required|string'
+    //     ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => $request->password,
-            'role' => $request->role
-        ]);
+    //     $user = User::create([
+    //         'name' => $request->name,
+    //         'email' => $request->email,
+    //         'password' => $request->password,
+    //         'role' => $request->role
+    //     ]);
 
-        $token = $user->createToken('towmate-token')->plainTextToken;
+    //     $token = $user->createToken('towmate-token')->plainTextToken;
 
-        return response()->json([
-            'user' => $user,
-            'token' => $token
-        ], 201);
-    }
+    //     return response()->json([
+    //         'user' => $user,
+    //         'token' => $token
+    //     ], 201);
+    // }
 
     public function login(Request $request)
     {

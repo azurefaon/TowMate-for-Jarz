@@ -25,6 +25,8 @@ use App\Http\Controllers\Customer\TrackController;
 
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingController;
+use App\Http\Controllers\SuperAdmin\DataProtectionController;
+use App\Http\Controllers\SuperAdmin\MonitoringController;
 use App\Http\Controllers\SuperAdmin\SystemSettingsController;
 use App\Http\Controllers\SuperAdmin\TruckTypeController;
 use App\Http\Controllers\SuperAdmin\UnitController;
@@ -155,6 +157,8 @@ Route::prefix('admin-dashboard')
         Route::get('/drivers', [DriversController::class, 'index'])->name('drivers');
         Route::post('/drivers/{teamLeader}/assign-unit', [DriversController::class, 'assignUnit'])->name('drivers.assign-unit');
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
+        Route::post('/available-units', [AvailableUnitsController::class, 'store'])->name('available-units.store');
+        Route::patch('/available-units/{unit}/toggle', [AvailableUnitsController::class, 'toggle'])->name('available-units.toggle');
         Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])->name('booking.assign');
         Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');
 
@@ -167,10 +171,18 @@ Route::prefix('superadmin')
     ->middleware(['auth', 'role:1'])
     ->group(function () {
         Route::get('/dashboard', [SuperAdminController::class, 'index'])->name('dashboard');
+        Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
+        Route::get('/monitoring/live', [MonitoringController::class, 'live'])->name('monitoring.live');
+        Route::get('/protection', [DataProtectionController::class, 'index'])->name('backups.index');
+        Route::post('/protection/backups', [DataProtectionController::class, 'store'])->name('backups.store');
+        Route::get('/protection/backups/download', [DataProtectionController::class, 'download'])->name('backups.download');
 
         Route::get('users/archived', [UserManagementController::class, 'archived'])->name('users.archived');
         Route::patch('users/{user}/archive', [UserManagementController::class, 'archive'])->name('users.archive');
         Route::patch('users/{id}/restore', [UserManagementController::class, 'restore'])->name('users.restore');
+        Route::delete('users/{id}/force-delete', [UserManagementController::class, 'forceDelete'])->name('users.force-delete');
+        Route::patch('users/{user}/password-request/set-password', [UserManagementController::class, 'setDefaultPassword'])->name('users.password-request.set-password');
+        Route::patch('users/{user}/password-request/resolve', [UserManagementController::class, 'resolvePasswordRequest'])->name('users.password-request.resolve');
         Route::resource('users', UserManagementController::class)->except(['show']);
         Route::patch('users/{id}/toggle', [UserManagementController::class, 'toggleStatus'])->name('users.toggle');
 

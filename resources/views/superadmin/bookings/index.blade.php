@@ -4,19 +4,113 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/bookings.css') }}">
+    <style>
+        .booking-period-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 14px 0 18px;
+        }
+
+        .booking-period-tab {
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 1px solid #d1d5db;
+            text-decoration: none;
+            color: #1f2937;
+            background: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .booking-period-note {
+            margin: 0 0 14px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            color: #334155;
+        }
+
+        .booking-period-note strong {
+            display: block;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .booking-period-tab.active {
+            background: #111827;
+            border-color: #111827;
+            color: #fff;
+        }
+
+        .empty-row {
+            text-align: center;
+            color: #6b7280;
+            padding: 22px;
+        }
+
+        .booking-table-card.is-loading {
+            opacity: 0.65;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .booking-table-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            color: #475569;
+            font-size: 0.92rem;
+        }
+
+        .booking-table-shell {
+            overflow-x: auto;
+            border: 1px solid #eef2f7;
+            border-radius: 16px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+        }
+
+        .booking-table td .cell-main {
+            display: block;
+            color: #0f172a;
+            font-weight: 600;
+        }
+
+        .booking-table td .cell-sub {
+            display: block;
+            margin-top: 4px;
+            color: #64748b;
+            font-size: 0.8rem;
+        }
+
+        .booking-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: #f8fafc;
+            color: #334155;
+            font-size: 0.78rem;
+            font-weight: 700;
+            border: 1px solid #e2e8f0;
+        }
+    </style>
 @endpush
 
 @section('content')
-    <div class="booking-container">
+    <div class="booking-container" id="bookingPage" data-index-url="{{ route('superadmin.bookings.index') }}">
 
         <div class="booking-header">
 
             <div>
                 <h1>Bookings Overview</h1>
-                <p>Monitor and review all towing service bookings in the system.</p>
+                <p>Review towing activity by today, this week, or this month.</p>
             </div>
 
-            <form method="GET" class="booking-filters">
+            <form method="GET" class="booking-filters" id="bookingFiltersForm">
 
                 <div class="search-box">
                     <i data-lucide="search"></i>
@@ -26,22 +120,44 @@
 
                 <select name="status" onchange="this.form.submit()">
                     <option value="">All Status</option>
-                    <option value="requested" {{ request('status') == 'requested' ? 'selected' : '' }}>Requests</option>
-                    <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
-                    <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
+                    <option value="requested"
+                        {{ ($filters['status'] ?? request('status')) == 'requested' ? 'selected' : '' }}>Requests</option>
+                    <option value="active" {{ ($filters['status'] ?? request('status')) == 'active' ? 'selected' : '' }}>
+                        Active</option>
+                    <option value="completed"
+                        {{ ($filters['status'] ?? request('status')) == 'completed' ? 'selected' : '' }}>Completed</option>
                 </select>
+
+                <input type="hidden" name="period" value="{{ $filters['period'] ?? 'today' }}">
 
             </form>
 
         </div>
 
-        <div class="booking-summary">
+        <form method="GET" class="booking-period-tabs" id="bookingPeriodTabs">
+            <input type="hidden" name="search" value="{{ $filters['search'] ?? '' }}">
+            <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
+
+            <button type="submit" name="period" value="today"
+                class="booking-period-tab {{ ($filters['period'] ?? 'today') === 'today' ? 'active' : '' }}">Today</button>
+            <button type="submit" name="period" value="week"
+                class="booking-period-tab {{ ($filters['period'] ?? '') === 'week' ? 'active' : '' }}">This Week</button>
+            <button type="submit" name="period" value="month"
+                class="booking-period-tab {{ ($filters['period'] ?? '') === 'month' ? 'active' : '' }}">This Month</button>
+        </form>
+
+        <div class="booking-period-note" id="bookingPeriodNote">
+            <strong>Showing {{ $periodLabel }}</strong>
+            <span>{{ $periodDescription }}</span>
+        </div>
+
+        <div class="booking-summary" id="bookingSummary">
 
             <div class="summary-card blue-card">
                 <div class="summary-icon blue">
                     <i data-lucide="clipboard"></i>
                 </div>
-                <div class="summary-number">{{ $bookings->total() }}</div>
+                <div class="summary-number">{{ $stats['total'] }}</div>
                 <div class="summary-title">Total Bookings</div>
             </div>
 
@@ -49,7 +165,7 @@
                 <div class="summary-icon yellow">
                     <i data-lucide="clock"></i>
                 </div>
-                <div class="summary-number">{{ $bookings->where('status', 'requested')->count() }}</div>
+                <div class="summary-number">{{ $stats['requested'] }}</div>
                 <div class="summary-title">Requests</div>
             </div>
 
@@ -57,7 +173,7 @@
                 <div class="summary-icon orange">
                     <i data-lucide="truck"></i>
                 </div>
-                <div class="summary-number">{{ $bookings->whereIn('status', ['assigned', 'on_job'])->count() }}</div>
+                <div class="summary-number">{{ $stats['active'] }}</div>
                 <div class="summary-title">Active</div>
             </div>
 
@@ -65,74 +181,111 @@
                 <div class="summary-icon green">
                     <i data-lucide="check-circle"></i>
                 </div>
-                <div class="summary-number">{{ $bookings->where('status', 'completed')->count() }}</div>
+                <div class="summary-number">{{ $stats['completed'] }}</div>
                 <div class="summary-title">Completed</div>
             </div>
 
         </div>
 
-        <div class="booking-table-card">
+        <div class="booking-table-card" id="bookingTableCard">
 
-            <table class="booking-table">
+            <div class="booking-table-meta" id="bookingTableMeta">
+                <strong id="bookingTableRangeLabel">{{ $periodLabel }} Bookings</strong>
+            </div>
 
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Customer</th>
-                        <th>Truck</th>
-                        <th>Unit</th>
-                        <th>Pickup</th>
-                        <th>Drop-off</th>
-                        <th>Distance</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th></th>
-                    </tr>
-                </thead>
+            <div class="booking-table-shell">
+                <table class="booking-table">
 
-                <tbody>
-
-                    @foreach ($bookings as $booking)
+                    <thead>
                         <tr>
-
-                            <td class="booking-id">{{ $booking->job_code }}</td>
-
-                            <td>
-                                <div class="customer-name">{{ $booking->customer->full_name }}</div>
-                            </td>
-
-                            <td>{{ $booking->truckType->name }}</td>
-
-                            <td>{{ $booking->unit->name ?? 'Unassigned' }}</td>
-
-                            <td class="location">{{ $booking->pickup_address }}</td>
-                            <td class="location">{{ $booking->dropoff_address }}</td>
-
-                            <td>{{ $booking->distance_km }} km</td>
-
-                            <td class="price">₱{{ number_format($booking->final_total, 2) }}</td>
-
-                            <td>
-                                <span class="status {{ $booking->status }}">
-                                    {{ ucfirst($booking->status) }}
-                                </span>
-                            </td>
-
-                            <td>
-                                <button onclick="openBooking('{{ $booking->job_code }}')" class="view-btn">
-                                    View
-                                </button>
-                            </td>
-
+                            <th>ID</th>
+                            <th>Customer</th>
+                            <th>Truck</th>
+                            <th>Unit</th>
+                            <th>Pickup</th>
+                            <th>Drop-off</th>
+                            <th>Distance</th>
+                            <th>Booked On</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th></th>
                         </tr>
-                    @endforeach
+                    </thead>
 
-                </tbody>
+                    <tbody id="bookingTableBody">
 
-            </table>
+                        @forelse ($bookings as $booking)
+                            <tr>
 
-            <div class="pagination-container">
-                {{ $bookings->links() }}
+                                <td class="booking-id">
+                                    <span class="cell-main">{{ $booking->job_code }}</span>
+                                    <span class="cell-sub">{{ $booking->service_mode_label }}</span>
+                                </td>
+
+                                <td>
+                                    <div class="customer-name">
+                                        <span class="cell-main">{{ $booking->customer->full_name }}</span>
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <span class="booking-chip">{{ $booking->truckType->name }}</span>
+                                </td>
+
+                                <td>
+                                    <span class="booking-chip">{{ $booking->unit->name ?? 'Unassigned' }}</span>
+                                </td>
+
+                                <td class="location">
+                                    <span class="cell-main">{{ $booking->pickup_address }}</span>
+                                </td>
+                                <td class="location">
+                                    <span class="cell-main">{{ $booking->dropoff_address }}</span>
+                                </td>
+
+                                <td>
+                                    <span class="cell-main">{{ $booking->distance_km }} km</span>
+                                </td>
+
+                                <td>
+                                    <span
+                                        class="cell-main">{{ optional($booking->created_at)?->timezone(config('app.timezone', 'Asia/Manila'))->format('M d, Y') }}</span>
+                                    <span
+                                        class="cell-sub">{{ optional($booking->created_at)?->timezone(config('app.timezone', 'Asia/Manila'))->format('g:i A') }}</span>
+                                </td>
+
+                                <td class="price">
+                                    <span class="cell-main">₱{{ number_format($booking->final_total, 2) }}</span>
+                                </td>
+
+                                <td>
+                                    <span class="status {{ $booking->status }}">
+                                        {{ ucfirst($booking->status) }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <button onclick="openBooking('{{ $booking->job_code }}')" class="view-btn">
+                                        View
+                                    </button>
+                                </td>
+
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="11" class="empty-row">No bookings found for the selected time range.</td>
+                            </tr>
+                        @endforelse
+
+                    </tbody>
+
+                </table>
+            </div>
+
+            <div class="pagination-container" id="bookingPagination">
+                @if ($bookings->hasPages())
+                    {{ $bookings->onEachSide(1)->links() }}
+                @endif
             </div>
 
         </div>
@@ -201,7 +354,8 @@
                     <span class="label">Receipt</span>
                     <h3 id="m_receipt"></h3>
 
-                    <a id="m_download" class="download-btn">Download Receipt</a>
+                    <a id="m_download" class="download-btn" target="_blank" rel="noopener noreferrer">Download
+                        Receipt</a>
 
                 </div>
 
@@ -240,6 +394,9 @@
                         document.getElementById('m_receipt').innerText = data.receipt.receipt_code ?? data.receipt
                             .receipt_number
                         document.getElementById('m_download').href = "/" + data.receipt.pdf_path
+                        document.getElementById('m_download').target = "_blank"
+                        document.getElementById('m_download').rel = "noopener noreferrer"
+                        document.getElementById('m_download').style.display = "inline-flex"
                     } else {
                         document.getElementById('m_receipt').innerText = "No receipt"
                         document.getElementById('m_download').style.display = "none"
@@ -253,15 +410,125 @@
             document.getElementById('bookingModal').style.display = "none"
         }
 
-        const searchInput = document.querySelector('[name="search"]');
+        const bookingPage = document.getElementById('bookingPage');
+        const bookingFiltersForm = document.getElementById('bookingFiltersForm');
+        const bookingPeriodTabs = document.getElementById('bookingPeriodTabs');
+        const bookingTableCard = document.getElementById('bookingTableCard');
+        const bookingIndexUrl = bookingPage?.dataset.indexUrl;
+        const searchInput = bookingFiltersForm?.querySelector('[name="search"]');
+        const statusSelect = bookingFiltersForm?.querySelector('[name="status"]');
+        const periodInput = bookingFiltersForm?.querySelector('[name="period"]');
 
         let timer;
 
-        searchInput.addEventListener('input', () => {
+        async function refreshBookings(url) {
+            if (!bookingIndexUrl || !bookingTableCard) {
+                return;
+            }
+
+            bookingTableCard.classList.add('is-loading');
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const html = await response.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+
+                const replacements = [
+                    ['bookingPeriodNote', 'bookingPeriodNote'],
+                    ['bookingSummary', 'bookingSummary'],
+                    ['bookingTableBody', 'bookingTableBody'],
+                    ['bookingPagination', 'bookingPagination'],
+                    ['bookingTableMeta', 'bookingTableMeta'],
+                ];
+
+                replacements.forEach(([targetId, sourceId]) => {
+                    const target = document.getElementById(targetId);
+                    const source = doc.getElementById(sourceId);
+
+                    if (target && source) {
+                        target.innerHTML = source.innerHTML;
+                    }
+                });
+
+                const activePeriod = new URL(url, window.location.origin).searchParams.get('period') || 'today';
+                document.querySelectorAll('.booking-period-tab').forEach((button) => {
+                    button.classList.toggle('active', button.value === activePeriod);
+                });
+
+                if (periodInput) {
+                    periodInput.value = activePeriod;
+                }
+
+                window.history.replaceState({}, '', url);
+            } finally {
+                bookingTableCard.classList.remove('is-loading');
+            }
+        }
+
+        function buildFilterUrl(extra = {}) {
+            const params = new URLSearchParams(new FormData(bookingFiltersForm));
+
+            Object.entries(extra).forEach(([key, value]) => {
+                params.set(key, value);
+            });
+
+            return `${bookingIndexUrl}?${params.toString()}`;
+        }
+
+        bookingFiltersForm?.addEventListener('submit', (event) => {
+            event.preventDefault();
+            refreshBookings(buildFilterUrl({
+                page: 1
+            }));
+        });
+
+        statusSelect?.addEventListener('change', () => {
+            refreshBookings(buildFilterUrl({
+                page: 1
+            }));
+        });
+
+        searchInput?.addEventListener('input', () => {
             clearTimeout(timer);
             timer = setTimeout(() => {
-                searchInput.form.submit();
-            }, 500);
+                refreshBookings(buildFilterUrl({
+                    page: 1
+                }));
+            }, 400);
+        });
+
+        bookingPeriodTabs?.addEventListener('click', (event) => {
+            const button = event.target.closest('button[name="period"]');
+
+            if (!button) {
+                return;
+            }
+
+            event.preventDefault();
+            refreshBookings(buildFilterUrl({
+                period: button.value,
+                page: 1
+            }));
+        });
+
+        document.addEventListener('click', (event) => {
+            const paginationLink = event.target.closest('#bookingPagination a');
+
+            if (!paginationLink) {
+                return;
+            }
+
+            event.preventDefault();
+            refreshBookings(paginationLink.href);
         });
     </script>
 @endpush

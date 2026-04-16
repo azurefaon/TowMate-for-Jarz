@@ -66,12 +66,19 @@
                     <strong>{{ $booking->receipt->receipt_number }}</strong>
                 </p>
 
-                <a href="{{ asset($booking->receipt->pdf_path) }}" class="btn-download">
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <a href="{{ asset($booking->receipt->pdf_path) }}" class="btn-download" target="_blank"
+                        rel="noopener noreferrer">
+                        <i data-lucide="external-link"></i>
+                        View Receipt
+                    </a>
 
-                    <i data-lucide="download"></i>
-                    Download Receipt
-
-                </a>
+                    <a href="{{ asset($booking->receipt->pdf_path) }}" class="btn-download" target="_blank"
+                        rel="noopener noreferrer" download>
+                        <i data-lucide="download"></i>
+                        Download Receipt
+                    </a>
+                </div>
             @else
                 <p>No receipt available for this booking.</p>
             @endif

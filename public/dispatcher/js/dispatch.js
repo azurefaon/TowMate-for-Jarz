@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
         selectedCard: null,
         pollingInterval: null,
         reviewData: null,
+        activeFilter: "book-now",
     };
 
     var actionModal = document.getElementById("actionModal");
@@ -60,21 +61,28 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        var shouldLock = isRegularCustomerType();
+        var isRegular = isRegularCustomerType();
+        var defaultDiscount = roundValue(
+            (state.reviewData && state.reviewData.discountRate) || 0,
+        ).toFixed(2);
 
-        discountPercentInput.disabled = shouldLock;
-        discountPercentInput.readOnly = shouldLock;
-        discountPercentInput.classList.toggle("is-locked", shouldLock);
-        discountPercentInput.setAttribute(
-            "aria-disabled",
-            shouldLock ? "true" : "false",
-        );
-
-        if (shouldLock) {
-            discountPercentInput.value = roundValue(
-                (state.reviewData && state.reviewData.discountRate) || 0,
-            ).toFixed(2);
+        if (!String(discountPercentInput.value || "").trim()) {
+            discountPercentInput.value = defaultDiscount;
         }
+
+        if (isRegular) {
+            discountPercentInput.value = "0.00";
+            discountPercentInput.disabled = true;
+            discountPercentInput.readOnly = true;
+            discountPercentInput.classList.add("is-locked");
+            discountPercentInput.setAttribute("aria-disabled", "true");
+            return;
+        }
+
+        discountPercentInput.disabled = false;
+        discountPercentInput.readOnly = false;
+        discountPercentInput.classList.remove("is-locked");
+        discountPercentInput.setAttribute("aria-disabled", "false");
     }
 
     if (!queueList) {
@@ -88,6 +96,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     initializeViewToggle();
+    initializeQueueFilters();
     initializeRealtimeUpdates();
     initializePriceInput();
     initializeUnitSelector();
@@ -159,6 +168,89 @@ document.addEventListener("DOMContentLoaded", function () {
                 queueList.classList.remove("grid");
             }
         }
+    }
+
+    function initializeQueueFilters() {
+        var filterButtons = document.querySelectorAll(".queue-filter-btn");
+
+        if (!filterButtons.length) {
+            updateFilteredCount();
+            return;
+        }
+
+        var defaultFilter =
+            queueList.getAttribute("data-default-filter") || "book-now";
+        var savedFilter =
+            localStorage.getItem("dispatchQueueFilter") || defaultFilter;
+
+        Array.prototype.forEach.call(filterButtons, function (button) {
+            button.addEventListener("click", function () {
+                applyQueueFilter(
+                    button.getAttribute("data-filter") || defaultFilter,
+                );
+            });
+        });
+
+        window.applyDispatchQueueFilter = applyQueueFilter;
+        applyQueueFilter(savedFilter);
+    }
+
+    function applyQueueFilter(filter) {
+        var filterButtons = document.querySelectorAll(".queue-filter-btn");
+        var cards = queueList.querySelectorAll(".incoming-card");
+        state.activeFilter = filter || "book-now";
+
+        localStorage.setItem("dispatchQueueFilter", state.activeFilter);
+
+        Array.prototype.forEach.call(filterButtons, function (button) {
+            var isActive =
+                (button.getAttribute("data-filter") || "book-now") ===
+                state.activeFilter;
+            button.classList.toggle("is-active", isActive);
+        });
+
+        Array.prototype.forEach.call(cards, function (card) {
+            var queueType = card.getAttribute("data-queue") || "book-now";
+            var matches =
+                state.activeFilter === "all" ||
+                queueType === state.activeFilter;
+            card.classList.toggle("is-hidden", !matches);
+        });
+
+        updateFilteredCount();
+        updateTabBadges();
+        updateEmptyState();
+    }
+
+    function updateTabBadges() {
+        var cards = queueList.querySelectorAll(".incoming-card");
+        var counts = {
+            returned: 0,
+            "book-now": 0,
+            scheduled: 0,
+            all: cards.length,
+        };
+
+        Array.prototype.forEach.call(cards, function (card) {
+            var queueType = card.getAttribute("data-queue") || "book-now";
+
+            if (Object.prototype.hasOwnProperty.call(counts, queueType)) {
+                counts[queueType] += 1;
+            }
+        });
+
+        Object.keys(counts).forEach(function (key) {
+            var badge = document.querySelector(
+                '.queue-tab-count[data-count-for="' + key + '"]',
+            );
+
+            if (!badge) {
+                return;
+            }
+
+            badge.textContent = String(counts[key]);
+            badge.classList.toggle("has-count", counts[key] > 0);
+        });
     }
 
     function initializeRealtimeUpdates() {
@@ -494,8 +586,30 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         var newCard = document.createElement("div");
+        var serviceType = data.service_type || "book_now";
+        var scheduledFor = data.scheduled_for
+            ? new Date(data.scheduled_for)
+            : null;
+        var isScheduled = serviceType === "schedule";
+        var isDueNow =
+            Boolean(scheduledFor) && scheduledFor.getTime() <= Date.now();
+        var queueType = isScheduled && !isDueNow ? "scheduled" : "book-now";
+        var timingLabel =
+            data.service_mode_label ||
+            (isScheduled ? "Schedule Later" : "Book Now");
+
+        if (isDueNow) {
+            timingLabel = "Due Now";
+        }
+
         newCard.className = "incoming-card new-booking";
         newCard.setAttribute("data-id", data.id);
+        newCard.setAttribute("data-queue", queueType);
+        newCard.setAttribute(
+            "data-service-mode",
+            isScheduled ? "schedule" : "book_now",
+        );
+        newCard.setAttribute("data-scheduled-for", data.scheduled_for || "");
         newCard.setAttribute(
             "data-created-at",
             data.created_at || new Date().toISOString(),
@@ -527,7 +641,20 @@ document.addEventListener("DOMContentLoaded", function () {
             '<span class="time">' +
             escapeHtml(data.created_at_human || "Just now") +
             "</span>" +
+            '<span class="queue-chip ' +
+            (isDueNow ? "due-now" : queueType) +
+            '">' +
+            escapeHtml(timingLabel) +
+            "</span>" +
             '<span class="status-badge pending">Pending</span>' +
+            "</div>" +
+            '<div class="incoming-details" style="margin-top: 10px;">' +
+            "<span><strong>Dispatch Timing:</strong> " +
+            escapeHtml(
+                data.schedule_window_label ||
+                    (isScheduled ? "Scheduled pickup" : "Immediate dispatch"),
+            ) +
+            "</span>" +
             "</div>" +
             "</div>" +
             '<div class="incoming-actions">' +
@@ -540,6 +667,14 @@ document.addEventListener("DOMContentLoaded", function () {
             "</div>";
 
         insertBookingInQueueOrder(queueList, newCard, data.created_at);
+
+        if (typeof window.applyDispatchQueueFilter === "function") {
+            window.applyDispatchQueueFilter(state.activeFilter || "book-now");
+        } else {
+            updateFilteredCount();
+            updateEmptyState();
+        }
+
         playNotificationSound();
         showNotification("New booking request received!", "success");
 
@@ -658,8 +793,18 @@ document.addEventListener("DOMContentLoaded", function () {
             headers["X-CSRF-TOKEN"] = csrfNode.getAttribute("content") || "";
         }
 
+        var isReturnedTask =
+            state.selectedCard &&
+            state.selectedCard.getAttribute("data-queue") === "returned";
+
         button.textContent =
-            action === "accept" ? "Sending quote..." : "Rejecting...";
+            action === "accept"
+                ? isReturnedTask
+                    ? "Reassigning..."
+                    : "Sending quote..."
+                : isReturnedTask
+                  ? "Cancelling..."
+                  : "Rejecting...";
         button.disabled = true;
 
         fetch(getAssignUrl(bookingId), {
@@ -714,8 +859,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     typeof window.dispatcherNotifications.add === "function"
                 ) {
                     window.dispatcherNotifications.add({
-                        title: "Quotation sent for Booking #" + bookingId,
-                        body: "Dispatch reviewed the request and emailed the quotation to the customer for approval.",
+                        title: isReturnedTask
+                            ? "Task reassigned for Booking #" + bookingId
+                            : "Quotation sent for Booking #" + bookingId,
+                        body: isReturnedTask
+                            ? "Dispatch reassigned the returned task to a ready field unit."
+                            : "Dispatch reviewed the request and emailed the quotation to the customer for approval.",
                         time: "Just now",
                     });
                 }
@@ -735,34 +884,68 @@ document.addEventListener("DOMContentLoaded", function () {
             });
     }
 
-    function updateQueueCount(change) {
+    function updateQueueCount() {
+        updateFilteredCount();
+    }
+
+    function updateFilteredCount() {
         var countElement = document.getElementById("requestCount");
+
         if (!countElement) {
             return;
         }
 
-        var currentCount = parseInt(countElement.textContent, 10) || 0;
-        countElement.textContent = String(Math.max(0, currentCount + change));
+        var visibleCards = Array.prototype.filter.call(
+            queueList.querySelectorAll(".incoming-card"),
+            function (card) {
+                return !card.classList.contains("is-hidden");
+            },
+        ).length;
+
+        countElement.textContent = String(visibleCards);
     }
 
     function updateEmptyState() {
         var emptyState = document.getElementById("emptyState");
-        var hasCards = queueList.querySelectorAll(".incoming-card").length > 0;
+        var visibleCards = Array.prototype.filter.call(
+            queueList.querySelectorAll(".incoming-card"),
+            function (card) {
+                return !card.classList.contains("is-hidden");
+            },
+        ).length;
 
         if (!emptyState) {
-            if (!hasCards) {
+            if (!visibleCards) {
                 emptyState = document.createElement("div");
                 emptyState.className = "empty-state";
                 emptyState.id = "emptyState";
-                emptyState.innerHTML = "<p>No incoming requests</p>";
+                emptyState.innerHTML =
+                    "<p>No bookings in this queue right now.</p>";
                 queueList.appendChild(emptyState);
             }
             return;
         }
 
-        emptyState.style.display = hasCards ? "none" : "block";
+        var message = "No bookings in this queue right now.";
 
-        if (!hasCards && !queueList.contains(emptyState)) {
+        if (state.activeFilter === "scheduled") {
+            message = "No scheduled bookings are waiting yet.";
+        } else if (state.activeFilter === "negotiation") {
+            message = "No negotiation requests need review right now.";
+        } else if (state.activeFilter === "returned") {
+            message = "No returned tasks need reassignment right now.";
+        } else if (state.activeFilter === "book-now") {
+            message = "No urgent Book Now requests are waiting right now.";
+        }
+
+        var copy = emptyState.querySelector("p");
+        if (copy) {
+            copy.textContent = message;
+        }
+
+        emptyState.style.display = visibleCards ? "none" : "block";
+
+        if (!visibleCards && !queueList.contains(emptyState)) {
             queueList.appendChild(emptyState);
         }
     }
@@ -858,6 +1041,9 @@ document.addEventListener("DOMContentLoaded", function () {
             var currentStatus = state.selectedCard
                 ? state.selectedCard.getAttribute("data-status")
                 : "requested";
+            var isReturnedTask = state.selectedCard
+                ? state.selectedCard.getAttribute("data-queue") === "returned"
+                : false;
             var currentPrice = state.selectedCard
                 ? state.selectedCard.getAttribute("data-current-price")
                 : "";
@@ -872,6 +1058,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 : "";
             var currentDispatcherNote = state.selectedCard
                 ? state.selectedCard.getAttribute("data-dispatcher-note")
+                : "";
+            var returnReason = state.selectedCard
+                ? state.selectedCard.getAttribute("data-return-reason")
+                : "";
+            var returnedBy = state.selectedCard
+                ? state.selectedCard.getAttribute("data-returned-by")
                 : "";
             var assignedUnitId = state.selectedCard
                 ? state.selectedCard.getAttribute("data-assigned-unit")
@@ -922,12 +1114,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     : "Regular",
             };
 
-            modalTitle.innerText =
-                currentStatus === "reviewed"
-                    ? "Update Quotation"
-                    : "Review & Send Quotation";
-            modalText.innerText =
-                "Review the automatic pricing, add an optional dispatcher adjustment, and reserve a ready unit for the team leader.";
+            modalTitle.innerText = isReturnedTask
+                ? "Reassign Returned Task"
+                : currentStatus === "reviewed"
+                  ? "Update Quotation"
+                  : "Review & Send Quotation";
+            modalText.innerText = isReturnedTask
+                ? "This booking was returned from the field. Choose a ready unit so dispatch can reassign it immediately."
+                : "Review the automatic pricing, add an optional dispatcher adjustment, and reserve a ready unit for the team leader.";
             if (quotationReviewGrid) {
                 quotationReviewGrid.style.display = "grid";
             }
@@ -939,7 +1133,14 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             rejectReasonWrapper.style.display = "none";
             if (negotiationHint && negotiationHintText) {
-                if (customerNote || counterOffer) {
+                if (isReturnedTask && (returnReason || returnedBy)) {
+                    negotiationHint.style.display = "block";
+                    negotiationHintText.innerText =
+                        "Returned by " +
+                        (returnedBy || "the team leader") +
+                        ": " +
+                        (returnReason || "Needs reassignment.");
+                } else if (customerNote || counterOffer) {
                     negotiationHint.style.display = "block";
                     negotiationHintText.innerText =
                         "Customer request: " +
@@ -1000,10 +1201,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 dispatcherNoteInput.value = currentDispatcherNote || "";
             }
             if (confirmActionBtn) {
-                confirmActionBtn.textContent =
-                    currentStatus === "reviewed"
-                        ? "Update Quote"
-                        : "Send Quote";
+                confirmActionBtn.textContent = isReturnedTask
+                    ? "Reassign Task"
+                    : currentStatus === "reviewed"
+                      ? "Update Quote"
+                      : "Send Quote";
             }
             updateQuotationPreview(priceInput ? priceInput.value : "");
             updateConfirmButtonState();
@@ -1075,6 +1277,7 @@ document.addEventListener("DOMContentLoaded", function () {
             discountPercentInput.disabled = false;
             discountPercentInput.readOnly = false;
             discountPercentInput.classList.remove("is-locked");
+            discountPercentInput.setAttribute("aria-disabled", "false");
             clearFieldError(discountPercentInput);
         }
 
@@ -1361,14 +1564,19 @@ document.addEventListener("DOMContentLoaded", function () {
         syncDiscountInputState();
 
         if (discountLabel) {
-            discountLabel.textContent = isRegularCustomerType()
-                ? "Regular customer discount is fixed and cannot be edited."
-                : discountAmount > 0
-                  ? (state.reviewData.customerType || "Customer") +
-                    " discount auto-applied at " +
+            if (isRegularCustomerType()) {
+                discountLabel.textContent =
+                    "Regular customer selected. Discount is locked and cannot be edited.";
+            } else if (discountAmount > 0) {
+                discountLabel.textContent =
+                    (state.reviewData.customerType || "Customer") +
+                    " discount is open and currently set to " +
                     formatNumberValue(discountRate) +
-                    "%"
-                  : "No discount applied for this customer type.";
+                    "%.";
+            } else {
+                discountLabel.textContent =
+                    "PWD or Senior selected. You can enter the discount percentage here.";
+            }
         }
 
         if (discountBadge) {

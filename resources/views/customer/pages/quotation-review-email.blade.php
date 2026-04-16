@@ -414,7 +414,7 @@
                         <form method="POST" action="{{ $signedActionUrl }}">
                             @csrf
                             <input type="hidden" name="action" value="accept">
-                            <button type="submit" class="btn">Approve quotation</button>
+                            <button type="submit" class="btn">Accept & continue</button>
                         </form>
                     @elseif ($booking->status === 'reviewed')
                         <div class="state-box">Your adjustment request is already with dispatch.</div>

@@ -18,6 +18,8 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
         $this->call([
             SuperAdminSeeder::class,
+            DispatcherSeeder::class,
+            TeamLeaderSeeder::class,
             TruckTypeSeeder::class,
         ]);
     }

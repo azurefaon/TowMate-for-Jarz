@@ -161,6 +161,36 @@ test('team leader can authenticate through the team leader login page', function
     $response->assertRedirect(route('teamleader.dashboard', absolute: false));
 });
 
+test('team leader login does not hit a raw too many attempts lockout during normal retries', function () {
+    ensureAuthRole(3, 'Team Leader');
+
+    $teamLeader = User::factory()->create([
+        'role_id' => 3,
+        'status' => 'active',
+    ]);
+
+    foreach (range(1, 6) as $attempt) {
+        $response = $this->from('/teamleader/login')->post('/login', [
+            'role' => 'teamleader',
+            'login_method' => 'password',
+            'email' => $teamLeader->email,
+            'password' => 'wrong-password',
+        ]);
+
+        expect($response->getStatusCode())->not->toBe(429);
+    }
+
+    $response = $this->post('/login', [
+        'role' => 'teamleader',
+        'login_method' => 'password',
+        'email' => $teamLeader->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticated('teamleader');
+    $response->assertRedirect(route('teamleader.dashboard', absolute: false));
+});
+
 test('users can logout securely from all sessions', function () {
     ensureAuthRole(2, 'Dispatcher');
 

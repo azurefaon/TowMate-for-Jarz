@@ -61,6 +61,7 @@ class UserManagementController extends Controller
             'active' => (clone $baseQuery)->whereNull('archived_at')->where('status', 'active')->count(),
             'inactive' => (clone $baseQuery)->whereNull('archived_at')->where('status', 'inactive')->count(),
             'archived' => (clone $baseQuery)->whereNotNull('archived_at')->count(),
+            'password_requests' => (clone $baseQuery)->whereNull('archived_at')->where('password_request_status', 'pending')->count(),
         ];
     }
 
@@ -113,10 +114,15 @@ class UserManagementController extends Controller
             ->latest()
             ->paginate(10);
 
+        $passwordRequests = $this->baseUserQuery()
+            ->where('password_request_status', 'pending')
+            ->orderByDesc('password_requested_at')
+            ->get();
+
         $roles = $this->manageableRoles();
         $stats = $this->getUserStats();
 
-        return view('superadmin.users.index', compact('users', 'roles', 'stats'));
+        return view('superadmin.users.index', compact('users', 'roles', 'stats', 'passwordRequests'));
     }
 
     public function archived(Request $request)
@@ -332,6 +338,91 @@ class UserManagementController extends Controller
 
         return redirect()->route('superadmin.users.archived')
             ->with('success', 'User restored successfully.');
+    }
+
+    public function forceDelete($id): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+
+        if (! $user->archived_at) {
+            return back()->with('error', 'Only archived users can be permanently deleted.');
+        }
+
+        if ($user->archived_at->gt(now()->subDays(14))) {
+            return back()->with('error', 'Users must stay archived for at least 14 days before permanent deletion.');
+        }
+
+        $reference = $user->name;
+        $entityId = $user->id;
+
+        $user->delete();
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'user_permanently_deleted',
+            'entity_type' => 'User',
+            'entity_id' => $entityId,
+            'reference' => $reference,
+            'description' => 'Archived user permanently deleted after retention window',
+        ]);
+
+        return redirect()->route('superadmin.users.archived')
+            ->with('success', 'Archived user permanently deleted.');
+    }
+
+    public function setDefaultPassword(Request $request, User $user): RedirectResponse
+    {
+        if ($user->archived_at) {
+            return back()->with('error', 'Restore this user before setting a default password.');
+        }
+
+        if (($user->role->name ?? null) === 'Super Admin') {
+            abort(403, 'Cannot change Super Admin password from this panel.');
+        }
+
+        $validated = $request->validate([
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()],
+        ], [
+            'password.required' => 'Enter a default password for this user.',
+            'password.confirmed' => 'The password confirmation does not match.',
+        ]);
+
+        $user->forceFill([
+            'password' => Hash::make($validated['password']),
+            'password_request_status' => 'resolved',
+            'password_request_resolved_at' => now(),
+            'password_request_note' => null,
+            'remember_token' => Str::random(60),
+        ])->save();
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'default_password_set',
+            'entity_type' => 'User',
+            'entity_id' => $user->id,
+        ]);
+
+        return redirect()->route('superadmin.users.index')
+            ->with('success', 'Default password saved for ' . $user->name . '. Ask the user to sign in and update it after access is restored.');
+    }
+
+    public function resolvePasswordRequest(User $user): RedirectResponse
+    {
+        $user->forceFill([
+            'password_request_status' => 'resolved',
+            'password_request_resolved_at' => now(),
+            'password_request_note' => null,
+        ])->save();
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'password_request_marked_handled',
+            'entity_type' => 'User',
+            'entity_id' => $user->id,
+        ]);
+
+        return redirect()->route('superadmin.users.index')
+            ->with('success', 'Password request for ' . $user->name . ' has been marked as handled.');
     }
 
     public function destroy(User $user): RedirectResponse

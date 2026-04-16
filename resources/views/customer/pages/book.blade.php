@@ -10,7 +10,7 @@
 
         <div class="book-header">
             <h2>Book a Tow</h2>
-            <p>Enter your details for an instant recovery estimate.</p>
+            <p>Choose a fast Book Now request for urgent roadside help, or schedule a pickup for later.</p>
         </div>
 
         <div class="book-grid">
@@ -182,14 +182,33 @@
                                 </div>
 
                                 <div class="input-group">
-                                    <label>Service Speed</label>
-                                    <select name="service_type" id="serviceType">
-                                        <option value="standard">Standard</option>
-                                        <option value="express">Express</option>
-                                        <option value="scheduled">Scheduled</option>
+                                    <label>Booking Mode</label>
+                                    <select name="service_type" id="serviceType" required>
+                                        <option value="book_now"
+                                            {{ old('service_type', 'book_now') === 'book_now' ? 'selected' : '' }}>Book Now
+                                        </option>
+                                        <option value="schedule"
+                                            {{ old('service_type') === 'schedule' ? 'selected' : '' }}>Schedule Later
+                                        </option>
                                     </select>
+                                    <small class="cost-note" style="margin-top:8px; display:block;">Book Now is best for
+                                        urgent towing. Schedule Later is for planned dispatch.</small>
                                 </div>
 
+                            </div>
+
+                            <div class="row" id="scheduleFields"
+                                style="display: {{ old('service_type') === 'schedule' ? 'grid' : 'none' }};">
+                                <div class="input-group">
+                                    <label>Preferred Date</label>
+                                    <input type="date" name="scheduled_date" id="scheduledDate"
+                                        min="{{ now()->toDateString() }}" value="{{ old('scheduled_date') }}">
+                                </div>
+                                <div class="input-group">
+                                    <label>Preferred Time</label>
+                                    <input type="time" name="scheduled_time" id="scheduledTime"
+                                        value="{{ old('scheduled_time') }}">
+                                </div>
                             </div>
 
                         </div>
@@ -262,8 +281,13 @@
                         </div>
 
                         <div class="summary-row">
-                            <span>Service</span>
+                            <span>Booking Mode</span>
                             <strong id="summaryService"></strong>
+                        </div>
+
+                        <div class="summary-row">
+                            <span>Preferred Dispatch</span>
+                            <strong id="summarySchedule"></strong>
                         </div>
 
                         <div class="summary-row">
@@ -300,6 +324,11 @@
             const bookingForm = document.getElementById('bookingForm');
             const phoneInput = document.getElementById('customer_phone');
             const imageInput = document.querySelector('input[name="vehicle_image"]');
+            const serviceTypeInput = document.getElementById('serviceType');
+            const scheduleFields = document.getElementById('scheduleFields');
+            const scheduledDateInput = document.getElementById('scheduledDate');
+            const scheduledTimeInput = document.getElementById('scheduledTime');
+            const bookBtn = document.getElementById('bookBtn');
 
             function ensureFieldErrorElement(input) {
                 const container = input.closest('.input-group') || input.closest('.input-wrapper');
@@ -392,6 +421,29 @@
                     this.reportValidity();
                 }
             });
+
+            function syncScheduleMode() {
+                const isScheduled = serviceTypeInput?.value === 'schedule';
+
+                if (scheduleFields) {
+                    scheduleFields.style.display = isScheduled ? 'grid' : 'none';
+                }
+
+                if (scheduledDateInput) {
+                    scheduledDateInput.required = isScheduled;
+                }
+
+                if (scheduledTimeInput) {
+                    scheduledTimeInput.required = isScheduled;
+                }
+
+                if (bookBtn) {
+                    bookBtn.textContent = isScheduled ? 'Review Scheduled Booking' : 'Request Towing Service Now';
+                }
+            }
+
+            serviceTypeInput?.addEventListener('change', syncScheduleMode);
+            syncScheduleMode();
         });
     </script>
 @endsection

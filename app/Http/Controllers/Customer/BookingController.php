@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Customer;
 
+use App\Events\BookingStatusUpdated;
 use App\Events\NewBooking;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BookingRequest;
@@ -205,10 +206,11 @@ class BookingController extends Controller
                 'counter_offer_amount' => null,
             ]);
 
-            $booking->refresh()->loadMissing(['customer', 'truckType']);
+            $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
             $finalQuotePath = $this->documentGenerationService->generateQuotation($booking, true);
             $booking->update(['final_quote_path' => $finalQuotePath]);
-            $booking->refresh()->loadMissing(['customer', 'truckType']);
+            $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+            event(new BookingStatusUpdated($booking));
 
             if (filled($booking->customer?->email)) {
                 Mail::to($booking->customer->email)->send(new FinalQuotationConfirmedMail($booking));

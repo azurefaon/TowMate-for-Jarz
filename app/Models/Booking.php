@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\GeneratesPublicCode;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -36,6 +37,10 @@ class Booking extends Model
         'additional_fee',
         'final_total',
         'customer_type',
+        'service_type',
+        'scheduled_date',
+        'scheduled_time',
+        'scheduled_for',
         'confirmation_type',
         'vehicle_image_path',
         'notes',
@@ -61,6 +66,9 @@ class Booking extends Model
         'customer_verified_at',
         'customer_verification_status',
         'customer_verification_note',
+        'returned_at',
+        'return_reason',
+        'returned_by_team_leader_id',
 
         'status',
     ];
@@ -78,6 +86,8 @@ class Booking extends Model
     {
         return [
             'quotation_generated' => 'boolean',
+            'scheduled_date' => 'date',
+            'scheduled_for' => 'datetime',
             'assigned_at' => 'datetime',
             'completed_at' => 'datetime',
             'reviewed_at' => 'datetime',
@@ -89,6 +99,7 @@ class Booking extends Model
             'counter_offer_amount' => 'decimal:2',
             'completion_requested_at' => 'datetime',
             'customer_verified_at' => 'datetime',
+            'returned_at' => 'datetime',
             'base_rate' => 'decimal:2',
             'per_km_rate' => 'decimal:2',
             'computed_total' => 'decimal:2',
@@ -135,6 +146,75 @@ class Booking extends Model
         ];
     }
 
+    public function getServiceModeAttribute(): string
+    {
+        $serviceType = strtolower(trim((string) ($this->attributes['service_type'] ?? '')));
+
+        if (in_array($serviceType, ['book_now', 'schedule'], true)) {
+            return $serviceType;
+        }
+
+        return $this->getScheduledForAttribute(null) ? 'schedule' : 'book_now';
+    }
+
+    public function getServiceModeLabelAttribute(): string
+    {
+        return $this->service_mode === 'schedule' ? 'Schedule Later' : 'Book Now';
+    }
+
+    public function getScheduledForAttribute($value): ?Carbon
+    {
+        if (! empty($value)) {
+            return Carbon::parse($value);
+        }
+
+        $scheduledDate = $this->attributes['scheduled_date'] ?? null;
+        $scheduledTime = $this->attributes['scheduled_time'] ?? null;
+
+        if (! empty($scheduledDate)) {
+            return Carbon::parse(trim($scheduledDate . ' ' . ($scheduledTime ?: '00:00')));
+        }
+
+        $notes = (string) ($this->attributes['notes'] ?? '');
+
+        if (preg_match('/Requested schedule:\s*(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}))?/i', $notes, $matches)) {
+            return Carbon::parse(trim(($matches[1] ?? '') . ' ' . ($matches[2] ?? '00:00')));
+        }
+
+        return null;
+    }
+
+    public function getIsScheduledAttribute(): bool
+    {
+        return $this->service_mode === 'schedule';
+    }
+
+    public function getIsDueForDispatchAttribute(): bool
+    {
+        return $this->is_scheduled && $this->scheduled_for?->lte(now());
+    }
+
+    public function getNeedsReassignmentAttribute(): bool
+    {
+        return ! is_null($this->returned_at)
+            && in_array($this->status, ['confirmed', 'accepted', 'assigned'], true);
+    }
+
+    public function getScheduleWindowLabelAttribute(): string
+    {
+        if (! $this->is_scheduled) {
+            return 'Immediate dispatch';
+        }
+
+        if (! $this->scheduled_for) {
+            return 'Scheduled time pending';
+        }
+
+        return $this->is_due_for_dispatch
+            ? 'Due now · ' . $this->scheduled_for->format('M d, Y g:i A')
+            : 'Scheduled for ' . $this->scheduled_for->format('M d, Y g:i A');
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);
@@ -153,6 +233,11 @@ class Booking extends Model
     public function assignedTeamLeader()
     {
         return $this->belongsTo(User::class, 'assigned_team_leader_id');
+    }
+
+    public function returnedByTeamLeader()
+    {
+        return $this->belongsTo(User::class, 'returned_by_team_leader_id');
     }
 
     public function receipt()

@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", function () {
         var originalText = button.textContent;
 
         toggleButtons(true);
-        button.textContent = "Accepting...";
+        button.textContent = "Accepting approved task...";
 
         fetch(endpoint, {
             method: "POST",
@@ -60,8 +60,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     if (result.data.redirect_url) {
                         window.setTimeout(function () {
-                            window.location.href = result.data.redirect_url;
-                        }, 500);
+                            window.location.replace(result.data.redirect_url);
+                        }, 150);
                     }
 
                     throw new Error("Task acceptance failed.");
@@ -74,8 +74,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 if (result.data.redirect_url) {
                     window.setTimeout(function () {
-                        window.location.href = result.data.redirect_url;
-                    }, 250);
+                        window.location.replace(result.data.redirect_url);
+                    }, 100);
                 }
             })
             .catch(function () {
@@ -102,7 +102,7 @@ document.addEventListener("DOMContentLoaded", function () {
             })
             .then(function (payload) {
                 if (payload.redirect_url && payload.success === false) {
-                    window.location.href = payload.redirect_url;
+                    window.location.replace(payload.redirect_url);
                     return;
                 }
 
@@ -142,7 +142,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                 <p class="tl-task-card__eyebrow">Task ${escapeHtml(task.booking_code)}</p>
                                 <h3>${escapeHtml(task.pickup_address)} → ${escapeHtml(task.dropoff_address)}</h3>
                             </div>
-                            <span class="tl-status-badge assigned">Ready</span>
+                            <span class="tl-status-badge ${task.is_returned ? "waiting-verification" : "assigned"}">${task.is_returned ? "Returned" : "Ready"}</span>
                         </div>
 
                         <div class="tl-task-card__meta">
@@ -164,13 +164,26 @@ document.addEventListener("DOMContentLoaded", function () {
                         </div>
 
                         <div class="tl-task-card__note">
-                            Your assigned truck is linked automatically when you accept this job, so your crew can move right away.
+                            ${
+                                task.is_returned
+                                    ? `This task was returned to dispatch and is still visible here while reassignment is being reviewed.<br><strong>Reason:</strong> ${escapeHtml(task.return_reason || "Awaiting dispatch review.")}`
+                                    : `Your assigned truck is linked automatically when you accept this job, so your crew can move right away.`
+                            }
                         </div>
 
                         <div class="tl-task-card__actions">
-                            <button type="button" class="tl-btn tl-btn--primary tl-btn--full" data-booking-action="accept" data-endpoint="${escapeHtml(task.accept_url)}">
-                                Accept Task
-                            </button>
+                            ${
+                                (!task.is_returned && task.can_accept) ||
+                                (!task.is_returned &&
+                                    task.assigned_to_me &&
+                                    [
+                                        "confirmed",
+                                        "accepted",
+                                        "assigned",
+                                    ].includes(task.status))
+                                    ? `<button type="button" class="tl-btn tl-btn--primary tl-btn--full" data-booking-action="accept" data-endpoint="${escapeHtml(task.accept_url)}">Accept Task</button>`
+                                    : ``
+                            }
                         </div>
                     </article>`;
             })

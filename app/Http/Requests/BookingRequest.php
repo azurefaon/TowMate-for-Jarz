@@ -19,9 +19,22 @@ class BookingRequest extends FormRequest
         $middleName = trim((string) ($this->input('middle_name') ?: $nameParts['middle_name']));
         $lastName = trim((string) ($this->input('last_name') ?: $nameParts['last_name']));
         $customerType = $this->input('customer_type');
+        $serviceType = $this->input('service_type', 'book_now');
+        $scheduledDate = trim((string) $this->input('scheduled_date'));
+        $scheduledTime = trim((string) $this->input('scheduled_time'));
+        $notes = trim((string) $this->input('notes'));
 
         if (! in_array($customerType, ['regular', 'pwd', 'senior'], true)) {
             $customerType = $this->boolean('is_pwd') ? 'pwd' : ($this->boolean('is_senior') ? 'senior' : 'regular');
+        }
+
+        if (! in_array($serviceType, ['book_now', 'schedule'], true)) {
+            $serviceType = 'book_now';
+        }
+
+        if ($serviceType === 'schedule') {
+            $scheduleLine = 'Requested schedule: ' . ($scheduledDate !== '' ? $scheduledDate : 'Date pending') . ' ' . ($scheduledTime !== '' ? $scheduledTime : 'Time pending');
+            $notes = trim($scheduleLine . ($notes !== '' ? PHP_EOL . $notes : ''));
         }
 
         $this->merge([
@@ -32,6 +45,10 @@ class BookingRequest extends FormRequest
             'phone' => normalize_ph_phone($this->input('phone')) ?? $this->input('phone'),
             'email' => filled($this->input('email')) ? strtolower(trim((string) $this->input('email'))) : optional($this->user())->email,
             'customer_type' => $customerType,
+            'service_type' => $serviceType,
+            'scheduled_date' => $scheduledDate !== '' ? $scheduledDate : null,
+            'scheduled_time' => $scheduledTime !== '' ? $scheduledTime : null,
+            'notes' => $notes !== '' ? $notes : null,
             'confirmation_type' => $this->input('confirmation_type', 'system'),
         ]);
     }
@@ -66,6 +83,9 @@ class BookingRequest extends FormRequest
             'notes' => 'nullable|string|max:1000',
             'vehicle_image' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
             'customer_type' => 'required|in:regular,pwd,senior',
+            'service_type' => 'required|in:book_now,schedule',
+            'scheduled_date' => 'nullable|required_if:service_type,schedule|date|after_or_equal:today',
+            'scheduled_time' => 'nullable|required_if:service_type,schedule|date_format:H:i',
             'confirmation_type' => 'nullable|in:call,system',
         ];
     }

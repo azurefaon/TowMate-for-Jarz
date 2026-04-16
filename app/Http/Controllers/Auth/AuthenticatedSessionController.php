@@ -71,8 +71,10 @@ class AuthenticatedSessionController extends Controller
         try {
             $user = $request->authenticate();
         } catch (ValidationException $e) {
+            $message = $e->errors()['auth'][0] ?? 'Invalid credentials';
+
             throw ValidationException::withMessages([
-                'auth' => 'Invalid credentials',
+                'auth' => $message,
             ])->errorBag('login');
         }
 
@@ -111,6 +113,7 @@ class AuthenticatedSessionController extends Controller
 
         if (Schema::hasColumn('users', 'phone')) {
             $user = User::query()
+                ->visibleToOperations()
                 ->where('role_id', 3)
                 ->where('phone', $normalizedPhone)
                 ->when(Schema::hasColumn('users', 'status'), fn($query) => $query->where('status', 'active'))

@@ -11,35 +11,81 @@ class BookingController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = [
+            'search' => trim((string) $request->input('search', '')),
+            'status' => (string) $request->input('status', ''),
+            'period' => (string) $request->input('period', 'today'),
+        ];
+
+        if (! in_array($filters['period'], ['today', 'week', 'month'], true)) {
+            $filters['period'] = 'today';
+        }
+
         $query = Booking::with([
             'customer',
             'truckType',
             'unit',
-            'receipt'
+            'receipt',
         ]);
 
-        if ($request->search) {
-            $query->where(function ($q) use ($request) {
-                $q->whereHas('customer', function ($q2) use ($request) {
-                    $q2->where('full_name', 'like', '%' . $request->search . '%');
-                })
-                    ->orWhere('booking_code', 'like', '%' . $request->search . '%')
-                    ->orWhere('pickup_address', 'like', '%' . $request->search . '%')
-                    ->orWhere('dropoff_address', 'like', '%' . $request->search . '%');
-            });
-        }
+        $statsQuery = Booking::query();
 
-        if ($request->status) {
-            if ($request->status === 'active') {
-                $query->whereIn('status', ['assigned', 'on_job']);
-            } else {
-                $query->where('status', $request->status);
+        if ($filters['search'] !== '') {
+            $search = $filters['search'];
+
+            foreach ([$query, $statsQuery] as $builder) {
+                $builder->where(function ($q) use ($search) {
+                    $q->whereHas('customer', function ($q2) use ($search) {
+                        $q2->where('full_name', 'like', '%' . $search . '%');
+                    })
+                        ->orWhere('booking_code', 'like', '%' . $search . '%')
+                        ->orWhere('pickup_address', 'like', '%' . $search . '%')
+                        ->orWhere('dropoff_address', 'like', '%' . $search . '%');
+                });
             }
         }
 
+        $periodStart = match ($filters['period']) {
+            'week' => now()->subDays(6)->startOfDay(),
+            'month' => now()->subDays(29)->startOfDay(),
+            default => today()->startOfDay(),
+        };
+
+        $periodEnd = now()->endOfDay();
+
+        $periodLabel = match ($filters['period']) {
+            'week' => 'This Week',
+            'month' => 'This Month',
+            default => 'Today',
+        };
+
+        $periodDescription = match ($filters['period']) {
+            'week' => 'Showing bookings from the last 7 days.',
+            'month' => 'Showing bookings from the last 30 days.',
+            default => 'Showing only today\'s bookings.',
+        };
+
+        $query->whereBetween('created_at', [$periodStart, $periodEnd]);
+        $statsQuery->whereBetween('created_at', [$periodStart, $periodEnd]);
+
+        if ($filters['status'] !== '') {
+            if ($filters['status'] === 'active') {
+                $query->whereIn('status', ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job']);
+            } else {
+                $query->where('status', $filters['status']);
+            }
+        }
+
+        $stats = [
+            'total' => (clone $statsQuery)->count(),
+            'requested' => (clone $statsQuery)->where('status', 'requested')->count(),
+            'active' => (clone $statsQuery)->whereIn('status', ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'])->count(),
+            'completed' => (clone $statsQuery)->where('status', 'completed')->count(),
+        ];
+
         $bookings = $query->latest()->paginate(10)->withQueryString();
 
-        return view('superadmin.bookings.index', compact('bookings'));
+        return view('superadmin.bookings.index', compact('bookings', 'filters', 'stats', 'periodLabel', 'periodDescription'));
     }
 
     public function show($id)
