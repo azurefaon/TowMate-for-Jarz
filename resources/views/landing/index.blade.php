@@ -193,20 +193,6 @@
                     </p>
                 </div>
 
-                <div class="portfolio-stats">
-                    <div class="stat-item">
-                        <div class="stat-number">2,500+</div>
-                        <div class="stat-label">Jobs Completed</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number">98%</div>
-                        <div class="stat-label">Success Rate</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number">4.9/5</div>
-                        <div class="stat-label">Customer Rating</div>
-                    </div>
-                </div>
 
                 <div class="portfolio-layout">
 
@@ -232,13 +218,6 @@
                             </div>
                             <div class="portfolio-overlay">
                                 <h4>Roadside Assist</h4>
-                                <div class="portfolio-star">
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                </div>
                             </div>
                         </div>
 
@@ -248,13 +227,6 @@
                             </div>
                             <div class="portfolio-overlay">
                                 <h4>Vehicle Recovery</h4>
-                                <div class="portfolio-star">
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                </div>
                             </div>
                         </div>
 
@@ -264,13 +236,6 @@
                             </div>
                             <div class="portfolio-overlay">
                                 <h4>Towing Service</h4>
-                                <div class="portfolio-star">
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                    <i class='bx bxs-star'></i>
-                                </div>
                             </div>
                         </div>
 

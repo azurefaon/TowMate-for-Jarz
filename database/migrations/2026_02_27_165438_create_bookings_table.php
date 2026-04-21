@@ -34,8 +34,7 @@ return new class extends Migration
             $table->string('discount_reason')->nullable();
             $table->decimal('final_total', 10, 2)->nullable();
 
-            $table->enum('status', ['requested','assigned','on_job','completed','cancelled'])
-                ->default('requested');
+            $table->string('status')->default('requested');
 
             $table->timestamp('assigned_at')->nullable();
             $table->timestamp('completed_at')->nullable();

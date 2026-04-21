@@ -153,13 +153,6 @@ class TeamLeaderController extends Controller
             ], 422);
         }
 
-        if (in_array($booking->status, ['quoted', 'quotation_sent', 'reviewed'], true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Wait for the customer to approve the quotation before accepting this task.',
-            ], 422);
-        }
-
         // Try to get from the approved queue first, if not found check if already assigned to you
         $task = $this->queueBookingsQuery()->find($booking->id);
 
@@ -194,7 +187,7 @@ class TeamLeaderController extends Controller
                 $q->whereNull('assigned_team_leader_id')
                     ->orWhere('assigned_team_leader_id', $teamLeaderId);
             })
-            ->whereIn('status', ['confirmed', 'accepted', 'assigned'])
+            ->whereIn('status', ['quotation_sent', 'confirmed', 'accepted', 'assigned'])
             ->update([
                 'assigned_team_leader_id' => $teamLeaderId,
                 'assigned_unit_id' => $assignedUnitId,
@@ -422,6 +415,7 @@ class TeamLeaderController extends Controller
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
         $this->syncAssignedUnitStatus($task, 'available');
+        $this->teamLeaderAvailability->setOperationalOverride(Auth::user(), 'available');
         event(new BookingStatusUpdated($task));
 
         Mail::to($task->customer->email)->send(
@@ -475,6 +469,7 @@ class TeamLeaderController extends Controller
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'returnedByTeamLeader']);
         $this->syncAssignedUnitStatus($task, 'available');
+        $this->teamLeaderAvailability->setOperationalOverride(Auth::user(), 'available');
         event(new BookingStatusUpdated($task));
 
         return response()->json([
@@ -521,6 +516,11 @@ class TeamLeaderController extends Controller
 
             $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
             $this->syncAssignedUnitStatus($booking, 'available');
+            $assignedTlId = $booking->assigned_team_leader_id;
+            if ($assignedTlId) {
+                $tl = \App\Models\User::find($assignedTlId);
+                $this->teamLeaderAvailability->setOperationalOverride($tl, 'available');
+            }
             event(new BookingStatusUpdated($booking));
 
             $receipt = app(DocumentGenerationService::class)->generateReceipt($booking);
@@ -563,7 +563,7 @@ class TeamLeaderController extends Controller
         $userUnit = Auth::user()?->unit;
 
         return Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
-            ->whereIn('status', ['confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed'])
+            ->whereIn('status', ['quotation_sent', 'confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed'])
             ->where(function (Builder $query) use ($teamLeaderId, $userUnit) {
                 $query->where('assigned_team_leader_id', $teamLeaderId)
                     ->orWhere(function (Builder $subQuery) use ($teamLeaderId, $userUnit) {
@@ -592,10 +592,12 @@ class TeamLeaderController extends Controller
         $userUnit = Auth::user()?->unit;
 
         return Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
-            ->whereIn('status', ['confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress'])
+            ->whereIn('status', ['quotation_sent', 'confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress'])
+            ->whereNull('returned_at')
             ->where(function (Builder $query) use ($teamLeaderId, $userUnit) {
                 $query->where('assigned_team_leader_id', $teamLeaderId)
                     ->orWhere(function (Builder $q) use ($teamLeaderId, $userUnit) {
+                        // quotation_sent bookings are only visible if directly assigned — never from the open pool
                         $q->whereNull('assigned_team_leader_id')
                             ->where(function (Builder $sub) use ($teamLeaderId, $userUnit) {
                                 if ($userUnit) {
@@ -766,7 +768,9 @@ class TeamLeaderController extends Controller
             'returned_by' => $booking->returnedByTeamLeader->full_name ?? $booking->returnedByTeamLeader->name ?? null,
             'is_returned' => $booking->needs_reassignment,
             'assigned_to_me' => (int) $booking->assigned_team_leader_id === (int) Auth::id(),
-            'can_accept' => ! $booking->needs_reassignment && in_array($booking->status, ['confirmed', 'accepted', 'assigned'], true) && empty($booking->assigned_team_leader_id),
+            'can_accept' => ! $booking->needs_reassignment
+                && in_array($booking->status, ['quotation_sent', 'confirmed', 'accepted', 'assigned'], true)
+                && (empty($booking->assigned_team_leader_id) || (int) $booking->assigned_team_leader_id === (int) Auth::id()),
             'can_open' => (int) $booking->assigned_team_leader_id === (int) Auth::id() && $booking->status !== 'completed',
             'can_proceed' => $booking->status === 'assigned',
             'can_start' => $booking->status === 'on_the_way',

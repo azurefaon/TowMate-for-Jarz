@@ -58,6 +58,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
     animateCards(cards);
     applyFilter(defaultFilter);
+
+    // If redirected from dispatcher after sending a quotation, highlight the assigned TL card
+    const focusParam = new URLSearchParams(window.location.search).get("focus");
+    if (focusParam) {
+        const focusCard = document.querySelector(
+            '[data-driver-id="' + focusParam + '"]',
+        );
+        if (focusCard) {
+            // Ensure the card is visible (override any active filter)
+            focusCard.classList.remove("is-hidden");
+            applyFilter("all");
+            setActiveButton("all");
+
+            setTimeout(() => {
+                focusCard.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                });
+                focusCard.classList.add("tl-card--focus-highlight");
+                setTimeout(
+                    () =>
+                        focusCard.classList.remove("tl-card--focus-highlight"),
+                    3000,
+                );
+            }, 400);
+        }
+
+        // Clean the query param from the URL without reloading
+        const cleanUrl =
+            window.location.pathname + (window.location.hash || "");
+        history.replaceState(null, "", cleanUrl);
+    }
+
+    // Auto-hide success banner after 2 seconds
+    const successBanner = document.getElementById("driversFeedbackSuccess");
+    if (successBanner) {
+        setTimeout(() => {
+            successBanner.style.transition = "opacity 0.4s ease";
+            successBanner.style.opacity = "0";
+            setTimeout(() => successBanner.remove(), 400);
+        }, 2000);
+    }
 });
 
 function animateCards(cards) {

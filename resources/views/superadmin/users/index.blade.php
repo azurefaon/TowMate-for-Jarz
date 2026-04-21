@@ -415,14 +415,25 @@
                                 </td>
 
                                 <td data-label="Status">
+                                    @php
+                                        $dispatcherOnline =
+                                            (int) $user->role_id === 2 &&
+                                            \Illuminate\Support\Facades\Cache::has('dispatcher:presence:' . $user->id);
+                                    @endphp
                                     <div class="status-stack">
                                         <span class="status-badge {{ $user->status }}">{{ ucfirst($user->status) }}</span>
 
+                                        @if ($dispatcherOnline)
+                                            <small class="self-tag">Dispatcher online</small>
+                                        @endif
+
                                         @if ($user->id !== auth()->id())
-                                            <label class="switch">
+                                            <label class="switch"
+                                                title="{{ $dispatcherOnline ? 'This dispatcher is online and cannot be changed right now.' : 'Toggle user status' }}">
                                                 <input type="checkbox"
                                                     onchange="document.getElementById('toggle-{{ $user->id }}').submit();"
-                                                    {{ $user->status == 'active' ? 'checked' : '' }}>
+                                                    {{ $user->status == 'active' ? 'checked' : '' }}
+                                                    {{ $dispatcherOnline ? 'disabled' : '' }}>
                                                 <span class="slider"></span>
                                             </label>
                                         @else
@@ -450,7 +461,9 @@
                                                 data-confirm-button="Move to Archive">
                                                 @csrf
                                                 @method('PATCH')
-                                                <button type="submit" class="action-btn archive-btn">
+                                                <button type="submit" class="action-btn archive-btn"
+                                                    {{ $dispatcherOnline ? 'disabled' : '' }}
+                                                    title="{{ $dispatcherOnline ? 'This dispatcher is online and cannot be removed right now.' : 'Move user to archive' }}">
                                                     <i data-lucide="archive"></i>
                                                     Remove
                                                 </button>

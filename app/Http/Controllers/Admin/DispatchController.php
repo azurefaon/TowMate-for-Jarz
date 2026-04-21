@@ -7,12 +7,14 @@ use App\Http\Controllers\Controller;
 use App\Mail\BookingAcceptedMail;
 use App\Mail\BookingRejectedMail;
 use App\Models\Booking;
+use App\Models\Customer;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\BookingService;
 use App\Services\DocumentGenerationService;
 use App\Services\TeamLeaderAvailabilityService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
@@ -52,13 +54,23 @@ class DispatchController extends Controller
     {
         $queueBase = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'returnedByTeamLeader'])
             ->where(function ($query) {
-                $query->whereIn('status', ['requested', 'reviewed'])
+                $query->whereIn('status', ['requested', 'reviewed', 'delayed'])
                     ->orWhere(function ($returnedQuery) {
                         $returnedQuery->whereIn('status', ['confirmed', 'accepted', 'assigned'])
                             ->whereNotNull('returned_at');
                     });
             })
             ->get();
+
+        $delayedRequests = $queueBase
+            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment && $booking->is_dispatch_delayed)
+            ->sortBy(fn(Booking $booking) => $booking->scheduled_for?->getTimestamp() ?? 0)
+            ->values()
+            ->map(function (Booking $booking) {
+                $booking->queue_bucket = 'delayed';
+
+                return $booking;
+            });
 
         $returnedRequests = $queueBase
             ->filter(fn(Booking $booking) => $booking->needs_reassignment)
@@ -71,7 +83,10 @@ class DispatchController extends Controller
             });
 
         $bookNowRequests = $queueBase
-            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment && $booking->status !== 'reviewed' && (! $booking->is_scheduled || $booking->is_due_for_dispatch))
+            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment
+                && ! $booking->is_dispatch_delayed
+                && $booking->status !== 'reviewed'
+                && (! $booking->is_scheduled || $booking->is_due_for_dispatch))
             ->sortBy(fn(Booking $booking) => $booking->is_due_for_dispatch
                 ? ($booking->scheduled_for?->getTimestamp() ?? 0)
                 : ($booking->created_at?->getTimestamp() ?? 0))
@@ -83,7 +98,11 @@ class DispatchController extends Controller
             });
 
         $scheduledRequests = $queueBase
-            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment && $booking->status !== 'reviewed' && $booking->is_scheduled && ! $booking->is_due_for_dispatch)
+            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment
+                && ! $booking->is_dispatch_delayed
+                && $booking->status !== 'reviewed'
+                && $booking->is_scheduled
+                && ! $booking->is_due_for_dispatch)
             ->sortBy(fn(Booking $booking) => $booking->scheduled_for?->getTimestamp() ?? PHP_INT_MAX)
             ->values()
             ->map(function (Booking $booking) {
@@ -93,7 +112,7 @@ class DispatchController extends Controller
             });
 
         $negotiationRequests = $queueBase
-            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment && $booking->status === 'reviewed')
+            ->filter(fn(Booking $booking) => ! $booking->needs_reassignment && ! $booking->is_dispatch_delayed && $booking->status === 'reviewed')
             ->sortByDesc(fn(Booking $booking) => $booking->updated_at?->getTimestamp() ?? 0)
             ->values()
             ->map(function (Booking $booking) {
@@ -105,6 +124,7 @@ class DispatchController extends Controller
         $incomingRequests = $returnedRequests
             ->concat($bookNowRequests)
             ->concat($scheduledRequests)
+            ->concat($delayedRequests)
             ->concat($negotiationRequests)
             ->values();
 
@@ -113,6 +133,7 @@ class DispatchController extends Controller
             'returned' => $returnedRequests->count(),
             'book-now' => $bookNowRequests->count(),
             'scheduled' => $scheduledRequests->count(),
+            'delayed' => $delayedRequests->count(),
             'negotiation' => $negotiationRequests->count(),
         ];
 
@@ -124,7 +145,7 @@ class DispatchController extends Controller
             )['leaders']
             ->keyBy('id');
 
-        $availableUnits = Unit::with(['truckType', 'driver', 'teamLeader'])
+        $availableUnitProfiles = Unit::with(['truckType', 'driver', 'teamLeader'])
             ->where('status', 'available')
             ->whereNotNull('team_leader_id')
             ->orderBy('name')
@@ -134,28 +155,201 @@ class DispatchController extends Controller
                 $leaderStatus = $teamLeaderStatuses->get($teamLeaderId, []);
                 $isOnline = ($leaderStatus['presence'] ?? 'offline') === 'online';
                 $hasReadyLeader = $teamLeaderId > 0 && $isOnline && ! $busyTeamLeaderIds->contains($teamLeaderId);
+                $coverage = $this->resolveUnitCoverageProfile($unit);
 
                 return [
                     'id' => $unit->id,
                     'label' => trim(($unit->name ?? 'Unit') . ' · ' . ($unit->plate_number ?? 'No plate')),
+                    'truck_type_id' => (int) ($unit->truck_type_id ?? 0),
                     'truck_type' => $unit->truckType->name ?? 'Unknown truck type',
                     'team_leader_name' => $unit->teamLeader->full_name ?? $unit->teamLeader->name ?? 'No team leader',
                     'driver_name' => $unit->driver->full_name ?? $unit->driver->name ?? 'No saved driver',
-                    'status_summary' => 'Online and ready for dispatch',
+                    'status_summary' => $hasReadyLeader ? $coverage['summary'] : 'Team leader is not ready for dispatch',
+                    'coverage_zones' => $coverage['zones'],
+                    'coverage_scores' => $coverage['scores'],
+                    'coverage_total' => $coverage['total'],
                     'selectable' => $hasReadyLeader,
                 ];
-            })
+            });
+
+        $availableUnits = $availableUnitProfiles
             ->filter(fn(array $unit) => $unit['selectable'])
+            ->sortByDesc('coverage_total')
+            ->values();
+
+        $incomingRequests = $incomingRequests
+            ->map(function (Booking $booking) use ($availableUnits) {
+                $booking->dispatch_zone_label = $this->inferDispatchZoneLabel($booking->pickup_address);
+
+                $recommendation = $this->recommendUnitForBooking($booking, $availableUnits);
+
+                $booking->recommended_unit_id = $recommendation['id'] ?? null;
+                $booking->recommended_unit_label = $recommendation['label'] ?? 'Dispatcher will choose the best ready unit.';
+                $booking->recommended_unit_summary = $recommendation['recommendation'] ?? 'No saved zone history yet; dispatcher can still assign any ready crew.';
+
+                return $booking;
+            })
             ->values();
 
         return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts'));
+    }
+
+    protected function syncCustomerRiskFlag(?Customer $customer, ?string $reason): void
+    {
+        if (! $customer || blank($reason)) {
+            return;
+        }
+
+        $reasonText = trim(strip_tags((string) $reason));
+        $normalizedReason = strtolower($reasonText);
+        $currentRisk = strtolower((string) ($customer->risk_level ?? ''));
+
+        $blacklistKeywords = ['refused to pay', 'non paying', 'non-paying', 'did not pay', 'no payment', 'scam', 'fraud', 'fake booking'];
+        $watchlistKeywords = ['unreachable', 'not responding', 'cannot contact', 'no answer', 'no-show', 'no show'];
+
+        $resolvedRisk = null;
+
+        foreach ($blacklistKeywords as $keyword) {
+            if (str_contains($normalizedReason, $keyword)) {
+                $resolvedRisk = 'blacklisted';
+                break;
+            }
+        }
+
+        if (! $resolvedRisk) {
+            foreach ($watchlistKeywords as $keyword) {
+                if (str_contains($normalizedReason, $keyword)) {
+                    $resolvedRisk = 'watchlist';
+                    break;
+                }
+            }
+        }
+
+        if (! $resolvedRisk || ($currentRisk === 'blacklisted' && $resolvedRisk !== 'blacklisted')) {
+            return;
+        }
+
+        $payload = [
+            'risk_level' => $resolvedRisk,
+            'risk_reason' => $reasonText,
+        ];
+
+        if ($resolvedRisk === 'blacklisted') {
+            $payload['blacklisted_at'] = now();
+        }
+
+        $customer->update($payload);
+    }
+
+    protected function recommendUnitForBooking(Booking $booking, Collection $availableUnits): ?array
+    {
+        $dispatchZone = $this->inferDispatchZoneLabel($booking->pickup_address);
+
+        $recommended = $availableUnits
+            ->map(function (array $unit) use ($booking, $dispatchZone) {
+                $zoneMatches = (int) ($unit['coverage_scores'][$dispatchZone] ?? 0);
+                $sameTruckType = (int) ($unit['truck_type_id'] ?? 0) === (int) ($booking->truck_type_id ?? 0);
+                $score = ($sameTruckType ? 6 : 0) + ($zoneMatches * 4) + ((int) ($unit['coverage_total'] ?? 0) > 0 ? 1 : 0);
+
+                $recommendation = $zoneMatches > 0
+                    ? 'Recommended for ' . $dispatchZone . ' based on ' . $zoneMatches . ' recent zone-matched job(s).'
+                    : 'Best ready crew for ' . $dispatchZone . ' based on truck match and recent availability.';
+
+                return $unit + [
+                    'score' => $score,
+                    'recommendation' => $recommendation,
+                ];
+            })
+            ->sortByDesc('score')
+            ->values()
+            ->first();
+
+        return $recommended && ($recommended['score'] ?? 0) > 0 ? $recommended : null;
+    }
+
+    protected function resolveUnitCoverageProfile(Unit $unit): array
+    {
+        $history = Booking::query()
+            ->where(function ($query) use ($unit) {
+                $query->where('assigned_unit_id', $unit->id);
+
+                if ($unit->team_leader_id) {
+                    $query->orWhere('assigned_team_leader_id', $unit->team_leader_id);
+                }
+            })
+            ->whereIn('status', ['confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed', 'on_job'])
+            ->latest('updated_at')
+            ->limit(20)
+            ->get(['pickup_address', 'dropoff_address']);
+
+        $scores = [];
+
+        foreach ($history as $trip) {
+            foreach ([$trip->pickup_address, $trip->dropoff_address] as $address) {
+                $zone = $this->inferDispatchZoneLabel($address);
+
+                if ($zone === 'General Dispatch Zone') {
+                    continue;
+                }
+
+                $scores[$zone] = ($scores[$zone] ?? 0) + 1;
+            }
+        }
+
+        arsort($scores);
+
+        $zones = array_slice(array_keys($scores), 0, 2);
+        $summary = $zones !== []
+            ? 'Online and ready for dispatch · Familiar with ' . implode(', ', $zones)
+            : 'Online and ready for dispatch · No saved zone history yet';
+
+        return [
+            'zones' => $zones,
+            'scores' => $scores,
+            'summary' => $summary,
+            'total' => array_sum($scores),
+        ];
+    }
+
+    protected function inferDispatchZoneLabel(?string $address): string
+    {
+        $normalized = strtolower((string) $address);
+
+        if ($normalized === '') {
+            return 'General Dispatch Zone';
+        }
+
+        $zoneMap = [
+            'Makati Zone' => ['makati', 'salcedo', 'legazpi village', 'ayala', 'paseo de roxas'],
+            'Taguig/BGC Zone' => ['taguig', 'bgc', 'bonifacio global city', 'market market'],
+            'Quezon City Zone' => ['quezon city', 'qc', 'cubao', 'commonwealth', 'fairview'],
+            'Pasig Zone' => ['pasig', 'ortigas', 'kapitolyo'],
+            'Pasay Zone' => ['pasay', 'moa', 'mall of asia', 'edsa taft'],
+            'Manila Zone' => ['manila', 'ermita', 'malate', 'sampaloc', 'quiapo'],
+            'Muntinlupa Zone' => ['muntinlupa', 'alabang'],
+            'Parañaque Zone' => ['paranaque', 'sucat', 'baclaran'],
+        ];
+
+        foreach ($zoneMap as $label => $keywords) {
+            foreach ($keywords as $keyword) {
+                if (str_contains($normalized, $keyword)) {
+                    return $label;
+                }
+            }
+        }
+
+        $segments = array_values(array_filter(array_map('trim', explode(',', (string) $address))));
+        $fallback = $segments !== [] ? end($segments) : $address;
+        $fallback = trim((string) $fallback);
+
+        return $fallback !== '' ? ucfirst($fallback) . ' Zone' : 'General Dispatch Zone';
     }
 
     public function pendingBookingsCount()
     {
         return response()->json([
             'count' => Booking::where(function ($query) {
-                $query->whereIn('status', ['requested', 'reviewed'])
+                $query->whereIn('status', ['requested', 'reviewed', 'delayed'])
                     ->orWhere(function ($returnedQuery) {
                         $returnedQuery->whereIn('status', ['confirmed', 'accepted', 'assigned'])
                             ->whereNotNull('returned_at');
@@ -331,6 +525,7 @@ class DispatchController extends Controller
 
             $booking->update($this->bookingService->filterPayloadForTable('bookings', [
                 'status' => 'quotation_sent',
+                'quotation_status' => 'active',
                 'assigned_unit_id' => $selectedUnit?->id ?? $booking->assigned_unit_id,
                 'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,
                 'distance_km' => $totals['distance_km'],
@@ -343,6 +538,8 @@ class DispatchController extends Controller
                 'reviewed_at' => $booking->reviewed_at ?? now(),
                 'quoted_at' => now(),
                 'quotation_sent_at' => now(),
+                'quotation_expires_at' => now()->addDays(7),
+                'quotation_follow_up_sent_at' => null,
                 'dispatcher_note' => $dispatcherNote,
                 'remarks' => $remarks,
                 'rejection_reason' => null,
@@ -372,6 +569,8 @@ class DispatchController extends Controller
                 'status' => $booking->status,
                 'assigned_unit' => $selectedUnit?->name,
                 'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
+                'assigned_team_leader_id' => $booking->assigned_team_leader_id,
+                'drivers_url' => route('admin.drivers'),
             ]);
         }
 
@@ -383,9 +582,12 @@ class DispatchController extends Controller
 
         $booking->update($this->bookingService->filterPayloadForTable('bookings', [
             'status' => 'cancelled',
+            'quotation_status' => 'cancelled',
             'rejection_reason' => $rejectionReason,
         ]));
 
+        $booking->refresh()->loadMissing(['customer', 'truckType']);
+        $this->syncCustomerRiskFlag($booking->customer, $rejectionReason);
         $booking->refresh()->loadMissing(['customer', 'truckType']);
 
         event(new \App\Events\BookingCancelled($booking));

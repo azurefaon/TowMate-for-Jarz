@@ -27,7 +27,7 @@ return new class extends Migration
             }
         });
 
-        if (DB::getDriverName() !== 'sqlite') {
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'])) {
             DB::statement("ALTER TABLE `bookings` MODIFY `status` ENUM('requested','accepted','assigned','in_progress','waiting_verification','on_job','completed','rejected','cancelled') NOT NULL DEFAULT 'requested'");
         }
     }
@@ -52,7 +52,7 @@ return new class extends Migration
             }
         });
 
-        if (DB::getDriverName() !== 'sqlite') {
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'])) {
             DB::statement("ALTER TABLE `bookings` MODIFY `status` ENUM('requested','accepted','assigned','on_job','completed','rejected','cancelled') NOT NULL DEFAULT 'requested'");
         }
     }

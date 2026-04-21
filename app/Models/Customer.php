@@ -21,6 +21,9 @@ class Customer extends Model
         'phone',
         'email',
         'customer_type',
+        'risk_level',
+        'risk_reason',
+        'blacklisted_at',
         'is_pwd',
         'is_senior',
     ];
@@ -28,6 +31,7 @@ class Customer extends Model
     protected $casts = [
         'is_pwd' => 'boolean',
         'is_senior' => 'boolean',
+        'blacklisted_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -79,6 +83,20 @@ class Customer extends Model
     public function getFullNameAttribute($value): string
     {
         return build_full_name($this->first_name, $this->middle_name, $this->last_name) ?: (string) $value;
+    }
+
+    public function getIsBlacklistedAttribute(): bool
+    {
+        return strtolower((string) ($this->risk_level ?? '')) === 'blacklisted';
+    }
+
+    public function getRiskStatusLabelAttribute(): string
+    {
+        return match (strtolower((string) ($this->risk_level ?? ''))) {
+            'watchlist' => 'Watchlist',
+            'blacklisted' => 'Blacklisted',
+            default => 'Clear',
+        };
     }
 
     public function bookings()

@@ -308,7 +308,11 @@
 <body>
     @php
         $breakdown = $booking->quotation_breakdown ?? [];
-        $statusLabel = strtoupper(str_replace('_', ' ', (string) $booking->status));
+        $quotationStatus = strtolower((string) ($booking->quotation_status ?? 'active'));
+        $statusLabel =
+            $quotationStatus === 'expired'
+                ? 'QUOTATION EXPIRED'
+                : strtoupper(str_replace('_', ' ', (string) $booking->status));
         $distanceKm = (float) ($booking->distance_km ?? 0);
         $perKmRate = (float) ($booking->per_km_rate ?? 0);
         $discountAmount = (float) ($breakdown['discount'] ?? 0);
@@ -317,6 +321,10 @@
             ['label' => 'Base rate', 'value' => (float) ($breakdown['base_rate'] ?? 0)],
             ['label' => 'Distance fee', 'value' => (float) ($breakdown['distance_fee'] ?? 0)],
         ];
+
+        if ((float) ($breakdown['excess_fee'] ?? 0) > 0) {
+            $priceRows[] = ['label' => 'Excess distance fee', 'value' => (float) $breakdown['excess_fee']];
+        }
 
         if ((float) ($breakdown['additional_fee'] ?? 0) > 0) {
             $priceRows[] = ['label' => 'Additional fee', 'value' => (float) $breakdown['additional_fee']];
@@ -364,6 +372,10 @@
                             <span>Drop-off</span>
                             <p>{{ $booking->dropoff_address ?? 'N/A' }}</p>
                         </div>
+                        <div class="detail-card">
+                            <span>Valid until</span>
+                            <p>{{ $booking->quotation_validity_label ?? 'Pending dispatch review' }}</p>
+                        </div>
                     </div>
 
                     @if ($distanceKm > 0 || $perKmRate > 0)
@@ -410,19 +422,27 @@
                         <strong>₱{{ number_format((float) ($breakdown['final_total'] ?? ($booking->final_total ?? 0)), 2) }}</strong>
                     </div>
 
-                    @if (in_array($booking->status, ['quoted', 'quotation_sent'], true))
-                        <form method="POST" action="{{ $signedActionUrl }}">
-                            @csrf
-                            <input type="hidden" name="action" value="accept">
-                            <button type="submit" class="btn">Accept & continue</button>
-                        </form>
+                    @if ($quotationStatus === 'expired')
+                        <div class="state-box">
+                            <strong>Quotation expired</strong><br>
+                            This quotation already passed its 7-day validity window. Dispatch can send you an updated
+                            quotation if needed.
+                        </div>
+                    @elseif (in_array($booking->status, ['quoted', 'quotation_sent'], true))
+                        <div class="state-box">
+                            <strong>Read-only booking copy</strong><br>
+                            This page only shows your latest price breakdown and booking credentials for reference.
+                            No response button is required on your side. A follow-up reminder is sent on day 5 if the
+                            quotation stays pending.
+                        </div>
                     @elseif ($booking->status === 'reviewed')
-                        <div class="state-box">Your adjustment request is already with dispatch.</div>
+                        <div class="state-box">This page remains read-only while dispatch reviews the latest pricing
+                            adjustment.</div>
                     @elseif ($booking->status === 'confirmed')
-                        <div class="state-box success"><strong>✓ Approved and done</strong><br>Your quotation has been
-                            confirmed successfully. Dispatch can now continue your towing service.</div>
+                        <div class="state-box success"><strong>✓ Price confirmed</strong><br>Your final total has been
+                            saved successfully as part of your booking record.</div>
                     @else
-                        <div class="state-box">This quotation is no longer available for response.</div>
+                        <div class="state-box">This quotation summary is kept here for your booking record.</div>
                     @endif
                 </aside>
             </div>

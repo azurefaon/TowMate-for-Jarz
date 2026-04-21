@@ -21,6 +21,12 @@
                 <span>Dashboard</span>
             </a>
 
+            <a href="{{ route('control-center.index') }}"
+                class="menu-item {{ request()->routeIs('control-center.*') ? 'active' : '' }}">
+                <i data-lucide="radar"></i>
+                <span>Control Center</span>
+            </a>
+
             <a href="{{ route('admin.dispatch') }}"
                 class="menu-item {{ request()->routeIs('admin.dispatch') ? 'active' : '' }}">
                 <i data-lucide="clipboard-check"></i>

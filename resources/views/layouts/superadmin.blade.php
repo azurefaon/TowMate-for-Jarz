@@ -307,6 +307,14 @@
             </li>
 
             <li>
+                <a href="{{ route('control-center.index') }}"
+                    class="{{ request()->routeIs('control-center.*') ? 'active' : '' }}">
+                    <i data-lucide="radar"></i>
+                    <span>Control Center</span>
+                </a>
+            </li>
+
+            <li>
                 <a href="{{ route('superadmin.monitoring.index') }}"
                     class="{{ request()->routeIs('superadmin.monitoring.*') ? 'active' : '' }}">
                     <i data-lucide="activity"></i>

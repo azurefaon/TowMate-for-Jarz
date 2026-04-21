@@ -66,10 +66,45 @@ class TeamLeaderAvailabilityService
         return 'Active ' . Carbon::createFromTimestamp((int) $lastSeen)->diffForHumans();
     }
 
+    public function setOperationalOverride(?User $user, string $status, ?string $reason = null): void
+    {
+        if (! $user || (int) $user->role_id !== 3 || $user->archived_at) {
+            return;
+        }
+
+        if ($status === 'available') {
+            Cache::forget($this->statusCacheKey((int) $user->id));
+
+            return;
+        }
+
+        Cache::put(
+            $this->statusCacheKey((int) $user->id),
+            [
+                'status' => $status,
+                'reason' => filled($reason) ? trim((string) $reason) : null,
+                'updated_at' => now()->toDateTimeString(),
+            ],
+            now()->addHours(12)
+        );
+    }
+
+    public function operationalOverride(?User $user): ?array
+    {
+        if (! $user || blank($user->id)) {
+            return null;
+        }
+
+        $override = Cache::get($this->statusCacheKey((int) $user->id));
+
+        return is_array($override) ? $override : null;
+    }
+
     public function busyTeamLeaderIds(): Collection
     {
         return Booking::with('unit:id,team_leader_id')
             ->whereIn('status', $this->busyStatuses)
+            ->whereNull('returned_at')
             ->get(['id', 'assigned_team_leader_id', 'assigned_unit_id'])
             ->map(function (Booking $booking) {
                 return $booking->assigned_team_leader_id ?: optional($booking->unit)->team_leader_id;
@@ -110,6 +145,7 @@ class TeamLeaderAvailabilityService
 
         $activeBookingsByLeaderId = Booking::with(['unit.driver'])
             ->whereIn('status', $this->busyStatuses)
+            ->whereNull('returned_at')
             ->latest('updated_at')
             ->get()
             ->mapWithKeys(function (Booking $booking) {
@@ -125,9 +161,21 @@ class TeamLeaderAvailabilityService
                 $activeBooking = $activeBookingsByLeaderId->get((int) $teamLeader->id);
                 $assignedUnit = $activeBooking?->unit ?? $assignedUnitsByLeaderId->get((int) $teamLeader->id);
                 $savedDriverName = $activeBooking?->driver_name;
+                $dispatcherOverride = $this->operationalOverride($teamLeader);
 
                 $workload = $isBusy ? 'busy' : ($isOnline ? 'available' : 'unavailable');
-                $workloadLabel = $isBusy ? 'Busy' : ($isOnline ? 'Available' : 'Not Available');
+
+                if ($isOnline && in_array($dispatcherOverride['status'] ?? null, ['busy', 'unavailable'], true)) {
+                    $workload = $dispatcherOverride['status'];
+                }
+
+                $workloadLabel = $this->workloadLabel($workload);
+                $statusReason = $dispatcherOverride['reason'] ?? null;
+                $statusSummary = ($isOnline ? 'Online' : 'Offline') . ' · ' . $workloadLabel;
+
+                if (filled($statusReason)) {
+                    $statusSummary .= ' · ' . $statusReason;
+                }
 
                 return [
                     'id' => $teamLeader->id,
@@ -142,8 +190,14 @@ class TeamLeaderAvailabilityService
                     'presence_label' => $isOnline ? 'Online' : 'Offline',
                     'workload' => $workload,
                     'workload_label' => $workloadLabel,
+                    'operational_status' => $workload,
+                    'operational_status_label' => $workloadLabel,
+                    'status_reason' => $statusReason,
+                    'unit_status' => $assignedUnit?->status,
+                    'unit_status_label' => $this->unitStatusLabel($assignedUnit?->status),
+                    'has_dispatcher_override' => filled($statusReason) || in_array($dispatcherOverride['status'] ?? null, ['busy', 'unavailable'], true),
                     'last_seen_label' => $isOnline ? 'Active now' : $this->lastSeenHuman($teamLeader),
-                    'status_summary' => ($isOnline ? 'Online' : 'Offline') . ' · ' . $workloadLabel,
+                    'status_summary' => $statusSummary,
                 ];
             })
             ->sortBy([
@@ -202,8 +256,32 @@ class TeamLeaderAvailabilityService
             ]);
     }
 
+    protected function workloadLabel(string $workload): string
+    {
+        return match ($workload) {
+            'busy' => 'Busy',
+            'available' => 'Available',
+            default => 'Not Available',
+        };
+    }
+
+    protected function unitStatusLabel(?string $status): string
+    {
+        return match ($status) {
+            'available' => 'Available',
+            'on_job' => 'On Job',
+            'maintenance' => 'Maintenance',
+            default => 'Unassigned',
+        };
+    }
+
     protected function cacheKey(int $teamLeaderId): string
     {
         return "teamleader:presence:{$teamLeaderId}";
+    }
+
+    protected function statusCacheKey(int $teamLeaderId): string
+    {
+        return "teamleader:dispatcher-status:{$teamLeaderId}";
     }
 }

@@ -4,16 +4,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
-use App\Mail\OtpMail;
 use App\Models\User;
 use App\Services\TeamLeaderAvailabilityService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 use Illuminate\Validation\ValidationException;
 
@@ -92,56 +88,13 @@ class AuthenticatedSessionController extends Controller
 
         if ((int) $user->role_id === 3) {
             app(TeamLeaderAvailabilityService::class)->markOnline($user);
+        } elseif ((int) $user->role_id === 2) {
+            Cache::put('dispatcher:presence:' . $user->id, now()->timestamp, now()->addHours(12));
         }
 
         return redirect()->intended(route($request->redirectRoute(), absolute: false));
     }
 
-    public function sendTeamLeaderOtp(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'phone' => ['required', 'string', 'regex:/^(09\d{9}|9\d{9}|639\d{9})$/'],
-        ]);
-
-        $normalizedPhone = preg_replace('/\D+/', '', (string) $validated['phone']);
-
-        if (str_starts_with($normalizedPhone, '639')) {
-            $normalizedPhone = '0' . substr($normalizedPhone, 2);
-        } elseif (str_starts_with($normalizedPhone, '9') && strlen($normalizedPhone) === 10) {
-            $normalizedPhone = '0' . $normalizedPhone;
-        }
-
-        if (Schema::hasColumn('users', 'phone')) {
-            $user = User::query()
-                ->visibleToOperations()
-                ->where('role_id', 3)
-                ->where('phone', $normalizedPhone)
-                ->when(Schema::hasColumn('users', 'status'), fn($query) => $query->where('status', 'active'))
-                ->first();
-
-            if ($user && filled($user->email)) {
-                $code = (string) random_int(100000, 999999);
-
-                $user->forceFill([
-                    'otp_code' => Hash::make($code),
-                    'otp_plain_code' => app()->environment(['local', 'testing']) ? $code : null,
-                    'otp_expires_at' => now()->addMinutes(5),
-                    'otp_attempts' => 0,
-                    'otp_last_sent_at' => now(),
-                ])->save();
-
-                try {
-                    Mail::to($user->email)->send(new OtpMail($code, $user));
-                } catch (\Throwable $e) {
-                    report($e);
-                }
-            }
-        }
-
-        return response()->json([
-            'message' => 'If the account is valid, a one-time code has been sent.',
-        ]);
-    }
 
     public function destroy(Request $request): RedirectResponse
     {
@@ -149,6 +102,8 @@ class AuthenticatedSessionController extends Controller
 
         if ((int) optional($user)->role_id === 3) {
             app(TeamLeaderAvailabilityService::class)->markOffline($user);
+        } elseif ((int) optional($user)->role_id === 2) {
+            Cache::forget('dispatcher:presence:' . $user->id);
         }
 
         foreach (['web', 'superadmin', 'dispatcher', 'teamleader'] as $guard) {

@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    // 'google_maps' => [
+    //     'key' => env('GOOGLE_MAPS_API_KEY'),
+    //     'geocode_url' => env('GOOGLE_MAPS_GEOCODE_URL', 'https://maps.googleapis.com/maps/api/geocode/json'),
+    //     'directions_url' => env('GOOGLE_MAPS_DIRECTIONS_URL', 'https://maps.googleapis.com/maps/api/directions/json'),
+    // ],
+
+    'openrouteservice' => [
+        'key' => env('OPENROUTESERVICE_API_KEY'),
+        'base_url' => env('OPENROUTESERVICE_BASE_URL', 'https://api.openrouteservice.org'),
+    ],
+
 ];

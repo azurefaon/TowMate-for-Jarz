@@ -19,4 +19,9 @@ class TruckType extends Model
     {
         return $this->hasMany(\App\Models\Unit::class, 'truck_type_id');
     }
+
+    public function bookings()
+    {
+        return $this->hasMany(\App\Models\Booking::class, 'truck_type_id');
+    }
 }

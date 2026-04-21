@@ -8,6 +8,14 @@
 
 @section('content')
     <div class="truck-types-page" data-base-url="{{ url('/superadmin/truck-types') }}">
+        @if (session('success'))
+            <div class="type-feedback type-feedback--success">{{ session('success') }}</div>
+        @endif
+
+        @if (session('error'))
+            <div class="type-feedback type-feedback--error">{{ session('error') }}</div>
+        @endif
+
         <div class="page-top">
             <div>
                 <h1>Tow Truck Types</h1>
@@ -19,11 +27,6 @@
                     <i data-lucide="arrow-left"></i>
                     <span>Back to Units</span>
                 </a>
-
-                <button type="button" class="btn-primary-add" data-open-modal="addModal">
-                    <i data-lucide="plus-circle"></i>
-                    <span>Add Tow Truck Type</span>
-                </button>
             </div>
         </div>
 
@@ -61,16 +64,23 @@
                 </div>
 
                 <div class="table-controls">
-                    <label class="search-box">
-                        <i data-lucide="search"></i>
-                        <input type="text" id="truckTypeSearch" placeholder="Search tow truck types...">
-                    </label>
+                    <div class="table-toolbar">
+                        <label class="search-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="truckTypeSearch" placeholder="Search towing classes...">
+                        </label>
 
-                    <select id="truckTypeStatusFilter" class="status-filter">
-                        <option value="all">All Status</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select>
+                        <select id="truckTypeStatusFilter" class="status-filter">
+                            <option value="all">All</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+
+                        <button type="button" class="btn-primary-add" data-open-modal="addModal">
+                            <i data-lucide="plus-circle"></i>
+                            <span>Add Tow Truck Type</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -98,9 +108,14 @@
                                 </td>
                                 <td data-label="Pricing">
                                     <div class="price-stack">
-                                        <strong>₱{{ number_format($type->base_rate, 2) }}</strong>
-                                        <small>Base fare</small>
-                                        <span>₱{{ number_format($type->per_km_rate, 2) }}/km</span>
+                                        <div class="price-line">
+                                            <small>Base Rate</small>
+                                            <strong>₱{{ number_format($type->base_rate, 2) }}</strong>
+                                        </div>
+                                        <div class="price-line">
+                                            <small>Per KM</small>
+                                            <span>₱{{ number_format($type->per_km_rate, 2) }}/km</span>
+                                        </div>
                                     </div>
                                 </td>
                                 <td data-label="Capacity">
@@ -125,9 +140,12 @@
 
                                         @if ($type->status === 'active')
                                             <button type="button" class="action-btn btn-danger js-disable-type"
-                                                data-id="{{ $type->id }}" data-name="{{ $type->name }}">
+                                                data-id="{{ $type->id }}" data-name="{{ $type->name }}"
+                                                data-busy="{{ ($type->units_count ?? 0) > 0 || ($type->active_bookings_count ?? 0) > 0 ? '1' : '0' }}"
+                                                data-unit-count="{{ $type->units_count ?? 0 }}"
+                                                data-booking-count="{{ $type->active_bookings_count ?? 0 }}">
                                                 <i data-lucide="ban"></i>
-                                                <span>Disable</span>
+                                                <span>{{ ($type->units_count ?? 0) > 0 || ($type->active_bookings_count ?? 0) > 0 ? 'Busy' : 'Disable' }}</span>
                                             </button>
                                         @else
                                             <form method="POST"
@@ -178,24 +196,24 @@
 
                     <div class="form-group">
                         <label for="newTruckTypeName">Truck Type Name</label>
-                        <small class="input-hint">Example: Flatbed, Wheel-Lift, Heavy Duty</small>
-                        <input id="newTruckTypeName" type="text" name="name" placeholder="Enter towing truck class"
-                            required>
+                        <small class="input-hint">Example: Flatbed, Wheel-Lift, Medium Duty, or Heavy Duty</small>
+                        <input id="newTruckTypeName" type="text" name="name"
+                            placeholder="Enter towing class like Flatbed" required>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="newTruckTypeBase">Base Rate</label>
                             <small class="input-hint">Starting rate for the initial distance</small>
-                            <input id="newTruckTypeBase" type="number" step="0.01" name="base_rate" placeholder="1500"
-                                required>
+                            <input id="newTruckTypeBase" type="number" step="0.01" name="base_rate"
+                                placeholder="1500" required>
                         </div>
 
                         <div class="form-group">
                             <label for="newTruckTypeKm">Per KM Rate</label>
                             <small class="input-hint">Additional cost per kilometer after base distance</small>
-                            <input id="newTruckTypeKm" type="number" step="0.01" name="per_km_rate" placeholder="200"
-                                required>
+                            <input id="newTruckTypeKm" type="number" step="0.01" name="per_km_rate"
+                                placeholder="200" required>
                         </div>
                     </div>
 
@@ -275,7 +293,7 @@
                 <div class="danger-icon">
                     <i data-lucide="alert-triangle"></i>
                 </div>
-                <h3>Disable Tow Truck Type?</h3>
+                <h3 id="disableTitle">Disable Tow Truck Type?</h3>
                 <p id="disableText">This type will no longer appear for new towing unit setups.</p>
 
                 <form method="POST" id="disableForm">
@@ -283,8 +301,8 @@
                     @method('PATCH')
 
                     <div class="modal-actions">
-                        <button type="button" class="btn-cancel" data-close-modal="disableModal">Cancel</button>
-                        <button type="submit" class="btn-danger">Disable</button>
+                        <button type="button" class="btn-cancel" data-close-modal="disableModal">Close</button>
+                        <button type="submit" class="btn-danger" id="disableSubmitBtn">Disable</button>
                     </div>
                 </form>
             </div>

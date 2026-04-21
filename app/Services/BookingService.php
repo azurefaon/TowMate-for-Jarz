@@ -4,14 +4,24 @@ namespace App\Services;
 
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\TruckType;
+use App\Models\Unit;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Schema;
 
 class BookingService
 {
+    protected TeamLeaderAvailabilityService $teamLeaderAvailability;
+
+    public function __construct(TeamLeaderAvailabilityService $teamLeaderAvailability)
+    {
+        $this->teamLeaderAvailability = $teamLeaderAvailability;
+    }
+
     public function createBooking(array $data, ?Authenticatable $user = null): Booking
     {
         $customer = $this->resolveCustomer($data, $user);
@@ -25,6 +35,7 @@ class BookingService
             'created_by_admin_id' => $data['created_by_admin_id'] ?? $user?->getAuthIdentifier(),
             'age' => $data['age'] ?? $customer->age,
             'pickup_address' => $data['pickup_address'],
+            'pickup_notes' => $this->sanitizeText($data['pickup_notes'] ?? $data['pickup_landmark'] ?? null),
             'pickup_lat' => $data['pickup_lat'] ?? null,
             'pickup_lng' => $data['pickup_lng'] ?? null,
             'dropoff_address' => $data['dropoff_address'],
@@ -45,9 +56,10 @@ class BookingService
             'scheduled_for' => $scheduledFor,
             'confirmation_type' => $data['confirmation_type'] ?? 'system',
             'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
-            'notes' => $this->composeNotes($data['notes'] ?? null, $serviceType, $scheduledFor),
+            'notes' => $this->composeNotes($this->composeLocationNotes($data), $serviceType, $scheduledFor),
             'status' => 'requested',
             'quotation_generated' => false,
+            'quotation_status' => 'active',
         ]);
 
         return Booking::create($payload);
@@ -145,18 +157,19 @@ class BookingService
     {
         $truckType = TruckType::query()->findOrFail($data['truck_type_id']);
         $distanceKm = $this->resolveDistanceKm($data);
-        $baseRate = round((float) $truckType->base_rate, 2);
-        $perKmRate = round((float) $truckType->per_km_rate, 2);
+        $baseRate = $this->resolveBaseRate($truckType);
+        $perKmRate = $this->resolvePerKmRate($truckType, $data['vehicle_category'] ?? null);
+        $excessKmThreshold = $this->resolveExcessKmThreshold(true);
+        $excessKmRate = $this->resolveExcessKmRate(true);
         $distanceFee = round($distanceKm * $perKmRate, 2);
-        $computedTotal = round($baseRate + $distanceFee, 2);
+        $excessKm = max(round($distanceKm - $excessKmThreshold, 2), 0);
+        $excessFee = round($excessKm * $excessKmRate, 2);
+        $computedTotal = round($baseRate + $distanceFee + $excessFee, 2);
         $customerType = $this->resolveCustomerType($data);
-        $discountPercentage = in_array($customerType, ['pwd', 'senior'], true)
-            ? round((float) SystemSetting::getValue('discount_percentage', setting('discount_percentage', 0)), 2)
-            : 0.0;
-        $discountReason = $discountPercentage > 0
-            ? trim((string) SystemSetting::getValue('discount_reason', setting('discount_reason', strtoupper($customerType) . ' discount')))
-            : null;
-        $discountAmount = round($computedTotal * ($discountPercentage / 100), 2);
+        $discount = $this->resolveBookingDiscount($data, $computedTotal, $customerType);
+        $discountPercentage = $discount['discount_percentage'];
+        $discountReason = $discount['discount_reason'];
+        $discountAmount = $discount['discount_amount'];
         $additionalFee = $this->parsePrice($data['additional_fee'] ?? null);
         $finalTotal = max(round($computedTotal + $additionalFee - $discountAmount, 2), 0);
 
@@ -164,6 +177,11 @@ class BookingService
             'distance_km' => $distanceKm,
             'base_rate' => $baseRate,
             'per_km_rate' => $perKmRate,
+            'distance_fee' => $distanceFee,
+            'excess_km_threshold' => $excessKmThreshold,
+            'excess_km_rate' => $excessKmRate,
+            'excess_km' => $excessKm,
+            'excess_fee' => $excessFee,
             'computed_total' => $computedTotal,
             'discount_percentage' => $discountPercentage,
             'discount_reason' => $discountReason,
@@ -185,7 +203,11 @@ class BookingService
         $perKmRate = round((float) ($booking->per_km_rate ?? 0), 2);
         $resolvedDistanceKm = max(round((float) ($distanceKm ?? ($booking->distance_km ?? 0)), 2), 0);
         $distanceFee = round($resolvedDistanceKm * $perKmRate, 2);
-        $computedTotal = round($baseRate + $distanceFee, 2);
+        $excessKmThreshold = $this->resolveExcessKmThreshold();
+        $excessKmRate = $this->resolveExcessKmRate();
+        $excessKm = max(round($resolvedDistanceKm - $excessKmThreshold, 2), 0);
+        $excessFee = round($excessKm * $excessKmRate, 2);
+        $computedTotal = round($baseRate + $distanceFee + $excessFee, 2);
 
         $customerType = strtolower((string) ($booking->customer_type ?: $booking->customer?->customer_type ?: 'regular'));
         $resolvedDiscountPercentage = in_array($customerType, ['pwd', 'senior'], true)
@@ -203,12 +225,74 @@ class BookingService
         return [
             'distance_km' => $resolvedDistanceKm,
             'distance_fee' => $distanceFee,
+            'excess_km_threshold' => $excessKmThreshold,
+            'excess_km_rate' => $excessKmRate,
+            'excess_km' => $excessKm,
+            'excess_fee' => $excessFee,
             'computed_total' => $computedTotal,
             'discount_percentage' => $resolvedDiscountPercentage,
             'additional_fee' => $resolvedAdditionalFee,
             'discount_amount' => $discountAmount,
             'final_total' => max(round($computedTotal + $resolvedAdditionalFee - $discountAmount, 2), 0),
         ];
+    }
+
+    public function refreshBookingForCustomerChange(Booking $booking, array $data): Booking
+    {
+        $pickupNotes = $this->sanitizeText($data['pickup_notes'] ?? $booking->pickup_notes);
+        $truckTypeId = (int) ($data['truck_type_id'] ?? $booking->truck_type_id);
+        $hadQuotation = $booking->quotation_generated
+            || in_array((string) $booking->status, ['reviewed', 'quoted', 'quotation_sent', 'confirmed'], true);
+
+        $pricing = $this->calculatePricing([
+            'truck_type_id' => $truckTypeId,
+            'distance_km' => $data['distance_km'] ?? $booking->distance_km,
+            'customer_type' => $booking->customer_type ?: $booking->customer?->customer_type ?: 'regular',
+        ]);
+
+        $payload = [
+            'truck_type_id' => $truckTypeId,
+            'pickup_address' => trim((string) ($data['pickup_address'] ?? $booking->pickup_address)),
+            'dropoff_address' => trim((string) ($data['dropoff_address'] ?? $booking->dropoff_address)),
+            'pickup_notes' => $pickupNotes,
+            'distance_km' => $pricing['distance_km'],
+            'base_rate' => $pricing['base_rate'],
+            'per_km_rate' => $pricing['per_km_rate'],
+            'computed_total' => $pricing['computed_total'],
+            'discount_percentage' => $pricing['discount_percentage'],
+            'discount_reason' => $pricing['discount_reason'],
+            'additional_fee' => $pricing['additional_fee'],
+            'final_total' => $pricing['final_total'],
+            'customer_type' => $pricing['customer_type'],
+            'notes' => $this->composeNotes(
+                $this->composeLocationNotes(['pickup_notes' => $pickupNotes]),
+                $booking->service_mode,
+                $booking->scheduled_for,
+            ),
+            'customer_approved_at' => null,
+            'price_locked_at' => null,
+            'negotiation_requested_at' => null,
+            'counter_offer_amount' => null,
+            'final_quote_path' => null,
+        ];
+
+        if ($hadQuotation) {
+            $payload = array_merge($payload, [
+                'status' => 'quotation_sent',
+                'quotation_status' => 'active',
+                'quotation_generated' => true,
+                'quotation_number' => $booking->quotation_number ?: $this->generateQuotationNumber($booking),
+                'quoted_at' => now(),
+                'quotation_sent_at' => now(),
+                'quotation_expires_at' => now()->addDays(7),
+                'quotation_follow_up_sent_at' => null,
+                'customer_response_note' => 'Booking details were updated and the quotation was refreshed automatically.',
+            ]);
+        }
+
+        $booking->update($this->filterPayloadForTable('bookings', $payload));
+
+        return $booking->fresh(['customer', 'truckType']);
     }
 
     public function generateQuotationNumber(Booking $booking): string
@@ -245,6 +329,51 @@ class BookingService
         return 'regular';
     }
 
+    public function dispatchAvailability(): array
+    {
+        $busyTeamLeaderIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
+        $teamLeaderRoleIds = Role::query()
+            ->whereIn('name', ['Team Leader', 'team leader'])
+            ->pluck('id');
+
+        $teamLeadersQuery = User::visibleToOperations()->with(['unit', 'unit.driver']);
+
+        if ($teamLeaderRoleIds->isNotEmpty()) {
+            $teamLeadersQuery->whereIn('role_id', $teamLeaderRoleIds);
+        }
+
+        $teamLeaderStatuses = $this->teamLeaderAvailability
+            ->summarize(
+                $teamLeadersQuery->get(),
+                $busyTeamLeaderIds,
+            )['leaders']
+            ->keyBy('id');
+
+        $readyUnitsCount = Unit::query()
+            ->where('status', 'available')
+            ->whereNotNull('team_leader_id')
+            ->get()
+            ->filter(function (Unit $unit) use ($busyTeamLeaderIds, $teamLeaderStatuses) {
+                $teamLeaderId = (int) ($unit->team_leader_id ?? 0);
+                $leaderStatus = $teamLeaderStatuses->get($teamLeaderId, []);
+                $isOnline = ($leaderStatus['presence'] ?? 'offline') === 'online';
+
+                return $teamLeaderId > 0 && $isOnline && ! $busyTeamLeaderIds->contains($teamLeaderId);
+            })
+            ->count();
+
+        $bookNowEnabled = $readyUnitsCount > 0;
+
+        return [
+            'book_now_enabled' => $bookNowEnabled,
+            'ready_units_count' => $readyUnitsCount,
+            'recommended_service_type' => $bookNowEnabled ? 'book_now' : 'schedule',
+            'message' => $bookNowEnabled
+                ? 'A dispatch-ready unit is available right now.'
+                : 'Immediate dispatch is currently unavailable. You can still proceed with your booking, and we’ll assign your service as soon as possible.',
+        ];
+    }
+
     protected function resolveServiceType(array $data): string
     {
         return ($data['service_type'] ?? 'book_now') === 'schedule' ? 'schedule' : 'book_now';
@@ -268,6 +397,15 @@ class BookingService
 
     protected function resolveDistanceKm(array $data): float
     {
+        if (is_numeric($data['distance_km'] ?? null)) {
+            return max(round((float) $data['distance_km'], 2), 0);
+        }
+
+        $resolvedDistance = round($this->parseDistance((string) ($data['distance'] ?? '0')), 2);
+        if ($resolvedDistance > 0) {
+            return $resolvedDistance;
+        }
+
         $pickupLat = $data['pickup_lat'] ?? null;
         $pickupLng = $data['pickup_lng'] ?? null;
         $dropLat = $data['drop_lat'] ?? $data['dropoff_lat'] ?? null;
@@ -277,7 +415,7 @@ class BookingService
             return round($this->haversineDistanceKm((float) $pickupLat, (float) $pickupLng, (float) $dropLat, (float) $dropLng), 2);
         }
 
-        return round($this->parseDistance((string) ($data['distance'] ?? '0')), 2);
+        return 0.0;
     }
 
     protected function haversineDistanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
@@ -292,6 +430,147 @@ class BookingService
         return $earthRadius * (2 * atan2(sqrt($a), sqrt(1 - $a)));
     }
 
+    public function estimateDirectDistanceKm(?float $pickupLat, ?float $pickupLng, ?float $dropLat, ?float $dropLng): float
+    {
+        if (! is_numeric($pickupLat) || ! is_numeric($pickupLng) || ! is_numeric($dropLat) || ! is_numeric($dropLng)) {
+            return 0.0;
+        }
+
+        return round($this->haversineDistanceKm((float) $pickupLat, (float) $pickupLng, (float) $dropLat, (float) $dropLng), 2);
+    }
+
+    public function estimateFallbackDurationMinutes(?float $distanceKm, float $averageSpeedKph = 30.0): float
+    {
+        if (! is_numeric($distanceKm) || (float) $distanceKm <= 0) {
+            return 0.0;
+        }
+
+        $safeSpeedKph = max($averageSpeedKph, 10.0);
+
+        return max(round((((float) $distanceKm) / $safeSpeedKph) * 60, 1), 1.0);
+    }
+
+    protected function resolveBaseRate(TruckType $truckType): float
+    {
+        $truckBaseRate = round((float) ($truckType->base_rate ?? 0), 2);
+
+        if ($truckBaseRate > 0) {
+            return $truckBaseRate;
+        }
+
+        return max(round((float) SystemSetting::getValue('booking_base_rate', 0), 2), 0);
+    }
+
+    protected function resolvePerKmRate(TruckType $truckType, ?string $vehicleCategory = null): float
+    {
+        $truckPerKmRate = round((float) ($truckType->per_km_rate ?? 0), 2);
+        $globalPerKmRate = max(round((float) SystemSetting::getValue('booking_per_km_rate', 0), 2), 0);
+        $resolvedPerKmRate = $truckPerKmRate > 0 ? $truckPerKmRate : $globalPerKmRate;
+        $categoryMultiplier = $this->resolveCategoryRateMultiplier($vehicleCategory);
+
+        return round(max($resolvedPerKmRate, 0) * $categoryMultiplier, 2);
+    }
+
+    protected function resolveCategoryRateMultiplier(?string $vehicleCategory = null): float
+    {
+        $normalizedCategory = $this->normalizeVehicleCategory($vehicleCategory);
+
+        if ($normalizedCategory === null) {
+            return 1.0;
+        }
+
+        $settingKey = 'booking_category_multiplier_' . $normalizedCategory;
+        $configuredMultiplier = (float) SystemSetting::getValue($settingKey, setting($settingKey, 1));
+
+        return $configuredMultiplier > 0 ? round($configuredMultiplier, 2) : 1.0;
+    }
+
+    protected function normalizeVehicleCategory(?string $vehicleCategory = null): ?string
+    {
+        $value = strtolower(trim((string) $vehicleCategory));
+
+        if ($value === '') {
+            return null;
+        }
+
+        return match ($value) {
+            '2_wheels', '2_wheeler', '2 wheeler', '2 wheels' => '2_wheeler',
+            '3_wheels', '3_wheeler', '3 wheeler', '3 wheels' => '3_wheeler',
+            '4_wheels', '4_wheeler', '4 wheeler', '4 wheels' => '4_wheeler',
+            '6_wheeler', '6 wheels', '6_wheels', '10_wheeler', '10 wheels', '10_wheels', 'heavy_vehicle', 'heavy vehicle', 'heavy_vehicle_6_plus' => 'heavy_vehicle',
+            'other' => 'other',
+            default => str($value)->replace(' ', '_')->value(),
+        };
+    }
+
+    protected function resolveBookingDiscount(array $data, float $computedTotal, string $customerType): array
+    {
+        $automaticDiscountPercentage = in_array($customerType, ['pwd', 'senior'], true)
+            ? max(round((float) SystemSetting::getValue('discount_percentage', setting('discount_percentage', 0)), 2), 0)
+            : 0.0;
+
+        $automaticReason = $automaticDiscountPercentage > 0
+            ? trim((string) SystemSetting::getValue('discount_reason', setting('discount_reason', strtoupper($customerType) . ' discount')))
+            : null;
+
+        $submittedDiscountCode = strtoupper(trim((string) ($data['discount_code'] ?? $data['promo_code'] ?? '')));
+        $configuredDiscountCode = strtoupper(trim((string) SystemSetting::getValue('booking_discount_code', setting('booking_discount_code', ''))));
+        $promoDiscountPercentage = 0.0;
+        $promoReason = null;
+
+        if ($submittedDiscountCode !== '' && $configuredDiscountCode !== '' && hash_equals($configuredDiscountCode, $submittedDiscountCode)) {
+            $promoDiscountPercentage = max(round((float) SystemSetting::getValue('booking_discount_percentage', setting('booking_discount_percentage', 0)), 2), 0);
+            $promoReason = trim((string) SystemSetting::getValue('booking_discount_reason', setting('booking_discount_reason', 'Validated booking discount')));
+        }
+
+        $discountPercentage = max($automaticDiscountPercentage, $promoDiscountPercentage);
+        $maxDiscountPercentage = max(round((float) SystemSetting::getValue('max_booking_discount_percentage', setting('max_booking_discount_percentage', 100)), 2), 0);
+
+        if ($maxDiscountPercentage > 0) {
+            $discountPercentage = min($discountPercentage, $maxDiscountPercentage);
+        }
+
+        $discountReason = $discountPercentage === $promoDiscountPercentage && $promoDiscountPercentage > 0
+            ? $promoReason
+            : $automaticReason;
+
+        return [
+            'discount_percentage' => $discountPercentage,
+            'discount_reason' => $discountReason,
+            'discount_amount' => round($computedTotal * ($discountPercentage / 100), 2),
+        ];
+    }
+
+    protected function resolveExcessKmThreshold(bool $usePreviewFallback = false): float
+    {
+        $defaultThreshold = $usePreviewFallback
+            ? (float) setting('excess_km_threshold', 10)
+            : 0.0;
+
+        $configuredThreshold = (float) SystemSetting::getValue('excess_km_threshold', $defaultThreshold);
+
+        if ($usePreviewFallback && $configuredThreshold <= 0) {
+            $configuredThreshold = (float) setting('excess_km_threshold', 10);
+        }
+
+        return max(round($configuredThreshold, 2), 0);
+    }
+
+    protected function resolveExcessKmRate(bool $usePreviewFallback = false): float
+    {
+        $defaultRate = $usePreviewFallback
+            ? (float) setting('excess_km_rate', 20)
+            : 0.0;
+
+        $configuredRate = (float) SystemSetting::getValue('excess_km_rate', $defaultRate);
+
+        if ($usePreviewFallback && $configuredRate <= 0) {
+            $configuredRate = (float) setting('excess_km_rate', 20);
+        }
+
+        return max(round($configuredRate, 2), 0);
+    }
+
     protected function sanitizeText(?string $value): ?string
     {
         $cleaned = trim(strip_tags((string) $value));
@@ -299,21 +578,49 @@ class BookingService
         return $cleaned === '' ? null : $cleaned;
     }
 
+    protected function composeLocationNotes(array $data): ?string
+    {
+        $segments = [];
+
+        if (filled($data['pickup_notes'] ?? null)) {
+            $segments[] = 'Pickup notes: ' . trim((string) $data['pickup_notes']);
+        } elseif (filled($data['pickup_landmark'] ?? null)) {
+            $segments[] = 'Pickup landmark: ' . trim((string) $data['pickup_landmark']);
+        }
+
+        if (filled($data['dropoff_landmark'] ?? null)) {
+            $segments[] = 'Dropoff landmark: ' . trim((string) $data['dropoff_landmark']);
+        }
+
+        if (filled($data['additional_directions'] ?? null)) {
+            $segments[] = 'Directions: ' . trim((string) $data['additional_directions']);
+        }
+
+        if (filled($data['vehicle_category'] ?? null)) {
+            $segments[] = 'Customer vehicle: ' . str((string) $data['vehicle_category'])->replace('_', ' ')->title();
+        }
+
+        if (filled($data['notes'] ?? null)) {
+            $segments[] = trim((string) $data['notes']);
+        }
+
+        return trim(implode(PHP_EOL, array_filter($segments)));
+    }
+
     protected function composeNotes(?string $value, string $serviceType, ?Carbon $scheduledFor): ?string
     {
+        $segments = [];
         $cleaned = $this->sanitizeText($value);
 
-        if ($serviceType !== 'schedule') {
-            return $cleaned;
+        if ($serviceType === 'schedule') {
+            $segments[] = 'Requested schedule: ' . ($scheduledFor ? $scheduledFor->format('Y-m-d H:i') : 'Date pending');
         }
 
-        $scheduleLine = 'Requested schedule: ' . ($scheduledFor ? $scheduledFor->format('Y-m-d H:i') : 'Date pending');
-
-        if ($cleaned && str_contains($cleaned, 'Requested schedule:')) {
-            return $cleaned;
+        if ($cleaned) {
+            $segments[] = $cleaned;
         }
 
-        return trim($scheduleLine . ($cleaned ? PHP_EOL . $cleaned : ''));
+        return trim(implode(PHP_EOL, array_filter($segments)));
     }
 
     protected function parseDistance(?string $distance): float

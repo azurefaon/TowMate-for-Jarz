@@ -40,13 +40,35 @@
             margin: 18px 0;
         }
 
-        .btn {
+        .logo-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            padding: 12px 0 0;
+        }
+
+        .logo-bar img {
+            height: 50px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .logo-divider {
+            width: 1px;
+            height: 42px;
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        .btn-download {
             display: inline-block;
-            padding: 12px 22px;
-            background: #facc15;
-            color: #111827 !important;
+            margin: 18px 0 4px;
+            padding: 13px 28px;
+            background: #111827;
+            color: #ffffff !important;
             text-decoration: none;
             border-radius: 10px;
+            font-size: 15px;
             font-weight: 700;
         }
     </style>
@@ -55,7 +77,12 @@
 <body>
     <div class="card">
         <div class="header">
-            <h1 style="margin:0;">Your service receipt is ready</h1>
+            <div class="logo-bar">
+                <img src="{{ asset('customer/image/accridetedlogo.png') }}" alt="MMDA Accredited">
+                <div class="logo-divider"></div>
+                <img src="{{ asset('customer/image/TowingLogo.png') }}" alt="Jarz Towing">
+            </div>
+            <h1 style="margin:14px 0 0;">Your service receipt is ready</h1>
             <p style="margin:8px 0 0; opacity:0.9;">Thank you for using Jarz.</p>
         </div>
 
@@ -70,13 +97,14 @@
                 <strong>Total:</strong> ₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}
             </div>
 
-            @if (!empty($receiptUrl))
-                <p style="text-align:center; margin:24px 0;">
-                    <a href="{{ $receiptUrl }}" class="btn">Open receipt</a>
-                </p>
-            @endif
+            <p>This email already serves as your receipt copy. Please keep it for your payment reference and records.
+            </p>
 
-            <p>Please keep this for your payment reference and records.</p>
+            @if (!empty($receiptUrl))
+                <div style="text-align:center;">
+                    <a href="{{ $receiptUrl }}" class="btn-download" target="_blank">⬇ Download Receipt PDF</a>
+                </div>
+            @endif
         </div>
     </div>
 </body>

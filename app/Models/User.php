@@ -34,11 +34,6 @@ class User extends Authenticatable
         'password_request_note',
         'password_request_resolved_at',
         'archived_at',
-        'otp_code',
-        'otp_plain_code',
-        'otp_expires_at',
-        'otp_attempts',
-        'otp_last_sent_at',
         'email_verified_at',
     ];
 

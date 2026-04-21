@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class BookingRequest extends FormRequest
 {
@@ -23,6 +24,12 @@ class BookingRequest extends FormRequest
         $scheduledDate = trim((string) $this->input('scheduled_date'));
         $scheduledTime = trim((string) $this->input('scheduled_time'));
         $notes = trim((string) $this->input('notes'));
+        $pickupNotes = trim((string) ($this->input('pickup_notes') ?: $this->input('pickup_landmark')));
+        $pickupLandmark = trim((string) $this->input('pickup_landmark'));
+        $dropoffLandmark = trim((string) $this->input('dropoff_landmark'));
+        $additionalDirections = trim((string) $this->input('additional_directions'));
+        $vehicleCategory = $this->normalizeVehicleCategory($this->input('vehicle_category'));
+        $discountCode = strtoupper(trim((string) $this->input('discount_code')));
 
         if (! in_array($customerType, ['regular', 'pwd', 'senior'], true)) {
             $customerType = $this->boolean('is_pwd') ? 'pwd' : ($this->boolean('is_senior') ? 'senior' : 'regular');
@@ -49,6 +56,12 @@ class BookingRequest extends FormRequest
             'scheduled_date' => $scheduledDate !== '' ? $scheduledDate : null,
             'scheduled_time' => $scheduledTime !== '' ? $scheduledTime : null,
             'notes' => $notes !== '' ? $notes : null,
+            'pickup_notes' => $pickupNotes !== '' ? $pickupNotes : null,
+            'pickup_landmark' => $pickupLandmark !== '' ? $pickupLandmark : null,
+            'dropoff_landmark' => $dropoffLandmark !== '' ? $dropoffLandmark : null,
+            'additional_directions' => $additionalDirections !== '' ? $additionalDirections : null,
+            'vehicle_category' => $vehicleCategory !== '' ? $vehicleCategory : null,
+            'discount_code' => $discountCode !== '' ? $discountCode : null,
             'confirmation_type' => $this->input('confirmation_type', 'system'),
         ]);
     }
@@ -71,16 +84,25 @@ class BookingRequest extends FormRequest
                     }
                 },
             ],
-            'truck_type_id' => 'required|exists:truck_types,id',
+            'truck_type_id' => [
+                'required',
+                Rule::exists('truck_types', 'id')->where(fn($query) => $query->where('status', 'active')),
+            ],
             'pickup_address' => 'required|string|max:1000',
-            'pickup_lat' => 'required|numeric',
-            'pickup_lng' => 'required|numeric',
+            'pickup_lat' => 'required|numeric|between:-90,90',
+            'pickup_lng' => 'required|numeric|between:-180,180',
             'dropoff_address' => 'required|string|max:1000',
-            'drop_lat' => 'required|numeric',
-            'drop_lng' => 'required|numeric',
+            'drop_lat' => 'required|numeric|between:-90,90',
+            'drop_lng' => 'required|numeric|between:-180,180',
             'distance' => 'nullable|string|max:50',
             'price' => 'nullable|string|max:50',
             'notes' => 'nullable|string|max:1000',
+            'pickup_notes' => 'nullable|string|max:1000',
+            'pickup_landmark' => 'nullable|string|max:255',
+            'dropoff_landmark' => 'nullable|string|max:255',
+            'additional_directions' => 'nullable|string|max:1000',
+            'vehicle_category' => 'required|in:2_wheeler,3_wheeler,4_wheeler,heavy_vehicle,other',
+            'discount_code' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9\-\s]+$/'],
             'vehicle_image' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
             'customer_type' => 'required|in:regular,pwd,senior',
             'service_type' => 'required|in:book_now,schedule',
@@ -94,7 +116,10 @@ class BookingRequest extends FormRequest
     {
         return [
             'phone.regex' => 'Please enter a valid Philippine phone number.',
+            'vehicle_category.required' => 'Please select your vehicle category before continuing.',
+            'discount_code.regex' => 'Discount codes may only use letters, numbers, spaces, or dashes.',
             'vehicle_image.mimes' => 'Vehicle image must be a JPG or PNG file only.',
+            'truck_type_id.exists' => 'Selected vehicle type is currently unavailable. Please choose an available truck type.',
         ];
     }
 
@@ -103,8 +128,59 @@ class BookingRequest extends FormRequest
         $validated = parent::validated();
 
         return array_merge($validated, [
+            'distance' => $this->input('distance'),
+            'price' => $this->input('price'),
+            'discount_code' => $this->input('discount_code'),
+            'pickup_notes' => $this->input('pickup_notes') ?: $this->input('pickup_landmark'),
+            'pickup_landmark' => $this->input('pickup_landmark'),
+            'dropoff_landmark' => $this->input('dropoff_landmark'),
+            'additional_directions' => $this->input('additional_directions'),
+            'vehicle_category' => $this->input('vehicle_category'),
             'is_pwd' => ($validated['customer_type'] ?? 'regular') === 'pwd',
             'is_senior' => ($validated['customer_type'] ?? 'regular') === 'senior',
         ]);
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $pickupLat = $this->input('pickup_lat');
+            $pickupLng = $this->input('pickup_lng');
+            $dropLat = $this->input('drop_lat');
+            $dropLng = $this->input('drop_lng');
+
+            if (! is_numeric($pickupLat) || ! is_numeric($pickupLng) || ! is_numeric($dropLat) || ! is_numeric($dropLng)) {
+                return;
+            }
+
+            if ($this->estimateCoordinateDistanceKm((float) $pickupLat, (float) $pickupLng, (float) $dropLat, (float) $dropLng) <= 0.05) {
+                $validator->errors()->add('dropoff_address', 'Pickup and dropoff must be different locations with a valid route distance.');
+            }
+        });
+    }
+
+    protected function estimateCoordinateDistanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadius = 6371;
+        $deltaLat = deg2rad($lat2 - $lat1);
+        $deltaLng = deg2rad($lng2 - $lng1);
+
+        $a = sin($deltaLat / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($deltaLng / 2) ** 2;
+
+        return $earthRadius * (2 * atan2(sqrt($a), sqrt(1 - $a)));
+    }
+
+    protected function normalizeVehicleCategory(?string $vehicleCategory): string
+    {
+        $value = strtolower(trim((string) $vehicleCategory));
+
+        return match ($value) {
+            '2 wheels', '2_wheels' => '2_wheeler',
+            '3 wheels', '3_wheels' => '3_wheeler',
+            '4 wheels', '4_wheels' => '4_wheeler',
+            '6 wheeler', '6 wheels', '6_wheeler', '10 wheeler', '10 wheels', '10_wheeler', 'heavy vehicle', 'heavy_vehicle', 'heavy_vehicle_6_plus' => 'heavy_vehicle',
+            default => $value,
+        };
     }
 }

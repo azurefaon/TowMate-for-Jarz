@@ -20,6 +20,7 @@
         <div class="settings-tabs">
             <button class="settings-tab active" data-tab="company">Company</button>
             <button class="settings-tab" data-tab="customize-quotation">Customize Quotations</button>
+            <button class="settings-tab" data-tab="user-limits">User Limits</button>
         </div>
 
         <div class="settings-content active" id="company">
@@ -235,10 +236,77 @@
                         value="{{ $settings['gcash_number'] ?? '09426386048' }}">
                 </div>
 
+                <div class="settings-field" style="grid-column: 1 / -1; margin-top: 8px;">
+                    <label style="font-weight:700;">Memorandum / Dispatch Pricing</label>
+                    <p class="field-help">These values drive the live customer estimate and booking computation globally.
+                    </p>
+                </div>
+
+                <div class="settings-field">
+                    <label>Global Base Rate</label>
+                    <input type="number" step="0.01" min="0" name="settings[booking_base_rate]"
+                        value="{{ $settings['booking_base_rate'] ?? '1000' }}">
+                </div>
+
+                <div class="settings-field">
+                    <label>Global Rate Per KM</label>
+                    <input type="number" step="0.01" min="0" name="settings[booking_per_km_rate]"
+                        value="{{ $settings['booking_per_km_rate'] ?? '50' }}">
+                </div>
+
+                <div class="settings-field">
+                    <label>Excess KM Threshold</label>
+                    <input type="number" step="0.01" min="0" name="settings[excess_km_threshold]"
+                        value="{{ $settings['excess_km_threshold'] ?? '10' }}">
+                </div>
+
+                <div class="settings-field">
+                    <label>Excess KM Rate</label>
+                    <input type="number" step="0.01" min="0" name="settings[excess_km_rate]"
+                        value="{{ $settings['excess_km_rate'] ?? '20' }}">
+                </div>
+
+                <div class="settings-field">
+                    <label>Discount Percentage</label>
+                    <input type="number" step="0.01" min="0" max="100"
+                        name="settings[discount_percentage]" value="{{ $settings['discount_percentage'] ?? '20' }}">
+                </div>
+
+                <div class="settings-field">
+                    <label>Discount Reason</label>
+                    <input type="text" name="settings[discount_reason]"
+                        value="{{ $settings['discount_reason'] ?? 'PWD and senior discount' }}">
+                </div>
+
             </div>
 
         </div>
 
+    </div>
+
+    <div class="settings-content" id="user-limits">
+        <div class="settings-card">
+            <div class="settings-card-header">
+                <h3>Team Leader Capacity</h3>
+                <p>Set the maximum number of Team Leader accounts allowed in the Add User module.</p>
+            </div>
+
+            <div class="settings-grid">
+                <div class="settings-field">
+                    <label>Maximum Team Leaders</label>
+                    <input type="number" min="1" max="500" name="settings[max_team_leaders]"
+                        value="{{ old('settings.max_team_leaders', $settings['max_team_leaders'] ?? ($teamLeaderLimit ?? 10)) }}">
+                    <p class="field-help">This value updates the Team Leader creation limit dynamically.</p>
+                </div>
+
+                <div class="settings-field">
+                    <label>Current Usage</label>
+                    <input type="text" value="{{ $teamLeaderCount ?? 0 }} / {{ $teamLeaderLimit ?? 10 }} used"
+                        disabled>
+                    <p class="field-help">Archive a Team Leader or raise the limit if you need more slots.</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- SAVE BUTTON -->

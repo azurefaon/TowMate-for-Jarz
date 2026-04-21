@@ -250,6 +250,28 @@
             display: none;
         }
 
+        .incoming-card--scheduled {
+            border: 1px solid #bae6fd;
+            background: linear-gradient(135deg, #f8fdff, #f0f9ff);
+            box-shadow: 0 8px 22px rgba(14, 116, 144, 0.08);
+        }
+
+        .incoming-card--scheduled .incoming-route strong {
+            color: #0c4a6e;
+        }
+
+        .status-badge.scheduled {
+            background: #e0f2fe;
+            color: #075985;
+            border: 1px solid #7dd3fc;
+        }
+
+        .btn-accept[disabled] {
+            opacity: 0.72;
+            cursor: not-allowed;
+            filter: saturate(0.85);
+        }
+
         .queue-chip {
             display: inline-flex;
             align-items: center;
@@ -268,6 +290,11 @@
         .queue-chip.scheduled {
             background: #e0f2fe;
             color: #075985;
+        }
+
+        .queue-chip.delayed {
+            background: #fee2e2;
+            color: #991b1b;
         }
 
         .queue-chip.due-now {
@@ -342,6 +369,13 @@
                         {{ $queueCounts['scheduled'] ?? 0 }}
                     </span>
                 </button>
+                <button type="button" class="queue-filter-btn" data-filter="delayed">
+                    <span>Delayed</span>
+                    <span class="queue-tab-count {{ ($queueCounts['delayed'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="delayed">
+                        {{ $queueCounts['delayed'] ?? 0 }}
+                    </span>
+                </button>
                 <button type="button" class="queue-filter-btn" data-filter="all">
                     <span>All</span>
                     <span class="queue-tab-count {{ ($queueCounts['all'] ?? 0) > 0 ? 'has-count' : '' }}"
@@ -360,29 +394,60 @@
                             $booking->queue_bucket ??
                             ($booking->needs_reassignment
                                 ? 'returned'
-                                : ($booking->status === 'reviewed'
-                                    ? 'negotiation'
-                                    : ($booking->is_scheduled && !$booking->is_due_for_dispatch
-                                        ? 'scheduled'
-                                        : 'book-now')));
+                                : ($booking->is_dispatch_delayed
+                                    ? 'delayed'
+                                    : ($booking->status === 'reviewed'
+                                        ? 'negotiation'
+                                        : ($booking->is_scheduled && !$booking->is_due_for_dispatch
+                                            ? 'scheduled'
+                                            : 'book-now'))));
                         $timingTone = $booking->needs_reassignment
                             ? 'returned'
-                            : ($booking->status === 'reviewed'
-                                ? 'negotiation'
-                                : ($booking->is_due_for_dispatch
-                                    ? 'due-now'
-                                    : ($booking->is_scheduled
-                                        ? 'scheduled'
-                                        : 'book-now')));
+                            : ($booking->is_dispatch_delayed
+                                ? 'delayed'
+                                : ($booking->status === 'reviewed'
+                                    ? 'negotiation'
+                                    : ($booking->is_due_for_dispatch
+                                        ? 'due-now'
+                                        : ($booking->is_scheduled
+                                            ? 'scheduled'
+                                            : 'book-now'))));
                         $timingLabel = $booking->needs_reassignment
                             ? 'Returned'
-                            : ($booking->status === 'reviewed'
-                                ? 'Negotiation'
-                                : ($booking->is_due_for_dispatch
-                                    ? 'Due Now'
-                                    : $booking->service_mode_label));
+                            : ($booking->is_dispatch_delayed
+                                ? 'Delayed'
+                                : ($booking->status === 'reviewed'
+                                    ? 'Negotiation'
+                                    : ($booking->is_due_for_dispatch
+                                        ? 'Due Now'
+                                        : $booking->service_mode_label)));
+                        $statusBadgeClass = $booking->needs_reassignment
+                            ? 'returned'
+                            : ($booking->is_dispatch_delayed
+                                ? 'returned'
+                                : ($booking->status === 'reviewed'
+                                    ? 'pending'
+                                    : ($booking->is_scheduled
+                                        ? 'scheduled'
+                                        : 'pending')));
+                        $statusBadgeLabel = $booking->needs_reassignment
+                            ? 'Needs Reassignment'
+                            : ($booking->is_dispatch_delayed
+                                ? 'Delayed Queue'
+                                : ($booking->status === 'reviewed'
+                                    ? 'Negotiation Request'
+                                    : ($booking->is_scheduled
+                                        ? 'Scheduled Booking'
+                                        : 'Requested')));
+                        $disableReviewAction =
+                            $booking->is_scheduled &&
+                            !$booking->is_due_for_dispatch &&
+                            !$booking->is_dispatch_delayed &&
+                            !$booking->needs_reassignment &&
+                            $booking->status !== 'reviewed';
                     @endphp
-                    <div class="incoming-card" data-id="{{ $booking->job_code }}" data-status="{{ $booking->status }}"
+                    <div class="incoming-card {{ $booking->is_scheduled && !$booking->is_dispatch_delayed ? 'incoming-card--scheduled' : '' }}"
+                        data-id="{{ $booking->job_code }}" data-status="{{ $booking->status }}"
                         data-queue="{{ $queueBucket }}" data-service-mode="{{ $booking->service_mode }}"
                         data-scheduled-for="{{ optional($booking->scheduled_for)->toIso8601String() }}"
                         data-current-price="{{ $booking->final_total }}"
@@ -391,6 +456,9 @@
                         data-distance-km="{{ $booking->distance_km }}" data-per-km-rate="{{ $booking->per_km_rate }}"
                         data-customer-type="{{ ucfirst($booking->customer_type ?? (optional($booking->customer)->customer_type ?? 'regular')) }}"
                         data-truck-type="{{ e($booking->truckType->name ?? 'Unknown') }}"
+                        data-dispatch-zone="{{ e($booking->dispatch_zone_label ?? 'General Dispatch Zone') }}"
+                        data-recommended-unit="{{ $booking->recommended_unit_id }}"
+                        data-recommended-summary="{{ e($booking->recommended_unit_summary ?? '') }}"
                         data-discount="{{ $booking->discount_amount }}"
                         data-discount-rate="{{ $booking->discount_percentage }}"
                         data-assigned-unit="{{ $booking->assigned_unit_id }}"
@@ -424,13 +492,20 @@
                                 <span class="queue-chip {{ $timingTone }}">
                                     {{ $timingLabel }}
                                 </span>
-                                <span class="status-badge {{ $booking->needs_reassignment ? 'returned' : 'pending' }}">
-                                    {{ $booking->needs_reassignment ? 'Needs Reassignment' : ($booking->status === 'reviewed' ? 'Negotiation Request' : 'Requested') }}
+                                <span class="status-badge {{ $statusBadgeClass }}">
+                                    {{ $statusBadgeLabel }}
                                 </span>
                             </div>
 
                             <div class="incoming-details" style="margin-top: 10px;">
                                 <span><strong>Dispatch Timing:</strong> {{ $booking->schedule_window_label }}</span>
+                            </div>
+
+                            <div class="incoming-details" style="margin-top: 10px;">
+                                <span><strong>Dispatch Zone:</strong>
+                                    {{ $booking->dispatch_zone_label ?? 'General Dispatch Zone' }}</span>
+                                <span><strong>Recommended unit:</strong>
+                                    {{ $booking->recommended_unit_label ?? 'Dispatcher will choose the best ready unit.' }}</span>
                             </div>
 
                             @if ($booking->needs_reassignment)
@@ -455,7 +530,15 @@
 
                         <div class="incoming-actions">
                             <button type="button" class="btn-accept" data-id="{{ $booking->job_code }}"
-                                data-action="accept">{{ $booking->needs_reassignment ? 'Reassign Task' : ($booking->status === 'reviewed' ? 'Update Quote' : 'Review & Quote') }}</button>
+                                data-action="accept" {{ $disableReviewAction ? 'disabled' : '' }}>
+                                {{ $disableReviewAction
+                                    ? 'Await Scheduled Time'
+                                    : ($booking->needs_reassignment
+                                        ? 'Reassign Task'
+                                        : ($booking->status === 'reviewed'
+                                            ? 'Update Quote'
+                                            : 'Review & Quote')) }}
+                            </button>
                             <button type="button" class="btn-reject" data-id="{{ $booking->job_code }}"
                                 data-action="reject">{{ $booking->needs_reassignment ? 'Cancel Booking' : 'Reject' }}</button>
                         </div>
@@ -530,6 +613,7 @@
                                             <option value="{{ $unit['id'] }}" data-selectable="1"
                                                 data-team-leader="{{ e($unit['team_leader_name']) }}"
                                                 data-driver="{{ e($unit['driver_name']) }}"
+                                                data-zones="{{ e(implode(', ', $unit['coverage_zones'] ?? [])) }}"
                                                 data-summary="{{ e($unit['status_summary']) }}">
                                                 {{ $unit['label'] }} · {{ $unit['team_leader_name'] }}
                                             </option>

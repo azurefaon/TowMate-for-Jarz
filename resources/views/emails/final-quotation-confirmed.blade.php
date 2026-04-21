@@ -32,16 +32,6 @@
             padding: 28px;
         }
 
-        .btn {
-            display: inline-block;
-            padding: 12px 22px;
-            background: #facc15;
-            color: #111827 !important;
-            text-decoration: none;
-            border-radius: 10px;
-            font-weight: 700;
-        }
-
         .summary {
             background: #f9fafb;
             border: 1px solid #e5e7eb;
@@ -68,11 +58,7 @@
                 <strong>Status:</strong> CONFIRMED
             </div>
 
-            @if ($documentUrl)
-                <p style="text-align:center; margin:24px 0;">
-                    <a href="{{ $documentUrl }}" class="btn">Open final quotation</a>
-                </p>
-            @endif
+            <p>This email is your final quotation record. Please keep the amount and booking details for reference.</p>
 
             <p>Dispatch can now proceed with assigning the towing unit and continuing your service.</p>
         </div>

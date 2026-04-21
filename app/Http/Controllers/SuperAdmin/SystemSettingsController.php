@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\SystemSetting;
 use App\Models\LandingSetting;
+use App\Models\Role;
+use App\Models\User;
 
 class SystemSettingsController extends Controller
 {
@@ -15,12 +17,21 @@ class SystemSettingsController extends Controller
         // $settings = SystemSetting::pluck('setting_value', 'setting_key');
         $landing = LandingSetting::first();
         $settings = SystemSetting::pluck('value', 'key');
+        $teamLeaderRole = Role::query()->where('name', 'Team Leader')->first();
+        $teamLeaderLimit = max((int) ($settings['max_team_leaders'] ?? 10), 1);
+        $teamLeaderCount = $teamLeaderRole
+            ? User::query()->where('role_id', $teamLeaderRole->id)->whereNull('archived_at')->count()
+            : 0;
 
-        return view('superadmin.settings.index', compact('settings', 'landing'));
+        return view('superadmin.settings.index', compact('settings', 'landing', 'teamLeaderLimit', 'teamLeaderCount'));
     }
 
     public function update(Request $request)
     {
+        $request->validate([
+            'settings.max_team_leaders' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
         $settings = $request->input('settings', []);
 
         foreach (['company_logo', 'secondary_logo', 'signature_image'] as $fileKey) {

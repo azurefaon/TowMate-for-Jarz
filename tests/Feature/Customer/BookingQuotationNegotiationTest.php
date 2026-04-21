@@ -1,5 +1,6 @@
 <?php
 
+use App\Mail\BookingAcceptedMail;
 use App\Mail\FinalQuotationConfirmedMail;
 use App\Models\Booking;
 use App\Models\Customer;
@@ -80,6 +81,7 @@ it('lets the customer accept the dispatcher quotation before dispatch proceeds',
     $booking->refresh();
 
     expect($booking->status)->toBe('confirmed')
+        ->and($booking->quotation_status)->toBe('accepted')
         ->and($booking->customer_approved_at)->not->toBeNull()
         ->and($booking->final_quote_path)->not->toBeNull();
 
@@ -105,7 +107,7 @@ it('lets the customer request negotiation with a counter offer and note', functi
         ->and($booking->customer_response_note)->toContain('lower the quote');
 });
 
-it('shows a public quotation review page from the email link and lets the customer accept directly', function () {
+it('shows a public quotation summary page from the email link without response buttons', function () {
     [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
 
     $signedUrl = URL::temporarySignedRoute(
@@ -117,18 +119,99 @@ it('shows a public quotation review page from the email link and lets the custom
     $this->get($signedUrl)
         ->assertOk()
         ->assertSee('Review your quotation', false)
+        ->assertSee('Price Breakdown', false)
+        ->assertSee('Final total', false)
         ->assertDontSee('Choose your response', false)
-        ->assertDontSee('You can approve the quotation now or request a price adjustment from dispatch.', false)
-        ->assertSee('Accept & continue', false)
+        ->assertDontSee('Accept & continue', false)
         ->assertDontSee('Counter-offer amount', false)
         ->assertDontSee('Message for dispatch', false)
         ->assertDontSee('Request adjustment', false)
         ->assertSee('Q-TEST-2001', false);
+});
 
-    $this->post($signedUrl, [
+it('expires an old quotation after seven days and blocks customer acceptance', function () {
+    [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
+
+    $booking->update([
+        'quotation_status' => 'active',
+        'quotation_sent_at' => now()->subDays(8),
+        'quotation_expires_at' => now()->subDay(),
+    ]);
+
+    $response = $this->actingAs($user)->post(route('customer.booking.quotation.respond', $booking), [
         'action' => 'accept',
-    ])
-        ->assertRedirect();
+    ]);
 
-    expect($booking->fresh()->status)->toBe('confirmed');
+    $response->assertRedirect(route('customer.track', $booking));
+    $response->assertSessionHas('error');
+
+    expect($booking->fresh()->quotation_status)->toBe('expired')
+        ->and($booking->fresh()->status)->toBe('quotation_sent');
+});
+
+it('sends a follow-up reminder once the quotation reaches day five', function () {
+    Mail::fake();
+
+    [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
+
+    $booking->update([
+        'quotation_status' => 'active',
+        'quotation_sent_at' => now()->subDays(5)->subMinutes(5),
+        'quotation_expires_at' => now()->addDays(2),
+        'quotation_follow_up_sent_at' => null,
+    ]);
+
+    $this->artisan('towmate:sync-quotation-lifecycle')->assertExitCode(0);
+
+    expect($booking->fresh()->quotation_follow_up_sent_at)->not->toBeNull()
+        ->and($booking->fresh()->quotation_status)->toBe('active');
+
+    Mail::assertSent(BookingAcceptedMail::class, function (BookingAcceptedMail $mail) use ($customer) {
+        return $mail->hasTo($customer->email) && $mail->isReminder === true;
+    });
+});
+
+it('recalculates the quotation when the customer updates the booking route before dispatch', function () {
+    Mail::fake();
+
+    [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
+
+    $updatedTruckType = TruckType::create([
+        'name' => 'Heavy Duty Tow',
+        'base_rate' => 1800,
+        'per_km_rate' => 95,
+        'max_tonnage' => 8,
+        'description' => 'Long-haul support',
+    ]);
+
+    $response = $this->actingAs($user)->patch(route('customer.booking.update', $booking), [
+        'truck_type_id' => $updatedTruckType->id,
+        'pickup_address' => 'Ortigas Center',
+        'dropoff_address' => 'Alabang Town Center',
+        'pickup_notes' => 'Please meet at the loading bay.',
+        'distance_km' => '18',
+    ]);
+
+    $response->assertRedirect(route('customer.track', $booking));
+    $response->assertSessionHas('success');
+
+    $booking->refresh();
+    $expectedTotal = round((float) $booking->computed_total + (float) $booking->additional_fee - (float) $booking->discount_amount, 2);
+
+    expect($booking->pickup_address)->toBe('Ortigas Center')
+        ->and($booking->dropoff_address)->toBe('Alabang Town Center')
+        ->and((float) $booking->distance_km)->toBe(18.0)
+        ->and((float) $booking->base_rate)->toBe(1800.0)
+        ->and((float) $booking->per_km_rate)->toBe(95.0)
+        ->and((float) $booking->final_total)->toBe($expectedTotal)
+        ->and($booking->quotation_status)->toBe('active')
+        ->and($booking->status)->toBe('quotation_sent')
+        ->and($booking->quotation_follow_up_sent_at)->toBeNull()
+        ->and($booking->quotation_expires_at)->not->toBeNull();
+
+    Mail::assertSent(BookingAcceptedMail::class, function (BookingAcceptedMail $mail) use ($customer) {
+        return $mail->hasTo($customer->email)
+            && str_contains($mail->render(), 'Ortigas Center')
+            && str_contains($mail->render(), 'Alabang Town Center');
+    });
 });

@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('towmate:purge-expired-data')->daily();
+Schedule::command('towmate:sync-quotation-lifecycle')->daily();

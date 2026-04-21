@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Booking;
+use App\Models\Customer;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\TeamLeaderAvailabilityService;
@@ -216,6 +217,23 @@ class MonitoringController extends Controller
         $onJobUnitsCount = Unit::query()->where('status', 'on_job')->count();
         $notAvailableUnitsCount = Unit::query()->where('status', 'maintenance')->count();
 
+        $flaggedCustomers = Customer::query()
+            ->whereIn('risk_level', ['watchlist', 'blacklisted'])
+            ->latest('updated_at')
+            ->take(8)
+            ->get()
+            ->map(function (Customer $customer) {
+                return [
+                    'name' => $customer->full_name,
+                    'risk_level' => strtolower((string) ($customer->risk_level ?? 'watchlist')),
+                    'risk_label' => $customer->risk_status_label,
+                    'phone' => $customer->phone ?: 'No phone',
+                    'reason' => $customer->risk_reason ?: 'Flagged by operations review.',
+                    'updated_at' => $customer->blacklisted_at?->diffForHumans() ?? $customer->updated_at?->diffForHumans() ?? 'Recently updated',
+                ];
+            })
+            ->values();
+
         $unassignedBookingsCount = Booking::query()
             ->whereIn('status', ['requested', 'confirmed', 'accepted', 'assigned'])
             ->whereNull('assigned_unit_id')
@@ -250,6 +268,11 @@ class MonitoringController extends Controller
                 'level' => 'info',
                 'title' => 'Units temporarily unavailable',
                 'message' => $notAvailableUnitsCount . ' unit(s) are currently marked not available.',
+            ] : null,
+            $flaggedCustomers->where('risk_level', 'blacklisted')->count() > 0 ? [
+                'level' => 'danger',
+                'title' => 'Blacklisted customers on record',
+                'message' => $flaggedCustomers->where('risk_level', 'blacklisted')->count() . ' customer account(s) are restricted from new bookings.',
             ] : null,
         ])->filter()->values();
 
@@ -327,6 +350,8 @@ class MonitoringController extends Controller
             'available_units' => $availableUnitsCount,
             'units_on_job' => $onJobUnitsCount,
             'not_available_units' => $notAvailableUnitsCount,
+            'watchlist_customers' => Customer::query()->where('risk_level', 'watchlist')->count(),
+            'blacklisted_customers' => Customer::query()->where('risk_level', 'blacklisted')->count(),
             'total_bookings' => Booking::count(),
         ];
 
@@ -340,6 +365,7 @@ class MonitoringController extends Controller
             'teamLeaderStatuses',
             'dispatchers',
             'unitsMonitor',
+            'flaggedCustomers',
             'recentActivities'
         );
     }

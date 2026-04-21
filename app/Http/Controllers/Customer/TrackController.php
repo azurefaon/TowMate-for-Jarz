@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\TruckType;
 use Illuminate\Support\Facades\Schema;
 
 class TrackController extends Controller
@@ -48,7 +49,9 @@ class TrackController extends Controller
                 ->with('error', 'Booking not found or already completed.');
         }
 
-        return view('customer.pages.track-show', compact('booking'));
+        $truckTypes = TruckType::query()->orderBy('name')->get();
+
+        return view('customer.pages.track-show', compact('booking', 'truckTypes'));
     }
 
     protected function resolveCustomerId(): ?int

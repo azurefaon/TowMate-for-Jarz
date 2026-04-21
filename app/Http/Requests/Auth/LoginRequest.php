@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Auth;
 
 use App\Models\User;
+use App\Services\TokenBucketRateLimiter;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
@@ -15,13 +16,13 @@ use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
+    protected int $resolvedRoleId = 0;
+
     protected function prepareForValidation(): void
     {
         $this->merge([
             'email' => Str::lower(trim((string) $this->input('email'))),
-            'phone' => preg_replace('/\D+/', '', (string) $this->input('phone')),
-            'role' => Str::lower(trim((string) $this->input('role', 'superadmin'))),
-            'login_method' => Str::lower(trim((string) $this->input('login_method', 'password'))),
+            'role' => Str::lower(trim((string) $this->input('role', ''))),
         ]);
     }
 
@@ -33,12 +34,9 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'role' => ['required', Rule::in(['superadmin', 'dispatcher', 'teamleader'])],
-            'login_method' => ['nullable', Rule::in(['password', 'otp'])],
+            'role' => ['nullable', Rule::in(['superadmin', 'dispatcher', 'teamleader'])],
             'email' => ['nullable', 'string', 'email', 'max:150'],
             'password' => ['nullable', 'string', 'max:128'],
-            'phone' => ['nullable', 'string', 'regex:/^(09\d{9}|9\d{9}|639\d{9})$/'],
-            'otp' => ['nullable', 'digits:6'],
             'remember' => ['nullable', 'boolean'],
         ];
     }
@@ -47,19 +45,20 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        $user = $this->loginMethod() === 'otp'
-            ? $this->attemptOtpAuthentication()
-            : $this->attemptPasswordAuthentication();
+        $user = $this->attemptPasswordAuthentication();
 
         Auth::guard('web')->login($user, $this->boolean('remember'));
+
+        // Clear both limiters on successful login.
         RateLimiter::clear($this->throttleKey());
+        $this->tokenBucket()->clear($this->throttleKey());
 
         return $user;
     }
 
     public function selectedGuard(): string
     {
-        return match ($this->requestedRoleId()) {
+        return match ($this->resolvedRoleId ?: $this->requestedRoleId()) {
             1 => 'superadmin',
             2 => 'dispatcher',
             3 => 'teamleader',
@@ -69,7 +68,7 @@ class LoginRequest extends FormRequest
 
     public function redirectRoute(): string
     {
-        return match ($this->requestedRoleId()) {
+        return match ($this->resolvedRoleId ?: $this->requestedRoleId()) {
             1 => 'superadmin.dashboard',
             2 => 'admin.dashboard',
             3 => 'teamleader.dashboard',
@@ -79,29 +78,38 @@ class LoginRequest extends FormRequest
 
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), $this->maxAttempts())) {
-            return;
+        // Hard lock: 5 failed attempts = locked for 15 minutes.
+        if (RateLimiter::tooManyAttempts($this->throttleKey(), $this->maxAttempts())) {
+            event(new Lockout($this));
+
+            $seconds = RateLimiter::availableIn($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'auth' => trans('auth.throttle', [
+                    'seconds' => $seconds,
+                    'minutes' => ceil($seconds / 60),
+                ]),
+            ]);
         }
 
-        event(new Lockout($this));
+        // Token bucket: controls burst and sustained request rate.
+        if (! $this->tokenBucket()->attempt($this->throttleKey())) {
+            $retryAfter = $this->tokenBucket()->retryAfter($this->throttleKey());
 
-        $seconds = RateLimiter::availableIn($this->throttleKey());
-
-        throw ValidationException::withMessages([
-            'auth' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ]),
-        ]);
+            throw ValidationException::withMessages([
+                'auth' => trans('auth.throttle', [
+                    'seconds' => $retryAfter,
+                    'minutes' => ceil($retryAfter / 60),
+                ]),
+            ]);
+        }
     }
 
     public function throttleKey(): string
     {
-        $identifier = $this->loginMethod() === 'otp'
-            ? $this->normalizedPhone()
-            : Str::lower((string) $this->input('email'));
+        $identifier = Str::lower((string) $this->input('email'));
 
-        return Str::transliterate($this->input('role') . '|' . $this->loginMethod() . '|' . $identifier . '|' . $this->ip());
+        return Str::transliterate('staff-login|' . $identifier . '|' . $this->ip());
     }
 
     protected function requestedRoleId(): int
@@ -116,27 +124,22 @@ class LoginRequest extends FormRequest
 
     protected function maxAttempts(): int
     {
-        if ($this->input('role') === 'teamleader') {
-            return $this->loginMethod() === 'otp' ? 8 : 10;
-        }
-
         return 5;
     }
 
     protected function decaySeconds(): int
     {
-        return $this->input('role') === 'teamleader' ? 45 : 60;
+        return 900; // 15-minute lockout after 5 failed attempts.
     }
 
-    protected function loginMethod(): string
+    private function tokenBucket(): TokenBucketRateLimiter
     {
-        $role = $this->input('role');
-
-        if ($role !== 'teamleader') {
-            return 'password';
-        }
-
-        return $this->input('login_method', 'password') === 'otp' ? 'otp' : 'password';
+        return new TokenBucketRateLimiter(
+            maxTokens: 10,
+            refillAmount: 5,
+            refillEvery: 10,
+            tokenCost: 5,
+        );
     }
 
     protected function attemptPasswordAuthentication(): User
@@ -151,7 +154,7 @@ class LoginRequest extends FormRequest
         $user = User::query()
             ->visibleToOperations()
             ->whereRaw('LOWER(email) = ?', [$email])
-            ->where('role_id', $this->requestedRoleId())
+            ->when(Schema::hasColumn('users', 'role_id'), fn($query) => $query->whereIn('role_id', [1, 2, 3]))
             ->first();
 
         if (! $user || ! Hash::check($password, (string) $user->password)) {
@@ -162,76 +165,14 @@ class LoginRequest extends FormRequest
             $this->throwInvalidCredentials();
         }
 
-        return $user;
-    }
-
-    protected function attemptOtpAuthentication(): User
-    {
-        if ($this->requestedRoleId() !== 3 || ! Schema::hasColumn('users', 'phone')) {
-            $this->throwInvalidCredentials();
-        }
-
-        $phone = $this->normalizedPhone();
-        $otp = trim((string) $this->input('otp'));
-
-        if ($phone === '' || $otp === '') {
-            $this->throwInvalidCredentials();
-        }
-
-        $user = User::query()
-            ->visibleToOperations()
-            ->where('role_id', 3)
-            ->where('phone', $phone)
-            ->first();
-
-        if (! $user) {
-            $this->throwInvalidCredentials();
-        }
-
-        if (Schema::hasColumn('users', 'status') && $user->status !== 'active') {
-            $this->throwInvalidCredentials();
-        }
-
-        if (blank($user->otp_code) || blank($user->otp_expires_at) || now()->gt($user->otp_expires_at)) {
-            $this->throwInvalidCredentials();
-        }
-
-        if ((int) ($user->otp_attempts ?? 0) >= 5) {
-            $this->throwInvalidCredentials();
-        }
-
-        if (! Hash::check($otp, (string) $user->otp_code)) {
-            $user->increment('otp_attempts');
-            $this->throwInvalidCredentials();
-        }
-
-        $user->forceFill([
-            'otp_code' => null,
-            'otp_plain_code' => null,
-            'otp_expires_at' => null,
-            'otp_attempts' => 0,
-        ])->save();
+        $this->resolvedRoleId = (int) ($user->role_id ?? 0);
 
         return $user;
-    }
-
-    protected function normalizedPhone(): string
-    {
-        $phone = preg_replace('/\D+/', '', (string) $this->input('phone'));
-
-        if (Str::startsWith($phone, '639')) {
-            return '0' . substr($phone, 2);
-        }
-
-        if (Str::startsWith($phone, '9') && strlen($phone) === 10) {
-            return '0' . $phone;
-        }
-
-        return $phone;
     }
 
     protected function throwInvalidCredentials(): never
     {
+        // Increment the hard-lock failure counter.
         RateLimiter::hit($this->throttleKey(), $this->decaySeconds());
 
         throw ValidationException::withMessages([

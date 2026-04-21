@@ -378,6 +378,16 @@
             color: #075985;
         }
 
+        .monitor-badge.watchlist {
+            background: #fff7ed;
+            color: #c2410c;
+        }
+
+        .monitor-badge.blacklisted {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
         @media (max-width: 960px) {
             .monitor-grid {
                 grid-template-columns: 1fr;
@@ -468,6 +478,14 @@
                 <div class="monitor-stat">
                     <small>Available Units</small>
                     <strong id="monitorUnitsReady">{{ $monitoringStats['available_units'] }}</strong>
+                </div>
+                <div class="monitor-stat">
+                    <small>Watchlist Customers</small>
+                    <strong>{{ $monitoringStats['watchlist_customers'] }}</strong>
+                </div>
+                <div class="monitor-stat">
+                    <small>Blacklisted Customers</small>
+                    <strong>{{ $monitoringStats['blacklisted_customers'] }}</strong>
                 </div>
             </div>
         </section>
@@ -630,6 +648,34 @@
                         </div>
                     @empty
                         <div class="monitor-item">No units found.</div>
+                    @endforelse
+                </div>
+            </div>
+
+            <div class="monitor-card">
+                <div class="monitor-item-head">
+                    <div>
+                        <h3>Risk Watchlist</h3>
+                        <p>Customers tagged for unreachable, no-show, or non-payment behavior.</p>
+                    </div>
+                </div>
+
+                <div class="monitor-list">
+                    @forelse ($flaggedCustomers as $customer)
+                        <div class="monitor-item">
+                            <div class="monitor-item-head">
+                                <strong>{{ $customer['name'] }}</strong>
+                                <span
+                                    class="monitor-badge {{ $customer['risk_level'] }}">{{ $customer['risk_label'] }}</span>
+                            </div>
+                            <p>{{ $customer['reason'] }}</p>
+                            <small>{{ $customer['phone'] }} · {{ $customer['updated_at'] }}</small>
+                        </div>
+                    @empty
+                        <div class="monitor-item">
+                            <strong>No flagged customers right now.</strong>
+                            <p>The customer risk list is currently clear.</p>
+                        </div>
                     @endforelse
                 </div>
             </div>

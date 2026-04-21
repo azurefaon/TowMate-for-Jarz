@@ -43,8 +43,12 @@ document.querySelectorAll(".fade-in").forEach((el) => {
 
 const links = document.querySelectorAll(".nav-links a:not(.book-btn)");
 const indicator = document.querySelector(".nav-indicator");
+const disableActiveNavState = document.body.classList.contains("booking-page") ||
+    document.querySelector(".booking-page-nav-neutral");
 
 function moveIndicator(el) {
+    if (!indicator || disableActiveNavState) return;
+
     const rect = el.getBoundingClientRect();
     const parentRect = el.parentElement.getBoundingClientRect();
 
@@ -54,7 +58,11 @@ function moveIndicator(el) {
 
 /* INITIAL */
 
-if (links.length) {
+if (indicator && disableActiveNavState) {
+    indicator.style.width = "0";
+}
+
+if (links.length && !disableActiveNavState) {
     moveIndicator(links[0]);
 }
 
@@ -62,34 +70,40 @@ if (links.length) {
 
 links.forEach((link) => {
     link.addEventListener("mouseenter", () => {
-        moveIndicator(link);
+        if (!disableActiveNavState) {
+            moveIndicator(link);
+        }
     });
 });
 
 const sections = document.querySelectorAll("section");
 const navLinks = document.querySelectorAll(".nav-links a:not(.book-btn)");
 
-window.addEventListener("scroll", () => {
-    let current = "";
+if (!disableActiveNavState) {
+    window.addEventListener("scroll", () => {
+        let current = "";
 
-    sections.forEach((section) => {
-        const sectionTop = section.offsetTop - 150;
-        const sectionHeight = section.clientHeight;
+        sections.forEach((section) => {
+            const sectionTop = section.offsetTop - 150;
+            const sectionHeight = section.clientHeight;
 
-        if (scrollY >= sectionTop) {
-            current = section.getAttribute("id");
-        }
+            if (scrollY >= sectionTop) {
+                current = section.getAttribute("id");
+            }
+        });
+
+        navLinks.forEach((link) => {
+            link.classList.remove("active");
+
+            if (link.getAttribute("href") === "#" + current) {
+                link.classList.add("active");
+                moveIndicator(link);
+            }
+        });
     });
-
-    navLinks.forEach((link) => {
-        link.classList.remove("active");
-
-        if (link.getAttribute("href") === "#" + current) {
-            link.classList.add("active");
-            moveIndicator(link);
-        }
-    });
-});
+} else {
+    navLinks.forEach((link) => link.classList.remove("active"));
+}
 
 let lastScrollTop = 0;
 let isAtBottom = false;

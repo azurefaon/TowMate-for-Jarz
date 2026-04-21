@@ -1,6 +1,3 @@
-const API_KEY =
-    "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImU1YmM4ZDcyNmJiZTQyOTc5NTA0NTRkZjQxYTY5ODZjIiwiaCI6Im11cm11cjY0In0=";
-
 let trackMap;
 let pickupMarker;
 let dropMarker;
@@ -9,9 +6,22 @@ let routeLine;
 function updateETA(distanceKm, durationMin) {
     const etaEl = document.getElementById("eta");
     const distEl = document.getElementById("distance");
+    const numericDistance = Number(distanceKm || 0);
+    const fallbackDuration =
+        numericDistance > 0
+            ? Math.max(Math.ceil((numericDistance / 30) * 60), 1)
+            : 0;
+    const safeDuration =
+        Number(durationMin || 0) > 0
+            ? Math.ceil(durationMin || 0)
+            : fallbackDuration;
 
-    if (etaEl) etaEl.innerText = Math.ceil(durationMin);
-    if (distEl) distEl.innerText = distanceKm.toFixed(1) + " km away";
+    if (etaEl) etaEl.innerText = safeDuration > 0 ? safeDuration : "--";
+    if (distEl)
+        distEl.innerText =
+            numericDistance > 0
+                ? numericDistance.toFixed(1) + " km away"
+                : "Route is being prepared";
 }
 
 setInterval(() => {
@@ -51,7 +61,11 @@ window.callDriver = function (phone) {
 
 window.initTrackMap = function () {
     const mapEl = document.getElementById("map");
-    if (!mapEl || !window.bookingData) return;
+    if (!mapEl || !window.bookingData || typeof L === "undefined") return;
+
+    if (trackMap) {
+        trackMap.remove();
+    }
 
     trackMap = L.map("map", {
         zoomControl: false,
@@ -71,43 +85,39 @@ window.initTrackMap = function () {
     pickupMarker = L.marker(pickup).addTo(trackMap);
     dropMarker = L.marker(drop).addTo(trackMap);
 
-    fetch(
-        "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
-        {
-            method: "POST",
-            headers: {
-                Authorization: API_KEY,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                coordinates: [
-                    [pickup[1], pickup[0]],
-                    [drop[1], drop[0]],
-                ],
-            }),
+    fetch("/geo/route", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')
+                ?.content,
+            Accept: "application/json",
         },
-    )
+        body: JSON.stringify({
+            pickup_lat: pickup[0],
+            pickup_lng: pickup[1],
+            drop_lat: drop[0],
+            drop_lng: drop[1],
+        }),
+    })
         .then((res) => res.json())
         .then((data) => {
-            if (!data.features || !data.features.length) return;
-
-            const route = data.features[0];
-
-            const coords = route.geometry.coordinates.map((c) => [c[1], c[0]]);
+            const coords =
+                Array.isArray(data.coordinates) && data.coordinates.length > 1
+                    ? data.coordinates
+                    : [pickup, drop];
 
             routeLine = L.polyline(coords, {
                 color: "#22c55e",
                 weight: 5,
+                dashArray: coords.length > 2 ? null : "5, 10",
             }).addTo(trackMap);
 
             trackMap.fitBounds(routeLine.getBounds(), {
                 padding: [60, 60],
             });
 
-            const distanceKm = route.properties.summary.distance / 1000;
-            const durationMin = route.properties.summary.duration / 60;
-
-            updateETA(distanceKm, durationMin);
+            updateETA(data.distance_km || 0, data.duration_min || 0);
         })
         .catch(() => {
             const fallback = L.polyline([pickup, drop], {

@@ -7,6 +7,7 @@ use App\Events\NewBooking;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BookingRequest;
 use App\Http\Requests\LandingBookingRequest;
+use App\Mail\BookingAcceptedMail;
 use App\Mail\BookingReceiptMail;
 use App\Mail\BookingRequestReceivedMail;
 use App\Mail\FinalQuotationConfirmedMail;
@@ -16,6 +17,7 @@ use App\Models\TruckType;
 use App\Services\BookingService;
 use App\Services\DocumentGenerationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -34,7 +36,17 @@ class BookingController extends Controller
 
     public function store(BookingRequest $request)
     {
-        $data = $request->validatedData();
+        $data = $this->applyDispatchAvailabilityRules($request->validatedData(), $request);
+
+        $existingCustomer = $this->findExistingCustomerForBooking($data, $this->resolveAuthenticatedCustomer());
+
+        if ($restrictedResponse = $this->rejectRestrictedCustomer($existingCustomer)) {
+            return $restrictedResponse;
+        }
+
+        if ($duplicateResponse = $this->rejectDuplicateActiveRouteBooking($existingCustomer, $data)) {
+            return $duplicateResponse;
+        }
 
         if ($request->hasFile('vehicle_image')) {
             $data['vehicle_image_path'] = $request->file('vehicle_image')->store('vehicle_images', 'public');
@@ -50,32 +62,19 @@ class BookingController extends Controller
 
     public function landingStore(LandingBookingRequest $request)
     {
-        $data = $request->validatedData();
+        $data = $this->applyDispatchAvailabilityRules($request->validatedData(), $request);
 
-        $existingCustomer = Customer::query()
-            ->where(function ($query) use ($data) {
-                $query->where('phone', $data['phone']);
-
-                if (filled($data['email'] ?? null)) {
-                    $query->orWhere('email', $data['email']);
-                }
-            })
-            ->first();
+        $existingCustomer = $this->findExistingCustomerForBooking($data);
 
         if ($existingCustomer) {
-            $activeStatuses = ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
             $cooldownStatuses = ['cancelled', 'rejected'];
 
-            $activeBooking = Booking::where('customer_id', $existingCustomer->id)
-                ->whereIn('status', $activeStatuses)
-                ->exists();
+            if ($restrictedResponse = $this->rejectRestrictedCustomer($existingCustomer)) {
+                return $restrictedResponse;
+            }
 
-            if ($activeBooking) {
-                return back()
-                    ->withInput()
-                    ->withErrors([
-                        'phone' => 'You already have an ongoing booking. Please wait until it is completed.',
-                    ]);
+            if ($duplicateResponse = $this->rejectDuplicateActiveRouteBooking($existingCustomer, $data)) {
+                return $duplicateResponse;
             }
 
             $recentSpamBooking = Booking::where('customer_id', $existingCustomer->id)
@@ -137,11 +136,150 @@ class BookingController extends Controller
             );
     }
 
+    protected function findExistingCustomerForBooking(array $data, ?Customer $preferredCustomer = null): ?Customer
+    {
+        if ($preferredCustomer) {
+            return $preferredCustomer;
+        }
+
+        return Customer::query()
+            ->where(function ($query) use ($data) {
+                $query->where('phone', $data['phone'] ?? null);
+
+                if (filled($data['email'] ?? null)) {
+                    $query->orWhere('email', $data['email']);
+                }
+            })
+            ->first();
+    }
+
+    protected function rejectRestrictedCustomer(?Customer $customer): ?\Illuminate\Http\RedirectResponse
+    {
+        if (! $customer || ! $customer->is_blacklisted) {
+            return null;
+        }
+
+        return back()
+            ->withInput()
+            ->withErrors([
+                'phone' => 'This customer account is currently restricted from booking. Please contact dispatch for assistance.',
+            ]);
+    }
+
+    protected function rejectDuplicateActiveRouteBooking(?Customer $customer, array $data, ?int $ignoreBookingId = null): ?\Illuminate\Http\RedirectResponse
+    {
+        if (! $customer) {
+            return null;
+        }
+
+        $pickupAddress = $this->normalizeRouteAddress($data['pickup_address'] ?? null);
+        $dropoffAddress = $this->normalizeRouteAddress($data['dropoff_address'] ?? null);
+
+        if ($pickupAddress === '' || $dropoffAddress === '') {
+            return null;
+        }
+
+        $duplicateActiveBooking = Booking::query()
+            ->where('customer_id', $customer->id)
+            ->when($ignoreBookingId, function ($query) use ($ignoreBookingId) {
+                $query->where('id', '!=', $ignoreBookingId);
+            })
+            ->whereIn('status', ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'])
+            ->get()
+            ->first(function (Booking $booking) use ($pickupAddress, $dropoffAddress) {
+                return $this->normalizeRouteAddress($booking->pickup_address) === $pickupAddress
+                    && $this->normalizeRouteAddress($booking->dropoff_address) === $dropoffAddress;
+            });
+
+        if (! $duplicateActiveBooking) {
+            return null;
+        }
+
+        return back()
+            ->withInput()
+            ->withErrors([
+                'phone' => 'You already have an active booking for this same pickup and drop-off route.',
+            ]);
+    }
+
+    protected function normalizeRouteAddress(?string $value): string
+    {
+        return strtolower(trim((string) preg_replace('/\s+/', ' ', (string) $value)));
+    }
+
+    protected function applyDispatchAvailabilityRules(array $data, Request $request): array
+    {
+        $serviceType = ($data['service_type'] ?? 'book_now') === 'schedule' ? 'schedule' : 'book_now';
+
+        if ($serviceType !== 'book_now') {
+            return $data;
+        }
+
+        $availability = $this->bookingService->dispatchAvailability();
+
+        if ($availability['book_now_enabled'] ?? false) {
+            return $data;
+        }
+
+        $scheduledFor = Carbon::now()->addHour()->second(0);
+        $data['service_type'] = 'schedule';
+        $data['scheduled_date'] = $data['scheduled_date'] ?? $scheduledFor->toDateString();
+        $data['scheduled_time'] = $data['scheduled_time'] ?? $scheduledFor->format('H:i');
+
+        return $data;
+    }
+
+    public function update(Request $request, Booking $booking)
+    {
+        $customer = $this->resolveAuthenticatedCustomer();
+
+        abort_unless($customer && (int) $booking->customer_id === (int) $customer->id, 403);
+
+        if (! in_array((string) $booking->status, ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed'], true)) {
+            return redirect()->route('customer.track', $booking)
+                ->with('error', 'This booking can no longer be edited because dispatch is already preparing the tow unit.');
+        }
+
+        $validated = $request->validate([
+            'truck_type_id' => 'required|exists:truck_types,id',
+            'pickup_address' => 'required|string|max:255',
+            'dropoff_address' => 'required|string|max:255|different:pickup_address',
+            'pickup_notes' => 'nullable|string|max:1000',
+            'distance_km' => 'required|numeric|min:0.1|max:1000',
+        ]);
+
+        if ($duplicateResponse = $this->rejectDuplicateActiveRouteBooking($customer, $validated, (int) $booking->id)) {
+            return $duplicateResponse;
+        }
+
+        $updatedBooking = $this->bookingService->refreshBookingForCustomerChange($booking, $validated);
+
+        if ($updatedBooking->quotation_generated) {
+            $initialQuotePath = $this->documentGenerationService->generateQuotation($updatedBooking);
+
+            $updatedBooking->update($this->bookingService->filterPayloadForTable('bookings', [
+                'initial_quote_path' => $initialQuotePath,
+            ]));
+
+            $updatedBooking->refresh()->loadMissing(['customer', 'truckType']);
+
+            if (filled($updatedBooking->customer?->email)) {
+                Mail::to($updatedBooking->customer->email)->send(new BookingAcceptedMail($updatedBooking));
+            }
+        }
+
+        event(new BookingStatusUpdated($updatedBooking));
+
+        return redirect()->route('customer.track', $updatedBooking)
+            ->with('success', 'Booking details updated and the quotation record was refreshed automatically.');
+    }
+
     public function showQuotationReview(Request $request, Booking $booking)
     {
         abort_unless($request->hasValidSignature(), 403);
 
-        $booking->loadMissing(['customer', 'truckType']);
+        $booking->syncQuotationLifecycle();
+        $booking->refresh()->loadMissing(['customer', 'truckType']);
 
         return view('customer.pages.quotation-review-email', [
             'booking' => $booking,
@@ -168,6 +306,14 @@ class BookingController extends Controller
     protected function processQuotationResponse(Request $request, Booking $booking, bool $fromEmail = false)
     {
         $redirectUrl = $this->quotationRedirectUrl($request, $booking, $fromEmail);
+
+        $booking->syncQuotationLifecycle();
+        $booking->refresh();
+
+        if ((string) $booking->quotation_status === 'expired') {
+            return redirect()->to($redirectUrl)
+                ->with('error', 'This quotation has already expired. Dispatch will send an updated quotation soon.');
+        }
 
         if (! in_array($booking->status, ['quoted', 'quotation_sent', 'reviewed', 'confirmed'], true)) {
             return redirect()->to($redirectUrl)
@@ -200,6 +346,7 @@ class BookingController extends Controller
 
             $booking->update([
                 'status' => 'confirmed',
+                'quotation_status' => 'accepted',
                 'customer_approved_at' => now(),
                 'price_locked_at' => now(),
                 'negotiation_requested_at' => null,
@@ -233,6 +380,7 @@ class BookingController extends Controller
 
         $booking->update([
             'status' => 'reviewed',
+            'quotation_status' => 'active',
             'negotiation_requested_at' => now(),
             'counter_offer_amount' => $counterOffer > 0 ? $counterOffer : null,
             'customer_response_note' => $customerNote !== ''

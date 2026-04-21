@@ -79,6 +79,13 @@
     font-weight: 500;
 }
 
+.field-help {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #6b7280;
+}
+
 .settings-field input,
 .settings-field textarea {
     padding: 10px 12px;

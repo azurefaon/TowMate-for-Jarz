@@ -228,6 +228,7 @@ document.addEventListener("DOMContentLoaded", function () {
             returned: 0,
             "book-now": 0,
             scheduled: 0,
+            delayed: 0,
             all: cards.length,
         };
 
@@ -597,12 +598,21 @@ document.addEventListener("DOMContentLoaded", function () {
         var timingLabel =
             data.service_mode_label ||
             (isScheduled ? "Schedule Later" : "Book Now");
+        var statusLabel = isScheduled ? "Scheduled Booking" : "Requested";
+        var statusTone = isScheduled ? "scheduled" : "pending";
+        var reviewButtonLabel =
+            isScheduled && !isDueNow
+                ? "Await Scheduled Time"
+                : "Review & Quote";
+        var reviewButtonDisabled = isScheduled && !isDueNow ? " disabled" : "";
 
         if (isDueNow) {
             timingLabel = "Due Now";
         }
 
-        newCard.className = "incoming-card new-booking";
+        newCard.className =
+            "incoming-card new-booking" +
+            (isScheduled ? " incoming-card--scheduled" : "");
         newCard.setAttribute("data-id", data.id);
         newCard.setAttribute("data-queue", queueType);
         newCard.setAttribute(
@@ -646,7 +656,11 @@ document.addEventListener("DOMContentLoaded", function () {
             '">' +
             escapeHtml(timingLabel) +
             "</span>" +
-            '<span class="status-badge pending">Pending</span>' +
+            '<span class="status-badge ' +
+            statusTone +
+            '">' +
+            escapeHtml(statusLabel) +
+            "</span>" +
             "</div>" +
             '<div class="incoming-details" style="margin-top: 10px;">' +
             "<span><strong>Dispatch Timing:</strong> " +
@@ -660,7 +674,11 @@ document.addEventListener("DOMContentLoaded", function () {
             '<div class="incoming-actions">' +
             '<button type="button" class="btn-accept" data-id="' +
             data.id +
-            '" data-action="accept">Review & Quote</button>' +
+            '" data-action="accept"' +
+            reviewButtonDisabled +
+            ">" +
+            escapeHtml(reviewButtonLabel) +
+            "</button>" +
             '<button type="button" class="btn-reject" data-id="' +
             data.id +
             '" data-action="reject">Reject</button>' +
@@ -717,19 +735,84 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function handleBookingUpdate(data) {
-        if (
-            window.dispatcherNotifications &&
-            typeof window.dispatcherNotifications.add === "function"
-        ) {
-            window.dispatcherNotifications.add({
-                title: (data.booking_code || data.id || "Job") + " updated",
-                body:
-                    (data.team_leader_name || "Field crew") +
-                    " is now " +
-                    (data.status_label || data.status || "active") +
-                    ".",
-                time: data.updated_at_human || "Just now",
-            });
+        var isCompleted = data.status === "completed";
+        var isReturned = data.is_returned === true;
+
+        if (isReturned) {
+            // Task returned by team leader — needs dispatcher reassignment
+            var tlName = data.team_leader_name || "Team Leader";
+            var jobCode = data.booking_code || data.id || "Job";
+            var returnReason = data.return_reason || "No reason provided.";
+
+            if (
+                window.dispatcherNotifications &&
+                typeof window.dispatcherNotifications.add === "function"
+            ) {
+                window.dispatcherNotifications.add({
+                    title: "↩ Job " + jobCode + " returned by " + tlName,
+                    body:
+                        "Reason: " +
+                        returnReason +
+                        " — unit is now available for reassignment.",
+                    time: data.updated_at_human || "Just now",
+                });
+            }
+
+            playNotificationSound();
+            showNotification(
+                "Job " +
+                    jobCode +
+                    " was returned by " +
+                    tlName +
+                    ". Ready for reassignment.",
+                "error",
+            );
+        } else if (isCompleted) {
+            // Prominent alert for job completion — TL is now available
+            var tlName = data.team_leader_name || "Team Leader";
+            var unitName = data.unit_name || "Unit";
+            var jobCode = data.booking_code || data.id || "Job";
+
+            if (
+                window.dispatcherNotifications &&
+                typeof window.dispatcherNotifications.add === "function"
+            ) {
+                window.dispatcherNotifications.add({
+                    title: "✅ Job " + jobCode + " completed — unit available",
+                    body:
+                        tlName +
+                        " (" +
+                        unitName +
+                        ") has finished the job and is now available for the next dispatch.",
+                    time: data.updated_at_human || "Just now",
+                });
+            }
+
+            playNotificationSound();
+            showNotification(
+                tlName +
+                    " completed job " +
+                    jobCode +
+                    ". Unit " +
+                    unitName +
+                    " is now available.",
+                "success",
+            );
+        } else {
+            if (
+                window.dispatcherNotifications &&
+                typeof window.dispatcherNotifications.add === "function"
+            ) {
+                window.dispatcherNotifications.add({
+                    title: (data.booking_code || data.id || "Job") + " updated",
+                    body:
+                        (data.team_leader_name || "Field crew") +
+                        " is now " +
+                        (data.status_label || data.status || "active") +
+                        ".",
+                    time: data.updated_at_human || "Just now",
+                });
+            }
         }
 
         checkForNewBookings();
@@ -873,6 +956,21 @@ document.addEventListener("DOMContentLoaded", function () {
                     result.data.message || "Booking action completed.",
                     action === "accept" ? "success" : "error",
                 );
+
+                // After sending a quotation, redirect to the assigned team leader's card on the drivers page
+                if (
+                    action === "accept" &&
+                    !isReturnedTask &&
+                    result.data.drivers_url &&
+                    result.data.assigned_team_leader_id
+                ) {
+                    setTimeout(function () {
+                        window.location.href =
+                            result.data.drivers_url +
+                            "?focus=" +
+                            result.data.assigned_team_leader_id;
+                    }, 900);
+                }
             })
             .catch(function (error) {
                 button.textContent = originalText;
@@ -930,6 +1028,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (state.activeFilter === "scheduled") {
             message = "No scheduled bookings are waiting yet.";
+        } else if (state.activeFilter === "delayed") {
+            message = "No delayed bookings are waiting right now.";
         } else if (state.activeFilter === "negotiation") {
             message = "No negotiation requests need review right now.";
         } else if (state.activeFilter === "returned") {
@@ -1068,6 +1168,15 @@ document.addEventListener("DOMContentLoaded", function () {
             var assignedUnitId = state.selectedCard
                 ? state.selectedCard.getAttribute("data-assigned-unit")
                 : "";
+            var recommendedUnitId = state.selectedCard
+                ? state.selectedCard.getAttribute("data-recommended-unit")
+                : "";
+            var dispatchZone = state.selectedCard
+                ? state.selectedCard.getAttribute("data-dispatch-zone")
+                : "General Dispatch Zone";
+            var recommendedSummary = state.selectedCard
+                ? state.selectedCard.getAttribute("data-recommended-summary")
+                : "";
 
             var counterOfferValue = parseNumericPrice(counterOffer);
             var currentPriceValue = parseNumericPrice(currentPrice);
@@ -1112,6 +1221,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 customerType: state.selectedCard
                     ? state.selectedCard.getAttribute("data-customer-type")
                     : "Regular",
+                dispatchZone: dispatchZone || "General Dispatch Zone",
+                recommendedSummary: recommendedSummary || "",
             };
 
             modalTitle.innerText = isReturnedTask
@@ -1193,7 +1304,34 @@ document.addEventListener("DOMContentLoaded", function () {
                 }, 30);
             }
             if (unitSelect) {
-                unitSelect.value = assignedUnitId || "";
+                var preferredUnitId = assignedUnitId || recommendedUnitId || "";
+                unitSelect.value = preferredUnitId;
+
+                // Float the pre-selected unit to the top of the list so it's immediately visible
+                if (preferredUnitId) {
+                    var placeholder = unitSelect.options[0];
+                    var matchedIndex = -1;
+                    for (var oi = 0; oi < unitSelect.options.length; oi++) {
+                        if (
+                            String(unitSelect.options[oi].value) ===
+                            String(preferredUnitId)
+                        ) {
+                            matchedIndex = oi;
+                            break;
+                        }
+                    }
+                    if (matchedIndex > 1) {
+                        var matchedOption = unitSelect.options[matchedIndex];
+                        unitSelect.removeChild(matchedOption);
+                        // Insert right after the blank placeholder (index 0)
+                        unitSelect.insertBefore(
+                            matchedOption,
+                            unitSelect.options[1] || null,
+                        );
+                        unitSelect.value = preferredUnitId;
+                    }
+                }
+
                 clearFieldError(unitSelect);
                 updateUnitHelper();
             }
@@ -1487,6 +1625,23 @@ document.addEventListener("DOMContentLoaded", function () {
             selectedOption.getAttribute("data-team-leader") || "No team leader";
         var driverName =
             selectedOption.getAttribute("data-driver") || "No saved driver";
+        var coverageZones = selectedOption.getAttribute("data-zones") || "";
+        var bookingZone =
+            (state.reviewData && state.reviewData.dispatchZone) ||
+            "General Dispatch Zone";
+        var zoneSummary = coverageZones
+            ? "Coverage: " + coverageZones
+            : "No saved zone history yet.";
+
+        if (coverageZones && coverageZones.indexOf(bookingZone) !== -1) {
+            zoneSummary =
+                "Recommended for " + bookingZone + " · " + zoneSummary;
+        }
+
+        if (state.reviewData && state.reviewData.recommendedSummary) {
+            zoneSummary =
+                state.reviewData.recommendedSummary + " · " + zoneSummary;
+        }
 
         unitHelper.textContent =
             "Team Leader: " +
@@ -1494,7 +1649,9 @@ document.addEventListener("DOMContentLoaded", function () {
             " · Driver: " +
             driverName +
             " · " +
-            statusSummary;
+            statusSummary +
+            " · " +
+            zoneSummary;
     }
 
     function updateQuotationPreview(value) {

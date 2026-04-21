@@ -5,11 +5,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Models\TruckType;
 
+use App\Http\Controllers\GeoController;
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\ControlCenterController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\TeamLeaderController;
-use App\Http\Controllers\VerificationController;
 
 use App\Http\Controllers\Admin\AvailableUnitsController;
 use App\Http\Controllers\Admin\DashboardController as AdminController;
@@ -42,6 +43,15 @@ Route::get('/book', function () {
 
 Route::post('/book', [CustomerBookingController::class, 'landingStore'])
     ->name('landing.book.store');
+
+Route::prefix('geo')
+    ->name('geo.')
+    ->group(function () {
+        Route::get('/search', [GeoController::class, 'search'])->name('search');
+        Route::get('/reverse', [GeoController::class, 'reverse'])->name('reverse');
+        Route::post('/route', [GeoController::class, 'route'])->name('route');
+        Route::post('/pricing-preview', [GeoController::class, 'pricingPreview'])->name('pricing.preview');
+    });
 
 Route::get('/quotation/review/{booking}', [CustomerBookingController::class, 'showQuotationReview'])
     ->middleware(['signed', 'throttle:30,1'])
@@ -146,6 +156,14 @@ Route::view('/driver', 'dashboard')
     ->middleware(['auth', 'role:4'])
     ->name('driver.dashboard');
 
+Route::prefix('control-center')
+    ->name('control-center.')
+    ->middleware(['auth', 'role:1,2'])
+    ->group(function () {
+        Route::get('/', [ControlCenterController::class, 'index'])->name('index');
+        Route::get('/live', [ControlCenterController::class, 'live'])->name('live');
+    });
+
 Route::prefix('admin-dashboard')
     ->name('admin.')
     ->middleware(['auth', 'role:2'])
@@ -156,6 +174,7 @@ Route::prefix('admin-dashboard')
         Route::get('/pending-bookings-count', [DispatchController::class, 'pendingBookingsCount'])->name('pending-bookings-count');
         Route::get('/drivers', [DriversController::class, 'index'])->name('drivers');
         Route::post('/drivers/{teamLeader}/assign-unit', [DriversController::class, 'assignUnit'])->name('drivers.assign-unit');
+        Route::post('/drivers/{teamLeader}/update-status', [DriversController::class, 'updateStatus'])->name('drivers.update-status');
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
         Route::post('/available-units', [AvailableUnitsController::class, 'store'])->name('available-units.store');
         Route::patch('/available-units/{unit}/toggle', [AvailableUnitsController::class, 'toggle'])->name('available-units.toggle');
@@ -243,6 +262,7 @@ Route::middleware(['auth', 'role:5'])
         })->name('book');
 
         Route::post('/book', [CustomerBookingController::class, 'store'])->name('book.store');
+        Route::patch('/booking/{booking}', [CustomerBookingController::class, 'update'])->name('booking.update');
         Route::post('/booking/{booking}/quotation-response', [CustomerBookingController::class, 'respondToQuotation'])
             ->name('booking.quotation.respond');
 
@@ -258,6 +278,3 @@ Route::middleware(['auth', 'role:5'])
             return view('customer.pages.help');
         })->name('help');
     });
-
-Route::post('/send-otp', [VerificationController::class, 'sendOtp'])->middleware(['auth', 'throttle:3,1']);
-Route::post('/verify-otp', [VerificationController::class, 'verifyOtp'])->middleware(['auth', 'throttle:5,1']);

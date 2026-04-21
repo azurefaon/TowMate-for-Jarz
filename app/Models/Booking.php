@@ -21,6 +21,7 @@ class Booking extends Model
         'age',
 
         'pickup_address',
+        'pickup_notes',
         'pickup_lat',
         'pickup_lng',
 
@@ -49,6 +50,7 @@ class Booking extends Model
         'initial_quote_path',
         'final_quote_path',
         'quotation_generated',
+        'quotation_status',
         'dispatcher_note',
         'driver_name',
         'assigned_at',
@@ -57,6 +59,8 @@ class Booking extends Model
         'reviewed_at',
         'quoted_at',
         'quotation_sent_at',
+        'quotation_expires_at',
+        'quotation_follow_up_sent_at',
         'negotiation_requested_at',
         'counter_offer_amount',
         'customer_approved_at',
@@ -80,6 +84,10 @@ class Booking extends Model
                 $booking->booking_code = static::nextPublicCode('booking_code');
             }
         });
+
+        static::saving(function (Booking $booking) {
+            $booking->quotation_status = $booking->resolveQuotationStatus($booking->quotation_status ?? null);
+        });
     }
 
     protected function casts(): array
@@ -93,6 +101,8 @@ class Booking extends Model
             'reviewed_at' => 'datetime',
             'quoted_at' => 'datetime',
             'quotation_sent_at' => 'datetime',
+            'quotation_expires_at' => 'datetime',
+            'quotation_follow_up_sent_at' => 'datetime',
             'negotiation_requested_at' => 'datetime',
             'customer_approved_at' => 'datetime',
             'price_locked_at' => 'datetime',
@@ -119,12 +129,89 @@ class Booking extends Model
         return $this->booking_code ?: str_pad((string) $this->getKey(), 7, '0', STR_PAD_LEFT);
     }
 
+    public function resolveQuotationStatus(?string $currentStatus = null): string
+    {
+        $resolvedStatus = strtolower(trim((string) $currentStatus));
+        $allowedStatuses = ['active', 'expired', 'cancelled', 'accepted'];
+        $bookingStatus = strtolower(trim((string) ($this->status ?? 'requested')));
+
+        if (in_array($bookingStatus, ['cancelled', 'rejected'], true)) {
+            return 'cancelled';
+        }
+
+        if (in_array($bookingStatus, ['confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed', 'on_job'], true)) {
+            return 'accepted';
+        }
+
+        if ($this->shouldExpireQuotation()) {
+            return 'expired';
+        }
+
+        return in_array($resolvedStatus, $allowedStatuses, true) ? $resolvedStatus : 'active';
+    }
+
+    public function shouldExpireQuotation(): bool
+    {
+        return in_array((string) $this->status, ['quoted', 'quotation_sent'], true)
+            && ! is_null($this->quotation_expires_at)
+            && $this->quotation_expires_at->isPast();
+    }
+
+    public function needsQuotationFollowUp(): bool
+    {
+        return in_array((string) $this->status, ['quoted', 'quotation_sent'], true)
+            && (string) $this->quotation_status === 'active'
+            && ! $this->shouldExpireQuotation()
+            && ! is_null($this->quotation_sent_at)
+            && $this->quotation_sent_at->lte(now()->subDays(5))
+            && is_null($this->quotation_follow_up_sent_at);
+    }
+
+    public function syncQuotationLifecycle(): bool
+    {
+        $resolvedStatus = $this->resolveQuotationStatus($this->quotation_status ?? null);
+
+        if ($resolvedStatus === (string) ($this->quotation_status ?? '')) {
+            return false;
+        }
+
+        $this->forceFill([
+            'quotation_status' => $resolvedStatus,
+        ])->save();
+
+        return $resolvedStatus === 'expired';
+    }
+
+    public function getQuotationValidityLabelAttribute(): ?string
+    {
+        return $this->quotation_expires_at?->format('M d, Y g:i A');
+    }
+
     public function getDistanceFeeAmountAttribute(): float
     {
-        $baseRate = (float) ($this->base_rate ?? 0);
-        $computedTotal = (float) ($this->computed_total ?? ($baseRate + ((float) ($this->distance_km ?? 0) * (float) ($this->per_km_rate ?? 0))));
+        return round((float) ($this->distance_km ?? 0) * (float) ($this->per_km_rate ?? 0), 2);
+    }
 
-        return max(round($computedTotal - $baseRate, 2), 0);
+    public function getExcessKmAttribute(): float
+    {
+        $threshold = (float) SystemSetting::getValue('excess_km_threshold', setting('excess_km_threshold', 10));
+
+        if ($threshold <= 0) {
+            $threshold = (float) setting('excess_km_threshold', 10);
+        }
+
+        return max(round((float) ($this->distance_km ?? 0) - $threshold, 2), 0);
+    }
+
+    public function getExcessFeeAmountAttribute(): float
+    {
+        $rate = (float) SystemSetting::getValue('excess_km_rate', setting('excess_km_rate', 20));
+
+        if ($rate <= 0) {
+            $rate = (float) setting('excess_km_rate', 20);
+        }
+
+        return round($this->excess_km * $rate, 2);
     }
 
     public function getDiscountAmountAttribute(): float
@@ -140,6 +227,8 @@ class Booking extends Model
         return [
             'base_rate' => (float) ($this->base_rate ?? 0),
             'distance_fee' => $this->distance_fee_amount,
+            'excess_km' => $this->excess_km,
+            'excess_fee' => $this->excess_fee_amount,
             'additional_fee' => (float) ($this->additional_fee ?? 0),
             'discount' => $this->discount_amount,
             'final_total' => (float) ($this->final_total ?? 0),
@@ -194,6 +283,18 @@ class Booking extends Model
         return $this->is_scheduled && $this->scheduled_for?->lte(now());
     }
 
+    public function getIsDispatchDelayedAttribute(): bool
+    {
+        if ((string) $this->status === 'delayed') {
+            return true;
+        }
+
+        return $this->is_scheduled
+            && ! is_null($this->scheduled_for)
+            && in_array($this->status, ['requested', 'reviewed'], true)
+            && $this->scheduled_for->copy()->addHour()->lte(now());
+    }
+
     public function getNeedsReassignmentAttribute(): bool
     {
         return ! is_null($this->returned_at)
@@ -208,6 +309,10 @@ class Booking extends Model
 
         if (! $this->scheduled_for) {
             return 'Scheduled time pending';
+        }
+
+        if ($this->is_dispatch_delayed) {
+            return 'Delayed · ' . $this->scheduled_for->format('M d, Y g:i A');
         }
 
         return $this->is_due_for_dispatch

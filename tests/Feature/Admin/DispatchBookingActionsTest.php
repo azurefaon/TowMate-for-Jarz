@@ -100,10 +100,14 @@ it('sends a quotation only after the dispatcher reviews the request and sets the
     $booking->refresh();
 
     expect($booking->status)->toBe('quotation_sent')
+        ->and($booking->quotation_status)->toBe('active')
         ->and((float) $booking->final_total)->toBe(2950.0)
         ->and($booking->quotation_generated)->toBeTrue()
         ->and($booking->quotation_number)->not->toBeNull()
         ->and($booking->quotation_sent_at)->not->toBeNull()
+        ->and($booking->quotation_expires_at)->not->toBeNull()
+        ->and($booking->quotation_follow_up_sent_at)->toBeNull()
+        ->and($booking->quotation_expires_at->greaterThan($booking->quotation_sent_at))->toBeTrue()
         ->and($booking->initial_quote_path)->not->toBeNull();
 
     Mail::assertSent(BookingAcceptedMail::class, function (BookingAcceptedMail $mail) use ($booking) {
@@ -113,7 +117,10 @@ it('sends a quotation only after the dispatcher reviews the request and sets the
             && str_contains($html, $booking->customer->full_name)
             && str_contains($html, $booking->pickup_address)
             && str_contains(strtolower($html), 'quotation')
-            && str_contains($html, '2,950.00');
+            && str_contains($html, 'Price Breakdown')
+            && str_contains($html, '2,950.00')
+            && ! str_contains($html, 'Review your quotation')
+            && ! str_contains($html, 'Open quotation document');
     });
 });
 
@@ -134,6 +141,7 @@ it('rejects a booking and emails the rejection reason to the customer', function
     $booking->refresh();
 
     expect($booking->status)->toBe('cancelled')
+        ->and($booking->quotation_status)->toBe('cancelled')
         ->and($booking->rejection_reason)->toBe('No driver is currently available in your area.');
 
     Mail::assertSent(BookingRejectedMail::class, function (BookingRejectedMail $mail) use ($booking) {
@@ -252,6 +260,64 @@ it('requires the dispatcher to complete the quotation details before sending', f
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['distance_km']);
+});
+
+it('keeps future scheduled bookings disabled until their dispatch time', function () {
+    [$dispatcher, $booking] = makeDispatchScenario();
+
+    $booking->update([
+        'service_type' => 'schedule',
+        'scheduled_date' => now()->addHour()->toDateString(),
+        'scheduled_time' => now()->addHour()->format('H:i'),
+        'scheduled_for' => now()->addHour(),
+        'status' => 'requested',
+    ]);
+
+    $this->actingAs($dispatcher)
+        ->get(route('admin.dispatch'))
+        ->assertOk()
+        ->assertSee('data-queue="scheduled"', false)
+        ->assertSee('Scheduled Booking', false)
+        ->assertSee('Await Scheduled Time', false)
+        ->assertSee('disabled', false);
+});
+
+it('shows due scheduled bookings in the book now queue while keeping their scheduled status visible', function () {
+    [$dispatcher, $booking] = makeDispatchScenario();
+
+    $booking->update([
+        'service_type' => 'schedule',
+        'scheduled_date' => now()->subMinutes(10)->toDateString(),
+        'scheduled_time' => now()->subMinutes(10)->format('H:i'),
+        'scheduled_for' => now()->subMinutes(10),
+        'status' => 'requested',
+    ]);
+
+    $this->actingAs($dispatcher)
+        ->get(route('admin.dispatch'))
+        ->assertOk()
+        ->assertSee('data-queue="book-now"', false)
+        ->assertSee('Due Now', false)
+        ->assertSee('Scheduled Booking', false);
+});
+
+it('shows overdue scheduled bookings in a delayed queue tab', function () {
+    [$dispatcher, $booking] = makeDispatchScenario();
+
+    $booking->update([
+        'service_type' => 'schedule',
+        'scheduled_date' => now()->subHours(2)->toDateString(),
+        'scheduled_time' => now()->subHours(2)->format('H:i'),
+        'scheduled_for' => now()->subHours(2),
+        'status' => 'requested',
+    ]);
+
+    $this->actingAs($dispatcher)
+        ->get(route('admin.dispatch'))
+        ->assertOk()
+        ->assertSee('Delayed', false)
+        ->assertSee('data-filter="delayed"', false)
+        ->assertSee('data-queue="delayed"', false);
 });
 
 it('keeps the discount locked for regular customers even if a manual value is submitted', function () {

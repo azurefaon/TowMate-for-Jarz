@@ -14,11 +14,11 @@
             'requested'
                 => 'Your booking request was received. Dispatch is reviewing the trip details and service needs now.',
             'reviewed'
-                => 'Your negotiation request was sent back to dispatch. Please wait while they review your latest note or counter-offer.',
+                => 'Dispatch is reviewing the latest pricing update. The amount shown below stays available for your records.',
             'quoted',
             'quotation_sent'
-                => 'Dispatch has set the price. You can accept it now or request a negotiated adjustment below.',
-            'confirmed' => 'Thank you for approving the quotation. Dispatch can now move forward with unit assignment.',
+                => 'Dispatch has set the current price summary for your booking. The details below are now view-only on your side.',
+            'confirmed' => 'Your confirmed amount is already saved as part of your booking record.',
             'assigned' => 'A tow unit has been assigned and is preparing to move.',
             'on_the_way' => 'Your crew is already on the way to the pickup location.',
             'in_progress' => 'Your towing service is currently in progress.',
@@ -124,12 +124,14 @@
                 }
 
                 .quote-form input,
-                .quote-form textarea {
+                .quote-form textarea,
+                .quote-form select {
                     width: 100%;
                     border: 1px solid #d1d5db;
                     border-radius: 12px;
                     padding: 12px 14px;
                     font: inherit;
+                    background: #fff;
                 }
 
                 .quote-btn,
@@ -177,7 +179,7 @@
                 <div class="quote-flow-grid">
                     <div class="quote-summary-card">
                         <span class="quote-status-pill {{ strtolower($booking->status) }}">{{ $statusLabel }}</span>
-                        <h2 style="margin: 0 0 8px;">Booking Approval Flow</h2>
+                        <h2 style="margin: 0 0 8px;">Booking Price Summary</h2>
                         <p style="margin: 0; color: #475569;">{{ $statusMessage }}</p>
 
                         <div class="quote-meta">
@@ -226,49 +228,85 @@
                     </div>
 
                     <div class="quote-action-card">
-                        @if (in_array($booking->status, ['quoted', 'quotation_sent'], true))
-                            <h3 style="margin-top: 0;">Respond to this quotation</h3>
-                            <p style="color: #475569;">Approve the price to continue, or send a counter-offer for dispatcher
-                                review.</p>
+                        @php
+                            $quoteBreakdown = $booking->quotation_breakdown ?? [];
+                            $baseRate = (float) ($quoteBreakdown['base_rate'] ?? ($booking->base_rate ?? 0));
+                            $distanceFee =
+                                (float) ($quoteBreakdown['distance_fee'] ??
+                                    ($booking->distance_km ?? 0) * ($booking->per_km_rate ?? 0));
+                            $additionalFee = (float) ($quoteBreakdown['additional_fee'] ?? 0);
+                            $discountAmount = (float) ($quoteBreakdown['discount'] ?? 0);
+                            $displayTotal =
+                                (float) ($quoteBreakdown['final_total'] ??
+                                    ($booking->final_total ?? ($booking->computed_total ?? 0)));
+                        @endphp
 
-                            <form method="POST" action="{{ route('customer.booking.quotation.respond', $booking) }}">
-                                @csrf
-                                <input type="hidden" name="action" value="accept">
-                                <button type="submit" class="quote-btn">Accept the price</button>
-                            </form>
+                        <h3 style="margin-top: 0;">Price Breakdown</h3>
+                        <p style="color: #475569;">This section is now read-only and serves as your booking price record.
+                        </p>
 
-                            <form method="POST" action="{{ route('customer.booking.quotation.respond', $booking) }}"
-                                class="quote-form">
-                                @csrf
-                                <input type="hidden" name="action" value="negotiate">
-                                <input type="number" name="counter_offer_amount"
-                                    value="{{ old('counter_offer_amount', $booking->counter_offer_amount) }}"
-                                    min="0" step="0.01" inputmode="decimal"
-                                    placeholder="Optional counter-offer amount (e.g. 2500.00)">
-                                <textarea name="customer_response_note" rows="4"
-                                    placeholder="Tell dispatch what adjustment you are requesting...">{{ old('customer_response_note') }}</textarea>
-                                @error('customer_response_note')
-                                    <small style="color:#dc2626;">{{ $message }}</small>
-                                @enderror
-                                <button type="submit" class="quote-secondary-btn">Request negotiation</button>
-                            </form>
-                        @elseif ($booking->status === 'reviewed')
-                            <div class="quote-empty-card">
-                                <h3 style="margin-top: 0;">Negotiation sent</h3>
-                                <p style="margin-bottom: 0;">Dispatch has your latest note. Once they respond with a revised
-                                    quotation, you will be able to approve it here.</p>
+                        <div class="quote-empty-card">
+                            <p style="margin: 0 0 10px;"><strong>Base rate:</strong> ₱{{ number_format($baseRate, 2) }}</p>
+                            <p style="margin: 0 0 10px;"><strong>Distance fee:</strong>
+                                ₱{{ number_format($distanceFee, 2) }}</p>
+                            @if ($additionalFee > 0)
+                                <p style="margin: 0 0 10px;"><strong>Additional fee:</strong>
+                                    ₱{{ number_format($additionalFee, 2) }}</p>
+                            @endif
+                            @if ($discountAmount > 0)
+                                <p style="margin: 0 0 10px;"><strong>Discount:</strong> -
+                                    ₱{{ number_format($discountAmount, 2) }}</p>
+                            @endif
+                            <p style="margin: 0;"><strong>Estimated total:</strong> ₱{{ number_format($displayTotal, 2) }}
+                            </p>
+                        </div>
+
+                        <form action="{{ route('customer.booking.update', $booking) }}" method="POST" class="quote-form">
+                            @csrf
+                            @method('PATCH')
+                            <h3 style="margin: 0;">Need to update the trip details?</h3>
+                            <p style="margin: 0; color: #475569;">Correct the route or vehicle type here and the quotation
+                                record will refresh automatically.</p>
+
+                            <select name="truck_type_id" required>
+                                @foreach ($truckTypes ?? [$booking->truckType] as $truckTypeOption)
+                                    @if ($truckTypeOption)
+                                        <option value="{{ $truckTypeOption->id }}" @selected((int) old('truck_type_id', $booking->truck_type_id) === (int) $truckTypeOption->id)>
+                                            {{ $truckTypeOption->name }}
+                                        </option>
+                                    @endif
+                                @endforeach
+                            </select>
+                            <input type="text" name="pickup_address"
+                                value="{{ old('pickup_address', $booking->pickup_address) }}" placeholder="Pickup address"
+                                required>
+                            <input type="text" name="dropoff_address"
+                                value="{{ old('dropoff_address', $booking->dropoff_address) }}"
+                                placeholder="Drop-off address" required>
+                            <input type="number" step="0.1" min="0.1" name="distance_km"
+                                value="{{ old('distance_km', $booking->distance_km) }}" placeholder="Distance in KM"
+                                required>
+                            <textarea name="pickup_notes" rows="3" placeholder="Pickup notes or landmark">{{ old('pickup_notes', $booking->pickup_notes) }}</textarea>
+                            <button type="submit" class="quote-secondary-btn">Update booking & refresh quote</button>
+                        </form>
+
+                        @if ($booking->status === 'reviewed')
+                            <div class="quote-empty-card" style="margin-top: 12px;">
+                                <h3 style="margin-top: 0;">Dispatch update in progress</h3>
+                                <p style="margin-bottom: 0;">The latest amount is already saved here while dispatch reviews
+                                    the request.</p>
                             </div>
                         @elseif ($booking->status === 'confirmed')
-                            <div class="quote-empty-card" style="background:#ecfdf5; color:#047857;">
-                                <h3 style="margin-top: 0;">Quotation approved</h3>
-                                <p style="margin-bottom: 0;">Your approval is saved. The dispatcher can now assign the
-                                    towing unit and move this booking into field operations.</p>
+                            <div class="quote-empty-card" style="margin-top: 12px; background:#ecfdf5; color:#047857;">
+                                <h3 style="margin-top: 0;">Price confirmed</h3>
+                                <p style="margin-bottom: 0;">Your total is already locked and kept in your booking record.
+                                </p>
                             </div>
                         @else
-                            <div class="quote-empty-card">
-                                <h3 style="margin-top: 0;">Waiting for dispatch review</h3>
-                                <p style="margin-bottom: 0;">As soon as dispatch confirms the pricing, the quotation will
-                                    appear here for your approval.</p>
+                            <div class="quote-empty-card" style="margin-top: 12px;">
+                                <h3 style="margin-top: 0;">Booking record only</h3>
+                                <p style="margin-bottom: 0;">No action is required from your side. Keep this summary for
+                                    reference.</p>
                             </div>
                         @endif
                     </div>
@@ -370,7 +408,12 @@
         </script>
     @endif
 
+    {{-- Google Maps is disabled for now while Leaflet is active.
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key={{ urlencode(config('services.google_maps.key')) }}&libraries=places">
+    </script>
+    --}}
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="{{ asset('customer/js/track.js') }}"></script>
+    <script src="{{ asset('customer/js/track.js') }}?v={{ filemtime(public_path('customer/js/track.js')) }}"></script>
 
 @endsection

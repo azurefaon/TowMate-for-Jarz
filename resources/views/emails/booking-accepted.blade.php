@@ -2,13 +2,13 @@
 <html>
 
 <head>
-    <title>Jarz Quotation Ready</title>
+    <title>Jarz Quotation Summary</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
             color: #1f2937;
-            max-width: 600px;
+            max-width: 680px;
             margin: 0 auto;
             padding: 20px;
             background: #f8fafc;
@@ -37,12 +37,18 @@
             color: #6b7280;
         }
 
-        .status-box {
+        .status-box,
+        .price-box {
             background: #f8fafc;
             border: 1px solid #dbeafe;
             padding: 20px;
             margin: 24px 0;
             border-radius: 12px;
+        }
+
+        .price-box {
+            border-color: #fde68a;
+            background: #fffdf4;
         }
 
         .note-box {
@@ -53,21 +59,10 @@
             margin: 18px 0;
         }
 
-        .btn {
-            background: #2563eb;
-            color: white !important;
-            padding: 14px 28px;
-            text-decoration: none;
-            border-radius: 10px;
-            display: inline-block;
-            font-weight: 600;
-            font-size: 15px;
-        }
-
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 16px 0;
+            margin: 16px 0 0;
         }
 
         th,
@@ -79,33 +74,89 @@
         }
 
         th {
-            width: 34%;
+            width: 36%;
             color: #374151;
         }
 
-        ul {
-            padding-left: 18px;
+        .price-total td {
+            font-weight: 700;
+            color: #111827;
+            border-bottom: 0;
+        }
+
+        .logo-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 14px 0 0;
+        }
+
+        .logo-bar img {
+            height: 52px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .logo-divider {
+            width: 1px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        .btn-download {
+            display: inline-block;
+            margin: 22px 0 6px;
+            padding: 13px 28px;
+            background: #1d4ed8;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
         }
     </style>
 </head>
 
 <body>
+    @php
+        $breakdown = $booking->quotation_breakdown ?? [];
+        $baseRate = (float) ($breakdown['base_rate'] ?? ($booking->base_rate ?? 0));
+        $distanceKm = (float) ($booking->distance_km ?? 0);
+        $perKmRate = (float) ($booking->per_km_rate ?? 0);
+        $distanceFee =
+            (float) ($breakdown['distance_fee'] ?? ($distanceKm > 0 && $perKmRate > 0 ? $distanceKm * $perKmRate : 0));
+        $additionalFee = (float) ($breakdown['additional_fee'] ?? 0);
+        $discountAmount = (float) ($breakdown['discount'] ?? 0);
+        $estimatedTotal =
+            (float) ($breakdown['final_total'] ??
+                ($booking->final_total ??
+                    ($booking->computed_total ?? $baseRate + $distanceFee + $additionalFee - $discountAmount)));
+    @endphp
+
     <div class="header">
-        <h1>📩 Your quotation is ready</h1>
-        <p>Dispatch reviewed your request and prepared the towing price for approval.</p>
+        <div class="logo-bar">
+            <img src="{{ asset('customer/image/accridetedlogo.png') }}" alt="MMDA Accredited">
+            <div class="logo-divider"></div>
+            <img src="{{ asset('customer/image/TowingLogo.png') }}" alt="Jarz Towing">
+        </div>
+        <h1>{{ !empty($isReminder) ? '⏰ Quotation follow-up reminder' : '📩 Your booking price summary' }}</h1>
+        <p>{{ !empty($isReminder) ? 'Your quotation is still active. Please review the validity period below.' : 'Your towing quotation and booking details are ready for your records.' }}
+        </p>
     </div>
 
     <div class="content">
         <h2>Hello {{ $booking->customer->full_name ?? 'Customer' }},</h2>
 
         <p>
-            Your booking has been reviewed by our dispatcher. Please review the initial quotation below and
-            <strong>accept the price or request an adjustment</strong> from the secure review page below.
-            No towing job will proceed until you approve the quotation.
+            {{ !empty($isReminder)
+                ? 'This is your day-5 follow-up reminder from dispatch. Your quotation is still available for this booking, but it will expire automatically if not updated in time.'
+                : 'Dispatch has reviewed your towing request. This email now serves as your booking summary only, so you can view the estimated total and your booking credentials in one place.' }}
         </p>
 
         <div class="status-box">
-            <h3>Quotation Summary</h3>
+            <h3 style="margin-top: 0;">Booking Details</h3>
             <table>
                 <tr>
                     <th>Booking #</th>
@@ -128,13 +179,15 @@
                     <td>{{ $booking->dropoff_address ?? 'Not provided' }}</td>
                 </tr>
                 <tr>
-                    <th>Quoted Price</th>
-                    <td><strong>₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}</strong></td>
-                </tr>
-                <tr>
                     <th>Status</th>
-                    <td><strong style="color: #2563eb;">Quoted / Waiting for Customer Approval</strong></td>
+                    <td><strong style="color: #2563eb;">Quoted / Recorded</strong></td>
                 </tr>
+                @if (!empty($validUntilLabel))
+                    <tr>
+                        <th>Valid Until</th>
+                        <td>{{ $validUntilLabel }}</td>
+                    </tr>
+                @endif
             </table>
         </div>
 
@@ -145,36 +198,51 @@
             </div>
         @endif
 
-        <p><strong>Next steps</strong></p>
-        <ul>
-            <li>Review the quotation amount and trip details.</li>
-            <li>Accept the price if you are ready to continue.</li>
-            <li>If needed, request negotiation with your counter-offer or note.</li>
-        </ul>
+        <div class="price-box">
+            <h3 style="margin-top: 0;">Price Breakdown</h3>
+            <table>
+                <tr>
+                    <th>Base rate</th>
+                    <td>₱{{ number_format($baseRate, 2) }}</td>
+                </tr>
+                <tr>
+                    <th>Distance fee</th>
+                    <td>₱{{ number_format($distanceFee, 2) }}</td>
+                </tr>
+                @if ($additionalFee > 0)
+                    <tr>
+                        <th>Additional fee</th>
+                        <td>₱{{ number_format($additionalFee, 2) }}</td>
+                    </tr>
+                @endif
+                @if ($discountAmount > 0)
+                    <tr>
+                        <th>Discount</th>
+                        <td>- ₱{{ number_format($discountAmount, 2) }}</td>
+                    </tr>
+                @endif
+                <tr class="price-total">
+                    <th>Estimated Total</th>
+                    <td>₱{{ number_format($estimatedTotal, 2) }}</td>
+                </tr>
+            </table>
+        </div>
 
-        <p style="text-align: center; margin: 32px 0;">
-            <a href="{{ $reviewUrl }}" class="btn">
-                Review your quotation
-            </a>
+        <p>
+            Please keep this email as your booking record. If you need help, contact dispatch at
+            <strong>{{ config('app.dispatch_phone', '(555) 123-4567') }}</strong>.
         </p>
 
         @if (!empty($documentUrl))
-            <p style="text-align: center; margin: -8px 0 24px;">
-                <a href="{{ $documentUrl }}" class="btn" style="background:#111827;">
-                    Open quotation document
-                </a>
-            </p>
+            <div style="text-align:center;">
+                <a href="{{ $documentUrl }}" class="btn-download" target="_blank">⬇ Download Quotation PDF</a>
+            </div>
         @endif
-
-        <p>
-            If you need help, contact dispatch at
-            <strong>{{ config('app.dispatch_phone', '(555) 123-4567') }}</strong>.
-        </p>
     </div>
 
     <div class="footer">
         <p>&copy; {{ date('Y') }} Jarz</p>
-        <p>Dispatcher review • Customer approval • Safe towing</p>
+        <p>Price breakdown • Booking credentials • Safe towing</p>
     </div>
 </body>
 

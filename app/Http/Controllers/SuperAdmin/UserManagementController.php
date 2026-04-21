@@ -5,10 +5,12 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Role;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -108,6 +110,30 @@ class UserManagementController extends Controller
             ->get();
     }
 
+    protected function teamLeaderCapacity(): array
+    {
+        $teamLeaderRole = Role::query()->where('name', 'Team Leader')->first();
+        $limit = max((int) SystemSetting::getValue('max_team_leaders', 10), 1);
+        $count = $teamLeaderRole
+            ? User::query()->where('role_id', $teamLeaderRole->id)->whereNull('archived_at')->count()
+            : 0;
+
+        return [
+            'role_id' => $teamLeaderRole?->id,
+            'limit' => $limit,
+            'count' => $count,
+            'remaining' => max($limit - $count, 0),
+            'reached' => $count >= $limit,
+        ];
+    }
+
+    protected function isDispatcherOnline(?User $user): bool
+    {
+        return (bool) $user
+            && (int) $user->role_id === 2
+            && Cache::has('dispatcher:presence:' . $user->id);
+    }
+
     public function index(Request $request)
     {
         $users = $this->applyFilters($this->baseUserQuery(), $request)
@@ -177,6 +203,15 @@ class UserManagementController extends Controller
 
         $validated = $validator->validated();
         $statusChanged = $user->status !== $validated['status'];
+
+        if ($statusChanged && $this->isDispatcherOnline($user)) {
+            return response()->json([
+                'errors' => [
+                    'status' => ['Cannot change status while this dispatcher is currently online.'],
+                ],
+            ], 422);
+        }
+
         $requiresRelogin = $statusChanged;
 
         $user->update([
@@ -217,8 +252,9 @@ class UserManagementController extends Controller
     public function create()
     {
         $roles = $this->manageableRoles();
+        $teamLeaderCapacity = $this->teamLeaderCapacity();
 
-        return view('superadmin.users.create', compact('roles'));
+        return view('superadmin.users.create', compact('roles', 'teamLeaderCapacity'));
     }
 
     public function store(Request $request)
@@ -231,7 +267,21 @@ class UserManagementController extends Controller
             'last_name' => 'required|string|max:100',
             'email' => $this->emailRules(),
             'password' => ['required', 'confirmed', Password::min(12)->mixedCase()->numbers()->symbols()],
-            'role_id' => 'required|exists:roles,id',
+            'role_id' => [
+                'required',
+                'exists:roles,id',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    $teamLeaderCapacity = $this->teamLeaderCapacity();
+
+                    if (
+                        $teamLeaderCapacity['role_id']
+                        && (int) $value === (int) $teamLeaderCapacity['role_id']
+                        && $teamLeaderCapacity['reached']
+                    ) {
+                        $fail('Team Leader limit reached. Increase the maximum in System Settings before creating another Team Leader account.');
+                    }
+                },
+            ],
             'status' => 'required|in:active,inactive',
         ], [
             'email.required' => 'Email is required.',
@@ -278,6 +328,10 @@ class UserManagementController extends Controller
             return back()->with('error', 'Cannot deactivate yourself.');
         }
 
+        if ($this->isDispatcherOnline($user)) {
+            return back()->with('error', 'Cannot change status while this dispatcher is currently online.');
+        }
+
         $user->status = $user->status == 'active' ? 'inactive' : 'active';
         $user->save();
 
@@ -299,6 +353,10 @@ class UserManagementController extends Controller
 
         if (($user->role->name ?? null) === 'Super Admin') {
             abort(403, 'Cannot archive Super Admin.');
+        }
+
+        if ($this->isDispatcherOnline($user)) {
+            return back()->with('error', 'Cannot archive this dispatcher while they are currently online.');
         }
 
         $user->update([

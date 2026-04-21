@@ -1,4 +1,4 @@
-@if ($paginator->hasPages())
+@if ($paginator->hasPages() || $paginator->total() >= 5)
 
     <div class="pagination-wrapper">
 

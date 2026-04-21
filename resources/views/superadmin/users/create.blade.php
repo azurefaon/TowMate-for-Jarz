@@ -4,6 +4,59 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/user-create.css') }}">
+    <style>
+        .teamleader-capacity-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            margin: 0 0 18px;
+            border-radius: 16px;
+            background: linear-gradient(180deg, #fffdf4 0%, #ffffff 100%);
+            border: 1px solid #fde68a;
+        }
+
+        .teamleader-capacity-card strong {
+            display: block;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+
+        .teamleader-capacity-card p {
+            margin: 0;
+            color: #475569;
+            font-size: 0.92rem;
+        }
+
+        .teamleader-capacity-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 74px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #111827;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .teamleader-capacity-hint {
+            margin: 10px 0 0;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+
+        .teamleader-capacity-hint.limit-reached {
+            color: #b45309;
+            font-weight: 700;
+        }
+
+        .btn-primary-submit.is-disabled {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+    </style>
 @endpush
 
 @section('content')
@@ -23,6 +76,25 @@
                         <p>Register new employee or admin</p>
                     </div>
                 </div>
+
+                <div class="teamleader-capacity-card">
+                    <div>
+                        <strong>Team Leader Capacity</strong>
+                        <p>The current Team Leader slot usage updates from Super Admin settings.</p>
+                    </div>
+                    <span
+                        class="teamleader-capacity-badge">{{ ($teamLeaderCapacity['count'] ?? 0) . ' / ' . ($teamLeaderCapacity['limit'] ?? 10) }}</span>
+                </div>
+
+                <p id="teamLeaderCapacityHint"
+                    class="teamleader-capacity-hint {{ !empty($teamLeaderCapacity['reached']) ? 'limit-reached' : '' }}">
+                    @if (!empty($teamLeaderCapacity['reached']))
+                        Team Leader limit reached. Increase the maximum in System Settings before creating another Team
+                        Leader account.
+                    @else
+                        You can still add {{ $teamLeaderCapacity['remaining'] ?? 0 }} more Team Leader account(s).
+                    @endif
+                </p>
 
                 <form method="POST" action="{{ route('superadmin.users.store') }}" class="create-user-form">
                     @csrf
@@ -130,17 +202,29 @@
                         <div class="form-group">
                             <label>Role <span class="required-mark">*</span></label>
 
-                            <select name="role_id" required>
+                            <select name="role_id" id="roleSelect" required
+                                data-teamleader-role="{{ $teamLeaderCapacity['role_id'] ?? '' }}"
+                                data-teamleader-limit="{{ $teamLeaderCapacity['limit'] ?? 10 }}"
+                                data-teamleader-count="{{ $teamLeaderCapacity['count'] ?? 0 }}">
                                 <option value="">Select role</option>
 
                                 @foreach ($roles as $role)
+                                    @php
+                                        $teamLeaderLimitReached =
+                                            (int) ($role->id ?? 0) === (int) ($teamLeaderCapacity['role_id'] ?? 0) &&
+                                            !empty($teamLeaderCapacity['reached']);
+                                    @endphp
                                     <option value="{{ $role->id }}"
-                                        {{ (string) old('role_id') === (string) $role->id ? 'selected' : '' }}>
-                                        {{ $role->name }}
+                                        {{ (string) old('role_id') === (string) $role->id ? 'selected' : '' }}
+                                        @disabled($teamLeaderLimitReached)>
+                                        {{ $role->name }}{{ $teamLeaderLimitReached ? ' (Limit reached)' : '' }}
                                     </option>
                                 @endforeach
 
                             </select>
+                            @error('role_id')
+                                <small class="error-text">{{ $message }}</small>
+                            @enderror
                         </div>
 
                         <div class="form-group">
@@ -163,7 +247,7 @@
                             Cancel
                         </a>
 
-                        <button type="submit" class="btn-primary-submit">
+                        <button type="submit" class="btn-primary-submit" id="createUserSubmit">
                             <i data-lucide="user-plus"></i>
                             Register User
                         </button>
@@ -187,6 +271,9 @@
 
             const passwordInput = document.querySelector('input[name="password"]');
             const requirementsBox = document.getElementById('passwordRequirements');
+            const roleSelect = document.getElementById('roleSelect');
+            const createUserSubmit = document.getElementById('createUserSubmit');
+            const teamLeaderCapacityHint = document.getElementById('teamLeaderCapacityHint');
 
             if (!passwordInput || !requirementsBox) {
                 return;
@@ -227,9 +314,39 @@
                 }
             };
 
+            const syncTeamLeaderCapacity = () => {
+                if (!roleSelect || !createUserSubmit || !teamLeaderCapacityHint) {
+                    return;
+                }
+
+                const teamLeaderRoleId = Number(roleSelect.dataset.teamleaderRole || 0);
+                const teamLeaderLimit = Number(roleSelect.dataset.teamleaderLimit || 0);
+                const teamLeaderCount = Number(roleSelect.dataset.teamleaderCount || 0);
+                const isTeamLeaderSelected = Number(roleSelect.value || 0) === teamLeaderRoleId;
+                const limitReached = teamLeaderCount >= teamLeaderLimit;
+
+                if (isTeamLeaderSelected && limitReached) {
+                    createUserSubmit.disabled = true;
+                    createUserSubmit.classList.add('is-disabled');
+                    teamLeaderCapacityHint.textContent =
+                        'Team Leader limit reached. Increase the maximum in System Settings before creating another Team Leader account.';
+                    teamLeaderCapacityHint.classList.add('limit-reached');
+                } else {
+                    createUserSubmit.disabled = false;
+                    createUserSubmit.classList.remove('is-disabled');
+
+                    if (isTeamLeaderSelected) {
+                        teamLeaderCapacityHint.textContent =
+                            `Team Leader slots remaining: ${Math.max(teamLeaderLimit - teamLeaderCount, 0)}.`;
+                    }
+                }
+            };
+
             passwordInput.addEventListener('focus', showRequirements);
             passwordInput.addEventListener('input', showRequirements);
             passwordInput.addEventListener('blur', hideRequirements);
+            roleSelect?.addEventListener('change', syncTeamLeaderCapacity);
+            syncTeamLeaderCapacity();
         });
     </script>
 @endpush

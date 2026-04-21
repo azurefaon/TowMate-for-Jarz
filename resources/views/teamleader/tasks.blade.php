@@ -43,12 +43,9 @@
             <div class="tl-task-card__note">
                 @if (!empty($focusLocked))
                     Your current task stays visible here after refresh. Accept it again to return to the focus screen until
-                    it is completed or
-                    returned.
+                    it is completed or returned.
                 @else
-                    Bookings appear here after the customer approves the quotation. Once accepted, the task stays locked to
-                    your
-                    focused work screen until it is completed or returned.
+                    Bookings appear here once the dispatcher assigns your unit. Accept the task to start the job.
                 @endif
             </div>
         </section>
@@ -63,8 +60,8 @@
                             <h3>{{ $booking->pickup_address }} → {{ $booking->dropoff_address }}</h3>
                         </div>
                         <span
-                            class="tl-status-badge {{ $booking->needs_reassignment ? 'waiting-verification' : 'assigned' }}">
-                            {{ $booking->needs_reassignment ? 'Returned' : 'Ready' }}
+                            class="tl-status-badge {{ $booking->needs_reassignment ? 'waiting-verification' : ($booking->status === 'quotation_sent' ? 'pending' : 'assigned') }}">
+                            {{ $booking->needs_reassignment ? 'Returned' : ($booking->status === 'quotation_sent' ? 'Assigned by Dispatcher' : 'Ready') }}
                         </span>
                     </div>
 
@@ -94,10 +91,11 @@
                             reviewed.
                             <br>
                             <strong>Reason:</strong> {{ $booking->return_reason ?? 'Awaiting dispatch review.' }}
+                        @elseif ($booking->status === 'quotation_sent')
+                            The dispatcher has assigned your unit to this job. Accept to start the task.
                         @else
                             Your assigned truck is linked automatically when you accept this job, so your crew can move
-                            right
-                            away.
+                            right away.
                         @endif
                     </div>
 
@@ -105,7 +103,7 @@
                         @if (
                             !$booking->needs_reassignment &&
                                 (empty($booking->assigned_team_leader_id) || (int) $booking->assigned_team_leader_id === (int) auth()->id()) &&
-                                in_array($booking->status, ['confirmed', 'accepted', 'assigned'], true))
+                                in_array($booking->status, ['quotation_sent', 'confirmed', 'accepted', 'assigned'], true))
                             <button type="button" class="tl-btn tl-btn--primary tl-btn--full" data-booking-action="accept"
                                 data-endpoint="{{ route('teamleader.task.accept', $booking) }}">
                                 Accept Task

@@ -11,7 +11,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const disableModal = document.getElementById("disableModal");
     const editForm = document.getElementById("editForm");
     const disableForm = document.getElementById("disableForm");
+    const disableTitle = document.getElementById("disableTitle");
     const disableText = document.getElementById("disableText");
+    const disableSubmitBtn = document.getElementById("disableSubmitBtn");
     const searchInput = document.getElementById("truckTypeSearch");
     const statusFilter = document.getElementById("truckTypeStatusFilter");
 
@@ -65,12 +67,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".js-disable-type").forEach((button) => {
         button.addEventListener("click", () => {
+            const isBusy = button.dataset.busy === "1";
+            const units = Number(button.dataset.unitCount || 0);
+            const bookings = Number(button.dataset.bookingCount || 0);
+
+            if (disableTitle) {
+                disableTitle.textContent = isBusy
+                    ? "Tow Truck Type Busy"
+                    : "Disable Tow Truck Type?";
+            }
+
             if (disableText) {
-                disableText.textContent = `You are about to disable "${button.dataset.name}". It will no longer be available for new towing unit assignments.`;
+                disableText.textContent = isBusy
+                    ? `"${button.dataset.name}" is currently busy and cannot be set to inactive. It is linked to ${units} unit(s) and ${bookings} active booking(s).`
+                    : `You are about to disable "${button.dataset.name}". It will no longer be available for new towing unit assignments.`;
             }
 
             if (disableForm) {
                 disableForm.action = `${baseUrl}/${button.dataset.id}/toggle`;
+            }
+
+            if (disableSubmitBtn) {
+                disableSubmitBtn.hidden = isBusy;
             }
 
             showModal(disableModal);
