@@ -21,9 +21,9 @@ class TokenBucketRateLimiter
     public function __construct(
         private readonly int $maxTokens     = 10,
         private readonly int $refillAmount  = 5,
-        private readonly int $refillEvery   = 10,   // seconds
+        private readonly int $refillEvery   = 10,
         private readonly int $tokenCost     = 5,
-        private readonly int $ttl           = 600,  // cache TTL (seconds)
+        private readonly int $ttl           = 600,
     ) {}
 
     /**
@@ -39,11 +39,11 @@ class TokenBucketRateLimiter
         $bucket = Cache::get($cacheKey);
 
         if ($bucket === null) {
-            // First request – start with a full bucket.
+
             $bucket = ['tokens' => $this->maxTokens, 'last_refill' => $now];
         }
 
-        // Refill based on elapsed time.
+
         $elapsed       = max(0.0, $now - (float) $bucket['last_refill']);
         $intervals     = (int) floor($elapsed / $this->refillEvery);
         $tokensToAdd   = $intervals * $this->refillAmount;
@@ -54,7 +54,7 @@ class TokenBucketRateLimiter
         }
 
         if ((int) $bucket['tokens'] < $this->tokenCost) {
-            // Not enough tokens – persist current state and deny.
+
             Cache::put($cacheKey, $bucket, $this->ttl);
 
             return false;

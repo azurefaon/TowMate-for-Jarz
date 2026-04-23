@@ -598,6 +598,7 @@ class ControlCenterService
             ?? 'Driver pending';
 
         return [
+            'job_code' => $booking->job_code,
             'booking_code' => $booking->job_code,
             'status' => str($booking->status)->replace('_', ' ')->title()->toString(),
             'customer_name' => $booking->customer->full_name ?? 'Customer',
@@ -610,12 +611,15 @@ class ControlCenterService
             'pickup_address' => Str::limit($booking->pickup_address ?? 'Unknown pickup', 48),
             'dropoff_address' => Str::limit($booking->dropoff_address ?? 'Unknown drop-off', 44),
             'updated_at_human' => optional($booking->updated_at)->diffForHumans() ?? 'Just now',
+            'service_mode_label' => $booking->service_mode_label ?? '',
+            'schedule_window_label' => $booking->schedule_window_label ?? '',
         ];
     }
 
     protected function transformRecentBooking(Booking $booking): array
     {
         return [
+            'job_code' => $booking->job_code,
             'booking_code' => $booking->job_code,
             'status' => str($booking->status)->replace('_', ' ')->title()->toString(),
             'customer_name' => $booking->customer->full_name ?? 'Customer',

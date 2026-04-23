@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ReturnReason;
 use App\Events\BookingStatusUpdated;
 use App\Mail\BookingReceiptMail;
 use App\Mail\TaskCompletionVerificationMail;
@@ -13,8 +14,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Validation\Rule;
 
 class TeamLeaderController extends Controller
 {
@@ -451,10 +454,31 @@ class TeamLeaderController extends Controller
         }
 
         $validated = $request->validate([
-            'return_reason' => 'required|string|max:1000',
+            'return_reason_code' => ['required', 'string', Rule::in(array_column(ReturnReason::cases(), 'value'))],
+            'return_reason_note' => 'nullable|string|max:1000',
         ]);
 
-        $returnReason = trim(strip_tags((string) $validated['return_reason']));
+        $reasonEnum = ReturnReason::from($validated['return_reason_code']);
+        $note = trim(strip_tags((string) ($validated['return_reason_note'] ?? '')));
+
+        if ($reasonEnum->requiresNote() && blank($note)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Additional details are required for this return reason.',
+            ], 422);
+        }
+
+        if ($reasonEnum->requiresNote() && strlen($note) < $reasonEnum->minNoteLength()) {
+            return response()->json([
+                'success' => false,
+                'message' => "Please provide at least {$reasonEnum->minNoteLength()} characters of explanation.",
+            ], 422);
+        }
+
+        $returnReasonText = $reasonEnum->label();
+        if (filled($note)) {
+            $returnReasonText .= ': ' . $note;
+        }
 
         $task->update([
             'assigned_team_leader_id' => null,
@@ -463,21 +487,79 @@ class TeamLeaderController extends Controller
             'customer_verified_at' => null,
             'customer_verification_status' => null,
             'returned_at' => now(),
-            'return_reason' => $returnReason,
+            'return_reason' => $returnReasonText,
             'returned_by_team_leader_id' => Auth::id(),
         ]);
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'returnedByTeamLeader']);
-        $this->syncAssignedUnitStatus($task, 'available');
-        $this->teamLeaderAvailability->setOperationalOverride(Auth::user(), 'available');
+
+        $this->processReturnReasonActions($task, $reasonEnum, $note);
+
         event(new BookingStatusUpdated($task));
 
         return response()->json([
             'success' => true,
             'message' => 'Task returned to dispatch for reassignment.',
             'status' => 'assigned',
-            'return_reason' => $returnReason,
+            'return_reason' => $returnReasonText,
             'redirect_url' => route('teamleader.tasks'),
+        ]);
+    }
+
+    protected function processReturnReasonActions(Booking $task, ReturnReason $reason, string $note): void
+    {
+        if ($reason->shouldMarkUnitUnavailable() && $task->assigned_unit_id) {
+            Unit::whereKey($task->assigned_unit_id)->update(['status' => 'unavailable']);
+            Log::info("Unit {$task->assigned_unit_id} marked unavailable due to vehicle issue", [
+                'booking_id' => $task->id,
+                'team_leader_id' => Auth::id(),
+                'note' => $note,
+            ]);
+        } else {
+            $this->syncAssignedUnitStatus($task, 'available');
+        }
+
+        if ($reason->shouldMarkTLUnavailable()) {
+            $this->teamLeaderAvailability->setOperationalOverride(Auth::user(), 'unavailable');
+            Log::warning("Team leader marked unavailable due to emergency", [
+                'team_leader_id' => Auth::id(),
+                'booking_id' => $task->id,
+                'note' => $note,
+            ]);
+        } else {
+            $this->teamLeaderAvailability->setOperationalOverride(Auth::user(), 'available');
+        }
+
+        if ($reason->shouldChargeServiceFee()) {
+            Log::info("Service fee should be charged for customer cancellation", [
+                'booking_id' => $task->id,
+                'customer_id' => $task->customer_id,
+            ]);
+        }
+
+        if ($reason->requiresDispatcherDecision()) {
+            Log::notice("Dispatcher decision required for return reason: {$reason->label()}", [
+                'booking_id' => $task->id,
+                'reason' => $reason->value,
+                'priority' => $reason->priority(),
+                'note' => $note,
+            ]);
+        }
+
+        if ($reason->requiresRequote()) {
+            Log::info("Booking requires re-quotation due to wrong vehicle info", [
+                'booking_id' => $task->id,
+                'note' => $note,
+            ]);
+        }
+
+        Log::info("Task returned to dispatch", [
+            'booking_id' => $task->id,
+            'reason_code' => $reason->value,
+            'reason_label' => $reason->label(),
+            'priority' => $reason->priority(),
+            'auto_reassign' => $reason->shouldAutoReassign(),
+            'team_leader_id' => Auth::id(),
         ]);
     }
 
@@ -563,27 +645,10 @@ class TeamLeaderController extends Controller
         $userUnit = Auth::user()?->unit;
 
         return Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
-            ->whereIn('status', ['quotation_sent', 'confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed'])
-            ->where(function (Builder $query) use ($teamLeaderId, $userUnit) {
-                $query->where('assigned_team_leader_id', $teamLeaderId)
-                    ->orWhere(function (Builder $subQuery) use ($teamLeaderId, $userUnit) {
-                        $subQuery->whereNull('assigned_team_leader_id')
-                            ->where(function (Builder $visibilityQuery) use ($teamLeaderId, $userUnit) {
-                                if ($userUnit) {
-                                    $visibilityQuery->whereNull('assigned_unit_id')
-                                        ->orWhere('assigned_unit_id', $userUnit->id)
-                                        ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
-                                            $unitQuery->where('team_leader_id', $teamLeaderId);
-                                        });
-                                } else {
-                                    $visibilityQuery->whereNull('assigned_unit_id')
-                                        ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
-                                            $unitQuery->where('team_leader_id', $teamLeaderId);
-                                        });
-                                }
-                            });
-                    });
-            });
+            ->whereIn('status', ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed'])
+            ->whereNotNull('assigned_unit_id')
+            ->whereNotNull('assigned_team_leader_id')
+            ->where('assigned_team_leader_id', $teamLeaderId);
     }
 
     protected function queueBookingsQuery(): Builder
@@ -592,29 +657,11 @@ class TeamLeaderController extends Controller
         $userUnit = Auth::user()?->unit;
 
         return Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
-            ->whereIn('status', ['quotation_sent', 'confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress'])
+            ->whereIn('status', ['assigned', 'on_the_way', 'in_progress']) // ONLY READY TASKS
+            ->whereNotNull('assigned_unit_id')
+            ->whereNotNull('assigned_team_leader_id')
             ->whereNull('returned_at')
-            ->where(function (Builder $query) use ($teamLeaderId, $userUnit) {
-                $query->where('assigned_team_leader_id', $teamLeaderId)
-                    ->orWhere(function (Builder $q) use ($teamLeaderId, $userUnit) {
-                        // quotation_sent bookings are only visible if directly assigned — never from the open pool
-                        $q->whereNull('assigned_team_leader_id')
-                            ->where(function (Builder $sub) use ($teamLeaderId, $userUnit) {
-                                if ($userUnit) {
-                                    $sub->whereNull('assigned_unit_id')
-                                        ->orWhere('assigned_unit_id', $userUnit->id)
-                                        ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
-                                            $unitQuery->where('team_leader_id', $teamLeaderId);
-                                        });
-                                } else {
-                                    $sub->whereNull('assigned_unit_id')
-                                        ->orWhereHas('unit', function (Builder $unitQuery) use ($teamLeaderId) {
-                                            $unitQuery->where('team_leader_id', $teamLeaderId);
-                                        });
-                                }
-                            });
-                    });
-            });
+            ->where('assigned_team_leader_id', $teamLeaderId);
     }
 
     protected function ownedTasksQuery(bool $includeCompleted = false): Builder

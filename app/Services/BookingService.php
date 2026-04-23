@@ -29,6 +29,16 @@ class BookingService
         $serviceType = $this->resolveServiceType($data);
         $scheduledFor = $this->resolveScheduledFor($data, $serviceType);
 
+        // Get ETA from data or pricing if available
+        $etaMinutes = null;
+        if (isset($data['eta_minutes'])) {
+            $etaMinutes = $data['eta_minutes'];
+        } elseif (isset($data['duration_min'])) {
+            $etaMinutes = $data['duration_min'];
+        } elseif (isset($data['route']) && isset($data['route']['duration_min'])) {
+            $etaMinutes = $data['route']['duration_min'];
+        }
+
         $payload = $this->filterPayloadForTable('bookings', [
             'customer_id' => $customer->id,
             'truck_type_id' => $data['truck_type_id'],
@@ -42,6 +52,7 @@ class BookingService
             'dropoff_lat' => $data['drop_lat'] ?? $data['dropoff_lat'] ?? null,
             'dropoff_lng' => $data['drop_lng'] ?? $data['dropoff_lng'] ?? null,
             'distance_km' => $pricing['distance_km'],
+            'eta_minutes' => $etaMinutes ?? null,
             'base_rate' => $pricing['base_rate'],
             'per_km_rate' => $pricing['per_km_rate'],
             'computed_total' => $pricing['computed_total'],
@@ -160,7 +171,7 @@ class BookingService
         $baseRate = $this->resolveBaseRate($truckType);
         $perKmRate = $this->resolvePerKmRate($truckType, $data['vehicle_category'] ?? null);
         $excessKmThreshold = $this->resolveExcessKmThreshold(true);
-        $excessKmRate = $this->resolveExcessKmRate(true);
+        $excessKmRate      = $this->resolveExcessKmRate(true);
         $distanceFee = round($distanceKm * $perKmRate, 2);
         $excessKm = max(round($distanceKm - $excessKmThreshold, 2), 0);
         $excessFee = round($excessKm * $excessKmRate, 2);
@@ -203,8 +214,8 @@ class BookingService
         $perKmRate = round((float) ($booking->per_km_rate ?? 0), 2);
         $resolvedDistanceKm = max(round((float) ($distanceKm ?? ($booking->distance_km ?? 0)), 2), 0);
         $distanceFee = round($resolvedDistanceKm * $perKmRate, 2);
-        $excessKmThreshold = $this->resolveExcessKmThreshold();
-        $excessKmRate = $this->resolveExcessKmRate();
+        $excessKmThreshold = 4.0; // 4km rule
+        $excessKmRate = 200.0; // ₱200/km after 4km
         $excessKm = max(round($resolvedDistanceKm - $excessKmThreshold, 2), 0);
         $excessFee = round($excessKm * $excessKmRate, 2);
         $computedTotal = round($baseRate + $distanceFee + $excessFee, 2);
@@ -250,6 +261,9 @@ class BookingService
             'customer_type' => $booking->customer_type ?: $booking->customer?->customer_type ?: 'regular',
         ]);
 
+        // Fallback logic for eta_minutes
+        $eta = $data['eta_minutes'] ?? $booking->eta_minutes ?? ($booking->quotation ? $booking->quotation->eta_minutes : null);
+
         $payload = [
             'truck_type_id' => $truckTypeId,
             'pickup_address' => trim((string) ($data['pickup_address'] ?? $booking->pickup_address)),
@@ -274,6 +288,7 @@ class BookingService
             'negotiation_requested_at' => null,
             'counter_offer_amount' => null,
             'final_quote_path' => null,
+            'eta_minutes' => $eta,
         ];
 
         if ($hadQuotation) {
@@ -286,7 +301,7 @@ class BookingService
                 'quotation_sent_at' => now(),
                 'quotation_expires_at' => now()->addDays(7),
                 'quotation_follow_up_sent_at' => null,
-                'customer_response_note' => 'Booking details were updated and the quotation was refreshed automatically.',
+                'customer_response_note' => 'Booking details were updated and the quotation record was refreshed automatically.',
             ]);
         }
 
@@ -397,15 +412,19 @@ class BookingService
 
     protected function resolveDistanceKm(array $data): float
     {
+        // Priority 1: Use distance_km if provided (from pricing API with road distance)
         if (is_numeric($data['distance_km'] ?? null)) {
             return max(round((float) $data['distance_km'], 2), 0);
         }
 
+        // Priority 2: Parse distance field (from form submission)
         $resolvedDistance = round($this->parseDistance((string) ($data['distance'] ?? '0')), 2);
         if ($resolvedDistance > 0) {
             return $resolvedDistance;
         }
 
+        // Priority 3: Calculate from coordinates (fallback - straight line distance)
+        // NOTE: This is less accurate than road distance from routing API
         $pickupLat = $data['pickup_lat'] ?? null;
         $pickupLng = $data['pickup_lng'] ?? null;
         $dropLat = $data['drop_lat'] ?? $data['dropoff_lat'] ?? null;

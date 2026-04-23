@@ -23,6 +23,7 @@ use App\Http\Controllers\Customer\ChatController;
 use App\Http\Controllers\Customer\DashboardController;
 use App\Http\Controllers\Customer\HistoryController;
 use App\Http\Controllers\Customer\TrackController;
+use App\Http\Controllers\QuotationController;
 
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingController;
@@ -32,12 +33,12 @@ use App\Http\Controllers\SuperAdmin\SystemSettingsController;
 use App\Http\Controllers\SuperAdmin\TruckTypeController;
 use App\Http\Controllers\SuperAdmin\UnitController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
+use App\Http\Controllers\SuperAdmin\VehicleTypeController;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
 
 Route::get('/book', function () {
     $truckTypes = TruckType::all();
-
     return view('landing.form', compact('truckTypes'));
 })->name('landing.book');
 
@@ -53,6 +54,28 @@ Route::prefix('geo')
         Route::post('/pricing-preview', [GeoController::class, 'pricingPreview'])->name('pricing.preview');
     });
 
+// API endpoints for customer booking form
+Route::get('/api/vehicle-types/by-category/{category}', [VehicleTypeController::class, 'getByCategory']);
+Route::get('/api/vehicle-types/{vehicleType}/truck-types', [VehicleTypeController::class, 'getTruckTypesByVehicle']);
+
+// New Quotation Routes (Customer View)
+Route::get('/quotation/{quotation}', [QuotationController::class, 'show'])
+    ->middleware(['signed', 'throttle:30,1'])
+    ->name('quotation.show');
+
+Route::get('/quotation/{quotation}/accept', [QuotationController::class, 'accept'])
+    ->middleware(['signed', 'throttle:10,1'])
+    ->name('quotation.accept');
+
+Route::get('/quotation/{quotation}/reject', [QuotationController::class, 'reject'])
+    ->middleware(['signed', 'throttle:10,1'])
+    ->name('quotation.reject');
+
+Route::post('/quotation/{quotation}/negotiate', [QuotationController::class, 'negotiate'])
+    ->middleware(['signed', 'throttle:10,1'])
+    ->name('quotation.negotiate');
+
+// Old booking quotation routes (keep for backward compatibility)
 Route::get('/quotation/review/{booking}', [CustomerBookingController::class, 'showQuotationReview'])
     ->middleware(['signed', 'throttle:30,1'])
     ->name('quotation.review');
@@ -63,10 +86,8 @@ Route::post('/quotation/review/{booking}', [CustomerBookingController::class, 'r
 
 Route::get('/dashboard', function (Request $request) {
     $role = Auth::user()->role_id ?? 0;
-
     $baseUrl = rtrim(config('app.url') ?: ($request->getSchemeAndHttpHost() . $request->getBaseUrl()), '/');
     $redirectTo = fn(string $path) => redirect()->to($baseUrl . $path);
-
     return match ($role) {
         1 => $redirectTo('/superadmin/dashboard'),
         2 => $redirectTo('/admin-dashboard'),
@@ -96,56 +117,47 @@ Route::prefix('teamleader')
         Route::get('/task/{booking}', [TeamLeaderController::class, 'showTask'])->name('task.show');
 
         Route::post('/task/{booking}/accept', [TeamLeaderController::class, 'acceptTask'])
-            ->middleware('throttle:20,1')
-            ->name('task.accept');
+            ->middleware('throttle:20,1')->name('task.accept');
 
         Route::post('/task/{booking}/driver', [TeamLeaderController::class, 'saveDriver'])
-            ->middleware('throttle:20,1')
-            ->name('task.driver');
+            ->middleware('throttle:20,1')->name('task.driver');
 
         Route::post('/task/{booking}/note', [TeamLeaderController::class, 'autosaveNote'])
-            ->middleware('throttle:30,1')
-            ->name('task.note');
+            ->middleware('throttle:30,1')->name('task.note');
 
         Route::post('/task/{booking}/proceed', [TeamLeaderController::class, 'proceedToLocation'])
-            ->middleware('throttle:20,1')
-            ->name('task.proceed');
+            ->middleware('throttle:20,1')->name('task.proceed');
 
         Route::post('/task/{booking}/start', [TeamLeaderController::class, 'startTask'])
-            ->middleware('throttle:20,1')
-            ->name('task.start');
+            ->middleware('throttle:20,1')->name('task.start');
 
         Route::post('/task/{booking}/complete', [TeamLeaderController::class, 'completeTask'])
-            ->middleware('throttle:10,1')
-            ->name('task.complete');
+            ->middleware('throttle:10,1')->name('task.complete');
 
         Route::post('/task/{booking}/return', [TeamLeaderController::class, 'returnTask'])
-            ->middleware('throttle:10,1')
-            ->name('task.return');
+            ->middleware('throttle:10,1')->name('task.return');
+
+        Route::get('/return-reasons', function () {
+            return response()->json(\App\Enums\ReturnReason::toArray());
+        })->name('return-reasons');
 
         Route::get('/task/{booking}/status', [TeamLeaderController::class, 'taskStatus'])
-            ->middleware('throttle:30,1')
-            ->name('task.status');
+            ->middleware('throttle:30,1')->name('task.status');
 
         Route::post('/presence/ping', [TeamLeaderController::class, 'heartbeat'])
-            ->middleware('throttle:60,1')
-            ->name('presence.ping');
+            ->middleware('throttle:60,1')->name('presence.ping');
 
         Route::post('/presence/offline', [TeamLeaderController::class, 'goOffline'])
-            ->middleware('throttle:60,1')
-            ->name('presence.offline');
+            ->middleware('throttle:60,1')->name('presence.offline');
 
         Route::post('/tasks/{booking}/start', [TeamLeaderController::class, 'startTask'])
-            ->middleware('throttle:20,1')
-            ->name('tasks.start');
+            ->middleware('throttle:20,1')->name('tasks.start');
 
         Route::post('/tasks/{booking}/confirm-completion', [TeamLeaderController::class, 'confirmCompletion'])
-            ->middleware('throttle:10,1')
-            ->name('tasks.confirm');
+            ->middleware('throttle:10,1')->name('tasks.confirm');
 
         Route::get('/tasks/{booking}/status', [TeamLeaderController::class, 'taskStatus'])
-            ->middleware('throttle:30,1')
-            ->name('tasks.status');
+            ->middleware('throttle:30,1')->name('tasks.status');
     });
 
 Route::get('/teamleader/verification/{booking}/{decision}', [TeamLeaderController::class, 'respondToVerification'])
@@ -172,17 +184,46 @@ Route::prefix('admin-dashboard')
         Route::get('/live-overview', [AdminController::class, 'liveOverview'])->name('live-overview');
         Route::get('/dispatch', [DispatchController::class, 'index'])->name('dispatch');
         Route::get('/pending-bookings-count', [DispatchController::class, 'pendingBookingsCount'])->name('pending-bookings-count');
+
         Route::get('/drivers', [DriversController::class, 'index'])->name('drivers');
         Route::post('/drivers/{teamLeader}/assign-unit', [DriversController::class, 'assignUnit'])->name('drivers.assign-unit');
+        Route::post('/drivers/{teamLeader}/remove-unit', [DriversController::class, 'removeUnit'])->name('drivers.remove-unit');
         Route::post('/drivers/{teamLeader}/update-status', [DriversController::class, 'updateStatus'])->name('drivers.update-status');
+
+        // Zone-based dispatcher override — name becomes admin.team-leaders.override
+        Route::patch('/drivers/{teamLeader}/override', [DriversController::class, 'override'])->name('team-leaders.override');
+
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
         Route::post('/available-units', [AvailableUnitsController::class, 'store'])->name('available-units.store');
         Route::patch('/available-units/{unit}/toggle', [AvailableUnitsController::class, 'toggle'])->name('available-units.toggle');
-        Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])->name('booking.assign');
-        Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');
+        Route::post('/units/{unit}/maintenance', [AvailableUnitsController::class, 'markMaintenance'])->name('units.maintenance');
 
-        Route::post('/booking/{id}/update-status', [DispatchController::class, 'updateStatus'])
-            ->name('booking.updateStatus');
+        Route::resource('zones', \App\Http\Controllers\Admin\ZoneController::class);
+
+        // Active bookings - live tracking and editing
+        Route::prefix('active-bookings')->name('active-bookings.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\ActiveBookingsController::class, 'index'])->name('index');
+            Route::get('/{booking}', [\App\Http\Controllers\Admin\ActiveBookingsController::class, 'show'])->name('show');
+            Route::patch('/{booking}/status', [\App\Http\Controllers\Admin\ActiveBookingsController::class, 'updateStatus'])->name('update-status');
+            Route::patch('/{booking}/route', [\App\Http\Controllers\Admin\ActiveBookingsController::class, 'updateRoute'])->name('update-route');
+            Route::patch('/{booking}/pricing', [\App\Http\Controllers\Admin\ActiveBookingsController::class, 'updatePricing'])->name('update-pricing');
+        });
+
+        Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])->name('booking.assign');
+        Route::post('/booking/{booking}/service-fee', [DispatchController::class, 'applyServiceFee'])->name('booking.service-fee');
+        Route::post('/booking/{booking}/mark-risk', [DispatchController::class, 'markCustomerRisk'])->name('booking.mark-risk');
+        Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');
+        Route::post('/booking/{id}/update-status', [DispatchController::class, 'updateStatus'])->name('booking.updateStatus');
+
+        // Quotation Management Routes
+        Route::prefix('quotations')->name('quotations.')->group(function () {
+            Route::get('/{quotation}/details', [DispatchController::class, 'getQuotationDetails'])->name('details');
+            Route::post('/{quotation}/send', [DispatchController::class, 'sendQuotation'])->name('send');
+            Route::post('/{quotation}/cancel', [DispatchController::class, 'cancelQuotation'])->name('cancel');
+            Route::patch('/{quotation}/update-price', [DispatchController::class, 'updateQuotationPrice'])->name('update-price');
+            Route::patch('/{quotation}/extend', [DispatchController::class, 'extendQuotation'])->name('extend');
+            Route::get('/{quotation}/response', [DispatchController::class, 'viewQuotationResponse'])->name('response');
+        });
     });
 
 Route::prefix('superadmin')
@@ -207,6 +248,14 @@ Route::prefix('superadmin')
 
         Route::resource('truck-types', TruckTypeController::class);
         Route::patch('truck-types/{truckType}/toggle', [TruckTypeController::class, 'toggleStatus'])->name('truck-types.toggle');
+        Route::delete('truck-types/{truckType}', [TruckTypeController::class, 'destroy'])->name('truck-types.destroy');
+
+        // Vehicle Types Management
+        Route::get('/vehicle-types', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'index'])->name('vehicle-types.index');
+        Route::post('/vehicle-types', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'store'])->name('vehicle-types.store');
+        Route::put('/vehicle-types/{vehicleType}', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'update'])->name('vehicle-types.update');
+        Route::patch('/vehicle-types/{vehicleType}/toggle', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'toggleStatus'])->name('vehicle-types.toggle');
+        Route::delete('/vehicle-types/{vehicleType}', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'destroy'])->name('vehicle-types.destroy');
 
         Route::get('/units', [UnitController::class, 'index'])->name('unit-truck.index');
         Route::post('/units', [UnitController::class, 'store'])->name('units.store');
@@ -224,27 +273,19 @@ Route::prefix('superadmin')
 
         Route::get('/dashboard-stats', function () {
             $todayBookings = \App\Models\Booking::whereDate('created_at', today())->count();
-
             $completedToday = \App\Models\Booking::where('status', 'completed')
-                ->whereDate('completed_at', today())
-                ->count();
-
+                ->whereDate('completed_at', today())->count();
             $cancelledToday = \App\Models\Booking::where('status', 'cancelled')
-                ->whereDate('created_at', today())
-                ->count();
-
+                ->whereDate('created_at', today())->count();
             $weekBookings = \App\Models\Booking::selectRaw('DAYOFWEEK(created_at) as day, count(*) as total')
                 ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
-                ->groupBy('day')
-                ->orderBy('day')
-                ->pluck('total')
-                ->values();
-
+                ->groupBy('day')->orderBy('day')
+                ->pluck('total')->values();
             return response()->json([
-                'todayBookings' => $todayBookings,
+                'todayBookings'  => $todayBookings,
                 'completedToday' => $completedToday,
                 'cancelledToday' => $cancelledToday,
-                'weekBookings' => $weekBookings,
+                'weekBookings'   => $weekBookings,
             ]);
         })->name('dashboard.stats');
     });
@@ -257,7 +298,6 @@ Route::middleware(['auth', 'role:5'])
 
         Route::get('/book', function () {
             $truckTypes = TruckType::all();
-
             return view('customer.pages.book', compact('truckTypes'));
         })->name('book');
 

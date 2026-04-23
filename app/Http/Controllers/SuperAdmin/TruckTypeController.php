@@ -77,6 +77,28 @@ class TruckTypeController extends Controller
         return back()->with('success', 'Tow truck type status updated successfully.');
     }
 
+    public function destroy(TruckType $truckType)
+    {
+        // Check if truck type has units
+        if ($truckType->units()->exists()) {
+            return back()->with('error', 'Cannot delete truck type with existing units assigned.');
+        }
+
+        // Check if truck type has bookings
+        if ($truckType->bookings()->exists()) {
+            return back()->with('error', 'Cannot delete truck type with existing bookings.');
+        }
+
+        // Check if truck type has vehicle types linked
+        if ($truckType->vehicleTypes()->exists()) {
+            return back()->with('error', 'Cannot delete truck type that is linked to vehicle types.');
+        }
+
+        $truckType->delete();
+
+        return back()->with('success', 'Truck type deleted successfully.');
+    }
+
     protected function truckTypeIsBusy(TruckType $truckType): bool
     {
         return $truckType->units()->exists()

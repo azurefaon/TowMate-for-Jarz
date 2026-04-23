@@ -21,8 +21,14 @@ document.addEventListener("DOMContentLoaded", function () {
     var returnReasonPreset = document.getElementById("returnReasonPreset");
     var returnReasonNote = document.getElementById("returnReasonNote");
     var returnReasonError = document.getElementById("returnReasonError");
+    var returnReasonDescription = document.getElementById("returnReasonDescription");
+    var returnReasonNoteRequired = document.getElementById("returnReasonNoteRequired");
+    var returnReasonNoteHint = document.getElementById("returnReasonNoteHint");
     var cancelReturnBtn = document.getElementById("cancelReturnBtn");
     var confirmReturnBtn = document.getElementById("confirmReturnBtn");
+
+    var returnReasons = [];
+    var selectedReturnReason = null;
 
     var toastWrap = document.createElement("div");
     toastWrap.className = "tl-toast-wrap";
@@ -126,31 +132,94 @@ document.addEventListener("DOMContentLoaded", function () {
         openReturnModal();
     });
 
+    returnReasonPreset?.addEventListener("change", function () {
+        var reasonValue = returnReasonPreset.value;
+        selectedReturnReason = returnReasons.find(function (r) {
+            return r.value === reasonValue;
+        });
+
+        if (selectedReturnReason) {
+            if (returnReasonDescription) {
+                returnReasonDescription.textContent = selectedReturnReason.description || "";
+            }
+
+            var requiresNote = selectedReturnReason.requires_note;
+            if (returnReasonNoteRequired) {
+                returnReasonNoteRequired.style.display = requiresNote ? "inline" : "none";
+            }
+
+            if (returnReasonNoteHint) {
+                if (requiresNote) {
+                    var minLength = selectedReturnReason.value === "other" ? 20 : 10;
+                    returnReasonNoteHint.textContent = "Required (minimum " + minLength + " characters)";
+                } else {
+                    returnReasonNoteHint.textContent = "Optional";
+                }
+            }
+
+            if (returnReasonNote) {
+                returnReasonNote.placeholder = requiresNote
+                    ? "Please provide detailed explanation..."
+                    : "Add optional notes for dispatch...";
+            }
+        } else {
+            if (returnReasonDescription) {
+                returnReasonDescription.textContent = "";
+            }
+            if (returnReasonNoteRequired) {
+                returnReasonNoteRequired.style.display = "none";
+            }
+            if (returnReasonNoteHint) {
+                returnReasonNoteHint.textContent = "";
+            }
+        }
+    });
+
     cancelReturnBtn?.addEventListener("click", function () {
         closeReturnModal();
     });
 
     confirmReturnBtn?.addEventListener("click", function () {
-        var returnReason = buildReturnReason();
+        var reasonCode = (returnReasonPreset?.value || "").trim();
+        var reasonNote = (returnReasonNote?.value || "").trim();
 
-        if (!returnReason) {
-            setReturnError(
-                "Please select or enter a reason before returning the task.",
-            );
+        if (!reasonCode) {
+            setReturnError("Please select a return reason.");
             return;
+        }
+
+        var reason = returnReasons.find(function (r) {
+            return r.value === reasonCode;
+        });
+
+        if (reason && reason.requires_note && !reasonNote) {
+            setReturnError("Additional details are required for this return reason.");
+            return;
+        }
+
+        if (reason && reason.requires_note) {
+            var minLength = reason.value === "other" ? 20 : 10;
+            if (reasonNote.length < minLength) {
+                setReturnError("Please provide at least " + minLength + " characters of explanation.");
+                return;
+            }
         }
 
         setReturnError("");
         closeReturnModal();
         submitAction(
             panel.dataset.returnEndpoint,
-            { return_reason: returnReason },
+            {
+                return_reason_code: reasonCode,
+                return_reason_note: reasonNote,
+            },
             true,
         );
     });
 
     applyStatus(panel.dataset.currentStatus || "assigned");
     updateFlowSteps(panel.dataset.currentStatus || "assigned");
+    loadReturnReasons();
     startPolling();
 
     function submitAction(endpoint, payload, redirectAfter, silent) {
@@ -368,6 +437,45 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     }
 
+    function loadReturnReasons() {
+        fetch("/teamleader/return-reasons", {
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        })
+            .then(function (response) {
+                return response.json();
+            })
+            .then(function (reasons) {
+                returnReasons = reasons || [];
+                populateReturnReasonDropdown();
+            })
+            .catch(function () {
+                returnReasons = [];
+            });
+    }
+
+    function populateReturnReasonDropdown() {
+        if (!returnReasonPreset || returnReasons.length === 0) {
+            return;
+        }
+
+        returnReasonPreset.innerHTML = '<option value="">Select a reason</option>';
+
+        var priorityOrder = { critical: 0, high: 1, medium: 2 };
+        var sortedReasons = returnReasons.slice().sort(function (a, b) {
+            return priorityOrder[a.priority] - priorityOrder[b.priority];
+        });
+
+        sortedReasons.forEach(function (reason) {
+            var option = document.createElement("option");
+            option.value = reason.value;
+            option.textContent = reason.label;
+            returnReasonPreset.appendChild(option);
+        });
+    }
+
     function openReturnModal() {
         if (!returnTaskModal) {
             setFeedback("Return dialog is unavailable right now.", true);
@@ -382,6 +490,17 @@ document.addEventListener("DOMContentLoaded", function () {
             returnReasonNote.value = "";
         }
 
+        if (returnReasonDescription) {
+            returnReasonDescription.textContent = "";
+        }
+        if (returnReasonNoteRequired) {
+            returnReasonNoteRequired.style.display = "none";
+        }
+        if (returnReasonNoteHint) {
+            returnReasonNoteHint.textContent = "";
+        }
+
+        selectedReturnReason = null;
         setReturnError("");
         returnTaskModal.classList.remove("hidden");
         returnTaskModal.setAttribute("aria-hidden", "false");
@@ -401,21 +520,6 @@ document.addEventListener("DOMContentLoaded", function () {
         returnTaskModal.classList.add("hidden");
         returnTaskModal.setAttribute("aria-hidden", "true");
         setReturnError("");
-    }
-
-    function buildReturnReason() {
-        var preset = (returnReasonPreset?.value || "").trim();
-        var note = (returnReasonNote?.value || "").trim();
-
-        if (preset === "Other") {
-            return note;
-        }
-
-        if (preset && note && note.toLowerCase() !== preset.toLowerCase()) {
-            return preset + " — " + note;
-        }
-
-        return note || preset;
     }
 
     function setReturnError(message) {

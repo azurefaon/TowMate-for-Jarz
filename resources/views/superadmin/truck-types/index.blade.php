@@ -9,11 +9,11 @@
 @section('content')
     <div class="truck-types-page" data-base-url="{{ url('/superadmin/truck-types') }}">
         @if (session('success'))
-            <div class="type-feedback type-feedback--success">{{ session('success') }}</div>
+            <div class="type-feedback type-feedback--success" id="successAlert">{{ session('success') }}</div>
         @endif
 
         @if (session('error'))
-            <div class="type-feedback type-feedback--error">{{ session('error') }}</div>
+            <div class="type-feedback type-feedback--error" id="errorAlert">{{ session('error') }}</div>
         @endif
 
         <div class="page-top">
@@ -158,6 +158,15 @@
                                                 </button>
                                             </form>
                                         @endif
+
+                                        <button type="button" class="action-btn btn-danger js-delete-type"
+                                            data-id="{{ $type->id }}" 
+                                            data-name="{{ $type->name }}"
+                                            data-units="{{ $type->units_count ?? 0 }}"
+                                            data-bookings="{{ $type->active_bookings_count ?? 0 }}">
+                                            <i data-lucide="trash-2"></i>
+                                            <span>Delete</span>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -303,6 +312,25 @@
                     <div class="modal-actions">
                         <button type="button" class="btn-cancel" data-close-modal="disableModal">Close</button>
                         <button type="submit" class="btn-danger" id="disableSubmitBtn">Disable</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div id="deleteModal" class="modal">
+            <div class="modal-content delete-modal-content">
+                <div class="icon-warning">⚠️</div>
+                <h3 id="deleteTitle">Delete Truck Type?</h3>
+                <p id="deleteText">Are you sure you want to delete this truck type?</p>
+
+                <form method="POST" id="deleteForm">
+                    @csrf
+                    @method('DELETE')
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" data-close-modal="deleteModal">Cancel</button>
+                        <button type="submit" class="btn-danger" id="deleteSubmitBtn">Delete</button>
                     </div>
                 </form>
             </div>

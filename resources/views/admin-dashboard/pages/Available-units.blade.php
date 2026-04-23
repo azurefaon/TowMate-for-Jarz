@@ -236,6 +236,10 @@
                     <i data-lucide="plus-circle"></i>
                     <span>Add Unit</span>
                 </button>
+                <a href="{{ route('admin.zones.index') }}" class="units-link-btn secondary">
+                    <i data-lucide="map"></i>
+                    <span>Manage Zones</span>
+                </a>
                 <a href="{{ route('admin.dispatch') }}" class="units-link-btn secondary">
                     <i data-lucide="radio"></i>
                     <span>Dispatch Queue</span>

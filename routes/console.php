@@ -10,3 +10,5 @@ Artisan::command('inspire', function () {
 
 Schedule::command('towmate:purge-expired-data')->daily();
 Schedule::command('towmate:sync-quotation-lifecycle')->daily();
+Schedule::command('quotations:expire')->everyFiveMinutes();
+Schedule::command('quotations:followup')->daily();

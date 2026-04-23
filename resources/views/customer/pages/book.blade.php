@@ -45,7 +45,7 @@
                         value="{{ old('pickup_confirmed', 0) }}">
                     <input type="hidden" name="dropoff_confirmed" id="dropoffConfirmedInput"
                         value="{{ old('dropoff_confirmed', 0) }}">
-                    <input type="hidden" name="distance" id="distance_input">
+                    <input type="hidden" name="distance_km" id="distance_input">
                     <input type="hidden" name="price" id="price_input">
                     <input type="hidden" name="additional_fee" id="additional_fee_input" value="0">
 
@@ -56,7 +56,7 @@
 
                             <div class="row">
                                 <div class="input-group">
-                                    <label>First Name</label>
+                                    <label>First Name *</label>
                                     <input type="text" name="first_name"
                                         value="{{ old('first_name', optional(Auth::user())->first_name) }}" required>
                                 </div>
@@ -66,7 +66,7 @@
                                         value="{{ old('middle_name', optional(Auth::user())->middle_name) }}">
                                 </div>
                                 <div class="input-group">
-                                    <label>Last Name</label>
+                                    <label>Last Name *</label>
                                     <input type="text" name="last_name"
                                         value="{{ old('last_name', optional(Auth::user())->last_name) }}" required>
                                 </div>
@@ -74,12 +74,7 @@
 
                             <div class="row">
                                 <div class="input-group">
-                                    <label>Age</label>
-                                    <input type="number" name="age" min="1" max="120"
-                                        value="{{ old('age', optional(optional(Auth::user())->customer)->age) }}" required>
-                                </div>
-                                <div class="input-group">
-                                    <label>Phone Number</label>
+                                    <label>Phone Number *</label>
                                     <input type="tel" id="customer_phone" name="phone"
                                         value="{{ old('phone', optional(optional(Auth::user())->customer)->phone) }}"
                                         placeholder="09123456789" required>
@@ -90,40 +85,41 @@
                                         value="{{ old('email', optional(Auth::user())->email) }}"
                                         placeholder="yourname@gmail.com">
                                 </div>
+                                <div class="input-group">
+                                    <label>Customer Type</label>
+                                    <select name="customer_type" id="customerType">
+                                        <option value="regular" {{ old('customer_type', 'regular') === 'regular' ? 'selected' : '' }}>Regular</option>
+                                        <option value="pwd" {{ old('customer_type') === 'pwd' ? 'selected' : '' }}>PWD</option>
+                                        <option value="senior" {{ old('customer_type') === 'senior' ? 'selected' : '' }}>Senior Citizen</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <div class="row">
                                 <div class="input-group">
-                                    <label>Customer Type</label>
-                                    <select name="customer_type" required>
-                                        <option value="regular"
-                                            {{ old('customer_type', optional(optional(Auth::user())->customer)->customer_type ?? 'regular') === 'regular' ? 'selected' : '' }}>
-                                            Regular</option>
-                                        <option value="pwd"
-                                            {{ old('customer_type', optional(optional(Auth::user())->customer)->customer_type) === 'pwd' ? 'selected' : '' }}>
-                                            PWD</option>
-                                        <option value="senior"
-                                            {{ old('customer_type', optional(optional(Auth::user())->customer)->customer_type) === 'senior' ? 'selected' : '' }}>
-                                            Senior</option>
+                                    <label>Select Tow Truck Type *</label>
+                                    <select name="truck_type_id" id="vehicleType" required>
+                                        <option value="">Choose tow truck...</option>
+                                        @foreach($truckTypes as $truck)
+                                            <option value="{{ $truck->id }}" 
+                                                data-base="{{ $truck->base_rate }}" 
+                                                data-perkm="{{ $truck->per_km_rate }}">
+                                                {{ $truck->name }} - ₱{{ number_format($truck->base_rate, 2) }}
+                                            </option>
+                                        @endforeach
                                     </select>
                                 </div>
                                 <div class="input-group">
-                                    <label>Customer Vehicle Category</label>
+                                    <label>Vehicle Category *</label>
                                     <select name="vehicle_category" id="vehicleCategory" required>
-                                        <option value="">Select vehicle category</option>
-                                        <option value="2_wheeler"
-                                            {{ old('vehicle_category') === '2_wheeler' ? 'selected' : '' }}>2 Wheels
-                                        </option>
-                                        <option value="4_wheeler"
-                                            {{ old('vehicle_category') === '4_wheeler' ? 'selected' : '' }}>4 Wheels
-                                        </option>
-                                        <option value="heavy_vehicle"
-                                            {{ old('vehicle_category') === 'heavy_vehicle' || old('vehicle_category') === '6_wheeler' || old('vehicle_category') === '10_wheeler' ? 'selected' : '' }}>
-                                            Heavy Vehicle (6+ Wheels)</option>
-                                        <option value="other" {{ old('vehicle_category') === 'other' ? 'selected' : '' }}>
-                                            Other</option>
+                                        <option value="2_wheeler">2-Wheeler</option>
+                                        <option value="4_wheeler">4-Wheeler</option>
+                                        <option value="heavy_vehicle">Heavy Vehicle</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div class="row">
                                 <div class="input-group">
                                     <label>Vehicle Image</label>
                                     <input type="file" name="vehicle_image" accept=".jpg,.jpeg,.png">
@@ -133,9 +129,12 @@
                             <div class="row">
                                 <div class="input-group">
                                     <label>Landmark / Pickup Note</label>
-                                    <textarea name="pickup_notes" id="pickupNotes" rows="3"
+                                    <textarea name="pickup_notes" id="pickupNotes" rows="2"
                                         placeholder="Optional landmark, gate number, or roadside note...">{{ old('pickup_notes') }}</textarea>
                                 </div>
+                            </div>
+
+                            <div class="row">
                                 <div class="input-group">
                                     <label>Discount Code</label>
                                     <input type="text" name="discount_code" id="discountCode"
@@ -145,7 +144,7 @@
 
                             <div class="input-group">
                                 <label>Special Notes / Additional Directions</label>
-                                <textarea name="notes" rows="3" placeholder="Any special instructions or notes...">{{ old('notes') }}</textarea>
+                                <textarea name="notes" rows="2" placeholder="Any special instructions or notes...">{{ old('notes') }}</textarea>
                             </div>
 
                             <div class="location-quick-card">
@@ -157,7 +156,7 @@
                                 <div class="location-group">
                                     <div class="location-item">
                                         <div class="input-wrapper">
-                                            <label>Pickup Location</label>
+                                            <label>Pickup Location *</label>
                                             <div class="input-map-wrapper with-action">
                                                 <input type="text" id="pickup" name="pickup_address"
                                                     value="{{ old('pickup_address') }}"
@@ -179,7 +178,7 @@
 
                                     <div class="location-item">
                                         <div class="input-wrapper">
-                                            <label>Dropoff Location</label>
+                                            <label>Dropoff Location *</label>
                                             <div class="input-map-wrapper with-action">
                                                 <input type="text" id="dropoff" name="dropoff_address"
                                                     value="{{ old('dropoff_address') }}"
@@ -232,25 +231,7 @@
 
                             <div class="divider"></div>
 
-
-                            <div class="row">
-
-                                <div class="input-group">
-                                    <label>Vehicle Type</label>
-                                    <select name="truck_type_id" id="vehicleType" required>
-                                        <option value="">Select vehicle</option>
-                                        @foreach ($truckTypes as $type)
-                                            @php $isUnavailable = ($type->status ?? 'active') !== 'active'; @endphp
-                                            <option value="{{ $type->id }}" data-base="{{ $type->base_rate }}"
-                                                data-perkm="{{ $type->per_km_rate }}" @selected((string) old('truck_type_id') === (string) $type->id)
-                                                @disabled($isUnavailable)>
-                                                {{ $type->name }}{{ $isUnavailable ? ' (Unavailable)' : '' }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                    <small style="color:#6b7280; display:block; margin-top:6px;">Gray vehicle types are
-                                        currently unavailable and cannot be selected.</small>
-                                </div>
+                            <div class="row" id="bookingModeRow" style="display: none;">
 
                                 <div class="input-group">
                                     <label>Booking Mode</label>
@@ -346,8 +327,9 @@
                                 Select your pickup pin, dropoff pin, and vehicle to see the live estimate.
                             </div>
 
-                            <button type="button" id="bookBtn">
+                            <button type="button" id="bookBtn" style="position: relative;">
                                 Book Now
+                                <span id="btnDebug" style="position: absolute; top: -20px; right: 0; font-size: 10px; background: red; color: white; padding: 2px 5px; border-radius: 3px; display: none;">Debug</span>
                             </button>
 
                         </div>
@@ -422,6 +404,27 @@
             </div>
         </div>
 
+        <!-- Vehicle Type Selection Modal -->
+        <div id="vehicleTypeModal" class="confirm-modal hidden">
+            <div class="booking-modal vehicle-type-modal">
+                <div class="modal-header">
+                    <span class="summary-kicker">Step 1</span>
+                    <h3>What type of vehicle needs towing?</h3>
+                    <p>Select your vehicle type to see compatible tow trucks</p>
+                </div>
+
+                <div class="modal-body">
+                    <div class="vehicle-category-grid" id="vehicleCategoryGrid">
+                        <div class="category-loading">Loading vehicle types...</div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="closeVehicleTypeModal">Cancel</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
@@ -439,6 +442,8 @@
         defer></script>
     --}}
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="{{ asset('customer/js/booking-debug.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('customer/js/vehicle-type-selector.js') }}?v={{ time() }}"></script>
     <script src="{{ asset('customer/js/map.js') }}?v={{ filemtime(public_path('customer/js/map.js')) }}"></script>
     <script src="{{ asset('customer/js/dashboard.js') }}"></script>
     <script src="{{ asset('customer/js/history.js') }}"></script>

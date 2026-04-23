@@ -19,7 +19,7 @@ class LandingBookingRequest extends FormRequest
         $firstName = trim((string) ($this->input('first_name') ?: $nameParts['first_name']));
         $middleName = trim((string) ($this->input('middle_name') ?: $nameParts['middle_name']));
         $lastName = trim((string) ($this->input('last_name') ?: $nameParts['last_name']));
-        $customerType = $this->input('customer_type');
+        $customerType = $this->input('customer_type', 'regular');
         $serviceType = $this->input('service_type', 'book_now');
         $scheduledDate = trim((string) $this->input('scheduled_date'));
         $scheduledTime = trim((string) $this->input('scheduled_time'));
@@ -32,7 +32,7 @@ class LandingBookingRequest extends FormRequest
         $discountCode = strtoupper(trim((string) $this->input('discount_code')));
 
         if (! in_array($customerType, ['regular', 'pwd', 'senior'], true)) {
-            $customerType = $this->boolean('is_pwd') ? 'pwd' : ($this->boolean('is_senior') ? 'senior' : 'regular');
+            $customerType = 'regular';
         }
 
         if (! in_array($serviceType, ['book_now', 'schedule'], true)) {
@@ -62,6 +62,7 @@ class LandingBookingRequest extends FormRequest
             'additional_directions' => $additionalDirections !== '' ? $additionalDirections : null,
             'vehicle_category' => $vehicleCategory !== '' ? $vehicleCategory : null,
             'discount_code' => $discountCode !== '' ? $discountCode : null,
+            'distance_km' => $this->input('distance_km'),
             'distance' => $this->input('distance'),
             'price' => $this->input('price'),
             'confirmation_type' => $this->input('confirmation_type', 'system'),
@@ -74,7 +75,6 @@ class LandingBookingRequest extends FormRequest
             'first_name' => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
-            'age' => 'required|integer|min:1|max:120',
             'phone' => [
                 'required',
                 'regex:/^\+639\d{9}$/',
@@ -96,12 +96,14 @@ class LandingBookingRequest extends FormRequest
             'dropoff_address' => 'required|string|max:1000',
             'drop_lat' => 'required|numeric|between:-90,90',
             'drop_lng' => 'required|numeric|between:-180,180',
+            'distance_km' => 'nullable|numeric|min:0|max:10000',
+            'distance' => 'nullable|string|max:50',
+            'price' => 'nullable|string|max:50',
             'vehicle_category' => 'required|in:2_wheeler,3_wheeler,4_wheeler,heavy_vehicle,other',
             'discount_code' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9\-\s]+$/'],
             'vehicle_image' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
             'notes' => 'nullable|string|max:1000',
             'pickup_notes' => 'nullable|string|max:1000',
-            'customer_type' => 'required|in:regular,pwd,senior',
             'service_type' => 'required|in:book_now,schedule',
             'scheduled_date' => 'nullable|required_if:service_type,schedule|date|after_or_equal:today',
             'scheduled_time' => 'nullable|required_if:service_type,schedule|date_format:H:i',
@@ -116,7 +118,6 @@ class LandingBookingRequest extends FormRequest
             'vehicle_category.required' => 'Please select your vehicle category before continuing.',
             'discount_code.regex' => 'Discount codes may only use letters, numbers, spaces, or dashes.',
             'vehicle_image.mimes' => 'Vehicle image must be a JPG or PNG file only.',
-            'customer_type.in' => 'Please select a valid customer type.',
         ];
     }
 
@@ -127,6 +128,7 @@ class LandingBookingRequest extends FormRequest
         return array_merge($validated, [
             'distance' => $this->input('distance'),
             'price' => $this->input('price'),
+            'distance_km' => $this->input('distance_km'),
             'discount_code' => $this->input('discount_code'),
             'pickup_notes' => $this->input('pickup_notes') ?: $this->input('pickup_landmark'),
             'pickup_landmark' => $this->input('pickup_landmark'),

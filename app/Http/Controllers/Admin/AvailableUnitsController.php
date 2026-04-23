@@ -99,4 +99,37 @@ class AvailableUnitsController extends Controller
                 ? 'Unit marked as available.'
                 : 'Unit marked as not available.');
     }
+
+    public function markMaintenance(Request $request, Unit $unit)
+    {
+        $validated = $request->validate([
+            'reason' => 'required|string|max:500',
+            'booking_id' => 'nullable|string',
+        ]);
+
+        if ($unit->status === 'on_job') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This unit is currently on a job and cannot be marked for maintenance yet.',
+            ], 422);
+        }
+
+        $unit->update([
+            'status' => 'maintenance',
+            'issue_note' => $validated['reason'],
+        ]);
+
+        \Illuminate\Support\Facades\Log::warning('Unit marked for maintenance from dispatch', [
+            'unit_id' => $unit->id,
+            'unit_name' => $unit->name,
+            'reason' => $validated['reason'],
+            'booking_id' => $validated['booking_id'] ?? null,
+            'dispatcher_id' => auth()->id(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Unit marked for maintenance successfully.',
+        ]);
+    }
 }

@@ -127,32 +127,6 @@
 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="age">Age *</label>
-                                        <input type="number" id="age" name="age" min="1" max="120"
-                                            required value="{{ old('age') }}">
-                                        @error('age')
-                                            <span class="error-message">{{ $message }}</span>
-                                        @enderror
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="customer_type">Customer Type *</label>
-                                        <select id="customer_type" name="customer_type" required>
-                                            <option value="regular"
-                                                {{ old('customer_type', 'regular') === 'regular' ? 'selected' : '' }}>
-                                                Regular</option>
-                                            <option value="pwd" {{ old('customer_type') === 'pwd' ? 'selected' : '' }}>
-                                                PWD</option>
-                                            <option value="senior"
-                                                {{ old('customer_type') === 'senior' ? 'selected' : '' }}>Senior</option>
-                                        </select>
-                                        @error('customer_type')
-                                            <span class="error-message">{{ $message }}</span>
-                                        @enderror
-                                    </div>
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
                                         <label for="phone">Phone Number *</label>
                                         <input type="tel" id="phone" name="phone" placeholder="09123456789"
                                             required value="{{ old('phone') }}">
@@ -172,6 +146,14 @@
 
                                 <input type="hidden" name="confirmation_type" value="system">
                                 <input type="hidden" name="schedule_fallback_accepted" value="0">
+                                <input type="hidden" id="truck_type_id" name="truck_type_id"
+                                    value="{{ optional($truckTypes->first())->id }}"
+                                    data-base="{{ optional($truckTypes->first())->base_rate }}"
+                                    data-perkm="{{ optional($truckTypes->first())->per_km_rate }}">
+                                <input type="hidden" id="vehicle_category" name="vehicle_category" value="4_wheeler">
+
+                                <!-- Hidden ETA field for backend -->
+                                <input type="hidden" id="eta_minutes" name="eta_minutes" value="">
 
                                 <div class="form-section compact-section">
                                     <h3>Booking Mode</h3>
@@ -247,6 +229,10 @@
                                             value="{{ old('pickup_confirmed', 0) }}">
                                         <input type="hidden" id="dropoffConfirmedInput" name="dropoff_confirmed"
                                             value="{{ old('dropoff_confirmed', 0) }}">
+                                        <input type="hidden" name="distance_km" id="distance_input">
+                                        <input type="hidden" name="price" id="price_input">
+                                        <input type="hidden" name="additional_fee" id="additional_fee_input"
+                                            value="0">
                                         @error('pickup_address')
                                             <span class="error-message">{{ $message }}</span>
                                         @enderror
@@ -272,46 +258,13 @@
 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="truck_type_id">Vehicle Type *</label>
-                                        <select id="truck_type_id" name="truck_type_id" required>
-                                            <option value="">Select vehicle type</option>
-                                            @foreach ($truckTypes as $type)
-                                                @php $isUnavailable = ($type->status ?? 'active') !== 'active'; @endphp
-                                                <option value="{{ $type->id }}"
-                                                    {{ (string) old('truck_type_id') === (string) $type->id ? 'selected' : '' }}
-                                                    @disabled($isUnavailable)>
-                                                    {{ $type->name }}{{ $isUnavailable ? ' (Unavailable)' : '' }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                        <small style="color:#6b7280; display:block; margin-top:6px;">Gray vehicle types
-                                            are currently unavailable and cannot be selected.</small>
-                                        @error('truck_type_id')
+                                        <label for="customer_vehicle_type">Your Vehicle Type *</label>
+                                        <input type="text" name="customer_vehicle_type" id="customerVehicleType"
+                                            placeholder="e.g., Sedan, SUV, Motorcycle, Truck"
+                                            value="{{ old('customer_vehicle_type') }}" required>
+                                        @error('customer_vehicle_type')
                                             <span class="error-message">{{ $message }}</span>
                                         @enderror
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label for="vehicle_category">Customer Vehicle Category *</label>
-                                        <select id="vehicle_category" name="vehicle_category" required>
-                                            <option value="">Select vehicle category</option>
-                                            <option value="2_wheeler"
-                                                {{ old('vehicle_category') === '2_wheeler' ? 'selected' : '' }}>2
-                                                Wheeler</option>
-                                            <option value="3_wheeler"
-                                                {{ old('vehicle_category') === '3_wheeler' ? 'selected' : '' }}>3
-                                                Wheeler</option>
-                                            <option value="4_wheeler"
-                                                {{ old('vehicle_category') === '4_wheeler' ? 'selected' : '' }}>4
-                                                Wheeler</option>
-                                            <option value="heavy_vehicle"
-                                                {{ in_array(old('vehicle_category'), ['heavy_vehicle', '6_wheeler', '10_wheeler'], true) ? 'selected' : '' }}>
-                                                Heavy Vehicle (6+ Wheels)</option>
-                                            <option value="other"
-                                                {{ old('vehicle_category') === 'other' ? 'selected' : '' }}>
-                                                Other
-                                            </option>
-                                        </select>
                                     </div>
                                 </div>
 
@@ -319,17 +272,19 @@
                             </div>
 
                             <div class="form-section compact-section">
-                                <h3>Extra Notes</h3>
+                                <h3>Vehicle Details</h3>
 
                                 <div class="form-group">
-                                    <label for="vehicle_image">Vehicle Image</label>
+                                    <label for="vehicle_image">Vehicle Image *</label>
                                     <input type="file" id="vehicle_image" name="vehicle_image"
-                                        accept=".jpg,.jpeg,.png">
+                                        accept=".jpg,.jpeg,.png" required>
+                                    <small style="display: block; margin-top: 6px; color: #64748b; font-size: 0.875rem;">
+                                        📸 Please include your plate number in the photo so we can identify the vehicle
+                                    </small>
                                     @error('vehicle_image')
                                         <span class="error-message">{{ $message }}</span>
                                     @enderror
                                 </div>
-
 
                                 <div class="form-group">
                                     <label for="notes">Special Notes</label>
@@ -338,8 +293,6 @@
                                         <span class="error-message">{{ $message }}</span>
                                     @enderror
                                 </div>
-
-
                             </div>
 
                             <div class="form-actions">
@@ -374,6 +327,8 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Vehicle Type Selection Modal - REMOVED -->
         </section>
 
     </div>
@@ -387,7 +342,40 @@
             defer></script>
         --}}
         <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+        <script src="{{ asset('customer/js/booking-debug.js') }}?v={{ time() }}"></script>
         <script>
+            // Ensure ETA is set before submitting the form
+            function setEtaHiddenField() {
+                // Try to get ETA from global or snapshot (depends on map.js/booking-debug.js)
+                let eta = null;
+                if (typeof currentEtaMinutes !== 'undefined') {
+                    eta = currentEtaMinutes;
+                } else if (typeof getPricingSnapshot === 'function') {
+                    const snap = getPricingSnapshot();
+                    if (snap && snap.etaMinutes !== undefined) {
+                        eta = snap.etaMinutes;
+                    }
+                }
+                // Fallback: try to parse from summary if needed
+                if (!eta) {
+                    const etaInput = document.getElementById('eta_minutes');
+                    if (etaInput && etaInput.value) {
+                        eta = etaInput.value;
+                    }
+                }
+                // Set the hidden input
+                const etaInput = document.getElementById('eta_minutes');
+                if (etaInput) {
+                    etaInput.value = eta && !isNaN(eta) ? Math.round(eta) : '';
+                }
+            }
+            // Attach to confirm button
+            document.addEventListener('DOMContentLoaded', function() {
+                const confirmBookingBtn = document.getElementById('confirmBookingBtn');
+                if (confirmBookingBtn) {
+                    confirmBookingBtn.addEventListener('click', setEtaHiddenField);
+                }
+            });
             window.bookingGeoConfig = {
                 searchUrl: @json(route('geo.search')),
                 reverseUrl: @json(route('geo.reverse')),
@@ -472,12 +460,6 @@
 
                 submitBookingBtn.removeAttribute('aria-busy');
                 labelTarget.textContent = getPrimaryActionLabel();
-
-                if (typeof toggleBookBtn === 'function') {
-                    toggleBookBtn();
-                    return;
-                }
-
                 submitBookingBtn.disabled = false;
                 submitBookingBtn.classList.remove('disabled');
             }
@@ -553,19 +535,13 @@
                         return;
                     }
 
-                    if (typeof ensureDispatchAvailabilityForBooking === 'function' && !(
-                            await ensureDispatchAvailabilityForBooking())) {
-                        return;
-                    }
-
                     showConfirmationSummary();
                 }
             });
 
             function validateBookingForm() {
-                const requiredFields = ['first_name', 'last_name', 'age', 'phone', 'truck_type_id', 'vehicle_category',
-                    'pickup_address',
-                    'dropoff_address', 'customer_type', 'service_type'
+                const requiredFields = ['first_name', 'last_name', 'phone', 'customer_vehicle_type',
+                    'pickup_address', 'dropoff_address', 'service_type'
                 ];
                 let valid = true;
                 let firstInvalidField = null;
@@ -630,7 +606,12 @@
                 const vehicleImageInput = document.getElementById('vehicle_image');
                 const file = vehicleImageInput?.files?.[0];
                 const allowedTypes = ['image/jpeg', 'image/png'];
-                if (file && !allowedTypes.includes(file.type)) {
+
+                if (!file) {
+                    setFieldError(vehicleImageInput, 'Vehicle image is required.');
+                    firstInvalidField = firstInvalidField || vehicleImageInput;
+                    valid = false;
+                } else if (!allowedTypes.includes(file.type)) {
                     setFieldError(vehicleImageInput, 'Vehicle image must be a JPG or PNG file only.');
                     firstInvalidField = firstInvalidField || vehicleImageInput;
                     valid = false;
@@ -694,23 +675,11 @@
             applyBookingActionLabels();
             serviceTypeInput?.addEventListener('change', toggleScheduleFields);
 
-            submitBookingBtn?.addEventListener('click', async function() {
-                setSubmitBookingState(true);
-
-                try {
-                    if (!validateBookingForm()) {
-                        return;
-                    }
-
-                    if (typeof ensureDispatchAvailabilityForBooking === 'function' && !(
-                            await ensureDispatchAvailabilityForBooking())) {
-                        return;
-                    }
-
-                    showConfirmationSummary();
-                } finally {
-                    setSubmitBookingState(false);
+            submitBookingBtn?.addEventListener('click', function() {
+                if (!validateBookingForm()) {
+                    return;
                 }
+                showConfirmationSummary();
             });
 
             function escapeSummaryValue(value) {
@@ -758,19 +727,15 @@
             function showConfirmationSummary() {
                 const pickup = document.getElementById('pickup_address').value;
                 const dropoff = document.getElementById('dropoff_address').value;
-                const vehicleSelect = document.getElementById('truck_type_id');
-                const vehicle = vehicleSelect.options[vehicleSelect.selectedIndex]?.text || 'Not selected';
+                const customerVehicleType = document.getElementById('customerVehicleType').value;
+
                 const phone = document.getElementById('phone').value;
                 const email = document.getElementById('email').value;
-                const age = document.getElementById('age').value;
                 const notes = document.getElementById('notes').value;
                 const serviceType = serviceTypeInput?.value === 'schedule' ? 'Scheduled Later' : 'Book Now';
                 const scheduleText = serviceTypeInput?.value === 'schedule' ?
                     `${scheduledDateInput?.value || 'N/A'} ${scheduledTimeInput?.value || ''}`.trim() : 'Immediate dispatch';
-                const vehicleCategorySelect = document.getElementById('vehicle_category');
-                const vehicleCategory = vehicleCategorySelect?.options[vehicleCategorySelect.selectedIndex]?.text || '';
-                const customerTypeSelect = document.getElementById('customer_type');
-                const customerType = customerTypeSelect?.options[customerTypeSelect.selectedIndex]?.text || 'Regular';
+
                 const fullName = [
                     document.getElementById('first_name').value,
                     document.getElementById('middle_name').value,
@@ -792,10 +757,6 @@
                         value: fullName || 'Not provided',
                         wide: true
                     },
-                    age ? {
-                        label: 'Age',
-                        value: age
-                    } : null,
                     phone ? {
                         label: 'Phone',
                         value: phone
@@ -804,10 +765,6 @@
                         label: 'Email',
                         value: email
                     } : null,
-                    {
-                        label: 'Customer Type',
-                        value: customerType
-                    },
                 ];
 
                 const tripItems = [{
@@ -819,13 +776,9 @@
                         value: scheduleText
                     },
                     {
-                        label: 'Vehicle Type',
-                        value: vehicle
-                    },
-                    vehicleCategory ? {
                         label: 'Customer Vehicle',
-                        value: vehicleCategory
-                    } : null,
+                        value: customerVehicleType || 'Not specified'
+                    },
                     {
                         label: 'Pickup',
                         value: pickup || 'Not selected',
@@ -859,10 +812,10 @@
                         label: 'Distance Fee',
                         value: distanceFee
                     },
-                    {
+                    excessFee && excessFee !== '₱0.00' ? {
                         label: 'Excess Fee',
                         value: excessFee
-                    },
+                    } : null,
                     discount && discount !== '₱0.00' ? {
                         label: 'Discount',
                         value: discount

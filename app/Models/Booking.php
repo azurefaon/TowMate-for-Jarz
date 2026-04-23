@@ -30,6 +30,7 @@ class Booking extends Model
         'dropoff_lng',
 
         'distance_km',
+        'eta_minutes',
         'base_rate',
         'per_km_rate',
         'computed_total',
@@ -88,6 +89,15 @@ class Booking extends Model
         static::saving(function (Booking $booking) {
             $booking->quotation_status = $booking->resolveQuotationStatus($booking->quotation_status ?? null);
         });
+
+        static::updated(function (Booking $booking) {
+            // Auto-update quotation when booking details change
+            if ($booking->isDirty(['pickup_address', 'dropoff_address', 'truck_type_id', 'distance_km', 'final_total'])) {
+                if (in_array($booking->status, ['quoted', 'pending', 'reviewed'])) {
+                    app(\App\Services\QuotationService::class)->updateQuotation($booking);
+                }
+            }
+        });
     }
 
     protected function casts(): array
@@ -116,6 +126,7 @@ class Booking extends Model
             'discount_percentage' => 'decimal:2',
             'additional_fee' => 'decimal:2',
             'final_total' => 'decimal:2',
+            'eta_minutes' => 'decimal:2',
         ];
     }
 
@@ -189,6 +200,13 @@ class Booking extends Model
 
     public function getDistanceFeeAmountAttribute(): float
     {
+        $computed = (float) ($this->computed_total ?? 0);
+        $base     = (float) ($this->base_rate ?? 0);
+
+        if ($computed > 0 && $base > 0) {
+            return round($computed - $base, 2);
+        }
+
         return round((float) ($this->distance_km ?? 0) * (float) ($this->per_km_rate ?? 0), 2);
     }
 
@@ -230,7 +248,7 @@ class Booking extends Model
             'excess_km' => $this->excess_km,
             'excess_fee' => $this->excess_fee_amount,
             'additional_fee' => (float) ($this->additional_fee ?? 0),
-            'discount' => $this->discount_amount,
+            'discount' => 0,
             'final_total' => (float) ($this->final_total ?? 0),
         ];
     }
@@ -297,8 +315,14 @@ class Booking extends Model
 
     public function getNeedsReassignmentAttribute(): bool
     {
-        return ! is_null($this->returned_at)
-            && in_array($this->status, ['confirmed', 'accepted', 'assigned'], true);
+        // ❌ CONFIRMED SHOULD NEVER BE RETURNED
+        if ($this->status === 'confirmed') {
+            return false;
+        }
+
+        return !is_null($this->returned_at)
+            && !empty($this->return_reason)
+            && in_array($this->status, ['accepted', 'assigned']);
     }
 
     public function getScheduleWindowLabelAttribute(): string

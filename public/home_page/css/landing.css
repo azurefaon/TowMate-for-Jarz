@@ -2332,3 +2332,146 @@ body {
 .success-message.show {
     right: 20px;
 }
+
+
+/* Vehicle Type Selection Modal Styles */
+.vehicle-select-btn {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 2px solid #e5e7eb;
+    background: #ffffff;
+    font-size: 14px;
+    color: #0f172a;
+    transition: 0.25s ease;
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    text-align: left;
+}
+
+.vehicle-select-btn:hover {
+    border-color: #facc15;
+    background: #fffbeb;
+}
+
+.vehicle-select-btn i {
+    font-size: 18px;
+    color: #64748b;
+}
+
+.vehicle-type-modal {
+    width: 700px;
+    max-width: 95%;
+}
+
+.vehicle-category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.category-loading {
+    grid-column: 1 / -1;
+    padding: 40px;
+    text-align: center;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.vehicle-type-card {
+    padding: 20px;
+    border-radius: 16px;
+    border: 2px solid #e5e7eb;
+    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+}
+
+.vehicle-type-card:hover {
+    border-color: #facc15;
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(250, 204, 21, 0.2);
+}
+
+.vehicle-type-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #facc15, #f59e0b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #ffffff;
+}
+
+.vehicle-type-card h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.vehicle-type-card p {
+    margin: 0;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.vehicle-type-badge {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.badge-2_wheeler {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-4_wheeler {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.badge-heavy_vehicle {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.modal-header h3 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    color: #111827;
+}
+
+.modal-header p {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .vehicle-category-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .vehicle-type-modal {
+        width: 100%;
+        max-width: 100%;
+    }
+}

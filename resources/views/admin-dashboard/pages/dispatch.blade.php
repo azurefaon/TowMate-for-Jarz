@@ -7,23 +7,24 @@
         .quotation-review-grid {
             display: grid;
             grid-template-columns: minmax(0, 1.25fr) minmax(240px, 0.75fr);
-            gap: 10px;
-            margin: 10px 0;
+            gap: 12px;
+            margin: 12px 0;
             align-items: start;
         }
 
         #actionModal {
             overflow-y: auto;
             padding: 10px;
+            transition: opacity 0.25s ease;
         }
 
         #actionModal .modal-card {
-            width: min(1000px, 96vw);
-            max-width: 1000px;
-            max-height: calc(100vh - 20px);
+            width: min(1100px, 96vw);
+            max-width: 1100px;
+            max-height: calc(100vh - 40px);
             overflow-x: hidden;
             overflow-y: auto;
-            padding: 16px;
+            padding: 20px;
             scrollbar-gutter: stable;
         }
 
@@ -312,20 +313,460 @@
             color: #991b1b;
         }
 
-        @media (max-width: 860px) {
+        .dp-tl-section {
+            margin-top: 36px;
+            padding-bottom: 40px;
+        }
 
-            .review-input-grid,
-            .review-form-horizontal {
-                grid-template-columns: 1fr;
-            }
+        .dp-tl-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
 
-            .quotation-review-grid {
-                grid-template-columns: 1fr;
-            }
+        .dp-tl-title {
+            margin: 0 0 4px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
 
-            #actionModal .modal-card {
-                overflow-y: auto;
-            }
+        .dp-tl-sub {
+            margin: 0;
+            font-size: .82rem;
+            color: #94a3b8;
+        }
+
+        .dp-tl-link {
+            font-size: .82rem;
+            font-weight: 600;
+            color: #6366f1;
+            text-decoration: none;
+            white-space: nowrap;
+            align-self: center;
+        }
+
+        .dp-tl-link:hover {
+            text-decoration: underline;
+        }
+
+        .dp-tl-empty {
+            padding: 24px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: .88rem;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+        }
+
+        .dp-tl-table-wrap {
+            overflow-x: auto;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+        }
+
+        .dp-tl-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .dp-tl-table thead tr {
+            background: #f8fafc;
+            border-bottom: 1.5px solid #e5e7eb;
+        }
+
+        .dp-tl-table th {
+            padding: 11px 14px;
+            text-align: left;
+            font-size: .72rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            white-space: nowrap;
+        }
+
+        .dp-tl-table td {
+            padding: 12px 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: .88rem;
+            color: #374151;
+        }
+
+        .dp-tl-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .dp-tl-table tbody tr:hover {
+            background: #fafbff;
+        }
+
+        /* Name cell */
+        .dp-name-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dp-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff;
+            font-size: .8rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .dp-name {
+            font-weight: 700;
+            font-size: .88rem;
+            color: #0f172a;
+        }
+
+        .dp-presence {
+            font-size: .72rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 1px;
+        }
+
+        .dp-presence::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dp-presence--online {
+            color: #16a34a;
+        }
+
+        .dp-presence--online::before {
+            background: #22c55e;
+        }
+
+        .dp-presence--offline {
+            color: #94a3b8;
+        }
+
+        .dp-presence--offline::before {
+            background: #cbd5e1;
+        }
+
+        /* Zone */
+        .dp-zone-badge {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 999px;
+            font-size: .72rem;
+            font-weight: 700;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .dp-zone-none {
+            font-size: .78rem;
+            color: #94a3b8;
+        }
+
+        /* Status badge */
+        .dp-status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: .72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .dp-badge--avail {
+            background: #f0fdf4;
+            color: #15803d;
+        }
+
+        .dp-badge--off {
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+
+        .dp-badge--tow {
+            background: #f5f3ff;
+            color: #6d28d9;
+        }
+
+        .dp-badge--busy {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .dp-badge--idle {
+            background: #fffbeb;
+            color: #b45309;
+        }
+
+        /* Remove unit button */
+        .dp-remove-btn {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 3px 9px;
+            border-radius: 6px;
+            border: 1px solid #fecaca;
+            background: #fef2f2;
+            color: #b91c1c;
+            font-size: .72rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .15s;
+        }
+
+        .dp-remove-btn:hover {
+            background: #fee2e2;
+        }
+
+        .dp-remove-btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        /* Controls */
+        .dp-ctrl-cell {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dp-select {
+            padding: 6px 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: .82rem;
+            background: #f8fafc;
+            color: #374151;
+            cursor: pointer;
+            outline: none;
+            min-width: 140px;
+            transition: border-color .18s;
+        }
+
+        .dp-select:focus {
+            border-color: #6366f1;
+            background: #fff;
+        }
+
+        .dp-select:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .dp-saving {
+            font-size: .72rem;
+            font-weight: 600;
+            min-width: 36px;
+        }
+
+        /* Return Reason Styles */
+        .rr-panel {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #fef3c7, #fef9e7);
+            border: 1px solid #fbbf24;
+        }
+
+        .rr-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .rr-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .rr-badge--critical {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .rr-badge--high {
+            background: #fed7aa;
+            color: #9a3412;
+            border: 1px solid #fb923c;
+        }
+
+        .rr-badge--medium {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fbbf24;
+        }
+
+        .rr-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #92400e;
+        }
+
+        .rr-note {
+            font-size: 13px;
+            color: #78350f;
+            margin: 6px 0;
+            line-height: 1.5;
+        }
+
+        .rr-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .rr-action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid #d97706;
+            background: #fff;
+            color: #92400e;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .rr-action-btn:hover {
+            background: #fffbeb;
+            border-color: #b45309;
+        }
+
+        .rr-action-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Service Fee Modal */
+        .sf-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            z-index: 1300;
+        }
+
+        .sf-modal-backdrop.show {
+            display: flex;
+        }
+
+        .sf-modal-card {
+            width: min(480px, 100%);
+            background: #fff;
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+        }
+
+        .sf-modal-card h3 {
+            margin: 0 0 8px;
+            font-size: 1.1rem;
+            color: #0f172a;
+        }
+
+        .sf-modal-card p {
+            margin: 0 0 16px;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+
+        .sf-modal-card label {
+            display: block;
+            margin: 12px 0 6px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .sf-modal-card input,
+        .sf-modal-card textarea,
+        .sf-modal-card select {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font: inherit;
+        }
+
+        .sf-modal-card textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .sf-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .sf-btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .sf-btn--cancel {
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #475569;
+        }
+
+        .sf-btn--cancel:hover {
+            background: #f8fafc;
+        }
+
+        .sf-btn--primary {
+            border: none;
+            background: #f59e0b;
+            color: #fff;
+        }
+
+        .sf-btn--primary:hover {
+            background: #d97706;
+        }
+
+        .sf-btn--primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
     </style>
 @endpush
@@ -333,6 +774,12 @@
 @section('content')
 
     <div class="dashboard-container">
+
+        {{-- Pending Quotations Card - Above Dispatch Queue --}}
+        @include('admin-dashboard.pages._quotations-card')
+
+        {{-- Quotation View/Edit Modal --}}
+        @include('admin-dashboard.pages._quotation-modal')
 
         <div class="incoming-section">
 
@@ -348,32 +795,18 @@
             </div>
 
             <div class="queue-tabs" id="dispatchQueueTabs">
-                <button type="button" class="queue-filter-btn" data-filter="returned">
+                <button type="button" class="queue-filter-btn is-active" data-filter="returned">
                     <span>Returned</span>
                     <span class="queue-tab-count {{ ($queueCounts['returned'] ?? 0) > 0 ? 'has-count' : '' }}"
                         data-count-for="returned">
                         {{ $queueCounts['returned'] ?? 0 }}
                     </span>
                 </button>
-                <button type="button" class="queue-filter-btn is-active" data-filter="book-now">
-                    <span>Book Now</span>
-                    <span class="queue-tab-count {{ ($queueCounts['book-now'] ?? 0) > 0 ? 'has-count' : '' }}"
-                        data-count-for="book-now">
-                        {{ $queueCounts['book-now'] ?? 0 }}
-                    </span>
-                </button>
-                <button type="button" class="queue-filter-btn" data-filter="scheduled">
-                    <span>Scheduled</span>
-                    <span class="queue-tab-count {{ ($queueCounts['scheduled'] ?? 0) > 0 ? 'has-count' : '' }}"
-                        data-count-for="scheduled">
-                        {{ $queueCounts['scheduled'] ?? 0 }}
-                    </span>
-                </button>
-                <button type="button" class="queue-filter-btn" data-filter="delayed">
-                    <span>Delayed</span>
-                    <span class="queue-tab-count {{ ($queueCounts['delayed'] ?? 0) > 0 ? 'has-count' : '' }}"
-                        data-count-for="delayed">
-                        {{ $queueCounts['delayed'] ?? 0 }}
+                <button type="button" class="queue-filter-btn" data-filter="active">
+                    <span>Active Bookings</span>
+                    <span class="queue-tab-count {{ ($queueCounts['active'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="active">
+                        {{ $queueCounts['active'] ?? 0 }}
                     </span>
                 </button>
                 <button type="button" class="queue-filter-btn" data-filter="all">
@@ -385,66 +818,17 @@
                 </button>
             </div>
 
-            <div class="incoming-list" id="incomingList" data-default-filter="book-now"
+            <div class="incoming-list" id="incomingList" data-default-filter="returned"
                 data-assign-url-template="{{ url('/admin-dashboard/booking/__BOOKING__/assign') }}">
 
                 @forelse($incomingRequests as $booking)
                     @php
-                        $queueBucket =
-                            $booking->queue_bucket ??
-                            ($booking->needs_reassignment
-                                ? 'returned'
-                                : ($booking->is_dispatch_delayed
-                                    ? 'delayed'
-                                    : ($booking->status === 'reviewed'
-                                        ? 'negotiation'
-                                        : ($booking->is_scheduled && !$booking->is_due_for_dispatch
-                                            ? 'scheduled'
-                                            : 'book-now'))));
-                        $timingTone = $booking->needs_reassignment
-                            ? 'returned'
-                            : ($booking->is_dispatch_delayed
-                                ? 'delayed'
-                                : ($booking->status === 'reviewed'
-                                    ? 'negotiation'
-                                    : ($booking->is_due_for_dispatch
-                                        ? 'due-now'
-                                        : ($booking->is_scheduled
-                                            ? 'scheduled'
-                                            : 'book-now'))));
-                        $timingLabel = $booking->needs_reassignment
-                            ? 'Returned'
-                            : ($booking->is_dispatch_delayed
-                                ? 'Delayed'
-                                : ($booking->status === 'reviewed'
-                                    ? 'Negotiation'
-                                    : ($booking->is_due_for_dispatch
-                                        ? 'Due Now'
-                                        : $booking->service_mode_label)));
-                        $statusBadgeClass = $booking->needs_reassignment
-                            ? 'returned'
-                            : ($booking->is_dispatch_delayed
-                                ? 'returned'
-                                : ($booking->status === 'reviewed'
-                                    ? 'pending'
-                                    : ($booking->is_scheduled
-                                        ? 'scheduled'
-                                        : 'pending')));
+                        $queueBucket = $booking->queue_bucket ?? ($booking->needs_reassignment ? 'returned' : 'active');
+                        $timingLabel = $booking->needs_reassignment ? 'Returned' : 'Active Booking';
+                        $statusBadgeClass = $booking->needs_reassignment ? 'returned' : 'confirmed';
                         $statusBadgeLabel = $booking->needs_reassignment
                             ? 'Needs Reassignment'
-                            : ($booking->is_dispatch_delayed
-                                ? 'Delayed Queue'
-                                : ($booking->status === 'reviewed'
-                                    ? 'Negotiation Request'
-                                    : ($booking->is_scheduled
-                                        ? 'Scheduled Booking'
-                                        : 'Requested')));
-                        $disableReviewAction =
-                            $booking->is_scheduled &&
-                            !$booking->is_due_for_dispatch &&
-                            !$booking->is_dispatch_delayed &&
-                            !$booking->needs_reassignment &&
-                            $booking->status !== 'reviewed';
+                            : ucfirst($booking->status);
                     @endphp
                     <div class="incoming-card {{ $booking->is_scheduled && !$booking->is_dispatch_delayed ? 'incoming-card--scheduled' : '' }}"
                         data-id="{{ $booking->job_code }}" data-status="{{ $booking->status }}"
@@ -459,8 +843,6 @@
                         data-dispatch-zone="{{ e($booking->dispatch_zone_label ?? 'General Dispatch Zone') }}"
                         data-recommended-unit="{{ $booking->recommended_unit_id }}"
                         data-recommended-summary="{{ e($booking->recommended_unit_summary ?? '') }}"
-                        data-discount="{{ $booking->discount_amount }}"
-                        data-discount-rate="{{ $booking->discount_percentage }}"
                         data-assigned-unit="{{ $booking->assigned_unit_id }}"
                         data-customer-note="{{ e($booking->customer_response_note ?? '') }}"
                         data-counter-offer="{{ $booking->counter_offer_amount }}"
@@ -479,6 +861,18 @@
                             </div>
 
                             <div class="incoming-details">
+                                <span><strong>ETA:</strong>
+                                    @if ($booking->eta_minutes)
+                                        {{ round($booking->eta_minutes) }} min
+                                    @elseif ($booking->quotation && $booking->quotation->eta_minutes)
+                                        {{ round($booking->quotation->eta_minutes) }} min
+                                    @else
+                                        <span style="color:#b91c1c">No ETA</span>
+                                    @endif
+                                </span>
+                            </div>
+
+                            <div class="incoming-details">
                                 <span><strong>Customer:</strong> {{ $booking->customer->full_name ?? 'Guest' }}</span>
                                 <span><strong>Phone:</strong> {{ $booking->customer->phone ?? 'N/A' }}</span>
                                 <span><strong>Vehicle:</strong> {{ $booking->truckType->name ?? 'Unknown' }}</span>
@@ -489,7 +883,7 @@
                                 <span class="time">
                                     {{ $booking->created_at->diffForHumans() }}
                                 </span>
-                                <span class="queue-chip {{ $timingTone }}">
+                                <span class="queue-chip {{ $queueBucket }}">
                                     {{ $timingLabel }}
                                 </span>
                                 <span class="status-badge {{ $statusBadgeClass }}">
@@ -515,6 +909,39 @@
                                     <span><strong>Reason:</strong>
                                         {{ $booking->return_reason ?? 'Needs reassignment.' }}</span>
                                 </div>
+
+                                @if (isset($booking->return_reason_parsed))
+                                    @php
+                                        $rrp = $booking->return_reason_parsed;
+                                        $isUnreachable = ($rrp['code'] ?? null) === 'customer_unreachable';
+                                    @endphp
+                                    @if (!$isUnreachable)
+                                        <div class="rr-panel">
+                                            <div class="rr-header">
+                                                <span class="rr-badge {{ $rrp['badge_class'] ?? 'rr-badge--medium' }}">
+                                                    {{ strtoupper($rrp['priority'] ?? 'medium') }} PRIORITY
+                                                </span>
+                                                <span class="rr-label">{{ $rrp['label'] ?? 'Returned' }}</span>
+                                            </div>
+                                            @if (filled($rrp['note'] ?? null))
+                                                <div class="rr-note">{{ $rrp['note'] }}</div>
+                                            @endif
+                                            @if (!empty($rrp['actions']))
+                                                <div class="rr-actions">
+                                                    @foreach ($rrp['actions'] as $action)
+                                                        <button type="button" class="rr-action-btn"
+                                                            data-action="{{ $action }}"
+                                                            data-booking-id="{{ $booking->job_code }}"
+                                                            data-customer-id="{{ $booking->customer_id }}">
+                                                            <span>{{ $returnReasonHandler->getActionIcon($action) }}</span>
+                                                            <span>{{ $returnReasonHandler->getActionLabel($action) }}</span>
+                                                        </button>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endif
+                                @endif
                             @endif
 
                         </div>
@@ -528,19 +955,28 @@
                             </div>
                         @endif
 
+                        @php
+                            $rrp = $booking->return_reason_parsed ?? null;
+                            $isCustomerUnreachable = isset($rrp) && ($rrp['code'] ?? null) === 'customer_unreachable';
+                        @endphp
+
                         <div class="incoming-actions">
-                            <button type="button" class="btn-accept" data-id="{{ $booking->job_code }}"
-                                data-action="accept" {{ $disableReviewAction ? 'disabled' : '' }}>
-                                {{ $disableReviewAction
-                                    ? 'Await Scheduled Time'
-                                    : ($booking->needs_reassignment
-                                        ? 'Reassign Task'
-                                        : ($booking->status === 'reviewed'
-                                            ? 'Update Quote'
-                                            : 'Review & Quote')) }}
-                            </button>
-                            <button type="button" class="btn-reject" data-id="{{ $booking->job_code }}"
-                                data-action="reject">{{ $booking->needs_reassignment ? 'Cancel Booking' : 'Reject' }}</button>
+                            @if ($booking->needs_reassignment || $booking->needs_assignment)
+                                <button type="button" class="btn-accept" data-id="{{ $booking->job_code }}"
+                                    data-action="accept">
+
+                                    {{ $booking->needs_reassignment ? 'Reassign Task' : 'Assign Unit' }}
+                                </button>
+
+                                <button type="button" class="btn-reject" data-id="{{ $booking->job_code }}"
+                                    data-action="reject">
+                                    Cancel Booking
+                                </button>
+                            @else
+                                <span style="font-size: 0.85rem; color: #64748b;">
+                                    Booking is active and assigned to team leader
+                                </span>
+                            @endif
                         </div>
 
                     </div>
@@ -554,6 +990,8 @@
             </div>
 
         </div>
+
+        @include('admin-dashboard.pages._quotations-section')
 
         <div id="actionModal" class="hidden" aria-hidden="true" role="dialog" aria-modal="true">
             <div class="modal-card">
@@ -579,20 +1017,6 @@
                                 <label for="distanceFeeInput" class="field-label">Distance Fee</label>
                                 <input type="text" id="distanceFeeInput" class="review-field-input" readonly>
                                 <small class="inline-field-error" id="distanceFeeInputError"></small>
-                            </div>
-
-                            <div id="discountDisplayWrapper" class="modal-input modal-field">
-                                <label for="discountPercentInput" class="field-label">Discount (%)</label>
-                                <input type="number" id="discountPercentInput" class="review-field-input"
-                                    min="0" max="100" step="0.01" placeholder="0.00" required>
-                                <small class="field-help" id="discountLabel">Regular customers keep the discount field
-                                    locked. It opens only for PWD or Senior bookings.</small>
-                                <small class="inline-field-error" id="discountPercentInputError"></small>
-                            </div>
-
-                            <div class="modal-input modal-field">
-                                <label class="field-label">Discount Amount</label>
-                                <div class="computed-total compact" id="discountBadge">- ₱0.00</div>
                             </div>
 
                             <div id="priceWrapper" class="modal-input modal-field">
@@ -627,9 +1051,17 @@
                                 <small class="inline-field-error" id="unitSelectError"></small>
                             </div>
 
+
+                            <div id="dispatchZoneWrapper" class="modal-input modal-field">
+                                <label for="dispatchZoneDisplay" class="field-label">📍 Dispatch Zone</label>
+                                <input type="text" id="dispatchZoneDisplay" class="review-field-input is-locked"
+                                    readonly>
+                                <small class="field-help">Automatically detected from customer's pickup address</small>
+                            </div>
+
                             <div id="dispatcherNoteWrapper" class="modal-input modal-field full-span">
                                 <label for="dispatcherNoteInput" class="field-label">Notes</label>
-                                <textarea id="dispatcherNoteInput" rows="2"
+                                <textarea id="dispatcherNoteInput" class="review-field-input" rows="2"
                                     placeholder="Add the reason for any increase or pricing adjustment..."></textarea>
                             </div>
 
@@ -643,26 +1075,16 @@
                     <div class="review-surface">
                         <h4>Summary Card</h4>
                         <div class="review-summary-list">
-                            <div class="review-summary-row"><span>Truck Type</span><strong
-                                    id="summaryTruckType">—</strong></div>
-                            <div class="review-summary-row"><span>Distance</span><strong id="summaryDistanceKm">0.00
+                            <div class="review-summary-row"><span>Distance</span><strong id="summaryDistance">0.00
                                     km</strong></div>
-                            <div class="review-summary-row"><span>Base Rate</span><strong
-                                    id="summaryBaseRate">₱0.00</strong></div>
-                            <div class="review-summary-row"><span>Per KM Rate</span><strong
-                                    id="summaryPerKmRate">₱0.00</strong></div>
-                            <div class="review-summary-row"><span>Customer Type</span><strong
-                                    id="summaryCustomerType">Regular</strong></div>
-                            <div class="review-summary-row"><span>Base Fee</span><strong
-                                    id="summaryBaseFee">₱0.00</strong></div>
+                            <div class="review-summary-row"><span>Base Rate</span><strong id="summaryBase">₱0.00</strong>
+                            </div>
                             <div class="review-summary-row"><span>Distance Fee</span><strong
                                     id="summaryDistanceFee">₱0.00</strong></div>
-                            <div class="review-summary-row"><span>Discount</span><strong id="summaryDiscount">-
-                                    ₱0.00</strong></div>
                             <div class="review-summary-row"><span>Additional Fee</span><strong
-                                    id="summaryAdditionalFee">₱0.00</strong></div>
+                                    id="summaryAdditional">₱0.00</strong></div>
                             <div class="review-summary-row total"><span>Final Total</span><strong
-                                    id="summaryFinalTotal">₱0.00</strong></div>
+                                    id="summaryTotal">₱0.00</strong></div>
                         </div>
                     </div>
                 </div>
@@ -692,11 +1114,813 @@
             </div>
         </div>
 
+        <div id="dpConfirmModal"
+            style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);"
+            aria-modal="true" role="dialog" hidden>
+            <div
+                style="background:#fff;border-radius:18px;padding:28px 28px 24px;max-width:400px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.18);">
+                <div
+                    style="width:44px;height:44px;border-radius:12px;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+                    <svg width="22" height="22" fill="none" stroke="#dc2626" stroke-width="2"
+                        viewBox="0 0 24 24">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                </div>
+                <h3 style="margin:0 0 6px;font-size:1rem;font-weight:700;color:#0f172a;">Remove Unit</h3>
+                <p id="dpConfirmBody" style="margin:0 0 22px;font-size:.88rem;color:#64748b;line-height:1.5;">Remove the
+                    assigned unit from this team leader?</p>
+                <div style="display:flex;gap:10px;justify-content:flex-end;">
+                    <button id="dpConfirmCancel" type="button"
+                        style="padding:9px 18px;border-radius:9px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:.88rem;font-weight:600;cursor:pointer;">Cancel</button>
+                    <button id="dpConfirmOk" type="button"
+                        style="padding:9px 18px;border-radius:9px;border:none;background:#dc2626;color:#fff;font-size:.88rem;font-weight:600;cursor:pointer;">Remove</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="dp-tl-section">
+            <div class="dp-tl-header">
+                <div>
+                    <h3 class="dp-tl-title">Team Leaders</h3>
+                    <p class="dp-tl-sub">Only leaders with an assigned unit are shown. Changes sync with the Team Leaders
+                        module.</p>
+                </div>
+                <a href="{{ route('admin.drivers') }}" class="dp-tl-link">Full view &rarr;</a>
+            </div>
+
+            @php
+                $dpStatuses = $teamLeaderStatuses ?? collect();
+                $dpTLs = \App\Models\User::visibleToOperations()
+                    ->where('role_id', 3)
+                    ->with(['unit'])
+                    ->get()
+                    ->filter(fn($tl) => $tl->unit !== null); // only TLs with a unit
+                $dpUnits = \App\Models\Unit::with(['truckType', 'teamLeader'])
+                    ->orderByRaw("CASE WHEN status = 'available' THEN 0 ELSE 1 END")
+                    ->orderBy('name')
+                    ->get();
+            @endphp
+
+            @if ($dpTLs->isEmpty())
+                <div class="dp-tl-empty">No team leaders with assigned units found.</div>
+            @else
+                <div class="dp-tl-table-wrap">
+                    <table class="dp-tl-table">
+                        <thead>
+                            <tr>
+                                <th>Team Leader</th>
+                                <th>Unit</th>
+                                <th>Zone</th>
+                                <th>Status</th>
+                                <th>Override Status</th>
+                                <th>Change Unit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($dpTLs as $dtl)
+                                @php
+                                    $ds = $dpStatuses->get($dtl->id) ?? [];
+                                    $dOnline = ($ds['presence'] ?? 'offline') === 'online';
+                                    $dHasUnit = !empty($ds['unit_name']) && $ds['unit_name'] !== 'No assigned unit';
+                                    $dWorkload = $ds['workload'] ?? 'unavailable';
+                                    $dUnitSt = $ds['unit_status'] ?? null;
+                                    $dZone = $ds['zone_name'] ?? ($dtl->unit?->zone?->name ?? null);
+
+                                    // Offline forces Not Available
+                                    if (!$dOnline) {
+                                        $dBadgeLabel = 'Not Available';
+                                        $dBadgeCls = 'dp-badge--off';
+                                        $dForced = true;
+                                        $dSelVal = 'unavailable';
+                                        $dUnitLocked = true;
+                                    } elseif ($dUnitSt === 'on_tow') {
+                                        $dBadgeLabel = 'On Tow';
+                                        $dBadgeCls = 'dp-badge--tow';
+                                        $dForced = false;
+                                        $dSelVal = 'on_tow';
+                                        $dUnitLocked = true;
+                                    } elseif ($dWorkload === 'busy') {
+                                        $dBadgeLabel = 'Deployed';
+                                        $dBadgeCls = 'dp-badge--busy';
+                                        $dForced = false;
+                                        $dSelVal = 'on_job';
+                                        $dUnitLocked = true;
+                                    } elseif ($dUnitSt === 'unavailable') {
+                                        $dBadgeLabel = 'Not Available';
+                                        $dBadgeCls = 'dp-badge--off';
+                                        $dForced = false;
+                                        $dSelVal = 'unavailable';
+                                        $dUnitLocked = true;
+                                    } elseif ($dWorkload === 'idle') {
+                                        $dBadgeLabel = 'Idle';
+                                        $dBadgeCls = 'dp-badge--idle';
+                                        $dForced = true;
+                                        $dSelVal = '';
+                                        $dUnitLocked = false;
+                                    } else {
+                                        $dBadgeLabel = 'Available';
+                                        $dBadgeCls = 'dp-badge--avail';
+                                        $dForced = false;
+                                        $dSelVal = 'available';
+                                        $dUnitLocked = false;
+                                    }
+
+                                    $dParts = explode(' ', trim($dtl->name));
+                                    $dInitials = strtoupper(
+                                        substr($dParts[0], 0, 1) .
+                                            (count($dParts) > 1 ? substr(end($dParts), 0, 1) : ''),
+                                    );
+                                @endphp
+                                <tr class="dp-tl-row" data-tlid="{{ $dtl->id }}">
+                                    <td>
+                                        <div class="dp-name-cell">
+                                            <div class="dp-avatar">{{ $dInitials }}</div>
+                                            <div>
+                                                <div class="dp-name">{{ $dtl->name }}</div>
+                                                <div
+                                                    class="dp-presence dp-presence--{{ $dOnline ? 'online' : 'offline' }}">
+                                                    {{ $dOnline ? 'Online' : 'Offline' }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="dp-unit-cell" id="dpUnit-{{ $dtl->id }}">
+                                        {{ $dHasUnit ? $ds['unit_name'] ?? ($dtl->unit?->name ?? '—') : $dtl->unit?->name ?? '—' }}
+                                    </td>
+                                    <td>
+                                        @if ($dZone)
+                                            <span class="dp-zone-badge">{{ $dZone }}</span>
+                                        @else
+                                            <span class="dp-zone-none">No zone</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <span class="dp-status-badge {{ $dBadgeCls }}">{{ $dBadgeLabel }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="dp-ctrl-cell">
+                                            <select class="dp-select dp-status-sel" data-tlid="{{ $dtl->id }}"
+                                                data-current="{{ $dSelVal }}"
+                                                data-online="{{ $dOnline ? '1' : '0' }}"
+                                                {{ $dForced ? 'disabled' : '' }}>
+                                                <option value="available"
+                                                    {{ $dSelVal === 'available' ? 'selected' : '' }}>Available</option>
+                                                <option value="unavailable"
+                                                    {{ $dSelVal === 'unavailable' ? 'selected' : '' }}>Not Available
+                                                </option>
+                                                <option value="on_tow" {{ $dSelVal === 'on_tow' ? 'selected' : '' }}>On
+                                                    Tow</option>
+                                                <option value="on_job" {{ $dSelVal === 'on_job' ? 'selected' : '' }}>On
+                                                    Job</option>
+                                            </select>
+                                            <span class="dp-saving" id="dpStSaving-{{ $dtl->id }}"></span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="dp-ctrl-cell">
+                                            <select class="dp-select dp-unit-sel" data-tlid="{{ $dtl->id }}"
+                                                {{ $dUnitLocked ? 'disabled' : '' }}>
+                                                <option value="">— Change —</option>
+                                                @foreach ($dpUnits as $du)
+                                                    <option value="{{ $du->id }}"
+                                                        {{ ($dtl->unit?->id ?? null) == $du->id ? 'selected' : '' }}>
+                                                        {{ $du->name }}
+                                                        ({{ $du->plate_number }})
+                                                        {{ $du->status !== 'available' ? ' [' . $du->status . ']' : '' }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                            <span class="dp-saving" id="dpUnSaving-{{ $dtl->id }}"></span>
+                                        </div>
+                                        @if ($dUnitLocked && $dOnline)
+                                            <div style="font-size:.72rem;color:#94a3b8;margin-top:3px;">Locked —
+                                                {{ $dBadgeLabel }}</div>
+                                        @endif
+                                        @if (!$dUnitLocked && $dOnline && $dtl->unit !== null)
+                                            <button type="button" class="dp-remove-btn"
+                                                data-tlid="{{ $dtl->id }}">Remove unit</button>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+
+    </div>{{-- /.dashboard-container --}}
+
+    {{-- Service Fee Modal --}}
+    <div class="sf-modal-backdrop" id="serviceFeeModal" aria-hidden="true">
+        <div class="sf-modal-card">
+            <h3>💰 Apply Service Fee</h3>
+            <p>Apply a cancellation service fee to this booking.</p>
+
+            <label for="serviceFeeAmount">Service Fee Amount (₱)</label>
+            <input type="number" id="serviceFeeAmount" min="0" step="0.01" placeholder="0.00" required>
+
+            <label for="serviceFeeReason">Reason</label>
+            <textarea id="serviceFeeReason" placeholder="Customer cancelled after unit was dispatched..." required></textarea>
+
+            <div class="sf-modal-actions">
+                <button type="button" class="sf-btn sf-btn--cancel" id="cancelServiceFeeBtn">Cancel</button>
+                <button type="button" class="sf-btn sf-btn--primary" id="confirmServiceFeeBtn">Apply Fee</button>
+            </div>
+        </div>
+    </div>
+
+    {{-- Customer Risk Modal --}}
+    <div class="sf-modal-backdrop" id="customerRiskModal" aria-hidden="true">
+        <div class="sf-modal-card">
+            <h3>🚩 Mark Customer Risk</h3>
+            <p>Flag this customer for future reference.</p>
+
+            <label for="riskLevel">Risk Level</label>
+            <select id="riskLevel" required>
+                <option value="">Select risk level</option>
+                <option value="low">Low - Minor issue</option>
+                <option value="medium">Medium - Repeated issues</option>
+                <option value="high">High - Serious concern</option>
+                <option value="blacklist">Blacklist - Do not serve</option>
+            </select>
+
+            <label for="riskReason">Reason</label>
+            <textarea id="riskReason" placeholder="Customer cancelled multiple times after dispatch..." required></textarea>
+
+            <div class="sf-modal-actions">
+                <button type="button" class="sf-btn sf-btn--cancel" id="cancelRiskBtn">Cancel</button>
+                <button type="button" class="sf-btn sf-btn--primary" id="confirmRiskBtn">Mark Customer</button>
+            </div>
+        </div>
     </div>
 
 @endsection
 
 @push('scripts')
     <script src="{{ asset('dispatcher/js/dispatch.js') }}?v={{ filemtime(public_path('dispatcher/js/dispatch.js')) }}">
+    </script>
+    <script>
+        (function() {
+            var CSRF = document.querySelector('meta[name="csrf-token"]').content;
+
+            function setSaving(id, on) {
+                var el = document.getElementById(id);
+                if (el) {
+                    el.textContent = on ? 'Saving…' : '';
+                    el.style.color = '#94a3b8';
+                }
+            }
+
+            function showMsg(id, msg, ok) {
+                var el = document.getElementById(id);
+                if (!el) return;
+                el.textContent = msg;
+                el.style.color = ok ? '#16a34a' : '#dc2626';
+                setTimeout(function() {
+                    el.textContent = '';
+                }, 3500);
+            }
+
+            /* Enforce offline = disabled on load */
+            document.querySelectorAll('.dp-status-sel').forEach(function(sel) {
+                if (sel.dataset.online === '0') {
+                    sel.disabled = true;
+                    sel.value = 'unavailable';
+                }
+            });
+
+            /* Status override — same endpoint as Team Leaders module */
+            document.querySelectorAll('.dp-status-sel').forEach(function(sel) {
+                sel.addEventListener('change', function() {
+                    var tlid = sel.dataset.tlid;
+                    var value = sel.value;
+                    setSaving('dpStSaving-' + tlid, true);
+                    sel.disabled = true;
+
+                    var fd = new FormData();
+                    fd.append('_token', CSRF);
+                    fd.append('_method', 'PATCH');
+                    fd.append('unit_status', value);
+
+                    fetch('/admin-dashboard/drivers/' + tlid + '/override', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json'
+                            },
+                            body: fd
+                        })
+                        .then(function(r) {
+                            return r.json();
+                        })
+                        .then(function(data) {
+                            setSaving('dpStSaving-' + tlid, false);
+                            sel.disabled = (sel.dataset.online === '0');
+                            if (data.errors) {
+                                var msg = typeof data.errors === 'string' ? data.errors : Object
+                                    .values(data.errors)[0];
+                                showMsg('dpStSaving-' + tlid, msg, false);
+                                sel.value = sel.dataset.current;
+                                return;
+                            }
+                            sel.dataset.current = value;
+
+                            // Lock or unlock the unit select based on new status
+                            var unitSel = sel.closest('tr').querySelector('.dp-unit-sel');
+                            if (unitSel) {
+                                unitSel.disabled = ['unavailable', 'on_tow', 'on_job'].indexOf(
+                                    value) !== -1;
+                            }
+
+                            // If unit was released, hide the row (TL no longer has a unit)
+                            if (data.unit_released) {
+                                var row = sel.closest('tr');
+                                if (row) {
+                                    row.style.transition = 'opacity .3s';
+                                    row.style.opacity = '0';
+                                    setTimeout(function() {
+                                        row.remove();
+                                    }, 320);
+                                }
+                                return;
+                            }
+
+                            /* Sync the status badge in the same row */
+                            var row = sel.closest('tr');
+                            var badge = row ? row.querySelector('.dp-status-badge') : null;
+                            var map = {
+                                available: ['Available', 'dp-badge--avail'],
+                                unavailable: ['Not Available', 'dp-badge--off'],
+                                on_tow: ['On Tow', 'dp-badge--tow'],
+                                on_job: ['Deployed', 'dp-badge--busy'],
+                            };
+                            if (badge && map[value]) {
+                                badge.textContent = map[value][0];
+                                badge.className = 'dp-status-badge ' + map[value][1];
+                            }
+                            showMsg('dpStSaving-' + tlid, 'Saved', true);
+                        })
+                        .catch(function() {
+                            setSaving('dpStSaving-' + tlid, false);
+                            sel.disabled = (sel.dataset.online === '0');
+                            sel.value = sel.dataset.current;
+                            showMsg('dpStSaving-' + tlid, 'Error', false);
+                        });
+                });
+            });
+
+            /* ── Confirm modal ── */
+            var _dpConfirmResolve = null;
+            var dpConfirmModal = document.getElementById('dpConfirmModal');
+            var dpConfirmOk = document.getElementById('dpConfirmOk');
+            var dpConfirmCancel = document.getElementById('dpConfirmCancel');
+            var dpConfirmBody = document.getElementById('dpConfirmBody');
+
+            function dpShowConfirm(message) {
+                return new Promise(function(resolve) {
+                    _dpConfirmResolve = resolve;
+                    dpConfirmBody.textContent = message;
+                    dpConfirmModal.hidden = false;
+                    dpConfirmModal.style.display = 'flex';
+                    dpConfirmOk.focus();
+                });
+            }
+
+            function dpCloseConfirm(result) {
+                dpConfirmModal.hidden = true;
+                dpConfirmModal.style.display = 'none';
+                if (_dpConfirmResolve) {
+                    _dpConfirmResolve(result);
+                    _dpConfirmResolve = null;
+                }
+            }
+            dpConfirmOk.addEventListener('click', function() {
+                dpCloseConfirm(true);
+            });
+            dpConfirmCancel.addEventListener('click', function() {
+                dpCloseConfirm(false);
+            });
+            dpConfirmModal.addEventListener('click', function(e) {
+                if (e.target === dpConfirmModal) dpCloseConfirm(false);
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && !dpConfirmModal.hidden) dpCloseConfirm(false);
+            });
+
+            /* Remove unit — same endpoint as Team Leaders module */
+            document.querySelectorAll('.dp-remove-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var tlid = btn.dataset.tlid;
+                    dpShowConfirm(
+                            'Remove the assigned unit from this team leader? They will be set to Idle.')
+                        .then(function(confirmed) {
+                            if (!confirmed) return;
+                            btn.disabled = true;
+
+                            var fd = new FormData();
+                            fd.append('_token', CSRF);
+
+                            fetch('/admin-dashboard/drivers/' + tlid + '/remove-unit', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Accept': 'application/json'
+                                    },
+                                    body: fd
+                                })
+                                .then(function(r) {
+                                    return r.json();
+                                })
+                                .then(function(data) {
+                                    if (data.errors) {
+                                        showMsg('dpUnSaving-' + tlid, typeof data.errors ===
+                                            'string' ? data.errors : Object.values(data
+                                                .errors)[0], false);
+                                        btn.disabled = false;
+                                        return;
+                                    }
+                                    var row = btn.closest('tr');
+                                    if (row) {
+                                        row.style.transition = 'opacity .3s';
+                                        row.style.opacity = '0';
+                                        setTimeout(function() {
+                                            row.remove();
+                                        }, 320);
+                                    }
+                                })
+                                .catch(function() {
+                                    btn.disabled = false;
+                                    showMsg('dpUnSaving-' + tlid, 'Error', false);
+                                });
+                        });
+                });
+            });
+
+            /* Unit assignment — same endpoint as Team Leaders module */
+            document.querySelectorAll('.dp-unit-sel').forEach(function(sel) {
+                sel.addEventListener('change', function() {
+                    var tlid = sel.dataset.tlid;
+                    var unitId = sel.value;
+                    if (!unitId) return;
+                    setSaving('dpUnSaving-' + tlid, true);
+                    sel.disabled = true;
+
+                    var fd = new FormData();
+                    fd.append('_token', CSRF);
+                    fd.append('unit_id', unitId);
+
+                    fetch('/admin-dashboard/drivers/' + tlid + '/assign-unit', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json'
+                            },
+                            body: fd
+                        })
+                        .then(function(r) {
+                            return r.json();
+                        })
+                        .then(function(data) {
+                            setSaving('dpUnSaving-' + tlid, false);
+                            sel.disabled = false;
+                            if (data.errors) {
+                                var msg = typeof data.errors === 'string' ? data.errors : Object
+                                    .values(data.errors)[0];
+                                showMsg('dpUnSaving-' + tlid, msg, false);
+                                sel.value = '';
+                                return;
+                            }
+                            /* Update unit name cell */
+                            var unitCell = document.getElementById('dpUnit-' + tlid);
+                            if (unitCell && data.assigned_unit && data.assigned_unit.name) {
+                                unitCell.textContent = data.assigned_unit.name;
+                            }
+                            showMsg('dpUnSaving-' + tlid, 'Saved', true);
+                        })
+                        .catch(function() {
+                            setSaving('dpUnSaving-' + tlid, false);
+                            sel.disabled = false;
+                            showMsg('dpUnSaving-' + tlid, 'Error', false);
+                        });
+                });
+            });
+        })();
+    </script>
+
+    <script>
+        // Return Reason Action Handlers
+        (function() {
+            var CSRF = document.querySelector('meta[name="csrf-token"]').content;
+            var serviceFeeModal = document.getElementById('serviceFeeModal');
+            var customerRiskModal = document.getElementById('customerRiskModal');
+            var currentBookingId = null;
+            var currentCustomerId = null;
+
+            // Handle return reason action buttons
+            document.addEventListener('click', function(e) {
+                var btn = e.target.closest('.rr-action-btn');
+                if (!btn) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                var action = btn.dataset.action;
+                currentBookingId = btn.dataset.bookingId;
+                currentCustomerId = btn.dataset.customerId;
+
+                switch (action) {
+                    case 'apply_service_fee':
+                        openServiceFeeModal();
+                        break;
+                    case 'mark_customer_risk':
+                        openCustomerRiskModal();
+                        break;
+                    case 'reassign_correct_unit':
+                    case 'reassign_urgently':
+                    case 'reassign':
+                        // Trigger the existing reassign flow by dispatching a synthetic click event
+                        var card = btn.closest('.incoming-card');
+                        if (card) {
+                            var acceptBtn = card.querySelector('.btn-accept');
+                            if (acceptBtn && !acceptBtn.disabled) {
+                                var clickEvent = new MouseEvent('click', {
+                                    bubbles: true,
+                                    cancelable: true,
+                                    view: window
+                                });
+                                acceptBtn.dispatchEvent(clickEvent);
+                            }
+                        }
+                        break;
+                    case 'mark_unit_maintenance':
+                        var card = btn.closest('.incoming-card');
+                        var unitId = card ? card.dataset.assignedUnit : null;
+                        if (!unitId) {
+                            alert('No unit assigned to this booking');
+                            return;
+                        }
+                        if (confirm(
+                                'Mark this unit for maintenance? It will be set to unavailable and require maintenance review.'
+                            )) {
+                            fetch('/admin-dashboard/units/' + unitId + '/maintenance', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-TOKEN': CSRF,
+                                        'Accept': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        reason: 'Vehicle issue reported during booking ' +
+                                            currentBookingId,
+                                        booking_id: currentBookingId
+                                    })
+                                })
+                                .then(function(r) {
+                                    return r.json();
+                                })
+                                .then(function(data) {
+                                    if (data.success) {
+                                        alert('Unit marked for maintenance successfully');
+                                        location.reload();
+                                    } else {
+                                        alert(data.message || 'Failed to mark unit for maintenance');
+                                    }
+                                })
+                                .catch(function() {
+                                    alert('Error marking unit for maintenance');
+                                });
+                        }
+                        break;
+                    case 'assign_different_unit':
+                        // Open reassign modal and filter out the problematic unit
+                        var card = btn.closest('.incoming-card');
+                        if (card) {
+                            var acceptBtn = card.querySelector('.btn-accept');
+                            if (acceptBtn && !acceptBtn.disabled) {
+                                var currentUnit = card.dataset.assignedUnit;
+                                acceptBtn.click();
+                                // After modal opens, disable the current unit in the dropdown
+                                setTimeout(function() {
+                                    var unitSelect = document.getElementById('unitSelect');
+                                    if (unitSelect && currentUnit) {
+                                        var option = unitSelect.querySelector('option[value="' +
+                                            currentUnit + '"]');
+                                        if (option) {
+                                            option.disabled = true;
+                                            option.textContent += ' (Unavailable - Vehicle Issue)';
+                                        }
+                                        // Pre-fill dispatcher note
+                                        var noteField = document.getElementById('dispatcherNoteInput');
+                                        if (noteField) {
+                                            noteField.value =
+                                                'Reassigning to different unit due to vehicle issue with previous unit.';
+                                        }
+                                    }
+                                }, 100);
+                            }
+                        }
+                        break;
+                    case 'requote_booking':
+                        // Open reassign modal with note about vehicle mismatch
+                        var card = btn.closest('.incoming-card');
+                        if (card) {
+                            var acceptBtn = card.querySelector('.btn-accept');
+                            if (acceptBtn && !acceptBtn.disabled) {
+                                acceptBtn.click();
+                                // Pre-fill dispatcher note
+                                setTimeout(function() {
+                                    var noteField = document.getElementById('dispatcherNoteInput');
+                                    if (noteField) {
+                                        noteField.value =
+                                            'Re-quoting due to vehicle information mismatch. Please verify vehicle details with customer before dispatch.';
+                                    }
+                                }, 100);
+                            }
+                        }
+                        break;
+                    case 'contact_team_leader':
+                        var card = btn.closest('.incoming-card');
+                        if (card) {
+                            var tlName = card.dataset.returnedBy || 'Team Leader';
+                            alert('Contact Team Leader: ' + tlName +
+                                '\n\nPlease follow up to understand the situation and determine the best course of action.'
+                            );
+                        }
+                        break;
+                    case 'contact_customer':
+                    case 'attempt_contact':
+                    case 'contact_for_access':
+                        var card = btn.closest('.incoming-card');
+                        if (card) {
+                            var phone = card.querySelector('.incoming-details span:nth-child(2)');
+                            if (phone) {
+                                alert('Contact customer at: ' + phone.textContent.replace('Phone:', '').trim());
+                            }
+                        }
+                        break;
+                    case 'cancel_booking':
+                    case 'cancel_with_reason':
+                    case 'cancel_if_unresolved':
+                        // Trigger the existing reject flow by dispatching a synthetic click event
+                        var card = btn.closest('.incoming-card');
+                        if (card) {
+                            var rejectBtn = card.querySelector('.btn-reject');
+                            if (rejectBtn && !rejectBtn.disabled) {
+                                var clickEvent = new MouseEvent('click', {
+                                    bubbles: true,
+                                    cancelable: true,
+                                    view: window
+                                });
+                                rejectBtn.dispatchEvent(clickEvent);
+                            }
+                        }
+                        break;
+                    default:
+                        console.warn('Unhandled return reason action:', action);
+                        alert('Action "' + action +
+                            '" is not yet implemented. Please use the standard reassign or cancel buttons.');
+                }
+            });
+
+            // Service Fee Modal
+            function openServiceFeeModal() {
+                serviceFeeModal.classList.add('show');
+                serviceFeeModal.setAttribute('aria-hidden', 'false');
+                document.getElementById('serviceFeeAmount').value = '';
+                document.getElementById('serviceFeeReason').value = '';
+                setTimeout(function() {
+                    document.getElementById('serviceFeeAmount').focus();
+                }, 100);
+            }
+
+            function closeServiceFeeModal() {
+                serviceFeeModal.classList.remove('show');
+                serviceFeeModal.setAttribute('aria-hidden', 'true');
+            }
+
+            document.getElementById('cancelServiceFeeBtn').addEventListener('click', closeServiceFeeModal);
+            serviceFeeModal.addEventListener('click', function(e) {
+                if (e.target === serviceFeeModal) closeServiceFeeModal();
+            });
+
+            document.getElementById('confirmServiceFeeBtn').addEventListener('click', function() {
+                var amount = document.getElementById('serviceFeeAmount').value;
+                var reason = document.getElementById('serviceFeeReason').value;
+
+                if (!amount || !reason) {
+                    alert('Please fill in all fields');
+                    return;
+                }
+
+                this.disabled = true;
+                this.textContent = 'Applying...';
+
+                fetch('/admin-dashboard/booking/' + currentBookingId + '/service-fee', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': CSRF,
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            service_fee_amount: amount,
+                            service_fee_reason: reason,
+                        })
+                    })
+                    .then(function(r) {
+                        return r.json();
+                    })
+                    .then(function(data) {
+                        if (data.success) {
+                            alert(data.message);
+                            closeServiceFeeModal();
+                            location.reload();
+                        } else {
+                            alert(data.message || 'Failed to apply service fee');
+                        }
+                    })
+                    .catch(function() {
+                        alert('Error applying service fee');
+                    })
+                    .finally(function() {
+                        document.getElementById('confirmServiceFeeBtn').disabled = false;
+                        document.getElementById('confirmServiceFeeBtn').textContent = 'Apply Fee';
+                    });
+            });
+
+            // Customer Risk Modal
+            function openCustomerRiskModal() {
+                customerRiskModal.classList.add('show');
+                customerRiskModal.setAttribute('aria-hidden', 'false');
+                document.getElementById('riskLevel').value = '';
+                document.getElementById('riskReason').value = '';
+                setTimeout(function() {
+                    document.getElementById('riskLevel').focus();
+                }, 100);
+            }
+
+            function closeCustomerRiskModal() {
+                customerRiskModal.classList.remove('show');
+                customerRiskModal.setAttribute('aria-hidden', 'true');
+            }
+
+            document.getElementById('cancelRiskBtn').addEventListener('click', closeCustomerRiskModal);
+            customerRiskModal.addEventListener('click', function(e) {
+                if (e.target === customerRiskModal) closeCustomerRiskModal();
+            });
+
+            document.getElementById('confirmRiskBtn').addEventListener('click', function() {
+                var level = document.getElementById('riskLevel').value;
+                var reason = document.getElementById('riskReason').value;
+
+                if (!level || !reason) {
+                    alert('Please fill in all fields');
+                    return;
+                }
+
+                this.disabled = true;
+                this.textContent = 'Marking...';
+
+                fetch('/admin-dashboard/booking/' + currentBookingId + '/mark-risk', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': CSRF,
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            risk_level: level,
+                            risk_reason: reason,
+                        })
+                    })
+                    .then(function(r) {
+                        return r.json();
+                    })
+                    .then(function(data) {
+                        if (data.success) {
+                            alert(data.message);
+                            closeCustomerRiskModal();
+                            location.reload();
+                        } else {
+                            alert(data.message || 'Failed to mark customer risk');
+                        }
+                    })
+                    .catch(function() {
+                        alert('Error marking customer risk');
+                    })
+                    .finally(function() {
+                        document.getElementById('confirmRiskBtn').disabled = false;
+                        document.getElementById('confirmRiskBtn').textContent = 'Mark Customer';
+                    });
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeServiceFeeModal();
+                    closeCustomerRiskModal();
+                }
+            });
+        })();
     </script>
 @endpush

@@ -444,6 +444,34 @@
     cursor: not-allowed;
 }
 
+.truck-types-page .type-feedback {
+    transition: opacity 0.3s ease;
+}
+
+.truck-types-page .type-feedback.fade-out {
+    opacity: 0;
+}
+
+.truck-types-page .delete-modal-content {
+    max-width: 420px;
+    text-align: center;
+}
+
+.truck-types-page .delete-modal-content .icon-warning {
+    font-size: 3rem;
+    color: #dc2626;
+    margin-bottom: 15px;
+}
+
+.truck-types-page .delete-modal-content h3 {
+    margin-bottom: 12px;
+}
+
+.truck-types-page .delete-modal-content p {
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
 .truck-types-page .modal {
     display: none;
     position: fixed;

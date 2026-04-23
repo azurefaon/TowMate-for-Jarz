@@ -17,9 +17,19 @@ class Unit extends Model
         'truck_type_id',
         'driver_id',
         'team_leader_id',
+        'zone_id',
         'status',
-        'issue_note'
+        'issue_note',
+        'dispatcher_status',
+        'zone_confirmed',
+        'dispatcher_note',
+        'last_updated_by',
+        'last_updated_at',
     ];
+    public function zone()
+    {
+        return $this->belongsTo(Zone::class);
+    }
 
     public function truckType()
     {

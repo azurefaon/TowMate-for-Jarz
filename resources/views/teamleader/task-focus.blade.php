@@ -251,16 +251,12 @@
             <label for="returnReasonPreset">Reason</label>
             <select id="returnReasonPreset">
                 <option value="">Select a reason</option>
-                <option value="Wrong assignment">Wrong assignment</option>
-                <option value="Vehicle issue">Vehicle issue</option>
-                <option value="Customer unreachable">Customer unreachable</option>
-                <option value="Unsafe location">Unsafe location</option>
-                <option value="Emergency situation">Emergency situation</option>
-                <option value="Other">Other</option>
             </select>
+            <small class="tl-input-hint" id="returnReasonDescription" style="display:block; margin-top:4px; color:#64748b;"></small>
 
-            <label for="returnReasonNote" style="display:block; margin-top:12px;">Notes for dispatch</label>
+            <label for="returnReasonNote" style="display:block; margin-top:12px;">Additional Details <span id="returnReasonNoteRequired" style="color:#ef4444;">*</span></label>
             <textarea id="returnReasonNote" placeholder="Add a short explanation so dispatch can act faster..."></textarea>
+            <small class="tl-input-hint" id="returnReasonNoteHint" style="display:block; margin-top:4px; color:#64748b;"></small>
 
             <p class="tl-focus-feedback is-error hidden" id="returnReasonError"></p>
 

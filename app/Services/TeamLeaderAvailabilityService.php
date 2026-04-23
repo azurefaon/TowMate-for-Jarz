@@ -138,7 +138,7 @@ class TeamLeaderAvailabilityService
         // Keep summary generation read-only so dispatcher polling never removes
         // the dispatcher’s permanent unit ownership assignments.
 
-        $assignedUnitsByLeaderId = Unit::with('driver')
+        $assignedUnitsByLeaderId = Unit::with(['driver', 'zone'])
             ->whereIn('team_leader_id', $teamLeaderIds->all())
             ->get()
             ->keyBy(fn(Unit $unit) => (int) $unit->team_leader_id);
@@ -163,7 +163,7 @@ class TeamLeaderAvailabilityService
                 $savedDriverName = $activeBooking?->driver_name;
                 $dispatcherOverride = $this->operationalOverride($teamLeader);
 
-                $workload = $isBusy ? 'busy' : ($isOnline ? 'available' : 'unavailable');
+                $workload = $isBusy ? 'busy' : ($isOnline ? ($assignedUnit ? 'available' : 'standby') : 'unavailable');
 
                 if ($isOnline && in_array($dispatcherOverride['status'] ?? null, ['busy', 'unavailable'], true)) {
                     $workload = $dispatcherOverride['status'];
@@ -193,7 +193,14 @@ class TeamLeaderAvailabilityService
                     'operational_status' => $workload,
                     'operational_status_label' => $workloadLabel,
                     'status_reason' => $statusReason,
-                    'unit_status' => $assignedUnit?->status,
+                    'unit_status'        => $assignedUnit?->dispatcher_status ?? $assignedUnit?->status,
+                    'dispatcher_status'  => $assignedUnit?->dispatcher_status,
+                    'zone_name'          => $assignedUnit?->zone?->name ?? null,
+                    'zone_confirmed'     => (bool) ($assignedUnit?->zone_confirmed ?? false),
+                    'dispatcher_note'    => $assignedUnit?->dispatcher_note ?? null,
+                    'last_updated_by'    => $assignedUnit?->last_updated_by ?? null,
+                    'last_updated_at'    => $assignedUnit?->last_updated_at ?? null,
+                    'assigned_unit_id'   => $assignedUnit?->id,
                     'unit_status_label' => $this->unitStatusLabel($assignedUnit?->status),
                     'has_dispatcher_override' => filled($statusReason) || in_array($dispatcherOverride['status'] ?? null, ['busy', 'unavailable'], true),
                     'last_seen_label' => $isOnline ? 'Active now' : $this->lastSeenHuman($teamLeader),
@@ -251,17 +258,23 @@ class TeamLeaderAvailabilityService
         Unit::query()
             ->whereIn('team_leader_id', $leaderIds->all())
             ->update([
-                'team_leader_id' => null,
-                'status' => 'available',
+                'team_leader_id'    => null,
+                'status'            => 'available',
+                'dispatcher_status' => null,
+                'dispatcher_note'   => null,
+                'zone_confirmed'    => false,
+                'last_updated_by'   => null,
+                'last_updated_at'   => null,
             ]);
     }
 
     protected function workloadLabel(string $workload): string
     {
         return match ($workload) {
-            'busy' => 'Busy',
+            'busy'      => 'Busy',
             'available' => 'Available',
-            default => 'Not Available',
+            'idle'      => 'Idle',
+            default     => 'Not Available',
         };
     }
 

@@ -1,3 +1,115 @@
+// ===============================
+// FIXED GLOBAL CLICK HANDLER
+// ===============================
+document.addEventListener("click", function (e) {
+    const acceptBtn = e.target.closest(".btn-accept");
+    const rejectBtn = e.target.closest(".btn-reject");
+    const viewBtn = e.target.closest(".btn-view-quote");
+
+    if (acceptBtn) openActionModalHandler(acceptBtn, "accept");
+    if (rejectBtn) openActionModalHandler(rejectBtn, "reject");
+    if (viewBtn) viewQuotation(viewBtn.dataset.id);
+});
+
+// ===============================
+// OPEN MODAL + SET STATE
+// ===============================
+function openActionModalHandler(button, actionType) {
+    const card = button.closest(".incoming-card");
+    if (!card) return;
+
+    window.currentAction = actionType;
+    window.currentBookingId = card.dataset.id;
+    window.currentCard = card;
+
+    const modal = document.getElementById("actionModal");
+    modal.classList.remove("hidden");
+
+    document.getElementById("confirmActionBtn").disabled = false;
+
+    if (typeof populateModalFromCard === "function") {
+        populateModalFromCard(card);
+    }
+}
+
+// ===============================
+// SUBMIT ACTION (ACCEPT / REJECT)
+// ===============================
+async function submitDispatchAction(bookingId) {
+    const payload = {
+        action: window.currentAction,
+        assigned_unit_id: document.getElementById("unitSelect")?.value || null,
+        distance_km: document.getElementById("distanceInput")?.value || null,
+        distance_fee: document.getElementById("distanceFeeInput")?.value || 0,
+        additional_fee: document.getElementById("additionalFeeInput")?.value || 0,
+        dispatcher_note: document.getElementById("dispatcherNoteInput")?.value || "",
+        rejection_reason: document.getElementById("rejectReasonInput")?.value || "",
+    };
+
+    try {
+        const response = await fetch(`/admin-dashboard/booking/${bookingId}/assign`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            alert(data.message || "Validation failed.");
+            return;
+        }
+
+        if (data.success) {
+            alert("Quotation sent + email triggered ✅");
+            location.reload();
+        } else {
+            alert(data.message || "Something went wrong");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Server error");
+    }
+}
+
+document
+    .getElementById("confirmActionBtn")
+    ?.addEventListener("click", function () {
+        if (!window.currentBookingId || !window.currentAction) return;
+        submitDispatchAction(window.currentBookingId);
+    });
+});
+
+
+// --- VIEW QUOTATION (WORKING VERSION) ---
+async function viewQuotation(quotationId) {
+    try {
+        const response = await fetch(`/admin/quotation/${quotationId}`);
+        const data = await response.json();
+
+        if (!data.success) {
+            alert("Failed to load quotation");
+            return;
+        }
+
+        const q = data.quotation;
+        document.getElementById("quoteCustomer").innerText = q.customer_name;
+        document.getElementById("quotePhone").innerText = q.customer_phone;
+        document.getElementById("quotePickup").innerText = q.pickup_address;
+        document.getElementById("quoteDropoff").innerText = q.dropoff_address;
+        document.getElementById("quoteDistance").innerText =
+            q.distance_km_formatted + " km";
+        document.getElementById("quotePrice").innerText =
+            "₱" + q.estimated_price;
+        document.getElementById("quotationModal").classList.remove("hidden");
+    } catch (err) {
+        console.error(err);
+        alert("Error loading quotation");
+    }
+}
 document.addEventListener("DOMContentLoaded", function () {
     var state = {
         selectedBookingId: null,
@@ -56,34 +168,7 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     }
 
-    function syncDiscountInputState() {
-        if (!discountPercentInput) {
-            return;
-        }
-
-        var isRegular = isRegularCustomerType();
-        var defaultDiscount = roundValue(
-            (state.reviewData && state.reviewData.discountRate) || 0,
-        ).toFixed(2);
-
-        if (!String(discountPercentInput.value || "").trim()) {
-            discountPercentInput.value = defaultDiscount;
-        }
-
-        if (isRegular) {
-            discountPercentInput.value = "0.00";
-            discountPercentInput.disabled = true;
-            discountPercentInput.readOnly = true;
-            discountPercentInput.classList.add("is-locked");
-            discountPercentInput.setAttribute("aria-disabled", "true");
-            return;
-        }
-
-        discountPercentInput.disabled = false;
-        discountPercentInput.readOnly = false;
-        discountPercentInput.classList.remove("is-locked");
-        discountPercentInput.setAttribute("aria-disabled", "false");
-    }
+    // Discount logic removed
 
     if (!queueList) {
         return;
@@ -126,74 +211,48 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (actionModal) {
         actionModal.addEventListener("click", function (event) {
-            if (event.target === actionModal) {
+            if (event.target.classList.contains("modal-overlay")) {
                 closeActionModal();
             }
         });
     }
+    // ...existing code...
 
-    document.addEventListener("keydown", function (event) {
-        if (event.key === "Escape") {
-            closeActionModal();
-        }
-    });
-
-    function initializeViewToggle() {
-        var viewButtons = document.querySelectorAll(".view-btn");
-
-        if (!viewButtons.length) {
-            return;
-        }
-
-        var savedView = localStorage.getItem("dispatchView") || "list";
-        setView(savedView);
-
-        Array.prototype.forEach.call(viewButtons, function (button) {
-            button.addEventListener("click", function () {
-                var view = this.getAttribute("data-view") || "list";
-                setView(view);
-                localStorage.setItem("dispatchView", view);
-            });
-        });
-
-        function setView(view) {
-            Array.prototype.forEach.call(viewButtons, function (button) {
-                var isActive = button.getAttribute("data-view") === view;
-                button.classList.toggle("active", isActive);
-            });
-
-            if (view === "grid") {
-                queueList.classList.add("grid");
-            } else {
-                queueList.classList.remove("grid");
-            }
-        }
+    // --- POPULATE SUMMARY FROM DATABASE ---
+    function populateSummaryFromDB(data) {
+        document.getElementById("summaryDistance").innerText =
+            data.distance_km + " km";
+        document.getElementById("summaryBase").innerText = "₱" + data.base_rate;
+        document.getElementById("summaryDistanceFee").innerText =
+            "₱" + data.distance_fee;
+        document.getElementById("summaryAdditional").innerText =
+            "₱" + data.additional_fee;
+        document.getElementById("summaryTotal").innerText =
+            "₱" + data.final_total;
     }
 
-    function initializeQueueFilters() {
-        var filterButtons = document.querySelectorAll(".queue-filter-btn");
+    // // Call populateModalFromCard when opening modal
+    // function openActionModal() {
+    //     // ...existing code...
+    //     if (state.selectedCard) {
+    //         populateModalFromCard(state.selectedCard);
+    //     }
+    //     // ...existing code...
+    // }
 
-        if (!filterButtons.length) {
-            updateFilteredCount();
-            return;
+    function openActionModal() {
+        // ...existing code...
+
+        if (state.selectedCard) {
+            populateModalFromCard(state.selectedCard);
         }
 
-        var defaultFilter =
-            queueList.getAttribute("data-default-filter") || "book-now";
-        var savedFilter =
-            localStorage.getItem("dispatchQueueFilter") || defaultFilter;
-
-        Array.prototype.forEach.call(filterButtons, function (button) {
-            button.addEventListener("click", function () {
-                applyQueueFilter(
-                    button.getAttribute("data-filter") || defaultFilter,
-                );
-            });
-        });
-
-        window.applyDispatchQueueFilter = applyQueueFilter;
-        applyQueueFilter(savedFilter);
+        // ...existing code...
     }
+
+    // apply filter
+    window.applyDispatchQueueFilter = applyQueueFilter;
+    applyQueueFilter(savedFilter);
 
     function applyQueueFilter(filter) {
         var filterButtons = document.querySelectorAll(".queue-filter-btn");
@@ -414,6 +473,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    // Discount validation removed
     function validateAcceptForm(showErrors) {
         if (state.selectedAction !== "accept") {
             clearValidationSummary();
@@ -428,9 +488,6 @@ document.addEventListener("DOMContentLoaded", function () {
         var distanceFeeValue = parseNumericPrice(
             distanceFeeInput ? distanceFeeInput.value : 0,
         );
-        var discountPercentValue = parseFloat(
-            discountPercentInput ? discountPercentInput.value : 0,
-        );
         var expectedDistanceFee = roundValue(
             distanceValue * (state.reviewData ? state.reviewData.perKmRate : 0),
         );
@@ -443,9 +500,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         if (distanceFeeInput) {
             clearFieldError(distanceFeeInput);
-        }
-        if (discountPercentInput) {
-            clearFieldError(discountPercentInput);
         }
 
         function rememberError(field, message) {
@@ -482,19 +536,6 @@ document.addEventListener("DOMContentLoaded", function () {
             rememberError(
                 distanceFeeInput,
                 "Distance fee must match the distance and per KM rate.",
-            );
-        }
-
-        if (
-            !discountPercentInput ||
-            (!discountPercentInput.disabled &&
-                (!Number.isFinite(discountPercentValue) ||
-                    discountPercentValue < 0 ||
-                    discountPercentValue > 100))
-        ) {
-            rememberError(
-                discountPercentInput,
-                "Review the discount percentage before sending.",
             );
         }
 
@@ -548,9 +589,14 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        var button = target.closest(".btn-accept, .btn-reject, [data-action]");
+        var button = target.closest(".btn-accept, .btn-reject");
 
         if (!button || !queueList.contains(button)) {
+            return;
+        }
+
+        // Skip if button is disabled
+        if (button.disabled) {
             return;
         }
 
@@ -835,6 +881,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 var serverCount = Number(payload.count) || 0;
 
                 if (serverCount > currentCount) {
+                    if (
+                        actionModal &&
+                        actionModal.classList.contains("is-open")
+                    ) {
+                        console.log(
+                            "New booking detected, but modal is open — skipping reload",
+                        );
+                        return;
+                    }
+
                     window.location.reload();
                 }
             })
@@ -865,6 +921,11 @@ document.addEventListener("DOMContentLoaded", function () {
         distanceFee,
         discountPercentage,
     ) {
+        if (!button) {
+            showNotification("Error: Button reference lost.", "error");
+            return;
+        }
+
         var originalText = button.textContent;
         var csrfNode = document.querySelector('meta[name="csrf-token"]');
         var headers = {
@@ -930,9 +991,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 var card = button.closest(".incoming-card");
                 if (card) {
-                    card.remove();
+                    card.style.transition = "opacity 0.3s";
+                    card.style.opacity = "0";
+                    setTimeout(function () {
+                        card.remove();
+                        updateQueueCount(-1);
+                        updateTabBadges();
+                        updateEmptyState();
+                    }, 300);
                 }
 
+                resetBookingState();
                 updateQueueCount(-1);
                 updateEmptyState();
 
@@ -975,6 +1044,7 @@ document.addEventListener("DOMContentLoaded", function () {
             .catch(function (error) {
                 button.textContent = originalText;
                 button.disabled = false;
+                resetBookingState();
                 showNotification(
                     error.message || "Error processing booking action.",
                     "error",
@@ -1338,6 +1408,15 @@ document.addEventListener("DOMContentLoaded", function () {
             if (dispatcherNoteInput) {
                 dispatcherNoteInput.value = currentDispatcherNote || "";
             }
+
+            var dispatchZoneDisplay = document.getElementById(
+                "dispatchZoneDisplay",
+            );
+            if (dispatchZoneDisplay && state.reviewData) {
+                dispatchZoneDisplay.value =
+                    state.reviewData.dispatchZone || "General Dispatch Zone";
+            }
+
             if (confirmActionBtn) {
                 confirmActionBtn.textContent = isReturnedTask
                     ? "Reassign Task"
@@ -1435,6 +1514,16 @@ document.addEventListener("DOMContentLoaded", function () {
         if (confirmActionBtn) {
             confirmActionBtn.disabled = false;
         }
+
+        // Reset booking state when modal is cancelled
+        resetBookingState();
+    }
+
+    function resetBookingState() {
+        state.selectedBookingId = null;
+        state.selectedAction = null;
+        state.selectedButton = null;
+        state.selectedCard = null;
     }
 
     function handleModalConfirm() {
@@ -1479,11 +1568,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
         confirmActionBtn.disabled = true;
 
+        // Store references before closing modal
+        var bookingId = state.selectedBookingId;
+        var action = state.selectedAction;
+        var button = state.selectedButton;
+
         closeActionModal();
+
         reviewBooking(
-            state.selectedBookingId,
-            state.selectedAction,
-            state.selectedButton,
+            bookingId,
+            action,
+            button,
             reason || null,
             parsedQuote > 0 ? parsedQuote.toFixed(2) : null,
             dispatcherNote || null,
@@ -1642,16 +1737,6 @@ document.addEventListener("DOMContentLoaded", function () {
             zoneSummary =
                 state.reviewData.recommendedSummary + " · " + zoneSummary;
         }
-
-        unitHelper.textContent =
-            "Team Leader: " +
-            teamLeaderName +
-            " · Driver: " +
-            driverName +
-            " · " +
-            statusSummary +
-            " · " +
-            zoneSummary;
     }
 
     function updateQuotationPreview(value) {
@@ -1755,4 +1840,52 @@ document.addEventListener("DOMContentLoaded", function () {
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
     }
+
+    function toggleOps(id) {
+        const el = document.getElementById("ops-" + id);
+        if (!el) return;
+
+        el.style.display = el.style.display === "none" ? "block" : "none";
+    }
+
+    // Return feature functions
+    function handleReturnReject(bookingId, button) {
+        var card = button.closest(".incoming-card");
+        var returnReason = card ? card.getAttribute("data-return-reason") : "";
+
+        state.selectedButton = button;
+        state.selectedCard = card;
+        state.selectedBookingId = bookingId;
+        state.selectedAction = "reject";
+
+        openActionModal();
+
+        if (rejectReasonInput && returnReason) {
+            rejectReasonInput.value = "Cancelled after return: " + returnReason;
+        }
+    }
+
+    function handleReturnReassign(bookingId, button) {
+        var card = button.closest(".incoming-card");
+        var returnReason = card ? card.getAttribute("data-return-reason") : "";
+        var returnedBy = card ? card.getAttribute("data-returned-by") : "";
+
+        state.selectedButton = button;
+        state.selectedCard = card;
+        state.selectedBookingId = bookingId;
+        state.selectedAction = "accept";
+
+        openActionModal();
+
+        if (dispatcherNoteInput && returnReason) {
+            dispatcherNoteInput.value =
+                "Reassigned after return by " +
+                (returnedBy || "team leader") +
+                ": " +
+                returnReason;
+        }
+    }
+
+    window.handleReturnReject = handleReturnReject;
+    window.handleReturnReassign = handleReturnReassign;
 });

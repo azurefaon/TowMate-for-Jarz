@@ -8,12 +8,14 @@ if (toggle) {
     });
 }
 
-nav.querySelectorAll("a").forEach((link) => {
-    link.addEventListener("click", () => {
-        toggle.classList.remove("active");
-        nav.classList.remove("active");
+if (nav) {
+    nav.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", () => {
+            toggle.classList.remove("active");
+            nav.classList.remove("active");
+        });
     });
-});
+}
 
 /* SMOOTH SCROLL */
 
@@ -116,17 +118,25 @@ window.addEventListener("scroll", () => {
         window.innerHeight + scrollTop >= document.body.scrollHeight - 10;
     const scrolly = window.scrollY;
 
-    if (scrolly > 400) {
-        floatingBtn.classList.add("show");
-    } else {
-        floatingBtn.classList.remove("show");
+    if (floatingBtn) {
+        if (scrolly > 400) {
+            floatingBtn.classList.add("show");
+        } else {
+            floatingBtn.classList.remove("show");
+        }
     }
 
     if (atBottom && !isAtBottom) {
-        document.getElementById("floatingBookBtn").style.display = "block";
+        const floatingBookBtn = document.getElementById("floatingBookBtn");
+        if (floatingBookBtn) {
+            floatingBookBtn.style.display = "block";
+        }
         isAtBottom = true;
     } else if (!isScrollingDown && isAtBottom) {
-        document.getElementById("floatingBookBtn").style.display = "none";
+        const floatingBookBtn = document.getElementById("floatingBookBtn");
+        if (floatingBookBtn) {
+            floatingBookBtn.style.display = "none";
+        }
         isAtBottom = false;
     }
 

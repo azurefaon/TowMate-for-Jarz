@@ -239,7 +239,12 @@ function bindFormEvents() {
         toggleBookBtn();
     });
 
-    customerType?.addEventListener("change", calculateEstimate);
+    document
+        .querySelector('select[name="customer_type"]')
+        ?.addEventListener("change", () => {
+            calculateEstimate();
+            toggleBookBtn();
+        });
     elements.serviceTypeSelect?.addEventListener("change", () => {
         clearScheduleFallbackAcceptance();
         toggleScheduleFields();
@@ -670,8 +675,8 @@ function populateBookingSummary() {
     const phone = document.querySelector('[name="phone"]')?.value?.trim() || "";
     const email = document.querySelector('[name="email"]')?.value?.trim() || "";
     const customerType =
-        document.querySelector('[name="customer_type"]')?.selectedOptions?.[0]
-            ?.text || "Regular";
+        document.querySelector('select[name="customer_type"]')
+            ?.selectedOptions?.[0]?.text || "Regular";
     const vehicle =
         elements.vehicleSelect?.selectedOptions?.[0]?.text || "Not selected";
     const vehicleCategory =
@@ -708,7 +713,6 @@ function populateBookingSummary() {
     if (summaryRoot) {
         const customerItems = [
             { label: "Name", value: fullName || "Not provided", wide: true },
-            age ? { label: "Age", value: age } : null,
             phone ? { label: "Phone", value: phone } : null,
             email ? { label: "Email", value: email } : null,
             { label: "Customer Type", value: customerType },
@@ -1414,6 +1418,9 @@ async function updateRoutePreview() {
 }
 
 function toggleBookBtn() {
+    // Only run on the customer page — landing page manages its own button state
+    if (!document.getElementById("bookBtn")) return;
+
     const pickup = elements.pickupInput?.value.trim();
     const dropoff = elements.dropoffInput?.value.trim();
     const bookBtn = elements.bookBtn;
@@ -1453,26 +1460,38 @@ function fitBothMarkers() {
 }
 
 async function calculateEstimate() {
+    console.log("calculateEstimate called", {
+        pickupCoords,
+        dropCoords,
+        vehicleSelect: elements.vehicleSelect?.value,
+    });
+
     if (!elements.vehicleSelect) {
         resetEstimatePreview(Boolean(pickupCoords && dropCoords));
         return;
     }
 
-    const selectedOption =
-        elements.vehicleSelect.options[elements.vehicleSelect.selectedIndex];
+    const truckTypeId =
+        elements.vehicleSelect.value ||
+        elements.vehicleSelect.options?.[elements.vehicleSelect.selectedIndex]
+            ?.value;
 
-    if (!selectedOption?.value) {
+    if (!truckTypeId) {
+        console.log("No truck type selected");
         resetEstimatePreview(true);
         return;
     }
 
     if (!pickupCoords || !dropCoords) {
+        console.log("Missing coords, applying base preview");
         applyTruckBasePreview(Boolean(pickupCoords && dropCoords));
         return;
     }
 
+    console.log("Calling pricing API...");
+
     const payload = {
-        truck_type_id: selectedOption.value,
+        truck_type_id: truckTypeId,
         pickup_lat: pickupCoords[1],
         pickup_lng: pickupCoords[0],
         drop_lat: dropCoords[1],
@@ -1683,12 +1702,13 @@ function setText(id, value) {
 }
 
 function getSelectedTruckRates() {
-    const selectedOption =
-        elements.vehicleSelect?.options?.[elements.vehicleSelect.selectedIndex];
+    const el = elements.vehicleSelect;
+    const selectedOption = el?.options?.[el.selectedIndex];
+    const dataset = selectedOption?.dataset || el?.dataset || {};
 
     return {
-        base: Number(selectedOption?.dataset?.base || 0),
-        perKm: Number(selectedOption?.dataset?.perkm || 0),
+        base: Number(dataset.base || 0),
+        perKm: Number(dataset.perkm || 0),
     };
 }
 
@@ -1864,15 +1884,12 @@ function prepareBookingData() {
     if (elements.pickupLatInput && pickupCoords) {
         elements.pickupLatInput.value = pickupCoords[1];
     }
-
     if (elements.pickupLngInput && pickupCoords) {
         elements.pickupLngInput.value = pickupCoords[0];
     }
-
     if (elements.dropLatInput && dropCoords) {
         elements.dropLatInput.value = dropCoords[1];
     }
-
     if (elements.dropLngInput && dropCoords) {
         elements.dropLngInput.value = dropCoords[0];
     }
@@ -1880,26 +1897,23 @@ function prepareBookingData() {
     const distanceInput = document.getElementById("distance_input");
     const priceInput = document.getElementById("price_input");
     const additionalFeeInput = document.getElementById("additional_fee_input");
+    const etaInput = document.getElementById("eta_minutes");
 
-    if (distanceInput && document.getElementById("distance")) {
-        distanceInput.value = document
-            .getElementById("distance")
-            .innerText.replace(" km", "")
-            .trim();
+    // ✅ Read from module-level variables — never from DOM text elements
+    if (distanceInput) {
+        distanceInput.value = currentDistanceKm > 0 ? currentDistanceKm : "";
     }
-
-    if (priceInput && document.getElementById("price")) {
-        priceInput.value = document
-            .getElementById("price")
-            .innerText.replace("₱", "")
-            .trim();
+    if (priceInput) {
+        priceInput.value = currentEstimateTotal > 0 ? currentEstimateTotal : "";
     }
-
-    if (additionalFeeInput && document.getElementById("additionalFee")) {
-        additionalFeeInput.value = document
-            .getElementById("additionalFee")
-            .innerText.replace("₱", "")
-            .trim();
+    if (additionalFeeInput) {
+        const addFee = lastPricingSnapshot
+            ? parseCurrencyValue(lastPricingSnapshot.additionalFeeText)
+            : 0;
+        additionalFeeInput.value = addFee > 0 ? addFee : "0";
+    }
+    if (etaInput && currentEtaMinutes > 0) {
+        etaInput.value = Math.round(currentEtaMinutes);
     }
 }
 

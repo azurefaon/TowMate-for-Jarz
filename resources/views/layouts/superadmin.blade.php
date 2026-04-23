@@ -322,21 +322,9 @@
                 </a>
             </li>
 
-            <li>
-                <a href="{{ route('superadmin.users.index') }}"
-                    class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
-                    <i data-lucide="users"></i>
-                    <span>Manage Users</span>
-                </a>
-            </li>
-
-            <li>
-                <a href="{{ route('superadmin.unit-truck.index') }}"
-                    class="{{ request()->routeIs('superadmin.unit-truck.*') ? 'active' : '' }}">
-                    <i data-lucide="truck"></i>
-                    <span>Units Overview</span>
-                </a>
-            </li>
+            <!-- OPERATIONS SECTION -->
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-section">OPERATIONS</div>
 
             <li>
                 <a href="{{ route('superadmin.bookings.index') }}"
@@ -347,6 +335,46 @@
                     @if (isset($pendingBookings) && $pendingBookings > 0)
                         <span class="badge">{{ $pendingBookings }}</span>
                     @endif
+                </a>
+            </li>
+
+            <!-- FLEET MANAGEMENT SECTION -->
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-section">FLEET MANAGEMENT</div>
+
+            <li>
+                <a href="{{ route('superadmin.unit-truck.index') }}"
+                    class="{{ request()->routeIs('superadmin.unit-truck.*') ? 'active' : '' }}">
+                    <i data-lucide="truck"></i>
+                    <span>Units Overview</span>
+                </a>
+            </li>
+
+            <li>
+                <a href="{{ route('superadmin.truck-types.index') }}"
+                    class="{{ request()->routeIs('superadmin.truck-types.*') ? 'active' : '' }}">
+                    <i data-lucide="package"></i>
+                    <span>Truck Types</span>
+                </a>
+            </li>
+
+            <li>
+                <a href="{{ route('superadmin.vehicle-types.index') }}"
+                    class="{{ request()->routeIs('superadmin.vehicle-types.*') ? 'active' : '' }}">
+                    <i data-lucide="car"></i>
+                    <span>Vehicle Types</span>
+                </a>
+            </li>
+
+            <!-- USER MANAGEMENT SECTION -->
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-section">USER MANAGEMENT</div>
+
+            <li>
+                <a href="{{ route('superadmin.users.index') }}"
+                    class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
+                    <i data-lucide="users"></i>
+                    <span>Manage Users</span>
                 </a>
             </li>
 

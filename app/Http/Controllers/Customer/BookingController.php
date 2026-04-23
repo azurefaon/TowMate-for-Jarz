@@ -16,6 +16,7 @@ use App\Models\Customer;
 use App\Models\TruckType;
 use App\Services\BookingService;
 use App\Services\DocumentGenerationService;
+use App\Services\QuotationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -27,11 +28,16 @@ class BookingController extends Controller
 {
     protected BookingService $bookingService;
     protected DocumentGenerationService $documentGenerationService;
+    protected QuotationService $quotationService;
 
-    public function __construct(BookingService $bookingService, DocumentGenerationService $documentGenerationService)
-    {
+    public function __construct(
+        BookingService $bookingService,
+        DocumentGenerationService $documentGenerationService,
+        QuotationService $quotationService
+    ) {
         $this->bookingService = $bookingService;
         $this->documentGenerationService = $documentGenerationService;
+        $this->quotationService = $quotationService;
     }
 
     public function store(BookingRequest $request)
@@ -44,20 +50,55 @@ class BookingController extends Controller
             return $restrictedResponse;
         }
 
-        if ($duplicateResponse = $this->rejectDuplicateActiveRouteBooking($existingCustomer, $data)) {
-            return $duplicateResponse;
+        // Check for active quotation
+        if ($existingCustomer && $this->quotationService->hasActiveQuotation($existingCustomer->id)) {
+            $activeQuotation = $this->quotationService->getActiveQuotation($existingCustomer->id);
+            $timeRemaining = $activeQuotation->getTimeRemaining();
+
+            // If expired, allow new quotation
+            if (!$timeRemaining || !$timeRemaining['expired']) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'phone' => 'You have a pending quotation (Ref: ' . $activeQuotation->quotation_number . '). ' .
+                            'Please accept, reject, or wait for it to expire (' . ($timeRemaining['message'] ?? 'expired') . ') before requesting a new quotation.',
+                    ]);
+            }
         }
 
         if ($request->hasFile('vehicle_image')) {
             $data['vehicle_image_path'] = $request->file('vehicle_image')->store('vehicle_images', 'public');
         }
 
-        $booking = $this->bookingService->createBooking($data, Auth::user());
+        // Create or find customer
+        $customer = $existingCustomer ?? $this->bookingService->resolveCustomer($data, Auth::user());
 
-        broadcast(new NewBooking($booking));
+        $pricing = $this->bookingService->calculatePricing($data);
 
-        return redirect()->route('landing')
-            ->with('success', 'Booking created successfully! Reference: ' . $booking->job_code . '. We will contact you shortly.');
+        $submittedPrice = isset($data['price']) && is_numeric($data['price']) && (float)$data['price'] > 0
+            ? (float) $data['price']
+            : $pricing['final_total'];
+
+        $quotation = $this->quotationService->createQuotation([
+            'customer_id'        => $customer->id,
+            'truck_type_id'      => $data['truck_type_id'],
+            'pickup_address'     => $data['pickup_address'],
+            'dropoff_address'    => $data['dropoff_address'],
+            'pickup_notes'       => $data['pickup_notes'] ?? $data['pickup_landmark'] ?? null,
+            'distance_km'        => $data['distance_km'] ?? $pricing['distance_km'],
+            'vehicle_make'       => $data['vehicle_make'] ?? null,
+            'vehicle_model'      => $data['vehicle_model'] ?? null,
+            'vehicle_year'       => $data['vehicle_year'] ?? null,
+            'vehicle_color'      => $data['vehicle_color'] ?? null,
+            'vehicle_plate_number' => $data['vehicle_plate_number'] ?? null,
+            'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
+            'estimated_price'    => $submittedPrice, // ✅ exact amount customer saw and confirmed
+            'additional_fee'     => 0,
+            'eta_minutes'        => $data['eta_minutes'] ?? null,
+        ]);
+
+        return redirect()->route('customer.dashboard')
+            ->with('success', 'Quotation request submitted! Reference: ' . $quotation->quotation_number . '. We will send you a quotation shortly.');
     }
 
     public function landingStore(LandingBookingRequest $request)
@@ -73,8 +114,20 @@ class BookingController extends Controller
                 return $restrictedResponse;
             }
 
-            if ($duplicateResponse = $this->rejectDuplicateActiveRouteBooking($existingCustomer, $data)) {
-                return $duplicateResponse;
+            // Check for active quotation
+            if ($this->quotationService->hasActiveQuotation($existingCustomer->id)) {
+                $activeQuotation = $this->quotationService->getActiveQuotation($existingCustomer->id);
+                $timeRemaining = $activeQuotation->getTimeRemaining();
+
+                // If expired, allow new quotation
+                if (!$timeRemaining || !$timeRemaining['expired']) {
+                    return back()
+                        ->withInput()
+                        ->withErrors([
+                            'phone' => 'You have a pending quotation (Ref: ' . $activeQuotation->quotation_number . '). ' .
+                                'Please accept, reject, or wait for it to expire (' . ($timeRemaining['message'] ?? 'expired') . ') before requesting a new quotation.',
+                        ]);
+                }
             }
 
             $recentSpamBooking = Booking::where('customer_id', $existingCustomer->id)
@@ -86,7 +139,7 @@ class BookingController extends Controller
                 return back()
                     ->withInput()
                     ->withErrors([
-                        'phone' => 'Please wait a few minutes before booking again.',
+                        'phone' => 'Please wait a few minutes before requesting again.',
                     ]);
             }
         }
@@ -111,28 +164,55 @@ class BookingController extends Controller
             $data['vehicle_image_path'] = $request->file('vehicle_image')->store('vehicle_images', 'public');
         }
 
-        $booking = $this->bookingService->createBooking($data);
-        $booking->loadMissing(['customer', 'truckType']);
-
-        if ($booking->customer?->email) {
-            try {
-                Mail::to($booking->customer->email)->send(new BookingRequestReceivedMail($booking));
-            } catch (\Exception $e) {
-                Log::error('Failed to send booking request email', [
-                    'booking_id' => $booking->id,
-                    'customer_email' => $booking->customer->email,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+        // Pass ETA from form if available
+        if ($request->has('eta_minutes')) {
+            $data['eta_minutes'] = $request->input('eta_minutes');
+        } elseif ($request->has('duration_min')) {
+            $data['eta_minutes'] = $request->input('duration_min');
         }
 
-        broadcast(new NewBooking($booking));
+        // Create or find customer
+        $customer = $existingCustomer ?? $this->bookingService->resolveCustomer($data);
+
+        $pricing = $this->bookingService->calculatePricing($data);
+
+        $submittedPrice = isset($data['price']) && is_numeric($data['price']) && (float)$data['price'] > 0
+            ? (float) $data['price']
+            : $pricing['final_total'];
+
+        $quotation = $this->quotationService->createQuotation([
+            'customer_id'        => $customer->id,
+            'truck_type_id'      => $data['truck_type_id'],
+            'pickup_address'     => $data['pickup_address'],
+            'dropoff_address'    => $data['dropoff_address'],
+            'pickup_notes'       => $data['pickup_notes'] ?? $data['pickup_landmark'] ?? null,
+            'distance_km'        => $data['distance_km'] ?? $pricing['distance_km'],
+            'vehicle_make'       => $data['vehicle_make'] ?? null,
+            'vehicle_model'      => $data['vehicle_model'] ?? null,
+            'vehicle_year'       => $data['vehicle_year'] ?? null,
+            'vehicle_color'      => $data['vehicle_color'] ?? null,
+            'vehicle_plate_number' => $data['vehicle_plate_number'] ?? null,
+            'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
+            'estimated_price'    => $submittedPrice, // ✅ exact amount customer saw and confirmed
+            'additional_fee'     => 0,
+            'eta_minutes'        => $data['eta_minutes'] ?? null,
+        ]);
+
+        $quotation->load(['customer', 'truckType']);
+
+        // TODO: Send email notification about quotation request
+        // if ($quotation->customer?->email) {
+        //     Mail::to($quotation->customer->email)->send(new QuotationRequestReceivedMail($quotation));
+        // }
+
+        // TODO: Notify dispatcher about new quotation request
+        // broadcast(new NewQuotationRequest($quotation));
 
         return redirect()->route('landing')
             ->with(
                 'success',
-                'Booking created successfully! Reference: ' . $booking->job_code . '. We will contact you shortly.' .
-                    ($booking->customer?->email ? ' A confirmation email has been sent to ' . $booking->customer->email . '.' : '')
+                'Quotation request submitted successfully! Reference: ' . $quotation->quotation_number . '. We will send you a quotation shortly.' .
+                    ($quotation->customer?->email ? ' A confirmation will be sent to ' . $quotation->customer->email . '.' : '')
             );
     }
 

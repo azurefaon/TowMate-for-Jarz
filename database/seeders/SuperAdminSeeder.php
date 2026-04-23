@@ -26,9 +26,7 @@ class SuperAdminSeeder extends Seeder
             DB::table('roles')->insertOrIgnore([
                 ['id' => 1, 'name' => 'Super Admin'],
                 ['id' => 2, 'name' => 'Admin'],
-                ['id' => 3, 'name' => 'Team Leader'],
-                ['id' => 4, 'name' => 'Driver'],
-                ['id' => 5, 'name' => 'Customer'],
+                ['id' => 3, 'name' => 'Team Leader']
             ]);
         }
 
