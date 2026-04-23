@@ -128,7 +128,23 @@
                                 </td>
 
                                 <td data-label="Action">
-                                    <span class="truck-badge">View only</span>
+                                    <div class="header-actions">
+                                        <button type="button" class="action-btn edit-btn js-edit-unit"
+                                            data-id="{{ $unit->id }}" data-name="{{ $unit->name }}"
+                                            data-plate="{{ $unit->plate_number }}" data-status="{{ $unit->status }}"
+                                            data-issue="{{ e($unit->issue_note) }}"
+                                            data-truck="{{ $unit->truck_type_id }}">
+                                            Edit
+                                        </button>
+
+                                        <form action="{{ route('superadmin.units.toggle', $unit->id) }}" method="POST">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" class="action-btn">
+                                                {{ $unit->status === 'maintenance' ? 'Enable' : 'Disable' }}
+                                            </button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         @empty

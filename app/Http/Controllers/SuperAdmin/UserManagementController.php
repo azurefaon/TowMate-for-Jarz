@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Role;
 use App\Models\SystemSetting;
+use App\Models\TruckType;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -165,10 +168,11 @@ class UserManagementController extends Controller
 
     public function edit($id)
     {
-        $user = User::findOrFail($id);
-        $roles = Role::all();
+        $user = User::with('unit')->findOrFail($id);
+        $roles = $this->manageableRoles(); // same as create mo
+        $teamLeaderCapacity = $this->teamLeaderCapacity();
 
-        return view('superadmin.users.edit', compact('user', 'roles'));
+        return view('superadmin.users.create', compact('user', 'roles', 'teamLeaderCapacity'));
     }
 
     public function update(Request $request, User $user)
@@ -183,6 +187,9 @@ class UserManagementController extends Controller
             'first_name' => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
+            'driver_first_name' => 'nullable|string|max:100',
+            'driver_middle_name' => 'nullable|string|max:100',
+            'driver_last_name' => 'nullable|string|max:100',
             'email' => $this->emailRules($user),
             'status' => 'required|in:active,inactive',
             'role_id' => [
@@ -215,13 +222,49 @@ class UserManagementController extends Controller
         $requiresRelogin = $statusChanged;
 
         $user->update([
-            'name' => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
+            'name' => build_full_name(
+                $validated['first_name'],
+                $validated['middle_name'] ?? null,
+                $validated['last_name']
+            ),
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $validated['last_name'],
             'email' => $validated['email'],
             'status' => $validated['status'],
         ]);
+
+        if ($user->role->name === 'Team Leader') {
+
+            $unit = Unit::where('team_leader_id', $user->id)->first();
+
+            if ($unit) {
+
+                if ($request->filled('driver_first_name') || $request->filled('driver_last_name')) {
+                    $unit->driver_name = build_full_name(
+                        $request->driver_first_name,
+                        $request->driver_middle_name,
+                        $request->driver_last_name
+                    );
+                }
+
+                if ($request->filled('unit_name')) {
+                    $unit->name = $request->unit_name;
+                }
+
+                $unit->save();
+            }
+        }
+
+        if ($request->filled('password')) {
+            $request->validate([
+                'password' => ['nullable', Password::min(12)->mixedCase()->numbers()]
+            ]);
+
+            $user->update([
+                'password' => Hash::make($request->password)
+            ]);
+        }
 
         if ($requiresRelogin) {
             $user->forceFill([
@@ -261,18 +304,21 @@ class UserManagementController extends Controller
     {
         $this->normalizeUserInput($request);
 
-        $validated = $request->validate([
-            'first_name' => 'required|string|max:100',
+        $teamLeaderCapacity = $this->teamLeaderCapacity();
+        $teamLeaderRoleId   = (int) ($teamLeaderCapacity['role_id'] ?? 0);
+        $isTeamLeader       = $teamLeaderRoleId > 0
+            && (int) $request->input('role_id', 0) === $teamLeaderRoleId;
+
+        $rules = [
+            'first_name'  => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
-            'last_name' => 'required|string|max:100',
-            'email' => $this->emailRules(),
-            'password' => ['required', 'confirmed', Password::min(12)->mixedCase()->numbers()->symbols()],
-            'role_id' => [
+            'last_name'   => 'required|string|max:100',
+            'email'       => $this->emailRules(),
+            'password'    => ['required', 'confirmed', Password::min(12)->mixedCase()->numbers()->symbols()],
+            'role_id'     => [
                 'required',
                 'exists:roles,id',
-                function (string $attribute, mixed $value, \Closure $fail) {
-                    $teamLeaderCapacity = $this->teamLeaderCapacity();
-
+                function (string $attribute, mixed $value, \Closure $fail) use ($teamLeaderCapacity) {
                     if (
                         $teamLeaderCapacity['role_id']
                         && (int) $value === (int) $teamLeaderCapacity['role_id']
@@ -283,33 +329,122 @@ class UserManagementController extends Controller
                 },
             ],
             'status' => 'required|in:active,inactive',
-        ], [
-            'email.required' => 'Email is required.',
-            'email.unique' => 'This email is already registered.',
-            'password.confirmed' => 'Password confirmation does not match.',
-        ]);
+        ];
 
-        $user = User::create([
-            'name' => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
-            'first_name' => $validated['first_name'],
-            'middle_name' => $validated['middle_name'] ?? null,
-            'last_name' => $validated['last_name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role_id' => $validated['role_id'],
-            'status' => $validated['status'],
-        ]);
+        if ($isTeamLeader) {
+            $rules = array_merge($rules, [
+                'driver_first_name'  => 'required|string|max:100',
+                'driver_middle_name' => 'nullable|string|max:100',
+                'driver_last_name'   => 'required|string|max:100',
+                'unit_name'          => 'required|string|max:100',
+                'unit_plate_number'  => 'required|string|max:50|unique:units,plate_number',
+                'unit_truck_class'   => 'required|in:Heavy,Medium,Light',
+            ]);
+        }
 
-        $role = Role::find($validated['role_id']);
+        $messages = [
+            'email.required'               => 'Email is required.',
+            'email.unique'                 => 'This email is already registered.',
+            'password.confirmed'           => 'Password confirmation does not match.',
+            'unit_name.required'           => 'Unit name is required.',
+            'unit_plate_number.required'   => 'Plate number is required.',
+            'unit_plate_number.unique'     => 'This plate number is already registered.',
+            'unit_truck_class.required'    => 'Truck type is required.',
+            'unit_truck_class.in'          => 'Truck type must be Heavy, Medium, or Light.',
+        ];
 
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'user_registered',
-            'entity_type' => 'User',
-            'entity_id' => $user->id,
-            'reference' => $user->name,
-            'description' => $role->name ?? 'User',
-        ]);
+        $validated = $request->validate($rules, $messages);
+
+        if ($isTeamLeader) {
+            DB::transaction(function () use ($validated) {
+                $teamLeader = User::create([
+                    'name'        => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
+                    'first_name'  => $validated['first_name'],
+                    'middle_name' => $validated['middle_name'] ?? null,
+                    'last_name'   => $validated['last_name'],
+                    'email'       => $validated['email'],
+                    'password'    => Hash::make($validated['password']),
+                    'role_id'     => $validated['role_id'],
+                    'status'      => $validated['status'],
+                ]);
+
+                $driverFirst  = trim((string) ($validated['driver_first_name'] ?? ''));
+                $driverMiddle = trim((string) ($validated['driver_middle_name'] ?? ''));
+                $driverLast   = trim((string) ($validated['driver_last_name'] ?? ''));
+
+                $truckType = TruckType::where('name', $validated['unit_truck_class'])->first();
+
+                if (!$truckType) {
+                    throw new \Exception('Truck type not configured. Please set rates first.');
+                }
+
+                $unit = Unit::create([
+                    'name'           => strtoupper(trim((string) $validated['unit_name'])),
+                    'plate_number'   => strtoupper(trim((string) $validated['unit_plate_number'])),
+                    'truck_type_id'  => $truckType->id,
+                    'team_leader_id' => $teamLeader->id,
+                    'driver_name'    => build_full_name($driverFirst, $driverMiddle ?: null, $driverLast),
+                    'status'         => 'available',
+                ]);
+
+                $tlRoleName = Role::find($validated['role_id'])?->name ?? 'Team Leader';
+
+                AuditLog::create([
+                    'user_id' => Auth::id(),
+                    'action' => 'user_registered',
+                    'entity_type' => 'User',
+                    'entity_id' => $teamLeader->id,
+                    'reference' => $teamLeader->name,
+                    'description' => $tlRoleName,
+                ]);
+
+                // AuditLog::create([
+                //     'user_id' => Auth::id(), 'action' => 'user_registered',
+                //     'entity_type' => 'User', 'entity_id' => $driver->id,
+                //     'reference' => $driver->name, 'description' => 'Driver (auto-created with Team Leader)',
+                // ]);
+
+                AuditLog::create([
+                    'user_id' => Auth::id(),
+                    'action' => 'driver_added',
+                    'entity_type' => 'Unit',
+                    'entity_id' => $unit->id,
+                    'reference' => $unit->driver_name,
+                    'description' => 'Driver assigned to unit (no account)',
+                ]);
+
+                AuditLog::create([
+                    'user_id' => Auth::id(),
+                    'action' => 'unit_created',
+                    'entity_type' => 'Unit',
+                    'entity_id' => $unit->id,
+                    'reference' => $unit->name,
+                    'description' => 'Unit auto-created with Team Leader ' . $teamLeader->name,
+                ]);
+            });
+        } else {
+            $user = User::create([
+                'name'        => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
+                'first_name'  => $validated['first_name'],
+                'middle_name' => $validated['middle_name'] ?? null,
+                'last_name'   => $validated['last_name'],
+                'email'       => $validated['email'],
+                'password'    => Hash::make($validated['password']),
+                'role_id'     => $validated['role_id'],
+                'status'      => $validated['status'],
+            ]);
+
+            $role = Role::find($validated['role_id']);
+
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'user_registered',
+                'entity_type' => 'User',
+                'entity_id' => $user->id,
+                'reference' => $user->name,
+                'description' => $role->name ?? 'User',
+            ]);
+        }
 
         return redirect()
             ->route('superadmin.users.index')

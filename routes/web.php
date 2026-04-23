@@ -244,11 +244,20 @@ Route::prefix('superadmin')
         Route::patch('users/{user}/password-request/set-password', [UserManagementController::class, 'setDefaultPassword'])->name('users.password-request.set-password');
         Route::patch('users/{user}/password-request/resolve', [UserManagementController::class, 'resolvePasswordRequest'])->name('users.password-request.resolve');
         Route::resource('users', UserManagementController::class)->except(['show']);
+
+        Route::get('/superadmin/users/{id}/edit', [UserController::class, 'edit'])
+            ->name('superadmin.users.edit');
+
+        Route::put('/superadmin/users/{id}', [UserController::class, 'update'])
+            ->name('superadmin.users.update');
+
         Route::patch('users/{id}/toggle', [UserManagementController::class, 'toggleStatus'])->name('users.toggle');
 
         Route::resource('truck-types', TruckTypeController::class);
         Route::patch('truck-types/{truckType}/toggle', [TruckTypeController::class, 'toggleStatus'])->name('truck-types.toggle');
         Route::delete('truck-types/{truckType}', [TruckTypeController::class, 'destroy'])->name('truck-types.destroy');
+        Route::get('/truck-type-config/{name}',  [TruckTypeController::class, 'getConfig'])->name('truck-type-config.get');
+        Route::post('/truck-type-config/{name}', [TruckTypeController::class, 'saveConfig'])->name('truck-type-config.save');
 
         // Vehicle Types Management
         Route::get('/vehicle-types', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'index'])->name('vehicle-types.index');
@@ -260,7 +269,11 @@ Route::prefix('superadmin')
         Route::get('/units', [UnitController::class, 'index'])->name('unit-truck.index');
         Route::post('/units', [UnitController::class, 'store'])->name('units.store');
         Route::put('/units/{id}', [UnitController::class, 'update'])->name('units.update');
-        Route::patch('/units/{id}/toggle', [UnitController::class, 'toggle'])->name('units.toggle');
+        Route::patch('/units/{id}/toggle',       [UnitController::class, 'toggle'])->name('units.toggle');
+        Route::patch('/units/{id}/disable',      [UnitController::class, 'disable'])->name('units.disable');
+        Route::patch('/units/{id}/archive',      [UnitController::class, 'archive'])->name('units.archive');
+        Route::patch('/units/{id}/restore',      [UnitController::class, 'restore'])->name('units.restore');
+        Route::delete('/units/{id}/force-delete', [UnitController::class, 'forceDelete'])->name('units.force-delete');
 
         Route::get('/bookings', [SuperAdminBookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{id}', [SuperAdminBookingController::class, 'show'])->name('bookings.show');

@@ -5,6 +5,24 @@
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/users.css') }}">
     <style>
+        .user-management-page .modal-card {
+            max-width: 900px;
+            /* lalaki na */
+            width: 95%;
+        }
+
+        .user-management-page .modal-form {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        /* full width fields */
+        .user-management-page .modal-form .form-helper-text,
+        .user-management-page .modal-actions {
+            grid-column: span 2;
+        }
+
         .sa-dialog-backdrop {
             position: fixed;
             inset: 0;
@@ -255,7 +273,6 @@
         <div class="page-top">
             <div>
                 <h1>User Management</h1>
-                <p>Modern SaaS control for account access, roles, and archived members.</p>
             </div>
 
             <div class="page-actions">
@@ -449,7 +466,11 @@
                                     <div class="action-group">
                                         <button type="button" class="action-btn edit-btn" data-id="{{ $user->id }}"
                                             data-name="{{ $user->name }}" data-email="{{ $user->email }}"
-                                            data-role="{{ $user->role_id }}" data-status="{{ $user->status }}">
+                                            data-role="{{ $user->role_id }}" data-status="{{ $user->status }}"
+                                            data-driver_first="{{ $user->unit->driver_first_name ?? '' }}"
+                                            data-driver_middle="{{ $user->unit->driver_middle_name ?? '' }}"
+                                            data-driver_last="{{ $user->unit->driver_last_name ?? '' }}"
+                                            data-unit="{{ $user->unit->name ?? '' }}">
                                             <i data-lucide="pencil"></i>
                                             Edit
                                         </button>
@@ -543,6 +564,31 @@
                     </div>
 
                     <div class="form-group">
+                        <label>New Password (optional)</label>
+                        <input type="password" name="password">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Driver First Name</label>
+                        <input type="text" name="driver_first_name" id="editDriverFirst">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Driver Middle Name</label>
+                        <input type="text" name="driver_middle_name" id="editDriverMiddle">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Driver Last Name</label>
+                        <input type="text" name="driver_last_name" id="editDriverLast">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Unit Name</label>
+                        <input type="text" name="unit_name" id="editUnitName">
+                    </div>
+
+                    <div class="form-group">
                         <label>Role</label>
                         <select name="role_id" id="editRole" disabled>
                             @foreach ($roles as $role)
@@ -576,17 +622,21 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const modal = document.getElementById('editModal');
-            const form = document.getElementById('editForm');
+            const editForm = document.getElementById('editForm');
+
             const filterForm = document.querySelector('.filters');
+
             const editName = document.getElementById('editName');
             const editEmail = document.getElementById('editEmail');
             const editRole = document.getElementById('editRole');
             const editStatus = document.getElementById('editStatus');
+
             const actionDialog = document.getElementById('actionDialog');
             const actionDialogTitle = document.getElementById('actionDialogTitle');
             const actionDialogMessage = document.getElementById('actionDialogMessage');
             const actionDialogCancel = document.getElementById('actionDialogCancel');
             const actionDialogConfirm = document.getElementById('actionDialogConfirm');
+
             const noticeDialog = document.getElementById('noticeDialog');
             const noticeDialogTitle = document.getElementById('noticeDialogTitle');
             const noticeDialogMessage = document.getElementById('noticeDialogMessage');
@@ -642,12 +692,24 @@
 
             document.querySelectorAll('.edit-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
+
+                    document.getElementById('editDriverFirst').value = this.dataset.driver_first ||
+                        '';
+                    document.getElementById('editDriverMiddle').value = this.dataset
+                        .driver_middle || '';
+                    document.getElementById('editDriverLast').value = this.dataset.driver_last ||
+                        '';
+
+                    document.getElementById('editUnitName').value = this.dataset.unit || '';
+
                     currentUserId = this.dataset.id;
                     originalStatus = this.dataset.status;
+
                     editName.value = this.dataset.name;
                     editEmail.value = this.dataset.email;
                     editRole.value = this.dataset.role;
                     editStatus.value = this.dataset.status;
+
                     modal.style.display = 'flex';
                 });
             });
@@ -690,7 +752,7 @@
             });
 
             function submitEditForm() {
-                const data = new FormData(form);
+                const data = new FormData(editForm);
 
                 fetch(`/superadmin/users/${currentUserId}`, {
                         method: 'POST',
@@ -721,7 +783,7 @@
                     .catch(error => openNoticeDialog(error.message, 'Unable to Save'));
             }
 
-            form.addEventListener('submit', function(event) {
+            editForm.addEventListener('submit', function(event) {
                 event.preventDefault();
 
                 const statusChanged = String(editStatus.value) !== String(originalStatus);

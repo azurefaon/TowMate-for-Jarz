@@ -16,7 +16,7 @@ class TruckTypeSeeder extends Seeder
         $truckTypes = [
             [
                 'name' => 'Motorcycle',
-                'base_rate' => 300.00,
+                'base_rate' => 100.00,
                 'per_km_rate' => 200.00,
                 'max_tonnage' => 0.50,
                 'description' => 'Motorcycle towing service',

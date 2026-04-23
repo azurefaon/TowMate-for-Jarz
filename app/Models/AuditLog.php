@@ -11,6 +11,8 @@ class AuditLog extends Model
         'action',
         'entity_type',
         'entity_id',
+        'reference',
+        'description',
     ];
 
     public function user()

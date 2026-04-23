@@ -306,7 +306,7 @@
                 </a>
             </li>
 
-            <li>
+            {{-- <li>
                 <a href="{{ route('control-center.index') }}"
                     class="{{ request()->routeIs('control-center.*') ? 'active' : '' }}">
                     <i data-lucide="radar"></i>
@@ -320,7 +320,7 @@
                     <i data-lucide="activity"></i>
                     <span>Monitoring</span>
                 </a>
-            </li>
+            </li> --}}
 
             <!-- OPERATIONS SECTION -->
             <div class="sidebar-divider"></div>
@@ -350,7 +350,7 @@
                 </a>
             </li>
 
-            <li>
+            {{-- <li>
                 <a href="{{ route('superadmin.truck-types.index') }}"
                     class="{{ request()->routeIs('superadmin.truck-types.*') ? 'active' : '' }}">
                     <i data-lucide="package"></i>
@@ -364,7 +364,7 @@
                     <i data-lucide="car"></i>
                     <span>Vehicle Types</span>
                 </a>
-            </li>
+            </li> --}}
 
             <!-- USER MANAGEMENT SECTION -->
             <div class="sidebar-divider"></div>

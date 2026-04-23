@@ -147,23 +147,4 @@ class QuotationController extends Controller
 
         return redirect()->to($signedShowUrl)->with($type, $message);
     }
-
-    public function rejectQuotation(Quotation $quotation, ?string $reason = null): void
-    {
-        $quotation->update([
-            'status' => 'rejected',
-            'responded_at' => now(),
-            'response_note' => $reason,
-        ]);
-    }
-
-    public function negotiateQuotation(Quotation $quotation, ?float $counterOffer, string $note): void
-    {
-        $quotation->update([
-            'status' => 'negotiating',
-            'counter_offer_amount' => $counterOffer,
-            'response_note' => $note,
-            'responded_at' => now(),
-        ]);
-    }
 }

@@ -26,8 +26,15 @@ class SuperAdminSeeder extends Seeder
             DB::table('roles')->insertOrIgnore([
                 ['id' => 1, 'name' => 'Super Admin'],
                 ['id' => 2, 'name' => 'Admin'],
-                ['id' => 3, 'name' => 'Team Leader']
+                ['id' => 3, 'name' => 'Team Leader'],
+                ['id' => 4, 'name' => 'Driver'],
             ]);
+
+            // PostgreSQL sequences don't advance when rows are inserted with
+            // explicit IDs, causing duplicate key errors on the next insert.
+            if (DB::connection()->getDriverName() === 'pgsql') {
+                DB::statement("SELECT setval(pg_get_serial_sequence('roles', 'id'), (SELECT MAX(id) FROM roles))");
+            }
         }
 
         $values = [

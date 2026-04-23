@@ -53,26 +53,29 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    document.querySelectorAll(".js-edit-unit").forEach((button) => {
-        button.addEventListener("click", () => {
-            document.getElementById("editName").value =
-                button.dataset.name || "";
-            document.getElementById("editPlate").value =
-                button.dataset.plate || "";
-            document.getElementById("editStatus").value =
-                button.dataset.status || "available";
-            document.getElementById("editIssue").value =
-                button.dataset.issue || "";
-            document.getElementById("editTruckType").value =
-                button.dataset.truck || "";
+    document.addEventListener("click", (e) => {
+        const button = e.target.closest(".js-edit-unit");
 
-            if (editForm) {
-                editForm.action = `${baseUrl}/${button.dataset.id}`;
-            }
+        if (!button) return;
 
-            syncIssueVisibility(editStatus, editIssueWrapper);
-            showModal(editModal);
-        });
+        document.getElementById("editName").value = button.dataset.name || "";
+
+        document.getElementById("editPlate").value = button.dataset.plate || "";
+
+        document.getElementById("editStatus").value =
+            button.dataset.status || "available";
+
+        document.getElementById("editIssue").value = button.dataset.issue || "";
+
+        document.getElementById("editTruckType").value =
+            button.dataset.truck || "";
+
+        if (editForm) {
+            editForm.action = `${baseUrl}/${button.dataset.id}`;
+        }
+
+        syncIssueVisibility(editStatus, editIssueWrapper);
+        showModal(editModal);
     });
 
     [addModal, editModal].forEach((modal) => {

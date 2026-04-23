@@ -16,6 +16,7 @@ class Unit extends Model
         'plate_number',
         'truck_type_id',
         'driver_id',
+        'driver_name',
         'team_leader_id',
         'zone_id',
         'status',

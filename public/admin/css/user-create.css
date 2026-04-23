@@ -256,3 +256,49 @@ CREATE USER PAGE
         justify-content: center;
     }
 }
+
+/* ── Role section boxes ─────────────────────────────────────── */
+.create-user-page .role-section-box {
+    margin: 0 0 24px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.create-user-page .role-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 700;
+    font-size: 14px;
+    color: #1e293b;
+}
+
+.create-user-page .role-section-header svg {
+    width: 18px;
+    height: 18px;
+    color: #6ea8ff;
+    flex-shrink: 0;
+}
+
+.create-user-page .role-section-body {
+    padding: 20px 18px 4px;
+}
+
+/* TL Details box is header-only, no body */
+#sectionTeamLeaderDetails {
+    margin-bottom: 12px;
+}
+
+#sectionTeamLeaderDetails .role-section-header {
+    border-bottom: none;
+    border-radius: 16px;
+}
+
+@media (max-width: 768px) {
+    .create-user-page .role-section-body { padding: 16px 14px 4px; }
+}

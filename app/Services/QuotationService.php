@@ -51,8 +51,6 @@ class QuotationService
             'vehicle_plate_number' => $data['vehicle_plate_number'] ?? null,
             'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
             'estimated_price' => $data['estimated_price'],
-            'additional_fee' => $data['additional_fee'] ?? 0,
-            'discount' => 0,
             'status' => 'pending',
         ]);
     }
@@ -120,6 +118,11 @@ class QuotationService
         DB::beginTransaction();
 
         try {
+
+            if ($quotation->status !== 'sent') {
+                throw new \Exception('Quotation already processed.');
+            }
+
             $quotation->update([
                 'status' => 'accepted',
                 'responded_at' => now(),

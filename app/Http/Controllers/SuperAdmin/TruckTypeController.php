@@ -99,6 +99,50 @@ class TruckTypeController extends Controller
         return back()->with('success', 'Truck type deleted successfully.');
     }
 
+    public function getConfig(string $name)
+    {
+        $type = TruckType::where('name', $name)->first();
+
+        if (! $type || is_null($type->base_rate)) {
+            return response()->json(['configured' => false]);
+        }
+
+        return response()->json([
+            'configured'  => true,
+            'base_rate'   => $type->base_rate,
+            'per_km_rate' => $type->per_km_rate,
+            'capacity'    => $type->max_tonnage,
+            'description' => $type->description,
+        ]);
+    }
+
+    public function saveConfig(\Illuminate\Http\Request $request, string $name)
+    {
+        if (! in_array($name, ['Heavy', 'Medium', 'Light'])) {
+            abort(422, 'Invalid truck type.');
+        }
+
+        $validated = $request->validate([
+            'base_rate'   => 'required|numeric|min:0',
+            'per_km_rate' => 'required|numeric|min:0',
+            'capacity'    => 'required|numeric|min:0',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        TruckType::updateOrCreate(
+            ['name' => $name],
+            [
+                'base_rate'   => $validated['base_rate'],
+                'per_km_rate' => $validated['per_km_rate'],
+                'max_tonnage' => $validated['capacity'],
+                'description' => $validated['description'] ?? null,
+                'status'      => 'active',
+            ]
+        );
+
+        return response()->json(['success' => true]);
+    }
+
     protected function truckTypeIsBusy(TruckType $truckType): bool
     {
         return $truckType->units()->exists()
