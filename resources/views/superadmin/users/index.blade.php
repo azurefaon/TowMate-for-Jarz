@@ -464,16 +464,10 @@
 
                                 <td data-label="Actions">
                                     <div class="action-group">
-                                        <button type="button" class="action-btn edit-btn" data-id="{{ $user->id }}"
-                                            data-name="{{ $user->name }}" data-email="{{ $user->email }}"
-                                            data-role="{{ $user->role_id }}" data-status="{{ $user->status }}"
-                                            data-driver_first="{{ $user->unit->driver_first_name ?? '' }}"
-                                            data-driver_middle="{{ $user->unit->driver_middle_name ?? '' }}"
-                                            data-driver_last="{{ $user->unit->driver_last_name ?? '' }}"
-                                            data-unit="{{ $user->unit->name ?? '' }}">
+                                        <a href="{{ route('superadmin.users.edit', $user->id) }}" class="action-btn">
                                             <i data-lucide="pencil"></i>
                                             Edit
-                                        </button>
+                                        </a>
 
                                         @if ($user->id !== auth()->id())
                                             <form method="POST" action="{{ route('superadmin.users.archive', $user) }}"
@@ -540,7 +534,7 @@
             </div>
         </div>
 
-        <div id="editModal" class="modal">
+        {{-- <div id="editModal" class="modal">
             <div class="modal-card">
                 <div class="modal-header">
                     <div>
@@ -614,22 +608,14 @@
                     </div>
                 </form>
             </div>
-        </div>
+        </div> --}}
     </div>
 @endsection
 
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const modal = document.getElementById('editModal');
-            const editForm = document.getElementById('editForm');
-
             const filterForm = document.querySelector('.filters');
-
-            const editName = document.getElementById('editName');
-            const editEmail = document.getElementById('editEmail');
-            const editRole = document.getElementById('editRole');
-            const editStatus = document.getElementById('editStatus');
 
             const actionDialog = document.getElementById('actionDialog');
             const actionDialogTitle = document.getElementById('actionDialogTitle');
@@ -641,8 +627,7 @@
             const noticeDialogTitle = document.getElementById('noticeDialogTitle');
             const noticeDialogMessage = document.getElementById('noticeDialogMessage');
             const noticeDialogOk = document.getElementById('noticeDialogOk');
-            let currentUserId = null;
-            let originalStatus = null;
+
             let debounceTimer;
             let pendingAction = null;
             let pendingNoticeAction = null;
@@ -690,29 +675,29 @@
                 });
             }
 
-            document.querySelectorAll('.edit-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
+            // document.querySelectorAll('.edit-btn').forEach(btn => {
+            //     btn.addEventListener('click', function() {
 
-                    document.getElementById('editDriverFirst').value = this.dataset.driver_first ||
-                        '';
-                    document.getElementById('editDriverMiddle').value = this.dataset
-                        .driver_middle || '';
-                    document.getElementById('editDriverLast').value = this.dataset.driver_last ||
-                        '';
+            //         document.getElementById('editDriverFirst').value = this.dataset.driver_first ||
+            //             '';
+            //         document.getElementById('editDriverMiddle').value = this.dataset
+            //             .driver_middle || '';
+            //         document.getElementById('editDriverLast').value = this.dataset.driver_last ||
+            //             '';
 
-                    document.getElementById('editUnitName').value = this.dataset.unit || '';
+            //         document.getElementById('editUnitName').value = this.dataset.unit || '';
 
-                    currentUserId = this.dataset.id;
-                    originalStatus = this.dataset.status;
+            //         currentUserId = this.dataset.id;
+            //         originalStatus = this.dataset.status;
 
-                    editName.value = this.dataset.name;
-                    editEmail.value = this.dataset.email;
-                    editRole.value = this.dataset.role;
-                    editStatus.value = this.dataset.status;
+            //         editName.value = this.dataset.name;
+            //         editEmail.value = this.dataset.email;
+            //         editRole.value = this.dataset.role;
+            //         editStatus.value = this.dataset.status;
 
-                    modal.style.display = 'flex';
-                });
-            });
+            //         modal.style.display = 'flex';
+            //     });
+            // });
 
             document.querySelectorAll('.js-confirm-action').forEach(formElement => {
                 formElement.addEventListener('submit', function(event) {
@@ -739,72 +724,6 @@
 
             noticeDialogOk?.addEventListener('click', closeNoticeDialog);
 
-            window.addEventListener('click', function(event) {
-                if (event.target === modal) {
-                    closeEditModal();
-                }
-            });
-
-            document.addEventListener('keydown', function(event) {
-                if (event.key === 'Escape') {
-                    closeEditModal();
-                }
-            });
-
-            function submitEditForm() {
-                const data = new FormData(editForm);
-
-                fetch(`/superadmin/users/${currentUserId}`, {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-                            'X-HTTP-Method-Override': 'PUT',
-                            'Accept': 'application/json'
-                        },
-                        body: data
-                    })
-                    .then(async response => {
-                        const payload = await response.json().catch(() => ({}));
-
-                        if (!response.ok) {
-                            throw new Error(payload?.errors ? Object.values(payload.errors).flat()
-                                .join('\n') : 'Unable to update user.');
-                        }
-
-                        return payload;
-                    })
-                    .then(payload => {
-                        openNoticeDialog(
-                            payload?.message || 'User details updated successfully.',
-                            'Update Complete',
-                            () => window.location.reload()
-                        );
-                    })
-                    .catch(error => openNoticeDialog(error.message, 'Unable to Save'));
-            }
-
-            editForm.addEventListener('submit', function(event) {
-                event.preventDefault();
-
-                const statusChanged = String(editStatus.value) !== String(originalStatus);
-
-                if (statusChanged) {
-                    openActionDialog(
-                        'Save status change?',
-                        'This team member should sign out and sign back in after the status update.',
-                        'Save Changes',
-                        submitEditForm
-                    );
-
-                    return;
-                }
-
-                submitEditForm();
-            });
         });
-
-        function closeEditModal() {
-            document.getElementById('editModal').style.display = 'none';
-        }
     </script>
 @endpush

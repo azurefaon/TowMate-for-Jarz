@@ -48,11 +48,6 @@
                 <span>Units & Leaders</span>
             </a>
 
-            <a href="{{ route('admin.available-units') }}"
-                class="menu-item {{ request()->routeIs('admin.available-units') ? 'active' : '' }}">
-                <i data-lucide="truck"></i>
-                <span>Unit Availability</span>
-            </a>
         </nav>
 
     </div>

@@ -570,6 +570,7 @@
     @stack('scripts')
 
     <script>
+        // Auto-dismiss server-rendered toast
         setTimeout(() => {
             const popup = document.getElementById('successPopup');
             if (popup) {
@@ -578,6 +579,18 @@
                 setTimeout(() => popup.remove(), 300);
             }
         }, 2500);
+
+        // Client-side flash (used by AJAX form redirects)
+        const _csFlash = sessionStorage.getItem('sa_flash_success');
+        if (_csFlash) {
+            sessionStorage.removeItem('sa_flash_success');
+            const toast = document.createElement('div');
+            toast.id = 'successPopup';
+            toast.className = 'success-popup';
+            toast.innerHTML = `<div class="success-box"><div class="checkmark-circle"><div class="background"></div><div class="checkmark draw"></div></div><h3>Success</h3><p>${_csFlash}</p></div>`;
+            document.getElementById('content')?.prepend(toast);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = '0.3s'; setTimeout(() => toast.remove(), 300); }, 2500);
+        }
     </script>
 
 </body>

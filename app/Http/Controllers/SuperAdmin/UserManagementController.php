@@ -168,8 +168,8 @@ class UserManagementController extends Controller
 
     public function edit($id)
     {
-        $user = User::with('unit')->findOrFail($id);
-        $roles = $this->manageableRoles(); // same as create mo
+        $user = User::with(['unit', 'unit.truckType'])->findOrFail($id);
+        $roles = $this->manageableRoles();
         $teamLeaderCapacity = $this->teamLeaderCapacity();
 
         return view('superadmin.users.create', compact('user', 'roles', 'teamLeaderCapacity'));
@@ -494,10 +494,23 @@ class UserManagementController extends Controller
             return back()->with('error', 'Cannot archive this dispatcher while they are currently online.');
         }
 
+        // Release the unit owned by this team leader so it remains visible in the dispatcher
+        // as an unassigned unit rather than disappearing entirely.
+        if (($user->role->name ?? null) === 'Team Leader') {
+            Unit::where('team_leader_id', $user->id)->update([
+                'team_leader_id'    => null,
+                'dispatcher_status' => null,
+                'zone_confirmed'    => false,
+            ]);
+        }
+
         $user->update([
-            'status' => 'inactive',
+            'status'      => 'inactive',
             'archived_at' => now(),
         ]);
+
+        // Rotate remember_token to terminate any active browser session immediately.
+        $user->forceFill(['remember_token' => Str::random(60)])->save();
 
         AuditLog::create([
             'user_id' => Auth::id(),

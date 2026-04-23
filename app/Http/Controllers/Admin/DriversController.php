@@ -32,6 +32,22 @@ class DriversController extends Controller
             ->orderBy('name')
             ->get();
 
+        $allUnits = Unit::with(['truckType', 'teamLeader', 'driver', 'zone'])
+            ->whereNull('archived_at')
+            ->where(function ($q) {
+                // Include units with no TL (offline/unassigned) AND units with an active TL.
+                // Exclude only units whose assigned TL has been archived.
+                $q->whereNull('team_leader_id')
+                  ->orWhereHas('teamLeader', fn ($sq) => $sq->whereNull('archived_at'));
+            })
+            ->orderByRaw("CASE status
+                WHEN 'available' THEN 0
+                WHEN 'on_job'    THEN 1
+                WHEN 'offline'   THEN 2
+                ELSE 3 END")
+            ->orderBy('name')
+            ->get();
+
         $busyTeamLeaders       = $this->teamLeaderAvailability->busyTeamLeaderIds();
         $teamLeaderSummary     = $this->teamLeaderAvailability->summarize($teamLeaders, $busyTeamLeaders);
         $teamLeaderStatuses    = $teamLeaderSummary['leaders']->keyBy('id');
@@ -42,6 +58,7 @@ class DriversController extends Controller
 
         return view('admin-dashboard.pages.drivers', compact(
             'teamLeaders',
+            'allUnits',
             'assignableUnits',
             'busyTeamLeaders',
             'teamLeaderStatuses',

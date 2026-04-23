@@ -245,11 +245,11 @@ Route::prefix('superadmin')
         Route::patch('users/{user}/password-request/resolve', [UserManagementController::class, 'resolvePasswordRequest'])->name('users.password-request.resolve');
         Route::resource('users', UserManagementController::class)->except(['show']);
 
-        Route::get('/superadmin/users/{id}/edit', [UserController::class, 'edit'])
-            ->name('superadmin.users.edit');
+        // Route::get('/superadmin/users/{id}/edit', [UserController::class, 'edit'])
+        //     ->name('superadmin.users.edit');
 
-        Route::put('/superadmin/users/{id}', [UserController::class, 'update'])
-            ->name('superadmin.users.update');
+        // Route::put('/superadmin/users/{id}', [UserController::class, 'update'])
+        //     ->name('superadmin.users.update');
 
         Route::patch('users/{id}/toggle', [UserManagementController::class, 'toggleStatus'])->name('users.toggle');
 

@@ -302,3 +302,304 @@ CREATE USER PAGE
 @media (max-width: 768px) {
     .create-user-page .role-section-body { padding: 16px 14px 4px; }
 }
+
+/* ── Locked / read-only field ───────────────────────────── */
+.locked-field {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 11px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #374151;
+    cursor: default;
+    pointer-events: none;
+    user-select: none;
+}
+
+.locked-field svg {
+    width: 16px;
+    height: 16px;
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
+.locked-field span:first-of-type {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.locked-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    background: #f1f5f9;
+    border-radius: 999px;
+    padding: 3px 8px;
+}
+
+.locked-badge svg {
+    width: 11px;
+    height: 11px;
+    color: #64748b;
+}
+
+.field-note {
+    display: block;
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 5px;
+}
+
+/* ── Ajax error banner ───────────────────────────────────── */
+.ajax-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 12px;
+    color: #dc2626;
+    font-size: 13.5px;
+    font-weight: 500;
+    margin-bottom: 18px;
+}
+
+.ajax-error-banner svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+/* ── Truck Type Card Selector ────────────────────────────── */
+.ttc-cards {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.ttc-card {
+    flex: 1 1 130px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    user-select: none;
+}
+
+.ttc-card:hover {
+    border-color: #93c5fd;
+    background: #f0f7ff;
+}
+
+.ttc-card.selected {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.ttc-card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ttc-card.selected .ttc-card-icon {
+    background: #dbeafe;
+}
+
+.ttc-card-icon svg {
+    width: 18px;
+    height: 18px;
+    color: #64748b;
+}
+
+.ttc-card.selected .ttc-card-icon svg {
+    color: #3b82f6;
+}
+
+.ttc-card-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ttc-card-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 2px;
+}
+
+.ttc-card-label {
+    display: block;
+    font-size: 11.5px;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ttc-card-label.is-configured {
+    color: #22c55e;
+    font-weight: 500;
+}
+
+.ttc-card.locked {
+    pointer-events: none;
+    cursor: default;
+    opacity: 0.92;
+}
+
+.ttc-card.locked .ttc-card-edit-btn {
+    pointer-events: auto;
+}
+
+.ttc-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.ttc-card-edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: #f1f5f9;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #64748b;
+    transition: background 0.12s, color 0.12s;
+}
+
+.ttc-card-edit-btn:hover {
+    background: #dbeafe;
+    color: #3b82f6;
+}
+
+.ttc-card-edit-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.ttc-card-tick {
+    color: #3b82f6;
+}
+
+.ttc-card-tick svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+/* ── Truck Type Config Modal ─────────────────────────────── */
+.ttc-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+}
+
+.ttc-overlay[hidden] {
+    display: none !important;
+}
+
+.ttc-modal {
+    background: #fff;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+}
+
+.ttc-modal-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.ttc-modal-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ttc-modal-icon svg {
+    width: 20px;
+    height: 20px;
+    color: #6ea8ff;
+}
+
+.ttc-modal-header h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    color: #111827;
+    font-weight: 700;
+}
+
+.ttc-modal-header p {
+    margin: 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.ttc-modal-body {
+    padding: 20px 24px;
+}
+
+.ttc-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.ttc-hint {
+    font-size: 11.5px;
+    color: #94a3b8;
+    margin-top: 4px;
+    display: block;
+}
+
+.ttc-error {
+    color: #dc2626;
+    font-size: 13px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: #fef2f2;
+    border-radius: 8px;
+}
