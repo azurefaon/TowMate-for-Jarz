@@ -71,7 +71,6 @@
             </a>
         </nav>
 
-        <!-- BOOKING FORM -->
         <section class="section" id="booking">
             <div class="booking-container">
                 <div class="booking-header">
@@ -80,6 +79,7 @@
                         A cleaner booking flow helps customers finish faster: enter your details, pin the pickup,
                         review the route, and confirm the request with confidence.
                     </p>
+
                     {{-- 
                     <div class="booking-flow-strip">
                         <div class="booking-flow-pill is-active"><span>1</span>Customer info</div>
@@ -94,7 +94,6 @@
                         <form id="bookingForm" class="booking-form" action="{{ route('landing.book.store') }}"
                             method="POST" enctype="multipart/form-data">
                             @csrf
-
 
                             <div class="form-section">
                                 <h3>Quick Customer Details</h3>
@@ -162,8 +161,12 @@
                                         <div class="form-group">
                                             <label for="service_type">Booking Mode *</label>
                                             <select id="service_type" name="service_type" required>
+                                                <option value="" disabled
+                                                    {{ old('service_type') ? '' : 'selected' }}>
+                                                    -- Select booking mode --
+                                                </option>
                                                 <option value="book_now"
-                                                    {{ old('service_type', 'book_now') === 'book_now' ? 'selected' : '' }}>
+                                                    {{ old('service_type') === 'book_now' ? 'selected' : '' }}>
                                                     Book Now</option>
                                                 <option value="schedule"
                                                     {{ old('service_type') === 'schedule' ? 'selected' : '' }}>Schedule
@@ -275,15 +278,45 @@
                                 <h3>Vehicle Details</h3>
 
                                 <div class="form-group">
-                                    <label for="vehicle_image">Vehicle Image *</label>
-                                    <input type="file" id="vehicle_image" name="vehicle_image"
-                                        accept=".jpg,.jpeg,.png" required>
-                                    <small style="display: block; margin-top: 6px; color: #64748b; font-size: 0.875rem;">
-                                        📸 Please include your plate number in the photo so we can identify the vehicle
-                                    </small>
-                                    @error('vehicle_image')
+                                    <label style="color:#000;font-weight:600;">
+                                        Vehicle Images <span style="color:#dc2626;font-weight:700;">*</span>
+                                        <span
+                                            style="font-weight:400;font-size:0.8rem;color:#dc2626;margin-left:4px;">(Required)</span>
+                                    </label>
+                                    <small style="display:block;margin:2px 0 8px;color:#64748b;font-size:0.8rem;">note:
+                                        include your plate number in the image</small>
+
+                                    <div id="upload_dropzone"
+                                        style="border:2px dashed #d1d5db;border-radius:10px;padding:36px 20px;text-align:center;background:#fff;cursor:pointer;transition:border-color 0.2s,background 0.2s;">
+                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
+                                            stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"
+                                            stroke-linejoin="round" style="margin:0 auto 10px;display:block;">
+                                            <polyline points="16 16 12 12 8 16"></polyline>
+                                            <line x1="12" y1="12" x2="12" y2="21"></line>
+                                            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
+                                        </svg>
+                                        <p style="margin:0;font-size:0.9rem;color:#64748b;">Drag and drop or <span
+                                                style="color:#000;font-weight:600;text-decoration:underline;text-underline-offset:2px;">browse</span>
+                                            to choose a file</p>
+                                    </div>
+
+                                    <div id="upload_counter_row"
+                                        style="display:none;justify-content:space-between;align-items:center;margin-top:10px;">
+                                        <span id="upload_count_text"
+                                            style="font-size:0.85rem;color:#000;font-weight:600;">0 of 5 uploaded</span>
+                                        <button type="button" id="upload_cancel_btn"
+                                            style="font-size:0.85rem;color:#64748b;background:none;border:none;cursor:pointer;padding:0;font-weight:500;">Cancel</button>
+                                    </div>
+
+                                    <input type="file" id="vehicle_images" name="vehicle_images[]"
+                                        accept=".jpg,.jpeg,.png" style="display:none;">
+                                    <div id="vehicle_images_preview" style="margin-top:8px;"></div>
+                                    @error('vehicle_images')
                                         <span class="error-message">{{ $message }}</span>
                                     @enderror
+                                    @foreach ($errors->get('vehicle_images.*') as $msg)
+                                        <span class="error-message">{{ $msg }}</span>
+                                    @endforeach
                                 </div>
 
                                 <div class="form-group">
@@ -603,18 +636,36 @@
                     valid = false;
                 }
 
-                const vehicleImageInput = document.getElementById('vehicle_image');
-                const file = vehicleImageInput?.files?.[0];
+                const vehicleImagesInput = document.getElementById('vehicle_images');
+                const files = window.getUploadBucket ? window.getUploadBucket().files : vehicleImagesInput?.files;
                 const allowedTypes = ['image/jpeg', 'image/png'];
+                const maxSizeBytes = 10 * 1024 * 1024;
 
-                if (!file) {
-                    setFieldError(vehicleImageInput, 'Vehicle image is required.');
-                    firstInvalidField = firstInvalidField || vehicleImageInput;
+                const imgErrorTarget = vehicleImagesInput;
+                if (!files || files.length === 0) {
+                    setFieldError(imgErrorTarget, 'At least one vehicle image is required.');
+                    firstInvalidField = firstInvalidField || imgErrorTarget;
                     valid = false;
-                } else if (!allowedTypes.includes(file.type)) {
-                    setFieldError(vehicleImageInput, 'Vehicle image must be a JPG or PNG file only.');
-                    firstInvalidField = firstInvalidField || vehicleImageInput;
+                } else if (files.length > 5) {
+                    setFieldError(imgErrorTarget, 'You may upload a maximum of 5 vehicle images.');
+                    firstInvalidField = firstInvalidField || imgErrorTarget;
                     valid = false;
+                } else {
+                    for (let i = 0; i < files.length; i++) {
+                        const f = files[i];
+                        if (!allowedTypes.includes(f.type)) {
+                            setFieldError(imgErrorTarget,
+                                `Image ${i + 1}: Only JPG and PNG files are accepted.`);
+                            firstInvalidField = firstInvalidField || imgErrorTarget;
+                            valid = false;
+                            break;
+                        } else if (f.size > maxSizeBytes) {
+                            setFieldError(imgErrorTarget, `Image ${i + 1}: Each image must not exceed 10 MB.`);
+                            firstInvalidField = firstInvalidField || imgErrorTarget;
+                            valid = false;
+                            break;
+                        }
+                    }
                 }
 
                 const pickupInput = document.getElementById('pickup_address');
@@ -840,13 +891,38 @@
                 isConfirmed = true;
                 confirmBookingBtn.disabled = true;
                 confirmBookingBtn.textContent = 'Processing...';
+                setEtaHiddenField();
 
-                if (typeof bookingForm.requestSubmit === 'function') {
-                    bookingForm.requestSubmit();
-                    return;
+                const fd = new FormData(bookingForm);
+
+                // Inject bucket files — cross-browser safe (bypasses read-only input.files)
+                fd.delete('vehicle_images[]');
+                const bkt = window.getUploadBucket ? window.getUploadBucket() : null;
+                if (bkt) {
+                    Array.from(bkt.files).forEach(function(file) {
+                        fd.append('vehicle_images[]', file, file.name);
+                    });
                 }
 
-                bookingForm.submit();
+                fetch(bookingForm.action, {
+                        method: 'POST',
+                        body: fd,
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                    })
+                    .then(function(response) {
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        window.location.href = data.redirect;
+                    })
+                    .catch(function() {
+                        confirmBookingBtn.disabled = false;
+                        confirmBookingBtn.textContent = getConfirmationActionLabel();
+                        isConfirmed = false;
+                    });
             });
 
             editBookingBtn.addEventListener('click', function() {
@@ -859,6 +935,235 @@
                 }
             });
         </script>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const input = document.getElementById('vehicle_images');
+                const preview = document.getElementById('vehicle_images_preview');
+                const dropzone = document.getElementById('upload_dropzone');
+                const counterRow = document.getElementById('upload_counter_row');
+                const countText = document.getElementById('upload_count_text');
+                const cancelBtn = document.getElementById('upload_cancel_btn');
+                if (!input || !preview || !dropzone) return;
+
+                const MAX = 5;
+                const ALLOWED = ['image/jpeg', 'image/png'];
+                const MAX_MB = 10 * 1024 * 1024;
+                let bucket = new DataTransfer();
+                let isUpdating = false;
+                const scannedFiles = new WeakSet();
+
+                dropzone.addEventListener('click', function() {
+                    input.click();
+                });
+
+                dropzone.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    dropzone.style.borderColor = '#facc15';
+                    dropzone.style.background = '#fefce8';
+                });
+
+                dropzone.addEventListener('dragleave', function() {
+                    dropzone.style.borderColor = '#d1d5db';
+                    dropzone.style.background = '#fff';
+                });
+
+                dropzone.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    dropzone.style.borderColor = '#d1d5db';
+                    dropzone.style.background = '#fff';
+                    processFiles(Array.from(e.dataTransfer.files));
+                });
+
+                input.addEventListener('change', function() {
+                    if (isUpdating) return;
+                    isUpdating = true;
+                    processFiles(Array.from(this.files));
+                    input.value = '';
+                    isUpdating = false;
+                });
+
+                function processFiles(incoming) {
+                    let err = '';
+                    for (const file of incoming) {
+                        if (bucket.files.length >= MAX) {
+                            err = 'Maximum of 5 photos allowed.';
+                            break;
+                        }
+                        if (!ALLOWED.includes(file.type)) {
+                            err = `"${file.name}": only JPG/PNG accepted.`;
+                            continue;
+                        }
+                        if (file.size > MAX_MB) {
+                            err = `"${file.name}": exceeds 2 MB limit.`;
+                            continue;
+                        }
+                        bucket.items.add(file);
+                    }
+                    updateCounter();
+                    renderPreview();
+                    showError(err);
+                }
+
+                function updateCounter() {
+                    const count = bucket.files.length;
+                    counterRow.style.display = count > 0 ? 'flex' : 'none';
+                    countText.textContent = `${count} of ${MAX} uploaded`;
+                }
+
+                function renderPreview() {
+                    preview.innerHTML = '';
+                    Array.from(bucket.files).forEach(function(file, idx) {
+                        const ext = file.name.split('.').pop().toUpperCase();
+                        const sizeKb = (file.size / 1024).toFixed(0);
+                        const isNew = !scannedFiles.has(file);
+                        if (isNew) scannedFiles.add(file);
+
+                        const row = document.createElement('div');
+                        row.style.cssText =
+                            'position:relative;border-radius:8px;overflow:hidden;background:#f1f5f9;margin-bottom:8px;cursor:pointer;';
+                        row.addEventListener('click', function() {
+                            showImagePreview(file);
+                        });
+
+                        // Scan progress bar — animates left→right on first render
+                        const bar = document.createElement('div');
+                        bar.style.cssText =
+                            'position:absolute;top:0;left:0;height:100%;width:' + (isNew ? '0' : '100') +
+                            '%;background:#facc15;opacity:0.3;transition:width 1.4s ease-in-out;pointer-events:none;';
+                        row.appendChild(bar);
+
+                        const content = document.createElement('div');
+                        content.style.cssText =
+                            'position:relative;display:flex;align-items:center;gap:10px;padding:10px 12px;';
+
+                        // Thumbnail — shows actual image, click opens full preview
+                        const thumb = document.createElement('img');
+                        thumb.style.cssText =
+                            'width:42px;height:42px;object-fit:cover;border-radius:5px;flex-shrink:0;border:2px solid #facc15;';
+                        const thumbUrl = URL.createObjectURL(file);
+                        thumb.src = thumbUrl;
+                        thumb.onload = function() {
+                            URL.revokeObjectURL(thumbUrl);
+                        };
+
+                        const badge = document.createElement('span');
+                        badge.style.cssText =
+                            'flex-shrink:0;font-size:0.62rem;font-weight:700;background:#facc15;color:#000;padding:3px 6px;border-radius:3px;letter-spacing:0.04em;';
+                        badge.textContent = ext;
+
+                        const info = document.createElement('div');
+                        info.style.cssText = 'flex:1;min-width:0;';
+
+                        const nameEl = document.createElement('p');
+                        nameEl.style.cssText =
+                            'margin:0;font-size:0.85rem;font-weight:600;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+                        nameEl.textContent = file.name;
+
+                        const sizeEl = document.createElement('p');
+                        sizeEl.style.cssText = 'margin:0;font-size:0.75rem;color:#64748b;';
+                        sizeEl.textContent = `${sizeKb} Kb`;
+
+                        info.appendChild(nameEl);
+                        info.appendChild(sizeEl);
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.textContent = '×';
+                        removeBtn.style.cssText =
+                            'flex-shrink:0;width:24px;height:24px;border-radius:50%;background:#fff;color:#64748b;border:1px solid #cbd5e1;cursor:pointer;font-size:15px;font-weight:700;line-height:1;padding:0;';
+                        removeBtn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            removeAt(idx);
+                        });
+
+                        content.appendChild(thumb);
+                        content.appendChild(badge);
+                        content.appendChild(info);
+                        content.appendChild(removeBtn);
+                        row.appendChild(content);
+                        preview.appendChild(row);
+
+                        // Trigger scan animation on newly added files
+                        if (isNew) {
+                            requestAnimationFrame(function() {
+                                requestAnimationFrame(function() {
+                                    bar.style.width = '100%';
+                                });
+                            });
+                        }
+                    });
+                }
+
+                function showImagePreview(file) {
+                    const url = URL.createObjectURL(file);
+
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText =
+                        'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.style.cssText =
+                        'max-width:90vw;max-height:88vh;border-radius:10px;object-fit:contain;box-shadow:0 25px 60px rgba(0,0,0,0.5);';
+                    img.onload = function() {
+                        URL.revokeObjectURL(url);
+                    };
+
+                    const closeBtn = document.createElement('button');
+                    closeBtn.type = 'button';
+                    closeBtn.textContent = '×';
+                    closeBtn.style.cssText =
+                        'position:absolute;top:16px;right:20px;background:#facc15;color:#000;border:none;width:38px;height:38px;border-radius:50%;font-size:22px;font-weight:700;cursor:pointer;line-height:1;padding:0;';
+                    closeBtn.addEventListener('click', function() {
+                        document.body.removeChild(overlay);
+                    });
+
+                    overlay.appendChild(img);
+                    overlay.appendChild(closeBtn);
+                    overlay.addEventListener('click', function(e) {
+                        if (e.target === overlay) document.body.removeChild(overlay);
+                    });
+                    document.body.appendChild(overlay);
+                }
+
+                function removeAt(idx) {
+                    const files = Array.from(bucket.files);
+                    bucket = new DataTransfer();
+                    files.forEach(function(f, i) {
+                        if (i !== idx) bucket.items.add(f);
+                    });
+                    updateCounter();
+                    renderPreview();
+                    showError('');
+                }
+
+                cancelBtn.addEventListener('click', function() {
+                    bucket = new DataTransfer();
+                    input.value = '';
+                    updateCounter();
+                    renderPreview();
+                    showError('');
+                });
+
+                function showError(msg) {
+                    const container = input.closest('.form-group');
+                    let errEl = container && container.querySelector('.img-accum-error');
+                    if (!errEl) {
+                        errEl = document.createElement('span');
+                        errEl.className = 'error-message img-accum-error';
+                        container && container.insertBefore(errEl, preview);
+                    }
+                    errEl.textContent = msg;
+                }
+
+                // Expose bucket so form validation and submission can read it cross-browser
+                window.getUploadBucket = function() {
+                    return bucket;
+                };
+            });
+        </script>
+
         <script src="{{ asset('customer/js/map.js') }}?v={{ filemtime(public_path('customer/js/map.js')) }}"></script>
     @endpush
 @endsection

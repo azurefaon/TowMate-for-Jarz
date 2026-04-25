@@ -31,6 +31,7 @@ class Quotation extends Model
         'additional_fee',
         'discount',
         'counter_offer_amount',
+        'service_type',
         'status',
         'sent_at',
         'expires_at',
@@ -39,6 +40,7 @@ class Quotation extends Model
         'responded_at',
         'follow_up_sent_at',
         'response_note',
+        'link_version',
     ];
 
     protected $casts = [
@@ -49,12 +51,21 @@ class Quotation extends Model
         'discount' => 'decimal:2',
         'counter_offer_amount' => 'decimal:2',
         'expiry_hours' => 'integer',
+        'link_version' => 'integer',
         'sent_at' => 'datetime',
         'expires_at' => 'datetime',
         'viewed_at' => 'datetime',
         'responded_at' => 'datetime',
         'follow_up_sent_at' => 'datetime',
     ];
+
+    public function getVehicleImagePathsAttribute(): array
+    {
+        $raw = $this->attributes['vehicle_image_path'] ?? null;
+        if (! $raw) return [];
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : [$raw];
+    }
 
     // Relationships
     public function customer(): BelongsTo

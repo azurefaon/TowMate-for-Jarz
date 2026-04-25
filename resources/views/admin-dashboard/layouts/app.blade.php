@@ -18,7 +18,7 @@
         :root {
             --jarz-accent: #FACC15;
             --jarz-bg: #ffffff;
-            --jarz-surface: #fef3c7;
+            --jarz-surface: #f1f1f1;
             --jarz-text: #111111;
             --jarz-line: #e5e7eb;
         }
@@ -178,7 +178,7 @@
         <div class="logout-box" role="dialog" aria-modal="true" aria-labelledby="logoutTitle">
             <div class="logout-icon-wrap">
                 <span class="logout-icon-badge">
-                    <i data-lucide="shield-power"></i>
+                    <i data-lucide="log-out"></i>
                 </span>
                 <button type="button" class="logout-close" onclick="closeLogoutModal()"
                     aria-label="Close logout dialog">×</button>

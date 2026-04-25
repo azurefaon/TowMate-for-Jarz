@@ -145,6 +145,22 @@ class TeamLeaderController extends Controller
         $this->touchPresence();
 
         $teamLeaderId = Auth::id();
+
+        $unit = Auth::user()->unit;
+        if (! $unit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have a registered unit. Contact your admin to register a unit before accepting tasks.',
+            ], 422);
+        }
+
+        if ($unit->dispatcher_status === 'unavailable') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your unit has been marked Not Available by the dispatcher. Contact them before accepting tasks.',
+            ], 422);
+        }
+
         $activeTask = $this->activeTask();
 
         if ($activeTask && $activeTask->id !== $booking->id) {

@@ -1,62 +1,9 @@
-@extends('layouts.superadmin')
+﻿@extends('layouts.superadmin')
 
 @section('title', 'Add User')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/user-create.css') }}">
-    <style>
-        .teamleader-capacity-card {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 16px;
-            margin: 0 0 18px;
-            border-radius: 16px;
-            background: linear-gradient(180deg, #fffdf4 0%, #ffffff 100%);
-            border: 1px solid #fde68a;
-        }
-
-        .teamleader-capacity-card strong {
-            display: block;
-            color: #111827;
-            margin-bottom: 4px;
-        }
-
-        .teamleader-capacity-card p {
-            margin: 0;
-            color: #475569;
-            font-size: 0.92rem;
-        }
-
-        .teamleader-capacity-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 74px;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: #111827;
-            color: #fff;
-            font-weight: 700;
-        }
-
-        .teamleader-capacity-hint {
-            margin: 10px 0 0;
-            color: #475569;
-            font-size: 0.9rem;
-        }
-
-        .teamleader-capacity-hint.limit-reached {
-            color: #b45309;
-            font-weight: 700;
-        }
-
-        .btn-primary-submit.is-disabled {
-            opacity: 0.6;
-            pointer-events: none;
-        }
-    </style>
 @endpush
 
 @php
@@ -74,13 +21,8 @@
             <div class="form-card">
 
                 <div class="form-header">
-                    <div class="form-icon">
-                        <i data-lucide="user-plus"></i>
-                    </div>
-                    <div>
-                        <h2>{{ $isEdit ? 'Edit User' : 'Add User' }}</h2>
-                        <p>{{ $isEdit ? 'Update user details' : 'Register new employee or admin' }}</p>
-                    </div>
+                    <h2>{{ $isEdit ? 'Edit User' : 'Add User' }}</h2>
+                    <p>{{ $isEdit ? 'Update user details' : 'Register new employee or admin' }}</p>
                 </div>
 
                 <div class="teamleader-capacity-card">
@@ -113,13 +55,13 @@
                     @endif
 
                     <div id="ajaxErrorBanner" class="ajax-error-banner" hidden>
-                        <i data-lucide="alert-circle"></i>
+                        
                         <span id="ajaxErrorText"></span>
                     </div>
 
                     <div id="sectionTeamLeaderDetails" class="role-section-box" hidden>
                         <div class="role-section-header">
-                            <i data-lucide="shield-user"></i>
+                            
                             <span>Team Leader Details</span>
                         </div>
                     </div>
@@ -127,12 +69,9 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label>First Name <span class="required-mark">*</span></label>
-                            <div class="input-with-icon">
-                                <i data-lucide="user"></i>
-                                <input type="text" name="first_name"
+                            <input type="text" name="first_name"
                                     value="{{ old('first_name', $user->first_name ?? '') }}" placeholder="First name"
                                     required>
-                            </div>
                             @error('first_name')
                                 <small class="error-text">{{ $message }}</small>
                             @enderror
@@ -140,11 +79,8 @@
 
                         <div class="form-group">
                             <label>Middle Name <span class="field-optional">Optional</span></label>
-                            <div class="input-with-icon">
-                                <i data-lucide="user"></i>
-                                <input type="text" name="middle_name"
+                            <input type="text" name="middle_name"
                                     value="{{ old('middle_name', $user->middle_name ?? '') }}" placeholder="Middle name">
-                            </div>
                             @error('middle_name')
                                 <small class="error-text">{{ $message }}</small>
                             @enderror
@@ -152,12 +88,9 @@
 
                         <div class="form-group">
                             <label>Last Name <span class="required-mark">*</span></label>
-                            <div class="input-with-icon">
-                                <i data-lucide="user"></i>
-                                <input type="text" name="last_name"
+                            <input type="text" name="last_name"
                                     value="{{ old('last_name', $user->last_name ?? '') }}" placeholder="Last name"
                                     required>
-                            </div>
                             @error('last_name')
                                 <small class="error-text">{{ $message }}</small>
                             @enderror
@@ -166,14 +99,19 @@
 
                     <div class="form-group">
                         <label>Email Address <span class="required-mark">*</span></label>
-
-                        <div class="input-with-icon">
-                            <i data-lucide="mail"></i>
-                            <input type="email" name="email" value="{{ old('email', $user->email ?? '') }}"
-                                placeholder="john@gmail.com" required>
-                        </div>
-
+                        <input type="email" name="email" value="{{ old('email', $user->email ?? '') }}"
+                            placeholder="john@gmail.com" required>
                         @error('email')
+                            <small class="error-text">{{ $message }}</small>
+                        @enderror
+                    </div>
+
+                    <div class="form-group">
+                        <label>Phone Number <span class="field-optional">Optional</span></label>
+                        <input type="text" name="phone" value="{{ old('phone', $user->phone ?? '') }}"
+                            placeholder="09XX XXX XXXX">
+                        <small class="field-note">Philippine mobile number (e.g. 09171234567 or +639171234567)</small>
+                        @error('phone')
                             <small class="error-text">{{ $message }}</small>
                         @enderror
                     </div>
@@ -183,10 +121,7 @@
                         <div class="form-group">
                             <label>Password <span class="required-mark">*</span></label>
 
-                            <div class="input-with-icon">
-                                <i data-lucide="lock"></i>
-                                <input type="password" name="password" {{ $isEdit ? '' : 'required' }}>
-                            </div>
+                            <input type="password" name="password" {{ $isEdit ? '' : 'required' }}>
                             @error('password')
                                 <small class="error-text">{{ $message }}</small>
                             @enderror
@@ -198,10 +133,7 @@
                                 Confirm Password {!! $isEdit ? '' : '<span class="required-mark">*</span>' !!}
                             </label>
 
-                            <div class="input-with-icon">
-                                <i data-lucide="lock"></i>
-                                <input type="password" name="password_confirmation" {{ $isEdit ? '' : 'required' }}>
-                            </div>
+                            <input type="password" name="password_confirmation" {{ $isEdit ? '' : 'required' }}>
                             @error('password_confirmation')
                                 <small class="error-text">{{ $message }}</small>
                             @enderror
@@ -233,10 +165,10 @@
 
                             @if ($isEdit)
                                 <input type="hidden" name="role_id" value="{{ $user->role_id }}">
-                                <div class="input-with-icon locked-field">
-                                    <i data-lucide="shield"></i>
+                                <div class="locked-field">
+                                    
                                     <span>{{ $user->role->name ?? '—' }}</span>
-                                    <span class="locked-badge"><i data-lucide="lock"></i> Locked</span>
+                                    <span class="locked-badge"> Locked</span>
                                 </div>
                                 <small class="field-note">Role cannot be changed after user creation.</small>
                             @else
@@ -285,7 +217,7 @@
                     <div id="sectionDriverDetails" class="role-section-box"
                         @if (!$isTLEdit) hidden @endif>
                         <div class="role-section-header">
-                            <i data-lucide="user-check"></i>
+                            
                             <span>Driver Details</span>
                         </div>
                         <div class="role-section-body">
@@ -293,36 +225,27 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>First Name <span class="required-mark">*</span></label>
-                                    <div class="input-with-icon">
-                                        <i data-lucide="user"></i>
-                                        <input type="text" name="driver_first_name"
+                                    <input type="text" name="driver_first_name"
                                             value="{{ old('driver_first_name', $driverParts['first_name'] ?? '') }}"
                                             placeholder="Driver first name">
-                                    </div>
                                     @error('driver_first_name')
                                         <small class="error-text">{{ $message }}</small>
                                     @enderror
                                 </div>
                                 <div class="form-group">
                                     <label>Middle Name <span class="field-optional">Optional</span></label>
-                                    <div class="input-with-icon">
-                                        <i data-lucide="user"></i>
-                                        <input type="text" name="driver_middle_name"
+                                    <input type="text" name="driver_middle_name"
                                             value="{{ old('driver_middle_name', $driverParts['middle_name'] ?? '') }}"
                                             placeholder="Driver middle name">
-                                    </div>
                                     @error('driver_middle_name')
                                         <small class="error-text">{{ $message }}</small>
                                     @enderror
                                 </div>
                                 <div class="form-group">
                                     <label>Last Name <span class="required-mark">*</span></label>
-                                    <div class="input-with-icon">
-                                        <i data-lucide="user"></i>
-                                        <input type="text" name="driver_last_name"
+                                    <input type="text" name="driver_last_name"
                                             value="{{ old('driver_last_name', $driverParts['last_name'] ?? '') }}"
                                             placeholder="Driver last name">
-                                    </div>
                                     @error('driver_last_name')
                                         <small class="error-text">{{ $message }}</small>
                                     @enderror
@@ -334,7 +257,7 @@
 
                     <div id="sectionUnitDetails" class="role-section-box" @if (!$isTLEdit) hidden @endif>
                         <div class="role-section-header">
-                            <i data-lucide="truck"></i>
+                            
                             <span>Unit Details</span>
                         </div>
                         <div class="role-section-body">
@@ -342,24 +265,18 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>Unit Name <span class="required-mark">*</span></label>
-                                    <div class="input-with-icon">
-                                        <i data-lucide="package"></i>
-                                        <input type="text" name="unit_name"
+                                    <input type="text" name="unit_name"
                                             value="{{ old('unit_name', $user->unit?->name ?? '') }}"
                                             placeholder="e.g. UNIT 1">
-                                    </div>
                                     @error('unit_name')
                                         <small class="error-text">{{ $message }}</small>
                                     @enderror
                                 </div>
                                 <div class="form-group">
                                     <label>Plate Number <span class="required-mark">*</span></label>
-                                    <div class="input-with-icon">
-                                        <i data-lucide="credit-card"></i>
-                                        <input type="text" name="unit_plate_number"
+                                    <input type="text" name="unit_plate_number"
                                             value="{{ old('unit_plate_number', $user->unit?->plate_number ?? '') }}"
                                             placeholder="e.g. ABC 1234" {{ $isEdit ? 'readonly' : '' }}>
-                                    </div>
                                     @error('unit_plate_number')
                                         <small class="error-text">{{ $message }}</small>
                                     @enderror
@@ -368,28 +285,23 @@
 
                             <div class="form-group">
                                 <label>Truck Type <span class="required-mark">*</span></label>
-                                <div class="ttc-cards" id="truckTypeCards">
-                                    @foreach (['Heavy', 'Medium', 'Light'] as $ttcType)
-                                        <div class="ttc-card" data-type="{{ $ttcType }}" data-configured="false">
-                                            <div class="ttc-card-icon">
-                                                <i data-lucide="truck"></i>
-                                            </div>
+                                <div class="ttc-cards" id="truckTypeCards" style="display:flex;flex-direction:column;gap:8px;">
+                                    @forelse ($truckTypes as $truckType)
+                                        <div class="ttc-card" data-type="{{ $truckType->name }}" data-configured="false">
                                             <div class="ttc-card-body">
-                                                <strong class="ttc-card-name">{{ $ttcType }}</strong>
+                                                <strong class="ttc-card-name">{{ $truckType->name }}</strong>
                                                 <span class="ttc-card-label">Loading…</span>
                                             </div>
                                             <div class="ttc-card-actions">
-                                                <button type="button" class="ttc-card-edit-btn" title="Edit pricing"
-                                                    hidden>
-                                                    <i data-lucide="settings-2"></i>
-                                                </button>
-                                                <div class="ttc-card-tick" hidden>
-                                                    <i data-lucide="check-circle-2"></i>
-                                                </div>
+                                                <button type="button" class="ttc-card-edit-btn" title="Edit pricing" hidden>Edit</button>
+                                                <div class="ttc-card-tick" hidden>&#10003;</div>
                                             </div>
                                         </div>
-                                    @endforeach
+                                    @empty
+                                        <p class="field-note">No active truck types found. <a href="{{ route('superadmin.truck-types.index') }}" target="_blank">Add truck types</a> in the Truck Types page first.</p>
+                                    @endforelse
                                 </div>
+                                <a href="{{ route('superadmin.truck-types.index') }}" target="_blank" class="manage-truck-types-link">+ Manage Truck Types</a>
                                 <input type="hidden" name="unit_truck_class" id="truckTypeHidden"
                                     value="{{ old('unit_truck_class', $user->unit?->truckType?->name ?? '') }}">
                                 <small id="truckTypeSelectionError" class="error-text" hidden>
@@ -410,7 +322,7 @@
                         </a>
 
                         <button type="submit" class="btn-primary-submit" id="createUserSubmit">
-                            <i data-lucide="user-plus"></i>
+                            
                             {{ $isEdit ? 'Update User' : 'Register User' }}
                         </button>
 
@@ -428,7 +340,7 @@
     <div id="truckTypeConfigModal" class="ttc-overlay" hidden>
         <div class="ttc-modal">
             <div class="ttc-modal-header">
-                <div class="ttc-modal-icon"><i data-lucide="settings"></i></div>
+                <div class="ttc-modal-icon"></div>
                 <div>
                     <h3 id="ttcModalTitle">Configure Truck Type</h3>
                     <p>Set pricing and capacity before this type can be used.</p>
@@ -438,18 +350,14 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Base Rate (₱) <span class="required-mark">*</span></label>
-                        <div class="input-with-icon">
-                            <i data-lucide="banknote"></i>
-                            <input type="number" id="ttcBaseRate" min="0" step="0.01"
+                        <input type="number" id="ttcBaseRate" min="0" step="0.01"
                                 placeholder="e.g. 1000">
                         </div>
                         <small class="ttc-hint">Flat charge for up to 4 km</small>
                     </div>
                     <div class="form-group">
                         <label>Per KM Rate (₱) <span class="required-mark">*</span></label>
-                        <div class="input-with-icon">
-                            <i data-lucide="banknote"></i>
-                            <input type="number" id="ttcPerKmRate" min="0" step="0.01"
+                        <input type="number" id="ttcPerKmRate" min="0" step="0.01"
                                 placeholder="e.g. 200">
                         </div>
                         <small class="ttc-hint">Added per km beyond 4 km</small>
@@ -457,16 +365,12 @@
                 </div>
                 <div class="form-group">
                     <label>Capacity (kg) <span class="required-mark">*</span></label>
-                    <div class="input-with-icon">
-                        <i data-lucide="package"></i>
-                        <input type="number" id="ttcCapacity" min="0" step="1" placeholder="e.g. 3000">
+                    <input type="number" id="ttcCapacity" min="0" step="1" placeholder="e.g. 3000">
                     </div>
                 </div>
                 <div class="form-group">
                     <label>Description <span class="field-optional">Optional</span></label>
-                    <div class="input-with-icon">
-                        <i data-lucide="file-text"></i>
-                        <input type="text" id="ttcDescription" placeholder="e.g. For medium-sized vehicles">
+                    <input type="text" id="ttcDescription" placeholder="e.g. For medium-sized vehicles">
                     </div>
                 </div>
                 <div id="ttcError" class="ttc-error" hidden></div>
@@ -474,7 +378,7 @@
             <div class="ttc-modal-footer">
                 <button type="button" id="ttcCancelBtn" class="btn-cancel">Cancel</button>
                 <button type="button" id="ttcSaveBtn" class="btn-primary-submit">
-                    <i data-lucide="save"></i> Save Config
+                     Save Config
                 </button>
             </div>
         </div>
@@ -645,10 +549,12 @@
                 lucide.createIcons();
             };
 
+            const allTruckTypeNames = @json($truckTypes->pluck('name'));
+
             const loadAllConfigs = async () => {
                 if (configsLoaded) return;
                 configsLoaded = true;
-                await Promise.all(['Heavy', 'Medium', 'Light'].map(async (name) => {
+                await Promise.all(allTruckTypeNames.map(async (name) => {
                     const label = typeCardMap[name]?.querySelector('.ttc-card-label');
                     if (label) label.textContent = 'Loading…';
                     try {
@@ -907,3 +813,6 @@
         });
     </script>
 @endpush
+
+
+

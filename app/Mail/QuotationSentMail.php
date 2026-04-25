@@ -65,16 +65,18 @@ class QuotationSentMail extends Mailable
     {
         $expiresAt = $this->quotation->expires_at ?? now()->addDays(7);
 
+        $version = $this->quotation->link_version ?? 1;
+
         $signedAcceptUrl = URL::temporarySignedRoute(
             'quotation.accept',
             $expiresAt,
-            ['quotation' => $this->quotation->id]
+            ['quotation' => $this->quotation->id, 'v' => $version]
         );
 
         $signedShowUrl = URL::temporarySignedRoute(
             'quotation.show',
             $expiresAt,
-            ['quotation' => $this->quotation->id]
+            ['quotation' => $this->quotation->id, 'v' => $version]
         );
 
         return $this->view('emails.quotation-sent')

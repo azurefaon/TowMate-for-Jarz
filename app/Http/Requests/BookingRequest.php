@@ -36,7 +36,7 @@ class BookingRequest extends FormRequest
         }
 
         if (! in_array($serviceType, ['book_now', 'schedule'], true)) {
-            $serviceType = 'book_now';
+            $serviceType = '';
         }
 
         if ($serviceType === 'schedule') {
@@ -45,9 +45,9 @@ class BookingRequest extends FormRequest
         }
 
         $this->merge([
-            'first_name' => $firstName !== '' ? $firstName : null,
-            'middle_name' => $middleName !== '' ? $middleName : null,
-            'last_name' => $lastName !== '' ? $lastName : null,
+            'first_name' => $firstName !== '' ? strip_tags($firstName) : null,
+            'middle_name' => $middleName !== '' ? strip_tags($middleName) : null,
+            'last_name' => $lastName !== '' ? strip_tags($lastName) : null,
             'full_name' => build_full_name($firstName, $middleName, $lastName),
             'phone' => normalize_ph_phone($this->input('phone')) ?? $this->input('phone'),
             'email' => filled($this->input('email')) ? strtolower(trim((string) $this->input('email'))) : optional($this->user())->email,
@@ -55,14 +55,16 @@ class BookingRequest extends FormRequest
             'service_type' => $serviceType,
             'scheduled_date' => $scheduledDate !== '' ? $scheduledDate : null,
             'scheduled_time' => $scheduledTime !== '' ? $scheduledTime : null,
-            'notes' => $notes !== '' ? $notes : null,
-            'pickup_notes' => $pickupNotes !== '' ? $pickupNotes : null,
-            'pickup_landmark' => $pickupLandmark !== '' ? $pickupLandmark : null,
-            'dropoff_landmark' => $dropoffLandmark !== '' ? $dropoffLandmark : null,
-            'additional_directions' => $additionalDirections !== '' ? $additionalDirections : null,
+            'notes' => $notes !== '' ? strip_tags($notes) : null,
+            'pickup_notes' => $pickupNotes !== '' ? strip_tags($pickupNotes) : null,
+            'pickup_landmark' => $pickupLandmark !== '' ? strip_tags($pickupLandmark) : null,
+            'dropoff_landmark' => $dropoffLandmark !== '' ? strip_tags($dropoffLandmark) : null,
+            'additional_directions' => $additionalDirections !== '' ? strip_tags($additionalDirections) : null,
             'vehicle_category' => $vehicleCategory !== '' ? $vehicleCategory : null,
             'discount_code' => $discountCode !== '' ? $discountCode : null,
             'confirmation_type' => $this->input('confirmation_type', 'system'),
+            'pickup_address' => strip_tags(trim((string) $this->input('pickup_address'))),
+            'dropoff_address' => strip_tags(trim((string) $this->input('dropoff_address'))),
         ]);
     }
 
@@ -103,7 +105,13 @@ class BookingRequest extends FormRequest
             'additional_directions' => 'nullable|string|max:1000',
             'vehicle_category' => 'required|in:2_wheeler,3_wheeler,4_wheeler,heavy_vehicle,other',
             'discount_code' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9\-\s]+$/'],
-            'vehicle_image' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
+            'vehicle_images'   => ['nullable', 'array', 'max:5'],
+            'vehicle_images.*' => [
+                'file',
+                'mimes:jpg,jpeg,png',
+                'max:2048',
+                'dimensions:max_width=2048,max_height=1536',
+            ],
             'service_type' => 'required|in:book_now,schedule',
             'scheduled_date' => 'nullable|required_if:service_type,schedule|date|after_or_equal:today',
             'scheduled_time' => 'nullable|required_if:service_type,schedule|date_format:H:i',
@@ -117,8 +125,13 @@ class BookingRequest extends FormRequest
             'phone.regex' => 'Please enter a valid Philippine phone number.',
             'vehicle_category.required' => 'Please select your vehicle category before continuing.',
             'discount_code.regex' => 'Discount codes may only use letters, numbers, spaces, or dashes.',
-            'vehicle_image.mimes' => 'Vehicle image must be a JPG or PNG file only.',
+            'vehicle_images.max'          => 'You may upload a maximum of 5 vehicle images.',
+            'vehicle_images.*.mimes'      => 'Each vehicle image must be a JPG or PNG file only. GIF and other formats are not accepted.',
+            'vehicle_images.*.max'        => 'Each vehicle image must not exceed 2 MB.',
+            'vehicle_images.*.dimensions' => 'Each vehicle image must not exceed 2048×1536 pixels (standard booking photo size).',
             'truck_type_id.exists' => 'Selected vehicle type is currently unavailable. Please choose an available truck type.',
+            'service_type.required' => 'Please select a booking mode (Book Now or Schedule Later).',
+            'service_type.in' => 'Invalid booking mode selected.',
         ];
     }
 

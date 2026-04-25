@@ -24,6 +24,7 @@ class DriversController extends Controller
     {
         $teamLeaders = User::visibleToOperations()
             ->where('role_id', 3)
+            ->whereHas('unit', fn ($q) => $q->whereNull('archived_at'))
             ->with(['unit', 'unit.driver'])
             ->get();
 
@@ -32,7 +33,7 @@ class DriversController extends Controller
             ->orderBy('name')
             ->get();
 
-        $allUnits = Unit::with(['truckType', 'teamLeader', 'driver', 'zone'])
+        $allUnits = Unit::with(['truckType', 'teamLeader.role', 'driver.role', 'zone'])
             ->whereNull('archived_at')
             ->where(function ($q) {
                 // Include units with no TL (offline/unassigned) AND units with an active TL.
@@ -245,30 +246,6 @@ class DriversController extends Controller
 
         $unitStatus = $validated['unit_status'] ?? null;
 
-        // When dispatcher marks as unavailable, release the unit entirely
-        if ($unitStatus === 'unavailable' && $unit) {
-            $unit->update([
-                'team_leader_id'    => null,
-                'status'            => 'available',
-                'dispatcher_status' => 'unavailable',
-                'dispatcher_note'   => $validated['dispatcher_note'] ?? null,
-                'zone_confirmed'    => false,
-                'last_updated_by'   => Auth::user()->name,
-                'last_updated_at'   => now(),
-            ]);
-
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'status'         => ['label' => 'NOT AVAILABLE', 'class' => 'status-not-avail', 'subtext' => 'Unit released'],
-                    'assigned_unit'  => ['id' => null, 'name' => '', 'plate_number' => '', 'driver_name' => ''],
-                    'unit_released'  => true,
-                    'team_leader_id' => $teamLeaderId,
-                ], 200);
-            }
-
-            return back()->with('success', 'Team leader marked unavailable and unit released.');
-        }
-
         if (! $unit) {
             if ($request->expectsJson()) {
                 return response()->json(['errors' => 'No unit found for this team leader.'], 422);
@@ -290,24 +267,36 @@ class DriversController extends Controller
             $teamLeader = User::findOrFail($teamLeaderId);
             $summary    = $this->teamLeaderAvailability->summarize(collect([$teamLeader]));
             $leader     = $summary['leaders']->first();
+            $unitStatus = $leader['unit_status'] ?? 'standby';
 
             return response()->json([
                 'status' => [
                     'label'   => strtoupper($leader['unit_status_label'] ?? ''),
-                    'class'   => 'status-' . ($leader['unit_status'] ?? 'standby'),
+                    'class'   => 'status-' . $unitStatus,
                     'subtext' => $leader['status_summary'] ?? '',
                 ],
                 'assigned_unit' => [
-                    'id'          => $leader['assigned_unit_id'] ?? null,
-                    'name'        => $leader['unit_name'] ?? '',
-                    'plate_number'=> $leader['plate_number'] ?? '',
-                    'driver_name' => $leader['driver_name'] ?? '',
+                    'id'           => $leader['assigned_unit_id'] ?? null,
+                    'name'         => $leader['unit_name'] ?? '',
+                    'plate_number' => $leader['plate_number'] ?? '',
+                    'driver_name'  => $leader['driver_name'] ?? '',
                 ],
                 'unit_released'  => false,
+                'new_tab'        => $this->effStatusToTab($unitStatus),
                 'team_leader_id' => $teamLeaderId,
             ], 200);
         }
 
         return back()->with('success', 'Team leader status updated.');
+    }
+
+    private function effStatusToTab(string $unitStatus): string
+    {
+        return match ($unitStatus) {
+            'on_job', 'on_tow'           => 'on_job',
+            'not_avail', 'unavailable'   => 'not_avail',
+            'offline'                    => 'offline',
+            default                      => 'available',
+        };
     }
 }

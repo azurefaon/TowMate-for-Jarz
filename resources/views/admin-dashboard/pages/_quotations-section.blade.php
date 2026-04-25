@@ -33,6 +33,18 @@
             </div>
         </div>
 
+        <!-- Sub-tabs: Book Now / Scheduled -->
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+            <button class="qt-tab" data-type="book_now"
+                style="padding:8px 20px; border-radius:6px; font-weight:700; font-size:0.85rem; background:#dcfce7; color:#166534; border:2px solid #86efac; cursor:pointer;">
+                Book Now
+            </button>
+            <button class="qt-tab" data-type="schedule"
+                style="padding:8px 20px; border-radius:6px; font-weight:700; font-size:0.85rem; background:#fff; color:#374151; border:2px solid #e5e7eb; cursor:pointer;">
+                Scheduled
+            </button>
+        </div>
+
         <!-- Quotations Table -->
         <div
             style="background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -42,6 +54,9 @@
                         <th
                             style="padding: 12px 16px; text-align: left; font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">
                             Quotation #</th>
+                        <th
+                            style="padding: 12px 16px; text-align: left; font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">
+                            Type</th>
                         <th
                             style="padding: 12px 16px; text-align: left; font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">
                             Customer</th>
@@ -67,11 +82,19 @@
                 </thead>
                 <tbody>
                     @forelse($allQuotations as $quotation)
-                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                        @php $serviceType = $quotation->service_type ?? 'book_now'; @endphp
+                        <tr style="border-bottom: 1px solid #f1f5f9;" data-service-type="{{ $serviceType }}">
                             <td style="padding: 16px;">
                                 <div style="font-weight: 700; color: #0f172a; font-size: 1rem;">
                                     {{ $quotation->quotation_number }}</div>
                                 <div style="font-size: 0.8rem; color: #64748b;">ID: {{ $quotation->id }}</div>
+                            </td>
+                            <td style="padding: 16px;">
+                                @if ($serviceType === 'schedule')
+                                    <span style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.72rem; font-weight:700; background:#dbeafe; color:#1e40af; text-transform:uppercase; letter-spacing:0.04em;">Scheduled</span>
+                                @else
+                                    <span style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.72rem; font-weight:700; background:#dcfce7; color:#166534; text-transform:uppercase; letter-spacing:0.04em;">Book Now</span>
+                                @endif
                             </td>
                             <td style="padding: 16px;">
                                 <div style="font-weight: 600; color: #0f172a;">{{ $quotation->customer->name ?? 'N/A' }}
@@ -94,6 +117,11 @@
                                     <span
                                         style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #fef3c7; color: #92400e; text-transform: uppercase; letter-spacing: 0.03em;">
                                         ⏳ Pending Review
+                                    </span>
+                                @elseif($quotation->status === 'negotiating')
+                                    <span
+                                        style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #f3e8ff; color: #7e22ce; text-transform: uppercase; letter-spacing: 0.03em; animation: pulse 2s infinite;">
+                                        💬 Negotiating
                                     </span>
                                 @elseif($quotation->urgency_level === 'urgent')
                                     <span
@@ -194,7 +222,39 @@
     </style>
 
     <script>
-        // Quotations tab handling
+        // Book Now / Scheduled sub-tab switching
+        document.addEventListener('DOMContentLoaded', function() {
+            const qtTabs = document.querySelectorAll('.qt-tab');
+            const qtRows = document.querySelectorAll('tr[data-service-type]');
+
+            function activateQtTab(type) {
+                qtTabs.forEach(function(btn) {
+                    if (btn.dataset.type === type) {
+                        btn.style.background = type === 'schedule' ? '#dbeafe' : '#dcfce7';
+                        btn.style.color = type === 'schedule' ? '#1e40af' : '#166534';
+                        btn.style.borderColor = type === 'schedule' ? '#93c5fd' : '#86efac';
+                    } else {
+                        btn.style.background = '#fff';
+                        btn.style.color = '#374151';
+                        btn.style.borderColor = '#e5e7eb';
+                    }
+                });
+                qtRows.forEach(function(row) {
+                    row.style.display = row.dataset.serviceType === type ? '' : 'none';
+                });
+            }
+
+            qtTabs.forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    activateQtTab(this.dataset.type);
+                });
+            });
+
+            // Default: show book_now
+            activateQtTab('book_now');
+        });
+
+        // Quotations section tab handling
         document.addEventListener('DOMContentLoaded', function() {
             const quotationsTab = document.querySelector('[data-filter="quotations"]');
             const quotationsSection = document.getElementById('quotationsSection');

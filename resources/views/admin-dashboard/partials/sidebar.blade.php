@@ -9,7 +9,6 @@
             <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Logo">
             <div class="brand-copy">
                 <span>Jarz Dispatch</span>
-                <small>Operations panel</small>
             </div>
         </div>
 
@@ -17,25 +16,22 @@
         <nav class="menu">
             <a href="{{ route('admin.dashboard') }}"
                 class="menu-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-                <i data-lucide="layout-dashboard"></i>
+
                 <span>Dashboard</span>
             </a>
 
             <a href="{{ route('control-center.index') }}"
                 class="menu-item {{ request()->routeIs('control-center.*') ? 'active' : '' }}">
-                <i data-lucide="radar"></i>
                 <span>Control Center</span>
             </a>
 
             <a href="{{ route('admin.dispatch') }}"
                 class="menu-item {{ request()->routeIs('admin.dispatch') ? 'active' : '' }}">
-                <i data-lucide="clipboard-check"></i>
                 <span>Dispatch Queue</span>
             </a>
 
             <a href="{{ route('admin.jobs') }}"
                 class="menu-item {{ request()->routeIs('admin.jobs') ? 'active' : '' }}">
-                <i data-lucide="briefcase-business"></i>
                 <span>Active Jobs</span>
             </a>
         </nav>
@@ -44,7 +40,7 @@
         <nav class="menu">
             <a href="{{ route('admin.drivers') }}"
                 class="menu-item {{ request()->routeIs('admin.drivers') ? 'active' : '' }}">
-                <i data-lucide="users-round"></i>
+
                 <span>Units & Leaders</span>
             </a>
 

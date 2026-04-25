@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Unit;
-use App\Models\TruckType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -14,7 +13,7 @@ class AvailableUnitsController extends Controller
     {
         $search = trim((string) $request->query('search', ''));
 
-        $unitsQuery = Unit::with(['truckType', 'driver', 'teamLeader']);
+        $unitsQuery = Unit::with(['truckType', 'driver.role', 'teamLeader.role']);
 
         if ($search !== '') {
             $unitsQuery->where(function ($query) use ($search) {
@@ -42,16 +41,7 @@ class AvailableUnitsController extends Controller
             ->paginate(12)
             ->withQueryString();
 
-        $truckTypes = TruckType::where('status', 'active')->orderBy('name')->get();
-
-        $stats = [
-            'available' => Unit::where('status', 'available')->count(),
-            'not_available' => Unit::where('status', 'maintenance')->count(),
-            'ready_team_leaders' => Unit::where('status', 'available')->whereNotNull('team_leader_id')->count(),
-            'truck_types' => $truckTypes->count(),
-        ];
-
-        return view('admin-dashboard.pages.available-units', compact('units', 'truckTypes', 'stats', 'search'));
+        return view('admin-dashboard.pages.available-units', compact('units', 'search'));
     }
 
     public function store(Request $request): RedirectResponse

@@ -171,8 +171,9 @@ class UserManagementController extends Controller
         $user = User::with(['unit', 'unit.truckType'])->findOrFail($id);
         $roles = $this->manageableRoles();
         $teamLeaderCapacity = $this->teamLeaderCapacity();
+        $truckTypes = TruckType::where('status', 'active')->orderBy('name')->get();
 
-        return view('superadmin.users.create', compact('user', 'roles', 'teamLeaderCapacity'));
+        return view('superadmin.users.create', compact('user', 'roles', 'teamLeaderCapacity', 'truckTypes'));
     }
 
     public function update(Request $request, User $user)
@@ -191,6 +192,7 @@ class UserManagementController extends Controller
             'driver_middle_name' => 'nullable|string|max:100',
             'driver_last_name' => 'nullable|string|max:100',
             'email' => $this->emailRules($user),
+            'phone' => ['nullable', 'regex:/^(09|\+639)\d{9}$/'],
             'status' => 'required|in:active,inactive',
             'role_id' => [
                 'nullable',
@@ -231,6 +233,7 @@ class UserManagementController extends Controller
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $validated['last_name'],
             'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? $user->phone,
             'status' => $validated['status'],
         ]);
 
@@ -296,8 +299,9 @@ class UserManagementController extends Controller
     {
         $roles = $this->manageableRoles();
         $teamLeaderCapacity = $this->teamLeaderCapacity();
+        $truckTypes = TruckType::where('status', 'active')->orderBy('name')->get();
 
-        return view('superadmin.users.create', compact('roles', 'teamLeaderCapacity'));
+        return view('superadmin.users.create', compact('roles', 'teamLeaderCapacity', 'truckTypes'));
     }
 
     public function store(Request $request)
@@ -309,11 +313,14 @@ class UserManagementController extends Controller
         $isTeamLeader       = $teamLeaderRoleId > 0
             && (int) $request->input('role_id', 0) === $teamLeaderRoleId;
 
+        $activeTruckTypeNames = TruckType::where('status', 'active')->pluck('name')->toArray();
+
         $rules = [
             'first_name'  => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
             'last_name'   => 'required|string|max:100',
             'email'       => $this->emailRules(),
+            'phone'       => ['nullable', 'regex:/^(09|\+639)\d{9}$/'],
             'password'    => ['required', 'confirmed', Password::min(12)->mixedCase()->numbers()->symbols()],
             'role_id'     => [
                 'required',
@@ -338,19 +345,20 @@ class UserManagementController extends Controller
                 'driver_last_name'   => 'required|string|max:100',
                 'unit_name'          => 'required|string|max:100',
                 'unit_plate_number'  => 'required|string|max:50|unique:units,plate_number',
-                'unit_truck_class'   => 'required|in:Heavy,Medium,Light',
+                'unit_truck_class'   => ['required', Rule::in($activeTruckTypeNames)],
             ]);
         }
 
         $messages = [
             'email.required'               => 'Email is required.',
             'email.unique'                 => 'This email is already registered.',
+            'phone.regex'                  => 'Enter a valid Philippine mobile number (e.g. 09171234567 or +639171234567).',
             'password.confirmed'           => 'Password confirmation does not match.',
             'unit_name.required'           => 'Unit name is required.',
             'unit_plate_number.required'   => 'Plate number is required.',
             'unit_plate_number.unique'     => 'This plate number is already registered.',
             'unit_truck_class.required'    => 'Truck type is required.',
-            'unit_truck_class.in'          => 'Truck type must be Heavy, Medium, or Light.',
+            'unit_truck_class.in'          => 'Please select a valid active truck type.',
         ];
 
         $validated = $request->validate($rules, $messages);
@@ -363,6 +371,7 @@ class UserManagementController extends Controller
                     'middle_name' => $validated['middle_name'] ?? null,
                     'last_name'   => $validated['last_name'],
                     'email'       => $validated['email'],
+                    'phone'       => $validated['phone'] ?? null,
                     'password'    => Hash::make($validated['password']),
                     'role_id'     => $validated['role_id'],
                     'status'      => $validated['status'],
@@ -429,6 +438,7 @@ class UserManagementController extends Controller
                 'middle_name' => $validated['middle_name'] ?? null,
                 'last_name'   => $validated['last_name'],
                 'email'       => $validated['email'],
+                'phone'       => $validated['phone'] ?? null,
                 'password'    => Hash::make($validated['password']),
                 'role_id'     => $validated['role_id'],
                 'status'      => $validated['status'],

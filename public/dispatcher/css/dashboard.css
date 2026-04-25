@@ -6,7 +6,7 @@
 
 body {
     font-family: "Poppins", sans-serif;
-    background: #faf8f2;
+    background: #ffffff;
     color: #111827;
 }
 
@@ -75,9 +75,9 @@ body {
     width: 42px;
     height: 42px;
     border-radius: 12px;
-    border: 1px solid #f5d565;
-    background: #fff7d6;
-    color: #7c5a00;
+    border: 1px solid #ffc800;
+    background: #ffcc00;
+    color: #000000;
     cursor: pointer;
     position: relative;
 }
@@ -190,7 +190,7 @@ body {
     margin-left: 286px;
     width: calc(100% - 286px);
     padding: 24px 28px;
-    background: #faf8f2;
+    background: #fdfdfd;
     min-height: 100vh;
 }
 

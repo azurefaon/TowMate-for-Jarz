@@ -8,25 +8,25 @@
 
 @section('content')
     <div class="jobs-page">
-        <div class="jobs-hero">
+        {{-- <div class="jobs-hero">
             <div class="jobs-hero-copy">
                 <p class="jobs-eyebrow">Dispatcher view</p>
                 <h1 class="jobs-title">Active Jobs</h1>
                 <p class="jobs-subtitle">Taken jobs, en-route crews, and live towing operations.</p>
             </div>
 
-            <div class="jobs-hero-actions">
-                <span class="jobs-status-pill">
-                    <i data-lucide="truck"></i>
-                    <span>{{ $stats['total'] }} live jobs</span>
-                </span>
+        <div class="jobs-hero-actions">
+            <span class="jobs-status-pill">
+                <i data-lucide="truck"></i>
+                <span>{{ $stats['total'] }} live jobs</span>
+            </span>
 
-                <a href="{{ route('admin.dispatch') }}" class="jobs-link-btn">
-                    <i data-lucide="arrow-left"></i>
-                    <span>Back to Dispatch</span>
-                </a>
-            </div>
+            <a href="{{ route('admin.dispatch') }}" class="jobs-link-btn">
+                <i data-lucide="arrow-left"></i>
+                <span>Back to Dispatch</span>
+            </a>
         </div>
+    </div> --}}
 
         <div class="jobs-stats-grid">
             <div class="jobs-stat-card">
@@ -53,8 +53,7 @@
 
         <div class="jobs-section-head">
             <div>
-                <h2>Live job board</h2>
-                <p>Current dispatcher handoffs, route details, and assigned towing crews.</p>
+                <h2>Active jobs</h2>
             </div>
             <span class="jobs-section-pill">{{ $stats['total'] }} active now</span>
         </div>

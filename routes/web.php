@@ -43,7 +43,17 @@ Route::get('/book', function () {
 })->name('landing.book');
 
 Route::post('/book', [CustomerBookingController::class, 'landingStore'])
+    ->middleware('throttle:10,1')
     ->name('landing.book.store');
+
+Route::get('/booking-confirmed', function () {
+    $data = session('booking_confirmation');
+    if (!$data) {
+        return redirect()->route('landing');
+    }
+    session()->forget('booking_confirmation');
+    return view('landing.confirmation', compact('data'));
+})->name('booking.confirmed');
 
 Route::prefix('geo')
     ->name('geo.')
@@ -314,7 +324,7 @@ Route::middleware(['auth', 'role:5'])
             return view('customer.pages.book', compact('truckTypes'));
         })->name('book');
 
-        Route::post('/book', [CustomerBookingController::class, 'store'])->name('book.store');
+        Route::post('/book', [CustomerBookingController::class, 'store'])->middleware('throttle:10,1')->name('book.store');
         Route::patch('/booking/{booking}', [CustomerBookingController::class, 'update'])->name('booking.update');
         Route::post('/booking/{booking}/quotation-response', [CustomerBookingController::class, 'respondToQuotation'])
             ->name('booking.quotation.respond');

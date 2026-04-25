@@ -216,26 +216,17 @@
             <div class="units-inline-alert error">{{ session('error') }}</div>
         @endif
 
-        @if ($errors->any())
-            <div class="units-inline-alert error">
-                {{ $errors->first() }}
-            </div>
-        @endif
-
         <section class="units-hero">
             <div>
-                <h1 class="units-title">Units Overview</h1>
-                <p class="units-subtitle">View every unit and switch its dispatch availability on or off in real time.</p>
+                <h1 class="units-title">Fleet Overview</h1>
+                <p class="units-subtitle">Monitor unit status, team leader assignments, and override availability in real
+                    time.</p>
                 @if (!empty($search))
                     <span class="units-filter-pill">Filtered by: {{ $search }}</span>
                 @endif
             </div>
 
             <div class="units-hero-actions">
-                <button type="button" class="units-link-btn" id="openAddUnitModalBtn">
-                    <i data-lucide="plus-circle"></i>
-                    <span>Add Unit</span>
-                </button>
                 <a href="{{ route('admin.zones.index') }}" class="units-link-btn secondary">
                     <i data-lucide="map"></i>
                     <span>Manage Zones</span>
@@ -251,30 +242,11 @@
             </div>
         </section>
 
-        <section class="units-stats-grid">
-            <article class="units-stat-card">
-                <span>Available Units</span>
-                <strong>{{ $stats['available'] }}</strong>
-            </article>
-            <article class="units-stat-card warning">
-                <span>Not Available</span>
-                <strong>{{ $stats['not_available'] }}</strong>
-            </article>
-            <article class="units-stat-card info">
-                <span>Ready Team Leaders</span>
-                <strong>{{ $stats['ready_team_leaders'] }}</strong>
-            </article>
-            <article class="units-stat-card subtle">
-                <span>Truck Types</span>
-                <strong>{{ $stats['truck_types'] }}</strong>
-            </article>
-        </section>
-
         <section class="units-table-card">
             <div class="units-table-header">
                 <div>
-                    <h2>Unit availability</h2>
-                    <p>Search by unit name, plate number, truck type, team leader, or current status.</p>
+                    <h2>Units &amp; Leaders</h2>
+                    <p>Click any unit card to view details or override its status.</p>
                 </div>
 
                 <label class="search-box" for="unitSearch">
@@ -284,104 +256,72 @@
                 </label>
             </div>
 
-            <div class="table-shell">
-                <table class="modern-table">
-                    <thead>
-                        <tr>
-                            <th>Unit</th>
-                            <th>Plate</th>
-                            <th>Truck Type</th>
-                            <th>Team Leader</th>
-                            <th>Member Driver</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="unitsTable">
-                        @forelse ($units as $unit)
-                            @php
-                                $statusLabel = match ($unit->status) {
-                                    'available' => 'Available',
-                                    'maintenance' => 'Not Available',
-                                    'on_job' => 'On Job',
-                                    default => ucfirst(str_replace('_', ' ', $unit->status)),
-                                };
-
-                                $statusClass =
-                                    $unit->status === 'maintenance'
-                                        ? 'maintenance'
-                                        : ($unit->status === 'on_job'
-                                            ? 'on-job'
-                                            : 'available');
-                            @endphp
-                            <tr data-name="{{ strtolower($unit->name) }}"
-                                data-plate="{{ strtolower($unit->plate_number) }}"
-                                data-type="{{ strtolower(optional($unit->truckType)->name ?? '') }}"
-                                data-teamleader="{{ strtolower(optional($unit->teamLeader)->full_name ?? (optional($unit->teamLeader)->name ?? '')) }}"
-                                data-status="{{ strtolower($statusLabel) }}">
-                                <td>
-                                    <div class="unit-cell">
-                                        <div class="unit-avatar">{{ strtoupper(substr($unit->name, 0, 2)) }}</div>
-                                        <div>
-                                            <strong class="unit-name">{{ $unit->name }}</strong>
-                                            <span class="unit-subtext">Updated
-                                                {{ $unit->updated_at->diffForHumans() }}</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="badge plate">{{ $unit->plate_number }}</span>
-                                </td>
-                                <td>
-                                    <span class="badge truck">{{ optional($unit->truckType)->name ?? 'N/A' }}</span>
-                                </td>
-                                <td>
-                                    <span
-                                        class="table-main-text">{{ optional($unit->teamLeader)->full_name ?? (optional($unit->teamLeader)->name ?? 'Unassigned') }}</span>
-                                </td>
-                                <td>
-                                    <span
-                                        class="table-main-text">{{ optional($unit->driver)->full_name ?? (optional($unit->driver)->name ?? 'No member assigned') }}</span>
-                                </td>
-                                <td>
-                                    <div class="availability-cell">
-                                        <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
-
-                                        @if ($unit->status === 'on_job')
-                                            <span class="availability-note">Locked while this unit is handling a job.</span>
-                                        @else
-                                            <form method="POST"
-                                                action="{{ route('admin.available-units.toggle', $unit) }}"
-                                                class="availability-form">
-                                                @csrf
-                                                @method('PATCH')
-
-                                                <label class="availability-switch">
-                                                    <input type="checkbox" class="availability-toggle"
-                                                        aria-label="Toggle availability for {{ $unit->name }}"
-                                                        @checked($unit->status === 'available')>
-                                                    <span class="availability-slider"></span>
-                                                    <span class="availability-switch-text">
-                                                        {{ $unit->status === 'available' ? 'On' : 'Off' }}
-                                                    </span>
-                                                </label>
-                                            </form>
-                                        @endif
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="table-empty-cell">
-                                    <div class="empty-state">
-                                        <i data-lucide="truck"></i>
-                                        <h3>No units found</h3>
-                                        <p>Add a unit or adjust the search to manage dispatch availability.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+            <div class="units-fleet-grid" id="fleetGrid">
+                @forelse ($units as $unit)
+                    @php
+                        $tl = $unit->teamLeader;
+                        $drv = $unit->driver;
+                        $statusClass = match ($unit->status) {
+                            'available' => 'available',
+                            'on_job' => 'on-job',
+                            'maintenance' => 'maintenance',
+                            default => 'maintenance',
+                        };
+                        $statusLabel = match ($unit->status) {
+                            'available' => 'Available',
+                            'on_job' => 'In Transit',
+                            'maintenance' => 'Not Available',
+                            default => ucfirst(str_replace('_', ' ', $unit->status)),
+                        };
+                    @endphp
+                    <div class="unit-fleet-card" data-name="{{ strtolower($unit->name) }}"
+                        data-plate="{{ strtolower($unit->plate_number) }}"
+                        data-type="{{ strtolower(optional($unit->truckType)->name ?? '') }}"
+                        data-status="{{ strtolower($statusLabel) }}"
+                        data-tl="{{ strtolower(optional($tl)->full_name ?? '') }}"
+                        data-driver="{{ strtolower(optional($drv)->full_name ?? '') }}"
+                        data-modal-id="{{ $unit->id }}" data-modal-name="{{ $unit->name }}"
+                        data-modal-plate="{{ $unit->plate_number }}"
+                        data-modal-type="{{ optional($unit->truckType)->name ?? 'N/A' }}"
+                        data-modal-status="{{ $unit->status }}" data-modal-status-label="{{ $statusLabel }}"
+                        data-modal-tl-name="{{ optional($tl)->full_name ?? 'Unassigned' }}"
+                        data-modal-tl-role="{{ optional(optional($tl)->role)->name ?? '' }}"
+                        data-modal-tl-email="{{ optional($tl)->email ?? '' }}"
+                        data-modal-tl-phone="{{ optional($tl)->phone ?? '' }}"
+                        data-modal-driver-name="{{ optional($drv)->full_name ?? 'No driver assigned' }}"
+                        data-modal-driver-role="{{ optional(optional($drv)->role)->name ?? '' }}"
+                        data-modal-driver-email="{{ optional($drv)->email ?? '' }}"
+                        data-modal-driver-phone="{{ optional($drv)->phone ?? '' }}"
+                        data-modal-issue-note="{{ $unit->issue_note ?? '' }}">
+                        <div class="unit-card-top">
+                            <div class="unit-tag {{ $statusClass }}">
+                                {{ strtoupper(substr($unit->name, 0, 3)) }}
+                            </div>
+                            <div class="unit-card-meta">
+                                <span
+                                    class="unit-type-label">{{ strtoupper(optional($unit->truckType)->name ?? 'Unknown') }}</span>
+                                <strong class="unit-card-name">{{ $unit->name }}</strong>
+                            </div>
+                            <span class="unit-status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                        </div>
+                        <div class="unit-card-people">
+                            <div class="unit-person">
+                                <span class="person-label">Team Leader</span>
+                                <span class="person-name">{{ optional($tl)->full_name ?? 'Unassigned' }}</span>
+                            </div>
+                            <div class="unit-person">
+                                <span class="person-label">Driver</span>
+                                <span class="person-name">{{ optional($drv)->full_name ?? 'No driver assigned' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <div class="fleet-empty-state">
+                        <i data-lucide="truck"></i>
+                        <h3>No units found</h3>
+                        <p>Adjust the search to find units.</p>
+                    </div>
+                @endforelse
             </div>
 
             <div class="pagination-wrapper">
@@ -389,86 +329,96 @@
             </div>
         </section>
 
-        <div id="addUnitModal" class="units-modal {{ $errors->any() ? 'is-open' : '' }}"
-            aria-hidden="{{ $errors->any() ? 'false' : 'true' }}">
-            <div class="units-modal-card">
-                <div class="units-modal-header">
+        {{-- Unit Detail Modal --}}
+        <div id="unitDetailModal" class="units-modal" aria-hidden="true">
+            <div class="ud-modal-card">
+                <div class="ud-modal-header">
                     <div>
                         <span class="units-modal-badge">
-                            <i data-lucide="sparkles"></i>
-                            Dispatcher Tools
+                            <i data-lucide="truck"></i>
+                            Unit Details
                         </span>
-                        <h3>Add New Unit</h3>
+                        <h3 id="udTitle"></h3>
+                        <p id="udSubtitle"></p>
                     </div>
-                    <button type="button" class="units-modal-close" id="closeAddUnitModalBtn">✕</button>
+                    <button type="button" class="ud-close-btn" id="udClose2">&#x2715;</button>
                 </div>
 
-                <div class="units-modal-body">
-                    <div class="units-modal-note">
-                        <i data-lucide="truck"></i>
-                        <div>
-                            <strong>Quick setup</strong>
-                            <span>New units added here will be available in the dispatcher workflow right away.</span>
+                <div class="ud-modal-body">
+                    <div class="ud-meta-row">
+                        <div class="ud-meta-item">
+                            <span class="ud-meta-label">Unit Identifier</span>
+                            <span class="ud-meta-value" id="udPlate"></span>
+                        </div>
+                        <div class="ud-meta-item">
+                            <span class="ud-meta-label">Asset Class</span>
+                            <span class="ud-meta-value" id="udType"></span>
+                        </div>
+                        <div class="ud-meta-item">
+                            <span class="ud-meta-label">Current Status</span>
+                            <span id="udStatusBadge" class="ud-status-pill"></span>
                         </div>
                     </div>
 
-                    <form method="POST" action="{{ route('admin.available-units.store') }}">
-                        @csrf
-
-                        <div class="form-group">
-                            <label for="unitName">Unit Name</label>
-                            <input id="unitName" type="text" name="name" value="{{ old('name') }}"
-                                placeholder="Example: Unit 07" required>
-                            <span class="units-field-helper">Use a short unit label that dispatchers can spot
-                                quickly.</span>
-                        </div>
-
-                        <div class="units-form-row">
-                            <div class="form-group">
-                                <label for="plateNumber">Plate Number</label>
-                                <input id="plateNumber" type="text" name="plate_number"
-                                    value="{{ old('plate_number') }}" placeholder="Example: ABC 1234" required>
+                    <div class="ud-section">
+                        <h4><i data-lucide="shield-check"></i> Team Leader</h4>
+                        <div class="ud-person-card" id="udTlCard">
+                            <strong id="udTlName"></strong>
+                            <span class="ud-role" id="udTlRole"></span>
+                            <div class="ud-contact">
+                                <i data-lucide="mail"></i>
+                                <span id="udTlEmail"></span>
                             </div>
-
-                            <div class="form-group">
-                                <label for="truckTypeId">Tow Truck Type</label>
-                                <select id="truckTypeId" name="truck_type_id" required>
-                                    <option value="">Select truck type</option>
-                                    @foreach ($truckTypes as $truckType)
-                                        <option value="{{ $truckType->id }}" @selected(old('truck_type_id') == $truckType->id)>
-                                            {{ $truckType->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                            <div class="ud-contact">
+                                <i data-lucide="phone"></i>
+                                <span id="udTlPhone"></span>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="units-form-row">
-                            <div class="form-group">
-                                <label for="unitStatus">Status</label>
-                                <select id="unitStatus" name="status">
-                                    <option value="available" @selected(old('status', 'available') === 'available')>Available</option>
-                                    <option value="maintenance" @selected(old('status') === 'maintenance')>Not Available</option>
-                                </select>
-                                <span class="units-field-helper">Choose whether this unit is ready now or temporarily
-                                    unavailable for dispatch.</span>
+                    <div class="ud-section">
+                        <h4><i data-lucide="user"></i> Assigned Driver</h4>
+                        <div class="ud-person-card" id="udDriverCard">
+                            <strong id="udDriverName"></strong>
+                            <span class="ud-role" id="udDriverRole"></span>
+                            <div class="ud-contact">
+                                <i data-lucide="mail"></i>
+                                <span id="udDriverEmail"></span>
                             </div>
-
-                            <div class="form-group" id="issueNoteGroup" style="display:none;">
-                                <label for="issueNote">Maintenance Note</label>
-                                <textarea id="issueNote" name="issue_note" placeholder="Add a short maintenance note if needed">{{ old('issue_note') }}</textarea>
+                            <div class="ud-contact">
+                                <i data-lucide="phone"></i>
+                                <span id="udDriverPhone"></span>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="units-modal-actions">
-                            <button type="button" class="units-link-btn secondary"
-                                id="cancelAddUnitModalBtn">Cancel</button>
-                            <button type="submit" class="units-link-btn">
-                                <i data-lucide="save"></i>
-                                <span>Save Unit</span>
-                            </button>
+                    <div class="ud-override-section" id="udOverrideSection">
+                        <div class="ud-override-header">
+                            <div class="ud-override-title">
+                                <i data-lucide="triangle-alert"></i>
+                                Status Override
+                            </div>
+                            <span class="ud-restricted-badge">Restricted Access</span>
                         </div>
-                    </form>
+                        <p>Manually override the unit's operational status. This will alert the assigned Team Leader and
+                            remove the unit from the active dispatch queue immediately.</p>
+                        <div class="ud-override-form">
+                            <label for="udOverrideState">Select New State</label>
+                            <select id="udOverrideState">
+                                <option value="maintenance">Not Available (Unreachable / Maintenance)</option>
+                            </select>
+                            <label for="udOverrideReason">Reason for Override (Optional)</label>
+                            <textarea id="udOverrideReason" placeholder="Provide brief context for the manual status change..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ud-modal-footer">
+                    <button type="button" class="ud-btn-close" id="udCloseBtn">Close Window</button>
+                    <button type="button" class="ud-btn-save" id="udSaveBtn">
+                        <i data-lucide="save"></i>
+                        Save Override
+                    </button>
                 </div>
             </div>
         </div>

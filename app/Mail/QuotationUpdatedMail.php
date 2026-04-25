@@ -22,18 +22,17 @@ class QuotationUpdatedMail extends Mailable
     {
         $this->quotation = $quotation;
         
-        // Generate signed URL valid for 7 days
+        $expiresAt  = $quotation->expires_at ?? now()->addDays(7);
+        $version    = $quotation->link_version ?? 1;
+
         $this->quotationUrl = URL::temporarySignedRoute(
             'quotation.show',
-            now()->addDays(7),
-            ['quotation' => $quotation->id]
+            $expiresAt,
+            ['quotation' => $quotation->id, 'v' => $version]
         );
-        
-        // Get the FINAL total price that customer should see
+
         $totalAmount = $quotation->estimated_price ?? 0;
-        
-        // Calculate price breakdown for display
-        $basePrice = $quotation->truckType->base_price ?? 0;
+        $basePrice   = $quotation->truckType->base_rate ?? 0;
         $perKmRate = $quotation->truckType->per_km_rate ?? 0;
         $distanceKm = $quotation->distance_km ?? 0;
         

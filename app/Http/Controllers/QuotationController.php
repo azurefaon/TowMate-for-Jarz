@@ -26,20 +26,25 @@ class QuotationController extends Controller
         $quotation->markAsViewed();
         $quotation->load(['customer', 'truckType']);
 
-        // Generate fresh signed URLs for all actions, valid for remaining quotation time
+        $requestedVersion = (int) $request->query('v', 1);
+        $isOutdated = ($quotation->link_version ?? 1) > $requestedVersion;
+
+        // Generate fresh signed URLs only when not outdated
         $expiresAt = $quotation->expires_at ?? now()->addDays(7);
         $remaining = now()->diffInSeconds($expiresAt, false);
-        $validFor  = max($remaining, 60); // at least 60 seconds
+        $validFor  = max($remaining, 60);
+        $version   = $quotation->link_version ?? 1;
 
-        $signedAcceptUrl   = URL::temporarySignedRoute('quotation.accept',    now()->addSeconds($validFor), ['quotation' => $quotation->id]);
-        $signedRejectUrl   = URL::temporarySignedRoute('quotation.reject',    now()->addSeconds($validFor), ['quotation' => $quotation->id]);
-        $signedNegotiateUrl = URL::temporarySignedRoute('quotation.negotiate', now()->addSeconds($validFor), ['quotation' => $quotation->id]);
+        $signedAcceptUrl    = $isOutdated ? null : URL::temporarySignedRoute('quotation.accept',    now()->addSeconds($validFor), ['quotation' => $quotation->id, 'v' => $version]);
+        $signedRejectUrl    = URL::temporarySignedRoute('quotation.reject',    now()->addSeconds($validFor), ['quotation' => $quotation->id, 'v' => $version]);
+        $signedNegotiateUrl = URL::temporarySignedRoute('quotation.negotiate', now()->addSeconds($validFor), ['quotation' => $quotation->id, 'v' => $version]);
 
         return view('customer.quotation-view', [
             'quotation'          => $quotation,
             'signedAcceptUrl'    => $signedAcceptUrl,
             'signedRejectUrl'    => $signedRejectUrl,
             'signedNegotiateUrl' => $signedNegotiateUrl,
+            'isOutdated'         => $isOutdated,
         ]);
     }
 
@@ -47,6 +52,11 @@ class QuotationController extends Controller
     {
         if (!$request->hasValidSignature()) {
             abort(403, 'Invalid or expired link');
+        }
+
+        $requestedVersion = (int) $request->query('v', 1);
+        if (($quotation->link_version ?? 1) > $requestedVersion) {
+            return $this->redirectToShow($quotation, 'error', 'This quotation was updated after your link was sent. Please wait for a new quotation link from the dispatcher.');
         }
 
         if ($quotation->status !== 'sent') {

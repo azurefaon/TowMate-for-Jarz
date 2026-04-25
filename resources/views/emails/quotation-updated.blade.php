@@ -1,300 +1,142 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Quotation is Ready</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-
-        .container {
-            background: #ffffff;
-            border-radius: 12px;
-            padding: 32px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 32px;
-            padding-bottom: 24px;
-            border-bottom: 2px solid #f59e0b;
-        }
-
-        .logo {
-            font-size: 32px;
-            font-weight: 700;
-            color: #f59e0b;
-            margin-bottom: 8px;
-        }
-
-        .title {
-            font-size: 24px;
-            font-weight: 700;
-            color: #0f172a;
-            margin: 0 0 8px;
-        }
-
-        .subtitle {
-            font-size: 14px;
-            color: #64748b;
-            margin: 0;
-        }
-
-        .content {
-            margin: 24px 0;
-        }
-
-        .info-box {
-            background: #fef3c7;
-            border: 2px solid #fbbf24;
-            border-radius: 8px;
-            padding: 16px;
-            margin: 20px 0;
-        }
-
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #fde68a;
-        }
-
-        .info-row:last-child {
-            border-bottom: none;
-        }
-
-        .info-label {
-            font-weight: 600;
-            color: #92400e;
-        }
-
-        .info-value {
-            color: #78350f;
-            font-weight: 700;
-        }
-
-        .price-box {
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            border: 2px solid #f59e0b;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 24px 0;
-        }
-
-        .price-label {
-            font-size: 16px;
-            color: #92400e;
-            margin-bottom: 12px;
-            font-weight: 700;
-            text-align: center;
-        }
-
-        .price-amount {
-            font-size: 36px;
-            font-weight: 700;
-            color: #92400e;
-            text-align: center;
-        }
-
-        .cta-button {
-            display: inline-block;
-            background: #f59e0b;
-            color: #ffffff;
-            text-decoration: none;
-            padding: 16px 32px;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-            text-align: center;
-            margin: 24px 0;
-            transition: background 0.2s;
-        }
-
-        .cta-button:hover {
-            background: #d97706;
-        }
-
-        .expiry-notice {
-            background: #fee2e2;
-            border: 1px solid #fca5a5;
-            border-radius: 8px;
-            padding: 12px;
-            margin: 20px 0;
-            text-align: center;
-            color: #991b1b;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .footer {
-            margin-top: 32px;
-            padding-top: 24px;
-            border-top: 1px solid #e5e7eb;
-            text-align: center;
-            font-size: 12px;
-            color: #64748b;
-        }
-
-        .service-details {
-            background: #f8fafc;
-            border-radius: 8px;
-            padding: 16px;
-            margin: 20px 0;
-        }
-
-        .service-row {
-            padding: 8px 0;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .service-row:last-child {
-            border-bottom: none;
-        }
-
-        .service-label {
-            font-size: 12px;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .service-value {
-            font-size: 14px;
-            color: #0f172a;
-            font-weight: 600;
-            margin-top: 4px;
-        }
-    </style>
+    <title>Quotation Updated {{ $quotation->quotation_number }} — TowMate</title>
 </head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
 
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">🚗 TowMate</div>
-            <h1 class="title">Quotation Updated!</h1>
-            <p class="subtitle">Reference: {{ $quotation->quotation_number }}</p>
-        </div>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 16px;">
+<tr><td align="center">
+<table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e4e4e7;">
 
-        <div class="content">
-            <p>Hi <strong>{{ $quotation->customer->name }}</strong>,</p>
-
-            <p>We've updated your towing service quotation with the latest pricing details.</p>
-
-            <div class="service-details">
-                <div class="service-row">
-                    <div class="service-label">📍 Pickup Location</div>
-                    <div class="service-value">{{ $quotation->pickup_address }}</div>
-                </div>
-                <div class="service-row">
-                    <div class="service-label">📍 Drop-off Location</div>
-                    <div class="service-value">{{ $quotation->dropoff_address }}</div>
-                </div>
-                <div class="service-row">
-                    <div class="service-label">🚚 Vehicle Type</div>
-                    <div class="service-value">{{ $quotation->truckType->name }}</div>
-                </div>
-                <div class="service-row">
-                    <div class="service-label">📏 Distance</div>
-                    <div class="service-value">{{ number_format($quotation->distance_km, 2) }} km</div>
-                </div>
-            </div>
-
-            <div class="price-box">
-                <div class="price-label">💵 Price Breakdown</div>
-                <div
-                    style="text-align: left; margin: 16px 0; padding: 16px; background: rgba(255,255,255,0.5); border-radius: 8px;">
-                    <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
-                        <span>Base Price</span>
-                        <span style="font-weight: 600;">₱{{ number_format($priceBreakdown['base_price'], 2) }}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
-                        <span>Distance Fee ({{ number_format($priceBreakdown['distance_km'], 2) }} km)</span>
-                        <span style="font-weight: 600;">₱{{ number_format($priceBreakdown['distance_fee'], 2) }}</span>
-                    </div>
-                    @if ($priceBreakdown['has_excess'])
-                        <div
-                            style="padding-left: 16px; border-left: 2px solid #fbbf24; margin-left: 8px; margin-top: 4px;">
-                            <div
-                                style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #78350f;">
-                                <span>First 4 km × ₱{{ number_format($priceBreakdown['per_km_rate'], 2) }}/km</span>
-                                <span
-                                    style="font-weight: 600;">₱{{ number_format($priceBreakdown['first_4km_fee'], 2) }}</span>
-                            </div>
-                            <div
-                                style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #78350f;">
-                                <span>{{ number_format($priceBreakdown['excess_km'], 2) }} km × ₱200/km</span>
-                                <span
-                                    style="font-weight: 600;">₱{{ number_format($priceBreakdown['excess_fee'], 2) }}</span>
-                            </div>
-                        </div>
-                    @endif
-                    <div
-                        style="border-top: 1px dashed #fbbf24; margin-top: 8px; padding-top: 8px; display: flex; justify-content: space-between; font-size: 15px; font-weight: 600; color: #92400e;">
-                        <span>Customer's Expected Price</span>
-                        <span>₱{{ number_format($priceBreakdown['customer_price'], 2) }}</span>
-                    </div>
-                    @if ($priceBreakdown['other_fees'] > 0)
-                        <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
-                            <span>Other Fees</span>
-                            <span
-                                style="font-weight: 600;">₱{{ number_format($priceBreakdown['other_fees'], 2) }}</span>
-                        </div>
-                    @endif
-                </div>
-                <div style="border-top: 3px solid #92400e; padding-top: 16px; margin-top: 8px;">
-                    <div class="price-label">TOTAL AMOUNT</div>
-                    <div class="price-amount">₱{{ number_format($priceBreakdown['total_amount'], 2) }}</div>
-                </div>
-            </div>
-
-            <div style="text-align: center;">
-                <a href="{{ $quotationUrl }}" class="cta-button">
-                    ✅ Accept & Continue
-                </a>
-            </div>
-
-            <div class="expiry-notice">
-                ⏰ This quotation expires in {{ $quotation->expires_at->diffForHumans() }}
-                <br>
-                <small>({{ $quotation->expires_at->format('M d, Y g:i A') }})</small>
-            </div>
-
-            <div class="info-box">
-                <div class="info-row">
-                    <span class="info-label">What's Next?</span>
-                </div>
-                <div style="padding-top: 12px; font-size: 14px; color: #78350f;">
-                    1. Click the button above to view full details<br>
-                    2. Review the quotation and price breakdown<br>
-                    3. Click "Accept & Continue to Start" to confirm<br>
-                    4. Your booking will be confirmed and service will begin
-                </div>
-            </div>
-
-            <p style="margin-top: 24px;">If you have any questions, feel free to contact us:</p>
-            <p style="margin: 8px 0;">
-                <strong>Phone:</strong> (123) 456-7890<br>
-                <strong>Email:</strong> support@towmate.com
+    {{-- Header --}}
+    <tr>
+        <td style="padding:28px 32px 20px;border-bottom:1px solid #e4e4e7;">
+            <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#18181b;letter-spacing:0.08em;text-transform:uppercase;">TowMate</p>
+            <h1 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#09090b;line-height:1.3;">Your quotation has been updated</h1>
+            <p style="margin:0;font-size:13px;color:#71717a;">
+                Hi {{ $quotation->customer->name }}, the dispatcher has revised the pricing. Please review the updated details below.
             </p>
-        </div>
+        </td>
+    </tr>
 
-        <div class="footer">
-            <p>© {{ date('Y') }} TowMate. All rights reserved.</p>
-            <p style="margin-top: 8px;">
-                <small>This is an automated email. Please do not reply directly to this message.</small>
+    {{-- Reference --}}
+    <tr>
+        <td style="padding:16px 32px;border-bottom:1px solid #e4e4e7;background:#fafafa;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td style="font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.07em;font-weight:600;">Reference</td>
+                    <td align="right" style="font-size:13px;font-weight:700;color:#09090b;font-family:monospace;">{{ $quotation->quotation_number }}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    {{-- Route --}}
+    <tr>
+        <td style="padding:20px 32px;border-bottom:1px solid #e4e4e7;">
+            <p style="margin:0 0 12px;font-size:11px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:0.07em;">Service Details</p>
+            <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td style="padding:6px 0;vertical-align:top;width:70px;">
+                        <span style="font-size:11px;color:#a1a1aa;font-weight:600;">FROM</span>
+                    </td>
+                    <td style="padding:6px 0;font-size:13px;color:#18181b;font-weight:500;">{{ $quotation->pickup_address }}</td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0;vertical-align:top;">
+                        <span style="font-size:11px;color:#a1a1aa;font-weight:600;">TO</span>
+                    </td>
+                    <td style="padding:6px 0;font-size:13px;color:#18181b;font-weight:500;">{{ $quotation->dropoff_address }}</td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0;vertical-align:top;">
+                        <span style="font-size:11px;color:#a1a1aa;font-weight:600;">VEHICLE</span>
+                    </td>
+                    <td style="padding:6px 0;font-size:13px;color:#18181b;font-weight:500;">{{ $quotation->truckType->name }}</td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0;vertical-align:top;">
+                        <span style="font-size:11px;color:#a1a1aa;font-weight:600;">DISTANCE</span>
+                    </td>
+                    <td style="padding:6px 0;font-size:13px;color:#18181b;font-weight:500;">{{ number_format($quotation->distance_km, 2) }} km</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    {{-- Price Breakdown --}}
+    <tr>
+        <td style="padding:20px 32px;border-bottom:1px solid #e4e4e7;">
+            <p style="margin:0 0 12px;font-size:11px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:0.07em;">Updated Price Breakdown</p>
+            <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td style="padding:5px 0;font-size:13px;color:#3f3f46;">Base rate</td>
+                    <td align="right" style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">₱{{ number_format($priceBreakdown['base_price'], 2) }}</td>
+                </tr>
+                <tr>
+                    <td style="padding:5px 0;font-size:13px;color:#3f3f46;">Distance fee ({{ number_format($priceBreakdown['distance_km'], 2) }} km)</td>
+                    <td align="right" style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">₱{{ number_format($priceBreakdown['distance_fee'], 2) }}</td>
+                </tr>
+                @if ($priceBreakdown['has_excess'])
+                <tr>
+                    <td style="padding:3px 0 3px 14px;font-size:12px;color:#71717a;">First 4 km x ₱{{ number_format($priceBreakdown['per_km_rate'], 2) }}/km</td>
+                    <td align="right" style="padding:3px 0;font-size:12px;color:#71717a;">₱{{ number_format($priceBreakdown['first_4km_fee'], 2) }}</td>
+                </tr>
+                <tr>
+                    <td style="padding:3px 0 3px 14px;font-size:12px;color:#71717a;">{{ number_format($priceBreakdown['excess_km'], 2) }} km excess x ₱200/km</td>
+                    <td align="right" style="padding:3px 0;font-size:12px;color:#71717a;">₱{{ number_format($priceBreakdown['excess_fee'], 2) }}</td>
+                </tr>
+                @endif
+                @if ($priceBreakdown['other_fees'] > 0)
+                <tr>
+                    <td style="padding:5px 0;font-size:13px;color:#3f3f46;">Additional fees</td>
+                    <td align="right" style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">₱{{ number_format($priceBreakdown['other_fees'], 2) }}</td>
+                </tr>
+                @endif
+                <tr>
+                    <td colspan="2" style="padding:10px 0 0;"><hr style="border:none;border-top:1px solid #e4e4e7;margin:0;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#09090b;">Total</td>
+                    <td align="right" style="padding:10px 0 0;font-size:18px;font-weight:800;color:#09090b;">₱{{ number_format($priceBreakdown['total_amount'], 2) }}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    {{-- CTA --}}
+    <tr>
+        <td align="center" style="padding:28px 32px;">
+            <a href="{{ $quotationUrl }}"
+               style="display:inline-block;background:#09090b;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:13px 36px;border-radius:8px;letter-spacing:0.01em;">
+                View Updated Quotation
+            </a>
+            @if ($quotation->expires_at)
+            <p style="margin:14px 0 0;font-size:12px;color:#a1a1aa;">
+                Expires {{ $quotation->expires_at->diffForHumans() }}
+                &nbsp;({{ $quotation->expires_at->format('M d, Y g:i A') }})
             </p>
-        </div>
-    </div>
+            @endif
+        </td>
+    </tr>
+
+    {{-- Footer --}}
+    <tr>
+        <td style="padding:16px 32px;border-top:1px solid #e4e4e7;background:#fafafa;">
+            <p style="margin:0;font-size:12px;color:#a1a1aa;line-height:1.6;">
+                Questions? Call us at (123) 456-7890 or email support@towmate.com<br>
+                Do not reply to this email — it is sent automatically.
+            </p>
+        </td>
+    </tr>
+
+</table>
+<p style="margin:16px 0 0;font-size:11px;color:#a1a1aa;text-align:center;">© {{ date('Y') }} TowMate. All rights reserved.</p>
+</td></tr>
+</table>
+
 </body>
-
 </html>

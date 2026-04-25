@@ -66,8 +66,12 @@ class BookingController extends Controller
             }
         }
 
-        if ($request->hasFile('vehicle_image')) {
-            $data['vehicle_image_path'] = $request->file('vehicle_image')->store('vehicle_images', 'public');
+        if ($request->hasFile('vehicle_images')) {
+            $paths = array_map(
+                fn($file) => $this->processAndStoreVehicleImage($file),
+                $request->file('vehicle_images')
+            );
+            $data['vehicle_image_path'] = json_encode(array_values($paths));
         }
 
         // Create or find customer
@@ -160,8 +164,12 @@ class BookingController extends Controller
 
         $data['truck_type_id'] = $truckType->id;
 
-        if ($request->hasFile('vehicle_image')) {
-            $data['vehicle_image_path'] = $request->file('vehicle_image')->store('vehicle_images', 'public');
+        if ($request->hasFile('vehicle_images')) {
+            $paths = array_map(
+                fn($file) => $this->processAndStoreVehicleImage($file),
+                $request->file('vehicle_images')
+            );
+            $data['vehicle_image_path'] = json_encode(array_values($paths));
         }
 
         // Pass ETA from form if available
@@ -208,12 +216,35 @@ class BookingController extends Controller
         // TODO: Notify dispatcher about new quotation request
         // broadcast(new NewQuotationRequest($quotation));
 
-        return redirect()->route('landing')
-            ->with(
-                'success',
-                'Quotation request submitted successfully! Reference: ' . $quotation->quotation_number . '. We will send you a quotation shortly.' .
-                    ($quotation->customer?->email ? ' A confirmation will be sent to ' . $quotation->customer->email . '.' : '')
-            );
+        $serviceLabel = ($data['service_type'] ?? 'book_now') === 'schedule' ? 'Scheduled' : 'Book Now';
+
+        session(['booking_confirmation' => [
+            'reference'      => $quotation->quotation_number,
+            'submitted_at'   => now()->format('F j, Y g:i A'),
+            'service_type'   => $serviceLabel,
+            'scheduled_date' => $data['scheduled_date'] ?? null,
+            'name'           => trim(($data['first_name'] ?? '') . ' ' . ($data['middle_name'] ? $data['middle_name'] . ' ' : '') . ($data['last_name'] ?? '')),
+            'phone'          => $data['phone'],
+            'email'          => $data['email'] ?? null,
+            'pickup'         => $data['pickup_address'],
+            'dropoff'        => $data['dropoff_address'],
+            'distance_km'    => $data['distance_km'] ?? null,
+            'eta_minutes'    => $data['eta_minutes'] ?? null,
+            'estimated_price'=> $submittedPrice,
+            'truck_type'     => $quotation->truckType->name ?? null,
+            'vehicle_make'   => $data['vehicle_make'] ?? null,
+            'vehicle_model'  => $data['vehicle_model'] ?? null,
+            'vehicle_year'   => $data['vehicle_year'] ?? null,
+            'vehicle_color'  => $data['vehicle_color'] ?? null,
+            'vehicle_plate'  => $data['vehicle_plate_number'] ?? null,
+            'notes'          => $data['notes'] ?? null,
+        ]]);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['redirect' => route('booking.confirmed')]);
+        }
+
+        return redirect()->route('booking.confirmed');
     }
 
     protected function findExistingCustomerForBooking(array $data, ?Customer $preferredCustomer = null): ?Customer
@@ -507,5 +538,30 @@ class BookingController extends Controller
                 $query->orWhere('email', $user->email);
             })
             ->first();
+    }
+
+    private function processAndStoreVehicleImage(\Illuminate\Http\UploadedFile $file): string
+    {
+        // Magic-bytes check — reads actual file headers, not just extension/MIME
+        $imageInfo = @getimagesize($file->getRealPath());
+        abort_unless($imageInfo !== false, 422, 'Uploaded file is not a valid image.');
+
+        // Strict allow-list: IMAGETYPE_JPEG (2) and IMAGETYPE_PNG (3) only — GIF (1) and all others blocked
+        abort_unless(in_array($imageInfo[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true), 422, 'Only JPG and PNG images are accepted.');
+
+        // Re-encode via GD to strip embedded polyglot payloads and EXIF metadata
+        $source = imagecreatefromstring(file_get_contents($file->getRealPath()));
+        abort_unless($source !== false, 422, 'Could not process the uploaded image.');
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'towmate_img_') . '.jpg';
+        imagejpeg($source, $tmpPath, 85);
+        imagedestroy($source);
+
+        $storedPath = \Illuminate\Support\Facades\Storage::disk('public')
+            ->putFile('vehicle_images', new \Illuminate\Http\File($tmpPath));
+
+        @unlink($tmpPath);
+
+        return $storedPath;
     }
 }

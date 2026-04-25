@@ -38,12 +38,12 @@
         }
 
         .schedule-summary-pill.due {
-            background: #fff1f2;
+            background: #ffffff;
             border-color: #fecdd3;
         }
 
         .schedule-summary-pill.today {
-            background: #eff6ff;
+            background: #ffffff;
             border-color: #bfdbfe;
         }
 
@@ -84,35 +84,19 @@
 
 @section('content')
     <div class="dispatcher-dashboard" id="dispatcherDashboard" data-live-overview-url="{{ route('admin.live-overview') }}">
-        <div class="dashboard-hero">
-            <div class="hero-copy">
-                <h1>Jarz Command Center</h1>
-                <p>Live operations overview for requests, crew activity, and towing readiness.</p>
-            </div>
-
-            <div class="hero-tools">
-                <div class="date-display" id="currentDate"></div>
-                <button class="refresh-btn" id="refreshDashboardBtn" type="button" title="Refresh data">
-                    <i data-lucide="refresh-cw"></i>
-                    <span>Refresh</span>
-                </button>
-            </div>
-        </div>
 
         <div class="stats-grid">
             <div class="stat-card pending-card">
                 <div class="stat-top">
-                    <span class="stat-kicker">Incoming</span>
-                    <i data-lucide="inbox"></i>
+                    <span class="stat-kicker"></span>
                 </div>
                 <div class="stat-number" id="incomingCount">{{ $pendingRequests }}</div>
-                <div class="stat-label">Live Requests</div>
+                <div class="stat-label">Requests</div>
             </div>
 
             <div class="stat-card active-card">
                 <div class="stat-top">
-                    <span class="stat-kicker">Workload</span>
-                    <i data-lucide="truck"></i>
+                    <span class="stat-kicker"></span>
                 </div>
                 <div class="stat-number" id="activeJobsCount">{{ $activeJobs }}</div>
                 <div class="stat-label">Active Jobs</div>
@@ -120,20 +104,18 @@
 
             <div class="stat-card crew-card">
                 <div class="stat-top">
-                    <span class="stat-kicker">Leaders</span>
-                    <i data-lucide="check-circle"></i>
+                    <span class="stat-kicker"></span>
                 </div>
                 <div class="stat-number" id="availableLeadersCount">{{ $available }}</div>
-                <div class="stat-label">Available Team Leaders</div>
+                <div class="stat-label"> Team Leaders Available</div>
             </div>
 
             <div class="stat-card pending-card">
                 <div class="stat-top">
-                    <span class="stat-kicker">Scheduled</span>
-                    <i data-lucide="calendar-clock"></i>
+                    <span class="stat-kicker"></span>
                 </div>
                 <div class="stat-number" id="scheduledQueueCount">{{ $scheduledTodayCount + $upcomingScheduledCount }}</div>
-                <div class="stat-label">Planned Pickups</div>
+                <div class="stat-label">Scheduled</div>
             </div>
 
         </div>
@@ -141,10 +123,6 @@
         <div class="dashboard-main-grid">
             <section class="chart-card">
                 <div class="card-header">
-                    <div>
-                        <h3>Job mix snapshot</h3>
-                        <p>Current mix of completed, assigned, and pending towing work.</p>
-                    </div>
                     <div class="chart-legend">
                         <span class="legend-item"><span class="legend-dot completed"></span>Completed</span>
                         <span class="legend-item"><span class="legend-dot assigned"></span>Assigned</span>
@@ -158,10 +136,9 @@
                 </div>
             </section>
 
-            <aside class="actions-card">
+            {{-- <aside class="actions-card">
                 <div class="actions-head">
                     <h3>Quick Actions</h3>
-                    <p>Fast dispatcher shortcuts for the live operation board.</p>
                 </div>
 
                 <div class="action-buttons">
@@ -186,9 +163,9 @@
                         <small>See which towing units are ready now.</small>
                     </a>
                 </div>
-            </aside>
+            </aside> --}}
 
-            <section class="activity-card schedule-overview-card">
+            {{-- <section class="activity-card schedule-overview-card">
                 <div class="card-header">
                     <div>
                         <h3>Schedule Overview</h3>
@@ -246,13 +223,12 @@
                         </div>
                     @endforelse
                 </div>
-            </section>
+            </section> --}}
 
             <section class="activity-card">
                 <div class="card-header">
                     <div>
                         <h3>Incoming request feed</h3>
-                        <p>Newest towing requests waiting for dispatcher review.</p>
                     </div>
                     <div class="activity-filter">
                         <button class="filter-btn active" data-filter="all">All</button>
@@ -286,7 +262,6 @@
                         </div>
                     @empty
                         <div class="no-activity">
-                            <i data-lucide="activity"></i>
                             <p>No pending requests right now.</p>
                         </div>
                     @endforelse
@@ -297,7 +272,6 @@
                 <div class="card-header">
                     <div>
                         <h3>Current activity</h3>
-                        <p>Live handoffs from team leaders with the assigned unit and driver.</p>
                     </div>
                 </div>
 
@@ -327,7 +301,6 @@
                         </div>
                     @empty
                         <div class="no-activity">
-                            <i data-lucide="truck"></i>
                             <p>No jobs are active right now.</p>
                         </div>
                     @endforelse

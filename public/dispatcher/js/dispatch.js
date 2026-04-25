@@ -81,7 +81,6 @@ document
         if (!window.currentBookingId || !window.currentAction) return;
         submitDispatchAction(window.currentBookingId);
     });
-});
 
 
 // --- VIEW QUOTATION (WORKING VERSION) ---
@@ -182,6 +181,41 @@ document.addEventListener("DOMContentLoaded", function () {
 
     initializeViewToggle();
     initializeQueueFilters();
+
+    function initializeViewToggle() {
+        // No view-toggle UI exists on this page — no-op stub kept for compatibility.
+    }
+
+    function initializeQueueFilters() {
+        var filterBtns = document.querySelectorAll(".queue-filter-btn");
+        var cards = document.querySelectorAll(".incoming-card");
+
+        if (!filterBtns.length) return;
+
+        function applyFilter(filter) {
+            filterBtns.forEach(function (btn) {
+                btn.classList.toggle("is-active", btn.dataset.filter === filter);
+            });
+            cards.forEach(function (card) {
+                if (filter === "all") {
+                    card.style.display = "";
+                } else {
+                    card.style.display = card.dataset.queue === filter ? "" : "none";
+                }
+            });
+        }
+
+        filterBtns.forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                applyFilter(this.dataset.filter);
+            });
+        });
+
+        // Apply the default filter from the list's data attribute, or the first active button
+        var list = document.getElementById("incomingList");
+        var defaultFilter = (list && list.dataset.defaultFilter) || "returned";
+        applyFilter(defaultFilter);
+    }
     initializeRealtimeUpdates();
     initializePriceInput();
     initializeUnitSelector();
@@ -251,6 +285,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // apply filter
+    var savedFilter = localStorage.getItem("dispatchQueueFilter") || state.activeFilter || "returned";
     window.applyDispatchQueueFilter = applyQueueFilter;
     applyQueueFilter(savedFilter);
 

@@ -130,6 +130,14 @@ class Booking extends Model
         ];
     }
 
+    public function getVehicleImagePathsAttribute(): array
+    {
+        $raw = $this->attributes['vehicle_image_path'] ?? null;
+        if (! $raw) return [];
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : [$raw];
+    }
+
     public function getRouteKeyName(): string
     {
         return 'booking_code';

@@ -1432,6 +1432,8 @@ function toggleBookBtn() {
 
     if (!bookBtn) return;
 
+    const validServiceType = serviceType === "book_now" || serviceType === "schedule";
+
     const canRequest =
         pickup &&
         dropoff &&
@@ -1441,6 +1443,7 @@ function toggleBookBtn() {
         dropCoords &&
         elements.vehicleSelect?.value &&
         elements.vehicleCategorySelect?.value &&
+        validServiceType &&
         scheduleReady;
 
     bookBtn.disabled = !canRequest;

@@ -242,9 +242,8 @@
         }
 
         .queue-filter-btn.is-active {
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            border-color: #f59e0b;
-            color: #92400e;
+            background: #facc15;
+            color: #070504;
         }
 
         .incoming-card.is-hidden {
@@ -786,8 +785,6 @@
             <div class="section-header">
                 <div>
                     <h3>Dispatcher Booking Queue</h3>
-                    <p>Immediate requests, scheduled work, and returned tasks are separated so reassignment stays fast and
-                        clear.</p>
                 </div>
                 <div class="view-controls">
                     <span class="count" id="requestCount">{{ $queueCounts['book-now'] ?? $incomingRequests->count() }}</span>
@@ -1146,8 +1143,6 @@
             <div class="dp-tl-header">
                 <div>
                     <h3 class="dp-tl-title">Team Leaders</h3>
-                    <p class="dp-tl-sub">Only leaders with an assigned unit are shown. Changes sync with the Team Leaders
-                        module.</p>
                 </div>
                 <a href="{{ route('admin.drivers') }}" class="dp-tl-link">Full view &rarr;</a>
             </div>

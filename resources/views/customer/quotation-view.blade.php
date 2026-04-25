@@ -48,6 +48,17 @@
             </div>
         @endif
 
+        @if (!empty($isOutdated) && $isOutdated)
+            <div class="mb-6 px-5 py-4 rounded-lg" style="background:#fef3c7;border:2px solid #f59e0b;">
+                <p class="font-bold text-lg" style="color:#92400e;">Quotation Updated</p>
+                <p class="text-sm mt-1" style="color:#78350f;">
+                    The dispatcher has revised this quotation after your link was sent.
+                    This link is no longer valid for acceptance.
+                    Please wait — the dispatcher will send you a new link with the updated details.
+                </p>
+            </div>
+        @endif
+
         <!-- Status Banner -->
         @php
             $timeRemaining = $quotation->getTimeRemaining();
@@ -239,17 +250,22 @@
         <!-- Action Buttons -->
         @if ($quotation->status === 'sent' && !$timeRemaining['expired'])
             <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Ready to proceed?</h3>
-
-                <div class="text-center">
-                    <!-- Accept Button Only -->
-                    <a href="{{ $signedAcceptUrl }}"
-                        class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-4 px-12 rounded-lg">
-                        ✅ Accept & Continue
-                    </a>
-                    <p class="text-sm text-gray-500 mt-4">By accepting, you agree to the quoted price and service terms.
+                @if (!empty($isOutdated) && $isOutdated)
+                    <h3 class="text-lg font-semibold mb-3" style="color:#92400e;">Waiting for Updated Quotation</h3>
+                    <p class="text-sm" style="color:#78350f;">
+                        The dispatcher has updated this quotation. A new link will be sent to your email shortly.
+                        You do not need to do anything — just wait for the new message.
                     </p>
-                </div>
+                @else
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Ready to proceed?</h3>
+                    <div class="text-center">
+                        <a href="{{ $signedAcceptUrl }}"
+                            class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-4 px-12 rounded-lg">
+                            ✅ Accept & Continue
+                        </a>
+                        <p class="text-sm text-gray-500 mt-4">By accepting, you agree to the quoted price and service terms.</p>
+                    </div>
+                @endif
             </div>
         @endif
 

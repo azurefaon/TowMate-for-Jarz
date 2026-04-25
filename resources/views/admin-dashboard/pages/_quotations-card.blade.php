@@ -1,135 +1,289 @@
-<div class="quotations-card-section" style="margin-bottom: 32px;">
-    @if ($allQuotations->whereIn('status', ['pending', 'sent'])->count() > 0)
+@php
+    $pendingQuotations = $allQuotations->where('status', 'pending');
+    $sentQuotations = $allQuotations->where('status', 'sent');
+    $negotiatingQuotations = $allQuotations->where('status', 'negotiating');
+    $totalActive = $pendingQuotations->count() + $sentQuotations->count() + $negotiatingQuotations->count();
+@endphp
+
+@if ($totalActive > 0)
+    <div class="quotations-card-section" style="margin-bottom: 32px;">
         <div
-            style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 2px solid #fbbf24; border-radius: 16px; padding: 20px; box-shadow: 0 4px 12px rgba(251, 191, 36, 0.15);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <div>
-                    <h3
-                        style="margin: 0 0 4px; font-size: 1.1rem; font-weight: 700; color: #92400e; display: flex; align-items: center; gap: 8px;">
-                        FLOATING QUOTATIONS
-                        <span
-                            style="display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 0.85rem; font-weight: 700; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);">
-                            {{ $allQuotations->whereIn('status', ['pending', 'sent'])->count() }}
-                        </span>
-                    </h3>
-                    <p style="margin: 0; font-size: 0.85rem; color: #78350f;">Review and send quotations to customers</p>
+            style="background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">
+
+            <!-- Header -->
+            <div
+                style="padding: 16px 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    {{-- <div
+                        style="width: 36px; height: 36px; border-radius: 10px; background: #eff6ff; display: flex; align-items: center; justify-content: center; font-size: 1rem;">
+                    </div> --}}
+                    <div>
+                        <div
+                            style="font-size: 0.95rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                            Floating Quotations
+                            <span
+                                style="display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 0.72rem; font-weight: 800;">
+                                {{ $totalActive }}
+                            </span>
+                        </div>
+                        <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 1px;">
+                            {{ $pendingQuotations->count() }} need{{ $pendingQuotations->count() === 1 ? 's' : '' }}
+                            sending
+                            &nbsp;·&nbsp; {{ $sentQuotations->count() }} awaiting response
+                            @if ($negotiatingQuotations->count() > 0)
+                                &nbsp;·&nbsp; <span
+                                    style="color: #7e22ce; font-weight: 600;">{{ $negotiatingQuotations->count() }}
+                                    negotiating</span>
+                            @endif
+                        </div>
+                    </div>
                 </div>
                 <a href="#quotationsSection"
                     onclick="document.querySelector('[data-filter=quotations]').click(); return false;"
-                    style="padding: 8px 16px; border-radius: 8px; background: #fff; color: #92400e; font-size: 0.85rem; font-weight: 600; text-decoration: none; border: 1px solid #fbbf24; transition: all 0.15s;">
+                    style="font-size: 0.8rem; font-weight: 600; color: #2563eb; text-decoration: none; padding: 6px 12px; border-radius: 8px; border: 1px solid #dbeafe; background: #eff6ff;">
                     View All →
                 </a>
             </div>
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
-                @foreach ($allQuotations->whereIn('status', ['pending', 'sent'])->take(6) as $quotation)
-                    @php
-                        $timeRemaining = $quotation->getTimeRemaining();
-                        $urgency = $timeRemaining['urgency'] ?? 'normal';
+            <!-- Body -->
+            <div style="padding: 16px 20px; display: grid; gap: 20px;">
 
-                        $cardBorder = match ($urgency) {
-                            'urgent'
-                                => 'border: 2px solid #dc2626; background: linear-gradient(135deg, #fee2e2, #fef2f2);',
-                            'warning'
-                                => 'border: 2px solid #f59e0b; background: linear-gradient(135deg, #fef3c7, #fffbeb);',
-                            default => 'border: 1px solid #e5e7eb; background: #fff;',
-                        };
-
-                        $urgencyBadge = match ($urgency) {
-                            'urgent'
-                                => '<span style="display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; background: #fee2e2; color: #991b1b; animation: pulse 2s infinite;">🔴 URGENT</span>',
-                            'warning'
-                                => '<span style="display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; background: #fef3c7; color: #92400e;">🟡 EXPIRING</span>',
-                            default
-                                => '<span style="display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; background: #dcfce7; color: #166534;">🟢 ACTIVE</span>',
-                        };
-                    @endphp
-
-                    <div style="{{ $cardBorder }} border-radius: 12px; padding: 14px; transition: all 0.2s; cursor: pointer;"
-                        onclick="viewQuotationDetails({{ $quotation->id }})"
-                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.1)';"
-                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
-                            <div>
-                                <div style="font-weight: 700; font-size: 0.95rem; color: #0f172a; margin-bottom: 2px;">
-                                    {{ $quotation->quotation_number }}
-                                </div>
-                                <div style="font-size: 0.75rem; color: #64748b;">
-                                    {{ $quotation->created_at->diffForHumans() }}
-                                </div>
-                            </div>
-                            {!! $urgencyBadge !!}
+                {{-- SECTION 1: Ready to Send --}}
+                @if ($pendingQuotations->count() > 0)
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                            <div style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></div>
+                            <span
+                                style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em;">Ready
+                                to Send</span>
+                            <span style="font-size: 0.72rem; color: #94a3b8;">({{ $pendingQuotations->count() }})</span>
                         </div>
-
-                        <div style="margin-bottom: 10px;">
-                            <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; margin-bottom: 2px;">
-                                {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}
-                            </div>
-                            <div style="font-size: 0.8rem; color: #64748b;">
-                                {{ $quotation->customer->phone ?? 'N/A' }}
-                            </div>
-                        </div>
-
                         <div
-                            style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #e5e7eb;">
-                            <div>
-                                <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 2px;">Amount</div>
-                                <div style="font-weight: 700; font-size: 1rem; color: #0f172a;">
-                                    ₱{{ number_format($quotation->estimated_price, 2) }}
-                                </div>
-                            </div>
-                            <div style="text-align: right;">
-                                @if ($quotation->status === 'pending')
-                                    <button type="button"
-                                        onclick="event.stopPropagation(); sendQuotationToCustomer({{ $quotation->id }})"
-                                        style="padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: #10b981; color: white; border: none; cursor: pointer; transition: all 0.15s;"
-                                        onmouseover="this.style.background='#059669'"
-                                        onmouseout="this.style.background='#10b981'">
-                                        📤 Send
-                                    </button>
-                                @else
+                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+                            @foreach ($pendingQuotations->take(4) as $quotation)
+                                <div style="border: 1px solid #e5e7eb;  border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
+                                    onclick="viewQuotationDetails({{ $quotation->id }})"
+                                    onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
+                                    onmouseout="this.style.boxShadow='none'">
                                     <div
-                                        style="font-size: 0.7rem; color: {{ $urgency === 'urgent' ? '#dc2626' : ($urgency === 'warning' ? '#f59e0b' : '#64748b') }}; font-weight: 600;">
-                                        {{ $timeRemaining['message'] ?? 'N/A' }}
+                                        style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                        <div>
+                                            <div
+                                                style="font-size: 0.78rem; font-weight: 700; color: #0f172a; font-family: monospace;">
+                                                {{ $quotation->quotation_number }}</div>
+                                            <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 1px;">
+                                                {{ $quotation->created_at->diffForHumans() }}</div>
+                                        </div>
+                                        <span
+                                            style="font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #fef9c3; color: #854d0e; border: 1px solid #fde68a;">PENDING</span>
                                     </div>
-                                @endif
-                            </div>
+                                    <div
+                                        style="font-size: 0.88rem; font-weight: 600; color: #0f172a; margin-bottom: 1px;">
+                                        {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}
+                                    </div>
+                                    <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 10px;">
+                                        {{ $quotation->customer->phone ?? '' }}</div>
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                        <span
+                                            style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
+                                        <button type="button"
+                                            onclick="event.stopPropagation(); sendQuotationToCustomer({{ $quotation->id }})"
+                                            style="padding: 5px 14px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; background: #2563eb; color: #fff; border: none; cursor: pointer;"
+                                            onmouseover="this.style.background='#1d4ed8'"
+                                            onmouseout="this.style.background='#2563eb'">
+                                            Send →
+                                        </button>
+                                    </div>
+                                </div>
+                            @endforeach
                         </div>
-
-                        @if ($quotation->counter_offer_amount)
-                            <div
-                                style="margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: #fef3c7; border: 1px solid #fbbf24;">
-                                <div style="font-size: 0.7rem; color: #92400e; font-weight: 600;">💬 Counter Offer:
-                                    ₱{{ number_format($quotation->counter_offer_amount, 2) }}</div>
-                            </div>
-                        @endif
                     </div>
-                @endforeach
-            </div>
+                @endif
 
-            @if ($allQuotations->whereIn('status', ['pending', 'sent'])->count() > 6)
-                <div style="text-align: center; margin-top: 16px;">
+                {{-- SECTION 2: Awaiting Customer Response --}}
+                @if ($sentQuotations->count() > 0)
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                            <div
+                                style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; animation: qpulse 2s ease-in-out infinite;">
+                            </div>
+                            <span
+                                style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em;">Waiting
+                                for Customer</span>
+                            <span style="font-size: 0.72rem; color: #94a3b8;">({{ $sentQuotations->count() }})</span>
+                        </div>
+                        <div
+                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+                            @foreach ($sentQuotations->take(4) as $quotation)
+                                @php
+                                    $timeRemaining = $quotation->getTimeRemaining();
+                                    $urgency = $timeRemaining['urgency'] ?? 'normal';
+                                    $accentColor = match ($urgency) {
+                                        'urgent' => '#ef4444',
+                                        'warning' => '#f59e0b',
+                                        default => '#10b981',
+                                    };
+                                    $badgeBg = match ($urgency) {
+                                        'urgent' => '#fef2f2',
+                                        'warning' => '#fffbeb',
+                                        default => '#f0fdf4',
+                                    };
+                                    $badgeColor = match ($urgency) {
+                                        'urgent' => '#dc2626',
+                                        'warning' => '#b45309',
+                                        default => '#15803d',
+                                    };
+                                    $badgeText = match ($urgency) {
+                                        'urgent' => 'URGENT',
+                                        'warning' => 'EXPIRING',
+                                        default => 'SENT',
+                                    };
+                                @endphp
+                                <div style="border: 1px solid #e5e7eb; border-left: 4px solid {{ $accentColor }}; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
+                                    onclick="viewQuotationDetails({{ $quotation->id }})"
+                                    onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
+                                    onmouseout="this.style.boxShadow='none'">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                        <div>
+                                            <div
+                                                style="font-size: 0.78rem; font-weight: 700; color: #0f172a; font-family: monospace;">
+                                                {{ $quotation->quotation_number }}</div>
+                                            <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 1px;">Sent
+                                                {{ $quotation->sent_at?->diffForHumans() ?? '—' }}</div>
+                                        </div>
+                                        <span
+                                            style="font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: {{ $badgeBg }}; color: {{ $badgeColor }}; border: 1px solid {{ $accentColor }}20;">{{ $badgeText }}</span>
+                                    </div>
+                                    <div
+                                        style="font-size: 0.88rem; font-weight: 600; color: #0f172a; margin-bottom: 1px;">
+                                        {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}
+                                    </div>
+                                    <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 10px;">
+                                        {{ $quotation->customer->phone ?? '' }}</div>
+
+                                    @if ($quotation->counter_offer_amount)
+                                        <div
+                                            style="padding: 6px 10px; border-radius: 7px; background: #fffbeb; border: 1px solid #fde68a; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                            <span style="font-size: 0.72rem;">💬</span>
+                                            <span style="font-size: 0.75rem; color: #92400e; font-weight: 600;">Counter
+                                                offer: ₱{{ number_format($quotation->counter_offer_amount, 2) }}</span>
+                                        </div>
+                                    @endif
+
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                        <span
+                                            style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
+                                        <div style="text-align: right;">
+                                            <div
+                                                style="font-size: 0.72rem; color: {{ $accentColor }}; font-weight: 600;">
+                                                {{ $timeRemaining['message'] ?? '—' }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                {{-- SECTION 3: Negotiating --}}
+                @if ($negotiatingQuotations->count() > 0)
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                            <div
+                                style="width: 8px; height: 8px; border-radius: 50%; background: #a855f7; animation: qpulse 2s ease-in-out infinite;">
+                            </div>
+                            <span
+                                style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em;">Customer
+                                Negotiating</span>
+                            <span
+                                style="font-size: 0.72rem; color: #94a3b8;">({{ $negotiatingQuotations->count() }})</span>
+                        </div>
+                        <div
+                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+                            @foreach ($negotiatingQuotations->take(4) as $quotation)
+                                <div style="border: 1px solid #e9d5ff; border-left: 4px solid #a855f7; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
+                                    onclick="viewQuotationDetails({{ $quotation->id }})"
+                                    onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
+                                    onmouseout="this.style.boxShadow='none'">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                        <div>
+                                            <div
+                                                style="font-size: 0.78rem; font-weight: 700; color: #0f172a; font-family: monospace;">
+                                                {{ $quotation->quotation_number }}</div>
+                                            <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 1px;">
+                                                {{ $quotation->responded_at?->diffForHumans() ?? '—' }}</div>
+                                        </div>
+                                        <span
+                                            style="font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe;">NEGOTIATING</span>
+                                    </div>
+                                    <div
+                                        style="font-size: 0.88rem; font-weight: 600; color: #0f172a; margin-bottom: 1px;">
+                                        {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}
+                                    </div>
+                                    <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 8px;">
+                                        {{ $quotation->customer->phone ?? '' }}</div>
+                                    @if ($quotation->counter_offer_amount)
+                                        <div
+                                            style="padding: 6px 10px; border-radius: 7px; background: #f3e8ff; border: 1px solid #d8b4fe; margin-bottom: 8px;">
+                                            <div style="font-size: 0.75rem; color: #7e22ce; font-weight: 600;">Counter
+                                                offer: ₱{{ number_format($quotation->counter_offer_amount, 2) }}</div>
+                                            @if ($quotation->response_note)
+                                                <div style="font-size: 0.72rem; color: #a78bfa; margin-top: 2px;">
+                                                    "{{ Str::limit($quotation->response_note, 50) }}"</div>
+                                            @endif
+                                        </div>
+                                    @endif
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                        <span
+                                            style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
+                                        <button type="button"
+                                            onclick="event.stopPropagation(); viewQuotationDetails({{ $quotation->id }})"
+                                            style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; cursor: pointer;">
+                                            Review
+                                        </button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+            </div>{{-- /body --}}
+
+            @if ($totalActive > 8)
+                <div style="padding: 12px 20px; border-top: 1px solid #f1f5f9; text-align: center;">
                     <a href="#quotationsSection"
                         onclick="document.querySelector('[data-filter=quotations]').click(); return false;"
-                        style="display: inline-block; padding: 10px 20px; border-radius: 8px; background: #fff; color: #92400e; font-size: 0.9rem; font-weight: 600; text-decoration: none; border: 1px solid #fbbf24; transition: all 0.15s;">
-                        View All {{ $allQuotations->whereIn('status', ['pending', 'sent'])->count() }} Quotations →
+                        style="font-size: 0.82rem; font-weight: 600; color: #2563eb; text-decoration: none;">
+                        + {{ $totalActive - 8 }} more quotations — View All
                     </a>
                 </div>
             @endif
+
         </div>
-    @else
-        <div
-            style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; text-align: center;">
-            <div style="font-size: 2rem; margin-bottom: 8px;">✅</div>
-            <div style="font-size: 0.95rem; font-weight: 600; color: #64748b;">No pending quotations</div>
-            <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 4px;">All quotations have been processed</div>
-        </div>
-    @endif
-</div>
+    </div>
+@endif
 
 <style>
+    @keyframes qpulse {
+
+        0%,
+        100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        50% {
+            opacity: 0.5;
+            transform: scale(0.85);
+        }
+    }
+
     @keyframes pulse {
 
         0%,

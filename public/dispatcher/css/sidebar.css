@@ -100,11 +100,6 @@
     font-size: 14px;
     font-weight: 700;
     -webkit-tap-highlight-color: transparent;
-    transition:
-        transform 0.16s ease,
-        background-color 0.16s ease,
-        color 0.16s ease,
-        box-shadow 0.16s ease;
 }
 
 .menu-item::before {
@@ -132,25 +127,24 @@
 }
 
 .menu-item:hover {
-    background: #fff7dc;
     color: #111827;
     transform: translateX(2px);
     box-shadow: 0 10px 22px rgba(250, 204, 21, 0.12);
 }
-
+/* 
 .menu-item:hover::before {
     background: #facc15;
-}
+} */
 
 .menu-item.active {
     background: #facc15;
     color: #111827;
     box-shadow: 0 12px 24px rgba(250, 204, 21, 0.2);
 }
-
+/* 
 .menu-item.active::before {
     background: #111827;
-}
+} */
 
 .menu-item.active i,
 .menu-item.active span {

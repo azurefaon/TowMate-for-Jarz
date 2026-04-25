@@ -48,7 +48,6 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!Array.isArray(items) || !items.length) {
             list.innerHTML = `
                 <div class="no-activity">
-                    <i data-lucide="activity"></i>
                     <p>No pending requests right now.</p>
                 </div>`;
             return;
@@ -89,7 +88,6 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!Array.isArray(items) || !items.length) {
             list.innerHTML = `
                 <div class="no-activity">
-                    <i data-lucide="truck"></i>
                     <p>No jobs are active right now.</p>
                 </div>`;
             return;

@@ -205,8 +205,8 @@ class DispatchController extends Controller
 
         // Fetch all quotations with urgency levels (NEW QUOTATION MODEL)
         $allQuotations = Quotation::with(['customer', 'truckType'])
-            ->whereIn('status', ['pending', 'sent'])
-            ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
+            ->whereIn('status', ['pending', 'sent', 'negotiating'])
+            ->orderByRaw("CASE WHEN status = 'pending' THEN 0 WHEN status = 'negotiating' THEN 1 ELSE 2 END")
             ->orderBy('created_at', 'asc')
             ->get()
             ->map(function ($quotation) {
@@ -589,6 +589,7 @@ class DispatchController extends Controller
                 'vehicle_image_path' => $booking->vehicle_image_path,
                 'estimated_price' => $totals['final_total'],
                 'additional_fee' => $totals['additional_fee'],
+                'service_type' => $booking->service_type ?? null,
             ]);
 
             $this->quotationService->sendQuotation($quotation);
@@ -801,6 +802,9 @@ class DispatchController extends Controller
                 'counter_offer_amount'  => $quotation->counter_offer_amount,
                 'response_note'         => $quotation->response_note,
                 'status'                => $quotation->status,
+                'service_type'          => $quotation->service_type,
+                'link_version'          => $quotation->link_version ?? 1,
+                'vehicle_image_paths'   => $quotation->vehicle_image_paths ?? [],
                 'created_at'            => $quotation->created_at->format('M d, Y h:i A'),
             ],
         ]);
@@ -819,7 +823,7 @@ class DispatchController extends Controller
             'expiry_hours' => 'nullable|integer|min:1|max:720',
         ]);
 
-        $expiryHours = $validated['expiry_hours'] ?? 168;
+        $expiryHours = ($quotation->service_type === 'book_now') ? 1 : ($validated['expiry_hours'] ?? 168);
 
         $this->quotationService->sendQuotation($quotation, $expiryHours);
 
@@ -865,13 +869,18 @@ class DispatchController extends Controller
             'note' => 'nullable|string|max:1000',
         ]);
 
-        // Update both estimated_price (final total) and additional_fee
+        // Reset status to pending when dispatcher updates price so they can re-send.
+        // Clears counter offer if customer had negotiated (negotiating → pending).
         $quotation->update([
-            'estimated_price' => $validated['new_price'],
-            'additional_fee' => $validated['additional_fee'] ?? 0,
-            'discount' => 0,
+            'estimated_price'      => $validated['new_price'],
+            'additional_fee'       => $validated['additional_fee'] ?? 0,
+            'discount'             => 0,
             'counter_offer_amount' => null,
+            'response_note'        => null,
+            'status'               => 'pending',
         ]);
+
+        $quotation->increment('link_version');
 
         // Send updated quotation email to customer
         if ($quotation->customer && $quotation->customer->email) {

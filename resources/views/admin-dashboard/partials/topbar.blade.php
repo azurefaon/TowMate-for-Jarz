@@ -22,8 +22,7 @@
             <div class="notif-menu">
                 <div class="notif-menu-head">
                     <div>
-                        <h4>Dispatch Updates</h4>
-                        <small>Quotation responses, team leader handoffs, and live towing updates</small>
+                        <h4>Update Notifications</h4>
                     </div>
                 </div>
 

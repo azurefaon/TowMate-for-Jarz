@@ -57,11 +57,9 @@
                     </p>
                     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
                         <a href="{{ route('landing.book') }}" class="hero-btn">Book Now</a>
-                        <a href="{{ route('landing.book') }}" class="hero-btn"
-                            style="background:#ffffff;border:1px solid #d1d5db;box-shadow:none;">Schedule Later</a>
                     </div>
-                    <p style="margin-top:14px;font-size:14px;color:#666;">Urgent towing and planned dispatch are both
-                        available in one simple booking flow.</p>
+                    {{-- <p style="margin-top:14px;font-size:14px;color:#666;">Urgent towing and planned dispatch are both
+                        available in one simple booking flow.</p> --}}
                 </div>
 
                 <div class="image-box"
@@ -132,9 +130,6 @@
 
                 <div class="services-grid">
                     <div class="service-card">
-                        <div class="service-icon-wrapper">
-                            <i class='bx bx-car service-icon'></i>
-                        </div>
                         <h4>Emergency Towing</h4>
                         <p>
                             Immediate towing response for breakdowns, accidents, or urgent situations.
@@ -144,9 +139,6 @@
                     </div>
 
                     <div class="service-card">
-                        <div class="service-icon-wrapper">
-                            <i class='bx bx-wrench service-icon'></i>
-                        </div>
                         <h4>Towing Service</h4>
                         <p>
                             We provide reliable towing assistance to safely transport your vehicle to your desired location.
@@ -156,9 +148,6 @@
                     </div>
 
                     <div class="service-card">
-                        <div class="service-icon-wrapper">
-                            <i class='bx bx-phone-call service-icon'></i>
-                        </div>
                         <h4>Live Support</h4>
                         <p>
                             Speak with our experienced team directly. Expert guidance and real-time updates
@@ -168,9 +157,6 @@
                     </div>
 
                     <div class="service-card">
-                        <div class="service-icon-wrapper">
-                            <i class='bx bx-credit-card service-icon'></i>
-                        </div>
                         <h4>Flexible Payment</h4>
                         <p>
                             Multiple payment options for your convenience. Transparent pricing with
@@ -307,7 +293,7 @@
                         </div>
                     </div>
 
-                    <div class="contact-cta">
+                    {{-- <div class="contact-cta">
                         <div class="cta-content">
                             <span class="cta-label">Emergency Support</span>
                             <h3>Need Immediate Help?</h3>
@@ -318,7 +304,7 @@
                                 Call Now: {{ $landing->contact_phone ?? '+1 (555) 123-4567' }}
                             </a>
                         </div>
-                    </div>
+                    </div> --}}
                 </div>
             </div>
         </section>

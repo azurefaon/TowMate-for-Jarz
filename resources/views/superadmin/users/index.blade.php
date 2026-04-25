@@ -283,11 +283,31 @@
             </div>
         </div>
 
+        @php
+            $tlRole    = $roles->firstWhere('name', 'Team Leader');
+            $dispRole  = $roles->firstWhere('name', 'Admin');
+            $activeTab = request()->filled('role') ? (int) request('role') : null;
+        @endphp
         <div class="user-view-switch">
-            <a href="{{ route('superadmin.users.index') }}" class="user-view-link active">
+            <a href="{{ route('superadmin.users.index') }}"
+               class="user-view-link {{ $activeTab === null ? 'active' : '' }}">
                 <i data-lucide="users"></i>
-                Active Users
+                All Users
             </a>
+            @if ($tlRole)
+                <a href="{{ route('superadmin.users.index', ['role' => $tlRole->id]) }}"
+                   class="user-view-link {{ $activeTab === (int) $tlRole->id ? 'active' : '' }}">
+                    <i data-lucide="hard-hat"></i>
+                    Team Leaders
+                </a>
+            @endif
+            @if ($dispRole)
+                <a href="{{ route('superadmin.users.index', ['role' => $dispRole->id]) }}"
+                   class="user-view-link {{ $activeTab === (int) $dispRole->id ? 'active' : '' }}">
+                    <i data-lucide="radio"></i>
+                    Dispatchers
+                </a>
+            @endif
             <a href="{{ route('superadmin.users.archived') }}" class="user-view-link">
                 <i data-lucide="archive"></i>
                 Archived Users

@@ -51,6 +51,7 @@ class QuotationService
             'vehicle_plate_number' => $data['vehicle_plate_number'] ?? null,
             'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
             'estimated_price' => $data['estimated_price'],
+            'service_type' => $data['service_type'] ?? null,
             'status' => 'pending',
         ]);
     }
@@ -224,8 +225,10 @@ class QuotationService
     {
         $quotation->update([
             'estimated_price' => $newPrice,
-            'counter_offer_amount' => null, // Clear counter offer
+            'counter_offer_amount' => null,
         ]);
+
+        $quotation->increment('link_version');
 
         // If already sent, extend expiry and notify customer
         if ($quotation->status === 'sent') {
