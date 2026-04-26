@@ -23,7 +23,7 @@ class TeamLeaderController extends Controller
 {
     public function __construct(protected TeamLeaderAvailabilityService $teamLeaderAvailability) {}
 
-    protected array $activeStatuses = ['assigned', 'on_the_way', 'in_progress', 'waiting_verification'];
+    protected array $activeStatuses = ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'payment_pending', 'payment_submitted'];
 
     protected function touchPresence(): void
     {
@@ -337,13 +337,6 @@ class TeamLeaderController extends Controller
             ], 422);
         }
 
-        if (! filled($task->driver_name)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Enter the driver name before proceeding to the location.',
-            ], 422);
-        }
-
         $task->update([
             'status' => 'on_the_way',
         ]);
@@ -446,6 +439,44 @@ class TeamLeaderController extends Controller
             'message' => 'Job marked complete and sent for customer confirmation.',
             'status' => $task->status,
             'task' => $this->transformBooking($task),
+        ]);
+    }
+
+    public function submitPayment(Request $request, Booking $booking)
+    {
+        $this->touchPresence();
+
+        $task = $this->resolveOwnedTask($booking, true);
+
+        if ($task->status !== 'payment_pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment can only be submitted while the task is in payment pending state.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'payment_method' => 'required|in:gcash,bank,visa',
+            'payment_proof'  => 'required|file|mimes:jpg,jpeg,png,webp|max:5120',
+        ]);
+
+        $path = $request->file('payment_proof')->store('payment-proofs', 'public');
+
+        $task->update([
+            'payment_method'       => $validated['payment_method'],
+            'payment_proof_path'   => $path,
+            'payment_submitted_at' => now(),
+            'status'               => 'payment_submitted',
+        ]);
+
+        $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+        event(new BookingStatusUpdated($task));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment proof submitted. Waiting for dispatcher to confirm.',
+            'status'  => $task->status,
+            'task'    => $this->transformBooking($task),
         ]);
     }
 
@@ -606,31 +637,17 @@ class TeamLeaderController extends Controller
 
         if ($decision === 'approve') {
             $booking->update([
-                'status' => 'completed',
+                'status' => 'payment_pending',
                 'customer_verification_status' => 'approved',
                 'customer_verified_at' => now(),
-                'completed_at' => now(),
             ]);
 
-            $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
-            $this->syncAssignedUnitStatus($booking, 'available');
-            $assignedTlId = $booking->assigned_team_leader_id;
-            if ($assignedTlId) {
-                $tl = \App\Models\User::find($assignedTlId);
-                $this->teamLeaderAvailability->setOperationalOverride($tl, 'available');
-            }
+            $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
             event(new BookingStatusUpdated($booking));
 
-            $receipt = app(DocumentGenerationService::class)->generateReceipt($booking);
-
-            if (filled($booking->customer?->email)) {
-                Mail::to($booking->customer->email)->send(new BookingReceiptMail($booking->fresh(['customer', 'truckType', 'receipt'])));
-                $receipt->update(['email_sent' => true]);
-            }
-
             return response($this->verificationResponseHtml(
-                'Task completion confirmed',
-                'Thank you. Your response has been recorded and the towing job is now marked as completed.'
+                'Service confirmed — thank you!',
+                'Your confirmation has been received. The team leader will now process your payment and submit proof to the dispatcher to finalize the job.'
             ))->header('Content-Type', 'text/html; charset=UTF-8');
         }
 
@@ -660,8 +677,8 @@ class TeamLeaderController extends Controller
         $teamLeaderId = Auth::id();
         $userUnit = Auth::user()?->unit;
 
-        return Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
-            ->whereIn('status', ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed'])
+        return Booking::with(['customer', 'truckType', 'unit.driver', 'unit.teamLeader', 'assignedTeamLeader'])
+            ->whereIn('status', ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'payment_pending', 'payment_submitted', 'completed'])
             ->whereNotNull('assigned_unit_id')
             ->whereNotNull('assigned_team_leader_id')
             ->where('assigned_team_leader_id', $teamLeaderId);
@@ -672,7 +689,7 @@ class TeamLeaderController extends Controller
         $teamLeaderId = Auth::id();
         $userUnit = Auth::user()?->unit;
 
-        return Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
+        return Booking::with(['customer', 'truckType', 'unit.driver', 'unit.teamLeader', 'assignedTeamLeader'])
             ->whereIn('status', ['assigned', 'on_the_way', 'in_progress']) // ONLY READY TASKS
             ->whereNotNull('assigned_unit_id')
             ->whereNotNull('assigned_team_leader_id')
@@ -686,7 +703,7 @@ class TeamLeaderController extends Controller
             ? array_values(array_unique([...$this->activeStatuses, 'completed']))
             : $this->activeStatuses;
 
-        return Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
+        return Booking::with(['customer', 'truckType', 'unit.driver', 'unit.teamLeader', 'assignedTeamLeader'])
             ->where('assigned_team_leader_id', Auth::id())
             ->whereIn('status', $statuses)
             ->latest('updated_at');
@@ -783,68 +800,137 @@ class TeamLeaderController extends Controller
             ? 'returned'
             : match ($booking->status) {
                 'confirmed', 'accepted', 'assigned', 'quotation_sent' => 'assigned',
-                'on_the_way' => 'on_the_way',
-                'in_progress' => 'in_progress',
-                'waiting_verification' => 'waiting_verification',
-                'completed' => 'completed',
-                default => $booking->status,
+                'on_the_way'          => 'on_the_way',
+                'in_progress'         => 'in_progress',
+                'waiting_verification'=> 'waiting_verification',
+                'payment_pending'     => 'payment_pending',
+                'payment_submitted'   => 'payment_submitted',
+                'completed'           => 'completed',
+                default               => $booking->status,
             };
 
+        $distanceKm   = (float) ($booking->distance_km ?? 0);
+        $kmIncrements = (int) floor($distanceKm / 4);
+        $distanceFee  = round($kmIncrements * 200.0, 2);
+        $baseRate     = (float) ($booking->base_rate ?? 0);
+        $additionalFee = (float) ($booking->additional_fee ?? 0);
+        $finalTotal   = (float) ($booking->final_total ?? 0);
+
+        $unitDriver  = $booking->unit?->driver?->full_name
+            ?? $booking->unit?->driver?->name
+            ?? $booking->unit?->driver_name
+            ?? '—';
+        $tlName = $booking->assignedTeamLeader?->full_name
+            ?? $booking->assignedTeamLeader?->name
+            ?? $booking->unit?->teamLeader?->full_name
+            ?? '—';
+
+        $serviceLabel = match ($booking->service_type) {
+            'book_now'  => 'Book Now',
+            'scheduled' => 'Scheduled',
+            default     => 'Book Now',
+        };
+
+        $paymentMethodLabel = match ($booking->payment_method) {
+            'gcash' => 'GCash',
+            'bank'  => 'Bank Transfer',
+            'visa'  => 'Visa / Card',
+            default => null,
+        };
+
         return [
-            'id' => $booking->booking_code ?: $booking->id,
-            'booking_code' => $booking->job_code,
-            'status' => $booking->status,
-            'ui_status' => $uiStatus,
+            // Identifiers
+            'id'              => $booking->booking_code ?: $booking->id,
+            'booking_code'    => $booking->job_code,
+            'status'          => $booking->status,
+            'ui_status'       => $uiStatus,
+
+            // Status labels
             'status_label' => match ($uiStatus) {
-                'returned' => 'Returned to Dispatch',
-                'assigned' => 'Ready',
-                'on_the_way' => 'On the Way',
-                'in_progress' => 'Towing in Progress',
+                'returned'             => 'Returned to Dispatch',
+                'assigned'             => 'Ready',
+                'on_the_way'           => 'On the Way',
+                'in_progress'          => 'Towing in Progress',
                 'waiting_verification' => 'Awaiting Customer Confirmation',
-                'completed' => 'Completed',
-                default => ucfirst(str_replace('_', ' ', $booking->status)),
+                'payment_pending'      => 'Collect Payment',
+                'payment_submitted'    => 'Awaiting Dispatcher Confirmation',
+                'completed'            => 'Completed',
+                default                => ucfirst(str_replace('_', ' ', $booking->status)),
             },
             'status_note' => match ($uiStatus) {
-                'returned' => 'This task has been returned to dispatch and is waiting for reassignment review.',
-                'assigned' => filled($booking->driver_name)
-                    ? 'Driver details are saved. You can still change the driver before leaving.'
-                    : 'Add the driver name so this job is ready to leave.',
-                'on_the_way' => 'Your crew is heading to the pickup location now.',
-                'in_progress' => 'The tow is underway. Add the final note once everything is done.',
-                'waiting_verification' => 'A confirmation request has been sent to the customer.',
-                'completed' => 'The customer confirmed the service. This job is finished.',
-                default => 'Job updated.',
+                'returned'             => 'This task was returned to dispatch and is waiting for reassignment.',
+                'assigned'             => 'Your crew is assigned. Head to the pickup location when ready.',
+                'on_the_way'           => 'Your crew is heading to the pickup location now.',
+                'in_progress'          => 'The tow is underway. Complete the job when finished.',
+                'waiting_verification' => 'A confirmation request has been sent to the customer. This page updates automatically.',
+                'payment_pending'      => 'Customer confirmed the service. Collect payment and upload the proof.',
+                'payment_submitted'    => 'Payment proof submitted. Waiting for dispatcher to confirm.',
+                'completed'            => 'Job complete. A receipt has been sent to the customer.',
+                default                => 'Job updated.',
             },
-            'customer_name' => $booking->customer->full_name ?? 'Guest',
-            'customer_phone' => $booking->customer->phone ?? 'N/A',
-            'pickup_address' => $booking->pickup_address ?? 'Unknown pickup',
-            'dropoff_address' => $booking->dropoff_address ?? 'Unknown drop-off',
-            'truck_type' => $booking->truckType->name ?? 'General Towing',
-            'unit_name' => $booking->unit->name ?? 'Dispatch-assigned unit',
-            'unit_plate' => $booking->unit->plate_number ?? 'Plate pending',
-            'quotation_number' => $booking->quotation_number ?? 'Pending',
-            'driver_name' => $booking->driver_name,
+
+            // Customer
+            'customer_name'  => $booking->customer?->full_name ?? $booking->customer?->name ?? 'Guest',
+            'customer_phone' => $booking->customer?->phone ?? 'N/A',
+            'customer_email' => $booking->customer?->email ?? '—',
+
+            // Service
+            'pickup_address'  => $booking->pickup_address ?? '—',
+            'dropoff_address' => $booking->dropoff_address ?? '—',
+            'distance_km'     => $distanceKm,
+
+            // Pricing
+            'base_rate'      => $baseRate,
+            'km_increments'  => $kmIncrements,
+            'distance_fee'   => $distanceFee,
+            'additional_fee' => $additionalFee,
+            'final_total'    => $finalTotal,
+
+            // Booking info
+            'service_type'     => $booking->service_type ?? 'book_now',
+            'service_label'    => $serviceLabel,
+            'quotation_number' => $booking->quotation_number ?? $booking->job_code,
+            'scheduled_for'    => optional($booking->scheduled_for)->format('M d, Y h:i A'),
+
+            // Assigned truck
+            'truck_type'  => $booking->truckType?->name ?? 'General Towing',
+            'unit_name'   => $booking->unit?->name ?? 'Dispatch-assigned unit',
+            'unit_plate'  => $booking->unit?->plate_number ?? '—',
+            'unit_driver' => $unitDriver,
+            'tl_name'     => $tlName,
+
+            // Payment
+            'payment_method'       => $booking->payment_method,
+            'payment_method_label' => $paymentMethodLabel,
+            'payment_proof_path'   => $booking->payment_proof_path
+                ? \Illuminate\Support\Facades\Storage::disk('public')->url($booking->payment_proof_path)
+                : null,
+            'payment_submitted_at' => optional($booking->payment_submitted_at)->diffForHumans(),
+
+            // Timestamps
             'updated_at_human' => optional($booking->updated_at)->diffForHumans() ?? 'Just now',
-            'completion_note' => $booking->customer_verification_note,
-            'return_reason' => $booking->return_reason,
-            'returned_at_human' => optional($booking->returned_at)->diffForHumans(),
-            'returned_by' => $booking->returnedByTeamLeader->full_name ?? $booking->returnedByTeamLeader->name ?? null,
-            'is_returned' => $booking->needs_reassignment,
+            'completion_note'  => $booking->customer_verification_note,
+            'return_reason'    => $booking->return_reason,
+
+            // Flags
+            'is_returned'    => $booking->needs_reassignment,
             'assigned_to_me' => (int) $booking->assigned_team_leader_id === (int) Auth::id(),
             'can_accept' => ! $booking->needs_reassignment
                 && in_array($booking->status, ['quotation_sent', 'confirmed', 'accepted', 'assigned'], true)
                 && (empty($booking->assigned_team_leader_id) || (int) $booking->assigned_team_leader_id === (int) Auth::id()),
-            'can_open' => (int) $booking->assigned_team_leader_id === (int) Auth::id() && $booking->status !== 'completed',
-            'can_proceed' => $booking->status === 'assigned',
-            'can_start' => $booking->status === 'on_the_way',
-            'can_complete' => $booking->status === 'in_progress',
-            'can_return' => in_array($booking->status, ['assigned', 'on_the_way'], true),
-            'driver_locked' => $booking->status === 'assigned' && filled($booking->driver_name),
-            'can_edit_driver' => $booking->status === 'assigned' && filled($booking->driver_name),
+            'can_open'            => (int) $booking->assigned_team_leader_id === (int) Auth::id() && $booking->status !== 'completed',
+            'can_proceed'         => $booking->status === 'assigned',
+            'can_start'           => $booking->status === 'on_the_way',
+            'can_complete'        => $booking->status === 'in_progress',
+            'can_return'          => in_array($booking->status, ['assigned', 'on_the_way'], true),
+            'is_waiting'          => $booking->status === 'waiting_verification',
+            'is_payment_pending'  => $booking->status === 'payment_pending',
+            'is_payment_submitted'=> $booking->status === 'payment_submitted',
+            'is_completed'        => $booking->status === 'completed',
             'completion_note_locked' => $booking->status !== 'in_progress',
-            'is_waiting' => $booking->status === 'waiting_verification',
-            'is_completed' => $booking->status === 'completed',
-            'task_url' => route('teamleader.task.show', $booking),
+
+            // URLs
+            'task_url'   => route('teamleader.task.show', $booking),
             'accept_url' => route('teamleader.task.accept', $booking),
         ];
     }

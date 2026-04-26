@@ -13,6 +13,7 @@ class Booking extends Model
 
     protected $fillable = [
         'booking_code',
+        'quotation_id',
         'customer_id',
         'truck_type_id',
         'assigned_unit_id',
@@ -75,6 +76,10 @@ class Booking extends Model
         'return_reason',
         'returned_by_team_leader_id',
 
+        'payment_method',
+        'payment_proof_path',
+        'payment_submitted_at',
+
         'status',
     ];
 
@@ -120,6 +125,7 @@ class Booking extends Model
             'completion_requested_at' => 'datetime',
             'customer_verified_at' => 'datetime',
             'returned_at' => 'datetime',
+            'payment_submitted_at' => 'datetime',
             'base_rate' => 'decimal:2',
             'per_km_rate' => 'decimal:2',
             'computed_total' => 'decimal:2',
@@ -158,7 +164,7 @@ class Booking extends Model
             return 'cancelled';
         }
 
-        if (in_array($bookingStatus, ['confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed', 'on_job'], true)) {
+        if (in_array($bookingStatus, ['confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'payment_pending', 'payment_submitted', 'completed', 'on_job'], true)) {
             return 'accepted';
         }
 
@@ -208,14 +214,10 @@ class Booking extends Model
 
     public function getDistanceFeeAmountAttribute(): float
     {
-        $computed = (float) ($this->computed_total ?? 0);
-        $base     = (float) ($this->base_rate ?? 0);
-
-        if ($computed > 0 && $base > 0) {
-            return round($computed - $base, 2);
-        }
-
-        return round((float) ($this->distance_km ?? 0) * (float) ($this->per_km_rate ?? 0), 2);
+        // Per-4km charge: ₱200 per complete 4km increment
+        $distanceKm = (float) ($this->distance_km ?? 0);
+        $kmIncrements = (int) floor($distanceKm / 4);
+        return round($kmIncrements * 200.0, 2);
     }
 
     public function getExcessKmAttribute(): float

@@ -7,69 +7,31 @@
 @endpush
 
 @section('content')
-    <div class="jobs-page">
-        {{-- <div class="jobs-hero">
-            <div class="jobs-hero-copy">
-                <p class="jobs-eyebrow">Dispatcher view</p>
-                <h1 class="jobs-title">Active Jobs</h1>
-                <p class="jobs-subtitle">Taken jobs, en-route crews, and live towing operations.</p>
-            </div>
-
-        <div class="jobs-hero-actions">
-            <span class="jobs-status-pill">
-                <i data-lucide="truck"></i>
-                <span>{{ $stats['total'] }} live jobs</span>
-            </span>
-
-            <a href="{{ route('admin.dispatch') }}" class="jobs-link-btn">
-                <i data-lucide="arrow-left"></i>
-                <span>Back to Dispatch</span>
-            </a>
-        </div>
-    </div> --}}
-
-        <div class="jobs-stats-grid">
-            <div class="jobs-stat-card">
-                <span>Total Active</span>
-                <strong>{{ $stats['total'] }}</strong>
-                <small>All taken and moving tow jobs.</small>
-            </div>
-            <div class="jobs-stat-card info">
-                <span>Assigned</span>
-                <strong>{{ $stats['assigned'] }}</strong>
-                <small>Queued with a field team.</small>
-            </div>
-            <div class="jobs-stat-card success">
-                <span>Active Towing</span>
-                <strong>{{ $stats['on_job'] }}</strong>
-                <small>Currently in live roadside service.</small>
-            </div>
-            <div class="jobs-stat-card warning">
-                <span>Delayed</span>
-                <strong>{{ $stats['delayed'] }}</strong>
-                <small>Needs dispatcher attention.</small>
-            </div>
-        </div>
+    <div class="jobs-page" data-csrf="{{ csrf_token() }}">
 
         <div class="jobs-section-head">
-            <div>
-                <h2>Active jobs</h2>
-            </div>
+            <div></div>
             <span class="jobs-section-pill">{{ $stats['total'] }} active now</span>
         </div>
 
         <div class="jobs-grid">
             @forelse ($jobs as $job)
-                <article class="job-card" data-job-id="{{ $job->job_code }}"
+                <article class="job-card"
+                    data-job-id="{{ $job->job_code }}"
+                    data-booking-id="{{ $job->id }}"
+                    data-confirm-url="{{ route('jobs.confirm-payment', $job) }}"
                     data-customer="{{ optional($job->customer)->full_name ?? (optional($job->customer)->name ?? 'Customer unavailable') }}"
                     data-service="{{ optional($job->truckType)->name ?? 'General Tow' }}"
-                    data-status="{{ ucwords(str_replace('_', ' ', $job->status)) }}"
+                    data-status="{{ $job->status }}"
                     data-unit="{{ optional($job->unit)->name ?? 'Unassigned' }}"
                     data-teamleader="{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? (optional($job->assignedTeamLeader)->name ?? 'Unassigned')) }}"
                     data-driver="{{ $job->driver_name ?? (optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned')) }}"
                     data-created="{{ $job->created_at->diffForHumans() }}"
                     data-pickup="{{ $job->pickup_address ?? 'Pickup location pending' }}"
-                    data-dropoff="{{ $job->dropoff_address ?? 'Drop-off location pending' }}">
+                    data-dropoff="{{ $job->dropoff_address ?? 'Drop-off location pending' }}"
+                    data-payment-method="{{ $job->payment_method ?? '' }}"
+                    data-payment-proof="{{ $job->payment_proof_path ? asset('storage/' . $job->payment_proof_path) : '' }}"
+                    data-payment-submitted-at="{{ $job->payment_submitted_at ? $job->payment_submitted_at->format('M d, Y g:i A') : '' }}">
 
                     <div class="job-header">
                         <span class="job-id">Job {{ $job->job_code }}</span>
@@ -88,8 +50,7 @@
                         <div class="job-meta-grid">
                             <div class="job-meta-item">
                                 <span class="job-label">Customer</span>
-                                <span
-                                    class="job-value">{{ optional($job->customer)->full_name ?? (optional($job->customer)->name ?? 'Unknown') }}</span>
+                                <span class="job-value">{{ optional($job->customer)->full_name ?? (optional($job->customer)->name ?? 'Unknown') }}</span>
                             </div>
                             <div class="job-meta-item">
                                 <span class="job-label">Tow Type</span>
@@ -101,15 +62,20 @@
                             </div>
                             <div class="job-meta-item">
                                 <span class="job-label">Team Leader</span>
-                                <span
-                                    class="job-value">{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? (optional($job->assignedTeamLeader)->name ?? 'Unassigned')) }}</span>
+                                <span class="job-value">{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? (optional($job->assignedTeamLeader)->name ?? 'Unassigned')) }}</span>
                             </div>
                             <div class="job-meta-item full-width">
                                 <span class="job-label">Member Driver</span>
-                                <span
-                                    class="job-value">{{ $job->driver_name ?? (optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned')) }}</span>
+                                <span class="job-value">{{ $job->driver_name ?? (optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned')) }}</span>
                             </div>
                         </div>
+
+                        @if ($job->status === 'payment_submitted')
+                            <div class="job-payment-alert">
+                                <i data-lucide="credit-card"></i>
+                                <span>Payment proof submitted — awaiting confirmation</span>
+                            </div>
+                        @endif
 
                         <button type="button" class="job-view-btn js-open-job-modal">
                             <i data-lucide="eye"></i>
@@ -119,9 +85,8 @@
                 </article>
             @empty
                 <div class="empty-state jobs-empty-state">
-                    <i data-lucide="clipboard-list"></i>
                     <h3>No active jobs</h3>
-                    <p>Team Leader-taken and active towing jobs will appear here as soon as the field crew starts work.</p>
+                    <p>Team Leader taken and active towing jobs will appear here as soon as the field crew starts work.</p>
                 </div>
             @endforelse
         </div>
@@ -130,6 +95,7 @@
             {{ $jobs->onEachSide(1)->links() }}
         </div>
 
+        {{-- Job Detail Modal --}}
         <div class="job-modal" id="jobModal">
             <div class="modal-overlay"></div>
             <div class="modal-content">
@@ -180,10 +146,38 @@
                             <span class="detail-value" id="job-time">—</span>
                         </div>
                     </div>
+
+                    {{-- Payment section — shown for payment_pending and payment_submitted --}}
+                    <div class="payment-section" id="paymentSection" style="display:none;">
+                        <div class="payment-section-title">
+                            <i data-lucide="credit-card"></i>
+                            <span>Payment Submission</span>
+                        </div>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Payment Method</span>
+                                <span class="detail-value" id="job-payment-method">—</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Submitted At</span>
+                                <span class="detail-value" id="job-payment-submitted-at">—</span>
+                            </div>
+                        </div>
+                        <div class="payment-proof-area" id="paymentProofArea" style="display:none;">
+                            <span class="detail-label">Payment Proof</span>
+                            <a id="job-payment-proof-link" href="#" target="_blank" rel="noopener">
+                                <img id="job-payment-proof" src="" alt="Payment proof" class="payment-proof-img">
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="modal-actions">
                     <a href="{{ route('admin.dispatch') }}" class="btn btn-secondary">Open Dispatch Queue</a>
+                    <button type="button" id="confirmPaymentBtn" class="btn btn-confirm-payment" style="display:none;">
+                        <i data-lucide="check-circle"></i>
+                        <span>Confirm Payment</span>
+                    </button>
                     <button type="button" class="btn btn-primary close-modal-btn">
                         <i data-lucide="check"></i>
                         Close

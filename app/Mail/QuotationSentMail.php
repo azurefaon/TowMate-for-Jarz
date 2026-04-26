@@ -22,41 +22,22 @@ class QuotationSentMail extends Mailable
     {
         $this->quotation = $quotation;
 
-        $totalAmount = $quotation->estimated_price ?? 0;
-        $basePrice   = $quotation->truckType->base_rate ?? 0;
-        $perKmRate   = $quotation->truckType->per_km_rate ?? 0;
-        $distanceKm  = $quotation->distance_km ?? 0;
+        $totalAmount   = (float) ($quotation->estimated_price ?? 0);
+        $basePrice     = (float) ($quotation->truckType->base_rate ?? 0);
+        $distanceKm    = (float) ($quotation->distance_km ?? 0);
+        $additionalFee = (float) ($quotation->additional_fee ?? 0);
 
-        $distanceFee  = 0;
-        $hasExcess    = false;
-        $excessKm     = 0;
-        $first4KmFee  = 0;
-        $excessFee    = 0;
-
-        if ($distanceKm > 4) {
-            $hasExcess   = true;
-            $excessKm    = $distanceKm - 4;
-            $first4KmFee = 4 * $perKmRate;
-            $excessFee   = $excessKm * 200;
-            $distanceFee = $first4KmFee + $excessFee;
-        } else {
-            $distanceFee = $distanceKm * $perKmRate;
-        }
-
-        $customerPrice = $basePrice + $distanceFee;
-        $otherFees     = $totalAmount - $customerPrice;
+        // Per-4km: ₱200 per complete 4km increment (matches dispatcher formula)
+        $kmIncrements = (int) floor($distanceKm / 4);
+        $distanceFee  = round($kmIncrements * 200.0, 2);
 
         $this->priceBreakdown = [
             'base_price'    => $basePrice,
-            'per_km_rate'   => $perKmRate,
             'distance_km'   => $distanceKm,
             'distance_fee'  => $distanceFee,
-            'has_excess'    => $hasExcess,
-            'excess_km'     => $excessKm,
-            'first_4km_fee' => $first4KmFee,
-            'excess_fee'    => $excessFee,
-            'customer_price' => $customerPrice,
-            'other_fees'    => $otherFees,
+            'km_increments' => $kmIncrements,
+            'additional_fee' => $additionalFee,
+            'has_excess'    => false,
             'total_amount'  => $totalAmount,
         ];
     }

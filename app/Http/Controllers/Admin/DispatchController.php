@@ -30,7 +30,7 @@ class DispatchController extends Controller
     protected ReturnReasonHandler $returnReasonHandler;
     protected QuotationService $quotationService;
 
-    protected array $reviewableStatuses = ['requested', 'reviewed', 'quoted', 'quotation_sent'];
+    protected array $reviewableStatuses = ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed'];
 
     public function __construct(
         BookingService $bookingService,
@@ -125,10 +125,13 @@ class DispatchController extends Controller
             return $booking;
         });
 
+        $pendingQuotationCount = Quotation::where('status', 'pending')->count();
+
         $queueCounts = [
             'all' => $incomingRequests->count(),
             'returned' => $returnedRequests->count(),
             'active' => $activeBookings->count(),
+            'pending-quotations' => $pendingQuotationCount,
             'book-now' => 0,
             'scheduled' => 0,
             'delayed' => 0,
@@ -160,6 +163,7 @@ class DispatchController extends Controller
                     'label' => trim(($unit->name ?? 'Unit') . ' · ' . ($unit->plate_number ?? 'No plate')),
                     'truck_type_id' => (int) ($unit->truck_type_id ?? 0),
                     'truck_type' => $unit->truckType->name ?? 'Unknown truck type',
+                    'base_rate' => (float) ($unit->truckType->base_rate ?? 0),
                     'team_leader_name' => $unit->teamLeader->full_name ?? $unit->teamLeader->name ?? 'No team leader',
                     'driver_name' => $unit->driver->full_name ?? $unit->driver->name ?? 'No saved driver',
                     'status_summary' => $hasReadyLeader ? $coverage['summary'] : 'Team leader is not ready for dispatch',
@@ -447,27 +451,27 @@ class DispatchController extends Controller
                 'exists:units,id',
             ],
             'distance_km' => [
-                Rule::requiredIf(fn() => $request->input('action') === 'accept'),
+                Rule::requiredIf(fn() => $request->input('action') === 'accept' && $booking->status !== 'confirmed'),
                 'nullable',
                 'numeric',
                 'min:0.01',
                 'max:10000',
             ],
             'distance_fee' => [
-                Rule::requiredIf(fn() => $request->input('action') === 'accept'),
+                Rule::requiredIf(fn() => $request->input('action') === 'accept' && $booking->status !== 'confirmed'),
                 'nullable',
                 'numeric',
                 'min:0',
                 function (string $attribute, mixed $value, \Closure $fail) use ($request, $booking) {
-                    if ($request->input('action') !== 'accept' || $value === null || $value === '') {
+                    if ($request->input('action') !== 'accept' || $booking->status === 'confirmed' || $value === null || $value === '') {
                         return;
                     }
 
                     $distanceKm = (float) $request->input('distance_km', $booking->distance_km ?? 0);
-                    $expectedDistanceFee = round($distanceKm * (float) ($booking->per_km_rate ?? 0), 2);
+                    $expectedDistanceFee = round(floor($distanceKm / 4) * 200, 2);
 
                     if (abs($expectedDistanceFee - (float) $value) > 0.11) {
-                        $fail('Distance fee must match the distance and per KM rate.');
+                        $fail('Distance fee must match the per-4km rate.');
                     }
                 },
             ],
@@ -486,7 +490,7 @@ class DispatchController extends Controller
             $selectedUnit = null;
 
             if (! empty($validated['assigned_unit_id'])) {
-                $selectedUnit = Unit::with(['teamLeader'])->find($validated['assigned_unit_id']);
+                $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
                 $busyTeamLeaderIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
 
                 if (
@@ -536,16 +540,41 @@ class DispatchController extends Controller
                     'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
                 ]);
             }
+
+            // "Start Job" path: confirmed bookings (customer already accepted quotation)
+            // Skip quotation flow — assign unit and send directly to Team Leader queue
+            if ($booking->status === 'confirmed') {
+                $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+                    'status' => 'assigned',
+                    'assigned_unit_id' => $selectedUnit?->id,
+                    'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id,
+                    'assigned_at' => now(),
+                    'dispatcher_note' => $dispatcherNote,
+                ]));
+
+                $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
+                event(new BookingStatusUpdated($booking));
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Job started. The team leader can now accept the task.',
+                    'status' => $booking->status,
+                    'assigned_unit' => $selectedUnit?->name,
+                    'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
+                ]);
+            }
             $remarks = filled($validated['remarks'] ?? null)
                 ? trim(strip_tags((string) $validated['remarks']))
                 : $dispatcherNote;
             $distanceKm = round((float) ($validated['distance_km'] ?? ($booking->distance_km ?? 0)), 2);
+            $unitBaseRate = (float) ($selectedUnit?->truckType?->base_rate ?? $booking->truckType?->base_rate ?? 0);
             $totals = $this->bookingService->calculateQuotationTotals(
                 $booking,
                 (string) ($validated['additional_fee'] ?? null),
                 (string) ($validated['price'] ?? null),
                 $distanceKm,
-                0 // no discount
+                0, // no discount
+                $unitBaseRate,
             );
 
             $booking->update($this->bookingService->filterPayloadForTable('bookings', [
@@ -553,8 +582,8 @@ class DispatchController extends Controller
                 'quotation_status' => 'active',
                 'assigned_unit_id' => $selectedUnit?->id ?? $booking->assigned_unit_id,
                 'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,
-                'base_rate' => $booking->truckType->base_rate ?? 0,
-                'per_km_rate' => $booking->truckType->per_km_rate ?? 0,
+                'base_rate' => $unitBaseRate,
+                'per_km_rate' => 0,
                 'distance_km' => $totals['distance_km'],
                 'computed_total' => $totals['computed_total'],
                 'additional_fee' => $totals['additional_fee'],
@@ -767,10 +796,10 @@ class DispatchController extends Controller
         $finalTotal    = (float) ($quotation->estimated_price ?? 0);
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
         $discount      = (float) ($quotation->discount ?? 0);
-        $basePrice     = (float) ($quotation->truckType->base_rate ?? 0);
-        $perKmRate     = (float) ($quotation->truckType->per_km_rate ?? 0);
-        $distanceFee   = round($finalTotal - $basePrice - $additionalFee + $discount, 2);
-        $excessKm      = max(round($distanceKm - 4.0, 2), 0);
+        $basePrice     = 0.0; // base rate excluded until unit is assigned
+        $perKmRate     = 0.0;
+        $kmIncrements  = (int) floor($distanceKm / 4);
+        $distanceFee   = round($kmIncrements * 200.0, 2);
 
         $customerName = $quotation->customer->full_name
             ?? $quotation->customer->name
@@ -792,9 +821,11 @@ class DispatchController extends Controller
                 'truck_type_id'         => $quotation->truck_type_id,
                 'base_price'            => $basePrice,
                 'per_km_rate'           => $perKmRate,
+                'km_increments'         => $kmIncrements,
+                'km_charge_per_increment' => 200,
                 'distance_fee'          => $distanceFee,
-                'excess_km'             => $excessKm,
-                'has_excess'            => $excessKm > 0,
+                'excess_km'             => 0,
+                'has_excess'            => false,
                 'additional_fee'        => $additionalFee,
                 'discount'              => $discount,
                 'estimated_price'       => $finalTotal,
@@ -821,7 +852,38 @@ class DispatchController extends Controller
 
         $validated = $request->validate([
             'expiry_hours' => 'nullable|integer|min:1|max:720',
+            'assigned_unit_id' => 'nullable|integer|exists:units,id',
         ]);
+
+        if (empty($validated['assigned_unit_id'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please assign a unit before sending the quotation.',
+            ], 422);
+        }
+
+        $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
+        $unitBaseRate = (float) ($selectedUnit?->truckType?->base_rate ?? 0);
+
+        // Recompute estimated_price to include unit base rate + km charge
+        $distanceKm   = (float) ($quotation->distance_km ?? 0);
+        $kmIncrements = (int) floor($distanceKm / 4);
+        $kmCharge     = round($kmIncrements * 200.0, 2);
+        $additionalFee = (float) ($quotation->additional_fee ?? 0);
+        $newEstimatedPrice = round($unitBaseRate + $kmCharge + $additionalFee, 2);
+
+        $quotation->update(['estimated_price' => $newEstimatedPrice]);
+
+        $booking = Booking::where('quotation_id', $quotation->id)->first();
+        if ($booking) {
+            $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+                'assigned_unit_id' => $selectedUnit?->id,
+                'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id,
+                'base_rate' => $unitBaseRate,
+                'per_km_rate' => 0,
+                'final_total' => $newEstimatedPrice,
+            ]));
+        }
 
         $expiryHours = ($quotation->service_type === 'book_now') ? 1 : ($validated['expiry_hours'] ?? 168);
 
@@ -867,18 +929,32 @@ class DispatchController extends Controller
             'new_price' => 'required|numeric|min:0',
             'additional_fee' => 'nullable|numeric|min:0',
             'note' => 'nullable|string|max:1000',
+            'assigned_unit_id' => 'nullable|integer|exists:units,id',
         ]);
 
-        // Reset status to pending when dispatcher updates price so they can re-send.
-        // Clears counter offer if customer had negotiated (negotiating → pending).
-        $quotation->update([
+        $updateData = [
             'estimated_price'      => $validated['new_price'],
             'additional_fee'       => $validated['additional_fee'] ?? 0,
             'discount'             => 0,
             'counter_offer_amount' => null,
             'response_note'        => null,
             'status'               => 'pending',
-        ]);
+        ];
+
+        $quotation->update($updateData);
+
+        if (!empty($validated['assigned_unit_id'])) {
+            $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
+            $booking = Booking::where('quotation_id', $quotation->id)->first();
+            if ($booking && $selectedUnit) {
+                $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+                    'assigned_unit_id' => $selectedUnit->id,
+                    'assigned_team_leader_id' => $selectedUnit->teamLeader?->id,
+                    'base_rate' => (float) ($selectedUnit->truckType?->base_rate ?? 0),
+                    'per_km_rate' => 0,
+                ]));
+            }
+        }
 
         $quotation->increment('link_version');
 

@@ -742,12 +742,12 @@ function populateBookingSummary() {
         ];
 
         const fareItems = [
-            { label: "Base Rate", value: baseRate },
             { label: "Distance", value: distance },
-            rate ? { label: "Rate per KM", value: rate } : null,
+            rate && rate !== "₱0.00" ? { label: "Per-4km Charge", value: rate } : null,
             { label: "Distance Fee", value: distanceFee },
-            { label: "Excess Fee", value: excessFee },
-            { label: "Additional Fees", value: additionalFee },
+            additionalFee && additionalFee !== "₱0.00"
+                ? { label: "Additional Fees", value: additionalFee }
+                : null,
             discount && discount !== "₱0.00"
                 ? { label: "Discount", value: discount }
                 : null,
@@ -1437,7 +1437,6 @@ function toggleBookBtn() {
     const canRequest =
         pickup &&
         dropoff &&
-        currentEstimateTotal > 0 &&
         currentDistanceKm > 0 &&
         pickupCoords &&
         dropCoords &&
@@ -1539,20 +1538,21 @@ async function calculateEstimate() {
 
         drawRoute(data.route || {});
 
-        currentRate = Number(pricing.per_km_rate || 0);
+        currentRate = 0;
         currentDistanceKm = Number(pricing.distance_km || 0);
         currentEtaMinutes = Number(data.route?.duration_min || 0);
         currentEstimateTotal = Number(pricing.final_total || 0);
+        const kmIncrements = Number(pricing.km_increments || Math.floor(currentDistanceKm / 4));
 
         applyPricingSnapshot(
             createPricingSnapshot({
-                baseRateText: currency(pricing.base_rate || 0),
+                baseRateText: "₱0.00",
                 distanceText: `${currentDistanceKm.toFixed(2)} km`,
                 etaText: formatEta(currentEtaMinutes, currentDistanceKm),
-                perKmRateText: currency(pricing.per_km_rate || 0),
+                perKmRateText: `${kmIncrements} × ₱200.00`,
                 distanceFeeText: currency(pricing.distance_fee || 0),
-                excessKmText: `${Number(pricing.excess_km || 0).toFixed(2)} km`,
-                excessFeeText: currency(pricing.excess_fee || 0),
+                excessKmText: "0.00 km",
+                excessFeeText: "₱0.00",
                 additionalFeeText: currency(pricing.additional_fee || 0),
                 totalText: currency(pricing.final_total || 0),
                 discountAmountText:
@@ -1653,36 +1653,31 @@ function resetEstimatePreview(keepRoute = false) {
 
     const rates = getSelectedTruckRates();
 
-    currentRate = rates.perKm;
+    currentRate = 0;
     currentDistanceKm = 0;
     currentEtaMinutes = 0;
-    currentEstimateTotal = rates.base;
+    currentEstimateTotal = 0;
 
     applyPricingSnapshot(
         createPricingSnapshot({
-            baseRateText: currency(rates.base),
+            baseRateText: "₱0.00",
             distanceText: "0 km",
             etaText: "Pending route",
-            perKmRateText: currency(rates.perKm),
+            perKmRateText: "0 × ₱200.00",
             distanceFeeText: "₱0.00",
             excessKmText: "0 km",
             excessFeeText: "₱0.00",
             additionalFeeText: "₱0.00",
-            totalText: currency(rates.base),
+            totalText: "₱0.00",
         }),
     );
 
-    setText(
-        "availabilityStatus",
-        rates.base > 0 ? "Base rate ready" : "Set your route",
-    );
+    setText("availabilityStatus", "Set your route");
     setText(
         "availabilityNote",
-        rates.base > 0
-            ? "Truck base rate is ready. Add pickup and dropoff to calculate the full trip total."
-            : keepRoute
-              ? "Route ready. Pick a vehicle to see the live estimate."
-              : "Select your pickup stop, dropoff stop, and vehicle to see the live estimate.",
+        keepRoute
+            ? "Route ready. Pick a vehicle to see the live estimate."
+            : "Select your pickup stop, dropoff stop, and vehicle to see the live estimate.",
     );
 
     prepareBookingData();
@@ -1744,44 +1739,37 @@ function estimateDistanceFromCoords() {
 }
 
 function applyTruckBasePreview(hasRouteContext = false) {
-    const rates = getSelectedTruckRates();
-
-    if (rates.base <= 0 && rates.perKm <= 0) {
-        resetEstimatePreview(false);
-        return;
-    }
-
     const distanceKm = hasRouteContext ? estimateDistanceFromCoords() : 0;
-    const distanceFee = Number((distanceKm * rates.perKm).toFixed(2));
-    const total = Number((rates.base + distanceFee).toFixed(2));
+    const kmIncrements = Math.floor(distanceKm / 4);
+    const distanceFee = kmIncrements * 200;
 
-    currentRate = rates.perKm;
+    currentRate = 0;
     currentDistanceKm = distanceKm;
     currentEtaMinutes = estimateEtaFromDistance(distanceKm);
-    currentEstimateTotal = total;
+    currentEstimateTotal = distanceFee;
 
     applyPricingSnapshot(
         createPricingSnapshot({
-            baseRateText: currency(rates.base),
+            baseRateText: "₱0.00",
             distanceText: `${distanceKm.toFixed(2)} km`,
             etaText: formatEta(currentEtaMinutes, distanceKm),
-            perKmRateText: currency(rates.perKm),
+            perKmRateText: `${kmIncrements} × ₱200.00`,
             distanceFeeText: currency(distanceFee),
             excessKmText: "0 km",
             excessFeeText: "₱0.00",
             additionalFeeText: "₱0.00",
-            totalText: currency(total),
+            totalText: currency(distanceFee),
         }),
     );
 
     setText(
         "availabilityStatus",
-        hasRouteContext ? "Approximate estimate" : "Base rate ready",
+        hasRouteContext ? "Approximate estimate" : "Set your route",
     );
     setText(
         "availabilityNote",
         hasRouteContext
-            ? "Showing an estimate from the selected truck while the live route total syncs."
+            ? "Showing a route estimate. Live pricing will sync momentarily."
             : "Select pickup and dropoff to calculate the full trip total.",
     );
 

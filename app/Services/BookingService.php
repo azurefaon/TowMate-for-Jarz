@@ -166,37 +166,32 @@ class BookingService
 
     public function calculatePricing(array $data): array
     {
-        $truckType = TruckType::query()->findOrFail($data['truck_type_id']);
+        TruckType::query()->findOrFail($data['truck_type_id']);
         $distanceKm = $this->resolveDistanceKm($data);
-        $baseRate = $this->resolveBaseRate($truckType);
-        $perKmRate = $this->resolvePerKmRate($truckType, $data['vehicle_category'] ?? null);
-        $excessKmThreshold = $this->resolveExcessKmThreshold(true);
-        $excessKmRate      = $this->resolveExcessKmRate(true);
-        $distanceFee = round($distanceKm * $perKmRate, 2);
-        $excessKm = max(round($distanceKm - $excessKmThreshold, 2), 0);
-        $excessFee = round($excessKm * $excessKmRate, 2);
-        $computedTotal = round($baseRate + $distanceFee + $excessFee, 2);
+
+        // Per-4km charge: ₱200 per complete 4km increment (no base rate)
+        $kmIncrements = (int) floor($distanceKm / 4);
+        $kmCharge = round($kmIncrements * 200.0, 2);
+
         $customerType = $this->resolveCustomerType($data);
-        $discount = $this->resolveBookingDiscount($data, $computedTotal, $customerType);
-        $discountPercentage = $discount['discount_percentage'];
-        $discountReason = $discount['discount_reason'];
-        $discountAmount = $discount['discount_amount'];
+        $discount = $this->resolveBookingDiscount($data, $kmCharge, $customerType);
         $additionalFee = $this->parsePrice($data['additional_fee'] ?? null);
-        $finalTotal = max(round($computedTotal + $additionalFee - $discountAmount, 2), 0);
+        $finalTotal = max(round($kmCharge + $additionalFee - $discount['discount_amount'], 2), 0);
 
         return [
             'distance_km' => $distanceKm,
-            'base_rate' => $baseRate,
-            'per_km_rate' => $perKmRate,
-            'distance_fee' => $distanceFee,
-            'excess_km_threshold' => $excessKmThreshold,
-            'excess_km_rate' => $excessKmRate,
-            'excess_km' => $excessKm,
-            'excess_fee' => $excessFee,
-            'computed_total' => $computedTotal,
-            'discount_percentage' => $discountPercentage,
-            'discount_reason' => $discountReason,
-            'discount_amount' => $discountAmount,
+            'base_rate' => 0.0,
+            'per_km_rate' => 0.0,
+            'distance_fee' => $kmCharge,
+            'km_increments' => $kmIncrements,
+            'excess_km_threshold' => 0.0,
+            'excess_km_rate' => 200.0,
+            'excess_km' => 0.0,
+            'excess_fee' => 0.0,
+            'computed_total' => $kmCharge,
+            'discount_percentage' => $discount['discount_percentage'],
+            'discount_reason' => $discount['discount_reason'],
+            'discount_amount' => $discount['discount_amount'],
             'additional_fee' => $additionalFee,
             'final_total' => $finalTotal,
             'customer_type' => $customerType,
@@ -209,16 +204,17 @@ class BookingService
         ?string $quotedTotal = null,
         ?float $distanceKm = null,
         ?float $discountPercentage = null,
+        ?float $baseRate = null,
     ): array {
-        $baseRate = round((float) ($booking->base_rate ?? 0), 2);
-        $perKmRate = round((float) ($booking->per_km_rate ?? 0), 2);
         $resolvedDistanceKm = max(round((float) ($distanceKm ?? ($booking->distance_km ?? 0)), 2), 0);
-        $distanceFee = round($resolvedDistanceKm * $perKmRate, 2);
-        $excessKmThreshold = 4.0; // 4km rule
-        $excessKmRate = 200.0; // ₱200/km after 4km
-        $excessKm = max(round($resolvedDistanceKm - $excessKmThreshold, 2), 0);
-        $excessFee = round($excessKm * $excessKmRate, 2);
-        $computedTotal = round($baseRate + $distanceFee + $excessFee, 2);
+
+        // Per-4km charge: ₱200 per complete 4km increment
+        $kmIncrements = (int) floor($resolvedDistanceKm / 4);
+        $kmCharge = round($kmIncrements * 200.0, 2);
+
+        // Base rate is 0 until dispatcher assigns a unit (passed explicitly when unit is assigned)
+        $resolvedBaseRate = round((float) ($baseRate ?? 0), 2);
+        $computedTotal = round($resolvedBaseRate + $kmCharge, 2);
 
         $customerType = strtolower((string) ($booking->customer_type ?: $booking->customer?->customer_type ?: 'regular'));
         $resolvedDiscountPercentage = in_array($customerType, ['pwd', 'senior'], true)
@@ -235,11 +231,13 @@ class BookingService
 
         return [
             'distance_km' => $resolvedDistanceKm,
-            'distance_fee' => $distanceFee,
-            'excess_km_threshold' => $excessKmThreshold,
-            'excess_km_rate' => $excessKmRate,
-            'excess_km' => $excessKm,
-            'excess_fee' => $excessFee,
+            'base_rate' => $resolvedBaseRate,
+            'km_increments' => $kmIncrements,
+            'distance_fee' => $kmCharge,
+            'excess_km_threshold' => 0.0,
+            'excess_km_rate' => 200.0,
+            'excess_km' => 0.0,
+            'excess_fee' => 0.0,
             'computed_total' => $computedTotal,
             'discount_percentage' => $resolvedDiscountPercentage,
             'additional_fee' => $resolvedAdditionalFee,

@@ -147,6 +147,9 @@ Route::prefix('teamleader')
         Route::post('/task/{booking}/return', [TeamLeaderController::class, 'returnTask'])
             ->middleware('throttle:10,1')->name('task.return');
 
+        Route::post('/task/{booking}/payment', [TeamLeaderController::class, 'submitPayment'])
+            ->middleware('throttle:10,1')->name('task.payment');
+
         Route::get('/return-reasons', function () {
             return response()->json(\App\Enums\ReturnReason::toArray());
         })->name('return-reasons');
@@ -223,6 +226,7 @@ Route::prefix('admin-dashboard')
         Route::post('/booking/{booking}/service-fee', [DispatchController::class, 'applyServiceFee'])->name('booking.service-fee');
         Route::post('/booking/{booking}/mark-risk', [DispatchController::class, 'markCustomerRisk'])->name('booking.mark-risk');
         Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');
+        Route::post('/jobs/{booking}/confirm-payment', [JobsController::class, 'confirmPayment'])->name('jobs.confirm-payment');
         Route::post('/booking/{id}/update-status', [DispatchController::class, 'updateStatus'])->name('booking.updateStatus');
 
         // Quotation Management Routes

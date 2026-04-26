@@ -22,7 +22,7 @@ body {
     gap: 16px;
     flex-wrap: wrap;
     padding: 16px 18px;
-    border-radius: 18px;
+    /* border-radius: 18px; */
     background: #ffffff;
     border: 1px solid #ece7d8;
     box-shadow: 0 10px 24px rgba(17, 24, 39, 0.05);
@@ -30,6 +30,7 @@ body {
 }
 
 .topbar-copy h2 {
+    padding-top: 10px;
     margin: 0;
     font-size: 1.25rem;
     font-weight: 700;
@@ -74,9 +75,6 @@ body {
     justify-content: center;
     width: 42px;
     height: 42px;
-    border-radius: 12px;
-    border: 1px solid #ffc800;
-    background: #ffcc00;
     color: #000000;
     cursor: pointer;
     position: relative;
@@ -99,7 +97,7 @@ body {
     height: 18px;
     padding: 0 4px;
     border-radius: 999px;
-    background: #111827;
+    background: #ff0000;
     color: #ffffff;
     font-size: 0.68rem;
     font-weight: 800;
@@ -190,7 +188,7 @@ body {
     margin-left: 286px;
     width: calc(100% - 286px);
     padding: 24px 28px;
-    background: #fdfdfd;
+    background: #ffffff;
     min-height: 100vh;
 }
 

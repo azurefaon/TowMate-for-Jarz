@@ -204,7 +204,7 @@
     gap: 8px;
 }
 .fleet-search {
-    padding: 8px 140px 8px 40px;
+    padding: 8px 8px 8px 40px;
     border-radius: 10px;
     border: none;
     background: #fff;
@@ -291,12 +291,10 @@
     gap: 12px;
     margin-bottom: 12px;
 }
-.ucard-identity {
-}
+
 .ucard-name {
     display: block;
     font-size: 0.98rem;
-    font-weight: 800;
     color: #0f172a;
     line-height: 1.2;
 }
@@ -304,7 +302,6 @@
     display: inline-block;
     margin-top: 3px;
     font-size: 0.72rem;
-    font-weight: 700;
     color: #64748b;
     background: #f1f5f9;
     padding: 2px 8px;
@@ -319,14 +316,12 @@
     padding: 4px 10px;
     border-radius: 999px;
     font-size: 0.7rem;
-    font-weight: 700;
     white-space: nowrap;
     flex-shrink: 0;
 }
 
 .ubadge--available {
-    background: #dcfce7;
-    color: #15803d;
+    color: #09b247;
 }
 
 .ubadge--available::before {
@@ -334,8 +329,7 @@
 }
 
 .ubadge--on-job {
-    background: #fef9c3;
-    color: #92400e;
+    color: #1422e0;
 }
 
 .ubadge--on-job::before {
@@ -343,21 +337,18 @@
 }
 
 .ubadge--offline {
-    background: #f1f5f9;
     color: #475569;
 }
 .ubadge--offline::before {
     background: #94a3b8;
 }
 .ubadge--not-avail {
-    background: #fee2e2;
     color: #b91c1c;
 }
 .ubadge--not-avail::before {
     background: #ef4444;
 }
 .ubadge--no-tl {
-    background: #f8fafc;
     color: #94a3b8;
 }
 .ubadge--no-tl::before {
@@ -768,8 +759,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.68rem;
-    font-weight: 800;
+    font-size: 25px;
     letter-spacing: 0.03em;
     color: #fff;
 }
@@ -786,7 +776,6 @@
 
 .unit-type-label {
     font-size: 0.68rem;
-    font-weight: 700;
     letter-spacing: 0.06em;
     color: #64748b;
     text-transform: uppercase;
@@ -816,7 +805,6 @@
 
 .person-label {
     font-size: 0.68rem;
-    font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #94a3b8;
@@ -966,7 +954,7 @@
     color: #92400e;
 }
 .ud-status-pill--offline {
-    background: #f1f5f9;
+    /* background: #f1f5f9; */
     color: #475569;
 }
 .ud-status-pill--not-avail {

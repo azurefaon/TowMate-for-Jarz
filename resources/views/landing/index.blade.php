@@ -92,25 +92,22 @@
                     </p>
 
                     <div class="about-highlights">
-                        <div class="highlight-item">
-                            <i class='bx bx-time'></i>
+                        {{-- <div class="highlight-item">
                             <div>
                                 <h5>Fast Response</h5>
                                 <p>Average arrival under 30 minutes</p>
                             </div>
-                        </div>
+                        </div> --}}
                         <div class="highlight-item">
-                            <i class='bx bx-check-circle'></i>
                             <div>
                                 <h5>Professional Team</h5>
                                 <p>Certified & trained professionals</p>
                             </div>
                         </div>
                         <div class="highlight-item">
-                            <i class='bx bx-shield-alt'></i>
                             <div>
                                 <h5>24/7 Available</h5>
-                                <p>Round-the-clock support always</p>
+                                <p>Round the clock support always</p>
                             </div>
                         </div>
                     </div>
@@ -150,7 +147,7 @@
                     <div class="service-card">
                         <h4>Live Support</h4>
                         <p>
-                            Speak with our experienced team directly. Expert guidance and real-time updates
+                            Speak with our experienced team directly. Expert guidance and realtime updates
                             throughout your service call.
                         </p>
                         <div class="service-badge">Always Ready</div>
@@ -190,9 +187,6 @@
                             <div class="portfolio-badge">Featured</div>
                             <h3>Emergency Tow</h3>
                             <span>Quezon City</span>
-                            <div class="portfolio-meta">
-                                <i class='bx bx-check-circle'></i> Completed Successfully
-                            </div>
                         </div>
                     </div>
 
@@ -249,20 +243,14 @@
                 <div class="contact-content">
                     <div class="contact-info">
                         <div class="info-card">
-                            <div class="info-icon">
-                                <i class='bx bx-phone-call'></i>
-                            </div>
                             <div class="info-content">
                                 <h4>Call Us Now</h4>
-                                <p>{{ $landing->contact_phone ?? '+1 (555) 123-4567' }}</p>
+                                <p>{{ $landing->contact_phone ?? '+63  123-4567' }}</p>
                                 <span class="info-note">24/7 Emergency Hotline</span>
                             </div>
                         </div>
 
                         <div class="info-card">
-                            <div class="info-icon">
-                                <i class='bx bx-envelope'></i>
-                            </div>
                             <div class="info-content">
                                 <h4>Email Support</h4>
                                 <p>{{ $landing->contact_email ?? 'support@jarez.com' }}</p>
@@ -271,9 +259,6 @@
                         </div>
 
                         <div class="info-card">
-                            <div class="info-icon">
-                                <i class='bx bx-map-pin'></i>
-                            </div>
                             <div class="info-content">
                                 <h4>Service Area</h4>
                                 <p>Available anywhere in the Philippines</p>
@@ -282,9 +267,6 @@
                         </div>
 
                         <div class="info-card">
-                            <div class="info-icon">
-                                <i class='bx bx-time'></i>
-                            </div>
                             <div class="info-content">
                                 <h4>Business Hours</h4>
                                 <p>24/7 Emergency Service</p>

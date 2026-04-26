@@ -70,7 +70,7 @@ class QuotationController extends Controller
         try {
             $booking = $this->quotationService->acceptQuotation($quotation);
 
-            return $this->redirectToShow($quotation, 'success', 'Quotation accepted! Your booking is now being processed. Reference: ' . $booking->job_code);
+            return $this->redirectToShow($quotation, 'success', 'Quotation accepted! Your booking is now being processed.');
         } catch (\Exception $e) {
             Log::error('Failed to accept quotation', [
                 'quotation_id' => $quotation->id,

@@ -230,7 +230,7 @@ class BookingController extends Controller
             'dropoff'        => $data['dropoff_address'],
             'distance_km'    => $data['distance_km'] ?? null,
             'eta_minutes'    => $data['eta_minutes'] ?? null,
-            'estimated_price'=> $submittedPrice,
+            'estimated_price' => $submittedPrice,
             'truck_type'     => $quotation->truckType->name ?? null,
             'vehicle_make'   => $data['vehicle_make'] ?? null,
             'vehicle_model'  => $data['vehicle_model'] ?? null,

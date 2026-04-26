@@ -784,7 +784,7 @@
 
             <div class="section-header">
                 <div>
-                    <h3>Dispatcher Booking Queue</h3>
+                    <h3>Booking Queue</h3>
                 </div>
                 <div class="view-controls">
                     <span class="count" id="requestCount">{{ $queueCounts['book-now'] ?? $incomingRequests->count() }}</span>
@@ -792,14 +792,14 @@
             </div>
 
             <div class="queue-tabs" id="dispatchQueueTabs">
-                <button type="button" class="queue-filter-btn is-active" data-filter="returned">
+                <button type="button" class="queue-filter-btn" data-filter="returned">
                     <span>Returned</span>
                     <span class="queue-tab-count {{ ($queueCounts['returned'] ?? 0) > 0 ? 'has-count' : '' }}"
                         data-count-for="returned">
                         {{ $queueCounts['returned'] ?? 0 }}
                     </span>
                 </button>
-                <button type="button" class="queue-filter-btn" data-filter="active">
+                <button type="button" class="queue-filter-btn is-active" data-filter="active">
                     <span>Active Bookings</span>
                     <span class="queue-tab-count {{ ($queueCounts['active'] ?? 0) > 0 ? 'has-count' : '' }}"
                         data-count-for="active">
@@ -815,7 +815,7 @@
                 </button>
             </div>
 
-            <div class="incoming-list" id="incomingList" data-default-filter="returned"
+            <div class="incoming-list" id="incomingList" data-default-filter="active"
                 data-assign-url-template="{{ url('/admin-dashboard/booking/__BOOKING__/assign') }}">
 
                 @forelse($incomingRequests as $booking)
@@ -847,7 +847,11 @@
                         data-return-reason="{{ e($booking->return_reason ?? '') }}"
                         data-returned-by="{{ e($booking->returnedByTeamLeader->full_name ?? ($booking->returnedByTeamLeader->name ?? '')) }}"
                         data-returned-at="{{ optional($booking->returned_at)->toIso8601String() }}"
-                        data-created-at="{{ $booking->created_at->toISOString() }}">
+                        data-created-at="{{ $booking->created_at->toISOString() }}"
+                        data-customer-name="{{ e($booking->customer->full_name ?? 'Guest') }}"
+                        data-customer-phone="{{ e($booking->customer->phone ?? 'N/A') }}"
+                        data-pickup="{{ e($booking->pickup_address ?? '') }}"
+                        data-dropoff="{{ e($booking->dropoff_address ?? '') }}">
 
                         <div class="incoming-left">
 
@@ -962,7 +966,7 @@
                                 <button type="button" class="btn-accept" data-id="{{ $booking->job_code }}"
                                     data-action="accept">
 
-                                    {{ $booking->needs_reassignment ? 'Reassign Task' : 'Assign Unit' }}
+                                    {{ $booking->needs_reassignment ? 'Reassign Task' : 'Start Job' }}
                                 </button>
 
                                 <button type="button" class="btn-reject" data-id="{{ $booking->job_code }}"
@@ -984,6 +988,43 @@
                     </div>
                 @endforelse
 
+                @foreach ($allQuotations->where('status', 'pending') as $pq)
+                    <div class="incoming-card" data-queue="pending-quotations" data-quotation-id="{{ $pq->id }}">
+                        <div class="incoming-left">
+                            <div class="incoming-route">
+                                <strong>{{ $pq->pickup_address ?? 'Unknown Pickup' }}</strong>
+                                <span class="arrow">→</span>
+                                <span>{{ $pq->dropoff_address ?? 'Unknown Dropoff' }}</span>
+                            </div>
+                            <div class="incoming-details">
+                                <span><strong>Customer:</strong> {{ $pq->customer->full_name ?? 'Guest' }}</span>
+                                <span><strong>Phone:</strong> {{ $pq->customer->phone ?? 'N/A' }}</span>
+                                <span><strong>Reference:</strong> {{ $pq->quotation_number ?? 'N/A' }}</span>
+                            </div>
+                            <div class="incoming-details">
+                                <span><strong>Distance:</strong> {{ number_format((float) $pq->distance_km, 2) }} km</span>
+                                <span><strong>Estimated Price:</strong>
+                                    ₱{{ number_format((float) $pq->estimated_price, 2) }}</span>
+                            </div>
+                            <div class="incoming-meta">
+                                <span class="time">{{ $pq->created_at->diffForHumans() }}</span>
+                                <span class="queue-chip pending-quotations">Pending Quotation</span>
+                                <span class="status-badge quoted">Not Sent</span>
+                            </div>
+                        </div>
+                        <div class="incoming-actions">
+                            <button type="button" class="btn-accept pq-send-btn"
+                                data-quotation-id="{{ $pq->id }}">
+                                Update &amp; Send
+                            </button>
+                            <button type="button" class="btn-reject pq-cancel-btn"
+                                data-quotation-id="{{ $pq->id }}">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                @endforeach
+
             </div>
 
         </div>
@@ -997,6 +1038,54 @@
 
                 <h3 id="modalTitle">Confirm Action</h3>
                 <p id="modalText">Are you sure?</p>
+
+                {{-- Start Job panel: shown only for confirmed bookings --}}
+                <div id="confirmedBookingPanel" style="display:none; margin-bottom:14px;">
+                    <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:14px; padding:16px;">
+                        <div
+                            style="font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#15803d; margin-bottom:12px;">
+                            Booking to Assign</div>
+                        <div
+                            style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px; font-size:.87rem; color:#374151;">
+                            <div>
+                                <div
+                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                    Customer</div>
+                                <div id="cfCustomerName" style="font-weight:700; color:#0f172a;">—</div>
+                            </div>
+                            <div>
+                                <div
+                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                    Phone</div>
+                                <div id="cfCustomerPhone" style="font-weight:700; color:#0f172a;">—</div>
+                            </div>
+                            <div style="grid-column:1/-1;">
+                                <div
+                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                    Route</div>
+                                <div id="cfRoute" style="font-weight:600; color:#0f172a; line-height:1.4;">—</div>
+                            </div>
+                            <div>
+                                <div
+                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                    Vehicle Type</div>
+                                <div id="cfTruckType" style="font-weight:700; color:#0f172a;">—</div>
+                            </div>
+                            <div>
+                                <div
+                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                    Distance</div>
+                                <div id="cfDistance" style="font-weight:700; color:#0f172a;">—</div>
+                            </div>
+                        </div>
+                        <div
+                            style="margin-top:14px; padding:10px 14px; background:#fff; border:1px solid #86efac; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:.85rem; font-weight:600; color:#15803d;">Agreed Total (Price
+                                Locked)</span>
+                            <span id="cfAgreedTotal" style="font-size:1.1rem; font-weight:800; color:#15803d;">—</span>
+                        </div>
+                    </div>
+                </div>
 
                 <div id="quotationReviewGrid" class="quotation-review-grid">
                     <div class="review-surface">
@@ -1025,41 +1114,11 @@
                                 <small class="inline-field-error" id="priceInputError"></small>
                             </div>
 
-                            <div id="unitWrapper" class="modal-input modal-field">
-                                <label for="unitSelect" class="field-label">Available Unit</label>
-                                <div class="unit-select-shell">
-                                    <select id="unitSelect" class="review-field-select" required>
-                                        <option value="">Select available unit</option>
-                                        @forelse ($availableUnits as $unit)
-                                            <option value="{{ $unit['id'] }}" data-selectable="1"
-                                                data-team-leader="{{ e($unit['team_leader_name']) }}"
-                                                data-driver="{{ e($unit['driver_name']) }}"
-                                                data-zones="{{ e(implode(', ', $unit['coverage_zones'] ?? [])) }}"
-                                                data-summary="{{ e($unit['status_summary']) }}">
-                                                {{ $unit['label'] }} · {{ $unit['team_leader_name'] }}
-                                            </option>
-                                        @empty
-                                            <option value="" disabled>No online ready units available</option>
-                                        @endforelse
-                                    </select>
-                                </div>
-                                <small class="field-help" id="unitHelper">Only units with online available team leaders
-                                    are shown here.</small>
-                                <small class="inline-field-error" id="unitSelectError"></small>
-                            </div>
-
-
-                            <div id="dispatchZoneWrapper" class="modal-input modal-field">
-                                <label for="dispatchZoneDisplay" class="field-label">📍 Dispatch Zone</label>
+                            <div id="dispatchZoneWrapper" class="modal-input modal-field full-span">
+                                <label for="dispatchZoneDisplay" class="field-label">Dispatch Zone</label>
                                 <input type="text" id="dispatchZoneDisplay" class="review-field-input is-locked"
                                     readonly>
                                 <small class="field-help">Automatically detected from customer's pickup address</small>
-                            </div>
-
-                            <div id="dispatcherNoteWrapper" class="modal-input modal-field full-span">
-                                <label for="dispatcherNoteInput" class="field-label">Notes</label>
-                                <textarea id="dispatcherNoteInput" class="review-field-input" rows="2"
-                                    placeholder="Add the reason for any increase or pricing adjustment..."></textarea>
                             </div>
 
                             <div class="modal-input modal-field full-span">
@@ -1074,9 +1133,10 @@
                         <div class="review-summary-list">
                             <div class="review-summary-row"><span>Distance</span><strong id="summaryDistance">0.00
                                     km</strong></div>
-                            <div class="review-summary-row"><span>Base Rate</span><strong id="summaryBase">₱0.00</strong>
+                            <div class="review-summary-row"><span>Base Rate (Unit)</span><strong
+                                    id="summaryBase">TBD</strong>
                             </div>
-                            <div class="review-summary-row"><span>Distance Fee</span><strong
+                            <div class="review-summary-row"><span>Distance Fee (per-4km)</span><strong
                                     id="summaryDistanceFee">₱0.00</strong></div>
                             <div class="review-summary-row"><span>Additional Fee</span><strong
                                     id="summaryAdditional">₱0.00</strong></div>
@@ -1084,6 +1144,38 @@
                                     id="summaryTotal">₱0.00</strong></div>
                         </div>
                     </div>
+                </div>
+
+                {{-- Unit selector — shown outside the pricing grid for all accept actions --}}
+                <div id="unitWrapper" class="modal-input modal-field" style="display:none; margin-top:14px;">
+                    <label for="unitSelect" class="field-label">Available Unit</label>
+                    <div class="unit-select-shell">
+                        <select id="unitSelect" class="review-field-select" required>
+                            <option value="">Select available unit</option>
+                            @forelse ($availableUnits as $unit)
+                                <option value="{{ $unit['id'] }}" data-selectable="1"
+                                    data-team-leader="{{ e($unit['team_leader_name']) }}"
+                                    data-driver="{{ e($unit['driver_name']) }}"
+                                    data-zones="{{ e(implode(', ', $unit['coverage_zones'] ?? [])) }}"
+                                    data-summary="{{ e($unit['status_summary']) }}"
+                                    data-base-rate="{{ $unit['base_rate'] ?? 0 }}">
+                                    {{ $unit['label'] }} · {{ $unit['team_leader_name'] }}
+                                </option>
+                            @empty
+                                <option value="" disabled>No online ready units available</option>
+                            @endforelse
+                        </select>
+                    </div>
+                    <small class="field-help" id="unitHelper">Only units with online available team leaders are shown
+                        here.</small>
+                    <small class="inline-field-error" id="unitSelectError"></small>
+                </div>
+
+                {{-- Dispatcher note — shown for all accept actions --}}
+                <div id="dispatcherNoteWrapper" class="modal-input modal-field" style="display:none; margin-top:12px;">
+                    <label for="dispatcherNoteInput" class="field-label">Notes (optional)</label>
+                    <textarea id="dispatcherNoteInput" class="review-field-input" rows="2"
+                        placeholder="Add any dispatcher notes or instructions for the team leader..."></textarea>
                 </div>
 
                 <div id="negotiationHint" class="modal-input modal-field" style="display:none;">
@@ -1139,7 +1231,7 @@
             </div>
         </div>
 
-        <div class="dp-tl-section">
+        {{-- <div class="dp-tl-section">
             <div class="dp-tl-header">
                 <div>
                     <h3 class="dp-tl-title">Team Leaders</h3>
@@ -1153,11 +1245,7 @@
                     ->where('role_id', 3)
                     ->with(['unit'])
                     ->get()
-                    ->filter(fn($tl) => $tl->unit !== null); // only TLs with a unit
-                $dpUnits = \App\Models\Unit::with(['truckType', 'teamLeader'])
-                    ->orderByRaw("CASE WHEN status = 'available' THEN 0 ELSE 1 END")
-                    ->orderBy('name')
-                    ->get();
+                    ->filter(fn($tl) => $tl->unit !== null && $tl->unit->status === 'available');
             @endphp
 
             @if ($dpTLs->isEmpty())
@@ -1172,7 +1260,6 @@
                                 <th>Zone</th>
                                 <th>Status</th>
                                 <th>Override Status</th>
-                                <th>Change Unit</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1274,38 +1361,13 @@
                                             <span class="dp-saving" id="dpStSaving-{{ $dtl->id }}"></span>
                                         </div>
                                     </td>
-                                    <td>
-                                        <div class="dp-ctrl-cell">
-                                            <select class="dp-select dp-unit-sel" data-tlid="{{ $dtl->id }}"
-                                                {{ $dUnitLocked ? 'disabled' : '' }}>
-                                                <option value="">— Change —</option>
-                                                @foreach ($dpUnits as $du)
-                                                    <option value="{{ $du->id }}"
-                                                        {{ ($dtl->unit?->id ?? null) == $du->id ? 'selected' : '' }}>
-                                                        {{ $du->name }}
-                                                        ({{ $du->plate_number }})
-                                                        {{ $du->status !== 'available' ? ' [' . $du->status . ']' : '' }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                            <span class="dp-saving" id="dpUnSaving-{{ $dtl->id }}"></span>
-                                        </div>
-                                        @if ($dUnitLocked && $dOnline)
-                                            <div style="font-size:.72rem;color:#94a3b8;margin-top:3px;">Locked —
-                                                {{ $dBadgeLabel }}</div>
-                                        @endif
-                                        @if (!$dUnitLocked && $dOnline && $dtl->unit !== null)
-                                            <button type="button" class="dp-remove-btn"
-                                                data-tlid="{{ $dtl->id }}">Remove unit</button>
-                                        @endif
-                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
             @endif
-        </div>
+        </div> --}}
 
     </div>{{-- /.dashboard-container --}}
 

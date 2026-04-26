@@ -73,16 +73,24 @@ class UserManagementController extends Controller
     protected function normalizeUserInput(Request $request): void
     {
         $nameParts = split_full_name($request->input('name'));
-        $firstName = trim((string) ($request->input('first_name') ?: $nameParts['first_name']));
+        $firstName  = trim((string) ($request->input('first_name')  ?: $nameParts['first_name']));
         $middleName = trim((string) ($request->input('middle_name') ?: $nameParts['middle_name']));
-        $lastName = trim((string) ($request->input('last_name') ?: $nameParts['last_name']));
+        $lastName   = trim((string) ($request->input('last_name')   ?: $nameParts['last_name']));
+
+        // Strip non-digits, then normalize 9XXXXXXXXX → 09XXXXXXXXX
+        $rawPhone = trim((string) ($request->input('phone') ?? ''));
+        $phone    = preg_replace('/\D/', '', $rawPhone);
+        if (preg_match('/^9[1-9]\d{8}$/', $phone)) {
+            $phone = '0' . $phone; // prepend leading 0 for consistent storage
+        }
 
         $request->merge([
-            'first_name' => $firstName !== '' ? $firstName : null,
+            'first_name'  => $firstName  !== '' ? $firstName  : null,
             'middle_name' => $middleName !== '' ? $middleName : null,
-            'last_name' => $lastName !== '' ? $lastName : null,
-            'name' => build_full_name($firstName, $middleName, $lastName),
-            'email' => strtolower(trim((string) $request->input('email'))),
+            'last_name'   => $lastName   !== '' ? $lastName   : null,
+            'name'        => build_full_name($firstName, $middleName, $lastName),
+            'email'       => strtolower(trim((string) $request->input('email'))),
+            'phone'       => $phone !== '' ? $phone : null,
         ]);
     }
 
@@ -192,7 +200,7 @@ class UserManagementController extends Controller
             'driver_middle_name' => 'nullable|string|max:100',
             'driver_last_name' => 'nullable|string|max:100',
             'email' => $this->emailRules($user),
-            'phone' => ['nullable', 'regex:/^(09|\+639)\d{9}$/'],
+            'phone' => ['nullable', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)],
             'status' => 'required|in:active,inactive',
             'role_id' => [
                 'nullable',
@@ -320,7 +328,7 @@ class UserManagementController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name'   => 'required|string|max:100',
             'email'       => $this->emailRules(),
-            'phone'       => ['nullable', 'regex:/^(09|\+639)\d{9}$/'],
+            'phone'       => ['nullable', 'regex:/^09[1-9]\d{8}$/', 'unique:users,phone'],
             'password'    => ['required', 'confirmed', Password::min(12)->mixedCase()->numbers()->symbols()],
             'role_id'     => [
                 'required',
@@ -352,7 +360,8 @@ class UserManagementController extends Controller
         $messages = [
             'email.required'               => 'Email is required.',
             'email.unique'                 => 'This email is already registered.',
-            'phone.regex'                  => 'Enter a valid Philippine mobile number (e.g. 09171234567 or +639171234567).',
+            'phone.regex'                  => 'Enter a valid Philippine mobile number starting with 9 or 09 (e.g. 09171234567).',
+            'phone.unique'                 => 'This phone number is already registered to another user.',
             'password.confirmed'           => 'Password confirmation does not match.',
             'unit_name.required'           => 'Unit name is required.',
             'unit_plate_number.required'   => 'Plate number is required.',

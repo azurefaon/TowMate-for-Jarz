@@ -7,7 +7,7 @@
     --tl-muted: #64748b;
     --tl-accent: #facc15;
     --tl-accent-strong: #eab308;
-    --tl-accent-soft: #fef9c3;
+    --tl-accent-soft: #eabf3e;
     --tl-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
     --tl-radius: 18px;
 }
@@ -188,7 +188,6 @@ body.modal-open {
     gap: 10px;
     min-height: 52px;
     padding: 8px 12px;
-    background: #ffffff;
     border: 1px solid var(--tl-border);
     border-radius: 999px;
     box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
@@ -202,7 +201,7 @@ body.modal-open {
     align-items: center;
     justify-content: center;
     background: var(--tl-accent-soft);
-    color: #92400e;
+    color: #000000;
     font-weight: 700;
 }
 

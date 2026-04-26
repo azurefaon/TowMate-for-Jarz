@@ -18,7 +18,7 @@
         :root {
             --jarz-accent: #FACC15;
             --jarz-bg: #ffffff;
-            --jarz-surface: #f1f1f1;
+            --jarz-surface: #ffffff;
             --jarz-text: #111111;
             --jarz-line: #e5e7eb;
         }
@@ -91,9 +91,8 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 8px 12px;
+            padding: 5px 12px;
             border-radius: 999px;
-            border: 0;
             background: #fff;
             cursor: pointer;
         }
@@ -104,6 +103,7 @@
             border-radius: 999px;
             display: inline-flex;
             align-items: center;
+            border: #111111 solid 1px;
             justify-content: center;
             background: var(--jarz-surface);
             color: var(--jarz-text);

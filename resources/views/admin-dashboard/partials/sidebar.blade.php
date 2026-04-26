@@ -20,10 +20,10 @@
                 <span>Dashboard</span>
             </a>
 
-            <a href="{{ route('control-center.index') }}"
+            {{-- <a href="{{ route('control-center.index') }}"
                 class="menu-item {{ request()->routeIs('control-center.*') ? 'active' : '' }}">
                 <span>Control Center</span>
-            </a>
+            </a> --}}
 
             <a href="{{ route('admin.dispatch') }}"
                 class="menu-item {{ request()->routeIs('admin.dispatch') ? 'active' : '' }}">

@@ -96,7 +96,9 @@
     color: #111827;
     outline: none;
     box-sizing: border-box;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition:
+        border-color 0.15s,
+        box-shadow 0.15s;
 }
 
 .create-user-page input[type="text"]:focus,
@@ -291,7 +293,9 @@
 }
 
 @media (max-width: 768px) {
-    .create-user-page .role-section-body { padding: 14px 12px 4px; }
+    .create-user-page .role-section-body {
+        padding: 14px 12px 4px;
+    }
 }
 
 /* ── Locked / read-only field ───────────────────────────── */
@@ -424,7 +428,9 @@
     background: #fff;
     cursor: pointer;
     user-select: none;
-    transition: border-color 0.15s, background 0.15s;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
 }
 
 .ttc-card:hover {
@@ -494,12 +500,6 @@
 
 .ttc-card-edit-btn:hover {
     background: #f3f4f6;
-}
-
-.ttc-card-tick {
-    color: #111827;
-    font-size: 16px;
-    font-weight: 700;
 }
 
 /* ── Truck Type Config Modal ─────────────────────────────── */

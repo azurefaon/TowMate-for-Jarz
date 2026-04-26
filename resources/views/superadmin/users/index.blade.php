@@ -253,6 +253,26 @@
             border: 1px solid #e2e8f0;
         }
 
+        /* ── Flash banners ───────────────────────────── */
+        .sa-flash-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 13px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+        .sa-flash-banner span { flex: 1; }
+        .sa-flash-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+        .sa-flash-error   { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+        .sa-flash-close {
+            background: none; border: none; cursor: pointer;
+            font-size: 18px; line-height: 1; color: inherit; opacity: 0.6; padding: 0 4px;
+        }
+        .sa-flash-close:hover { opacity: 1; }
+
         .request-pill {
             display: inline-flex;
             align-items: center;
@@ -270,6 +290,22 @@
 
 @section('content')
     <div class="user-management-page">
+
+        {{-- Session flash (normal form POST redirects) --}}
+        @if (session('success'))
+            <div class="sa-flash-banner sa-flash-success" id="saFlashBanner">
+                <i data-lucide="check-circle" style="width:17px;height:17px;flex-shrink:0;"></i>
+                <span>{{ session('success') }}</span>
+                <button type="button" onclick="this.closest('.sa-flash-banner').remove()" class="sa-flash-close">×</button>
+            </div>
+        @elseif (session('error'))
+            <div class="sa-flash-banner sa-flash-error" id="saFlashBanner">
+                <i data-lucide="alert-circle" style="width:17px;height:17px;flex-shrink:0;"></i>
+                <span>{{ session('error') }}</span>
+                <button type="button" onclick="this.closest('.sa-flash-banner').remove()" class="sa-flash-close">×</button>
+            </div>
+        @endif
+
         <div class="page-top">
             <div>
                 <h1>User Management</h1>
@@ -635,6 +671,25 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            // Show flash from AJAX edit redirect (sessionStorage)
+            const storedFlash = sessionStorage.getItem('sa_flash_success');
+            if (storedFlash) {
+                sessionStorage.removeItem('sa_flash_success');
+                const banner = document.createElement('div');
+                banner.className = 'sa-flash-banner sa-flash-success';
+                banner.innerHTML = `<i data-lucide="check-circle" style="width:17px;height:17px;flex-shrink:0;"></i><span>${storedFlash}</span><button type="button" onclick="this.closest('.sa-flash-banner').remove()" class="sa-flash-close">×</button>`;
+                document.querySelector('.user-management-page')?.prepend(banner);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            // Auto-hide flash banners after 5 s
+            document.querySelectorAll('.sa-flash-banner').forEach(el => {
+                setTimeout(() => el.style.transition = 'opacity 0.4s', 4600);
+                setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 420); }, 5000);
+            });
+
             const filterForm = document.querySelector('.filters');
 
             const actionDialog = document.getElementById('actionDialog');

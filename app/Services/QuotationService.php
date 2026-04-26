@@ -2,8 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Quotation;
+use App\Events\BookingStatusUpdated;
 use App\Models\Booking;
+use App\Models\Quotation;
 use Illuminate\Support\Facades\DB;
 
 class QuotationService
@@ -82,10 +83,9 @@ class QuotationService
             ->first();
     }
 
-    /**
-     * Send quotation to customer (Dispatcher action)
-     */
-    public function sendQuotation(Quotation $quotation, int $expiryHours = 168): Quotation
+    //  Send quotation to customer sa dispatcher 
+    // int $expiryHours = 168
+    public function sendQuotation(Quotation $quotation, float $expiryHours = 0.00556): Quotation
     {
         $quotation->update([
             'status' => 'sent',
@@ -139,29 +139,17 @@ class QuotationService
                 'pickup_notes' => $quotation->pickup_notes,
                 'distance_km' => $quotation->distance_km,
                 'eta_minutes' => $quotation->eta_minutes,
-                'vehicle_make' => $quotation->vehicle_make,
-                'vehicle_model' => $quotation->vehicle_model,
-                'vehicle_year' => $quotation->vehicle_year,
-                'vehicle_color' => $quotation->vehicle_color,
-                'vehicle_plate_number' => $quotation->vehicle_plate_number,
                 'vehicle_image_path' => $quotation->vehicle_image_path,
                 'final_total' => $quotation->estimated_price,
-                'status' => 'pending_dispatch',
-                'returned_at' => null,
-                'return_reason' => null,
-                'returned_by_team_leader_id' => null,
-                'job_code' => $this->generateJobCode(),
+                'status' => 'confirmed',
+                'customer_approved_at' => now(),
+                'price_locked_at' => now(),
             ]);
 
             DB::commit();
 
-            // TEMPORARY DEBUG LOG
-            // \Log::info('BOOKING FLOW DEBUG', [
-            //     'id' => $booking->id,
-            //     'status' => $booking->status,
-            //     'returned_at' => $booking->returned_at,
-            //     'needs_reassignment' => $booking->needs_reassignment,
-            // ]);
+            $booking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+            event(new BookingStatusUpdated($booking));
 
             return $booking;
         } catch (\Exception $e) {
@@ -195,7 +183,6 @@ class QuotationService
         $count = 0;
 
         foreach ($quotations as $quotation) {
-            // TODO: Send follow-up email
             // Mail::to($quotation->customer->email)->send(new QuotationFollowUpMail($quotation));
 
             $quotation->update(['follow_up_sent_at' => now()]);
@@ -219,7 +206,7 @@ class QuotationService
     }
 
     /**
-     * Update quotation price (Dispatcher action)
+     * Update quotation price
      */
     public function updateQuotationPrice(Quotation $quotation, float $newPrice): Quotation
     {
@@ -230,14 +217,12 @@ class QuotationService
 
         $quotation->increment('link_version');
 
-        // If already sent, extend expiry and notify customer
+        // pag nag send na, extend expiry and notify customer
         if ($quotation->status === 'sent') {
             $quotation->update([
                 'sent_at' => now(),
                 'expires_at' => now()->addHours($quotation->expiry_hours),
             ]);
-
-            // TODO: Send updated quotation email
         }
 
         return $quotation->fresh();
@@ -284,25 +269,4 @@ class QuotationService
         ]);
     }
 
-    /**
-     * Generate job code for booking
-     */
-    private function generateJobCode(): string
-    {
-        $prefix = 'JOB';
-        $date = now()->format('Ymd');
-
-        $lastBooking = Booking::whereDate('created_at', today())
-            ->orderBy('id', 'desc')
-            ->first();
-
-        if ($lastBooking && $lastBooking->job_code) {
-            $lastNumber = (int) substr($lastBooking->job_code, -4);
-            $newNumber = str_pad($lastNumber + 1, 4, '0', STR_PAD_LEFT);
-        } else {
-            $newNumber = '0001';
-        }
-
-        return "{$prefix}-{$date}-{$newNumber}";
-    }
 }

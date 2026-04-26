@@ -131,15 +131,10 @@ class BookingController extends Controller
 
         $truck = \App\Models\TruckType::findOrFail($request->truck_type_id);
 
-        $distanceKm = $request->distance_km ?? 0;
-
-        $base = $truck->base_rate;
-        $perKm = $truck->per_km_rate;
-
-        $extraKm = max(0, $distanceKm - 4);
-        $distanceCost = $extraKm * $perKm;
-
-        $total = $base + $distanceCost;
+        $distanceKm = (float) ($request->distance_km ?? 0);
+        $kmIncrements = (int) floor($distanceKm / 4);
+        $distanceCost = round($kmIncrements * 200.0, 2);
+        $total = $distanceCost;
 
         Booking::create([
             'customer_id' => $customer->id,
@@ -147,8 +142,8 @@ class BookingController extends Controller
             'pickup_address' => $request->pickup_address,
             'dropoff_address' => $request->dropoff_address,
             'distance_km' => $distanceKm,
-            'base_rate' => $base,
-            'per_km_rate' => $perKm,
+            'base_rate' => 0,
+            'per_km_rate' => 0,
             'final_total' => $total,
             'status' => 'requested',
             'created_by_admin_id' => $admin->id,

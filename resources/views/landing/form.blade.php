@@ -848,25 +848,17 @@
                 ];
 
                 const fareItems = [{
-                        label: 'Base Rate',
-                        value: baseRate
-                    },
-                    {
                         label: 'Distance',
                         value: distance
                     },
-                    rate ? {
-                        label: 'Rate per KM',
+                    rate && rate !== '₱0.00' ? {
+                        label: 'Per-4km Charge',
                         value: rate
                     } : null,
                     {
                         label: 'Distance Fee',
                         value: distanceFee
                     },
-                    excessFee && excessFee !== '₱0.00' ? {
-                        label: 'Excess Fee',
-                        value: excessFee
-                    } : null,
                     discount && discount !== '₱0.00' ? {
                         label: 'Discount',
                         value: discount
@@ -879,7 +871,7 @@
                         ${renderSummarySection('Trip Details', tripItems)}
                         ${renderSummarySection('Fare Summary', fareItems, {
                             totalValue: total,
-                            helperNote: 'This estimate updates from your current route, vehicle, and booking mode.'
+                            helperNote: 'Actual cost may vary according to different vehicle and booking mode'
                         })}
                     </div>
                 `;

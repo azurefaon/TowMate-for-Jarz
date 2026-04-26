@@ -236,16 +236,7 @@
             <div class="ud-modal-card">
                 <div class="ud-modal-header">
                     <div>
-                        <span class="ud-modal-badge">
-                            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"
-                                viewBox="0 0 24 24">
-                                <rect x="1" y="3" width="15" height="13" rx="2" />
-                                <path d="M16 8h4l3 3v5h-7V8z" />
-                                <circle cx="5.5" cy="18.5" r="2.5" />
-                                <circle cx="18.5" cy="18.5" r="2.5" />
-                            </svg>
-                            Unit Details
-                        </span>
+                        <span class="ud-modal-badge"> Unit Details </span>
                         <h3 id="udTitle"></h3>
                         <p id="udSubtitle"></p>
                     </div>

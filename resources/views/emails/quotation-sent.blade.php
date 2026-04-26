@@ -77,23 +77,19 @@
                     <td align="right" style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">₱{{ number_format($priceBreakdown['base_price'], 2) }}</td>
                 </tr>
                 <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#3f3f46;">Distance fee ({{ number_format($priceBreakdown['distance_km'], 2) }} km)</td>
+                    <td style="padding:5px 0;font-size:13px;color:#3f3f46;">
+                        Distance fee ({{ $priceBreakdown['km_increments'] }} × ₱200 per 4km)
+                    </td>
                     <td align="right" style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">₱{{ number_format($priceBreakdown['distance_fee'], 2) }}</td>
                 </tr>
-                @if ($priceBreakdown['has_excess'])
                 <tr>
-                    <td style="padding:3px 0 3px 14px;font-size:12px;color:#71717a;">First 4 km x ₱{{ number_format($priceBreakdown['per_km_rate'], 2) }}/km</td>
-                    <td align="right" style="padding:3px 0;font-size:12px;color:#71717a;">₱{{ number_format($priceBreakdown['first_4km_fee'], 2) }}</td>
+                    <td style="padding:3px 0 3px 14px;font-size:12px;color:#71717a;">{{ number_format($priceBreakdown['distance_km'], 2) }} km total distance</td>
+                    <td align="right" style="padding:3px 0;font-size:12px;color:#71717a;"></td>
                 </tr>
-                <tr>
-                    <td style="padding:3px 0 3px 14px;font-size:12px;color:#71717a;">{{ number_format($priceBreakdown['excess_km'], 2) }} km excess x ₱200/km</td>
-                    <td align="right" style="padding:3px 0;font-size:12px;color:#71717a;">₱{{ number_format($priceBreakdown['excess_fee'], 2) }}</td>
-                </tr>
-                @endif
-                @if ($priceBreakdown['other_fees'] > 0)
+                @if ($priceBreakdown['additional_fee'] > 0)
                 <tr>
                     <td style="padding:5px 0;font-size:13px;color:#3f3f46;">Additional fees</td>
-                    <td align="right" style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">₱{{ number_format($priceBreakdown['other_fees'], 2) }}</td>
+                    <td align="right" style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">₱{{ number_format($priceBreakdown['additional_fee'], 2) }}</td>
                 </tr>
                 @endif
                 <tr>
