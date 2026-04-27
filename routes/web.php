@@ -3,6 +3,10 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
+
 use App\Models\TruckType;
 
 use App\Http\Controllers\GeoController;
@@ -348,3 +352,13 @@ Route::middleware(['auth', 'role:5'])
             return view('customer.pages.help');
         })->name('help');
     });
+
+Route::get('/create-admin', function () {
+    User::create([
+        'name' => 'Super Admin',
+        'email' => 'admin@gmail.com',
+        'password' => Hash::make('admin123'),
+    ]);
+
+    return 'Admin created';
+});
