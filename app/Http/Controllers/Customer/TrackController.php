@@ -19,7 +19,13 @@ class TrackController extends Controller
         }
 
         $bookings = Booking::where('customer_id', $customerId)
-            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->where(function ($q) {
+                $q->whereNotIn('status', ['completed', 'cancelled'])
+                  ->orWhere(function ($q2) {
+                      $q2->where('status', 'completed')
+                         ->where('updated_at', '>=', now()->subHours(24));
+                  });
+            })
             ->with(['truckType', 'unit.driver', 'assignedTeamLeader'])
             ->latest('updated_at')
             ->get();
@@ -40,13 +46,19 @@ class TrackController extends Controller
                 ->orWhere('id', $id);
         })
             ->where('customer_id', $customerId)
-            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->where(function ($q) {
+                $q->whereNotIn('status', ['cancelled'])
+                  ->where(function ($q2) {
+                      $q2->whereNotIn('status', ['completed'])
+                         ->orWhere('updated_at', '>=', now()->subHours(24));
+                  });
+            })
             ->with(['truckType', 'unit.driver', 'assignedTeamLeader'])
             ->first();
 
         if (! $booking) {
             return redirect()->route('customer.track.index')
-                ->with('error', 'Booking not found or already completed.');
+                ->with('error', 'Booking not found or no longer available.');
         }
 
         $truckTypes = TruckType::query()->orderBy('name')->get();

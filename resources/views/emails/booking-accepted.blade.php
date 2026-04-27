@@ -238,6 +238,15 @@
                 <a href="{{ $documentUrl }}" class="btn-download" target="_blank">⬇ Download Quotation PDF</a>
             </div>
         @endif
+
+        <div style="text-align:center;margin-top:24px;padding-top:20px;border-top:1px solid #e5e7eb;">
+            <p style="margin:0 0 12px;font-size:13px;color:#475569;">Want to keep an eye on your booking?</p>
+            <a href="{{ route('customer.track', $booking->booking_code) }}"
+               style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 28px;border-radius:10px;">
+                Track My Booking →
+            </a>
+            <p style="margin:10px 0 0;font-size:11px;color:#9ca3af;">You'll need to be logged in to view the tracking page.</p>
+        </div>
     </div>
 
     <div class="footer">

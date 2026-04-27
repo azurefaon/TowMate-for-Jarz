@@ -224,6 +224,7 @@
                 'in_progress'       => 'In Progress',
                 'payment_pending'   => 'Collecting Payment',
                 'payment_submitted' => 'Payment Submitted',
+                'completed'         => 'Completed',
             ];
             $pillColors = [
                 'requested'         => ['bg' => '#fff7ed', 'text' => '#c2410c', 'dot' => '#fb923c'],
@@ -236,6 +237,7 @@
                 'in_progress'       => ['bg' => '#fefce8', 'text' => '#a16207', 'dot' => '#facc15'],
                 'payment_pending'   => ['bg' => '#f0fdf4', 'text' => '#15803d', 'dot' => '#22c55e'],
                 'payment_submitted' => ['bg' => '#f0fdf4', 'text' => '#15803d', 'dot' => '#22c55e'],
+                'completed'         => ['bg' => '#f0fdf4', 'text' => '#166534', 'dot' => '#16a34a'],
             ];
             $pill   = $pillColors[$booking->status] ?? ['bg' => '#f4f4f5', 'text' => '#71717a', 'dot' => '#a1a1aa'];
             $label  = $statusLabels[$booking->status] ?? ucwords(str_replace('_', ' ', $booking->status));
