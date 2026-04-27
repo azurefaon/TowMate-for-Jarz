@@ -270,7 +270,7 @@ Route::prefix('superadmin')
 
         Route::patch('users/{id}/toggle', [UserManagementController::class, 'toggleStatus'])->name('users.toggle');
 
-        Route::resource('truck-types', TruckTypeController::class);
+        // Route::resource('truck-types', TruckTypeController::class);
         Route::patch('truck-types/{truckType}/toggle', [TruckTypeController::class, 'toggleStatus'])->name('truck-types.toggle');
         Route::delete('truck-types/{truckType}', [TruckTypeController::class, 'destroy'])->name('truck-types.destroy');
         Route::get('/truck-type-config/{name}',  [TruckTypeController::class, 'getConfig'])->name('truck-type-config.get');

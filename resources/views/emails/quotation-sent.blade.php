@@ -105,7 +105,7 @@
 
     {{-- CTA --}}
     <tr>
-        <td align="center" style="padding:28px 32px;">
+        <td align="center" style="padding:28px 32px 20px;">
             <a href="{{ $signedAcceptUrl }}"
                style="display:inline-block;background:#09090b;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:13px 36px;border-radius:8px;letter-spacing:0.01em;">
                 Accept Quotation
@@ -114,6 +114,24 @@
                 This quotation expires {{ $quotation->expires_at->diffForHumans() }}
                 &nbsp;({{ $quotation->expires_at->format('M d, Y g:i A') }})
             </p>
+        </td>
+    </tr>
+
+    {{-- Track link --}}
+    <tr>
+        <td style="padding:0 32px 24px;border-top:1px solid #e4e4e7;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+                <tr>
+                    <td style="background:#f4f4f5;border-radius:10px;padding:16px 20px;">
+                        <p style="margin:0 0 10px;font-size:13px;color:#3f3f46;font-weight:600;">Want to check on your booking?</p>
+                        <p style="margin:0 0 12px;font-size:12px;color:#71717a;line-height:1.5;">You can view the status, route details, and price breakdown anytime by visiting your tracking page.</p>
+                        <a href="{{ route('customer.track', $quotation->booking_code) }}"
+                           style="display:inline-block;background:#ffffff;color:#09090b;text-decoration:none;font-size:12px;font-weight:700;padding:9px 20px;border-radius:8px;border:1px solid #d4d4d8;">
+                            Track Booking →
+                        </a>
+                    </td>
+                </tr>
+            </table>
         </td>
     </tr>
 

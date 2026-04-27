@@ -13,25 +13,49 @@ document.addEventListener("DOMContentLoaded", function () {
     var navigateMapsBtn = document.getElementById("navigateMapsBtn");
     var backToDashBtn   = document.getElementById("backToDashboardBtn");
 
-    // PayMongo payment area
-    var paymongoArea       = document.getElementById("paymongoArea");
-    var paymongoAmountDisp = document.getElementById("paymongoAmountDisplay");
-    var paymongoWaiting    = document.getElementById("paymongoWaiting");
-    var paymongoOpenLink   = document.getElementById("paymongoOpenLink");
+    // Payment area
+    var paymongoArea          = document.getElementById("paymongoArea");
+    var pmMethodArea          = document.getElementById("pmMethodArea");
+    var paymentSubmittedCard  = document.getElementById("paymentSubmittedCard");
 
-    // Payment method tabs + sections
-    var pmMethodTabs   = document.getElementById("pmMethodTabs");
-    var pmTabCard      = document.getElementById("pmTabCard");
-    var pmTabGcash     = document.getElementById("pmTabGcash");
-    var pmCardSection  = document.getElementById("pmCardSection");
-    var pmGcashSection = document.getElementById("pmGcashSection");
-    var pmCardNumber   = document.getElementById("pmCardNumber");
-    var pmCardExpiry   = document.getElementById("pmCardExpiry");
-    var pmCardCvc      = document.getElementById("pmCardCvc");
-    var pmCardName     = document.getElementById("pmCardName");
-    var pmCardPayBtn   = document.getElementById("pmCardPayBtn");
-    var pmGcashPayBtn  = document.getElementById("pmGcashPayBtn");
-    var pmCardError    = document.getElementById("pmCardError");
+    // Payment method tabs
+    var pmTabGcash   = document.getElementById("pmTabGcash");
+    var pmTabBank    = document.getElementById("pmTabBank");
+    var pmTabCash    = document.getElementById("pmTabCash");
+    var pmTabCheque  = document.getElementById("pmTabCheque");
+
+    // Payment sections
+    var pmGcashSection  = document.getElementById("pmGcashSection");
+    var pmBankSection   = document.getElementById("pmBankSection");
+    var pmCashSection   = document.getElementById("pmCashSection");
+    var pmChequeSection = document.getElementById("pmChequeSection");
+
+    // GCash refs
+    var gcashProofInput       = document.getElementById("gcashProofInput");
+    var gcashProofPreview     = document.getElementById("gcashProofPreview");
+    var gcashProofPlaceholder = document.getElementById("gcashProofPlaceholder");
+    var gcashProofError       = document.getElementById("gcashProofError");
+    var gcashSubmitBtn        = document.getElementById("gcashSubmitBtn");
+
+    // Bank Transfer refs
+    var bankProofInput        = document.getElementById("bankProofInput");
+    var bankProofPreview      = document.getElementById("bankProofPreview");
+    var bankProofPlaceholder  = document.getElementById("bankProofPlaceholder");
+    var bankProofError        = document.getElementById("bankProofError");
+    var bankSubmitBtn         = document.getElementById("bankSubmitBtn");
+
+    // Cash refs
+    var cashProofInput        = document.getElementById("cashProofInput");
+    var cashProofPreview      = document.getElementById("cashProofPreview");
+    var cashProofPlaceholder  = document.getElementById("cashProofPlaceholder");
+    var cashConfirmBtn        = document.getElementById("cashConfirmBtn");
+
+    // Cheque refs
+    var chequeProofInput       = document.getElementById("chequeProofInput");
+    var chequeProofPreview     = document.getElementById("chequeProofPreview");
+    var chequeProofPlaceholder = document.getElementById("chequeProofPlaceholder");
+    var chequeProofError       = document.getElementById("chequeProofError");
+    var chequeSubmitBtn        = document.getElementById("chequeSubmitBtn");
 
     // Return modal
     var returnTaskModal         = document.getElementById("returnTaskModal");
@@ -47,9 +71,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var returnReasons        = [];
     var selectedReturnReason = null;
     var pollTimer            = null;
-    var paymentPollTimer     = null;
-    var paymentUiOpened      = false; // true once TL clicks Collect Payment
-    var stepOrder = ["claimed", "navigate", "work", "dropoff"];
+    var stepOrder = ["claimed", "navigate", "work", "dropoff", "payment", "complete"];
 
     // Toast container
     var toastWrap = document.createElement("div");
@@ -64,7 +86,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // ── Action buttons ──
     proceedBtn && proceedBtn.addEventListener("click", function () {
-        openMapsWithPickup();
         submitAction(panel.dataset.proceedEndpoint, {});
     });
 
@@ -77,198 +98,120 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     completeTaskBtn && completeTaskBtn.addEventListener("click", function () {
-        paymentUiOpened = true;
-        hide(completeTaskBtn, true);
-        if (paymongoArea) paymongoArea.classList.remove("hidden");
-        setFeedback("Choose a payment method below.", false);
+        submitAction(panel.dataset.completeEndpoint, {});
     });
-
-    // ── Payment method tab switching ──
-    pmTabCard && pmTabCard.addEventListener("click", function () { switchPmTab("card"); });
-    pmTabGcash && pmTabGcash.addEventListener("click", function () { switchPmTab("gcash"); });
-
-    function switchPmTab(method) {
-        if (method === "card") {
-            pmTabCard && pmTabCard.classList.add("tf-pm-tab--active");
-            pmTabGcash && pmTabGcash.classList.remove("tf-pm-tab--active");
-            hide(pmCardSection, false);
-            hide(pmGcashSection, true);
-        } else {
-            pmTabGcash && pmTabGcash.classList.add("tf-pm-tab--active");
-            pmTabCard && pmTabCard.classList.remove("tf-pm-tab--active");
-            hide(pmGcashSection, false);
-            hide(pmCardSection, true);
-        }
-    }
-
-    // ── Card number / expiry auto-format ──
-    pmCardNumber && pmCardNumber.addEventListener("input", function () {
-        var v = this.value.replace(/\D/g, "").slice(0, 16);
-        this.value = v.replace(/(.{4})/g, "$1 ").trim();
-    });
-    pmCardExpiry && pmCardExpiry.addEventListener("input", function () {
-        var v = this.value.replace(/\D/g, "").slice(0, 4);
-        if (v.length >= 3) v = v.slice(0, 2) + "/" + v.slice(2);
-        this.value = v;
-    });
-    pmCardCvc && pmCardCvc.addEventListener("input", function () {
-        this.value = this.value.replace(/\D/g, "").slice(0, 4);
-    });
-
-    // ── Card "Pay Now" ──
-    pmCardPayBtn && pmCardPayBtn.addEventListener("click", function () {
-        var cardNum = (pmCardNumber ? pmCardNumber.value : "").replace(/\s/g, "");
-        var expiry  = (pmCardExpiry ? pmCardExpiry.value : "").trim();
-        var cvc     = (pmCardCvc   ? pmCardCvc.value   : "").trim();
-        var name    = (pmCardName  ? pmCardName.value  : "").trim();
-
-        if (cardNum.length < 13) { setPmCardError("Enter a valid card number."); return; }
-        if (!/^\d{2}\/\d{2}$/.test(expiry)) { setPmCardError("Enter expiry as MM/YY."); return; }
-        if (cvc.length < 3) { setPmCardError("Enter a valid CVC."); return; }
-        if (!name) { setPmCardError("Enter the cardholder name."); return; }
-        setPmCardError("");
-
-        var parts    = expiry.split("/");
-        var expMonth = parseInt(parts[0], 10);
-        var expYear  = parseInt("20" + parts[1], 10);
-        var publicKey = panel.dataset.paymongoPublicKey || "";
-
-        disablePmCardForm(true);
-        setFeedback("Processing card payment…", false);
-
-        // Step 1: create Payment Intent on backend
-        backendPost(panel.dataset.completeEndpoint, { payment_method: "card" })
-            .then(function (data) {
-                if (!data.success) throw new Error(data.message || "Failed to create payment intent.");
-                var intentId  = data.intent_id;
-                var clientKey = data.client_key;
-                if (data.task) applyTask(data.task);
-
-                // Step 2: create Payment Method via PayMongo API (public key)
-                return fetch("https://api.paymongo.com/v1/payment_methods", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                        "Authorization": "Basic " + btoa(publicKey + ":"),
-                    },
-                    body: JSON.stringify({ data: { attributes: {
-                        type: "card",
-                        details: { card_number: cardNum, exp_month: expMonth, exp_year: expYear, cvc: cvc },
-                        billing: { name: name },
-                    }}}),
-                })
-                .then(function (r) { return r.json(); })
-                .then(function (pm) {
-                    if (!pm.data || !pm.data.id) {
-                        var errMsg = (pm.errors && pm.errors[0] && pm.errors[0].detail) || "Invalid card details.";
-                        throw new Error(errMsg);
-                    }
-                    // Step 3: attach Payment Method to Intent
-                    return fetch("https://api.paymongo.com/v1/payment_intents/" + intentId + "/attach", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Accept": "application/json",
-                            "Authorization": "Basic " + btoa(publicKey + ":"),
-                        },
-                        body: JSON.stringify({ data: { attributes: {
-                            payment_method: pm.data.id,
-                            client_key: clientKey,
-                            return_url: window.location.href,
-                        }}}),
-                    }).then(function (r) { return r.json(); });
-                })
-                .then(function (att) {
-                    var status = att.data && att.data.attributes && att.data.attributes.status;
-                    if (status === "succeeded") {
-                        showPaymentWaiting();
-                        showToast("Card payment successful!", "success");
-                        startPaymentPolling();
-                    } else if (status === "awaiting_next_action") {
-                        var redirectUrl = att.data.attributes.next_action &&
-                                          att.data.attributes.next_action.redirect &&
-                                          att.data.attributes.next_action.redirect.url;
-                        if (redirectUrl) {
-                            showPaymentWaiting();
-                            setFeedback("Complete 3D Secure verification in the opened tab.", false);
-                            window.open(redirectUrl, "_blank", "noopener,noreferrer");
-                            startPaymentPolling();
-                        } else {
-                            throw new Error("3D Secure required but no redirect URL found.");
-                        }
-                    } else {
-                        var failMsg = (att.errors && att.errors[0] && att.errors[0].detail) || "Card payment failed.";
-                        throw new Error(failMsg);
-                    }
-                });
-            })
-            .catch(function (err) {
-                setPmCardError(err.message || "Payment failed. Please try again.");
-                setFeedback(err.message || "Payment failed.", true);
-                disablePmCardForm(false);
-            });
-    });
-
-    // ── GCash "Open GCash Payment" ──
-    pmGcashPayBtn && pmGcashPayBtn.addEventListener("click", function () {
-        pmGcashPayBtn.disabled = true;
-        setFeedback("Creating GCash payment link…", false);
-
-        backendPost(panel.dataset.completeEndpoint, { payment_method: "gcash" })
-            .then(function (data) {
-                if (!data.success) throw new Error(data.message || "Failed to create GCash link.");
-                if (data.task) applyTask(data.task);
-                var url = data.checkout_url || "";
-                if (paymongoOpenLink) { paymongoOpenLink.href = url; paymongoOpenLink.classList.remove("hidden"); }
-                if (url) window.open(url, "_blank", "noopener,noreferrer");
-                showPaymentWaiting();
-                showToast("GCash page opened.", "success");
-                startPaymentPolling();
-            })
-            .catch(function (err) {
-                showToast(err.message || "Request failed.", "error");
-                setFeedback(err.message || "Failed.", true);
-                pmGcashPayBtn.disabled = false;
-            });
-    });
-
-    function showPaymentWaiting() {
-        hide(pmMethodTabs, true);
-        hide(pmCardSection, true);
-        hide(pmGcashSection, true);
-        if (paymongoWaiting) paymongoWaiting.classList.remove("hidden");
-        setFeedback("Waiting for payment to complete. This page updates automatically.", false);
-    }
-
-    function setPmCardError(msg) {
-        if (pmCardError) { pmCardError.textContent = msg; }
-    }
-
-    function disablePmCardForm(disabled) {
-        [pmCardNumber, pmCardExpiry, pmCardCvc, pmCardName].forEach(function (el) {
-            if (el) el.disabled = disabled;
-        });
-        if (pmCardPayBtn) pmCardPayBtn.disabled = disabled;
-    }
-
-    function backendPost(endpoint, payload) {
-        return fetch(endpoint, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "X-Requested-With": "XMLHttpRequest",
-                "X-CSRF-TOKEN": window.TeamLeaderConfig && window.TeamLeaderConfig.csrfToken || "",
-            },
-            body: JSON.stringify(payload || {}),
-        })
-        .then(function (res) {
-            return res.json().catch(function () { return { success: false, message: "Server error." }; });
-        });
-    }
 
     returnTaskBtn && returnTaskBtn.addEventListener("click", openReturnModal);
+
+    // ── Payment method tab switching ──
+    pmTabGcash  && pmTabGcash.addEventListener("click",  function () { switchPmTab("gcash"); });
+    pmTabBank   && pmTabBank.addEventListener("click",   function () { switchPmTab("bank"); });
+    pmTabCash   && pmTabCash.addEventListener("click",   function () { switchPmTab("cash"); });
+    pmTabCheque && pmTabCheque.addEventListener("click", function () { switchPmTab("cheque"); });
+
+    function switchPmTab(method) {
+        var tabs = {
+            gcash: pmTabGcash, bank: pmTabBank,
+            cash: pmTabCash,   cheque: pmTabCheque,
+        };
+        var sections = {
+            gcash: pmGcashSection, bank: pmBankSection,
+            cash: pmCashSection,   cheque: pmChequeSection,
+        };
+        Object.keys(tabs).forEach(function (key) {
+            if (tabs[key]) tabs[key].classList.toggle("tf-pm-tab--active", key === method);
+            hide(sections[key], key !== method);
+        });
+    }
+
+    // ── Generic file-change handler ──
+    function wireProofInput(input, preview, placeholder) {
+        if (!input) return;
+        input.addEventListener("change", function () {
+            var file = this.files[0];
+            if (!file) return;
+            if (file.size > 5 * 1024 * 1024) {
+                showToast("File too large. Maximum 5 MB.", "error");
+                this.value = "";
+                return;
+            }
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                if (preview)     { preview.src = e.target.result; preview.style.display = "block"; }
+                if (placeholder) { placeholder.style.display = "none"; }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    wireProofInput(gcashProofInput,   gcashProofPreview,   gcashProofPlaceholder);
+    wireProofInput(bankProofInput,    bankProofPreview,    bankProofPlaceholder);
+    wireProofInput(cashProofInput,    cashProofPreview,    cashProofPlaceholder);
+    wireProofInput(chequeProofInput,  chequeProofPreview,  chequeProofPlaceholder);
+
+    // ── Generic proof submit ──
+    function submitProof(method, fileInput, errorEl, submitBtn) {
+        var file = fileInput && fileInput.files[0];
+        var requiresProof = (method !== "cash");
+
+        if (requiresProof && !file) {
+            if (errorEl) errorEl.textContent = "Please take or choose a photo first.";
+            return;
+        }
+        if (errorEl) errorEl.textContent = "";
+
+        var endpoint = panel.dataset.proofEndpoint;
+        if (!endpoint) return;
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.dataset.defaultText = submitBtn.dataset.defaultText || submitBtn.textContent;
+            submitBtn.textContent = "Submitting…";
+        }
+
+        var formData = new FormData();
+        formData.append("payment_method", method);
+        if (file) formData.append("payment_proof", file);
+        formData.append("_token", (window.TeamLeaderConfig && window.TeamLeaderConfig.csrfToken) || "");
+
+        fetch(endpoint, {
+            method: "POST",
+            headers: {
+                "Accept": "application/json",
+                "X-CSRF-TOKEN": (window.TeamLeaderConfig && window.TeamLeaderConfig.csrfToken) || "",
+            },
+            body: formData,
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (!data.success) throw new Error(data.message || "Submission failed.");
+            showToast(data.message || "Payment submitted!", "success");
+            if (data.task) applyTask(data.task);
+            setFeedback("Proof submitted. Waiting for dispatcher to confirm.", false);
+        })
+        .catch(function (err) {
+            if (errorEl) errorEl.textContent = err.message || "Submission failed. Try again.";
+            showToast(err.message || "Submission failed.", "error");
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = submitBtn.dataset.defaultText || "Submit";
+            }
+        });
+    }
+
+    // ── Wire proof submit buttons ──
+    gcashSubmitBtn  && gcashSubmitBtn.addEventListener("click", function () {
+        submitProof("gcash",  gcashProofInput,  gcashProofError,  gcashSubmitBtn);
+    });
+    bankSubmitBtn   && bankSubmitBtn.addEventListener("click", function () {
+        submitProof("bank",   bankProofInput,   bankProofError,   bankSubmitBtn);
+    });
+    cashConfirmBtn  && cashConfirmBtn.addEventListener("click", function () {
+        submitProof("cash",   cashProofInput,   null,             cashConfirmBtn);
+    });
+    chequeSubmitBtn && chequeSubmitBtn.addEventListener("click", function () {
+        submitProof("cheque", chequeProofInput, chequeProofError, chequeSubmitBtn);
+    });
 
     // ── Return modal events ──
     returnReasonPreset && returnReasonPreset.addEventListener("change", function () {
@@ -277,7 +220,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (selectedReturnReason) {
             if (returnReasonDescription) returnReasonDescription.textContent = selectedReturnReason.description || "";
             var req = selectedReturnReason.requires_note;
-            if (returnReasonNoteReq) returnReasonNoteReq.style.display = req ? "inline" : "none";
+            if (returnReasonNoteReq)  returnReasonNoteReq.style.display = req ? "inline" : "none";
             if (returnReasonNoteHint) {
                 returnReasonNoteHint.textContent = req
                     ? "Required (minimum " + (selectedReturnReason.value === "other" ? 20 : 10) + " characters)"
@@ -290,16 +233,16 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         } else {
             if (returnReasonDescription) returnReasonDescription.textContent = "";
-            if (returnReasonNoteReq)    returnReasonNoteReq.style.display = "none";
-            if (returnReasonNoteHint)   returnReasonNoteHint.textContent = "";
+            if (returnReasonNoteReq)     returnReasonNoteReq.style.display = "none";
+            if (returnReasonNoteHint)    returnReasonNoteHint.textContent = "";
         }
     });
 
-    cancelReturnBtn  && cancelReturnBtn.addEventListener("click", closeReturnModal);
+    cancelReturnBtn && cancelReturnBtn.addEventListener("click", closeReturnModal);
 
     confirmReturnBtn && confirmReturnBtn.addEventListener("click", function () {
-        var code = (returnReasonPreset?.value || "").trim();
-        var note = (returnReasonNote?.value || "").trim();
+        var code = (returnReasonPreset ? returnReasonPreset.value : "").trim();
+        var note = (returnReasonNote   ? returnReasonNote.value   : "").trim();
 
         if (!code) { setReturnError("Please select a return reason."); return; }
 
@@ -330,42 +273,6 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     }
 
-    // ── Payment status polling (PayMongo) ──
-    function startPaymentPolling() {
-        if (paymentPollTimer) return;
-        var endpoint = panel.dataset.paymentStatusEndpoint;
-        if (!endpoint) return;
-
-        paymentPollTimer = window.setInterval(function () {
-            fetch(endpoint, {
-                headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
-            })
-            .then(function (res) {
-                return res.json().catch(function () { return {}; }).then(function (d) { return { ok: res.ok, data: d }; });
-            })
-            .then(function (result) {
-                if (!result.ok || !result.data.success) return;
-                if (result.data.paid) {
-                    stopPaymentPolling();
-                    stopPolling();
-                    showToast(result.data.message || "Payment received! Job complete.", "success");
-                    setFeedback("Payment confirmed! Redirecting…", false);
-                    if (result.data.task) applyTask(result.data.task);
-                    window.setTimeout(function () {
-                        window.location.href = result.data.redirect_url || panel.dataset.tasksUrl;
-                    }, 1500);
-                }
-            })
-            .catch(function () {});
-        }, 5000);
-    }
-
-    function stopPaymentPolling() {
-        if (!paymentPollTimer) return;
-        window.clearInterval(paymentPollTimer);
-        paymentPollTimer = null;
-    }
-
     // ── Core submit (for non-payment actions) ──
     function submitAction(endpoint, payload, redirectAfter, silent) {
         if (!endpoint) { setFeedback("This action is unavailable right now.", true); return; }
@@ -381,7 +288,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
                 "X-Requested-With": "XMLHttpRequest",
-                "X-CSRF-TOKEN": window.TeamLeaderConfig?.csrfToken || "",
+                "X-CSRF-TOKEN": (window.TeamLeaderConfig && window.TeamLeaderConfig.csrfToken) || "",
             },
             body: JSON.stringify(payload || {}),
         })
@@ -419,13 +326,6 @@ document.addEventListener("DOMContentLoaded", function () {
     function applyTask(task) {
         panel.dataset.currentStatus = task.status || "assigned";
 
-        if (task.paymongo_checkout_url) {
-            panel.dataset.paymongoCheckoutUrl = task.paymongo_checkout_url;
-        }
-        if (task.payment_method_type) {
-            panel.dataset.paymentMethodType = task.payment_method_type;
-        }
-
         if (statusBadge) {
             statusBadge.className = "tf-status-pill " + (task.ui_status || "assigned").replace(/_/g, "-");
             statusBadge.textContent = task.status_label || "Active";
@@ -448,37 +348,31 @@ document.addEventListener("DOMContentLoaded", function () {
         hide(backToDashBtn,   !t.is_completed);
 
         if (status === "payment_pending") {
-            paymentUiOpened = true;
-            if (paymongoArea) paymongoArea.classList.remove("hidden");
-            hide(pmMethodTabs, true);
-            hide(pmCardSection, true);
-            hide(pmGcashSection, true);
-            if (paymongoWaiting) paymongoWaiting.classList.remove("hidden");
-
-            var methodType = (t && t.payment_method_type) || panel.dataset.paymentMethodType || "";
-            if (methodType === "gcash") {
-                var gcashUrl = (t && t.paymongo_checkout_url) || panel.dataset.paymongoCheckoutUrl || "";
-                if (paymongoOpenLink && gcashUrl) {
-                    paymongoOpenLink.href = gcashUrl;
-                    paymongoOpenLink.classList.remove("hidden");
-                }
-                if (pmGcashSection) pmGcashSection.classList.remove("hidden");
-            }
-
-            setFeedback("Waiting for payment to complete. This page updates automatically.", false);
-            startPaymentPolling();
+            if (paymongoArea)        paymongoArea.classList.remove("hidden");
+            hide(pmMethodArea,       false);
+            hide(paymentSubmittedCard, true);
+            setFeedback("Collect payment from the customer using one of the methods below.", false);
+            startPolling();
             return;
         }
 
-        // Hide payment area only if the TL hasn't opened it yet
-        if (!paymentUiOpened) hide(paymongoArea, true);
+        if (status === "payment_submitted") {
+            if (paymongoArea)        paymongoArea.classList.remove("hidden");
+            hide(pmMethodArea,       true);
+            hide(paymentSubmittedCard, false);
+            setFeedback("Payment proof submitted. Waiting for dispatcher to confirm.", false);
+            startPolling();
+            return;
+        }
+
+        hide(paymongoArea, true);
 
         if (t.is_completed) {
             stopPolling();
-            stopPaymentPolling();
-            hide(paymongoArea, true);
             setFeedback("Job complete. Redirecting to dashboard…", false);
-            window.setTimeout(function () { window.location.href = panel.dataset.tasksUrl || panel.dataset.dashboardUrl; }, 1500);
+            window.setTimeout(function () {
+                window.location.href = panel.dataset.tasksUrl || panel.dataset.dashboardUrl;
+            }, 1500);
             return;
         }
 
@@ -501,7 +395,8 @@ document.addEventListener("DOMContentLoaded", function () {
         var current = "claimed";
         if      (status === "on_the_way")           current = "navigate";
         else if (status === "in_progress")           current = "work";
-        else if (status === "payment_pending" || status === "payment_submitted" || status === "waiting_verification" || status === "completed") current = "dropoff";
+        else if (status === "payment_pending" || status === "payment_submitted" || status === "waiting_verification") current = "payment";
+        else if (status === "completed")             current = "complete";
 
         var currentIdx = stepOrder.indexOf(current);
 
@@ -512,14 +407,13 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
         document.querySelectorAll("[data-line]").forEach(function (line) {
-            var parts = (line.dataset.line || "").split("-");
-            var fromStep = parts[0];
-            var fromIdx  = stepOrder.indexOf(fromStep);
+            var parts   = (line.dataset.line || "").split("-");
+            var fromIdx = stepOrder.indexOf(parts[0]);
             line.classList.toggle("is-done", fromIdx < currentIdx);
         });
     }
 
-    // ── General polling (for status changes from other actors) ──
+    // ── General polling (detects status changes from dispatcher) ──
     function startPolling() {
         if (pollTimer) return;
         pollTimer = window.setInterval(function () {
@@ -527,7 +421,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
             })
             .then(function (res) {
-                return res.json().catch(function () { return {}; }).then(function (d) { return { ok: res.ok, data: d }; });
+                return res.json().catch(function () { return {}; }).then(function (d) {
+                    return { ok: res.ok, data: d };
+                });
             })
             .then(function (result) {
                 if (!result.ok || result.data.success === false) {

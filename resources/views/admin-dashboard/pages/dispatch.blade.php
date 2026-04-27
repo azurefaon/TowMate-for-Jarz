@@ -902,11 +902,11 @@
                             default => ucfirst(str_replace('_', ' ', $booking->status)),
                         };
                         $cj_paymentMethodLabel = match ($booking->payment_method ?? '') {
-                            'card' => 'Card (PayMongo)',
-                            'gcash' => 'GCash (PayMongo)',
-                            'visa' => 'Visa / Card',
-                            'bank' => 'Bank Transfer',
-                            default => 'Cash / Manual',
+                            'gcash'  => 'GCash',
+                            'bank'   => 'Bank Transfer',
+                            'cash'   => 'Cash',
+                            'cheque' => 'Cheque',
+                            default  => '—',
                         };
                     @endphp
                     <div class="incoming-card {{ $booking->is_scheduled && !$booking->is_dispatch_delayed ? 'incoming-card--scheduled' : '' }}"
@@ -1379,7 +1379,7 @@
                         </div>
                         <div>
                             <div style="font-size:.95rem;font-weight:700;color:#0f172a;line-height:1.2;">Complete Job</div>
-                            <div id="cjRefBadge" style="font-size:.75rem;color:#64748b;margin-top:1px;"></div>
+                            <div id="cjRefBadge" style="font-size:.8rem;font-weight:700;color:#16a34a;margin-top:2px;font-family:monospace;letter-spacing:.04em;"></div>
                         </div>
                     </div>
                     <button id="completeJobClose" type="button" aria-label="Close"
@@ -2447,7 +2447,7 @@
                 }
 
                 // ── Header ref ──
-                setText('cjRefBadge', 'Ref: ' + (ds.jobCode || btn.dataset.ref || '—'));
+                setText('cjRefBadge', '#' + (ds.jobCode || btn.dataset.ref || '—'));
 
                 // ── Customer ──
                 setText('cjCustomerName', ds.customerName || btn.dataset.customer);

@@ -77,10 +77,21 @@
             </table>
         </div>
 
-        <div style="margin-top: 32px; padding: 24px; background: #e2e8f0; border-radius: 20px;">
+        <div style="margin-top: 24px; padding: 24px; background: #e2e8f0; border-radius: 20px;">
             <h3 style="margin: 0 0 10px; font-size: 18px; color: #0f172a;">What happens next</h3>
             <p style="margin: 0; color: #475569;">Dispatch will continue reviewing your request and update the booking
                 using the details already submitted.</p>
+        </div>
+
+        <div style="margin-top: 24px; text-align: center;">
+            <p style="margin: 0 0 14px; font-size: 14px; color: #475569;">Want to check where things stand? You can follow your booking at any time.</p>
+            <a href="{{ route('customer.track', $booking->booking_code) }}"
+               style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:13px 32px;border-radius:12px;">
+                Track My Booking →
+            </a>
+            <p style="margin: 12px 0 0; font-size: 11px; color: #94a3b8;">
+                You'll need to log in to view the tracking page.
+            </p>
         </div>
     </div>
 </div>

@@ -115,8 +115,13 @@ class TeamLeaderController extends Controller
         }
 
         return view('teamleader.task-focus', [
-            'booking' => $task,
-            'task' => $this->transformBooking($task),
+            'booking'           => $task,
+            'task'              => $this->transformBooking($task),
+            'gcashNumber'       => \App\Models\SystemSetting::getValue('gcash_number', '09426386048'),
+            'bankName'          => \App\Models\SystemSetting::getValue('bank_name', 'BDO Unibank'),
+            'bankAccountName'   => \App\Models\SystemSetting::getValue('bank_account_name', 'Jarz Towing Services'),
+            'bankAccountNumber' => \App\Models\SystemSetting::getValue('bank_account_number', '0012-3456-7890'),
+            'allowCheque'       => (bool) \App\Models\SystemSetting::getValue('allow_cheque_payment', false),
         ]);
     }
 
@@ -398,84 +403,14 @@ class TeamLeaderController extends Controller
             ], 422);
         }
 
-        $finalTotal     = (float) ($task->final_total ?? 0);
-        $baseRate       = (float) ($task->base_rate ?? $task->truckType?->base_rate ?? 0);
-        $distanceFee    = round((int) floor((float) ($task->distance_km ?? 0) / 4) * 200, 2);
-        $additionalFee  = (float) ($task->additional_fee ?? 0);
-        $computedTotal  = round($baseRate + $distanceFee + $additionalFee, 2);
-        $amount         = $finalTotal > 0 ? $finalTotal : $computedTotal;
-        $amountCentavos = (int) round($amount * 100);
-
-        if ($amountCentavos < 100) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Booking amount is too low (minimum ₱1.00).',
-            ], 422);
-        }
-
-        $description   = 'TowMate Towing Service — ' . ($task->job_code ?? ('Booking #' . $task->id));
-        $paymentMethod = $request->input('payment_method', 'gcash');
-        $payMongo      = app(\App\Services\PayMongoService::class);
-
-        if ($paymentMethod === 'card') {
-            $intentData = $payMongo->createPaymentIntent($amountCentavos, $description);
-
-            if (! isset($intentData['data']['id'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to create payment intent. Please try again.',
-                ], 500);
-            }
-
-            $intentId  = $intentData['data']['id'];
-            $clientKey = $intentData['data']['attributes']['client_key'];
-
-            $task->update([
-                'status'                  => 'payment_pending',
-                'paymongo_intent_id'      => $intentId,
-                'paymongo_client_key'     => $clientKey,
-                'paymongo_link_id'        => null,
-                'paymongo_checkout_url'   => null,
-                'completion_requested_at' => now(),
-                'completed_at'            => null,
-            ]);
-
-            $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
-            $this->syncAssignedUnitStatus($task, 'available');
-            $this->teamLeaderAvailability->setOperationalOverride(Auth::user(), 'available');
-            event(new BookingStatusUpdated($task));
-
-            return response()->json([
-                'success'    => true,
-                'message'    => 'Payment intent created.',
-                'status'     => 'payment_pending',
-                'intent_id'  => $intentId,
-                'client_key' => $clientKey,
-                'task'       => $this->transformBooking($task),
-            ]);
-        }
-
-        // GCash — Payment Link flow
-        $linkData = $payMongo->createPaymentLink($amountCentavos, $description);
-
-        if (! isset($linkData['data']['id'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create GCash payment link. Please try again.',
-            ], 500);
-        }
-
-        $linkId      = $linkData['data']['id'];
-        $checkoutUrl = $linkData['data']['attributes']['checkout_url'];
-
         $task->update([
             'status'                  => 'payment_pending',
-            'paymongo_link_id'        => $linkId,
-            'paymongo_checkout_url'   => $checkoutUrl,
-            'paymongo_intent_id'      => null,
-            'paymongo_client_key'     => null,
             'completion_requested_at' => now(),
             'completed_at'            => null,
+            'paymongo_intent_id'      => null,
+            'paymongo_client_key'     => null,
+            'paymongo_link_id'        => null,
+            'paymongo_checkout_url'   => null,
         ]);
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
@@ -484,12 +419,10 @@ class TeamLeaderController extends Controller
         event(new BookingStatusUpdated($task));
 
         return response()->json([
-            'success'      => true,
-            'message'      => 'GCash payment link created.',
-            'status'       => 'payment_pending',
-            'checkout_url' => $checkoutUrl,
-            'link_id'      => $linkId,
-            'task'         => $this->transformBooking($task),
+            'success' => true,
+            'message' => 'Job complete. Collect payment from the customer.',
+            'status'  => 'payment_pending',
+            'task'    => $this->transformBooking($task),
         ]);
     }
 
@@ -551,14 +484,25 @@ class TeamLeaderController extends Controller
         }
 
         $validated = $request->validate([
-            'payment_method' => 'required|in:gcash,bank,visa',
-            'payment_proof'  => 'required|file|mimes:jpg,jpeg,png,webp|max:5120',
+            'payment_method' => 'required|in:gcash,bank,cash,cheque',
+            'payment_proof'  => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
 
-        $path = $request->file('payment_proof')->store('payment-proofs', 'public');
+        $method = $validated['payment_method'];
+
+        if (in_array($method, ['gcash', 'bank', 'cheque'], true) && ! $request->hasFile('payment_proof')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please upload a photo of the payment proof.',
+            ], 422);
+        }
+
+        $path = $request->hasFile('payment_proof')
+            ? $request->file('payment_proof')->store('payment-proofs', 'public')
+            : null;
 
         $task->update([
-            'payment_method'       => $validated['payment_method'],
+            'payment_method'       => $method,
             'payment_proof_path'   => $path,
             'payment_submitted_at' => now(),
             'status'               => 'payment_submitted',
@@ -927,10 +871,11 @@ class TeamLeaderController extends Controller
         };
 
         $paymentMethodLabel = match ($booking->payment_method) {
-            'gcash' => 'GCash',
-            'bank'  => 'Bank Transfer',
-            'visa'  => 'Visa / Card',
-            default => null,
+            'gcash'   => 'GCash',
+            'bank'    => 'Bank Transfer',
+            'cash'    => 'Cash',
+            'cheque'  => 'Cheque',
+            default   => null,
         };
 
         return [
