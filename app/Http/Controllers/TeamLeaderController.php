@@ -117,10 +117,10 @@ class TeamLeaderController extends Controller
         return view('teamleader.task-focus', [
             'booking'           => $task,
             'task'              => $this->transformBooking($task),
-            'gcashNumber'       => \App\Models\SystemSetting::getValue('gcash_number', '09426386048'),
+            'gcashNumber'       => \App\Models\SystemSetting::getValue('gcash_number', '12345678901'),
             'bankName'          => \App\Models\SystemSetting::getValue('bank_name', 'BDO Unibank'),
             'bankAccountName'   => \App\Models\SystemSetting::getValue('bank_account_name', 'Jarz Towing Services'),
-            'bankAccountNumber' => \App\Models\SystemSetting::getValue('bank_account_number', '0012-3456-7890'),
+            'bankAccountNumber' => \App\Models\SystemSetting::getValue('bank_account_number', '1234-5678-9101'),
             'allowCheque'       => (bool) \App\Models\SystemSetting::getValue('allow_cheque_payment', false),
         ]);
     }
@@ -841,7 +841,7 @@ class TeamLeaderController extends Controller
                 'confirmed', 'accepted', 'assigned', 'quotation_sent' => 'assigned',
                 'on_the_way'          => 'on_the_way',
                 'in_progress'         => 'in_progress',
-                'waiting_verification'=> 'waiting_verification',
+                'waiting_verification' => 'waiting_verification',
                 'payment_pending'     => 'payment_pending',
                 'payment_submitted'   => 'payment_submitted',
                 'completed'           => 'completed',
@@ -969,7 +969,7 @@ class TeamLeaderController extends Controller
             'can_return'          => in_array($booking->status, ['assigned', 'on_the_way'], true),
             'is_waiting'          => $booking->status === 'waiting_verification',
             'is_payment_pending'  => $booking->status === 'payment_pending',
-            'is_payment_submitted'=> $booking->status === 'payment_submitted',
+            'is_payment_submitted' => $booking->status === 'payment_submitted',
             'is_completed'        => $booking->status === 'completed',
             'completion_note_locked' => $booking->status !== 'in_progress',
 

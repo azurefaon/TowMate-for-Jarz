@@ -35,7 +35,7 @@ class GeoController extends Controller
         ]);
 
         if (! $response->successful()) {
-            return response()->json(['features' => []]);
+            return response()->json(['features' => $this->resolveNominatimSearchResults($validated['q'])]);
         }
 
         $features = collect($response->json('features', []))
@@ -47,6 +47,10 @@ class GeoController extends Controller
             })
             ->values();
 
+        if ($features->isEmpty()) {
+            return response()->json(['features' => $this->resolveNominatimSearchResults($validated['q'])]);
+        }
+
         return response()->json(['features' => $features]);
     }
 
@@ -57,26 +61,28 @@ class GeoController extends Controller
             'lng' => ['required', 'numeric'],
         ]);
 
+        $lat = (float) $validated['lat'];
+        $lng = (float) $validated['lng'];
+
         if ($this->shouldUseGoogleMaps()) {
-            return response()->json([
-                'address' => $this->resolveGoogleReverseAddress((float) $validated['lat'], (float) $validated['lng']),
-            ]);
+            $address = $this->resolveGoogleReverseAddress($lat, $lng);
+            return response()->json(['address' => $address !== 'Unknown location' ? $address : ($this->resolveNominatimReverseAddress($lat, $lng) ?: 'Unknown location')]);
         }
 
         $response = $this->client()->get($this->baseUrl() . '/geocode/reverse', [
-            'point.lat' => $validated['lat'],
-            'point.lon' => $validated['lng'],
+            'point.lat' => $lat,
+            'point.lon' => $lng,
         ]);
 
-        if (! $response->successful()) {
-            return response()->json([
-                'address' => 'Unknown location',
-            ]);
+        if ($response->successful()) {
+            $address = (string) $response->json('features.0.properties.label', '');
+            if ($address !== '') {
+                return response()->json(['address' => $address]);
+            }
         }
 
-        return response()->json([
-            'address' => $response->json('features.0.properties.label', 'Unknown location'),
-        ]);
+        $nominatim = $this->resolveNominatimReverseAddress($lat, $lng);
+        return response()->json(['address' => $nominatim ?: 'Unknown location']);
     }
 
     public function route(Request $request): JsonResponse
@@ -439,6 +445,64 @@ class GeoController extends Controller
     protected function googleDirectionsUrl(): string
     {
         return (string) config('services.google_maps.directions_url', 'https://maps.googleapis.com/maps/api/directions/json');
+    }
+
+    protected function resolveNominatimReverseAddress(float $lat, float $lng): string
+    {
+        try {
+            $response = Http::timeout(10)
+                ->withHeaders(['User-Agent' => 'TowMate/1.0 (towing-dispatch)'])
+                ->acceptJson()
+                ->get('https://nominatim.openstreetmap.org/reverse', [
+                    'lat' => $lat,
+                    'lon' => $lng,
+                    'format' => 'json',
+                    'zoom' => 18,
+                ]);
+
+            if (! $response->successful()) {
+                return '';
+            }
+
+            return (string) $response->json('display_name', '');
+        } catch (\Throwable) {
+            return '';
+        }
+    }
+
+    protected function resolveNominatimSearchResults(string $query): array
+    {
+        try {
+            $response = Http::timeout(10)
+                ->withHeaders(['User-Agent' => 'TowMate/1.0 (towing-dispatch)'])
+                ->acceptJson()
+                ->get('https://nominatim.openstreetmap.org/search', [
+                    'q' => $query,
+                    'format' => 'json',
+                    'countrycodes' => 'ph',
+                    'limit' => 5,
+                    'addressdetails' => 0,
+                ]);
+
+            if (! $response->successful()) {
+                return [];
+            }
+
+            return collect($response->json() ?: [])
+                ->map(function (array $place) {
+                    return [
+                        'label' => $place['display_name'] ?? 'Unknown location',
+                        'coordinates' => [
+                            (float) ($place['lon'] ?? 0),
+                            (float) ($place['lat'] ?? 0),
+                        ],
+                    ];
+                })
+                ->values()
+                ->all();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     protected function client()

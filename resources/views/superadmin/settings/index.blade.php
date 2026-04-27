@@ -233,7 +233,7 @@
                 <div class="settings-field">
                     <label>GCash Number</label>
                     <input type="text" name="settings[gcash_number]"
-                        value="{{ $settings['gcash_number'] ?? '09426386048' }}">
+                        value="{{ $settings['gcash_number'] ?? '12345678901' }}">
                 </div>
 
                 <div class="settings-field" style="grid-column: 1 / -1; margin-top: 8px;">

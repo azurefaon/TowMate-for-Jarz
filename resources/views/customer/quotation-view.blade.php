@@ -107,22 +107,22 @@
             </div>
         @elseif($quotation->status === 'accepted')
             <div class="mb-6 border-2 bg-green-50 border-green-300 text-green-800 px-6 py-4 rounded-lg">
-                <p class="font-semibold text-lg">✅ Quotation Accepted</p>
+                <p class="font-semibold text-lg">Quotation Accepted</p>
                 <p class="text-sm mt-1">Your booking has been confirmed!</p>
             </div>
         @elseif($quotation->status === 'rejected')
             <div class="mb-6 border-2 bg-gray-50 border-gray-300 text-gray-800 px-6 py-4 rounded-lg">
-                <p class="font-semibold text-lg">❌ Quotation Rejected</p>
+                <p class="font-semibold text-lg">Quotation Rejected</p>
                 <p class="text-sm mt-1">You can request a new quotation anytime.</p>
             </div>
         @elseif($quotation->status === 'pending')
             <div class="mb-6 border-2 bg-yellow-50 border-yellow-300 text-yellow-800 px-6 py-4 rounded-lg">
-                <p class="font-semibold text-lg">⏳ Under Review</p>
+                <p class="font-semibold text-lg">Under Review</p>
                 <p class="text-sm mt-1">Our team is reviewing your negotiation request.</p>
             </div>
         @else
             <div class="mb-6 border-2 bg-gray-50 border-gray-300 text-gray-800 px-6 py-4 rounded-lg">
-                <p class="font-semibold text-lg">⏰ Quotation Expired</p>
+                <p class="font-semibold text-lg">Quotation Expired</p>
                 <p class="text-sm mt-1">This quotation has expired. Please contact us for a new quotation.</p>
             </div>
         @endif
@@ -159,7 +159,7 @@
                     <!-- Pickup -->
                     <div class="flex items-start">
                         <div
-                            class="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                            class="flex-shrink-0 w-8 h-8 bg-black-100 rounded-full flex items-center justify-center mr-3">
                             <span class="text-green-600 font-bold">A</span>
                         </div>
                         <div class="flex-1">
@@ -174,7 +174,7 @@
                     <!-- Dropoff -->
                     <div class="flex items-start">
                         <div
-                            class="flex-shrink-0 w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                            class="flex-shrink-0 w-8 h-8 bg-black-100 rounded-full flex items-center justify-center mr-3">
                             <span class="text-red-600 font-bold">B</span>
                         </div>
                         <div class="flex-1">
@@ -239,7 +239,7 @@
                         </div>
                     @endif
 
-                    <div class="flex justify-between text-xl font-bold text-gray-900 border-t-2 border-gray-300 pt-3">
+                    <div class="flex justify-between text-xl font-bold text-black-900 border-t-2 border-gray-300 pt-3">
                         <span>Total Amount</span>
                         <span class="text-blue-600">₱{{ number_format($quotation->estimated_price, 2) }}</span>
                     </div>
@@ -263,7 +263,8 @@
                             class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-4 px-12 rounded-lg">
                             ✅ Accept & Continue
                         </a>
-                        <p class="text-sm text-gray-500 mt-4">By accepting, you agree to the quoted price and service terms.</p>
+                        <p class="text-sm text-gray-500 mt-4">By accepting, you agree to the quoted price and service
+                            terms.</p>
                     </div>
                 @endif
             </div>

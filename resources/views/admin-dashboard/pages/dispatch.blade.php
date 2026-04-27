@@ -25,7 +25,6 @@
             overflow-x: hidden;
             overflow-y: auto;
             padding: 20px;
-            scrollbar-gutter: stable;
         }
 
         .review-surface {
@@ -58,7 +57,7 @@
 
         #modalText {
             margin-bottom: 8px;
-            font-size: 0.9rem;
+            /* font-size: 0.9rem; */
         }
 
         #actionModal .modal-icon {
@@ -902,11 +901,11 @@
                             default => ucfirst(str_replace('_', ' ', $booking->status)),
                         };
                         $cj_paymentMethodLabel = match ($booking->payment_method ?? '') {
-                            'gcash'  => 'GCash',
-                            'bank'   => 'Bank Transfer',
-                            'cash'   => 'Cash',
+                            'gcash' => 'GCash',
+                            'bank' => 'Bank Transfer',
+                            'cash' => 'Cash',
                             'cheque' => 'Cheque',
-                            default  => '—',
+                            default => '—',
                         };
                     @endphp
                     <div class="incoming-card {{ $booking->is_scheduled && !$booking->is_dispatch_delayed ? 'incoming-card--scheduled' : '' }}"
@@ -1151,7 +1150,7 @@
 
                 {{-- Start Job panel: shown only for confirmed bookings --}}
                 <div id="confirmedBookingPanel" style="display:none; margin-bottom:14px;">
-                    <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:14px; padding:16px;">
+                    <div style="background:#ffffff; border:1px solid #bfd3c6; padding:16px;">
                         <div
                             style="font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#15803d; margin-bottom:12px;">
                             Booking to Assign</div>
@@ -1189,26 +1188,35 @@
                             </div>
                         </div>
                         <div
-                            style="margin-top:14px; padding:10px 14px; background:#fff; border:1px solid #86efac; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:.85rem; font-weight:600; color:#15803d;">Agreed Total (Price Locked)</span>
-                            <span id="cfAgreedTotal" style="font-size:1.1rem; font-weight:800; color:#15803d;">—</span>
+                            style="margin-top:14px; padding:10px 14px; background:#fff; border:1px solid #000000; display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:.85rem; font-weight:600; color:#000000;">Agreed Total (Price
+                                Locked)</span>
+                            <span id="cfAgreedTotal" style="font-size:1.1rem; color:#000000;">—</span>
                         </div>
 
                         {{-- Assigned unit card --}}
-                        <div id="cfUnitBox" style="display:none; margin-top:12px; background:#0f172a; border-radius:12px; padding:14px 16px;">
-                            <div style="font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; margin-bottom:10px;">Assigned Unit</div>
+                        <div id="cfUnitBox" style="display:none; margin-top:12px; background:#ffffff; padding:14px 16px;">
+                            <div
+                                style="font-size:.65rem; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; margin-bottom:10px;">
+                                Assigned Unit</div>
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px;">
                                 <div>
-                                    <div style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">Unit</div>
-                                    <div id="cfUnitName" style="font-size:.92rem; font-weight:800; color:#f8fafc;">—</div>
+                                    <div
+                                        style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">
+                                        Unit</div>
+                                    <div id="cfUnitName" style="font-size:.92rem; font-weight:800; color:#000000;">—</div>
                                 </div>
                                 <div>
-                                    <div style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">Type</div>
-                                    <div id="cfUnitType" style="font-size:.88rem; font-weight:700; color:#4ade80;">—</div>
+                                    <div
+                                        style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">
+                                        Type</div>
+                                    <div id="cfUnitType" style="font-size:.88rem; font-weight:700; color:#000000;">—</div>
                                 </div>
                                 <div style="grid-column:1/-1;">
-                                    <div style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">Team Leader</div>
-                                    <div id="cfUnitTl" style="font-size:.88rem; font-weight:700; color:#f8fafc;">—</div>
+                                    <div
+                                        style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">
+                                        Team Leader</div>
+                                    <div id="cfUnitTl" style="font-size:.88rem; font-weight:700; color:#000000;">—</div>
                                 </div>
                             </div>
                         </div>
@@ -1379,7 +1387,9 @@
                         </div>
                         <div>
                             <div style="font-size:.95rem;font-weight:700;color:#0f172a;line-height:1.2;">Complete Job</div>
-                            <div id="cjRefBadge" style="font-size:.8rem;font-weight:700;color:#16a34a;margin-top:2px;font-family:monospace;letter-spacing:.04em;"></div>
+                            <div id="cjRefBadge"
+                                style="font-size:.8rem;font-weight:700;color:#16a34a;margin-top:2px;font-family:monospace;letter-spacing:.04em;">
+                            </div>
                         </div>
                     </div>
                     <button id="completeJobClose" type="button" aria-label="Close"

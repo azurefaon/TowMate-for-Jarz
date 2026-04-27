@@ -49,7 +49,7 @@
             align-items: flex-start;
             gap: 0;
             background: #fff;
-            border-radius: 16px;
+            /* border-radius: 16px; */
             border: 1px solid #e4e4e7;
             padding: 18px 24px;
             margin-bottom: 16px;
@@ -133,7 +133,7 @@
         /* ── Status banner ── */
         .tf-banner {
             background: #fff;
-            border-radius: 16px;
+            /* border-radius: 16px; */
             border: 1px solid #e4e4e7;
             padding: 18px 24px;
             margin-bottom: 16px;
@@ -175,45 +175,45 @@
         }
 
         .tf-status-pill.assigned {
-            background: #f0fdf4;
-            color: #15803d;
-            border-color: #86efac;
+            /* background: #f0fdf4; */
+            color: #000000;
+            border-color: #000000;
         }
 
         .tf-status-pill.on-the-way {
-            background: #eff6ff;
-            color: #1d4ed8;
-            border-color: #93c5fd;
+            /* background: #eff6ff; */
+            color: #000000;
+            border-color: #0077ff;
         }
 
         .tf-status-pill.in-progress {
-            background: #fefce8;
-            color: #a16207;
-            border-color: #fde047;
+            /* background: #fefce8; */
+            color: #000000;
+            border-color: #000000;
         }
 
         .tf-status-pill.waiting-verification {
-            background: #faf5ff;
-            color: #7c3aed;
-            border-color: #c4b5fd;
+            /* background: #faf5ff; */
+            color: #000000;
+            border-color: #000000;
         }
 
         .tf-status-pill.payment-pending {
-            background: #fff7ed;
-            color: #c2410c;
-            border-color: #fdba74;
+            /* background: #fff7ed; */
+            color: #000000;
+            border-color: #000000;
         }
 
         .tf-status-pill.payment-submitted {
-            background: #f0fdf4;
-            color: #15803d;
-            border-color: #86efac;
+            /* background: #f0fdf4; */
+            color: #000000;
+            border-color: #000000;
         }
 
         .tf-status-pill.completed {
-            background: #f0fdf4;
-            color: #15803d;
-            border-color: #86efac;
+            /* background: #f0fdf4; */
+            color: #000000;
+            border-color: #000000;
         }
 
         /* ── Info grid ── */
@@ -232,7 +232,7 @@
 
         .tf-card {
             background: #fff;
-            border-radius: 16px;
+            /* border-radius: 16px; */
             border: 1px solid #e4e4e7;
             padding: 18px 20px;
         }
@@ -357,13 +357,13 @@
         }
 
         .tf-svc-badge--now {
-            background: #eff6ff;
-            color: #1d4ed8;
+            /* background: #eff6ff; */
+            color: #000000;
         }
 
         .tf-svc-badge--sched {
-            background: #faf5ff;
-            color: #7c3aed;
+            /* background: #faf5ff; */
+            color: #000000;
         }
 
         .tf-mono {
@@ -374,7 +374,7 @@
         /* ── Action area ── */
         .tf-action-area {
             background: #fff;
-            border-radius: 16px;
+            /* border-radius: 16px; */
             border: 1px solid #e4e4e7;
             padding: 22px 24px;
             display: flex;
@@ -393,7 +393,7 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
-            border-radius: 12px;
+            /* border-radius: 12px; */
             font-size: 14px;
             font-weight: 700;
             padding: 13px 20px;
@@ -865,8 +865,7 @@
         data-paymongo-checkout-url="{{ $booking->paymongo_checkout_url ?? '' }}"
         data-paymongo-public-key="{{ config('services.paymongo.public_key') }}"
         data-payment-method-type="{{ $booking->paymongo_intent_id ? 'card' : ($booking->paymongo_link_id ? 'gcash' : '') }}"
-        data-final-total="{{ $finalTotal }}"
-        data-gcash-number="{{ $gcashNumber ?? '09426386048' }}"
+        data-final-total="{{ $finalTotal }}" data-gcash-number="{{ $gcashNumber ?? '12345678901' }}"
         data-proof-endpoint="{{ route('teamleader.task.payment', $booking) }}">
 
         {{-- ── Stepper ── --}}
@@ -1053,17 +1052,17 @@
                     id="proceedBtn">
                     Navigate to Pickup
                 </button>
-                <button type="button" class="tf-btn tf-btn--ghost {{ $currentStatus === 'on_the_way' ? '' : 'hidden' }}"
+                {{-- <button type="button" class="tf-btn tf-btn--ghost {{ $currentStatus === 'on_the_way' ? '' : 'hidden' }}"
                     id="navigateMapsBtn">
                     Open Pickup in Maps
-                </button>
+                </button> --}}
                 <button type="button" class="tf-btn tf-btn--primary {{ $task['can_start'] ? '' : 'hidden' }}"
                     id="startTowBtn">
-                    Arrived — Start Job
+                    Arrived and Start Job
                 </button>
                 <button type="button" class="tf-btn tf-btn--primary {{ $task['can_complete'] ? '' : 'hidden' }}"
                     id="completeTaskBtn">
-                    Complete Job — Collect Payment
+                    Complete Job and Collect Payment
                 </button>
                 <button type="button" class="tf-btn tf-btn--ghost {{ $task['can_return'] ? '' : 'hidden' }}"
                     id="returnTaskBtn">
@@ -1083,7 +1082,8 @@
             </div>
 
             {{-- Payment collection UI --}}
-            <div id="paymongoArea" class="{{ in_array($currentStatus, ['payment_pending', 'payment_submitted']) ? '' : 'hidden' }}">
+            <div id="paymongoArea"
+                class="{{ in_array($currentStatus, ['payment_pending', 'payment_submitted']) ? '' : 'hidden' }}">
                 <div class="tf-paymongo-card">
 
                     {{-- Amount --}}
@@ -1099,95 +1099,155 @@
                             <button type="button" class="tf-pm-tab tf-pm-tab--active" id="pmTabGcash">GCash</button>
                             <button type="button" class="tf-pm-tab" id="pmTabBank">Bank Transfer</button>
                             <button type="button" class="tf-pm-tab" id="pmTabCash">Cash</button>
-                            @if(!empty($allowCheque))
-                            <button type="button" class="tf-pm-tab" id="pmTabCheque">Cheque</button>
+                            @if (!empty($allowCheque))
+                                <button type="button" class="tf-pm-tab" id="pmTabCheque">Cheque</button>
                             @endif
                         </div>
 
                         {{-- GCash section --}}
                         <div id="pmGcashSection" class="tf-pm-fields">
-                            <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:14px;padding:16px 18px;margin-bottom:14px;text-align:center;">
-                                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#15803d;margin-bottom:6px;">Send Payment to GCash</div>
-                                <div style="font-size:28px;font-weight:800;color:#09090b;letter-spacing:3px;" id="gcashNumberDisplay">{{ $gcashNumber ?? '09426386048' }}</div>
-                                <div style="font-size:12px;color:#52525b;margin-top:4px;">Ask the customer to send the exact amount to this number</div>
+                            <div
+                                style="background:#2865c0;border:1.5px solid #427ee6;border-radius:14px;padding:16px 18px;margin-bottom:14px;text-align:center;">
+                                <div
+                                    style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#ffffff;margin-bottom:6px;">
+                                    Send Payment to GCash</div>
+                                <div style="font-size:28px;font-weight:800;color:#ffffff;letter-spacing:3px;"
+                                    id="gcashNumberDisplay">{{ $gcashNumber ?? '12345678910' }}</div>
+                                <div style="font-size:12px;color:#ffffff;margin-top:4px;">Ask the customer to send the
+                                    exact amount to this number</div>
                             </div>
-                            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">Upload GCash Screenshot</div>
-                            <label style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
-                                <input type="file" id="gcashProofInput" accept="image/*" capture="environment" style="display:none;">
+                            <div
+                                style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">
+                                Upload GCash Screenshot</div>
+                            <label
+                                style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
+                                <input type="file" id="gcashProofInput" accept="image/*" capture="environment"
+                                    style="display:none;">
                                 <div id="gcashProofPlaceholder">
-                                    <div style="font-size:24px;margin-bottom:6px;">📷</div>
+                                    {{-- <div style="font-size:24px;margin-bottom:6px;">📷</div> --}}
                                     <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB</div>
+                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB
+                                    </div>
                                 </div>
-                                <img id="gcashProofPreview" src="" alt="" style="display:none;width:100%;max-height:180px;object-fit:contain;border-radius:8px;">
+                                <img id="gcashProofPreview" src="" alt=""
+                                    style="display:none;width:100%;max-height:180px;object-fit:contain;border-radius:8px;">
                             </label>
-                            <p id="gcashProofError" style="font-size:13px;color:#dc2626;text-align:center;min-height:18px;margin:8px 0 4px;"></p>
-                            <button type="button" class="tf-btn tf-btn--primary" id="gcashSubmitBtn">Submit GCash Proof</button>
+                            <p id="gcashProofError"
+                                style="font-size:13px;color:#dc2626;text-align:center;min-height:18px;margin:8px 0 4px;">
+                            </p>
+                            <button type="button" class="tf-btn tf-btn--primary" id="gcashSubmitBtn">Submit GCash
+                                Proof</button>
                         </div>
 
                         {{-- Bank Transfer section --}}
                         <div id="pmBankSection" class="tf-pm-fields hidden">
-                            <div style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:14px;padding:16px 18px;margin-bottom:14px;text-align:center;">
-                                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8;margin-bottom:10px;">Transfer to Bank Account</div>
-                                <div style="font-size:14px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">{{ $bankName ?? 'BDO Unibank' }}</div>
-                                <div style="font-size:12px;color:#3730a3;margin-bottom:6px;">{{ $bankAccountName ?? 'Jarz Towing Services' }}</div>
-                                <div style="font-size:26px;font-weight:800;color:#09090b;letter-spacing:2px;">{{ $bankAccountNumber ?? '0012-3456-7890' }}</div>
-                                <div style="font-size:12px;color:#52525b;margin-top:6px;">Ask the customer to transfer the exact amount to this account</div>
+                            <div
+                                style="background:#ffffff;border:1.5px solid #000000;border-radius:14px;padding:16px 18px;margin-bottom:14px;text-align:center;">
+                                <div
+                                    style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8;margin-bottom:10px;">
+                                    Transfer to Bank Account</div>
+                                <div style="font-size:14px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">
+                                    {{ $bankName ?? 'BDO Unibank' }}</div>
+                                <div style="font-size:12px;color:#3730a3;margin-bottom:6px;">
+                                    {{ $bankAccountName ?? 'Jarz Towing Services' }}</div>
+                                <div style="font-size:26px;font-weight:800;color:#09090b;letter-spacing:2px;">
+                                    {{ $bankAccountNumber ?? '0012-3456-7890' }}</div>
+                                <div style="font-size:12px;color:#52525b;margin-top:6px;">Ask the customer to transfer the
+                                    exact amount to this account</div>
                             </div>
-                            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">Upload Bank Transfer Receipt</div>
-                            <label style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
-                                <input type="file" id="bankProofInput" accept="image/*" capture="environment" style="display:none;">
+                            <div
+                                style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">
+                                Upload Bank Transfer Receipt</div>
+                            <label
+                                style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
+                                <input type="file" id="bankProofInput" accept="image/*" capture="environment"
+                                    style="display:none;">
                                 <div id="bankProofPlaceholder">
-                                    <div style="font-size:24px;margin-bottom:6px;">🏦</div>
-                                    <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo of the receipt</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB</div>
+                                    {{-- <div style="font-size:24px;margin-bottom:6px;">🏦</div> --}}
+                                    <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo of
+                                        the receipt</div>
+                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB
+                                    </div>
                                 </div>
-                                <img id="bankProofPreview" src="" alt="" style="display:none;width:100%;max-height:180px;object-fit:contain;border-radius:8px;">
+                                <img id="bankProofPreview" src="" alt=""
+                                    style="display:none;width:100%;max-height:180px;object-fit:contain;border-radius:8px;">
                             </label>
-                            <p id="bankProofError" style="font-size:13px;color:#dc2626;text-align:center;min-height:18px;margin:8px 0 4px;"></p>
-                            <button type="button" class="tf-btn tf-btn--primary" id="bankSubmitBtn">Submit Bank Transfer Proof</button>
+                            <p id="bankProofError"
+                                style="font-size:13px;color:#dc2626;text-align:center;min-height:18px;margin:8px 0 4px;">
+                            </p>
+                            <button type="button" class="tf-btn tf-btn--primary" id="bankSubmitBtn">Submit Bank Transfer
+                                Proof</button>
                         </div>
 
                         {{-- Cash section --}}
                         <div id="pmCashSection" class="tf-pm-fields hidden">
-                            <div style="background:#faf5ff;border:1.5px solid #c4b5fd;border-radius:14px;padding:18px;margin-bottom:14px;text-align:center;">
-                                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#7c3aed;margin-bottom:8px;">Collect Cash Payment</div>
-                                <div style="font-size:30px;font-weight:900;color:#09090b;margin-bottom:6px;">₱{{ number_format($finalTotal, 2) }}</div>
-                                <div style="font-size:12px;color:#52525b;">Count the bills and confirm the customer paid the exact amount.</div>
+                            <div
+                                style="background:#faf5ff;border:1.5px solid #c4b5fd;border-radius:14px;padding:18px;margin-bottom:14px;text-align:center;">
+                                <div
+                                    style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#7c3aed;margin-bottom:8px;">
+                                    Collect Cash Payment</div>
+                                <div style="font-size:30px;font-weight:900;color:#09090b;margin-bottom:6px;">
+                                    ₱{{ number_format($finalTotal, 2) }}</div>
+                                <div style="font-size:12px;color:#52525b;">Count the bills and confirm the customer paid
+                                    the exact amount.</div>
                             </div>
-                            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">Upload Receipt / Photo (Optional)</div>
-                            <label style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;margin-bottom:12px;">
-                                <input type="file" id="cashProofInput" accept="image/*" capture="environment" style="display:none;">
+                            <div
+                                style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">
+                                Upload Receipt / Photo (Optional)</div>
+                            <label
+                                style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;margin-bottom:12px;">
+                                <input type="file" id="cashProofInput" accept="image/*" capture="environment"
+                                    style="display:none;">
                                 <div id="cashProofPlaceholder">
-                                    <div style="font-size:24px;margin-bottom:6px;">💵</div>
-                                    <div style="font-size:13px;font-weight:600;color:#18181b;">Optional: take a photo as record</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB</div>
+                                    {{-- <div style="font-size:24px;margin-bottom:6px;">💵</div> --}}
+                                    <div style="font-size:13px;font-weight:600;color:#18181b;">Optional: take a photo as
+                                        record</div>
+                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB
+                                    </div>
                                 </div>
-                                <img id="cashProofPreview" src="" alt="" style="display:none;width:100%;max-height:160px;object-fit:contain;border-radius:8px;">
+                                <img id="cashProofPreview" src="" alt=""
+                                    style="display:none;width:100%;max-height:160px;object-fit:contain;border-radius:8px;">
                             </label>
-                            <button type="button" class="tf-btn tf-btn--success" id="cashConfirmBtn">Confirm Cash Received</button>
+                            <button type="button" class="tf-btn tf-btn--success" id="cashConfirmBtn">Confirm Cash
+                                Received</button>
                         </div>
 
-                        @if(!empty($allowCheque))
-                        {{-- Cheque section (special cases only) --}}
-                        <div id="pmChequeSection" class="tf-pm-fields hidden">
-                            <div style="background:#fefce8;border:1.5px solid #fde047;border-radius:14px;padding:16px 18px;margin-bottom:14px;text-align:center;">
-                                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#854d0e;margin-bottom:6px;">Cheque Payment</div>
-                                <div style="font-size:13px;color:#713f12;">Verify the cheque is made out to <strong>{{ $bankAccountName ?? 'Jarz Towing Services' }}</strong> for the correct amount. Take a clear photo of both sides.</div>
-                            </div>
-                            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">Upload Cheque Photo</div>
-                            <label style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
-                                <input type="file" id="chequeProofInput" accept="image/*" capture="environment" style="display:none;">
-                                <div id="chequeProofPlaceholder">
-                                    <div style="font-size:24px;margin-bottom:6px;">🗒️</div>
-                                    <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo of the cheque</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB</div>
+                        @if (!empty($allowCheque))
+                            {{-- Cheque section (special cases only) --}}
+                            <div id="pmChequeSection" class="tf-pm-fields hidden">
+                                <div
+                                    style="background:#fefce8;border:1.5px solid #fde047;border-radius:14px;padding:16px 18px;margin-bottom:14px;text-align:center;">
+                                    <div
+                                        style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#854d0e;margin-bottom:6px;">
+                                        Cheque Payment</div>
+                                    <div style="font-size:13px;color:#713f12;">Verify the cheque is made out to
+                                        <strong>{{ $bankAccountName ?? 'Jarz Towing Services' }}</strong> for the correct
+                                        amount. Take a clear photo of both sides.
+                                    </div>
                                 </div>
-                                <img id="chequeProofPreview" src="" alt="" style="display:none;width:100%;max-height:180px;object-fit:contain;border-radius:8px;">
-                            </label>
-                            <p id="chequeProofError" style="font-size:13px;color:#dc2626;text-align:center;min-height:18px;margin:8px 0 4px;"></p>
-                            <button type="button" class="tf-btn tf-btn--primary" id="chequeSubmitBtn">Submit Cheque</button>
-                        </div>
+                                <div
+                                    style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">
+                                    Upload Cheque Photo</div>
+                                <label
+                                    style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
+                                    <input type="file" id="chequeProofInput" accept="image/*" capture="environment"
+                                        style="display:none;">
+                                    <div id="chequeProofPlaceholder">
+                                        <div style="font-size:24px;margin-bottom:6px;">🗒️</div>
+                                        <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo
+                                            of the cheque</div>
+                                        <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5
+                                            MB</div>
+                                    </div>
+                                    <img id="chequeProofPreview" src="" alt=""
+                                        style="display:none;width:100%;max-height:180px;object-fit:contain;border-radius:8px;">
+                                </label>
+                                <p id="chequeProofError"
+                                    style="font-size:13px;color:#dc2626;text-align:center;min-height:18px;margin:8px 0 4px;">
+                                </p>
+                                <button type="button" class="tf-btn tf-btn--primary" id="chequeSubmitBtn">Submit
+                                    Cheque</button>
+                            </div>
                         @endif
 
                     </div>{{-- /pmMethodArea --}}
@@ -1197,14 +1257,15 @@
                         <div class="tf-submitted-card">
                             <div class="tf-submitted-icon">✓</div>
                             <h3>Proof Submitted</h3>
-                            <p>The dispatcher will review and confirm your payment shortly. This page updates automatically.</p>
+                            <p>The dispatcher will review and confirm your payment shortly. This page updates automatically.
+                            </p>
                         </div>
                     </div>
 
                 </div>
             </div>{{-- /paymongoArea --}}
 
-            <p class="tf-feedback" id="focusFeedback">Use the buttons above to keep this job moving.</p>
+            {{-- <p class="tf-feedback" id="focusFeedback">Use the buttons above to keep this job moving.</p> --}}
 
         </div>{{-- /tf-action-area --}}
 

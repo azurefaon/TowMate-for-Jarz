@@ -204,7 +204,7 @@
 }
 
 .incoming-card:hover {
-    transform: translateY(-2px);
+    /* transform: translateY(-2px); */
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
 }
 
@@ -582,7 +582,7 @@
     max-width: 480px;
     background: #ffffff;
     border: 1px solid #ece7d8;
-    border-radius: 20px;
+    /* border-radius: 20px; */
     padding: 28px;
     text-align: left;
     box-shadow: 0 20px 60px rgba(17, 24, 39, 0.14);
@@ -630,8 +630,8 @@
 }
 
 .modal-card p {
-    font-size: 14px;
-    color: #6b7280;
+    /* font-size: 14px; */
+    color: #000000;
     margin-bottom: 16px;
 }
 

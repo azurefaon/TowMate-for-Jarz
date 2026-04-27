@@ -44,13 +44,13 @@
             {{-- SECTION 1: Ready to Send --}}
             @if ($pendingQuotations->count() > 0)
                 <div>
-                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                    {{-- <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
                         <div style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></div>
                         <span
                             style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em;">Ready
                             to Send</span>
                         <span style="font-size: 0.72rem; color: #94a3b8;">({{ $pendingQuotations->count() }})</span>
-                    </div>
+                    </div> --}}
                     <div
                         style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
                         @foreach ($pendingQuotations->take(4) as $quotation)
