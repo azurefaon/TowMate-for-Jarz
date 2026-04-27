@@ -272,7 +272,7 @@ Route::prefix('superadmin')
 
         // Route::resource('truck-types', TruckTypeController::class);
         Route::patch('truck-types/{truckType}/toggle', [TruckTypeController::class, 'toggleStatus'])->name('truck-types.toggle');
-        Route::delete('truck-types/{truckType}', [TruckTypeController::class, 'destroy'])->name('truck-types.destroy');
+        // Route::delete('truck-types/{truckType}', [TruckTypeController::class, 'destroy'])->name('truck-types.destroy');
         Route::get('/truck-type-config/{name}',  [TruckTypeController::class, 'getConfig'])->name('truck-type-config.get');
         Route::post('/truck-type-config/{name}', [TruckTypeController::class, 'saveConfig'])->name('truck-type-config.save');
 
