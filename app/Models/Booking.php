@@ -79,6 +79,10 @@ class Booking extends Model
         'payment_method',
         'payment_proof_path',
         'payment_submitted_at',
+        'paymongo_link_id',
+        'paymongo_checkout_url',
+        'paymongo_intent_id',
+        'paymongo_client_key',
 
         'status',
     ];

@@ -26,6 +26,9 @@ class TeamLeaderAvailabilityService
             now()->timestamp,
             now()->addSeconds($this->presenceWindowSeconds)
         );
+
+        // Clear any dispatcher override so the TL is available when they log back in.
+        Cache::forget($this->statusCacheKey((int) $user->id));
     }
 
     public function markOffline(?User $user): void
@@ -229,9 +232,12 @@ class TeamLeaderAvailabilityService
             return;
         }
 
+        // Only release bookings that have NOT been started yet.
+        // Jobs already on-the-way, in-progress, or further along must stay
+        // with the team leader so they are not lost from the system.
         Booking::query()
             ->whereIn('assigned_team_leader_id', $leaderIds->all())
-            ->whereIn('status', ['assigned', 'on_the_way', 'in_progress'])
+            ->where('status', 'assigned')
             ->update([
                 'assigned_team_leader_id' => null,
                 'status' => 'assigned',
@@ -239,13 +245,6 @@ class TeamLeaderAvailabilityService
                 'completion_requested_at' => null,
                 'customer_verified_at' => null,
                 'customer_verification_status' => null,
-            ]);
-
-        Booking::query()
-            ->whereIn('assigned_team_leader_id', $leaderIds->all())
-            ->where('status', 'waiting_verification')
-            ->update([
-                'assigned_team_leader_id' => null,
             ]);
     }
 
@@ -255,8 +254,25 @@ class TeamLeaderAvailabilityService
             return;
         }
 
+        // Keep the unit assigned to any TL who still has an active job in progress.
+        // Only release units for TLs with no running job.
+        $activeJobStatuses = ['on_the_way', 'in_progress', 'waiting_verification', 'payment_pending', 'payment_submitted'];
+
+        $leadersWithActiveJobs = Booking::query()
+            ->whereIn('assigned_team_leader_id', $leaderIds->all())
+            ->whereIn('status', $activeJobStatuses)
+            ->pluck('assigned_team_leader_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique();
+
+        $safeToRelease = $leaderIds->diff($leadersWithActiveJobs)->values();
+
+        if ($safeToRelease->isEmpty()) {
+            return;
+        }
+
         Unit::query()
-            ->whereIn('team_leader_id', $leaderIds->all())
+            ->whereIn('team_leader_id', $safeToRelease->all())
             ->update([
                 'team_leader_id'    => null,
                 'status'            => 'available',

@@ -108,8 +108,21 @@ class DispatchController extends Controller
         $scheduledRequests = collect();
         $negotiationRequests = collect();
 
+        $readyCompletionBookings = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'unit.driver'])
+            ->whereIn('status', ['waiting_verification', 'payment_pending', 'payment_submitted'])
+            ->whereNull('returned_at')
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Booking $booking) {
+                $booking->queue_bucket = 'ready_completion';
+                $booking->needs_reassignment = false;
+                $booking->needs_assignment = false;
+                return $booking;
+            });
+
         $incomingRequests = $returnedRequests
             ->concat($activeBookings)
+            ->concat($readyCompletionBookings)
             ->values();
 
         $incomingRequests = $incomingRequests->map(function (Booking $booking) {
@@ -131,6 +144,7 @@ class DispatchController extends Controller
             'all' => $incomingRequests->count(),
             'returned' => $returnedRequests->count(),
             'active' => $activeBookings->count(),
+            'ready_completion' => $readyCompletionBookings->count(),
             'pending-quotations' => $pendingQuotationCount,
             'book-now' => 0,
             'scheduled' => 0,

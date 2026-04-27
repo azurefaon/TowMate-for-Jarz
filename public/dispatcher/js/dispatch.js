@@ -4,7 +4,7 @@
 document.addEventListener("click", function (e) {
     const pqSendBtn = e.target.closest(".pq-send-btn");
     const pqCancelBtn = e.target.closest(".pq-cancel-btn");
-    const acceptBtn = e.target.closest(".btn-accept:not(.pq-send-btn)");
+    const acceptBtn = e.target.closest(".btn-accept:not(.pq-send-btn):not(.btn-complete-job)");
     const rejectBtn = e.target.closest(".btn-reject:not(.pq-cancel-btn)");
     const viewBtn = e.target.closest(".btn-view-quote");
 
@@ -250,37 +250,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function initializeQueueFilters() {
         var filterBtns = document.querySelectorAll(".queue-filter-btn");
-        var cards = document.querySelectorAll(".incoming-card");
 
         if (!filterBtns.length) return;
 
-        function applyFilter(filter) {
-            filterBtns.forEach(function (btn) {
-                btn.classList.toggle(
-                    "is-active",
-                    btn.dataset.filter === filter,
-                );
-            });
-            cards.forEach(function (card) {
-                if (filter === "all") {
-                    card.style.display = "";
-                } else {
-                    card.style.display =
-                        card.dataset.queue === filter ? "" : "none";
-                }
-            });
-        }
-
+        // Delegate to applyQueueFilter (the single authoritative filter system)
+        // which correctly toggles is-hidden, updates emptyState, and tab badges.
         filterBtns.forEach(function (btn) {
             btn.addEventListener("click", function () {
-                applyFilter(this.dataset.filter);
+                if (typeof window.applyDispatchQueueFilter === "function") {
+                    window.applyDispatchQueueFilter(btn.dataset.filter);
+                }
             });
         });
-
-        // Apply the default filter from the list's data attribute, or the first active button
-        var list = document.getElementById("incomingList");
-        var defaultFilter = (list && list.dataset.defaultFilter) || "returned";
-        applyFilter(defaultFilter);
     }
     initializeRealtimeUpdates();
     initializePriceInput();
@@ -389,9 +370,11 @@ document.addEventListener("DOMContentLoaded", function () {
         var cards = queueList.querySelectorAll(".incoming-card");
         var counts = {
             returned: 0,
+            active: 0,
             "book-now": 0,
             scheduled: 0,
             delayed: 0,
+            ready_completion: 0,
             all: cards.length,
         };
 
@@ -1257,6 +1240,8 @@ document.addEventListener("DOMContentLoaded", function () {
             message = "No negotiation requests need review right now.";
         } else if (state.activeFilter === "returned") {
             message = "No returned tasks need reassignment right now.";
+        } else if (state.activeFilter === "ready_completion") {
+            message = "No tasks are awaiting completion confirmation right now.";
         } else if (state.activeFilter === "book-now") {
             message = "No urgent Book Now requests are waiting right now.";
         }
@@ -1461,7 +1446,6 @@ document.addEventListener("DOMContentLoaded", function () {
                   ? "The customer has already accepted the quotation. Select a unit to assign and start the job immediately."
                   : "Review the automatic pricing, add an optional dispatcher adjustment, and reserve a ready unit for the team leader.";
             if (currentStatus === "confirmed" && !isReturnedTask) {
-                // Confirmed booking: show booking summary, hide full pricing grid
                 if (confirmedBookingPanel) {
                     var cfCustomerName = state.selectedCard.getAttribute("data-customer-name") || "—";
                     var cfPhone = state.selectedCard.getAttribute("data-customer-phone") || "—";
@@ -1482,17 +1466,44 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (cfTruckEl) cfTruckEl.textContent = cfTruck;
                     if (cfDistEl) cfDistEl.textContent = cfKm > 0 ? cfKm.toFixed(2) + " km" : "—";
                     if (cfTotalEl) cfTotalEl.textContent = cfTotal > 0 ? "₱" + formatCurrencyValue(cfTotal) : "—";
+
+                    var recommendedUnitId = state.selectedCard.getAttribute("data-recommended-unit") || "";
+                    var cfUnitBox  = document.getElementById("cfUnitBox");
+                    var cfUnitName = document.getElementById("cfUnitName");
+                    var cfUnitType = document.getElementById("cfUnitType");
+                    var cfUnitTl   = document.getElementById("cfUnitTl");
+
+                    if (recommendedUnitId && unitSelect) {
+                        var matchOpt = unitSelect.querySelector("option[value='" + recommendedUnitId + "']");
+                        if (matchOpt) {
+                            unitSelect.value = recommendedUnitId;
+                            var optText  = matchOpt.textContent.trim();
+                            var optTl    = matchOpt.getAttribute("data-team-leader") || "—";
+                            var typeMatch = optText.match(/\b(heavy|medium|light)\b/i);
+                            var unitType  = typeMatch ? typeMatch[0].charAt(0).toUpperCase() + typeMatch[0].slice(1).toLowerCase() : cfTruck;
+                            var unitLabel = optText.split("·")[0].trim();
+                            if (cfUnitName) cfUnitName.textContent = unitLabel;
+                            if (cfUnitType) cfUnitType.textContent = unitType;
+                            if (cfUnitTl)   cfUnitTl.textContent   = optTl;
+                            if (cfUnitBox)  cfUnitBox.style.display = "block";
+                        } else {
+                            if (cfUnitBox) cfUnitBox.style.display = "none";
+                        }
+                    } else {
+                        if (cfUnitBox) cfUnitBox.style.display = "none";
+                    }
+
                     confirmedBookingPanel.style.display = "block";
                 }
                 if (quotationReviewGrid) quotationReviewGrid.style.display = "none";
                 if (priceWrapper) priceWrapper.style.display = "none";
+                if (unitWrapper) unitWrapper.style.display = "none";
             } else {
-                // Regular / returned booking: show full pricing grid
                 if (confirmedBookingPanel) confirmedBookingPanel.style.display = "none";
                 if (quotationReviewGrid) quotationReviewGrid.style.display = "grid";
                 if (priceWrapper) priceWrapper.style.display = "block";
+                if (unitWrapper) unitWrapper.style.display = "block";
             }
-            if (unitWrapper) unitWrapper.style.display = "block";
             if (dispatcherNoteWrapper) dispatcherNoteWrapper.style.display = "block";
             rejectReasonWrapper.style.display = "none";
             if (negotiationHint && negotiationHintText) {

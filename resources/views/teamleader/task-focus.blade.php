@@ -11,9 +11,10 @@
     $distanceKm    = (float) ($booking->distance_km ?? 0);
     $kmIncrements  = (int) floor($distanceKm / 4);
     $distanceFee   = round($kmIncrements * 200.0, 2);
-    $baseRate      = (float) ($booking->base_rate ?? 0);
+    $baseRate      = (float) ($booking->base_rate ?: ($booking->truckType?->base_rate ?? 0));
     $additionalFee = (float) ($booking->additional_fee ?? 0);
-    $finalTotal    = (float) ($booking->final_total ?? 0);
+    $computedTotal = round($baseRate + $distanceFee + $additionalFee, 2);
+    $finalTotal    = (float) ($booking->final_total ?: $computedTotal);
 
     $unitDriver = $booking->unit?->driver?->full_name
         ?? $booking->unit?->driver?->name
@@ -230,6 +231,49 @@
         .tf-submitted-card p  { margin: 0; font-size: 13px; color: #166534; }
         .tf-submitted-meta { margin-top: 12px; font-size: 12px; color: #15803d; }
 
+        /* ── PayMongo payment card ── */
+        .tf-paymongo-card {
+            background: #fff; border-radius: 16px; border: 1px solid #e4e4e7;
+            padding: 20px; display: flex; flex-direction: column; gap: 14px;
+        }
+        .tf-paymongo-header { display: flex; align-items: flex-start; gap: 12px; }
+        .tf-paymongo-icon { font-size: 28px; line-height: 1; }
+        .tf-paymongo-amount {
+            text-align: center; font-size: 28px; font-weight: 800; color: #09090b;
+            background: #f4f4f5; border-radius: 12px; padding: 14px;
+        }
+        .tf-pm-tabs { display: flex; gap: 8px; }
+        .tf-pm-tab {
+            flex: 1; padding: 10px 0; border: 1.5px solid #e4e4e7; border-radius: 10px;
+            background: #f4f4f5; font-size: 14px; font-weight: 700; color: #71717a;
+            cursor: pointer; transition: all .15s; letter-spacing: .2px;
+        }
+        .tf-pm-tab--active { background: #09090b; color: #fff; border-color: #09090b; }
+        .tf-pm-fields { display: flex; flex-direction: column; gap: 10px; }
+        .tf-pm-row { display: flex; gap: 10px; }
+        .tf-pm-field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+        .tf-pm-field label { font-size: 11px; font-weight: 700; color: #52525b; text-transform: uppercase; letter-spacing: .4px; }
+        .tf-pm-field input {
+            border: 1.5px solid #e4e4e7; border-radius: 10px; padding: 11px 14px;
+            font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;
+            outline: none; transition: border-color .15s; background: #fff; width: 100%; box-sizing: border-box;
+        }
+        .tf-pm-field input:focus { border-color: #09090b; }
+        .tf-pm-error { font-size: 13px; color: #dc2626; text-align: center; min-height: 18px; }
+        .tf-pm-gcash-desc { font-size: 12px; color: #71717a; text-align: center; margin: 4px 0 0; }
+        .tf-paymongo-waiting {
+            display: flex; align-items: center; gap: 8px; justify-content: center;
+            font-size: 13px; color: #52525b; font-weight: 600;
+        }
+        .tf-paymongo-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;
+            animation: pm-pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes pm-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: .4; transform: scale(.7); }
+        }
+
         /* ── Return modal ── */
         .tl-dialog-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 1200; }
         .tl-dialog-backdrop.hidden { display: none; }
@@ -254,14 +298,20 @@
 @section('content')
 <div class="tf-page" id="focusedTask"
     data-current-status="{{ $currentStatus }}"
+    data-pickup-address="{{ $booking->pickup_address ?? '' }}"
+    data-dropoff-address="{{ $booking->dropoff_address ?? '' }}"
     data-proceed-endpoint="{{ route('teamleader.task.proceed', $booking) }}"
     data-start-endpoint="{{ route('teamleader.task.start', $booking) }}"
     data-complete-endpoint="{{ route('teamleader.task.complete', $booking) }}"
     data-return-endpoint="{{ route('teamleader.task.return', $booking) }}"
     data-status-endpoint="{{ route('teamleader.task.status', $booking) }}"
-    data-payment-endpoint="{{ route('teamleader.task.payment', $booking) }}"
+    data-payment-status-endpoint="{{ route('teamleader.task.payment-status', $booking) }}"
     data-dashboard-url="{{ route('teamleader.dashboard') }}"
-    data-tasks-url="{{ route('teamleader.tasks') }}">
+    data-tasks-url="{{ route('teamleader.tasks') }}"
+    data-paymongo-checkout-url="{{ $booking->paymongo_checkout_url ?? '' }}"
+    data-paymongo-public-key="{{ config('services.paymongo.public_key') }}"
+    data-payment-method-type="{{ $booking->paymongo_intent_id ? 'card' : ($booking->paymongo_link_id ? 'gcash' : '') }}"
+    data-final-total="{{ $finalTotal }}">
 
     {{-- ── Stepper ── --}}
     <div class="tf-stepper" id="tfStepper">
@@ -279,15 +329,10 @@
             <div class="tf-step__bubble"><span>3</span></div>
             <div class="tf-step__label"><strong>Start Job</strong><small>Begin towing</small></div>
         </div>
-        <div class="tf-step-line" data-line="work-verify"></div>
-        <div class="tf-step" data-step="verify">
+        <div class="tf-step-line" data-line="work-dropoff"></div>
+        <div class="tf-step" data-step="dropoff">
             <div class="tf-step__bubble"><span>4</span></div>
-            <div class="tf-step__label"><strong>Verify</strong><small>Send to customer</small></div>
-        </div>
-        <div class="tf-step-line" data-line="verify-payment"></div>
-        <div class="tf-step" data-step="payment">
-            <div class="tf-step__bubble"><span>5</span></div>
-            <div class="tf-step__label"><strong>Payment</strong><small>Submit proof</small></div>
+            <div class="tf-step__label"><strong>Drop Off</strong><small>Complete &amp; verify</small></div>
         </div>
     </div>
 
@@ -375,7 +420,7 @@
                     <span>₱{{ number_format($baseRate, 2) }}</span>
                 </div>
                 <div class="tf-price-row">
-                    <span>Per-4km ({{ $kmIncrements }} × ₱200)</span>
+                    <span>Distance ({{ number_format($distanceKm, 2) }} km ÷ 4 = {{ $kmIncrements }} × ₱200)</span>
                     <span>₱{{ number_format($distanceFee, 2) }}</span>
                 </div>
                 @if ($additionalFee > 0)
@@ -385,11 +430,21 @@
                     </div>
                 @endif
                 <hr class="tf-price-divider">
+                @if (abs($computedTotal - $finalTotal) > 0.01)
+                    <div class="tf-price-row" style="color:#a1a1aa; font-size:12px;">
+                        <span>Computed (Base + Distance + Fees)</span>
+                        <span>₱{{ number_format($computedTotal, 2) }}</span>
+                    </div>
+                @endif
                 <div class="tf-price-row tf-price-row--total">
                     <span>FINAL PRICE</span>
                     <span>₱{{ number_format($finalTotal, 2) }}</span>
                 </div>
-                <p class="tf-price-note">Set by dispatcher after review</p>
+                @if (abs($computedTotal - $finalTotal) > 0.01)
+                    <p class="tf-price-note">Adjusted by dispatcher from ₱{{ number_format($computedTotal, 2) }}</p>
+                @else
+                    <p class="tf-price-note">Base Rate + Distance Fee{{ $additionalFee > 0 ? ' + Additional' : '' }}</p>
+                @endif
             </div>
         </div>
 
@@ -427,6 +482,9 @@
             <button type="button" class="tf-btn tf-btn--primary {{ $task['can_proceed'] ? '' : 'hidden' }}" id="proceedBtn">
                 Navigate to Pickup
             </button>
+            <button type="button" class="tf-btn tf-btn--ghost {{ $currentStatus === 'on_the_way' ? '' : 'hidden' }}" id="navigateMapsBtn">
+                Open Pickup in Maps
+            </button>
             <button type="button" class="tf-btn tf-btn--primary {{ $task['can_start'] ? '' : 'hidden' }}" id="startTowBtn">
                 Arrived — Start Job
             </button>
@@ -447,63 +505,63 @@
             A verification link was sent to the customer's email. This page updates automatically once they confirm.
         </div>
 
-        {{-- Step 5: Payment --}}
-        <div id="paymentArea" class="{{ in_array($currentStatus, ['payment_pending', 'payment_submitted']) ? '' : 'hidden' }}">
+        {{-- Payment collection UI (shown when TL clicks Collect Payment or on payment_pending reload) --}}
+        <div id="paymongoArea" class="{{ $currentStatus === 'payment_pending' ? '' : 'hidden' }}">
+            <div class="tf-paymongo-card">
 
-            {{-- Payment form (status: payment_pending) --}}
-            <div id="paymentForm" class="tf-payment-section {{ $currentStatus === 'payment_pending' ? '' : 'hidden' }}">
-                <h3>Collect Payment</h3>
-                <p>Select the payment method the customer used and upload proof of payment.</p>
-
-                <div class="tf-pm-grid">
-                    <label class="tf-pm-label">
-                        <input type="radio" name="payment_method" value="gcash" id="pm-gcash">
-                        <span class="tf-pm-btn"><span class="tf-pm-icon">📱</span>GCash</span>
-                    </label>
-                    <label class="tf-pm-label">
-                        <input type="radio" name="payment_method" value="bank" id="pm-bank">
-                        <span class="tf-pm-btn"><span class="tf-pm-icon">🏦</span>Bank Transfer</span>
-                    </label>
-                    <label class="tf-pm-label">
-                        <input type="radio" name="payment_method" value="visa" id="pm-visa">
-                        <span class="tf-pm-btn"><span class="tf-pm-icon">💳</span>Visa / Card</span>
-                    </label>
+                {{-- Amount --}}
+                <div class="tf-paymongo-amount" id="paymongoAmountDisplay">
+                    ₱{{ number_format($finalTotal, 2) }}
                 </div>
 
-                <div class="tf-file-drop" id="fileDropZone">
-                    <input type="file" id="paymentProofInput" accept="image/png,image/jpeg,image/webp" style="display:none">
-                    <div id="fileDropPrompt">
-                        <p>📎 Tap to upload proof of payment</p>
-                        <small>PNG, JPG, WEBP · max 5 MB</small>
+                {{-- Method tabs (hidden once payment is initiated) --}}
+                <div class="tf-pm-tabs" id="pmMethodTabs">
+                    <button type="button" class="tf-pm-tab tf-pm-tab--active" id="pmTabCard">Card</button>
+                    <button type="button" class="tf-pm-tab" id="pmTabGcash">GCash</button>
+                </div>
+
+                {{-- Card form --}}
+                <div id="pmCardSection" class="tf-pm-fields">
+                    <div class="tf-pm-field">
+                        <label>Card Number</label>
+                        <input type="text" id="pmCardNumber" placeholder="0000 0000 0000 0000" maxlength="19" inputmode="numeric" autocomplete="cc-number">
                     </div>
-                    <img id="proofPreview" class="hidden" alt="Payment proof preview">
+                    <div class="tf-pm-row">
+                        <div class="tf-pm-field">
+                            <label>Expiry (MM/YY)</label>
+                            <input type="text" id="pmCardExpiry" placeholder="MM/YY" maxlength="5" inputmode="numeric" autocomplete="cc-exp">
+                        </div>
+                        <div class="tf-pm-field">
+                            <label>CVC</label>
+                            <input type="text" id="pmCardCvc" placeholder="123" maxlength="4" inputmode="numeric" autocomplete="cc-csc">
+                        </div>
+                    </div>
+                    <div class="tf-pm-field">
+                        <label>Cardholder Name</label>
+                        <input type="text" id="pmCardName" placeholder="Name on card" autocomplete="cc-name" style="font-family:inherit; letter-spacing:normal;">
+                    </div>
+                    <p id="pmCardError" class="tf-pm-error"></p>
+                    <button type="button" class="tf-btn tf-btn--primary" id="pmCardPayBtn">Pay ₱{{ number_format($finalTotal, 2) }}</button>
                 </div>
-                <small id="proofError" style="color:#dc2626; display:none;"></small>
 
-                <button type="button" class="tf-btn tf-btn--primary" id="submitPaymentBtn" disabled>
-                    Submit to Dispatcher
-                </button>
-                <p style="font-size:11px; color:#a1a1aa; text-align:center; margin:0;">
-                    After submitting, wait for the dispatcher to confirm before closing this page.
-                </p>
-            </div>
-
-            {{-- Payment submitted (status: payment_submitted) --}}
-            <div id="paymentSubmitted" class="{{ $currentStatus === 'payment_submitted' ? '' : 'hidden' }}">
-                <div class="tf-submitted-card">
-                    <div class="tf-submitted-icon">✓</div>
-                    <h3>Payment Proof Submitted</h3>
-                    <p>The dispatcher will review and confirm your payment. Stay on this page — it updates automatically.</p>
-                    @if ($booking->payment_method)
-                        <p class="tf-submitted-meta">
-                            Method: <strong>{{ match($booking->payment_method) { 'gcash' => 'GCash', 'bank' => 'Bank Transfer', 'visa' => 'Visa / Card', default => $booking->payment_method } }}</strong>
-                            · Submitted {{ optional($booking->payment_submitted_at)->diffForHumans() ?? 'just now' }}
-                        </p>
-                    @endif
+                {{-- GCash section --}}
+                <div id="pmGcashSection" class="hidden">
+                    <button type="button" class="tf-btn tf-btn--primary" id="pmGcashPayBtn" style="width:100%;">Open GCash Payment</button>
+                    <p class="tf-pm-gcash-desc">A GCash checkout page will open. Complete payment there.</p>
+                    <a id="paymongoOpenLink" href="{{ $booking->paymongo_checkout_url ?? '#' }}" target="_blank" rel="noopener noreferrer"
+                       class="tf-btn tf-btn--ghost hidden" style="margin-top:8px; width:100%; text-align:center;">
+                        Re-open GCash Page
+                    </a>
                 </div>
-            </div>
 
-        </div>{{-- /paymentArea --}}
+                {{-- Waiting indicator (shown after payment initiated) --}}
+                <div class="tf-paymongo-waiting hidden" id="paymongoWaiting">
+                    <span class="tf-paymongo-dot"></span>
+                    Waiting for payment to complete&hellip;
+                </div>
+
+            </div>
+        </div>{{-- /paymongoArea --}}
 
         <p class="tf-feedback" id="focusFeedback">Use the buttons above to keep this job moving.</p>
 
@@ -531,8 +589,8 @@
         <p class="tl-focus-feedback is-error hidden" id="returnReasonError"></p>
 
         <div class="tl-dialog-actions">
-            <button type="button" class="tl-btn tl-btn--ghost" id="cancelReturnBtn">Cancel</button>
-            <button type="button" class="tl-btn tl-btn--primary" id="confirmReturnBtn">Confirm Return</button>
+            <button type="button" class="tf-btn tf-btn--ghost" id="cancelReturnBtn">Cancel</button>
+            <button type="button" class="tf-btn tf-btn--primary" id="confirmReturnBtn">Confirm Return</button>
         </div>
     </div>
 </div>

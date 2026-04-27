@@ -39,10 +39,11 @@ class JobsController extends Controller
 
     public function confirmPayment(Booking $booking)
     {
-        if ($booking->status !== 'payment_submitted') {
+        $readyStatuses = ['waiting_verification', 'payment_pending', 'payment_submitted'];
+        if (! in_array($booking->status, $readyStatuses, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'This booking is not ready for payment confirmation.',
+                'message' => 'This booking is not ready for completion.',
             ], 422);
         }
 

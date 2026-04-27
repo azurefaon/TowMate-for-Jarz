@@ -24,7 +24,6 @@ class DriversController extends Controller
     {
         $teamLeaders = User::visibleToOperations()
             ->where('role_id', 3)
-            ->whereHas('unit', fn ($q) => $q->whereNull('archived_at'))
             ->with(['unit', 'unit.driver'])
             ->get();
 

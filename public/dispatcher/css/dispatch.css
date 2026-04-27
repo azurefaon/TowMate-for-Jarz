@@ -327,6 +327,25 @@
     border-color: #111827;
 }
 
+.btn-complete-job {
+    border: 1px solid transparent;
+    padding: 10px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.15s ease;
+    background: #16a34a;
+    color: #fff;
+    width: 100%;
+}
+
+.btn-complete-job:hover {
+    background: #15803d;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(22, 163, 74, 0.25);
+}
+
 .btn-reject {
     background: #fff1f2;
     color: #b91c1c;

@@ -312,6 +312,35 @@
             color: #991b1b;
         }
 
+        .queue-chip.active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .queue-chip.ready_completion {
+            background: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+        }
+
+        .status-badge.payment-pending {
+            background: #fef3c7;
+            color: #7c5a00;
+            border-color: #f5d565;
+        }
+
+        .status-badge.confirmed {
+            background: #e0f2fe;
+            color: #075985;
+            border-color: #7dd3fc;
+        }
+
+        .status-badge.returned {
+            background: #fee2e2;
+            color: #991b1b;
+            border-color: #fca5a5;
+        }
+
         .dp-tl-section {
             margin-top: 36px;
             padding-bottom: 40px;
@@ -806,6 +835,13 @@
                         {{ $queueCounts['active'] ?? 0 }}
                     </span>
                 </button>
+                <button type="button" class="queue-filter-btn" data-filter="ready_completion">
+                    <span>Ready for Completion</span>
+                    <span class="queue-tab-count {{ ($queueCounts['ready_completion'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="ready_completion">
+                        {{ $queueCounts['ready_completion'] ?? 0 }}
+                    </span>
+                </button>
                 <button type="button" class="queue-filter-btn" data-filter="all">
                     <span>All</span>
                     <span class="queue-tab-count {{ ($queueCounts['all'] ?? 0) > 0 ? 'has-count' : '' }}"
@@ -820,12 +856,58 @@
 
                 @forelse($incomingRequests as $booking)
                     @php
-                        $queueBucket = $booking->queue_bucket ?? ($booking->needs_reassignment ? 'returned' : 'active');
-                        $timingLabel = $booking->needs_reassignment ? 'Returned' : 'Active Booking';
-                        $statusBadgeClass = $booking->needs_reassignment ? 'returned' : 'confirmed';
-                        $statusBadgeLabel = $booking->needs_reassignment
-                            ? 'Needs Reassignment'
-                            : ucfirst($booking->status);
+                        $isReadyCompletion = in_array($booking->status, [
+                            'waiting_verification',
+                            'payment_pending',
+                            'payment_submitted',
+                        ]);
+                        $isReturned = $booking->needs_reassignment;
+                        $queueBucket = $isReadyCompletion ? 'ready_completion' : ($isReturned ? 'returned' : 'active');
+                        $timingLabel = $isReadyCompletion
+                            ? 'Ready for Completion'
+                            : ($isReturned
+                                ? 'Returned'
+                                : 'Active Booking');
+                        $statusBadgeClass = $isReadyCompletion
+                            ? 'payment-pending'
+                            : ($isReturned
+                                ? 'returned'
+                                : 'confirmed');
+                        $statusBadgeLabel = $isReadyCompletion
+                            ? match ($booking->status) {
+                                'waiting_verification' => 'Awaiting Verification',
+                                'payment_pending' => 'Payment Pending',
+                                'payment_submitted' => 'Payment Submitted',
+                                default => ucfirst($booking->status),
+                            }
+                            : ($isReturned
+                                ? 'Needs Reassignment'
+                                : ucfirst($booking->status));
+
+                        // Extra data for Complete Job modal
+                        $cj_vehicleImgUrl = '';
+                        if ($booking->vehicle_image_path) {
+                            $cj_paths = json_decode($booking->vehicle_image_path, true);
+                            if (is_array($cj_paths) && !empty($cj_paths)) {
+                                $cj_vehicleImgUrl = \Illuminate\Support\Facades\Storage::disk('public')->url(
+                                    $cj_paths[0],
+                                );
+                            }
+                        }
+                        $cj_paymongoRef = $booking->paymongo_intent_id ?? ($booking->paymongo_link_id ?? '');
+                        $cj_paymentStatusLabel = match ($booking->status) {
+                            'payment_pending' => 'Pending',
+                            'payment_submitted' => 'Proof Submitted',
+                            'waiting_verification' => 'Awaiting Verification',
+                            default => ucfirst(str_replace('_', ' ', $booking->status)),
+                        };
+                        $cj_paymentMethodLabel = match ($booking->payment_method ?? '') {
+                            'card' => 'Card (PayMongo)',
+                            'gcash' => 'GCash (PayMongo)',
+                            'visa' => 'Visa / Card',
+                            'bank' => 'Bank Transfer',
+                            default => 'Cash / Manual',
+                        };
                     @endphp
                     <div class="incoming-card {{ $booking->is_scheduled && !$booking->is_dispatch_delayed ? 'incoming-card--scheduled' : '' }}"
                         data-id="{{ $booking->job_code }}" data-status="{{ $booking->status }}"
@@ -850,8 +932,27 @@
                         data-created-at="{{ $booking->created_at->toISOString() }}"
                         data-customer-name="{{ e($booking->customer->full_name ?? 'Guest') }}"
                         data-customer-phone="{{ e($booking->customer->phone ?? 'N/A') }}"
+                        data-customer-email="{{ e($booking->customer->email ?? '—') }}"
                         data-pickup="{{ e($booking->pickup_address ?? '') }}"
-                        data-dropoff="{{ e($booking->dropoff_address ?? '') }}">
+                        data-dropoff="{{ e($booking->dropoff_address ?? '') }}"
+                        data-unit-name="{{ e($booking->unit->name ?? '—') }}"
+                        data-unit-plate="{{ e($booking->unit->plate_number ?? '—') }}"
+                        data-tl-name="{{ e($booking->unit->teamLeader->full_name ?? ($booking->unit->teamLeader->name ?? '—')) }}"
+                        data-tl-phone="{{ e($booking->unit->teamLeader->phone ?? '—') }}"
+                        data-driver-name="{{ e($booking->unit->driver->full_name ?? ($booking->unit->driver->name ?? ($booking->unit->driver_name ?? '—'))) }}"
+                        data-final-total="{{ $booking->final_total ?? 0 }}"
+                        data-job-code="{{ e($booking->job_code ?? '—') }}"
+                        data-payment-method="{{ e($booking->payment_method ?? '') }}"
+                        data-payment-method-label="{{ e($cj_paymentMethodLabel) }}"
+                        data-payment-status-label="{{ e($cj_paymentStatusLabel) }}"
+                        data-payment-proof-url="{{ $booking->payment_proof_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($booking->payment_proof_path) : '' }}"
+                        data-paymongo-ref="{{ e($cj_paymongoRef) }}"
+                        data-discount-percentage="{{ $booking->discount_percentage ?? 0 }}"
+                        data-discount-reason="{{ e($booking->discount_reason ?? '') }}"
+                        data-computed-total="{{ $booking->computed_total ?? 0 }}"
+                        data-distance-fee-amount="{{ $booking->distance_fee_amount ?? 0 }}"
+                        data-vehicle-image-url="{{ e($cj_vehicleImgUrl) }}"
+                        data-truck-type-base-rate="{{ $booking->unit->truckType->base_rate ?? ($booking->base_rate ?? 0) }}">
 
                         <div class="incoming-left">
 
@@ -962,13 +1063,21 @@
                         @endphp
 
                         <div class="incoming-actions">
-                            @if ($booking->needs_reassignment || $booking->needs_assignment)
+                            @if ($isReadyCompletion)
+                                <button type="button" class="btn-complete-job"
+                                    data-booking-code="{{ $booking->job_code }}"
+                                    data-customer="{{ e($booking->customer->full_name ?? 'Customer') }}"
+                                    data-ref="{{ $booking->job_code }}"
+                                    data-amount="₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}"
+                                    data-status="{{ $booking->status }}"
+                                    data-confirm-url="{{ route('admin.jobs.confirm-payment', $booking) }}">
+                                    Complete Job
+                                </button>
+                            @elseif ($booking->needs_reassignment || $booking->needs_assignment)
                                 <button type="button" class="btn-accept" data-id="{{ $booking->job_code }}"
                                     data-action="accept">
-
                                     {{ $booking->needs_reassignment ? 'Reassign Task' : 'Start Job' }}
                                 </button>
-
                                 <button type="button" class="btn-reject" data-id="{{ $booking->job_code }}"
                                     data-action="reject">
                                     Cancel Booking
@@ -1002,7 +1111,8 @@
                                 <span><strong>Reference:</strong> {{ $pq->quotation_number ?? 'N/A' }}</span>
                             </div>
                             <div class="incoming-details">
-                                <span><strong>Distance:</strong> {{ number_format((float) $pq->distance_km, 2) }} km</span>
+                                <span><strong>Distance:</strong> {{ number_format((float) $pq->distance_km, 2) }}
+                                    km</span>
                                 <span><strong>Estimated Price:</strong>
                                     ₱{{ number_format((float) $pq->estimated_price, 2) }}</span>
                             </div>
@@ -1080,9 +1190,27 @@
                         </div>
                         <div
                             style="margin-top:14px; padding:10px 14px; background:#fff; border:1px solid #86efac; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:.85rem; font-weight:600; color:#15803d;">Agreed Total (Price
-                                Locked)</span>
+                            <span style="font-size:.85rem; font-weight:600; color:#15803d;">Agreed Total (Price Locked)</span>
                             <span id="cfAgreedTotal" style="font-size:1.1rem; font-weight:800; color:#15803d;">—</span>
+                        </div>
+
+                        {{-- Assigned unit card --}}
+                        <div id="cfUnitBox" style="display:none; margin-top:12px; background:#0f172a; border-radius:12px; padding:14px 16px;">
+                            <div style="font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; margin-bottom:10px;">Assigned Unit</div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px;">
+                                <div>
+                                    <div style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">Unit</div>
+                                    <div id="cfUnitName" style="font-size:.92rem; font-weight:800; color:#f8fafc;">—</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">Type</div>
+                                    <div id="cfUnitType" style="font-size:.88rem; font-weight:700; color:#4ade80;">—</div>
+                                </div>
+                                <div style="grid-column:1/-1;">
+                                    <div style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">Team Leader</div>
+                                    <div id="cfUnitTl" style="font-size:.88rem; font-weight:700; color:#f8fafc;">—</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1228,6 +1356,282 @@
                     <button id="dpConfirmOk" type="button"
                         style="padding:9px 18px;border-radius:9px;border:none;background:#dc2626;color:#fff;font-size:.88rem;font-weight:600;cursor:pointer;">Remove</button>
                 </div>
+            </div>
+        </div>
+
+        {{-- Complete Job Modal --}}
+        <div id="completeJobModal"
+            style="display:none;position:fixed;inset:0;z-index:10000;align-items:flex-start;justify-content:center;background:rgba(10,14,30,.6);backdrop-filter:blur(4px);padding:24px 16px;overflow-y:auto;"
+            aria-modal="true" role="dialog" hidden>
+            <div
+                style="background:#fff;border-radius:20px;width:100%;max-width:640px;margin:auto;box-shadow:0 32px 80px rgba(0,0,0,.25);overflow:hidden;display:flex;flex-direction:column;">
+
+                {{-- ── Header ── --}}
+                <div
+                    style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <div
+                            style="width:40px;height:40px;border-radius:11px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <svg width="20" height="20" fill="none" stroke="#16a34a" stroke-width="2.2"
+                                viewBox="0 0 24 24">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div style="font-size:.95rem;font-weight:700;color:#0f172a;line-height:1.2;">Complete Job</div>
+                            <div id="cjRefBadge" style="font-size:.75rem;color:#64748b;margin-top:1px;"></div>
+                        </div>
+                    </div>
+                    <button id="completeJobClose" type="button" aria-label="Close"
+                        style="width:32px;height:32px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;font-size:1.1rem;line-height:1;flex-shrink:0;">
+                        &#x2715;
+                    </button>
+                </div>
+
+                {{-- ── Price Summary ── --}}
+                <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:22px 24px;">
+                    <div
+                        style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px;">
+                        Total Amount</div>
+                    <div id="cjTotalBig"
+                        style="font-size:2rem;font-weight:800;color:#4ade80;letter-spacing:-.02em;line-height:1;">—</div>
+                    <div
+                        style="margin-top:16px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;">
+                        <div style="display:flex;justify-content:space-between;font-size:.8rem;"><span
+                                style="color:#94a3b8;">Base Rate</span><span id="cjBaseRate"
+                                style="color:#e2e8f0;font-weight:600;">—</span></div>
+                        <div style="display:flex;justify-content:space-between;font-size:.8rem;"><span
+                                style="color:#94a3b8;">Distance Fee</span><span id="cjDistanceFee"
+                                style="color:#e2e8f0;font-weight:600;">—</span></div>
+                        <div style="display:flex;justify-content:space-between;font-size:.8rem;"><span
+                                style="color:#94a3b8;">Additional Fee</span><span id="cjAdditionalFee"
+                                style="color:#e2e8f0;font-weight:600;">—</span></div>
+                        <div id="cjDiscountRow" style="display:flex;justify-content:space-between;font-size:.8rem;"><span
+                                style="color:#fbbf24;">Discount</span><span id="cjDiscount"
+                                style="color:#fbbf24;font-weight:600;">—</span></div>
+                    </div>
+                </div>
+
+                {{-- ── Body ── --}}
+                <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;">
+
+                    {{-- Customer --}}
+                    <div>
+                        <div
+                            style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#2563eb;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                            Customer Information
+                        </div>
+                        <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;">
+                                <div
+                                    style="padding:11px 14px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Full Name</div>
+                                    <div id="cjCustomerName" style="font-size:.88rem;font-weight:700;color:#0f172a;">—
+                                    </div>
+                                </div>
+                                <div style="padding:11px 14px;border-bottom:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Customer Type</div>
+                                    <div id="cjCustomerType" style="font-size:.88rem;font-weight:600;color:#0f172a;">—
+                                    </div>
+                                </div>
+                                <div
+                                    style="padding:11px 14px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;display:flex;align-items:center;gap:4px;">
+                                        <svg width="10" height="10" fill="none" stroke="#94a3b8"
+                                            stroke-width="2" viewBox="0 0 24 24">
+                                            <path
+                                                d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.08 4.18 2 2 0 0 1 5.09 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L9.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+                                        </svg>
+                                        Phone
+                                    </div>
+                                    <div id="cjCustomerPhone" style="font-size:.88rem;font-weight:600;color:#0f172a;">—
+                                    </div>
+                                </div>
+                                <div style="padding:11px 14px;border-bottom:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;display:flex;align-items:center;gap:4px;">
+                                        <svg width="10" height="10" fill="none" stroke="#94a3b8"
+                                            stroke-width="2" viewBox="0 0 24 24">
+                                            <path
+                                                d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                                            <polyline points="22,6 12,13 2,6" />
+                                        </svg>
+                                        Email
+                                    </div>
+                                    <div id="cjCustomerEmail"
+                                        style="font-size:.82rem;font-weight:600;color:#0f172a;word-break:break-all;">—
+                                    </div>
+                                </div>
+                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;display:flex;align-items:center;gap:4px;">
+                                        <svg width="10" height="10" fill="none" stroke="#94a3b8"
+                                            stroke-width="2" viewBox="0 0 24 24">
+                                            <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" />
+                                            <circle cx="12" cy="10" r="3" />
+                                        </svg>
+                                        Pickup
+                                    </div>
+                                    <div id="cjPickup"
+                                        style="font-size:.82rem;font-weight:600;color:#0f172a;line-height:1.4;">—</div>
+                                </div>
+                                <div style="padding:11px 14px;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;display:flex;align-items:center;gap:4px;">
+                                        <svg width="10" height="10" fill="none" stroke="#94a3b8"
+                                            stroke-width="2" viewBox="0 0 24 24">
+                                            <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" />
+                                            <circle cx="12" cy="10" r="3" />
+                                        </svg>
+                                        Dropoff
+                                    </div>
+                                    <div id="cjDropoff"
+                                        style="font-size:.82rem;font-weight:600;color:#0f172a;line-height:1.4;">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Payment --}}
+                    <div>
+                        <div
+                            style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#ea580c;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+
+                            Payment Information
+                        </div>
+                        <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;">
+                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Mode</div>
+                                    <div id="cjPaymentMode" style="font-size:.88rem;font-weight:700;color:#0f172a;">—
+                                    </div>
+                                </div>
+                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Status</div>
+                                    <div id="cjPaymentStatus" style="font-size:.88rem;font-weight:700;color:#0f172a;">—
+                                    </div>
+                                </div>
+                                <div style="padding:11px 14px;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Reference #</div>
+                                    <div id="cjPaymongoRef"
+                                        style="font-size:.78rem;font-weight:600;color:#0f172a;word-break:break-all;">—
+                                    </div>
+                                </div>
+                            </div>
+                            {{-- Proof image row --}}
+                            <div id="cjProofRow" style="display:none;border-top:1px solid #f1f5f9;padding:12px 14px;">
+                                <div
+                                    style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">
+                                    Proof of Payment</div>
+                                <a id="cjProofLink" href="#" target="_blank" rel="noopener noreferrer"
+                                    style="display:block;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;max-height:200px;background:#f8fafc;">
+                                    <img id="cjProofImg" src="" alt="Payment proof"
+                                        style="width:100%;max-height:200px;object-fit:contain;display:block;">
+                                </a>
+                                <p style="margin:5px 0 0;font-size:.72rem;color:#94a3b8;text-align:center;">Click to open
+                                    full size</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Unit & Team Leader --}}
+                    <div>
+                        <div
+                            style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#16a34a;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                            Unit &amp; Team Details
+                        </div>
+                        <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;">
+                                <div
+                                    style="padding:11px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Unit Name</div>
+                                    <div id="cjUnitName" style="font-size:.88rem;font-weight:700;color:#0f172a;">—</div>
+                                </div>
+                                <div
+                                    style="padding:11px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Plate No.</div>
+                                    <div id="cjUnitPlate" style="font-size:.88rem;font-weight:700;color:#0f172a;">—</div>
+                                </div>
+                                <div style="padding:11px 14px;border-bottom:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Truck Type</div>
+                                    <div id="cjTruckType" style="font-size:.88rem;font-weight:600;color:#0f172a;">—</div>
+                                </div>
+                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Base Rate (Type)</div>
+                                    <div id="cjTruckBaseRate" style="font-size:.88rem;font-weight:600;color:#0f172a;">—
+                                    </div>
+                                </div>
+                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Team Leader</div>
+                                    <div id="cjTlName" style="font-size:.88rem;font-weight:700;color:#0f172a;">—</div>
+                                </div>
+                                <div style="padding:11px 14px;">
+                                    <div
+                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        Driver</div>
+                                    <div id="cjDriverName" style="font-size:.88rem;font-weight:700;color:#0f172a;">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Vehicle photo (optional) --}}
+                    <div id="cjVehiclePhotoWrap" style="display:none;">
+                        <div
+                            style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                            Vehicle Photo
+                        </div>
+                        <a id="cjVehicleLink" href="#" target="_blank" rel="noopener noreferrer"
+                            style="display:block;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;max-height:180px;background:#f8fafc;">
+                            <img id="cjVehicleImg" src="" alt="Vehicle"
+                                style="width:100%;max-height:180px;object-fit:cover;display:block;">
+                        </a>
+                    </div>
+
+                </div>
+
+                {{-- ── Footer ── --}}
+                <div
+                    style="padding:14px 24px 20px;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                    <p style="font-size:.76rem;color:#94a3b8;margin:0;flex:1;">Receipt will be emailed to the customer on
+                        completion.</p>
+                    <div style="display:flex;gap:10px;flex-shrink:0;">
+                        <button id="completeJobCancel" type="button"
+                            style="padding:9px 18px;border-radius:9px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:.87rem;font-weight:600;cursor:pointer;">
+                            Cancel
+                        </button>
+                        <button id="completeJobOk" type="button"
+                            style="padding:9px 22px;border-radius:9px;border:none;background:#16a34a;color:#fff;font-size:.87rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                            <svg width="14" height="14" fill="none" stroke="#fff" stroke-width="2.2"
+                                viewBox="0 0 24 24">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            Mark as Completed
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -1977,6 +2381,202 @@
                     closeServiceFeeModal();
                     closeCustomerRiskModal();
                 }
+            });
+        })();
+    </script>
+
+    <script>
+        /* ── Complete Job modal ── */
+        (function() {
+            var CSRF = document.querySelector('meta[name="csrf-token"]').content;
+            var modal = document.getElementById('completeJobModal');
+            var okBtn = document.getElementById('completeJobOk');
+            var cancel = document.getElementById('completeJobCancel');
+            var closeX = document.getElementById('completeJobClose');
+
+            var _pendingUrl = null;
+            var _pendingCard = null;
+
+            function fmt(n) {
+                var v = parseFloat(n) || 0;
+                return '₱' + v.toLocaleString('en-PH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+
+            function setText(id, val) {
+                var el = document.getElementById(id);
+                if (el) el.textContent = (val !== undefined && val !== null && val !== '') ? val : '—';
+            }
+
+            function show(id) {
+                var el = document.getElementById(id);
+                if (el) el.style.display = '';
+            }
+
+            function hide(id) {
+                var el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            }
+
+            function openModal(btn) {
+                var card = btn.closest('.incoming-card');
+                var ds = card ? card.dataset : {};
+
+                // ── Price summary ──
+                var finalTotal = parseFloat(ds.finalTotal || ds.currentPrice || 0);
+                var baseRate = parseFloat(ds.baseRate || ds.truckTypeBaseRate || 0);
+                var distanceFee = parseFloat(ds.distanceFeeAmount || ds.distanceFee || 0);
+                var additionalFee = parseFloat(ds.currentAdditional || 0);
+                var discountPct = parseFloat(ds.discountPercentage || 0);
+
+                setText('cjTotalBig', fmt(finalTotal));
+                setText('cjBaseRate', fmt(baseRate));
+                setText('cjDistanceFee', fmt(distanceFee) + (ds.distanceKm ? ' (' + parseFloat(ds.distanceKm).toFixed(
+                    1) + ' km)' : ''));
+                setText('cjAdditionalFee', additionalFee > 0 ? fmt(additionalFee) : '—');
+
+                var discountRow = document.getElementById('cjDiscountRow');
+                if (discountPct > 0) {
+                    setText('cjDiscount', '-' + discountPct + '%' + (ds.discountReason ? ' · ' + ds.discountReason :
+                        ''));
+                    if (discountRow) discountRow.style.display = 'flex';
+                } else {
+                    if (discountRow) discountRow.style.display = 'none';
+                }
+
+                // ── Header ref ──
+                setText('cjRefBadge', 'Ref: ' + (ds.jobCode || btn.dataset.ref || '—'));
+
+                // ── Customer ──
+                setText('cjCustomerName', ds.customerName || btn.dataset.customer);
+                setText('cjCustomerType', ds.customerType);
+                setText('cjCustomerPhone', ds.customerPhone);
+                setText('cjCustomerEmail', ds.customerEmail);
+                setText('cjPickup', ds.pickup);
+                setText('cjDropoff', ds.dropoff);
+
+                // ── Payment ──
+                setText('cjPaymentMode', ds.paymentMethodLabel || '—');
+                setText('cjPaymentStatus', ds.paymentStatusLabel || '—');
+                setText('cjPaymongoRef', ds.paymongoRef || '—');
+
+                var proofUrl = ds.paymentProofUrl || '';
+                if (proofUrl) {
+                    document.getElementById('cjProofImg').src = proofUrl;
+                    document.getElementById('cjProofLink').href = proofUrl;
+                    show('cjProofRow');
+                } else {
+                    hide('cjProofRow');
+                }
+
+                // ── Unit ──
+                setText('cjUnitName', ds.unitName);
+                setText('cjUnitPlate', ds.unitPlate);
+                setText('cjTruckType', ds.truckType);
+                setText('cjTruckBaseRate', ds.truckTypeBaseRate ? fmt(ds.truckTypeBaseRate) : '—');
+                setText('cjTlName', ds.tlName);
+                setText('cjDriverName', ds.driverName);
+
+                // ── Vehicle photo ──
+                var vehicleUrl = ds.vehicleImageUrl || '';
+                if (vehicleUrl) {
+                    document.getElementById('cjVehicleImg').src = vehicleUrl;
+                    document.getElementById('cjVehicleLink').href = vehicleUrl;
+                    show('cjVehiclePhotoWrap');
+                } else {
+                    hide('cjVehiclePhotoWrap');
+                }
+
+                _pendingUrl = btn.dataset.confirmUrl;
+                _pendingCard = card;
+
+                modal.hidden = false;
+                modal.style.display = 'flex';
+                okBtn.disabled = false;
+                okBtn.innerHTML =
+                    '<svg width="14" height="14" fill="none" stroke="#fff" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Mark as Completed';
+                okBtn.focus();
+            }
+
+            function closeModal() {
+                modal.hidden = true;
+                modal.style.display = 'none';
+                _pendingUrl = null;
+                _pendingCard = null;
+            }
+
+            function showToast(msg, ok) {
+                var t = document.createElement('div');
+                t.textContent = msg;
+                t.style.cssText =
+                    'position:fixed;bottom:24px;right:24px;z-index:99999;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:700;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.15);animation:tl-slide-in .25s ease;background:' +
+                    (ok ? '#09090b' : '#dc2626');
+                document.body.appendChild(t);
+                setTimeout(function() {
+                    t.remove();
+                }, 4000);
+            }
+
+            /* Delegate click from any .btn-complete-job button */
+            document.addEventListener('click', function(e) {
+                var btn = e.target.closest('.btn-complete-job');
+                if (btn) openModal(btn);
+            });
+
+            cancel.addEventListener('click', closeModal);
+            if (closeX) closeX.addEventListener('click', closeModal);
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) closeModal();
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && !modal.hidden) closeModal();
+            });
+
+            okBtn.addEventListener('click', function() {
+                if (!_pendingUrl) return;
+                okBtn.disabled = true;
+                okBtn.innerHTML = 'Completing…';
+
+                fetch(_pendingUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': CSRF,
+                        },
+                        body: JSON.stringify({}),
+                    })
+                    .then(function(r) {
+                        return r.json();
+                    })
+                    .then(function(data) {
+                        if (!data.success) throw new Error(data.message || 'Failed to complete job.');
+
+                        showToast(data.message || 'Job completed. Receipt sent to customer.', true);
+                        closeModal();
+
+                        if (_pendingCard) {
+                            _pendingCard.style.transition = 'opacity .35s';
+                            _pendingCard.style.opacity = '0';
+                            setTimeout(function() {
+                                if (_pendingCard) _pendingCard.remove();
+                                if (typeof window.applyDispatchQueueFilter === 'function') {
+                                    window.applyDispatchQueueFilter(
+                                        document.querySelector('.queue-filter-btn.is-active')
+                                        ?.dataset.filter || 'ready_completion'
+                                    );
+                                }
+                            }, 360);
+                        }
+                    })
+                    .catch(function(err) {
+                        showToast(err.message || 'Something went wrong.', false);
+                        okBtn.disabled = false;
+                        okBtn.innerHTML =
+                            '<svg width="14" height="14" fill="none" stroke="#fff" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Mark as Completed';
+                    });
             });
         })();
     </script>

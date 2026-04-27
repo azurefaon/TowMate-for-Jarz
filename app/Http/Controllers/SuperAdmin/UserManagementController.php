@@ -192,6 +192,9 @@ class UserManagementController extends Controller
             abort(403, 'Cannot modify Super Admin.');
         }
 
+        $activeTruckTypeNames = TruckType::where('status', 'active')->pluck('name')->toArray();
+        $existingUnitId = $user->unit?->id;
+
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
@@ -202,6 +205,11 @@ class UserManagementController extends Controller
             'email' => $this->emailRules($user),
             'phone' => ['nullable', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)],
             'status' => 'required|in:active,inactive',
+            'unit_plate_number' => [
+                'nullable', 'string', 'max:50',
+                Rule::unique('units', 'plate_number')->ignore($existingUnitId),
+            ],
+            'unit_truck_class' => ['nullable', Rule::in($activeTruckTypeNames)],
             'role_id' => [
                 'nullable',
                 function (string $attribute, mixed $value, \Closure $fail) use ($user) {
@@ -210,6 +218,11 @@ class UserManagementController extends Controller
                     }
                 },
             ],
+        ], [
+            'unit_plate_number.unique' => 'This plate number is already registered to another unit.',
+            'unit_truck_class.in'      => 'Please select a valid active truck type.',
+            'phone.regex'              => 'Enter a valid Philippine mobile number starting with 9 or 09.',
+            'phone.unique'             => 'This phone number is already registered to another user.',
         ]);
 
         if ($validator->fails()) {
@@ -261,6 +274,17 @@ class UserManagementController extends Controller
 
                 if ($request->filled('unit_name')) {
                     $unit->name = $request->unit_name;
+                }
+
+                if ($request->filled('unit_plate_number')) {
+                    $unit->plate_number = strtoupper(trim((string) $request->unit_plate_number));
+                }
+
+                if ($request->filled('unit_truck_class')) {
+                    $truckType = TruckType::where('name', $request->unit_truck_class)->first();
+                    if ($truckType) {
+                        $unit->truck_type_id = $truckType->id;
+                    }
                 }
 
                 $unit->save();

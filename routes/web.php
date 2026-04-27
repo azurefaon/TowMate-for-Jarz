@@ -150,6 +150,9 @@ Route::prefix('teamleader')
         Route::post('/task/{booking}/payment', [TeamLeaderController::class, 'submitPayment'])
             ->middleware('throttle:10,1')->name('task.payment');
 
+        Route::get('/task/{booking}/payment-status', [TeamLeaderController::class, 'checkPaymentStatus'])
+            ->middleware('throttle:30,1')->name('task.payment-status');
+
         Route::get('/return-reasons', function () {
             return response()->json(\App\Enums\ReturnReason::toArray());
         })->name('return-reasons');

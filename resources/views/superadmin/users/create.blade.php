@@ -549,7 +549,7 @@
                                         <label>Plate Number <span class="required-mark">*</span></label>
                                         <input type="text" name="unit_plate_number"
                                             value="{{ old('unit_plate_number', $user->unit?->plate_number ?? '') }}"
-                                            placeholder="e.g. ABC 1234" {{ $isEdit ? 'readonly' : '' }}
+                                            placeholder="e.g. ABC 1234"
                                             @if ($showTLSections && !$isEdit) required @endif>
                                         @error('unit_plate_number')
                                             <small class="error-text">{{ $message }}</small>
@@ -603,46 +603,46 @@
 
             </div>{{-- /form-card --}}
         </div>{{-- /form-wrapper --}}
-    </div>{{-- /create-user-page --}}
-
-    {{-- ═══════════════════════════════════
-     Truck Type Config Modal (fixed HTML)
-═══════════════════════════════════ --}}
-    <div id="truckTypeConfigModal" class="ttc-overlay" hidden>
-        <div class="ttc-modal">
-            <div class="ttc-modal-header">
-                <h3 id="ttcModalTitle">Configure Truck Type</h3>
-                <p>Set pricing and capacity before this type can be used.</p>
-            </div>
-            <div class="ttc-modal-body">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Base Rate (₱) <span class="required-mark">*</span></label>
-                        <input type="number" id="ttcBaseRate" min="0" step="0.01" placeholder="e.g. 4500">
-                        <small class="ttc-hint">Flat charge for the first 4 km</small>
+        {{-- ═══════════════════════════════════
+         Truck Type Config Modal
+    ═══════════════════════════════════ --}}
+        <div id="truckTypeConfigModal" class="ttc-overlay" hidden>
+            <div class="ttc-modal">
+                <div class="ttc-modal-header">
+                    <h3 id="ttcModalTitle">Configure Truck Type</h3>
+                    <p>Set pricing and capacity before this type can be used.</p>
+                </div>
+                <div class="ttc-modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Base Rate (₱) <span class="required-mark">*</span></label>
+                            <input type="number" id="ttcBaseRate" min="0" step="0.01" placeholder="e.g. 4500">
+                            <small class="ttc-hint">Flat charge for the first 4 km</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Per 4km Rate (₱) <span class="required-mark">*</span></label>
+                            <input type="number" id="ttcPerKmRate" min="0" step="0.01" placeholder="e.g. 200">
+                            <small class="ttc-hint">Added for every 4 km beyond the base</small>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label>Per 4km Rate (₱) <span class="required-mark">*</span></label>
-                        <input type="number" id="ttcPerKmRate" min="0" step="0.01" placeholder="e.g. 200">
-                        <small class="ttc-hint">Added for every 4 km beyond the base</small>
+                        <label>Capacity (kg) <span class="required-mark">*</span></label>
+                        <input type="number" id="ttcCapacity" min="0" step="1" placeholder="e.g. 3000">
                     </div>
+                    <div class="form-group">
+                        <label>Description <span class="field-optional">Optional</span></label>
+                        <input type="text" id="ttcDescription" placeholder="e.g. For medium-sized vehicles">
+                    </div>
+                    <div id="ttcError" class="ttc-error" hidden></div>
                 </div>
-                <div class="form-group">
-                    <label>Capacity (kg) <span class="required-mark">*</span></label>
-                    <input type="number" id="ttcCapacity" min="0" step="1" placeholder="e.g. 3000">
+                <div class="ttc-modal-footer">
+                    <button type="button" id="ttcCancelBtn" class="btn-cancel">Cancel</button>
+                    <button type="button" id="ttcSaveBtn" class="btn-primary-submit">Save Config</button>
                 </div>
-                <div class="form-group">
-                    <label>Description <span class="field-optional">Optional</span></label>
-                    <input type="text" id="ttcDescription" placeholder="e.g. For medium-sized vehicles">
-                </div>
-                <div id="ttcError" class="ttc-error" hidden></div>
-            </div>
-            <div class="ttc-modal-footer">
-                <button type="button" id="ttcCancelBtn" class="btn-cancel">Cancel</button>
-                <button type="button" id="ttcSaveBtn" class="btn-primary-submit">Save Config</button>
             </div>
         </div>
-    </div>
+
+    </div>{{-- /create-user-page --}}
 
 @endsection
 
@@ -918,10 +918,6 @@
                     openConfigModal(name, configCache[name]);
                 });
             });
-
-            if (isEditMode) {
-                truckTypeCards?.querySelectorAll('.ttc-card').forEach(c => c.classList.add('locked'));
-            }
 
             if (isTLEditMode) {
                 loadAllConfigs();

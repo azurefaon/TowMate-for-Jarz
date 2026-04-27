@@ -85,7 +85,7 @@ class QuotationService
 
     //  Send quotation to customer sa dispatcher 
     // int $expiryHours = 168
-    public function sendQuotation(Quotation $quotation, float $expiryHours = 0.00556): Quotation
+    public function sendQuotation(Quotation $quotation, int $expiryHours = 168): Quotation
     {
         $quotation->update([
             'status' => 'sent',
@@ -268,5 +268,4 @@ class QuotationService
             'estimated_price' => $oldQuotation->estimated_price,
         ]);
     }
-
 }
