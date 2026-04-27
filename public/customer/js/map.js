@@ -835,7 +835,7 @@ function handleInput(e) {
         );
     }
 
-    if (value.length < 3) {
+    if (value.length < 2) {
         if (container) {
             container.innerHTML = "";
         }
@@ -845,7 +845,7 @@ function handleInput(e) {
 
     debounceTimer = setTimeout(() => {
         getSuggestions(value, containerId, isPickup ? "pickup" : "dropoff");
-    }, 400);
+    }, 280);
 
     toggleBookBtn();
 }
@@ -2015,41 +2015,134 @@ async function setDropoffLocation(lat, lng, fromDrag = false) {
 async function getSuggestions(query, containerId, type) {
     if (!query) return;
 
-    const url = `${geoConfig.searchUrl}?q=${encodeURIComponent(query)}`;
-    const res = await fetch(url, {
-        headers: {
-            Accept: "application/json",
-        },
-    });
-
-    const data = await res.json();
     const container = document.getElementById(containerId);
+    if (!container) return;
 
-    if (!container) {
-        return;
+    // Only show "Loading" if the fetch takes more than 400ms — avoids flickering
+    var loadingTimer = setTimeout(function () {
+        container.innerHTML = '<div class="suggestion-loading">Loading</div>';
+    }, 400);
+
+    try {
+        const url = `${geoConfig.searchUrl}?q=${encodeURIComponent(query)}`;
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        clearTimeout(loadingTimer);
+        const data = await res.json();
+
+        container.innerHTML = "";
+
+        const features = data.features || [];
+
+        if (features.length === 0) {
+            container.innerHTML = '<div class="suggestion-empty">No results found. Try adding city or landmark.</div>';
+            return;
+        }
+
+        features.forEach((place) => {
+            const label = (place.label || "").trim();
+            const commaIdx = label.indexOf(",");
+            const primary   = commaIdx > -1 ? label.substring(0, commaIdx).trim() : label;
+            const secondary = commaIdx > -1 ? label.substring(commaIdx + 1).trim() : "";
+
+            const div = document.createElement("div");
+            div.className = "suggestion-row";
+            div.innerHTML =
+                '<span class="suggestion-body">' +
+                    '<span class="suggestion-primary">' + _escHtml(primary) + '</span>' +
+                    (secondary ? '<span class="suggestion-secondary">' + _escHtml(secondary) + '</span>' : '') +
+                '</span>';
+
+            div.onclick = async () => {
+                const coords = place.coordinates || [];
+                if (type === "pickup") {
+                    await setPickupLocation(coords[1], coords[0]);
+                } else {
+                    await setDropoffLocation(coords[1], coords[0]);
+                }
+                container.innerHTML = "";
+            };
+
+            container.appendChild(div);
+        });
+    } catch (_) {
+        clearTimeout(loadingTimer);
+        container.innerHTML = "";
     }
+}
 
-    container.innerHTML = "";
+function _escHtml(str) {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
 
-    (data.features || []).forEach((place) => {
-        const div = document.createElement("div");
-        div.innerText = place.label;
+function openNoUnitModal() {
+    return new Promise(function (resolve) {
+        var existing = document.getElementById("noUnitModal");
+        if (existing) existing.remove();
 
-        div.onclick = async () => {
-            const coords = place.coordinates || [];
+        var overlay = document.createElement("div");
+        overlay.id = "noUnitModal";
+        overlay.style.cssText = [
+            "position:fixed;inset:0;background:rgba(9,9,11,.55);",
+            "display:flex;align-items:center;justify-content:center;",
+            "padding:24px;z-index:4000;"
+        ].join("");
 
-            if (type === "pickup") {
-                await setPickupLocation(coords[1], coords[0]);
-            } else {
-                await setDropoffLocation(coords[1], coords[0]);
+        var box = document.createElement("div");
+        box.style.cssText = [
+            "width:min(420px,96vw);background:#fff;border-radius:18px;",
+            "border:1px solid #e4e4e7;padding:28px 28px 24px;",
+            "box-shadow:0 24px 60px rgba(9,9,11,.14);"
+        ].join("");
+
+        var availability = latestAvailability || {};
+        var msg = availability.message || "No units are currently available for immediate dispatch.";
+
+        box.innerHTML = [
+            '<p style="margin:0 0 6px;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:.06em;">Availability</p>',
+            '<h3 style="margin:0 0 10px;font-size:17px;color:#09090b;">No units available right now</h3>',
+            '<p style="margin:0 0 20px;font-size:13px;color:#52525b;line-height:1.6;">' + _escHtml(msg) + ' Choose an option below to continue.</p>',
+            '<div style="display:flex;flex-direction:column;gap:10px;">',
+                '<button id="noUnitScheduleBtn" style="padding:12px 18px;border-radius:10px;border:1px solid #09090b;background:#09090b;color:#fff;font-size:13px;cursor:pointer;">Schedule for Later</button>',
+                '<button id="noUnitCancelBtn"   style="padding:12px 18px;border-radius:10px;border:1px solid #e4e4e7;background:#fff;color:#3f3f46;font-size:13px;cursor:pointer;">Cancel</button>',
+            '</div>',
+        ].join("");
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        function close(result) {
+            overlay.remove();
+            resolve(result);
+        }
+
+        document.getElementById("noUnitScheduleBtn").onclick = function () {
+            // Switch form to schedule mode
+            var sel = elements.serviceTypeSelect || document.getElementById("service_type");
+            if (sel) {
+                sel.value = "schedule";
+                sel.dispatchEvent(new Event("change"));
             }
-
-            container.innerHTML = "";
+            prefillRecommendedScheduleWindow();
+            close(true);
         };
 
-        container.appendChild(div);
+        document.getElementById("noUnitCancelBtn").onclick = function () { close(false); };
+        overlay.onclick = function (e) { if (e.target === overlay) close(false); };
     });
 }
+
+window.checkBookNowAvailability = async function () {
+    var sel = elements
+        ? elements.serviceTypeSelect
+        : document.getElementById("service_type");
+    var isSchedule = sel && sel.value === "schedule";
+    if (isSchedule) return true;
+    if ((latestAvailability || {}).book_now_enabled !== false) return true;
+    return await openNoUnitModal();
+};
 
 async function resolveTypedAddressIfNeeded(type) {
     const isPickup = type === "pickup";

@@ -322,7 +322,7 @@
                 </td>
                 <td>
                     <div style="font-size: 0.9rem; color: #334155;">
-                        <strong>📍</strong> {{ Str::limit($booking->pickup_address ?? 'Unknown', 25) }}
+                        <strong></strong> {{ Str::limit($booking->pickup_address ?? 'Unknown', 25) }}
                     </div>
                     <div style="font-size: 0.85rem; color: #64748b;">
                         → {{ Str::limit($booking->dropoff_address ?? 'Unknown', 25) }}

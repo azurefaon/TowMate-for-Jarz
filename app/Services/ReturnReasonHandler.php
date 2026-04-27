@@ -21,7 +21,7 @@ class ReturnReasonHandler
         foreach (ReturnReason::cases() as $reason) {
             if (str_starts_with($returnReasonText, $reason->label() . ':')) {
                 $note = trim(substr($returnReasonText, strlen($reason->label() . ':')));
-                
+
                 return [
                     'code' => $reason->value,
                     'label' => $reason->label(),
@@ -45,7 +45,7 @@ class ReturnReasonHandler
 
     protected function getActionsForReason(ReturnReason $reason): array
     {
-        return match($reason) {
+        return match ($reason) {
             ReturnReason::WRONG_ASSIGNMENT => [
                 'reassign_correct_unit',
             ],
@@ -85,7 +85,7 @@ class ReturnReasonHandler
 
     protected function getBadgeClass(string $priority): string
     {
-        return match($priority) {
+        return match ($priority) {
             'critical' => 'rr-badge--critical',
             'high' => 'rr-badge--high',
             'medium' => 'rr-badge--medium',
@@ -95,7 +95,7 @@ class ReturnReasonHandler
 
     public function getActionLabel(string $actionCode): string
     {
-        return match($actionCode) {
+        return match ($actionCode) {
             'view_zone_coverage' => 'View Zone Coverage',
             'reassign_correct_unit' => 'Reassign Correct Unit',
             'mark_unit_maintenance' => 'Mark Unit for Maintenance',
@@ -126,8 +126,8 @@ class ReturnReasonHandler
 
     public function getActionIcon(string $actionCode): string
     {
-        return match($actionCode) {
-            'view_zone_coverage' => '📍',
+        return match ($actionCode) {
+            'view_zone_coverage' => '',
             'reassign_correct_unit', 'reassign_urgently', 'reassign' => '🔄',
             'mark_unit_maintenance' => '🔧',
             'assign_different_unit' => '🚛',

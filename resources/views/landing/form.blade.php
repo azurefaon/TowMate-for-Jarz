@@ -726,10 +726,17 @@
             applyBookingActionLabels();
             serviceTypeInput?.addEventListener('change', toggleScheduleFields);
 
-            submitBookingBtn?.addEventListener('click', function() {
+            submitBookingBtn?.addEventListener('click', async function() {
                 if (!validateBookingForm()) {
                     return;
                 }
+
+                // If no units available, show schedule-or-cancel modal before proceeding
+                if (typeof window.checkBookNowAvailability === 'function') {
+                    const canProceed = await window.checkBookNowAvailability();
+                    if (!canProceed) return;
+                }
+
                 showConfirmationSummary();
             });
 
