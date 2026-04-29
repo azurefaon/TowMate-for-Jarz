@@ -3,15 +3,18 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Booking;
 use App\Models\TruckType;
 use App\Models\Unit;
 use Illuminate\Http\Request;
 
 class TruckTypeController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        if ($request->wantsJson()) {
+            return response()->json(TruckType::orderBy('name')->get());
+        }
+
         $truckTypes = TruckType::withCount('units')
             ->withCount([
                 'bookings as active_bookings_count' => fn($query) => $query->whereIn('status', $this->busyBookingStatuses()),
@@ -42,7 +45,11 @@ class TruckTypeController extends Controller
 
         $validated['status'] = 'active';
 
-        TruckType::create($validated);
+        $type = TruckType::create($validated);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'truckType' => $type]);
+        }
 
         return redirect()->route('superadmin.truck-types.index')
             ->with('success', 'Tow truck type created successfully.');
@@ -60,13 +67,20 @@ class TruckTypeController extends Controller
 
         $truckType->update($validated);
 
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
         return redirect()->route('superadmin.truck-types.index')
             ->with('success', 'Tow truck type updated successfully.');
     }
 
-    public function toggleStatus(TruckType $truckType)
+    public function toggleStatus(Request $request, TruckType $truckType)
     {
         if ($truckType->status === 'active' && $this->truckTypeIsBusy($truckType)) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'This truck type is busy and cannot be disabled while assigned or booked.'], 422);
+            }
             return back()->with('error', 'This tow truck type is busy and cannot be set inactive while it is assigned or booked.');
         }
 
@@ -74,27 +88,41 @@ class TruckTypeController extends Controller
             'status' => $truckType->status === 'active' ? 'inactive' : 'active',
         ]);
 
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'status' => $truckType->status]);
+        }
+
         return back()->with('success', 'Tow truck type status updated successfully.');
     }
 
-    public function destroy(TruckType $truckType)
+    public function destroy(Request $request, TruckType $truckType)
     {
-        // Check if truck type has units
         if ($truckType->units()->exists()) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Cannot delete truck type with existing units assigned.'], 422);
+            }
             return back()->with('error', 'Cannot delete truck type with existing units assigned.');
         }
 
-        // Check if truck type has bookings
         if ($truckType->bookings()->exists()) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Cannot delete truck type with existing bookings.'], 422);
+            }
             return back()->with('error', 'Cannot delete truck type with existing bookings.');
         }
 
-        // Check if truck type has vehicle types linked
         if ($truckType->vehicleTypes()->exists()) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Cannot delete truck type that is linked to vehicle types.'], 422);
+            }
             return back()->with('error', 'Cannot delete truck type that is linked to vehicle types.');
         }
 
         $truckType->delete();
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
 
         return back()->with('success', 'Truck type deleted successfully.');
     }

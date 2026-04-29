@@ -8,7 +8,11 @@
 
 .track-header h2 {
     font-size: 22px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .header-row {
@@ -22,7 +26,11 @@
     padding: 6px 14px;
     border-radius: 999px;
     font-size: 12px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .status-badge.requested {
@@ -74,7 +82,11 @@
 .card-id h4 {
     margin: 0;
     font-size: 15px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .card-id span {
@@ -90,7 +102,11 @@
 .route-text p {
     margin: 0;
     font-size: 14px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .route-text small {
@@ -112,7 +128,11 @@
 
 .price-block strong {
     font-size: 15px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .btn-view {
@@ -121,7 +141,11 @@
     background: linear-gradient(135deg, #22ce61, #15803d);
     color: #fff;
     font-size: 14px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-decoration: none;
     transition: all 0.25s ease;
 }
@@ -194,12 +218,20 @@
 .eta-main h1 {
     margin: 6px 0 2px;
     font-size: 36px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .eta-main small {
     font-size: 14px;
-    font-weight: 400;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .eta-main p {
@@ -227,7 +259,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #15803d;
 }
 
@@ -291,7 +327,11 @@
     padding: 12px;
     border-radius: 12px;
     font-size: 14px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     cursor: pointer;
 }
 
@@ -312,7 +352,11 @@
     color: #fff;
     padding: 12px 20px;
     border-radius: 12px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-decoration: none;
 }
 
@@ -422,7 +466,11 @@
     align-items: center;
     gap: 6px;
     font-size: 14px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-decoration: none;
     color: #0f172a;
     background: rgba(255, 255, 255, 0.85);
@@ -498,7 +546,11 @@
 .info-text p {
     margin: 2px 0 0;
     font-size: 14px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #0f172a;
     line-height: 1.4;
 }

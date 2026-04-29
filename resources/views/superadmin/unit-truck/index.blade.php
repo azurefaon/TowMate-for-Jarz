@@ -16,7 +16,7 @@
 
             <div class="header-actions">
                 <a href="{{ route('superadmin.truck-types.index') }}" class="btn-secondary">
-                    <i data-lucide="truck"></i>
+                    {{-- <i data-lucide="truck"></i> --}}
                     <span>Manage Tow Truck Types</span>
                 </a>
             </div>
@@ -57,7 +57,7 @@
 
                 <div class="table-controls">
                     <label class="search-box">
-                        <i data-lucide="search"></i>
+                        {{-- <i data-lucide="search"></i> --}}
                         <input type="text" id="unitSearch" placeholder="Search by unit, plate, or leader...">
                     </label>
 
@@ -151,7 +151,7 @@
                             <tr>
                                 <td colspan="6">
                                     <div class="empty-state">
-                                        <i data-lucide="truck"></i>
+                                        {{-- <i data-lucide="truck"></i> --}}
                                         <h3>No towing units yet</h3>
                                         <p>Add the first tow unit to start organizing dispatch availability.</p>
                                     </div>

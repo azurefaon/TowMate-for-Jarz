@@ -178,7 +178,7 @@
         <div class="logout-box" role="dialog" aria-modal="true" aria-labelledby="logoutTitle">
             <div class="logout-icon-wrap">
                 <span class="logout-icon-badge">
-                    <i data-lucide="log-out"></i>
+                    {{-- <i data-lucide="log-out"></i> --}}
                 </span>
                 <button type="button" class="logout-close" onclick="closeLogoutModal()"
                     aria-label="Close logout dialog">×</button>

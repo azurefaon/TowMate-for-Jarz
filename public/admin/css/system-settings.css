@@ -5,7 +5,11 @@
 
 .settings-header h1 {
     font-size: 28px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #111827;
 }
 
@@ -39,7 +43,11 @@
 .settings-tab.active {
     background: #ffffff;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .settings-card {
@@ -51,7 +59,11 @@
 
 .settings-card-header h3 {
     font-size: 18px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     margin-bottom: 4px;
 }
 
@@ -76,7 +88,11 @@
 .settings-field label {
     font-size: 13px;
     color: #374151;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .field-help {
@@ -145,7 +161,11 @@
 
 .settings-section h4 {
     font-size: 15px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     margin-bottom: 15px;
     color: #111827;
 }

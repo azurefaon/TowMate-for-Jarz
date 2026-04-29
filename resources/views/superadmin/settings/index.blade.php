@@ -296,14 +296,14 @@
                     <label>Maximum Team Leaders</label>
                     <input type="number" min="1" max="500" name="settings[max_team_leaders]"
                         value="{{ old('settings.max_team_leaders', $settings['max_team_leaders'] ?? ($teamLeaderLimit ?? 10)) }}">
-                    <p class="field-help">This value updates the Team Leader creation limit dynamically.</p>
+                    {{-- <p class="field-help">This value updates the Team Leader creation limit dynamically.</p> --}}
                 </div>
 
                 <div class="settings-field">
                     <label>Current Usage</label>
                     <input type="text" value="{{ $teamLeaderCount ?? 0 }} / {{ $teamLeaderLimit ?? 10 }} used"
                         disabled>
-                    <p class="field-help">Archive a Team Leader or raise the limit if you need more slots.</p>
+                    {{-- <p class="field-help">Archive a Team Leader or raise the limit if you need more slots.</p> --}}
                 </div>
             </div>
         </div>

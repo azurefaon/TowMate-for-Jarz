@@ -17,7 +17,11 @@
 
 .page-top h1 {
     font-size: 28px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #111827;
     margin: 0;
 }
@@ -52,7 +56,11 @@
     align-items: center;
     justify-content: center;
     font-size: 24px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .summary-icon.available {
@@ -62,7 +70,11 @@
 
 .summary-left h3 {
     font-size: 32px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #111827;
     margin: 0 0 4px 0;
 }
@@ -92,7 +104,11 @@
 .table-header h3 {
     margin: 0;
     font-size: 20px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #111827;
 }
 
@@ -134,8 +150,8 @@
 }
 
 .modern-table th {
-    background: #f9fafb;
-    font-weight: 600;
+    background: #ffffff;
+    font-family: sans-serif;
     color: #374151;
     padding: 16px 24px;
     font-size: 13px;
@@ -161,13 +177,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     font-size: 14px;
     margin-right: 12px;
 }
 
 .unit-name {
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #111827;
 }
 
@@ -175,7 +199,11 @@
     padding: 4px 12px;
     border-radius: 20px;
     font-size: 12px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .badge.plate {
@@ -192,7 +220,11 @@
     padding: 6px 12px;
     border-radius: 20px;
     font-size: 12px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }

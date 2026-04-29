@@ -19,36 +19,32 @@
 .dashboard-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    /* align-items: flex-start; */
     gap: 16px;
     flex-wrap: wrap;
-    background: linear-gradient(135deg, #fffdf2 0%, #ffffff 72%);
+    background: white;
     color: var(--dark);
     padding: 1.75rem 2rem;
     margin: 0 0 1.5rem;
-    border-radius: var(--radius);
-    position: relative;
-    overflow: hidden;
     z-index: 1;
-    border: 1px solid #e5e7eb;
-    box-shadow: var(--shadow);
+    /* box-shadow: var(--shadow); */
 }
 
 .dashboard-header::before {
-    content: "";
-    position: absolute;
-    top: -80px;
-    right: -40px;
     width: 220px;
     height: 220px;
-    border-radius: 50%;
+    /* border-radius: 50%; */
     background: rgba(250, 204, 21, 0.18);
     pointer-events: none;
 }
 
 .dashboard-header h1 {
     font-size: 2.3rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     margin: 0 0 0.5rem 0;
     position: relative;
     z-index: 1;
@@ -61,6 +57,7 @@
     position: relative;
     z-index: 1;
     color: var(--gray);
+    /* padding: 1.75rem 2rem; */
 }
 
 .dashboard-meta {
@@ -72,12 +69,12 @@
 
 .date-box {
     background: #ffffff;
-    padding: 0.75rem 1rem;
+    padding: 5px;
     border-radius: 14px;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-weight: 600;
+    gap: 1px;
+    font-family: sans-serif;
     border: 1px solid #e5e7eb;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
 }
@@ -100,7 +97,6 @@
 .stat-card {
     background: white;
     padding: 1.5rem;
-    border-radius: var(--radius);
     box-shadow: var(--shadow);
     border: 1px solid #e5e7eb;
     transition:
@@ -158,12 +154,20 @@
     color: var(--gray);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .stat-card h2 {
     font-size: 2.2rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     margin: 0.5rem 0 0 0;
     color: var(--dark);
 }
@@ -179,7 +183,7 @@
 .metric-card {
     background: white;
     padding: 1.5rem;
-    border-radius: var(--radius);
+    /* border-radius: var(--radius); */
     box-shadow: var(--shadow);
     border: 1px solid #e5e7eb;
     position: relative;
@@ -200,7 +204,7 @@
     top: 0;
     left: 0;
     right: 0;
-    height: 4px;
+    /* height: 4px; */
     background: linear-gradient(
         135deg,
         var(--primary) 0%,
@@ -226,38 +230,23 @@
 
 .metric-header span {
     font-size: 0.875rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: var(--gray);
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
 
-.metric-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 1.25rem;
-}
-
-.metric-bookings .metric-icon {
-    background: linear-gradient(135deg, #facc15, #f59e0b);
-    color: #111827;
-}
-.metric-completed .metric-icon {
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-}
-.metric-pending .metric-icon {
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
-    color: #111111;
-}
-
 .metric-value {
     font-size: 3rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     margin: 0 0 0.5rem 0;
     line-height: 1;
 }
@@ -299,7 +288,11 @@
 .chart-section h2 {
     margin: 0 0 1.25rem 0;
     font-size: 1.3rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: var(--dark);
 }
 
@@ -326,14 +319,22 @@
 .activity-header h2 {
     margin: 0;
     font-size: 1.5rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: var(--dark);
 }
 
 .activity-header a {
     color: var(--dark);
     text-decoration: none;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     font-size: 0.95rem;
 }
 
@@ -383,7 +384,11 @@
 
 .activity-text strong {
     display: block;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: var(--dark);
     margin-bottom: 0.25rem;
 }

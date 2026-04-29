@@ -269,16 +269,26 @@ Route::prefix('superadmin')
         // Route::get('/superadmin/users/{id}/edit', [UserController::class, 'edit'])
         //     ->name('superadmin.users.edit');
 
+
+        // RouteL::put('/users/{id}', [UserManagementController::class, 'update'])->name('users.update');
+
         // Route::put('/superadmin/users/{id}', [UserController::class, 'update'])
         //     ->name('superadmin.users.update');
 
         Route::patch('users/{id}/toggle', [UserManagementController::class, 'toggleStatus'])->name('users.toggle');
 
-        // Route::resource('truck-types', TruckTypeController::class);
+        Route::resource('truck-types', TruckTypeController::class);
         Route::patch('truck-types/{truckType}/toggle', [TruckTypeController::class, 'toggleStatus'])->name('truck-types.toggle');
-        // Route::delete('truck-types/{truckType}', [TruckTypeController::class, 'destroy'])->name('truck-types.destroy');
+        Route::delete('truck-types/{truckType}', [TruckTypeController::class, 'destroy'])->name('truck-types.destroy');
         Route::get('/truck-type-config/{name}',  [TruckTypeController::class, 'getConfig'])->name('truck-type-config.get');
         Route::post('/truck-type-config/{name}', [TruckTypeController::class, 'saveConfig'])->name('truck-type-config.save');
+
+        // Explicit JSON endpoints for manage-truck-types modal (resource route names are unreliable)
+        Route::get('truck-types-data',              [TruckTypeController::class, 'index'])->name('truck-types.data');
+        Route::post('truck-types-data',             [TruckTypeController::class, 'store'])->name('truck-types.data.store');
+        Route::put('truck-types-data/{truckType}',  [TruckTypeController::class, 'update'])->name('truck-types.data.update');
+        Route::patch('truck-types-data/{truckType}/toggle', [TruckTypeController::class, 'toggleStatus'])->name('truck-types.data.toggle');
+        Route::delete('truck-types-data/{truckType}',       [TruckTypeController::class, 'destroy'])->name('truck-types.data.destroy');
 
         // Vehicle Types Management
         Route::get('/vehicle-types', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'index'])->name('vehicle-types.index');
@@ -353,12 +363,12 @@ Route::middleware(['auth', 'role:5'])
         })->name('help');
     });
 
-Route::get('/create-admin', function () {
-    User::create([
-        'name' => 'Super Admin',
-        'email' => 'admin@gmail.com',
-        'password' => Hash::make('admin123'),
-    ]);
+// Route::get('/create-admin', function () {
+//     User::create([
+//         'name' => 'Super Admin',
+//         'email' => 'superadmin@gmail.com',
+//         'password' => Hash::make('admin123456'),
+//     ]);
 
-    return 'Admin created';
-});
+//     return 'Admin created';
+// });

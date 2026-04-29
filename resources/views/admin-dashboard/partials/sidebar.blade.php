@@ -6,7 +6,7 @@
 <aside class="sidebar">
     <div class="sidebar-shell">
         <div class="sidebar-brand">
-            <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Logo">
+            {{-- <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Logo"> --}}
             <div class="brand-copy">
                 <span>Jarz Dispatch</span>
             </div>

@@ -290,17 +290,6 @@
     margin-bottom: 12px;
 }
 
-.logout-icon-badge {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #fff7d6;
-    color: #7c5a00;
-}
-
 .logout-close {
     width: 34px;
     height: 34px;

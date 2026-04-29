@@ -95,7 +95,11 @@
 /* TEXT */
 .fab-item span {
     font-size: 13px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 /* ICON */

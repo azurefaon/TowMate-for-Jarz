@@ -14,7 +14,7 @@
 
         .booking-period-tab {
             padding: 10px 14px;
-            border-radius: 999px;
+            /* border-radius: 999px; */
             border: 1px solid #d1d5db;
             text-decoration: none;
             color: #1f2937;
@@ -39,9 +39,9 @@
         }
 
         .booking-period-tab.active {
-            background: #111827;
-            border-color: #111827;
-            color: #fff;
+            background: #facc15;
+            /* border-color: #111827; */
+            color: #000000;
         }
 
         .empty-row {
@@ -51,7 +51,7 @@
         }
 
         .booking-table-card.is-loading {
-            opacity: 0.65;
+            /* opacity: 0.65; */
             pointer-events: none;
             transition: opacity 0.2s ease;
         }
@@ -68,9 +68,9 @@
 
         .booking-table-shell {
             overflow-x: auto;
-            border: 1px solid #eef2f7;
+            /* border: 1px solid #eef2f7; */
             border-radius: 16px;
-            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            background: rgb(255, 255, 255);
         }
 
         .booking-table td .cell-main {
@@ -155,7 +155,7 @@
 
             <div class="summary-card blue-card">
                 <div class="summary-icon blue">
-                    <i data-lucide="clipboard"></i>
+                    {{-- <i data-lucide="clipboard"></i> --}}
                 </div>
                 <div class="summary-number">{{ $stats['total'] }}</div>
                 <div class="summary-title">Total Bookings</div>
@@ -163,7 +163,7 @@
 
             <div class="summary-card yellow-card">
                 <div class="summary-icon yellow">
-                    <i data-lucide="clock"></i>
+                    {{-- <i data-lucide="clock"></i> --}}
                 </div>
                 <div class="summary-number">{{ $stats['requested'] }}</div>
                 <div class="summary-title">Requests</div>
@@ -171,7 +171,7 @@
 
             <div class="summary-card orange-card">
                 <div class="summary-icon orange">
-                    <i data-lucide="truck"></i>
+                    {{-- <i data-lucide="truck"></i> --}}
                 </div>
                 <div class="summary-number">{{ $stats['active'] }}</div>
                 <div class="summary-title">Active</div>
@@ -179,7 +179,7 @@
 
             <div class="summary-card green-card">
                 <div class="summary-icon green">
-                    <i data-lucide="check-circle"></i>
+                    {{-- <i data-lucide="check-circle"></i> --}}
                 </div>
                 <div class="summary-number">{{ $stats['completed'] }}</div>
                 <div class="summary-title">Completed</div>

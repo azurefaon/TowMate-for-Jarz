@@ -19,7 +19,7 @@
     <div class="login-wrapper">
         <section class="login-left">
             <div class="brand-lockup">
-                <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Towing Services logo" class="brand-logo">
+                {{-- <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Towing Services logo" class="brand-logo"> --}}
                 <div class="brand-wordmark">Jarz <span>Towing Services</span></div>
             </div>
             {{-- 
@@ -41,14 +41,6 @@
             </div>
 
             <div class="brand-note-card">
-                <div class="note-icon">
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path
-                            d="M12 2a5 5 0 00-5 5v3H6a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2v-6a2 2 0 00-2-2h-1V7a5 5 0 00-5-5z"
-                            stroke="currentColor" stroke-width="1.8" />
-                        <path d="M9 10V7a3 3 0 116 0v3" stroke="currentColor" stroke-width="1.8" />
-                    </svg>
-                </div>
                 <div>
                     <strong>Access restricted to authorized TowMate staff.</strong>
                     <p>Access is determined by your assigned role after login.</p>

@@ -158,7 +158,11 @@ h4,
 h5,
 h6 {
     font-size: inherit;
-    font-weight: inherit;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 a {
     color: inherit;
@@ -166,7 +170,11 @@ a {
 }
 b,
 strong {
-    font-weight: bolder;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 code,
 kbd,
@@ -215,7 +223,11 @@ textarea {
     font-feature-settings: inherit;
     font-variation-settings: inherit;
     font-size: 100%;
-    font-weight: inherit;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     line-height: inherit;
     letter-spacing: inherit;
     color: inherit;
@@ -1772,16 +1784,32 @@ input:where([type="file"]):focus {
     line-height: 1;
 }
 .font-bold {
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 .font-light {
-    font-weight: 300;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 .font-medium {
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 .font-semibold {
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 .uppercase {
     text-transform: uppercase;

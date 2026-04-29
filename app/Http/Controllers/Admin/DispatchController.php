@@ -65,7 +65,7 @@ class DispatchController extends Controller
 
         $queueBase = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'returnedByTeamLeader'])
             ->where(function ($query) {
-                // Only confirmed/accepted/assigned bookings OR returned tasks
+
                 $query->whereIn('status', ['confirmed', 'accepted', 'assigned'])
                     ->orWhere(function ($returnedQuery) {
                         $returnedQuery->whereIn('status', ['confirmed', 'accepted', 'assigned'])
@@ -126,7 +126,6 @@ class DispatchController extends Controller
             ->values();
 
         $incomingRequests = $incomingRequests->map(function (Booking $booking) {
-            // 🔥 FORCE CLEAN FOR NEW BOOKINGS FROM QUOTATION
             if ($booking->status === 'confirmed' && $booking->quotation_id) {
                 $booking->needs_reassignment = false;
             }
@@ -211,17 +210,17 @@ class DispatchController extends Controller
             })
             ->values();
 
-        // Fetch all zones for zone assignment in quotation modal
+
         $zones = \App\Models\Zone::orderBy('name')->get();
 
-        // Fetch all team leaders for Add Zone modal
+
         $teamLeaders = \App\Models\User::where('role_id', function ($query) {
             $query->select('id')->from('roles')->where('name', 'team leader');
         })->orderBy('name')->get();
 
         $returnReasonHandler = $this->returnReasonHandler;
 
-        // Fetch all quotations with urgency levels (NEW QUOTATION MODEL)
+
         $allQuotations = Quotation::with(['customer', 'truckType'])
             ->whereIn('status', ['pending', 'sent', 'negotiating'])
             ->orderByRaw("CASE WHEN status = 'pending' THEN 0 WHEN status = 'negotiating' THEN 1 ELSE 2 END")
@@ -234,7 +233,7 @@ class DispatchController extends Controller
                 return $quotation;
             });
 
-        // Quotation statistics
+
         $quotationStats = [
             'total' => Quotation::count(),
             'active' => Quotation::whereIn('status', ['pending', 'sent'])->count(),
@@ -555,8 +554,8 @@ class DispatchController extends Controller
                 ]);
             }
 
-            // "Start Job" path: confirmed bookings (customer already accepted quotation)
-            // Skip quotation flow — assign unit and send directly to Team Leader queue
+
+
             if ($booking->status === 'confirmed') {
                 $booking->update($this->bookingService->filterPayloadForTable('bookings', [
                     'status' => 'assigned',
@@ -587,7 +586,7 @@ class DispatchController extends Controller
                 (string) ($validated['additional_fee'] ?? null),
                 (string) ($validated['price'] ?? null),
                 $distanceKm,
-                0, // no discount
+                0,
                 $unitBaseRate,
             );
 
@@ -644,9 +643,9 @@ class DispatchController extends Controller
 
             $booking->refresh()->loadMissing(['customer', 'truckType']);
 
-            // if (filled($booking->customer?->email)) {
-            //     Mail::to($booking->customer->email)->send(new BookingAcceptedMail($booking));
-            // }
+
+
+
 
             event(new BookingStatusUpdated($booking));
 
@@ -669,7 +668,7 @@ class DispatchController extends Controller
             $rejectionReason = 'Your request could not be accommodated at this time. Please contact dispatch for assistance.';
         }
 
-        // For returned bookings, clear return-related fields and release the unit
+
         $updatePayload = [
             'status' => 'cancelled',
             'quotation_status' => 'cancelled',
@@ -692,7 +691,7 @@ class DispatchController extends Controller
         $booking->refresh()->loadMissing(['customer', 'truckType']);
         $this->syncCustomerRiskFlag($booking->customer, $rejectionReason);
 
-        // Auto-mark customer as watchlist if they were unreachable
+
         if ($isReturnedTask && str_contains(strtolower($booking->return_reason ?? ''), 'unreachable')) {
             if ($booking->customer && !$booking->customer->risk_level) {
                 $booking->customer->update([
@@ -810,7 +809,7 @@ class DispatchController extends Controller
         $finalTotal    = (float) ($quotation->estimated_price ?? 0);
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
         $discount      = (float) ($quotation->discount ?? 0);
-        $basePrice     = 0.0; // base rate excluded until unit is assigned
+        $basePrice     = 0.0;
         $perKmRate     = 0.0;
         $kmIncrements  = (int) floor($distanceKm / 4);
         $distanceFee   = round($kmIncrements * 200.0, 2);
@@ -879,7 +878,7 @@ class DispatchController extends Controller
         $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
         $unitBaseRate = (float) ($selectedUnit?->truckType?->base_rate ?? 0);
 
-        // Recompute estimated_price to include unit base rate + km charge
+
         $distanceKm   = (float) ($quotation->distance_km ?? 0);
         $kmIncrements = (int) floor($distanceKm / 4);
         $kmCharge     = round($kmIncrements * 200.0, 2);
@@ -972,7 +971,7 @@ class DispatchController extends Controller
 
         $quotation->increment('link_version');
 
-        // Send updated quotation email to customer
+
         if ($quotation->customer && $quotation->customer->email) {
             try {
                 Mail::to($quotation->customer->email)

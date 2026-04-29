@@ -38,7 +38,11 @@
     background: #fff7d6;
     color: #7c5a00;
     font-size: 0.8rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .units-hero-actions {
@@ -58,7 +62,11 @@
     background: #fff7d6;
     color: #7c5a00;
     text-decoration: none;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .units-link-btn.secondary {
@@ -84,7 +92,11 @@
 .units-stat-card span {
     display: block;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #64748b;
@@ -178,10 +190,10 @@
 
 .modern-table th {
     padding: 14px 18px;
-    background: #f8fafc;
+    background: #ffffff;
     color: #475569;
     font-size: 0.76rem;
-    font-weight: 800;
+    font-family: sans-serif;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     text-align: left;
@@ -194,7 +206,7 @@
 }
 
 .modern-table tbody tr:hover {
-    background: #f8fbff;
+    background: #ffffff;
 }
 
 .unit-cell {
@@ -212,7 +224,7 @@
     justify-content: center;
     background: #fff7d6;
     color: #7c5a00;
-    font-weight: 800;
+    font-family: sans-serif;
     letter-spacing: 0.04em;
 }
 
@@ -234,7 +246,11 @@
     padding: 5px 10px;
     border-radius: 999px;
     font-size: 0.76rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .badge.plate {
@@ -249,7 +265,11 @@
 
 .table-main-text {
     color: #0f172a;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .status-badge {
@@ -258,7 +278,11 @@
     padding: 5px 10px;
     border-radius: 999px;
     font-size: 0.76rem;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
@@ -337,7 +361,11 @@
 
 .availability-switch-text {
     font-size: 0.78rem;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #475569;
     letter-spacing: 0.03em;
     text-transform: uppercase;
@@ -455,7 +483,11 @@
     align-items: center;
     justify-content: center;
     font-size: 0.68rem;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.03em;
     color: #fff;
 }
@@ -480,7 +512,11 @@
 
 .unit-type-label {
     font-size: 0.68rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.06em;
     color: #64748b;
     text-transform: uppercase;
@@ -499,7 +535,11 @@
     padding: 4px 10px;
     border-radius: 999px;
     font-size: 0.72rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
@@ -534,7 +574,11 @@
 
 .person-label {
     font-size: 0.68rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #94a3b8;
@@ -542,7 +586,11 @@
 
 .person-name {
     font-size: 0.88rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #1e293b;
 }
 
@@ -646,7 +694,11 @@
 
 .ud-meta-label {
     font-size: 0.68rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #94a3b8;
@@ -654,7 +706,11 @@
 
 .ud-meta-value {
     font-size: 0.9rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #0f172a;
 }
 
@@ -665,7 +721,11 @@
     padding: 4px 10px;
     border-radius: 999px;
     font-size: 0.8rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     width: fit-content;
 }
 
@@ -685,7 +745,11 @@
 .ud-section h4 {
     margin: 0 0 10px;
     font-size: 0.875rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #0f172a;
     display: flex;
     align-items: center;
@@ -755,7 +819,11 @@
     align-items: center;
     gap: 8px;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #92400e;
@@ -773,7 +841,11 @@
     background: #fee2e2;
     color: #991b1b;
     font-size: 0.68rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }

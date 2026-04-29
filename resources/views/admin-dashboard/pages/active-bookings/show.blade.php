@@ -360,7 +360,7 @@
             <h3 style="margin: 0 0 16px 0; color: #0f172a;">Actions</h3>
             <div class="action-buttons">
                 <a href="{{ route('admin.active-bookings.index') }}" class="btn btn-secondary">← Back to List</a>
-                <button type="button" class="btn btn-primary" onclick="openEditModal()">✏️ Edit Booking</button>
+                <button type="button" class="btn btn-primary" onclick="openEditModal()">Edit Booking</button>
             </div>
         </div>
     </div>

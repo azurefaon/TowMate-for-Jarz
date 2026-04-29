@@ -4,7 +4,11 @@
 
 .history-header h2 {
     font-size: 28px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .history-header p {
@@ -45,13 +49,21 @@
 
 .stat-top span {
     font-size: 12px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #64748b;
 }
 
 .stat-box strong {
     font-size: 26px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .stat-box small {
@@ -171,7 +183,11 @@
 
 .history-left h4 {
     font-size: 15px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .history-left p {
@@ -225,7 +241,11 @@
     padding: 5px 12px;
     border-radius: 999px;
     font-size: 11px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .status.completed {
@@ -364,7 +384,11 @@
 .pagination-container .active span {
     background: #22ce61;
     color: white;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .pagination-container .disabled span {
@@ -424,7 +448,11 @@
 .pagination-links .active span {
     background: #22ce61;
     color: white;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .pagination-links .disabled span {
@@ -563,7 +591,11 @@
     .card-route p {
         margin: 0;
         font-size: 13px;
-        font-weight: 500;
+        font-style:
+            poppins,
+            -apple-system,
+            BlinkMacSystemFont,
+            sans-serif;
     }
 
     .card-route small {
@@ -624,7 +656,11 @@
 .route-text p {
     margin: 0;
     font-size: 13px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .route-text small {
@@ -683,7 +719,11 @@
     border-radius: 10px;
     text-decoration: none;
     font-size: 14px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #064e3b;
     background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(10px);
@@ -736,7 +776,11 @@
     border: none;
     cursor: pointer;
     font-size: 12px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     transition: 0.25s ease;
 }
 
@@ -770,7 +814,11 @@
     margin-top: 6px;
     padding: 4px 10px;
     font-size: 11px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     border-radius: 999px;
     text-transform: capitalize;
     letter-spacing: 0.3px;
@@ -881,7 +929,11 @@
 
 .modal-header h2 {
     font-size: 18px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #064e3b;
 }
 
@@ -935,7 +987,11 @@
 
 .modal-row strong {
     color: #064e3b;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .total-section {
@@ -955,7 +1011,11 @@
 
 .modal-total h1 {
     font-size: 26px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .modal-footer {
@@ -970,7 +1030,11 @@
     border: none;
     border-radius: 12px;
     padding: 12px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     cursor: pointer;
 }
 
@@ -980,7 +1044,11 @@
     border-radius: 12px;
     padding: 12px;
     color: white;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     cursor: pointer;
     box-shadow: 0 6px 20px rgba(34, 206, 97, 0.4);
 }
@@ -1004,7 +1072,11 @@
     background: #fee2e2;
     color: #dc2626;
     border: 1px solid #fecaca;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .cancel-btn.danger:hover {
@@ -1016,7 +1088,11 @@
     background: rgba(59, 130, 246, 0.15);
     color: #2563eb;
     border: 1px solid #bfdbfe;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.5px;
 }
 

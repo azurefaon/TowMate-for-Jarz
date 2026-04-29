@@ -69,7 +69,7 @@
             display: inline-flex;
             gap: 8px;
             padding: 6px;
-            border-radius: 14px;
+            /* border-radius: 14px; */
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             margin: 14px 0 0;
@@ -81,7 +81,7 @@
             align-items: center;
             gap: 8px;
             padding: 9px 12px;
-            border-radius: 10px;
+            /* border-radius: 10px; */
             text-decoration: none;
             font-weight: 700;
             color: #475569;
@@ -105,7 +105,7 @@
 
             <div class="page-actions">
                 <a href="{{ route('superadmin.users.index') }}" class="btn-secondary-link">
-                    <i data-lucide="arrow-left"></i>
+                    {{-- <i data-lucide="arrow-left"></i> --}}
                     Back to Active Users
                 </a>
             </div>
@@ -113,11 +113,11 @@
 
         <div class="user-view-switch">
             <a href="{{ route('superadmin.users.index') }}" class="user-view-link">
-                <i data-lucide="users"></i>
+                {{-- <i data-lucide="users"></i> --}}
                 Active Users
             </a>
             <a href="{{ route('superadmin.users.archived') }}" class="user-view-link active">
-                <i data-lucide="archive"></i>
+                {{-- <i data-lucide="archive"></i> --}}
                 Archived Users
             </a>
         </div>
@@ -217,7 +217,7 @@
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" class="action-btn restore-btn">
-                                                <i data-lucide="rotate-ccw"></i>
+                                                {{-- <i data-lucide="rotate-ccw"></i> --}}
                                                 Restore
                                             </button>
                                         </form>
@@ -232,7 +232,7 @@
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="action-btn archive-btn">
-                                                    <i data-lucide="trash-2"></i>
+                                                    {{-- <i data-lucide="trash-2"></i> --}}
                                                     Delete Permanently
                                                 </button>
                                             </form>

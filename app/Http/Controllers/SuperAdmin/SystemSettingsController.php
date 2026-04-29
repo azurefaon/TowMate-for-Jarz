@@ -48,7 +48,7 @@ class SystemSettingsController extends Controller
             SystemSetting::setValue($key, $value);
         }
 
-        return back()->with('success', 'Settings saved successfully');
+        return back()->with('success');
     }
 
     public function updateLanding(Request $request)
@@ -106,6 +106,6 @@ class SystemSettingsController extends Controller
             }
         }
 
-        return back()->with('success', 'Landing page updated!');
+        return back()->with('success');
     }
 }

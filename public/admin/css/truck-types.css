@@ -11,7 +11,11 @@
 .truck-types-page .type-feedback {
     padding: 12px 14px;
     border-radius: 14px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .truck-types-page .type-feedback--success {
@@ -71,7 +75,11 @@
     padding: 9px 14px;
     border-radius: 12px;
     border: 1px solid transparent;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-decoration: none;
     cursor: pointer;
     transition:
@@ -142,7 +150,11 @@
 .truck-types-page .overview-card span {
     display: block;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #8a6c00;
@@ -290,14 +302,14 @@
 }
 
 .truck-types-page .modern-table thead {
-    background: #fffdf3;
+    background: #ffffff;
 }
 
 .truck-types-page .modern-table th {
     padding: 14px 16px;
     color: #111827;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-family: sans-serif;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     text-align: left;
@@ -346,14 +358,22 @@
 
 .truck-types-page .price-line small {
     margin: 0;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #6b7280;
 }
 
 .truck-types-page .price-stack strong,
 .truck-types-page .price-stack span {
     color: #111111;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-align: right;
 }
 
@@ -365,7 +385,11 @@
     padding: 6px 10px;
     border-radius: 999px;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .truck-types-page .count-pill {
@@ -422,7 +446,11 @@
     border: 1px solid #e7d98a;
     background: #fffdf3;
     color: #7c5f00;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-decoration: none;
     transition: all 0.15s ease;
 }
@@ -559,7 +587,11 @@
 
 .truck-types-page .form-group label {
     font-size: 0.86rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #374151;
 }
 
@@ -651,7 +683,11 @@
     .truck-types-page .modern-table td::before {
         content: attr(data-label);
         font-size: 0.74rem;
-        font-weight: 800;
+        font-style:
+            poppins,
+            -apple-system,
+            BlinkMacSystemFont,
+            sans-serif;
         color: #6b7280;
         text-transform: uppercase;
         letter-spacing: 0.05em;

@@ -1,7 +1,3 @@
-/* ===============================
-   CREATE USER PAGE
-=============================== */
-
 .create-user-page .form-wrapper {
     display: flex;
     justify-content: center;
@@ -14,12 +10,10 @@
     max-width: 720px;
     background: #ffffff;
     padding: 36px 40px;
-    border-radius: 16px;
+    /* border-radius: 16px; */
     border: 1px solid #e5e7eb;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
 }
-
-/* HEADER */
 
 .create-user-page .form-header {
     margin-bottom: 28px;
@@ -29,7 +23,7 @@
 
 .create-user-page .form-header h2 {
     font-size: 20px;
-    font-weight: 700;
+    font-family: sans-serif;
     color: #111827;
     margin: 0 0 4px;
 }
@@ -39,8 +33,6 @@
     font-size: 14px;
     margin: 0;
 }
-
-/* FORM GROUPS */
 
 .create-user-page .form-group {
     margin-bottom: 18px;
@@ -53,24 +45,22 @@
     flex-wrap: wrap;
     margin-bottom: 6px;
     font-size: 13.5px;
-    font-weight: 600;
+    font-family: sans-serif;
     color: #374151;
 }
 
 .create-user-page .required-mark {
     color: #dc2626;
-    font-weight: 800;
+    font-family: sans-serif;
 }
 
 .create-user-page .field-optional {
     color: #9ca3af;
     font-size: 11.5px;
-    font-weight: 600;
     letter-spacing: 0.02em;
+    font-family: sans-serif;
     text-transform: uppercase;
 }
-
-/* TWO COLUMN */
 
 .create-user-page .form-row {
     display: flex;
@@ -81,15 +71,13 @@
     flex: 1;
 }
 
-/* INPUTS */
-
 .create-user-page input[type="text"],
 .create-user-page input[type="email"],
 .create-user-page input[type="password"],
 .create-user-page input[type="number"] {
     width: 100%;
     padding: 10px 14px;
-    border-radius: 10px;
+
     border: 1px solid #e5e7eb;
     background: #f9fafb;
     font-size: 14px;
@@ -114,12 +102,10 @@
     color: #9ca3af;
 }
 
-/* SELECT */
-
 .create-user-page select {
     width: 100%;
     padding: 10px 14px;
-    border-radius: 10px;
+    /* border-radius: 10px; */
     border: 1px solid #e5e7eb;
     background: #f9fafb;
     font-size: 14px;
@@ -133,8 +119,6 @@
     box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.15);
 }
 
-/* BUTTONS */
-
 .create-user-page .form-actions {
     display: flex;
     justify-content: flex-end;
@@ -146,13 +130,13 @@
 
 .create-user-page .btn-cancel {
     padding: 10px 20px;
-    border-radius: 10px;
+    /* border-radius: 10px; */
     border: 1px solid #e5e7eb;
     text-decoration: none;
     color: #374151;
     background: #fff;
     font-size: 14px;
-    font-weight: 600;
+    font-family: sans-serif;
     transition: background 0.15s;
 }
 
@@ -165,8 +149,8 @@
     color: #fff;
     border: none;
     padding: 10px 22px;
-    border-radius: 10px;
-    font-weight: 600;
+    /* border-radius: 10px; */
+    font-family: sans-serif;
     font-size: 14px;
     cursor: pointer;
     transition: opacity 0.15s;
@@ -176,12 +160,10 @@
     opacity: 0.88;
 }
 
-/* PASSWORD REQUIREMENTS */
-
 .create-user-page .password-requirements {
     margin: -4px 0 16px;
     padding: 14px 16px;
-    border-radius: 12px;
+    /* border-radius: 12px; */
     border: 1px solid #e5e7eb;
     background: #f9fafb;
 }
@@ -189,7 +171,7 @@
 .create-user-page .password-requirements p {
     margin: 0 0 8px;
     font-size: 13px;
-    font-weight: 700;
+    font-family: sans-serif;
     color: #374151;
 }
 
@@ -211,20 +193,18 @@
 
 .create-user-page .password-requirements .requirement-icon {
     width: 16px;
-    font-weight: 800;
+    font-family: sans-serif;
     color: #d1d5db;
 }
 
 .create-user-page .password-requirements li.met {
     color: #374151;
-    font-weight: 600;
+    font-family: sans-serif;
 }
 
 .create-user-page .password-requirements li.met .requirement-icon {
     color: #111827;
 }
-
-/* ERROR */
 
 .create-user-page .error-text {
     color: #dc2626;
@@ -232,8 +212,6 @@
     margin-top: 4px;
     display: block;
 }
-
-/* MOBILE */
 
 @media (max-width: 768px) {
     .create-user-page .form-card {
@@ -256,10 +234,9 @@
     }
 }
 
-/* ── Role section boxes ─────────────────────────────────────── */
 .create-user-page .role-section-box {
     margin: 0 0 20px;
-    border-radius: 12px;
+    /* border-radius: 12px; */
     border: 1px solid #e5e7eb;
     background: #fafafa;
     overflow: hidden;
@@ -271,8 +248,8 @@
     gap: 8px;
     padding: 12px 16px;
     background: #f3f4f6;
-    border-bottom: 1px solid #e5e7eb;
-    font-weight: 700;
+
+    font-family: sans-serif;
     font-size: 13px;
     color: #374151;
     letter-spacing: 0.02em;
@@ -289,7 +266,7 @@
 
 #sectionTeamLeaderDetails .role-section-header {
     border-bottom: none;
-    border-radius: 12px;
+    /* border-radius: 12px; */
 }
 
 @media (max-width: 768px) {
@@ -298,11 +275,10 @@
     }
 }
 
-/* ── Locked / read-only field ───────────────────────────── */
 .locked-field {
     background: #f9fafb;
     border: 1px solid #e5e7eb;
-    border-radius: 10px;
+    /* border-radius: 10px; */
     padding: 10px 14px;
     display: flex;
     align-items: center;
@@ -316,7 +292,7 @@
 
 .locked-field span:first-of-type {
     flex: 1;
-    font-weight: 500;
+    font-family: sans-serif;
 }
 
 .locked-badge {
@@ -324,10 +300,10 @@
     align-items: center;
     gap: 4px;
     font-size: 11px;
-    font-weight: 600;
+    font-family: sans-serif;
     color: #9ca3af;
     background: #f3f4f6;
-    border-radius: 999px;
+    /* border-radius: 999px; */
     padding: 3px 8px;
     border: 1px solid #e5e7eb;
 }
@@ -339,7 +315,6 @@
     margin-top: 5px;
 }
 
-/* ── Ajax error banner ───────────────────────────────────── */
 .ajax-error-banner {
     display: flex;
     align-items: center;
@@ -347,14 +322,13 @@
     padding: 12px 16px;
     background: #fef2f2;
     border: 1px solid #fecaca;
-    border-radius: 10px;
+    /* border-radius: 10px; */
     color: #dc2626;
     font-size: 13.5px;
-    font-weight: 500;
+    font-family: sans-serif;
     margin-bottom: 18px;
 }
 
-/* ── Team Leader Capacity card ──────────────────────────── */
 .teamleader-capacity-card {
     display: flex;
     justify-content: space-between;
@@ -362,7 +336,7 @@
     gap: 12px;
     padding: 14px 16px;
     margin: 0 0 18px;
-    border-radius: 12px;
+    /* border-radius: 12px; */
     background: #f9fafb;
     border: 1px solid #e5e7eb;
 }
@@ -386,10 +360,10 @@
     justify-content: center;
     min-width: 64px;
     padding: 7px 12px;
-    border-radius: 999px;
+    /* border-radius: 999px; */
     background: #111827;
     color: #fff;
-    font-weight: 700;
+    font-family: sans-serif;
     font-size: 14px;
     white-space: nowrap;
 }
@@ -402,7 +376,7 @@
 
 .teamleader-capacity-hint.limit-reached {
     color: #dc2626;
-    font-weight: 600;
+    font-family: sans-serif;
 }
 
 .btn-primary-submit.is-disabled {
@@ -410,7 +384,6 @@
     pointer-events: none;
 }
 
-/* ── Truck Type Card Selector ────────────────────────────── */
 .ttc-cards {
     display: flex;
     flex-direction: column;
@@ -424,7 +397,7 @@
     gap: 12px;
     padding: 12px 14px;
     border: 1.5px solid #e5e7eb;
-    border-radius: 10px;
+    /* border-radius: 10px; */
     background: #fff;
     cursor: pointer;
     user-select: none;
@@ -451,7 +424,7 @@
 .ttc-card-name {
     display: block;
     font-size: 14px;
-    font-weight: 700;
+    font-family: sans-serif;
     color: #111827;
     margin-bottom: 2px;
 }
@@ -467,7 +440,7 @@
 
 .ttc-card-label.is-configured {
     color: #374151;
-    font-weight: 500;
+    font-family: sans-serif;
 }
 
 .ttc-card.locked {
@@ -490,11 +463,11 @@
     padding: 4px 10px;
     border: 1px solid #e5e7eb;
     background: #fff;
-    border-radius: 7px;
+
     cursor: pointer;
     color: #6b7280;
     font-size: 12px;
-    font-weight: 600;
+    font-family: sans-serif;
     transition: background 0.12s;
 }
 
@@ -502,7 +475,6 @@
     background: #f3f4f6;
 }
 
-/* ── Truck Type Config Modal ─────────────────────────────── */
 .ttc-overlay {
     position: fixed;
     inset: 0;
@@ -520,7 +492,7 @@
 
 .ttc-modal {
     background: #fff;
-    border-radius: 16px;
+    /* border-radius: 16px; */
     width: 100%;
     max-width: 480px;
     border: 1px solid #e5e7eb;
@@ -537,7 +509,7 @@
     margin: 0 0 4px;
     font-size: 16px;
     color: #111827;
-    font-weight: 700;
+    font-family: sans-serif;
 }
 
 .ttc-modal-header p {
@@ -552,7 +524,7 @@
 
 .ttc-modal-body .form-group label {
     font-size: 13px;
-    font-weight: 600;
+    font-family: sans-serif;
     color: #374151;
     display: block;
     margin-bottom: 6px;
@@ -579,22 +551,20 @@
     margin-top: 8px;
     padding: 10px 12px;
     background: #fef2f2;
-    border-radius: 8px;
+    /* border-radius: 8px; */
 }
 
-/* ── Manage truck types link ────────────────────────────── */
 .manage-truck-types-link {
     display: inline-block;
     margin-top: 8px;
     font-size: 12.5px;
-    font-weight: 600;
     color: #374151;
     text-decoration: none;
     border: 1px solid #e5e7eb;
     padding: 5px 12px;
-    border-radius: 8px;
     background: #fff;
     transition: background 0.12s;
+    cursor: pointer;
 }
 
 .manage-truck-types-link:hover {

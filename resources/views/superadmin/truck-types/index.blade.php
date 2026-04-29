@@ -77,7 +77,7 @@
                         </select>
 
                         <button type="button" class="btn-primary-add" data-open-modal="addModal">
-                            <i data-lucide="plus-circle"></i>
+                            {{-- <i data-lucide="plus-circle"></i> --}}
                             <span>Add Tow Truck Type</span>
                         </button>
                     </div>
@@ -160,8 +160,7 @@
                                         @endif
 
                                         <button type="button" class="action-btn btn-danger js-delete-type"
-                                            data-id="{{ $type->id }}" 
-                                            data-name="{{ $type->name }}"
+                                            data-id="{{ $type->id }}" data-name="{{ $type->name }}"
                                             data-units="{{ $type->units_count ?? 0 }}"
                                             data-bookings="{{ $type->active_bookings_count ?? 0 }}">
                                             <i data-lucide="trash-2"></i>

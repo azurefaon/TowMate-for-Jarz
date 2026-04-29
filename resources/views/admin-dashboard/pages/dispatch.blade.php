@@ -213,7 +213,7 @@
             border: 1px solid #dbe2ea;
             background: #fff;
             color: #0f172a;
-            border-radius: 999px;
+            /* border-radius: 999px; */
             padding: 10px 14px;
             font-weight: 600;
             cursor: pointer;
@@ -820,6 +820,7 @@
             </div>
 
             <div class="queue-tabs" id="dispatchQueueTabs">
+
                 <button type="button" class="queue-filter-btn" data-filter="returned">
                     <span>Returned</span>
                     <span class="queue-tab-count {{ ($queueCounts['returned'] ?? 0) > 0 ? 'has-count' : '' }}"
@@ -827,6 +828,7 @@
                         {{ $queueCounts['returned'] ?? 0 }}
                     </span>
                 </button>
+
                 <button type="button" class="queue-filter-btn is-active" data-filter="active">
                     <span>Active Bookings</span>
                     <span class="queue-tab-count {{ ($queueCounts['active'] ?? 0) > 0 ? 'has-count' : '' }}"

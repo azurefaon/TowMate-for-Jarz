@@ -62,7 +62,11 @@
 .user-management-page .overview-card span {
     display: block;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #7c6d36;
@@ -83,8 +87,8 @@
 
 .user-management-page .table-card {
     background: #fff;
-    border-radius: 20px;
-    border: 1px solid rgba(250, 204, 21, 0.24);
+    /* border-radius: 20px; */
+    /* border: 1px solid rgba(250, 204, 21, 0.24); */
     overflow: hidden;
 }
 
@@ -94,8 +98,8 @@
     align-items: center;
     gap: 16px;
     padding: 16px 18px;
-    border-bottom: 1px solid #f3ead0;
-    background: linear-gradient(180deg, #fffefb 0%, #fff9e8 100%);
+    /* border-bottom: 1px solid #f3ead0; */
+    background: white;
 }
 
 .user-management-page .soft-header {
@@ -159,7 +163,11 @@
     border: 1px solid #1f1f1f;
     background: #111111;
     color: #facc15;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .user-management-page .pill-count {
@@ -170,7 +178,11 @@
     background: #facc15;
     color: #111111;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -179,7 +191,11 @@
 .user-management-page .table-count {
     color: #6b7280;
     font-size: 0.92rem;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .user-management-page .table-scroll {
@@ -200,7 +216,7 @@
 .user-management-page .modern-table th {
     color: #facc15;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-family: sans-serif;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     text-align: left;
@@ -208,14 +224,14 @@
 }
 
 .user-management-page .modern-table td {
-    padding: 16px;
-    border-bottom: 1px solid #f5efd8;
-    vertical-align: top;
+    padding: 14px;
+    /* border-bottom: 1px solid #f5efd8; */
+    /* vertical-align: top; */
     color: #1f2937;
 }
 
 .user-management-page .modern-table tbody tr:hover {
-    background: #fffdf4;
+    background: #ffffff;
 }
 
 .user-management-page .user-info {
@@ -238,7 +254,7 @@
 
 .user-management-page .user-name {
     display: block;
-    font-weight: 700;
+    font-family: sans-serif;
     color: #111111;
 }
 
@@ -249,7 +265,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
+    font-family: sans-serif;
     box-shadow: 0 8px 18px rgba(17, 17, 17, 0.12);
     flex-shrink: 0;
 }
@@ -267,12 +283,12 @@
     padding: 6px 10px;
     border-radius: 999px;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-family: sans-serif;
 }
 
 .user-management-page .role-badge {
-    background: #fff7d6;
-    color: #7c5f00;
+    /* background: #ffffff; */
+    color: #000000;
 }
 
 .user-management-page .status-stack {
@@ -283,18 +299,18 @@
 }
 
 .user-management-page .status-badge.active {
-    background: #dcfce7;
-    color: #166534;
+    /* background: #dcfce7; */
+    color: #000000;
 }
 
 .user-management-page .status-badge.inactive {
-    background: #fef3c7;
-    color: #92400e;
+    /* background: #fef3c7; */
+    color: #000000;
 }
 
 .user-management-page .status-badge.archived {
-    background: #e5e7eb;
-    color: #374151;
+    /* background: #e5e7eb; */
+    color: #000000;
 }
 
 .user-management-page .self-tag {
@@ -352,7 +368,11 @@
     padding: 8px 12px;
     border: 1px solid transparent;
     border-radius: 10px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     cursor: pointer;
     text-decoration: none;
 }
@@ -363,9 +383,8 @@
 }
 
 .user-management-page .archive-btn {
-    background: #fff7d6;
-    color: #8a6c00;
-    border-color: #f4df8d;
+    background: #ffffff;
+    color: #000000;
 }
 
 .user-management-page .restore-btn {
@@ -440,7 +459,11 @@
     background: linear-gradient(135deg, #facc15, #eab308);
     color: #111111;
     border-color: #facc15;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .user-management-page .pagination-wrapper .disabled span,
@@ -512,7 +535,11 @@
 
 .user-management-page .form-group label {
     font-size: 0.86rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #4b5563;
 }
 
@@ -548,7 +575,11 @@
     min-height: 40px;
     border-radius: 12px;
     padding: 8px 14px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     border: none;
     cursor: pointer;
 }
@@ -617,7 +648,7 @@
 
     .user-management-page .modern-table tbody tr {
         display: block;
-        border: 1px solid #f3ead0;
+        border: 1px solid #ffffff;
         border-radius: 16px;
         background: #fffefb;
         box-shadow: 0 10px 24px rgba(17, 17, 17, 0.04);
@@ -629,7 +660,7 @@
         gap: 10px;
         align-items: flex-start;
         padding: 10px 14px;
-        border-bottom: 1px solid #f6f1de;
+        border-bottom: 1px solid #000000;
         text-align: left;
     }
 
@@ -640,7 +671,7 @@
     .user-management-page .modern-table td::before {
         content: attr(data-label);
         font-size: 0.74rem;
-        font-weight: 800;
+        font-family: sans-serif;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: #6b7280;

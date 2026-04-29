@@ -46,7 +46,11 @@
     display: inline-flex;
     margin-bottom: 8px;
     font-size: 0.72rem;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--dash-primary);
@@ -83,7 +87,11 @@
     border: 0;
     color: #334155;
     font-size: 0.86rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .hero-tools {
@@ -101,7 +109,11 @@
     border: 0;
     color: #334155;
     font-size: 0.86rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .refresh-btn {
@@ -115,7 +127,11 @@
     background: #facc15;
     color: #111827;
     cursor: pointer;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .refresh-btn i {
@@ -127,37 +143,12 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 14px;
-}
-
-.stat-card {
-    padding: 18px;
-    border-radius: var(--dash-radius);
-    border: 0;
-    background: var(--dash-panel);
-    box-shadow: var(--dash-shadow);
-}
-
-.stat-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
-}
-
-.stat-top.icon-only {
-    justify-content: flex-end;
-    margin-bottom: 10px;
-}
-
-.stat-top i {
-    width: 18px;
-    height: 18px;
+    font-family: sans-serif;
 }
 
 .stat-kicker {
     font-size: 0.72rem;
-    font-weight: 800;
+    font-family: sans-serif;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--dash-muted);
@@ -165,7 +156,7 @@
 
 .stat-number {
     font-size: clamp(1.8rem, 3vw, 2.4rem);
-    font-weight: 800;
+    font-family: sans-serif;
     color: var(--dash-text);
     line-height: 1;
 }
@@ -174,13 +165,17 @@
     margin-top: 6px;
     color: var(--dash-muted);
     font-size: 0.92rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .stat-note {
     display: block;
     margin-top: 8px;
-    font-size: 0.78rem;
+    font-family: sans-serif;
     color: var(--dash-muted);
 }
 
@@ -344,7 +339,11 @@
     border-radius: 16px;
     text-decoration: none;
     color: #111827;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     min-height: 118px;
     border: 0;
     background: #ffffff;
@@ -378,7 +377,11 @@
 .action-btn small {
     color: #6b7280;
     font-size: 0.76rem;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     line-height: 1.4;
 }
 
@@ -407,7 +410,11 @@
     color: #475569;
     cursor: pointer;
     font-size: 0.82rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .filter-btn.active {
@@ -482,7 +489,11 @@
     padding: 6px 10px;
     border-radius: 999px;
     font-size: 0.74rem;
-    font-weight: 800;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-transform: uppercase;
 }
 
@@ -546,7 +557,11 @@
     background: #fff7d6;
     color: #7c5a00;
     text-decoration: none;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .insight-link i {

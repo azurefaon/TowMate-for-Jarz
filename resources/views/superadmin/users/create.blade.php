@@ -5,12 +5,11 @@
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/user-create.css') }}">
     <style>
-        /* ── Phone input with country-code prefix ───── */
         .phone-input-wrap {
             display: flex;
             align-items: center;
             border: 1px solid #e5e7eb;
-            border-radius: 10px;
+            /* border-radius: 10px; */
             background: #f9fafb;
             overflow: hidden;
             transition: border-color 0.15s, box-shadow 0.15s;
@@ -50,7 +49,6 @@
             color: #9ca3af;
         }
 
-        /* ── Back navigation ─────────────────────────── */
         .page-back-nav {
             display: inline-flex;
             align-items: center;
@@ -78,7 +76,6 @@
             flex-shrink: 0;
         }
 
-        /* ── Role chooser ─────────────────────────────── */
         .role-choice-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -91,7 +88,7 @@
             align-items: center;
             gap: 14px;
             padding: 20px 16px;
-            border-radius: 14px;
+            /* border-radius: 14px; */
             border: 1.5px solid #e5e7eb;
             background: #fff;
             cursor: pointer;
@@ -115,12 +112,12 @@
             flex-shrink: 0;
             width: 48px;
             height: 48px;
-            border-radius: 12px;
-            background: #f3f4f6;
+            /* border-radius: 12px; */
+            background: #ffffff;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #374151;
+            color: #000000;
         }
 
         .rcc-body {
@@ -148,7 +145,7 @@
             align-items: center;
             margin-top: 6px;
             padding: 3px 8px;
-            border-radius: 999px;
+            /* border-radius: 999px; */
             font-size: 11px;
             font-weight: 700;
         }
@@ -169,7 +166,6 @@
             flex-shrink: 0;
         }
 
-        /* ── Back-to-chooser button (inside form) ─────── */
         .back-chooser-btn {
             display: inline-flex;
             align-items: center;
@@ -189,13 +185,11 @@
             color: #111827;
         }
 
-        /* ── Section divider titles ──────────────────── */
         .form-section-title {
             margin: 22px 0 14px;
             padding-bottom: 10px;
             border-bottom: 1px solid #f3f4f6;
             font-size: 11.5px;
-            font-weight: 800;
             letter-spacing: 0.07em;
             text-transform: uppercase;
             color: #9ca3af;
@@ -225,18 +219,15 @@
 @section('content')
     <div class="create-user-page">
 
-        {{-- Back to Users list ─────────────────────────── --}}
+        {{-- Back to Users list ───────────────────────────
         <a href="{{ route('superadmin.users.index') }}" class="page-back-nav">
             <i data-lucide="arrow-left"></i>
             Back to Users
-        </a>
+        </a> --}}
 
         <div class="form-wrapper" style="margin-top:0;">
             <div class="form-card">
 
-                {{-- ═══════════════════════════════════
-         STEP 1 — Role Chooser (create only)
-    ═══════════════════════════════════ --}}
                 @if (!$isEdit)
                     <div id="roleChooser" @if (!$showChooser) hidden @endif>
                         <div class="form-header" style="margin-bottom:20px;">
@@ -258,15 +249,10 @@
                         <div class="role-choice-grid">
                             <button type="button" class="role-choice-card" id="chooseDispatcher"
                                 data-role-id="{{ $dispRoleId }}" data-role-label="Dispatcher (Admin)">
-                                <div class="rcc-icon-wrap">
-                                    <i data-lucide="radio" style="width:26px;height:26px;"></i>
-                                </div>
+
                                 <div class="rcc-body">
                                     <strong>Dispatcher</strong>
                                     <span>Admin who manages bookings and dispatches field teams</span>
-                                </div>
-                                <div class="rcc-arrow">
-                                    <i data-lucide="chevron-right" style="width:17px;height:17px;color:#9ca3af;"></i>
                                 </div>
                             </button>
 
@@ -296,9 +282,6 @@
                     </div>
                 @endif
 
-                {{-- ═══════════════════════════════════
-         STEP 2 — The Form
-    ═══════════════════════════════════ --}}
                 <div id="formSection" @if (!$showFormOnLoad) hidden @endif>
 
                     {{-- Back to chooser (create mode only) --}}
@@ -316,7 +299,6 @@
                         @else
                             <p id="formRoleHeadline">
                                 @if ($hasOldRoleId)
-                                    {{-- Reload after validation error: restore label --}}
                                     @php
                                         $restoredLabel =
                                             (string) old('role_id') === (string) $tlRoleId
@@ -353,21 +335,18 @@
                             @method('PUT')
                         @endif
 
-                        {{-- Hidden role_id — pre-filled from old() on validation-error reload --}}
                         @if ($isEdit)
                             <input type="hidden" name="role_id" value="{{ $user->role_id }}">
                         @else
                             <input type="hidden" name="role_id" id="hiddenRoleId" value="{{ old('role_id', '') }}">
                         @endif
 
-                        {{-- Ajax error banner — only relevant in edit mode (AJAX submit) --}}
                         @if ($isEdit)
                             <div id="ajaxErrorBanner" class="ajax-error-banner" hidden>
                                 <span id="ajaxErrorText"></span>
                             </div>
                         @endif
 
-                        {{-- ─── Personal Information ──────────────── --}}
                         <div class="form-section-title">Personal Information</div>
 
                         <div class="form-row">
@@ -422,7 +401,6 @@
                             @enderror
                         </div>
 
-                        {{-- Role display on edit (locked) --}}
                         @if ($isEdit)
                             <div class="form-group">
                                 <label>Role</label>
@@ -434,7 +412,6 @@
                             </div>
                         @endif
 
-                        {{-- ─── Password ────────────────────────────── --}}
                         <div class="form-section-title">
                             {{ $isEdit ? 'Change Password' : 'Password' }}
                             @if ($isEdit)
@@ -477,7 +454,6 @@
                             </ul>
                         </div>
 
-                        {{-- ─── Status ──────────────────────────────── --}}
                         <div class="form-group">
                             <label>Status</label>
                             <select name="status">
@@ -490,7 +466,6 @@
                             </select>
                         </div>
 
-                        {{-- ─── Team Leader: Driver Details ─────────── --}}
                         @php
                             $showTLSections =
                                 $isTLEdit || ($hasOldRoleId && (string) old('role_id') === (string) $tlRoleId);
@@ -511,7 +486,7 @@
                                         @enderror
                                     </div>
                                     <div class="form-group">
-                                        <label>Middle Name <span class="field-optional">Optional</span></label>
+                                        <label>Middle Name <span class="field-optional">optional</span></label>
                                         <input type="text" name="driver_middle_name"
                                             value="{{ old('driver_middle_name', $driverParts['middle_name'] ?? '') }}"
                                             placeholder="Driver middle name">
@@ -530,7 +505,6 @@
                             </div>
                         </div>
 
-                        {{-- ─── Team Leader: Unit Details ───────────── --}}
                         <div id="sectionUnitDetails" class="role-section-box"
                             @if (!$showTLSections) hidden @endif>
                             <div class="role-section-header"><span>Unit Details</span></div>
@@ -549,8 +523,7 @@
                                         <label>Plate Number <span class="required-mark">*</span></label>
                                         <input type="text" name="unit_plate_number"
                                             value="{{ old('unit_plate_number', $user->unit?->plate_number ?? '') }}"
-                                            placeholder="e.g. ABC 1234"
-                                            @if ($showTLSections && !$isEdit) required @endif>
+                                            placeholder="e.g. ABC 1234" @if ($showTLSections && !$isEdit) required @endif>
                                         @error('unit_plate_number')
                                             <small class="error-text">{{ $message }}</small>
                                         @enderror
@@ -572,13 +545,12 @@
                                                 </div>
                                             </div>
                                         @empty
-                                            <p class="field-note">No active truck types found. <a
-                                                    href="{{ route('superadmin.truck-types.index') }}"
-                                                    target="_blank">Add truck types</a> first.</p>
+                                            <p class="field-note">No active truck types found. Use Manage Truck Types to
+                                                add one.</p>
                                         @endforelse
                                     </div>
-                                    <a href="{{ route('superadmin.truck-types.index') }}" target="_blank"
-                                        class="manage-truck-types-link">+ Manage Truck Types</a>
+                                    <button type="button" id="manageTruckTypesLink"
+                                        class="manage-truck-types-link">Manage Truck Types</button>
                                     <input type="hidden" name="unit_truck_class" id="truckTypeHidden"
                                         value="{{ old('unit_truck_class', $user->unit?->truckType?->name ?? '') }}">
                                     <small id="truckTypeSelectionError" class="error-text" hidden>Please select and
@@ -590,7 +562,6 @@
                             </div>
                         </div>
 
-                        {{-- ─── Actions ──────────────────────────────── --}}
                         <div class="form-actions">
                             <a href="{{ route('superadmin.users.index') }}" class="btn-cancel">Cancel</a>
                             <button type="submit" class="btn-primary-submit" id="createUserSubmit">
@@ -603,9 +574,6 @@
 
             </div>{{-- /form-card --}}
         </div>{{-- /form-wrapper --}}
-        {{-- ═══════════════════════════════════
-         Truck Type Config Modal
-    ═══════════════════════════════════ --}}
         <div id="truckTypeConfigModal" class="ttc-overlay" hidden>
             <div class="ttc-modal">
                 <div class="ttc-modal-header">
@@ -616,12 +584,14 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label>Base Rate (₱) <span class="required-mark">*</span></label>
-                            <input type="number" id="ttcBaseRate" min="0" step="0.01" placeholder="e.g. 4500">
+                            <input type="number" id="ttcBaseRate" min="0" step="0.01"
+                                placeholder="e.g. 4500">
                             <small class="ttc-hint">Flat charge for the first 4 km</small>
                         </div>
                         <div class="form-group">
                             <label>Per 4km Rate (₱) <span class="required-mark">*</span></label>
-                            <input type="number" id="ttcPerKmRate" min="0" step="0.01" placeholder="e.g. 200">
+                            <input type="number" id="ttcPerKmRate" min="0" step="0.01"
+                                placeholder="e.g. 200">
                             <small class="ttc-hint">Added for every 4 km beyond the base</small>
                         </div>
                     </div>
@@ -642,7 +612,123 @@
             </div>
         </div>
 
-    </div>{{-- /create-user-page --}}
+        <div id="manageTruckTypesModal" class="ttc-overlay" hidden>
+            <div
+                style="background:#fff;width:740px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+
+                <div
+                    style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid #e5e7eb;flex-shrink:0;">
+                    <span style="font-size:15px;color:#111827;">Manage Truck Types</span>
+                    <button type="button" id="closeMgmtModal"
+                        style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;color:#374151;line-height:1;">&#215;</button>
+                </div>
+
+                <div style="padding:14px 24px;border-bottom:1px solid #e5e7eb;flex-shrink:0;">
+                    <button type="button" id="mgmtShowAddBtn"
+                        style="background:#0f172a;color:#fff;border:none;padding:7px 14px;cursor:pointer;font-size:13px;">Add
+                        Truck Type</button>
+
+                    <div id="mgmtAddForm" hidden style="margin-top:14px;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+                            <div>
+                                <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Name</label>
+                                <input type="text" id="mgmtAddName" placeholder="e.g. Flatbed"
+                                    style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Base Rate
+                                    (₱)</label>
+                                <input type="number" id="mgmtAddBase" min="0" step="0.01" placeholder="1500"
+                                    style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Per KM Rate
+                                    (₱)</label>
+                                <input type="number" id="mgmtAddKm" min="0" step="0.01" placeholder="200"
+                                    style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Capacity
+                                    (kg)</label>
+                                <input type="number" id="mgmtAddTonnage" min="0" step="1"
+                                    placeholder="e.g. 1500"
+                                    style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                            </div>
+                        </div>
+                        <div style="margin-top:10px;">
+                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Description
+                                (optional)</label>
+                            <input type="text" id="mgmtAddDesc" placeholder="Short description"
+                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                        </div>
+                        <div id="mgmtAddError" hidden style="color:#dc2626;font-size:12px;margin-top:8px;"></div>
+                        <div style="display:flex;gap:8px;margin-top:10px;">
+                            <button type="button" id="mgmtCancelAddBtn"
+                                style="padding:7px 14px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:13px;">Cancel</button>
+                            <button type="button" id="mgmtSaveAddBtn"
+                                style="padding:7px 14px;background:#0f172a;color:#fff;border:none;cursor:pointer;font-size:13px;">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="overflow-y:auto;flex:1;">
+                    <div id="mgmtActionError" hidden
+                        style="margin:12px 24px 0;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:13px;">
+                    </div>
+                    <div id="mgmtListContent" style="padding:0 24px;">
+                        <p style="color:#6b7280;font-size:13px;padding:20px 0;text-align:center;">Loading...</p>
+                    </div>
+                </div>
+
+                <div id="mgmtEditSection" hidden
+                    style="padding:16px 24px;border-top:1px solid #e5e7eb;flex-shrink:0;background:#f9fafb;">
+                    <p style="margin:0 0 12px;font-size:13px;color:#374151;">Editing: <span id="mgmtEditingLabel"
+                            style="color:#111827;"></span></p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+                        <div>
+                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Name</label>
+                            <input type="text" id="mgmtEditName"
+                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Base Rate
+                                (₱)</label>
+                            <input type="number" id="mgmtEditBase" min="0" step="0.01"
+                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Per KM Rate
+                                (₱)</label>
+                            <input type="number" id="mgmtEditKm" min="0" step="0.01"
+                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Capacity
+                                (kg)</label>
+                            <input type="number" id="mgmtEditTonnage" min="0" step="1"
+                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                        </div>
+                    </div>
+                    <div style="margin-top:10px;">
+                        <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Description</label>
+                        <input type="text" id="mgmtEditDesc"
+                            style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                    </div>
+                    <div id="mgmtEditError" hidden style="color:#dc2626;font-size:12px;margin-top:8px;"></div>
+                    <div style="display:flex;gap:8px;margin-top:10px;">
+                        <button type="button" id="mgmtCancelEditBtn"
+                            style="padding:7px 14px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:13px;">Cancel</button>
+                        <button type="button" id="mgmtSaveEditBtn"
+                            style="padding:7px 14px;background:#0f172a;color:#fff;border:none;cursor:pointer;font-size:13px;">Update</button>
+                        <button type="button" id="mgmtDeleteEditBtn"
+                            style="padding:7px 14px;background:none;border:1px solid #dc2626;color:#dc2626;cursor:pointer;font-size:13px;margin-left:auto;">Delete</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
 
 @endsection
 
@@ -666,17 +752,14 @@
             const sectionDriverDetails = document.getElementById('sectionDriverDetails');
             const sectionUnitDetails = document.getElementById('sectionUnitDetails');
 
-            // ── Submit block helper ───────────────────────────
             const setSubmitBlocked = (blocked) => {
                 if (!createUserSubmit) return;
                 createUserSubmit.disabled = blocked;
                 createUserSubmit.classList.toggle('is-disabled', blocked);
             };
 
-            // ── Role chooser ──────────────────────────────────
             let selectedIsTL = false;
 
-            // If page reloaded after validation error, detect whether TL was selected
             if (!isEditMode && hiddenRoleId?.value) {
                 selectedIsTL = Number(hiddenRoleId.value) === tlRoleId;
             }
@@ -724,83 +807,6 @@
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             });
 
-            // If page reloaded with old data (validation error), re-load TL configs if needed
-            if (!isEditMode && selectedIsTL) {
-                loadAllConfigs?.();
-            }
-
-            // ── Password requirements ─────────────────────────
-            const passwordInput = document.getElementById('passwordInput');
-            const requirementsBox = document.getElementById('passwordRequirements');
-
-            const pwRules = {
-                length: v => v.length >= 12,
-                uppercase: v => /[A-Z]/.test(v),
-                lowercase: v => /[a-z]/.test(v),
-                number: v => /\d/.test(v),
-                special: v => /[^A-Za-z0-9]/.test(v),
-            };
-
-            const syncPwRequirements = () => {
-                if (!passwordInput || !requirementsBox) return;
-                const value = passwordInput.value || '';
-                Object.entries(pwRules).forEach(([ruleName, validator]) => {
-                    const item = requirementsBox.querySelector(`[data-rule="${ruleName}"]`);
-                    const icon = item?.querySelector('.requirement-icon');
-                    const passed = validator(value);
-                    item?.classList.toggle('met', passed);
-                    if (icon) icon.textContent = passed ? '✓' : '•';
-                });
-            };
-
-            if (passwordInput && requirementsBox) {
-                passwordInput.addEventListener('focus', () => {
-                    requirementsBox.hidden = false;
-                    syncPwRequirements();
-                });
-                passwordInput.addEventListener('input', () => {
-                    requirementsBox.hidden = false;
-                    syncPwRequirements();
-                });
-                passwordInput.addEventListener('blur', () => {
-                    if (!passwordInput.value.trim()) requirementsBox.hidden = true;
-                });
-            }
-
-            // ── Phone: digits only, 9/09 start, max 11 ──────
-            const phoneInput = document.getElementById('phoneInput');
-            if (phoneInput) {
-                const cleanPhone = () => {
-                    let v = phoneInput.value.replace(/\D/g, '');
-                    // cap: 11 if starts with 09, 10 if starts with 9 (and not 09)
-                    if (v.startsWith('09')) v = v.slice(0, 11);
-                    else v = v.slice(0, 10);
-                    if (phoneInput.value !== v) phoneInput.value = v;
-                };
-
-                phoneInput.addEventListener('input', cleanPhone);
-
-                phoneInput.addEventListener('keydown', (e) => {
-                    const allowed = [
-                        'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
-                        'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End',
-                    ];
-                    if (allowed.includes(e.key)) return;
-                    if (!/^\d$/.test(e.key)) e.preventDefault();
-                });
-
-                // Paste: strip non-digits
-                phoneInput.addEventListener('paste', (e) => {
-                    e.preventDefault();
-                    const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,
-                        '');
-                    const cur = phoneInput.value;
-                    const next = (cur + pasted).replace(/\D/g, '');
-                    phoneInput.value = next.startsWith('09') ? next.slice(0, 11) : next.slice(0, 10);
-                });
-            }
-
-            // ── Truck Type card selector ──────────────────────
             let truckTypeConfigured = false;
             let currentTruckTypeName = '';
             let configsLoaded = false;
@@ -994,7 +1000,6 @@
                 }
             });
 
-            // ── Form submit guard (create mode) ──────────────
             form?.addEventListener('submit', (e) => {
                 if (isEditMode) return;
                 if (selectedIsTL && !truckTypeHidden?.value) {
@@ -1007,7 +1012,474 @@
                 }
             });
 
-            // ── AJAX submit (edit mode only) ──────────────────
+            if (!isEditMode && selectedIsTL) {
+                loadAllConfigs?.();
+            }
+
+            const passwordInput = document.getElementById('passwordInput');
+            const requirementsBox = document.getElementById('passwordRequirements');
+
+            const pwRules = {
+                length: v => v.length >= 12,
+                uppercase: v => /[A-Z]/.test(v),
+                lowercase: v => /[a-z]/.test(v),
+                number: v => /\d/.test(v),
+                special: v => /[^A-Za-z0-9]/.test(v),
+            };
+
+            const syncPwRequirements = () => {
+                if (!passwordInput || !requirementsBox) return;
+                const value = passwordInput.value || '';
+                Object.entries(pwRules).forEach(([ruleName, validator]) => {
+                    const item = requirementsBox.querySelector(`[data-rule="${ruleName}"]`);
+                    const icon = item?.querySelector('.requirement-icon');
+                    const passed = validator(value);
+                    item?.classList.toggle('met', passed);
+                    if (icon) icon.textContent = passed ? '✓' : '•';
+                });
+            };
+
+            if (passwordInput && requirementsBox) {
+                passwordInput.addEventListener('focus', () => {
+                    requirementsBox.hidden = false;
+                    syncPwRequirements();
+                });
+                passwordInput.addEventListener('input', () => {
+                    requirementsBox.hidden = false;
+                    syncPwRequirements();
+                });
+                passwordInput.addEventListener('blur', () => {
+                    if (!passwordInput.value.trim()) requirementsBox.hidden = true;
+                });
+            }
+
+            const phoneInput = document.getElementById('phoneInput');
+            if (phoneInput) {
+                const cleanPhone = () => {
+                    let v = phoneInput.value.replace(/\D/g, '');
+                    if (v.startsWith('09')) v = v.slice(0, 11);
+                    else v = v.slice(0, 10);
+                    if (phoneInput.value !== v) phoneInput.value = v;
+                };
+
+                phoneInput.addEventListener('input', cleanPhone);
+
+                phoneInput.addEventListener('keydown', (e) => {
+                    const allowed = [
+                        'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+                        'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End',
+                    ];
+                    if (allowed.includes(e.key)) return;
+                    if (!/^\d$/.test(e.key)) e.preventDefault();
+                });
+
+                phoneInput.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,
+                        '');
+                    const cur = phoneInput.value;
+                    const next = (cur + pasted).replace(/\D/g, '');
+                    phoneInput.value = next.startsWith('09') ? next.slice(0, 11) : next.slice(0, 10);
+                });
+            }
+
+
+            const manageTruckTypesModal = document.getElementById('manageTruckTypesModal');
+            const mgmtListContent = document.getElementById('mgmtListContent');
+            const mgmtAddForm = document.getElementById('mgmtAddForm');
+            const mgmtAddError = document.getElementById('mgmtAddError');
+            const mgmtEditSection = document.getElementById('mgmtEditSection');
+            const mgmtEditingLabel = document.getElementById('mgmtEditingLabel');
+            const mgmtEditError = document.getElementById('mgmtEditError');
+            const mgmtActionError = document.getElementById('mgmtActionError');
+            let mgmtEditingId = null;
+
+            function showMgmtActionError(msg) {
+                if (!mgmtActionError) return;
+                mgmtActionError.textContent = msg;
+                mgmtActionError.hidden = false;
+            }
+
+            function hideMgmtActionError() {
+                if (mgmtActionError) mgmtActionError.hidden = true;
+            }
+
+            document.getElementById('manageTruckTypesLink')?.addEventListener('click', () => {
+                if (manageTruckTypesModal) manageTruckTypesModal.hidden = false;
+                if (mgmtAddForm) mgmtAddForm.hidden = true;
+                if (mgmtEditSection) mgmtEditSection.hidden = true;
+                hideMgmtActionError();
+                mgmtLoadList();
+            });
+
+            const closeMgmt = async () => {
+                if (manageTruckTypesModal) manageTruckTypesModal.hidden = true;
+                await reloadTruckTypeCards();
+            };
+
+            document.getElementById('closeMgmtModal')?.addEventListener('click', closeMgmt);
+
+            manageTruckTypesModal?.addEventListener('click', (e) => {
+                if (e.target === manageTruckTypesModal) closeMgmt();
+            });
+
+            document.getElementById('mgmtShowAddBtn')?.addEventListener('click', () => {
+                if (!mgmtAddForm) return;
+                mgmtAddForm.hidden = !mgmtAddForm.hidden;
+                if (mgmtEditSection) mgmtEditSection.hidden = true;
+                if (mgmtAddError) mgmtAddError.hidden = true;
+            });
+
+            document.getElementById('mgmtCancelAddBtn')?.addEventListener('click', () => {
+                if (mgmtAddForm) mgmtAddForm.hidden = true;
+                mgmtClearAddForm();
+            });
+
+            document.getElementById('mgmtCancelEditBtn')?.addEventListener('click', () => {
+                if (mgmtEditSection) mgmtEditSection.hidden = true;
+                mgmtEditingId = null;
+            });
+
+            document.getElementById('mgmtDeleteEditBtn')?.addEventListener('click', async () => {
+                if (!mgmtEditingId) return;
+                const label = mgmtEditingLabel?.textContent || 'this truck type';
+                if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+                const btn = document.getElementById('mgmtDeleteEditBtn');
+                btn.disabled = true;
+                try {
+                    const res = await fetch(`/superadmin/truck-types-data/${mgmtEditingId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        }
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        hideMgmtActionError();
+                        if (mgmtEditSection) mgmtEditSection.hidden = true;
+                        mgmtEditingId = null;
+                        mgmtLoadList();
+                    } else {
+                        showMgmtActionError(data.message || 'Cannot delete this truck type.');
+                    }
+                } catch {
+                    showMgmtActionError('Network error. Please try again.');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+
+            function mgmtClearAddForm() {
+                ['mgmtAddName', 'mgmtAddBase', 'mgmtAddKm', 'mgmtAddTonnage', 'mgmtAddDesc'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                if (mgmtAddError) mgmtAddError.hidden = true;
+            }
+
+            async function mgmtLoadList() {
+                if (mgmtListContent) mgmtListContent.innerHTML =
+                    '<p style="color:#6b7280;font-size:13px;padding:20px 0;text-align:center;">Loading...</p>';
+                try {
+                    const res = await fetch('/superadmin/truck-types-data', {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    if (!res.ok) throw new Error();
+                    mgmtRenderList(await res.json());
+                } catch {
+                    if (mgmtListContent) mgmtListContent.innerHTML =
+                        '<p style="color:#dc2626;font-size:13px;padding:20px 0;text-align:center;">Failed to load. Please try again.</p>';
+                }
+            }
+
+            function mgmtRenderList(types) {
+                if (!mgmtListContent) return;
+                if (!types.length) {
+                    mgmtListContent.innerHTML =
+                        '<p style="color:#6b7280;font-size:13px;padding:20px 0;text-align:center;">No truck types yet. Add one above.</p>';
+                    return;
+                }
+                let html = '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
+                ['Name', 'Base Rate', 'Per KM', 'Capacity (kg)', 'Status', ''].forEach(h => {
+                    html +=
+                        `<th style="text-align:left;font-size:12px;color:#6b7280;padding:10px 6px;border-bottom:1px solid #e5e7eb;">${h}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+                types.forEach(t => {
+                    const base = t.base_rate != null ? '&#8369;' + Number(t.base_rate).toLocaleString() :
+                        '&mdash;';
+                    const km = t.per_km_rate != null ? '&#8369;' + Number(t.per_km_rate).toLocaleString() :
+                        '&mdash;';
+                    const ton = t.max_tonnage ? Number(t.max_tonnage).toLocaleString() + ' kg' : '&mdash;';
+                    const tog = t.status === 'active' ? 'Disable' : 'Enable';
+                    const desc = (t.description ?? '').replace(/"/g, '&quot;');
+                    html += `<tr>
+                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;">${t.name}</td>
+                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;">${base}</td>
+                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;">${km}</td>
+                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;">${ton}</td>
+                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;color:${t.status === 'active' ? '#16a34a' : '#6b7280'};">${t.status}</td>
+                        <td style="padding:10px 6px;border-bottom:1px solid #f3f4f6;white-space:nowrap;">
+                            <button type="button" class="mgmt-edit-btn" style="margin-right:6px;padding:4px 10px;background:none;border:1px solid #374151;cursor:pointer;font-size:12px;"
+                                data-id="${t.id}" data-name="${t.name}" data-base="${t.base_rate ?? ''}" data-km="${t.per_km_rate ?? ''}" data-tonnage="${t.max_tonnage ?? ''}" data-desc="${desc}">Edit</button>
+                            <button type="button" class="mgmt-toggle-btn" style="margin-right:6px;padding:4px 10px;background:none;border:1px solid #374151;cursor:pointer;font-size:12px;"
+                                data-id="${t.id}" data-name="${t.name}" data-status="${t.status}">${tog}</button>
+                            <button type="button" class="mgmt-delete-btn" style="padding:4px 10px;background:none;border:1px solid #dc2626;color:#dc2626;cursor:pointer;font-size:12px;"
+                                data-id="${t.id}" data-name="${t.name}">Delete</button>
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                mgmtListContent.innerHTML = html;
+
+                mgmtListContent.querySelectorAll('.mgmt-edit-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        mgmtEditingId = btn.dataset.id;
+                        if (mgmtEditingLabel) mgmtEditingLabel.textContent = btn.dataset.name;
+                        const set = (id, v) => {
+                            const el = document.getElementById(id);
+                            if (el) el.value = v;
+                        };
+                        set('mgmtEditName', btn.dataset.name);
+                        set('mgmtEditBase', btn.dataset.base);
+                        set('mgmtEditKm', btn.dataset.km);
+                        set('mgmtEditTonnage', btn.dataset.tonnage);
+                        set('mgmtEditDesc', btn.dataset.desc);
+                        if (mgmtEditError) mgmtEditError.hidden = true;
+                        if (mgmtEditSection) {
+                            mgmtEditSection.hidden = false;
+                            mgmtEditSection.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'nearest'
+                            });
+                        }
+                        if (mgmtAddForm) mgmtAddForm.hidden = true;
+                    });
+                });
+
+                mgmtListContent.querySelectorAll('.mgmt-toggle-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        btn.disabled = true;
+                        try {
+                            const res = await fetch(
+                                `/superadmin/truck-types-data/${btn.dataset.id}/toggle`, {
+                                    method: 'PATCH',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': csrfToken
+                                    }
+                                });
+                            const data = await res.json();
+                            if (data.success) {
+                                hideMgmtActionError();
+                                mgmtLoadList();
+                            } else showMgmtActionError(data.message ||
+                                'Cannot toggle this truck type.');
+                        } catch {
+                            showMgmtActionError('Network error. Please try again.');
+                        } finally {
+                            btn.disabled = false;
+                        }
+                    });
+                });
+
+                mgmtListContent.querySelectorAll('.mgmt-delete-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        btn.disabled = true;
+                        hideMgmtActionError();
+                        try {
+                            const res = await fetch(
+                                `/superadmin/truck-types-data/${btn.dataset.id}`, {
+                                    method: 'DELETE',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': csrfToken
+                                    }
+                                });
+                            const data = await res.json();
+                            if (data.success) mgmtLoadList();
+                            else showMgmtActionError(data.message ||
+                                'Cannot delete this truck type.');
+                        } catch {
+                            showMgmtActionError('Network error. Please try again.');
+                        } finally {
+                            btn.disabled = false;
+                        }
+                    });
+                });
+            }
+
+            document.getElementById('mgmtSaveAddBtn')?.addEventListener('click', async () => {
+                const name = document.getElementById('mgmtAddName')?.value.trim();
+                const base = document.getElementById('mgmtAddBase')?.value.trim();
+                const km = document.getElementById('mgmtAddKm')?.value.trim();
+                if (!name || !base || !km) {
+                    if (mgmtAddError) {
+                        mgmtAddError.textContent = 'Name, Base Rate, and Per KM Rate are required.';
+                        mgmtAddError.hidden = false;
+                    }
+                    return;
+                }
+                const btn = document.getElementById('mgmtSaveAddBtn');
+                btn.disabled = true;
+                if (mgmtAddError) mgmtAddError.hidden = true;
+                try {
+                    const res = await fetch('/superadmin/truck-types-data', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: JSON.stringify({
+                            name,
+                            base_rate: base,
+                            per_km_rate: km,
+                            max_tonnage: document.getElementById('mgmtAddTonnage')
+                                ?.value.trim() || null,
+                            description: document.getElementById('mgmtAddDesc')?.value
+                                .trim() || null
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        mgmtClearAddForm();
+                        if (mgmtAddForm) mgmtAddForm.hidden = true;
+                        mgmtLoadList();
+                    } else {
+                        const msg = data.errors ? Object.values(data.errors).flat().join(' ') : (data
+                            .message || 'Failed to save.');
+                        if (mgmtAddError) {
+                            mgmtAddError.textContent = msg;
+                            mgmtAddError.hidden = false;
+                        }
+                    }
+                } catch {
+                    if (mgmtAddError) {
+                        mgmtAddError.textContent = 'Network error. Please try again.';
+                        mgmtAddError.hidden = false;
+                    }
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+
+            document.getElementById('mgmtSaveEditBtn')?.addEventListener('click', async () => {
+                if (!mgmtEditingId) return;
+                const name = document.getElementById('mgmtEditName')?.value.trim();
+                const base = document.getElementById('mgmtEditBase')?.value.trim();
+                const km = document.getElementById('mgmtEditKm')?.value.trim();
+                if (!name || !base || !km) {
+                    if (mgmtEditError) {
+                        mgmtEditError.textContent = 'Name, Base Rate, and Per KM Rate are required.';
+                        mgmtEditError.hidden = false;
+                    }
+                    return;
+                }
+                const btn = document.getElementById('mgmtSaveEditBtn');
+                btn.disabled = true;
+                if (mgmtEditError) mgmtEditError.hidden = true;
+                try {
+                    const res = await fetch(`/superadmin/truck-types-data/${mgmtEditingId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: JSON.stringify({
+                            name,
+                            base_rate: base,
+                            per_km_rate: km,
+                            max_tonnage: document.getElementById('mgmtEditTonnage')
+                                ?.value.trim() || null,
+                            description: document.getElementById('mgmtEditDesc')?.value
+                                .trim() || null
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        if (mgmtEditSection) mgmtEditSection.hidden = true;
+                        mgmtEditingId = null;
+                        mgmtLoadList();
+                    } else {
+                        const msg = data.errors ? Object.values(data.errors).flat().join(' ') : (data
+                            .message || 'Failed to update.');
+                        if (mgmtEditError) {
+                            mgmtEditError.textContent = msg;
+                            mgmtEditError.hidden = false;
+                        }
+                    }
+                } catch {
+                    if (mgmtEditError) {
+                        mgmtEditError.textContent = 'Network error. Please try again.';
+                        mgmtEditError.hidden = false;
+                    }
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+
+            async function reloadTruckTypeCards() {
+                try {
+                    const res = await fetch('/superadmin/truck-types-data', {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    if (!res.ok) return;
+                    const all = await res.json();
+                    const active = all.filter(t => t.status === 'active');
+
+                    if (!truckTypeCards) return;
+
+                    allTruckTypeNames.length = 0;
+                    Object.keys(typeCardMap).forEach(k => delete typeCardMap[k]);
+                    Object.keys(configCache).forEach(k => delete configCache[k]);
+                    configsLoaded = false;
+
+                    truckTypeCards.innerHTML = '';
+
+                    if (!active.length) {
+                        truckTypeCards.innerHTML =
+                            '<p class="field-note">No active truck types. Use Manage Truck Types to add one.</p>';
+                    } else {
+                        active.forEach(t => {
+                            allTruckTypeNames.push(t.name);
+                            const div = document.createElement('div');
+                            div.className = 'ttc-card';
+                            div.dataset.type = t.name;
+                            div.dataset.configured = 'false';
+                            div.innerHTML =
+                                `<div class="ttc-card-body"><strong class="ttc-card-name">${t.name}</strong><span class="ttc-card-label">Loading…</span></div><div class="ttc-card-actions"><button type="button" class="ttc-card-edit-btn" hidden>Edit</button></div>`;
+                            truckTypeCards.appendChild(div);
+                            typeCardMap[t.name] = div;
+                            div.addEventListener('click', (e) => {
+                                if (e.target.closest('.ttc-card-edit-btn')) return;
+                                div.dataset.configured === 'true' ? selectCard(t.name) :
+                                    openConfigModal(t.name, null);
+                            });
+                            div.querySelector('.ttc-card-edit-btn')?.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                openConfigModal(t.name, configCache[t.name]);
+                            });
+                        });
+                    }
+
+                    const sel = truckTypeHidden?.value;
+                    if (sel && !active.some(t => t.name === sel) && truckTypeHidden) truckTypeHidden.value = '';
+
+                    if (sectionUnitDetails && !sectionUnitDetails.hidden && active.length)
+                        await loadAllConfigs();
+
+                } catch (e) {
+                    console.error('reloadTruckTypeCards failed', e);
+                }
+            }
+
             if (isEditMode && form) {
                 const ajaxErrorBanner = document.getElementById('ajaxErrorBanner');
                 const ajaxErrorText = document.getElementById('ajaxErrorText');
@@ -1022,7 +1494,7 @@
                 };
 
                 const clearFieldErrors = () => form.querySelectorAll('.ajax-field-error').forEach(el => el
-            .remove());
+                    .remove());
 
                 const showFieldErrors = (errors) => {
                     clearFieldErrors();

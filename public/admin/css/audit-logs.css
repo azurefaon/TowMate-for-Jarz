@@ -12,8 +12,12 @@ AUDIT LOGS · MODERN SAAS POLISH
 .audit-eyebrow {
     margin: 0 0 6px;
     font-size: 0.76rem;
-    font-weight: 800;
     letter-spacing: 0.12em;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-transform: uppercase;
     color: #b45309;
 }
@@ -21,8 +25,12 @@ AUDIT LOGS · MODERN SAAS POLISH
 .audit-page-top h1 {
     margin: 0;
     font-size: clamp(1.7rem, 2.5vw, 2rem);
-    font-weight: 700;
     color: #111827;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .audit-page-top p {
@@ -137,7 +145,11 @@ AUDIT LOGS · MODERN SAAS POLISH
 .audit-card p {
     margin: 0;
     font-size: 1.9rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #111827;
 }
 
@@ -172,7 +184,11 @@ AUDIT LOGS · MODERN SAAS POLISH
 .audit-table-header h3 {
     margin: 0;
     font-size: 1.05rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #111827;
 }
 
@@ -224,7 +240,11 @@ AUDIT LOGS · MODERN SAAS POLISH
     border: none;
     border-radius: 10px;
     cursor: pointer;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     transition: 0.2s ease;
     box-shadow: 0 10px 20px rgba(250, 204, 21, 0.18);
 }
@@ -296,7 +316,11 @@ AUDIT LOGS · MODERN SAAS POLISH
     background: #ffffff;
     border: 1px solid #e5e7eb;
     font-size: 14px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #374151;
     text-decoration: none;
     transition: 0.15s;
@@ -310,7 +334,11 @@ AUDIT LOGS · MODERN SAAS POLISH
 .audit-pagination nav ul li span[aria-current="page"] {
     background: #fef3c7;
     border-color: #facc15;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #111827;
 }
 

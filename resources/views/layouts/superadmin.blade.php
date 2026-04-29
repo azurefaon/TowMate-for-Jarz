@@ -12,7 +12,7 @@
         :root {
             --jarz-accent: #facc15;
             --jarz-bg: #f8fafc;
-            --jarz-surface: #fef9c3;
+            --jarz-surface: #facc15;
             --jarz-text: #111827;
             --jarz-line: #e5e7eb;
         }
@@ -284,26 +284,48 @@
         <ul>
 
             <div class="brand">
-                <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Logo">
+                {{-- <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Logo"> --}}
                 <span class="brand-text">Jarz</span>
             </div>
 
-            <li class="collapse-item">
+            {{-- <li class="collapse-item">
                 <button onclick="toggleSidebar()">
                     <i data-lucide="chevrons-left"></i>
                     <span>Toggle Menu</span>
                 </button>
-            </li>
+            </li> --}}
 
-            <!-- MAIN SECTION -->
             <div class="sidebar-section">MAIN</div>
 
             <li>
                 <a href="{{ route('superadmin.dashboard') }}"
                     class="{{ request()->routeIs('superadmin.dashboard') ? 'active' : '' }}">
-                    <i data-lucide="layout-dashboard"></i>
+                    {{-- <i data-lucide="layout-dashboard"></i> --}}
                     <span>Dashboard</span>
                 </a>
+
+                <a href="{{ route('superadmin.bookings.index') }}"
+                    class="{{ request()->routeIs('superadmin.bookings.*') ? 'active' : '' }}">
+                    {{-- <i data-lucide="clipboard-list"></i> --}}
+                    <span>Bookings</span>
+
+                    @if (isset($pendingBookings) && $pendingBookings > 0)
+                        <span class="badge">{{ $pendingBookings }}</span>
+                    @endif
+                </a>
+
+                <a href="{{ route('superadmin.unit-truck.index') }}"
+                    class="{{ request()->routeIs('superadmin.unit-truck.*') ? 'active' : '' }}">
+                    {{-- <i data-lucide="truck"></i> --}}
+                    <span>Units Overview</span>
+                </a>
+
+                <a href="{{ route('superadmin.users.index') }}"
+                    class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
+                    {{-- <i data-lucide="users"></i> --}}
+                    <span>Manage Users</span>
+                </a>
+
             </li>
 
             {{-- <li>
@@ -322,11 +344,10 @@
                 </a>
             </li> --}}
 
-            <!-- OPERATIONS SECTION -->
-            <div class="sidebar-divider"></div>
-            <div class="sidebar-section">OPERATIONS</div>
+            {{-- <div class="sidebar-divider"></div> --}}
+            {{-- <div class="sidebar-section">OPERATIONS</div> --}}
 
-            <li>
+            {{-- <li>
                 <a href="{{ route('superadmin.bookings.index') }}"
                     class="{{ request()->routeIs('superadmin.bookings.*') ? 'active' : '' }}">
                     <i data-lucide="clipboard-list"></i>
@@ -336,10 +357,9 @@
                         <span class="badge">{{ $pendingBookings }}</span>
                     @endif
                 </a>
-            </li>
+            </li> --}}
 
-            <!-- FLEET MANAGEMENT SECTION -->
-            <div class="sidebar-divider"></div>
+            {{-- <div class="sidebar-divider"></div>
             <div class="sidebar-section">FLEET MANAGEMENT</div>
 
             <li>
@@ -348,7 +368,7 @@
                     <i data-lucide="truck"></i>
                     <span>Units Overview</span>
                 </a>
-            </li>
+            </li> --}}
 
             {{-- <li>
                 <a href="{{ route('superadmin.truck-types.index') }}"
@@ -366,26 +386,24 @@
                 </a>
             </li> --}}
 
-            <!-- USER MANAGEMENT SECTION -->
-            <div class="sidebar-divider"></div>
-            <div class="sidebar-section">USER MANAGEMENT</div>
+            {{-- <div class="sidebar-divider"></div>
+            <div class="sidebar-section">USER MANAGEMENT</div> --}}
 
-            <li>
+            {{-- <li>
                 <a href="{{ route('superadmin.users.index') }}"
                     class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
                     <i data-lucide="users"></i>
                     <span>Manage Users</span>
                 </a>
-            </li>
+            </li> --}}
 
-            <!-- SYSTEM SECTION -->
             <div class="sidebar-divider"></div>
             <div class="sidebar-section">SYSTEM</div>
 
             <li>
                 <a href="{{ route('superadmin.audit.logs') }}"
                     class="{{ request()->routeIs('superadmin.audit.logs') ? 'active' : '' }}">
-                    <i data-lucide="shield-check"></i>
+                    {{-- <i data-lucide="shield-check"></i> --}}
                     <span>Audit Logs</span>
                 </a>
             </li>
@@ -393,7 +411,7 @@
             <li>
                 <a href="{{ route('superadmin.settings.index') }}"
                     class="{{ request()->routeIs('superadmin.settings.*') ? 'active' : '' }}">
-                    <i data-lucide="settings"></i>
+                    {{-- <i data-lucide="settings"></i> --}}
                     <span>System Settings</span>
                 </a>
             </li>
@@ -409,7 +427,6 @@
 
     <div class="content" id="content">
 
-        {{-- SUCCESS TOAST --}}
         @if (session('success'))
             <div id="successPopup" class="success-popup">
                 <div class="success-box">
@@ -587,9 +604,14 @@
             const toast = document.createElement('div');
             toast.id = 'successPopup';
             toast.className = 'success-popup';
-            toast.innerHTML = `<div class="success-box"><div class="checkmark-circle"><div class="background"></div><div class="checkmark draw"></div></div><h3>Success</h3><p>${_csFlash}</p></div>`;
+            toast.innerHTML =
+                `<div class="success-box"><div class="checkmark-circle"><div class="background"></div><div class="checkmark draw"></div></div><h3>Success</h3><p>${_csFlash}</p></div>`;
             document.getElementById('content')?.prepend(toast);
-            setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = '0.3s'; setTimeout(() => toast.remove(), 300); }, 2500);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = '0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
         }
     </script>
 

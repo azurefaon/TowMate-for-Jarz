@@ -241,7 +241,7 @@
                     @forelse ($incomingRequests as $request)
                         <div class="activity-item" data-type="{{ $loop->first ? 'priority' : 'request' }}">
                             <div class="activity-icon request-icon">
-                                <i data-lucide="siren"></i>
+                                {{-- <i data-lucide="siren"></i> --}}
                             </div>
 
                             <div class="activity-content">
@@ -279,7 +279,7 @@
                     @forelse ($currentActivities as $activity)
                         <div class="activity-item" data-type="request">
                             <div class="activity-icon request-icon">
-                                <i data-lucide="truck"></i>
+                                {{-- <i data-lucide="truck"></i> --}}
                             </div>
 
                             <div class="activity-content">

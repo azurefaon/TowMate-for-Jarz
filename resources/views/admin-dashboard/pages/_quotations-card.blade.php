@@ -38,10 +38,8 @@
             </div>
         </div>
 
-        <!-- Body -->
         <div style="padding: 16px 20px; display: grid; gap: 20px;">
 
-            {{-- SECTION 1: Ready to Send --}}
             @if ($pendingQuotations->count() > 0)
                 <div>
                     {{-- <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
@@ -93,7 +91,6 @@
                 </div>
             @endif
 
-            {{-- SECTION 2: Awaiting Customer Response --}}
             @if ($sentQuotations->count() > 0)
                 <div>
                     <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
@@ -178,7 +175,6 @@
                 </div>
             @endif
 
-            {{-- SECTION 3: Negotiating --}}
             @if ($negotiatingQuotations->count() > 0)
                 <div>
                     <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
@@ -248,7 +244,7 @@
                 </div>
             @endif
 
-        </div>{{-- /body --}}
+        </div>
 
         @if ($totalActive > 8)
             <div style="padding: 12px 20px; border-top: 1px solid #f1f5f9; text-align: center;">

@@ -11,12 +11,12 @@
 
         <div>
             <h1>Jarz Owner Overview</h1>
-            <p>Bookings, revenue, and operational health in one clean analytics view.</p>
+            <p>Bookings, revenue, and operational view.</p>
         </div>
 
         <div class="dashboard-meta">
             <div class="date-box">
-                <i data-lucide="calendar"></i>
+                {{-- <i data-lucide="calendar"></i> --}}
                 {{ now()->format('F d, Y') }}
             </div>
         </div>
@@ -28,9 +28,7 @@
         <div class="stats-grid">
 
             <div class="stat-card">
-                <div class="stat-icon users">
-                    <i data-lucide="users"></i>
-                </div>
+
                 <div>
                     <span>Total Users</span>
                     <h2 class="counter" data-target="{{ $totalUsers }}">0</h2>
@@ -38,9 +36,7 @@
             </div>
 
             <div class="stat-card">
-                <div class="stat-icon bookings">
-                    <i data-lucide="clipboard-list"></i>
-                </div>
+
                 <div>
                     <span>Total Bookings</span>
                     <h2 class="counter" data-target="{{ $totalBookings }}">0</h2>
@@ -48,9 +44,7 @@
             </div>
 
             <div class="stat-card">
-                <div class="stat-icon revenue">
-                    <i data-lucide="banknote"></i>
-                </div>
+
                 <div>
                     <span>Revenue Tracked</span>
                     <h2>₱{{ number_format($totalRevenue, 2) }}</h2>
@@ -58,9 +52,7 @@
             </div>
 
             <div class="stat-card">
-                <div class="stat-icon trucks">
-                    <i data-lucide="truck"></i>
-                </div>
+
                 <div>
                     <span>Active Units</span>
                     <h2 class="counter" data-target="{{ $activeUnits }}">0</h2>
@@ -76,9 +68,7 @@
                 <div class="metric-header">
                     <span>TODAY'S BOOKINGS</span>
 
-                    <div class="metric-icon">
-                        <i data-lucide="package"></i>
-                    </div>
+
                 </div>
 
                 <div class="metric-value" id="todayBookings">{{ $todayBookings }}</div>
@@ -91,11 +81,11 @@
                     @endif
                 </div>
 
-                <div class="metric-chart">
+                {{-- <div class="metric-chart">
                     <svg viewBox="0 0 300 80">
                         <path d="M0 70 C60 40 120 60 180 45 C240 30 260 50 300 40 L300 80 L0 80 Z" />
                     </svg>
-                </div>
+                </div> --}}
 
             </div>
 
@@ -104,9 +94,7 @@
                 <div class="metric-header">
                     <span>COMPLETED TODAY</span>
 
-                    <div class="metric-icon">
-                        <i data-lucide="check-circle"></i>
-                    </div>
+
                 </div>
 
                 <div class="metric-value" id="completedToday">{{ $completedToday }}</div>
@@ -119,11 +107,11 @@
                     @endif
                 </div>
 
-                <div class="metric-chart">
+                {{-- <div class="metric-chart">
                     <svg viewBox="0 0 300 80">
                         <path d="M0 65 C80 55 140 35 200 55 C240 70 260 40 300 45 L300 80 L0 80 Z" />
                     </svg>
-                </div>
+                </div> --}}
 
             </div>
 
@@ -133,9 +121,6 @@
                 <div class="metric-header">
                     <span>PENDING REVIEW</span>
 
-                    <div class="metric-icon">
-                        <i data-lucide="hourglass"></i>
-                    </div>
                 </div>
 
                 <div class="metric-value" id="pendingBookingsMetric">{{ $pendingBookings }}</div>
@@ -148,11 +133,11 @@
                     @endif
                 </div>
 
-                <div class="metric-chart">
+                {{-- <div class="metric-chart">
                     <svg viewBox="0 0 300 80">
                         <path d="M0 60 C60 55 120 70 180 65 C220 55 260 50 300 55 L300 80 L0 80 Z" />
                     </svg>
-                </div>
+                </div> --}}
 
             </div>
 
@@ -182,17 +167,17 @@
                             <div class="activity-icon">
 
                                 @if (str_contains(strtolower($activity->action), 'completed'))
-                                    <i data-lucide="check-circle"></i>
+                                    {{-- <i data-lucide="check-circle"></i> --}}
                                 @elseif(str_contains(strtolower($activity->action), 'cancel'))
-                                    <i data-lucide="x-circle"></i>
+                                    {{-- <i data-lucide="x-circle"></i> --}}
                                 @elseif(str_contains(strtolower($activity->action), 'user'))
-                                    <i data-lucide="user-plus"></i>
+                                    {{-- <i data-lucide="user-plus"></i> --}}
                                 @elseif(str_contains(strtolower($activity->action), 'unit'))
-                                    <i data-lucide="truck"></i>
+                                    {{-- <i data-lucide="truck"></i> --}}
                                 @elseif(str_contains(strtolower($activity->action), 'setting'))
-                                    <i data-lucide="settings"></i>
+                                    {{-- <i data-lucide="settings"></i> --}}
                                 @else
-                                    <i data-lucide="activity"></i>
+                                    {{-- <i data-lucide="activity"></i> --}}
                                 @endif
 
                             </div>

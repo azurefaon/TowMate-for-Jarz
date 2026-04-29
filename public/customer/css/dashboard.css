@@ -32,7 +32,11 @@ body {
 }
 .nav-left h3 {
     font-size: 18px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .nav-right {
@@ -154,7 +158,11 @@ body {
     padding: 8px 12px;
     border-radius: 999px;
     font-size: 12px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     white-space: nowrap;
 }
 
@@ -184,7 +192,11 @@ body {
     padding: 10px 14px;
     border-radius: 10px;
     text-decoration: none;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .section-title {
@@ -226,20 +238,18 @@ body {
 
 .quick-card h4 {
     font-size: 15px;
-    font-weight: 600;
+    font-family: sans-serif;
 }
 
-/* DESCRIPTION */
 .quick-card p {
     font-size: 13px;
     color: #64748b;
 }
 
-/* LINK */
 .quick-card span {
     margin-top: 6px;
     font-size: 12px;
-    font-weight: 500;
+    font-family: sans-serif;
 }
 
 .quick-card::before {
@@ -261,7 +271,6 @@ body {
     background: #fff200;
 }
 
-/* ICON COLORS */
 .quick-card.green i,
 .quick-card.blue i,
 .quick-card.purple i,
@@ -338,7 +347,11 @@ body {
     padding: 6px 10px;
     border-radius: 999px;
     font-size: 11px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .badge.live,
@@ -452,7 +465,11 @@ body {
     background: #fff200;
     color: #303841;
     border: none;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     cursor: pointer;
 }
 .confirm-btn:disabled {
@@ -564,7 +581,11 @@ body {
     background: rgba(255, 255, 255, 0.72);
     color: #303841;
     font-size: 12px;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .side-stats {
@@ -584,7 +605,6 @@ body {
     position: relative;
     background: #fff;
     padding: 18px;
-    border-radius: 16px;
     border: 1px solid #e5e7eb;
     display: flex;
     flex-direction: column;
@@ -605,15 +625,13 @@ body {
 
 .stat-card strong {
     font-size: 20px;
-    font-weight: 600;
+    font-family: sans-serif;
 }
 
 .stat-card span {
     font-size: 13px;
     color: #64748b;
 }
-
-/* STAT CARD COLORS (DIFFERENT FROM QUICK) */
 
 .stat-card.green,
 .stat-card.blue,
@@ -623,7 +641,6 @@ body {
     border-color: #efe3a0;
 }
 
-/* ICON COLORS */
 .stat-card.green i,
 .stat-card.blue i,
 .stat-card.orange i,
@@ -659,7 +676,11 @@ body {
 }
 .sidebar-brand span {
     font-size: 16px;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #0f172a;
 }
 
@@ -715,7 +736,11 @@ body {
     font-size: 12px;
     padding: 4px 10px;
     border-radius: 999px;
-    font-weight: 500;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 .badge-verified {
     background: #fff7d6;

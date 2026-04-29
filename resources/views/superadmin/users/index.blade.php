@@ -7,7 +7,6 @@
     <style>
         .user-management-page .modal-card {
             max-width: 900px;
-            /* lalaki na */
             width: 95%;
         }
 
@@ -17,7 +16,6 @@
             gap: 16px;
         }
 
-        /* full width fields */
         .user-management-page .modal-form .form-helper-text,
         .user-management-page .modal-actions {
             grid-column: span 2;
@@ -87,11 +85,12 @@
             display: inline-flex;
             gap: 8px;
             padding: 6px;
-            border-radius: 14px;
+            /* border-radius: 14px; */
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             margin: 14px 0 0;
             flex-wrap: wrap;
+            font-family: sans-serif
         }
 
         .user-view-link {
@@ -99,7 +98,7 @@
             align-items: center;
             gap: 8px;
             padding: 9px 12px;
-            border-radius: 10px;
+            /* border-radius: 10px; */
             text-decoration: none;
             font-weight: 700;
             color: #475569;
@@ -114,7 +113,7 @@
         .request-review-card {
             margin: 20px 0 22px;
             padding: 18px;
-            border-radius: 18px;
+            /* border-radius: 18px; */
             border: 1px solid #fde68a;
             background: linear-gradient(180deg, #fffdf4 0%, #ffffff 100%);
             box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
@@ -264,14 +263,37 @@
             font-weight: 500;
             margin-bottom: 16px;
         }
-        .sa-flash-banner span { flex: 1; }
-        .sa-flash-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
-        .sa-flash-error   { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-        .sa-flash-close {
-            background: none; border: none; cursor: pointer;
-            font-size: 18px; line-height: 1; color: inherit; opacity: 0.6; padding: 0 4px;
+
+        .sa-flash-banner span {
+            flex: 1;
         }
-        .sa-flash-close:hover { opacity: 1; }
+
+        .sa-flash-success {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .sa-flash-error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .sa-flash-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            color: inherit;
+            opacity: 0.6;
+            padding: 0 4px;
+        }
+
+        .sa-flash-close:hover {
+            opacity: 1;
+        }
 
         .request-pill {
             display: inline-flex;
@@ -313,39 +335,39 @@
 
             <div class="page-actions">
                 <a href="{{ route('superadmin.users.create') }}" class="btn-primary-add">
-                    <i data-lucide="user-plus"></i>
+                    {{-- <i data-lucide="user-plus"></i> --}}
                     Add User
                 </a>
             </div>
         </div>
 
         @php
-            $tlRole    = $roles->firstWhere('name', 'Team Leader');
-            $dispRole  = $roles->firstWhere('name', 'Admin');
+            $tlRole = $roles->firstWhere('name', 'Team Leader');
+            $dispRole = $roles->firstWhere('name', 'Admin');
             $activeTab = request()->filled('role') ? (int) request('role') : null;
         @endphp
         <div class="user-view-switch">
             <a href="{{ route('superadmin.users.index') }}"
-               class="user-view-link {{ $activeTab === null ? 'active' : '' }}">
-                <i data-lucide="users"></i>
+                class="user-view-link {{ $activeTab === null ? 'active' : '' }}">
+                {{-- <i data-lucide="users"></i> --}}
                 All Users
             </a>
             @if ($tlRole)
                 <a href="{{ route('superadmin.users.index', ['role' => $tlRole->id]) }}"
-                   class="user-view-link {{ $activeTab === (int) $tlRole->id ? 'active' : '' }}">
-                    <i data-lucide="hard-hat"></i>
+                    class="user-view-link {{ $activeTab === (int) $tlRole->id ? 'active' : '' }}">
+                    {{-- <i data-lucide="hard-hat"></i> --}}
                     Team Leaders
                 </a>
             @endif
             @if ($dispRole)
                 <a href="{{ route('superadmin.users.index', ['role' => $dispRole->id]) }}"
-                   class="user-view-link {{ $activeTab === (int) $dispRole->id ? 'active' : '' }}">
-                    <i data-lucide="radio"></i>
+                    class="user-view-link {{ $activeTab === (int) $dispRole->id ? 'active' : '' }}">
+                    {{-- <i data-lucide="radio"></i> --}}
                     Dispatchers
                 </a>
             @endif
             <a href="{{ route('superadmin.users.archived') }}" class="user-view-link">
-                <i data-lucide="archive"></i>
+                {{-- <i data-lucide="archive"></i> --}}
                 Archived Users
             </a>
         </div>
@@ -494,7 +516,8 @@
                                             \Illuminate\Support\Facades\Cache::has('dispatcher:presence:' . $user->id);
                                     @endphp
                                     <div class="status-stack">
-                                        <span class="status-badge {{ $user->status }}">{{ ucfirst($user->status) }}</span>
+                                        <span
+                                            class="status-badge {{ $user->status }}">{{ ucfirst($user->status) }}</span>
 
                                         @if ($dispatcherOnline)
                                             <small class="self-tag">Dispatcher online</small>
@@ -521,7 +544,7 @@
                                 <td data-label="Actions">
                                     <div class="action-group">
                                         <a href="{{ route('superadmin.users.edit', $user->id) }}" class="action-btn">
-                                            <i data-lucide="pencil"></i>
+                                            {{-- <i data-lucide="pencil"></i> --}}
                                             Edit
                                         </a>
 
@@ -679,7 +702,8 @@
                 sessionStorage.removeItem('sa_flash_success');
                 const banner = document.createElement('div');
                 banner.className = 'sa-flash-banner sa-flash-success';
-                banner.innerHTML = `<i data-lucide="check-circle" style="width:17px;height:17px;flex-shrink:0;"></i><span>${storedFlash}</span><button type="button" onclick="this.closest('.sa-flash-banner').remove()" class="sa-flash-close">×</button>`;
+                banner.innerHTML =
+                    `<i data-lucide="check-circle" style="width:17px;height:17px;flex-shrink:0;"></i><span>${storedFlash}</span><button type="button" onclick="this.closest('.sa-flash-banner').remove()" class="sa-flash-close">×</button>`;
                 document.querySelector('.user-management-page')?.prepend(banner);
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
@@ -687,7 +711,10 @@
             // Auto-hide flash banners after 5 s
             document.querySelectorAll('.sa-flash-banner').forEach(el => {
                 setTimeout(() => el.style.transition = 'opacity 0.4s', 4600);
-                setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 420); }, 5000);
+                setTimeout(() => {
+                    el.style.opacity = '0';
+                    setTimeout(() => el.remove(), 420);
+                }, 5000);
             });
 
             const filterForm = document.querySelector('.filters');

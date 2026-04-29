@@ -50,7 +50,11 @@
     padding: 9px 14px;
     border-radius: 12px;
     border: 1px solid transparent;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-decoration: none;
     cursor: pointer;
     transition:
@@ -91,8 +95,7 @@
 
 .units-page .summary-card {
     background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 18px;
+
     padding: 18px;
     box-shadow: 0 10px 24px rgba(17, 17, 17, 0.04);
 }
@@ -100,10 +103,10 @@
 .units-page .summary-card span {
     display: block;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-family: sans-serif;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #8a6c00;
+    color: #000000;
 }
 
 .units-page .summary-card strong {
@@ -169,7 +172,7 @@
     min-height: 42px;
     min-width: 260px;
     padding: 0 12px;
-    border-radius: 12px;
+
     border: 1px solid #e5e7eb;
     background: #fff;
 }
@@ -181,7 +184,7 @@
 .units-page .form-group textarea {
     width: 100%;
     border: 1px solid #e5e7eb;
-    border-radius: 12px;
+
     background: #ffffff;
     color: #111111;
     font-size: 14px;
@@ -212,29 +215,29 @@
 }
 
 .units-page .modern-table thead {
-    background: #fffdf3;
+    background: #ffffff;
 }
 
 .units-page .modern-table th {
     padding: 14px 16px;
     color: #111827;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-family: sans-serif;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     text-align: left;
-    border-bottom: 1px solid #f3e8b3;
+    border-bottom: 1px solid #000000;
 }
 
 .units-page .modern-table td {
     padding: 16px;
-    border-bottom: 1px solid #f6edc9;
+    border-bottom: 1px solid #ffffff;
     color: #1f2937;
     vertical-align: top;
 }
 
 .units-page .modern-table tbody tr:hover {
-    background: #fffdf4;
+    background: #ffffff;
 }
 
 .units-page .unit-cell {
@@ -252,13 +255,17 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-weight: 800;
+    font-family: sans-serif;
     flex-shrink: 0;
 }
 
 .units-page .unit-name {
     display: block;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #111111;
 }
 
@@ -277,7 +284,7 @@
     padding: 6px 10px;
     border-radius: 999px;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-family: sans-serif;
 }
 
 .units-page .plate-badge {
@@ -286,8 +293,7 @@
 }
 
 .units-page .truck-badge {
-    background: #fff7d6;
-    color: #8a6c00;
+    color: #000000;
 }
 
 .units-page .status-stack {
@@ -304,7 +310,11 @@
     padding: 6px 10px;
     border-radius: 999px;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .units-page .status-pill.available {
@@ -411,7 +421,11 @@
 
 .units-page .form-group label {
     font-size: 0.86rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     color: #374151;
 }
 
@@ -473,9 +487,9 @@
 
     .units-page .modern-table tbody tr {
         display: block;
-        border: 1px solid #f3ead0;
+        border: 1px solid #ffffff;
         border-radius: 16px;
-        background: #fffefb;
+        background: #ffffff;
     }
 
     .units-page .modern-table td {
@@ -489,7 +503,7 @@
     .units-page .modern-table td::before {
         content: attr(data-label);
         font-size: 0.74rem;
-        font-weight: 800;
+        font-family: sans-serif;
         color: #6b7280;
         text-transform: uppercase;
         letter-spacing: 0.05em;

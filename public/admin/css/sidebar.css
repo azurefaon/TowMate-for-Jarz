@@ -28,14 +28,22 @@
 
 .sidebar-brand span {
     font-size: 1.25rem;
-    font-weight: 700;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     letter-spacing: -0.025em;
 }
 
 .menu-label {
     padding: 1rem 1.5rem 0.5rem;
     font-size: 0.75rem;
-    font-weight: 600;
+    font-style:
+        poppins,
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: rgba(255, 255, 255, 0.5);

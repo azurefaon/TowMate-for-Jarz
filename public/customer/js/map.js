@@ -743,7 +743,9 @@ function populateBookingSummary() {
 
         const fareItems = [
             { label: "Distance", value: distance },
-            rate && rate !== "₱0.00" ? { label: "Per-4km Charge", value: rate } : null,
+            rate && rate !== "₱0.00"
+                ? { label: "Per-4km Charge", value: rate }
+                : null,
             { label: "Distance Fee", value: distanceFee },
             additionalFee && additionalFee !== "₱0.00"
                 ? { label: "Additional Fees", value: additionalFee }
@@ -1418,7 +1420,6 @@ async function updateRoutePreview() {
 }
 
 function toggleBookBtn() {
-    // Only run on the customer page — landing page manages its own button state
     if (!document.getElementById("bookBtn")) return;
 
     const pickup = elements.pickupInput?.value.trim();
@@ -1432,7 +1433,8 @@ function toggleBookBtn() {
 
     if (!bookBtn) return;
 
-    const validServiceType = serviceType === "book_now" || serviceType === "schedule";
+    const validServiceType =
+        serviceType === "book_now" || serviceType === "schedule";
 
     const canRequest =
         pickup &&
@@ -1542,7 +1544,9 @@ async function calculateEstimate() {
         currentDistanceKm = Number(pricing.distance_km || 0);
         currentEtaMinutes = Number(data.route?.duration_min || 0);
         currentEstimateTotal = Number(pricing.final_total || 0);
-        const kmIncrements = Number(pricing.km_increments || Math.floor(currentDistanceKm / 4));
+        const kmIncrements = Number(
+            pricing.km_increments || Math.floor(currentDistanceKm / 4),
+        );
 
         applyPricingSnapshot(
             createPricingSnapshot({
@@ -2025,7 +2029,9 @@ async function getSuggestions(query, containerId, type) {
 
     try {
         const url = `${geoConfig.searchUrl}?q=${encodeURIComponent(query)}`;
-        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        const res = await fetch(url, {
+            headers: { Accept: "application/json" },
+        });
         clearTimeout(loadingTimer);
         const data = await res.json();
 
@@ -2034,23 +2040,32 @@ async function getSuggestions(query, containerId, type) {
         const features = data.features || [];
 
         if (features.length === 0) {
-            container.innerHTML = '<div class="suggestion-empty">No results found. Try adding city or landmark.</div>';
+            container.innerHTML =
+                '<div class="suggestion-empty">No results found. Try adding city or landmark.</div>';
             return;
         }
 
         features.forEach((place) => {
             const label = (place.label || "").trim();
             const commaIdx = label.indexOf(",");
-            const primary   = commaIdx > -1 ? label.substring(0, commaIdx).trim() : label;
-            const secondary = commaIdx > -1 ? label.substring(commaIdx + 1).trim() : "";
+            const primary =
+                commaIdx > -1 ? label.substring(0, commaIdx).trim() : label;
+            const secondary =
+                commaIdx > -1 ? label.substring(commaIdx + 1).trim() : "";
 
             const div = document.createElement("div");
             div.className = "suggestion-row";
             div.innerHTML =
                 '<span class="suggestion-body">' +
-                    '<span class="suggestion-primary">' + _escHtml(primary) + '</span>' +
-                    (secondary ? '<span class="suggestion-secondary">' + _escHtml(secondary) + '</span>' : '') +
-                '</span>';
+                '<span class="suggestion-primary">' +
+                _escHtml(primary) +
+                "</span>" +
+                (secondary
+                    ? '<span class="suggestion-secondary">' +
+                      _escHtml(secondary) +
+                      "</span>"
+                    : "") +
+                "</span>";
 
             div.onclick = async () => {
                 const coords = place.coordinates || [];
@@ -2087,27 +2102,31 @@ function openNoUnitModal() {
         overlay.style.cssText = [
             "position:fixed;inset:0;background:rgba(9,9,11,.55);",
             "display:flex;align-items:center;justify-content:center;",
-            "padding:24px;z-index:4000;"
+            "padding:24px;z-index:4000;",
         ].join("");
 
         var box = document.createElement("div");
         box.style.cssText = [
             "width:min(420px,96vw);background:#fff;border-radius:18px;",
             "border:1px solid #e4e4e7;padding:28px 28px 24px;",
-            "box-shadow:0 24px 60px rgba(9,9,11,.14);"
+            "box-shadow:0 24px 60px rgba(9,9,11,.14);",
         ].join("");
 
         var availability = latestAvailability || {};
-        var msg = availability.message || "No units are currently available for immediate dispatch.";
+        var msg =
+            availability.message ||
+            "No units are currently available for immediate dispatch.";
 
         box.innerHTML = [
             '<p style="margin:0 0 6px;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:.06em;">Availability</p>',
             '<h3 style="margin:0 0 10px;font-size:17px;color:#09090b;">No units available right now</h3>',
-            '<p style="margin:0 0 20px;font-size:13px;color:#52525b;line-height:1.6;">' + _escHtml(msg) + ' Choose an option below to continue.</p>',
+            '<p style="margin:0 0 20px;font-size:13px;color:#52525b;line-height:1.6;">' +
+                _escHtml(msg) +
+                " Choose an option below to continue.</p>",
             '<div style="display:flex;flex-direction:column;gap:10px;">',
-                '<button id="noUnitScheduleBtn" style="padding:12px 18px;border-radius:10px;border:1px solid #09090b;background:#09090b;color:#fff;font-size:13px;cursor:pointer;">Schedule for Later</button>',
-                '<button id="noUnitCancelBtn"   style="padding:12px 18px;border-radius:10px;border:1px solid #e4e4e7;background:#fff;color:#3f3f46;font-size:13px;cursor:pointer;">Cancel</button>',
-            '</div>',
+            '<button id="noUnitScheduleBtn" style="padding:12px 18px;border-radius:10px;border:1px solid #09090b;background:#09090b;color:#fff;font-size:13px;cursor:pointer;">Schedule for Later</button>',
+            '<button id="noUnitCancelBtn"   style="padding:12px 18px;border-radius:10px;border:1px solid #e4e4e7;background:#fff;color:#3f3f46;font-size:13px;cursor:pointer;">Cancel</button>',
+            "</div>",
         ].join("");
 
         overlay.appendChild(box);
@@ -2120,7 +2139,9 @@ function openNoUnitModal() {
 
         document.getElementById("noUnitScheduleBtn").onclick = function () {
             // Switch form to schedule mode
-            var sel = elements.serviceTypeSelect || document.getElementById("service_type");
+            var sel =
+                elements.serviceTypeSelect ||
+                document.getElementById("service_type");
             if (sel) {
                 sel.value = "schedule";
                 sel.dispatchEvent(new Event("change"));
@@ -2129,8 +2150,12 @@ function openNoUnitModal() {
             close(true);
         };
 
-        document.getElementById("noUnitCancelBtn").onclick = function () { close(false); };
-        overlay.onclick = function (e) { if (e.target === overlay) close(false); };
+        document.getElementById("noUnitCancelBtn").onclick = function () {
+            close(false);
+        };
+        overlay.onclick = function (e) {
+            if (e.target === overlay) close(false);
+        };
     });
 }
 

@@ -13,7 +13,7 @@
         .audit-card {
             background: #fff;
             border: 1px solid #e5e7eb;
-            border-radius: 18px;
+            /* border-radius: 18px; */
             padding: 18px;
             box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
         }
@@ -35,10 +35,10 @@
         }
 
         .audit-stat {
-            border-radius: 16px;
+            /* border-radius: 16px; */
             padding: 16px;
-            background: linear-gradient(135deg, #fffbe6 0%, #ffffff 100%);
-            border: 1px solid #fde68a;
+            background: white;
+            /* border: 1px solid #ffffff; */
         }
 
         .audit-stat small {
@@ -81,11 +81,9 @@
             display: inline-flex;
             align-items: center;
             padding: 4px 10px;
-            border-radius: 999px;
+            /* border-radius: 999px; */
             font-size: 12px;
             font-weight: 700;
-            background: #f3f4f6;
-            color: #374151;
         }
 
         .audit-empty {
@@ -105,10 +103,10 @@
     <div class="audit-shell">
         <section class="audit-hero">
             <h1>Audit Logs</h1>
-            <p>Review system activity, booking-related events, and operational changes in one place.</p>
+            {{-- <p>Review system activity, booking-related events, and operational changes in one place.</p> --}}
         </section>
 
-        <section class="audit-stats">
+        {{-- <section class="audit-stats">
             <div class="audit-stat">
                 <small>Total Logs</small>
                 <strong>{{ $totalLogs }}</strong>
@@ -125,7 +123,7 @@
                 <small>System Changes</small>
                 <strong>{{ $systemChanges }}</strong>
             </div>
-        </section>
+        </section> --}}
 
         <section class="audit-card">
             <div style="margin-bottom: 12px;">

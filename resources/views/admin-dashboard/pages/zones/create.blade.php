@@ -12,7 +12,7 @@
 
         .form-card {
             background: white;
-            border-radius: 16px;
+            /* border-radius: 16px; */
             box-shadow: 0 20px 60px rgba(15, 23, 42, 0.1);
             max-width: 600px;
             margin: 0 auto;
@@ -64,7 +64,7 @@
             width: 100%;
             padding: 12px 14px;
             border: 2px solid #e5e7eb;
-            border-radius: 8px;
+            /* border-radius: 8px; */
             font-size: 0.95rem;
             font-family: inherit;
             transition: all 0.2s ease;
@@ -100,7 +100,7 @@
         .team-leaders-section {
             background: #f8fafc;
             border: 2px dashed #cbd5e1;
-            border-radius: 8px;
+            /* border-radius: 8px; */
             padding: 16px;
             margin-bottom: 20px;
         }
@@ -126,7 +126,7 @@
             padding: 10px 12px;
             background: white;
             border: 1px solid #e5e7eb;
-            border-radius: 6px;
+            /* border-radius: 6px; */
             font-size: 0.9rem;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -158,7 +158,7 @@
             align-items: center;
             justify-content: center;
             padding: 12px 24px;
-            border-radius: 8px;
+            /* border-radius: 8px; */
             font-weight: 600;
             border: none;
             cursor: pointer;
@@ -193,7 +193,7 @@
             margin-top: 6px;
             padding: 8px 12px;
             background: #fee2e2;
-            border-radius: 6px;
+            /* border-radius: 6px; */
             border-left: 3px solid #dc2626;
         }
 
@@ -281,7 +281,7 @@
                         </div>
                     @else
                         <div
-                            style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+                            style="background: #fef3c7; border: 1px solid #fcd34d; padding: 12px 16px; margin-bottom: 20px;">
                             <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
                                 ℹ️ No team leaders available yet. You can assign team leaders to this zone after creation.
                             </p>
