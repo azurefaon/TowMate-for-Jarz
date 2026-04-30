@@ -184,7 +184,7 @@
                             style="background-image: url('{{ $landing && $landing->portfolio_main ? asset('storage/' . $landing->portfolio_main) : '' }}')">
                         </div>
                         <div class="portfolio-overlay">
-                            <div class="portfolio-badge">Featured</div>
+                            {{-- <div class="portfolio-badge">Featured</div> --}}
                             <h3>Emergency Tow</h3>
                             <span>Quezon City</span>
                         </div>

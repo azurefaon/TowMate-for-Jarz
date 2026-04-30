@@ -95,7 +95,6 @@
                                 <input type="file" name="about_image">
                             </div>
 
-                            <!-- FEATURED WORK -->
                             <div class="settings-field">
                                 <label>Featured Work Image (Large)</label>
 
@@ -106,7 +105,6 @@
                                 <input type="file" name="portfolio_main">
                             </div>
 
-                            <!-- COMPLETED JOBS -->
                             <div class="settings-field">
                                 <label>Completed Job Image #1</label>
 
