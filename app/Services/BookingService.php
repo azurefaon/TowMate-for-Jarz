@@ -29,7 +29,6 @@ class BookingService
         $serviceType = $this->resolveServiceType($data);
         $scheduledFor = $this->resolveScheduledFor($data, $serviceType);
 
-        // Get ETA from data or pricing if available
         $etaMinutes = null;
         if (isset($data['eta_minutes'])) {
             $etaMinutes = $data['eta_minutes'];
@@ -169,7 +168,6 @@ class BookingService
         TruckType::query()->findOrFail($data['truck_type_id']);
         $distanceKm = $this->resolveDistanceKm($data);
 
-        // Per-4km charge: ₱200 per complete 4km increment (no base rate)
         $kmIncrements = (int) floor($distanceKm / 4);
         $kmCharge = round($kmIncrements * 200.0, 2);
 
@@ -208,11 +206,9 @@ class BookingService
     ): array {
         $resolvedDistanceKm = max(round((float) ($distanceKm ?? ($booking->distance_km ?? 0)), 2), 0);
 
-        // Per-4km charge: ₱200 per complete 4km increment
         $kmIncrements = (int) floor($resolvedDistanceKm / 4);
         $kmCharge = round($kmIncrements * 200.0, 2);
 
-        // Base rate is 0 until dispatcher assigns a unit (passed explicitly when unit is assigned)
         $resolvedBaseRate = round((float) ($baseRate ?? 0), 2);
         $computedTotal = round($resolvedBaseRate + $kmCharge, 2);
 
@@ -259,7 +255,6 @@ class BookingService
             'customer_type' => $booking->customer_type ?: $booking->customer?->customer_type ?: 'regular',
         ]);
 
-        // Fallback logic for eta_minutes
         $eta = $data['eta_minutes'] ?? $booking->eta_minutes ?? ($booking->quotation ? $booking->quotation->eta_minutes : null);
 
         $payload = [
@@ -410,19 +405,15 @@ class BookingService
 
     protected function resolveDistanceKm(array $data): float
     {
-        // Priority 1: Use distance_km if provided (from pricing API with road distance)
         if (is_numeric($data['distance_km'] ?? null)) {
             return max(round((float) $data['distance_km'], 2), 0);
         }
 
-        // Priority 2: Parse distance field (from form submission)
         $resolvedDistance = round($this->parseDistance((string) ($data['distance'] ?? '0')), 2);
         if ($resolvedDistance > 0) {
             return $resolvedDistance;
         }
 
-        // Priority 3: Calculate from coordinates (fallback - straight line distance)
-        // NOTE: This is less accurate than road distance from routing API
         $pickupLat = $data['pickup_lat'] ?? null;
         $pickupLng = $data['pickup_lng'] ?? null;
         $dropLat = $data['drop_lat'] ?? $data['dropoff_lat'] ?? null;

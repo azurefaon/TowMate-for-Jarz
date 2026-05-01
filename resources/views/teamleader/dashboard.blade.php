@@ -29,7 +29,7 @@
             </div>
         </section>
 
-        <section class="tl-stat-grid" aria-label="Task summary">
+        {{-- <section class="tl-stat-grid" aria-label="Task summary">
             <article class="tl-stat-card">
                 <small>Assigned</small>
                 <strong data-stat="assigned">{{ $stats['assigned'] ?? 0 }}</strong>
@@ -53,7 +53,7 @@
                 <strong data-stat="completed_today">{{ $stats['completed_today'] ?? 0 }}</strong>
                 <span>Completed and verified jobs</span>
             </article>
-        </section>
+        </section> --}}
 
         <section class="tl-section-card">
             <div class="tl-section-card__header">

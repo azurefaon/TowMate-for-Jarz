@@ -164,6 +164,22 @@ class BookingController extends Controller
 
         $data['truck_type_id'] = $truckType->id;
 
+        // ── Scheduled capacity check ───────────────────────────────
+        if (($data['service_type'] ?? 'book_now') === 'schedule' && ! empty($data['scheduled_date'])) {
+            $cap = \DB::table('booking_capacity')
+                ->where('booking_date', $data['scheduled_date'])
+                ->first();
+
+            $slotsUsed = $cap ? $cap->slots_used : 0;
+            $slotsMax  = $cap ? $cap->slots_max  : 2;
+
+            if ($slotsUsed >= $slotsMax) {
+                return back()->withInput()->withErrors([
+                    'scheduled_date' => 'Sorry, this date is fully booked (max ' . $slotsMax . ' scheduled tows per day). Please choose another date.',
+                ]);
+            }
+        }
+
         if ($request->hasFile('vehicle_images')) {
             $paths = array_map(
                 fn($file) => $this->processAndStoreVehicleImage($file),
@@ -204,6 +220,9 @@ class BookingController extends Controller
             'estimated_price'    => $submittedPrice, // ✅ exact amount customer saw and confirmed
             'additional_fee'     => 0,
             'eta_minutes'        => $data['eta_minutes'] ?? null,
+            'service_type'       => $data['service_type'] ?? 'book_now',
+            'scheduled_date'     => $data['scheduled_date'] ?? null,
+            'scheduled_time'     => $data['scheduled_time'] ?? null,
         ]);
 
         $quotation->load(['customer', 'truckType']);

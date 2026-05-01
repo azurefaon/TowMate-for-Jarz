@@ -104,9 +104,26 @@ class DispatchController extends Controller
 
 
         $delayedRequests = collect();
-        $bookNowRequests = collect();
-        $scheduledRequests = collect();
         $negotiationRequests = collect();
+
+        // ── Book-Now queue: requested/reviewed/quoted/quotation_sent, NOT scheduled ──
+        $bookNowRequests = Booking::with(['customer', 'truckType'])
+            ->whereIn('status', $this->reviewableStatuses)
+            ->where(function ($q) {
+                $q->whereNull('service_type')
+                    ->orWhere('service_type', 'book_now');
+            })
+            ->oldest('created_at')  // FIFO
+            ->get()
+            ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'book-now'));
+
+        // ── Scheduled queue: scheduled_confirmed first (FIFO), then scheduled (FIFO) ──
+        $scheduledRequests = Booking::with(['customer', 'truckType'])
+            ->whereIn('status', ['scheduled_confirmed', 'scheduled'])
+            ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", ['scheduled_confirmed'])
+            ->oldest('created_at')  // FIFO within same status
+            ->get()
+            ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'scheduled'));
 
         $readyCompletionBookings = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'unit.driver'])
             ->whereIn('status', ['waiting_verification', 'payment_pending', 'payment_submitted'])
@@ -145,8 +162,8 @@ class DispatchController extends Controller
             'active' => $activeBookings->count(),
             'ready_completion' => $readyCompletionBookings->count(),
             'pending-quotations' => $pendingQuotationCount,
-            'book-now' => 0,
-            'scheduled' => 0,
+            'book-now' => $bookNowRequests->count(),
+            'scheduled' => $scheduledRequests->count(),
             'delayed' => 0,
             'negotiation' => 0,
         ];
@@ -176,6 +193,7 @@ class DispatchController extends Controller
                     'label' => trim(($unit->name ?? 'Unit') . ' · ' . ($unit->plate_number ?? 'No plate')),
                     'truck_type_id' => (int) ($unit->truck_type_id ?? 0),
                     'truck_type' => $unit->truckType->name ?? 'Unknown truck type',
+                    'truck_class' => $unit->truckType->class ?? '',
                     'base_rate' => (float) ($unit->truckType->base_rate ?? 0),
                     'team_leader_name' => $unit->teamLeader->full_name ?? $unit->teamLeader->name ?? 'No team leader',
                     'driver_name' => $unit->driver->full_name ?? $unit->driver->name ?? 'No saved driver',
@@ -241,7 +259,7 @@ class DispatchController extends Controller
             'expired' => Quotation::where('status', 'expired')->count(),
         ];
 
-        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaders', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats'));
+        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaders', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats', 'bookNowRequests', 'scheduledRequests'));
     }
 
     protected function syncCustomerRiskFlag(?Customer $customer, ?string $reason): void

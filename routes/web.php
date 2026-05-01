@@ -42,8 +42,25 @@ use App\Http\Controllers\SuperAdmin\VehicleTypeController;
 Route::get('/', [LandingController::class, 'index'])->name('landing');
 
 Route::get('/book', function () {
-    $truckTypes = TruckType::all();
-    return view('landing.form', compact('truckTypes'));
+    $classes    = ['light', 'medium', 'heavy'];
+    $truckTypes = TruckType::withCount([
+        'units as available_units_count' => fn($q) => $q->where('status', 'available')
+            ->whereNotNull('team_leader_id'),
+    ])->where('status', 'active')->orderBy('base_rate')->get();
+
+    $classData = collect($classes)->mapWithKeys(function ($cls) use ($truckTypes) {
+        $group          = $truckTypes->where('class', $cls)->values();
+        $availableUnits = (int) $group->sum('available_units_count');
+        $rep            = $group->sortBy('base_rate')->first();
+        return [$cls => [
+            'available_units' => $availableUnits,
+            'base_rate'       => (float) ($rep?->base_rate   ?? 0),
+            'per_km_rate'     => (float) ($rep?->per_km_rate ?? 0),
+            'truck_type_id'   => $rep?->id,
+        ]];
+    });
+
+    return view('landing.form', compact('truckTypes', 'classData'));
 })->name('landing.book');
 
 Route::post('/book', [CustomerBookingController::class, 'landingStore'])
@@ -122,7 +139,7 @@ require __DIR__ . '/auth.php';
 
 Route::prefix('teamleader')
     ->name('teamleader.')
-    ->middleware(['auth', 'role:3'])
+    ->middleware(['auth', 'role:3', 'force.password.change'])
     ->group(function () {
         Route::redirect('/', '/teamleader/dashboard');
         Route::get('/dashboard', [TeamLeaderController::class, 'dashboard'])->name('dashboard');
@@ -190,7 +207,7 @@ Route::view('/driver', 'dashboard')
 
 Route::prefix('control-center')
     ->name('control-center.')
-    ->middleware(['auth', 'role:1,2'])
+    ->middleware(['auth', 'role:1,2', 'force.password.change'])
     ->group(function () {
         Route::get('/', [ControlCenterController::class, 'index'])->name('index');
         Route::get('/live', [ControlCenterController::class, 'live'])->name('live');
@@ -198,7 +215,7 @@ Route::prefix('control-center')
 
 Route::prefix('admin-dashboard')
     ->name('admin.')
-    ->middleware(['auth', 'role:2'])
+    ->middleware(['auth', 'role:2', 'force.password.change'])
     ->group(function () {
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/live-overview', [AdminController::class, 'liveOverview'])->name('live-overview');
@@ -249,7 +266,7 @@ Route::prefix('admin-dashboard')
 
 Route::prefix('superadmin')
     ->name('superadmin.')
-    ->middleware(['auth', 'role:1'])
+    ->middleware(['auth', 'role:1', 'force.password.change'])
     ->group(function () {
         Route::get('/dashboard', [SuperAdminController::class, 'index'])->name('dashboard');
         Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
@@ -341,8 +358,25 @@ Route::middleware(['auth', 'role:5'])
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
         Route::get('/book', function () {
-            $truckTypes = TruckType::all();
-            return view('customer.pages.book', compact('truckTypes'));
+            $classes   = ['light', 'medium', 'heavy'];
+            $truckTypes = TruckType::withCount([
+                'units as available_units_count' => fn($q) => $q->where('status', 'available')
+                    ->whereNotNull('team_leader_id'),
+            ])->where('status', 'active')->orderBy('base_rate')->get();
+
+            $classData = collect($classes)->mapWithKeys(function ($cls) use ($truckTypes) {
+                $group          = $truckTypes->where('class', $cls)->values();
+                $availableUnits = (int) $group->sum('available_units_count');
+                $rep            = $group->sortBy('base_rate')->first();
+                return [$cls => [
+                    'available_units' => $availableUnits,
+                    'base_rate'       => (float) ($rep?->base_rate   ?? 0),
+                    'per_km_rate'     => (float) ($rep?->per_km_rate ?? 0),
+                    'truck_type_id'   => $rep?->id,
+                ]];
+            });
+
+            return view('customer.pages.book', compact('truckTypes', 'classData'));
         })->name('book');
 
         Route::post('/book', [CustomerBookingController::class, 'store'])->middleware('throttle:10,1')->name('book.store');

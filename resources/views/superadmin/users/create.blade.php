@@ -1,4 +1,4 @@
-@extends('layouts.superadmin')
+﻿@extends('layouts.superadmin')
 
 @section('title', isset($user) ? 'Edit User' : 'Add User')
 
@@ -47,6 +47,40 @@
 
         .phone-input-wrap input[type="tel"]::placeholder {
             color: #9ca3af;
+        }
+
+        /* Suppress Edge's built-in password reveal button */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none !important;
+        }
+
+        .pw-wrap {
+            position: relative;
+        }
+
+        .pw-wrap input[type="password"],
+        .pw-wrap input[type="text"] {
+            padding-right: 56px;
+        }
+
+        .pw-toggle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            padding: 0 12px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            color: #555;
+            font-family: sans-serif;
+            user-select: none;
+        }
+
+        .pw-toggle:hover {
+            color: #000;
         }
 
         .page-back-nav {
@@ -192,13 +226,388 @@
             font-size: 11.5px;
             letter-spacing: 0.07em;
             text-transform: uppercase;
-            color: #9ca3af;
+            color: #000000;
         }
 
         @media (max-width: 580px) {
             .role-choice-grid {
                 grid-template-columns: 1fr;
             }
+        }
+
+        .truck-class-picker {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+
+        .tcp-card {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 12px 14px;
+            background: #f7f7f7;
+            cursor: pointer;
+            text-align: left;
+            font-family: sans-serif;
+            width: 100%;
+            transition: background 0.12s;
+        }
+
+        .tcp-card:hover {
+            background: #efefef;
+        }
+
+        .tcp-card.selected {
+            background: #111827;
+        }
+
+        .tcp-card-left {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .tcp-card-name {
+            display: block;
+            font-family: sans-serif;
+            font-size: 13.5px;
+            color: #000;
+            margin-bottom: 4px;
+        }
+
+        .tcp-card.selected .tcp-card-name {
+            color: #fff;
+        }
+
+        .tcp-card-note {
+            display: block;
+            font-family: sans-serif;
+            font-size: 11.5px;
+            color: #555;
+            margin-top: 3px;
+            line-height: 1.4;
+        }
+
+        .tcp-card.selected .tcp-card-note {
+            color: #d1d5db;
+        }
+
+        .tcp-card-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 3px;
+            flex-shrink: 0;
+            font-family: sans-serif;
+        }
+
+        .tcp-meta-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            font-family: sans-serif;
+            font-size: 11.5px;
+            color: #000;
+        }
+
+        .tcp-card.selected .tcp-meta-row {
+            color: #fff;
+        }
+
+        .tcp-meta-label {
+            font-family: sans-serif;
+            font-size: 10.5px;
+            color: #777;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .tcp-card.selected .tcp-meta-label {
+            color: #9ca3af;
+        }
+
+        /* ── Truck Class Modal ─────────────────────────────── */
+        #truckClassModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            font-family: sans-serif;
+            overflow-y: auto;
+        }
+
+        .tc-modal-box {
+            background: #fff;
+            margin: 40px auto 40px;
+            max-width: 900px;
+            width: 96%;
+            border: 1px solid #000;
+            padding: 28px;
+        }
+
+        .tc-modal-inner {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 0;
+            align-items: start;
+        }
+
+        .tc-modal-inner>div:first-child {
+            padding-right: 24px;
+        }
+
+        .tc-modal-inner>div:last-child {
+            padding-left: 24px;
+        }
+
+        .tc-col-divider {
+            width: 1px;
+            background: #000;
+            align-self: stretch;
+            margin: 0;
+        }
+
+        @media (max-width: 680px) {
+            .tc-modal-inner {
+                grid-template-columns: 1fr;
+            }
+
+            .tc-col-divider {
+                display: none;
+            }
+        }
+
+        .tc-modal-heading {
+            font-family: sans-serif;
+            font-size: 15px;
+            color: #000;
+            margin: 0 0 18px;
+        }
+
+        .tc-divider {
+            border: none;
+            border-top: 1px solid #000;
+            margin: 16px 0;
+        }
+
+        .tc-pagination {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .tc-page-btn {
+            background: #fff;
+            border: 1px solid #000;
+            padding: 3px 9px;
+            font-family: sans-serif;
+            font-size: 12px;
+            color: #000;
+            cursor: pointer;
+        }
+
+        .tc-page-btn.active {
+            background: #000;
+            color: #fff;
+        }
+
+        .tc-page-btn:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        #tcConfirmModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            font-family: sans-serif;
+        }
+
+        .tc-confirm-box {
+            background: #fff;
+            border: 1px solid #000;
+            padding: 24px 28px;
+            margin: 160px auto 0;
+            max-width: 380px;
+            width: 92%;
+        }
+
+        .tc-confirm-msg {
+            font-family: sans-serif;
+            font-size: 13.5px;
+            color: #000;
+            margin: 0 0 20px;
+        }
+
+        .tc-confirm-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tc-form-label {
+            display: block;
+            font-family: sans-serif;
+            font-size: 13.5px;
+            color: #000;
+            margin-bottom: 5px;
+        }
+
+        .tc-form-input,
+        .tc-form-textarea {
+            display: block;
+            width: 100%;
+            border: 1px solid #000;
+            padding: 7px 10px;
+            font-family: sans-serif;
+            font-size: 13.5px;
+            color: #000;
+            background: #fff;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .tc-form-textarea {
+            resize: vertical;
+            min-height: 68px;
+        }
+
+        .tc-desc-note {
+            display: block;
+            font-family: sans-serif;
+            font-size: 12px;
+            color: #000;
+            margin-top: 4px;
+        }
+
+        .tc-field-wrap {
+            margin-bottom: 14px;
+        }
+
+        .tc-row-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .tc-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .tc-btn {
+            padding: 7px 20px;
+            font-family: sans-serif;
+            font-size: 13.5px;
+            cursor: pointer;
+            border: 1px solid #000;
+        }
+
+        .tc-btn-primary {
+            background: #000;
+            color: #fff;
+        }
+
+        .tc-btn-secondary {
+            background: #fff;
+            color: #000;
+        }
+
+        .tc-error-box {
+            border: 1px solid #000;
+            padding: 8px 10px;
+            font-family: sans-serif;
+            font-size: 13px;
+            color: #000;
+            margin-bottom: 14px;
+            display: none;
+        }
+
+        .tc-existing-label {
+            font-family: sans-serif;
+            font-size: 11.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #000;
+            margin: 0 0 10px;
+        }
+
+        .tc-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: sans-serif;
+            font-size: 12.5px;
+            color: #000;
+        }
+
+        .tc-table th,
+        .tc-table td {
+            border: 1px solid #000;
+            padding: 5px 8px;
+            text-align: left;
+            color: #000;
+        }
+
+        .tc-edit-row-btn {
+            background: none;
+            border: 1px solid #000;
+            padding: 2px 8px;
+            font-family: sans-serif;
+            font-size: 12px;
+            color: #000;
+            cursor: pointer;
+            margin-right: 4px;
+        }
+
+        .tc-remove-row-btn {
+            background: none;
+            border: 1px solid #000;
+            padding: 2px 8px;
+            font-family: sans-serif;
+            font-size: 12px;
+            color: #000;
+            cursor: pointer;
+        }
+
+        .tc-empty-note {
+            font-family: sans-serif;
+            font-size: 13px;
+            color: #000;
+            margin: 0;
+        }
+
+        .tc-open-modal-btn {
+            background: none;
+            border: 1px solid #000;
+            padding: 5px 13px;
+            font-family: sans-serif;
+            font-size: 12.5px;
+            color: #000;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        .tc-form-section-title {
+            font-family: sans-serif;
+            font-size: 12px;
+            color: #000;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin: 0 0 14px;
         }
     </style>
 @endpush
@@ -387,51 +796,27 @@
                             @enderror
                         </div>
 
-                        <div class="form-group">
-                            <label>Phone Number <span class="field-optional">Optional</span></label>
-                            <div class="phone-input-wrap">
-                                <span class="phone-cc">+63</span>
-                                <input type="tel" name="phone" id="phoneInput"
-                                    value="{{ old('phone', $user->phone ?? '') }}" placeholder="9XXXXXXXXX"
-                                    maxlength="11" inputmode="numeric" autocomplete="tel">
-                            </div>
-                            <small class="field-note">Numbers only · start with 9 or 09 · max 11 digits</small>
-                            @error('phone')
-                                <small class="error-text">{{ $message }}</small>
-                            @enderror
-                        </div>
-
-                        @if ($isEdit)
-                            <div class="form-group">
-                                <label>Role</label>
-                                <div class="locked-field">
-                                    <span>{{ $user->role->name ?? '—' }}</span>
-                                    <span class="locked-badge">Locked</span>
-                                </div>
-                                <small class="field-note">Role cannot be changed after user creation.</small>
-                            </div>
-                        @endif
-
-                        <div class="form-section-title">
-                            {{ $isEdit ? 'Change Password' : 'Password' }}
-                            @if ($isEdit)
-                                <span class="field-optional" style="font-size:0.78rem;margin-left:6px;">Optional — leave
-                                    blank to keep current</span>
-                            @endif
-                        </div>
-
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Password {!! $isEdit ? '' : '<span class="required-mark">*</span>' !!}</label>
-                                <input type="password" name="password" id="passwordInput"
-                                    {{ $isEdit ? '' : 'required' }}>
+                                <div class="pw-wrap">
+                                    <input type="password" name="password" id="passwordInput" autocomplete="new-password"
+                                        {{ $isEdit ? '' : 'required' }}>
+                                    <button type="button" class="pw-toggle" onclick="togglePw('passwordInput', this)"
+                                        tabindex="-1">Show</button>
+                                </div>
                                 @error('password')
                                     <small class="error-text">{{ $message }}</small>
                                 @enderror
                             </div>
                             <div class="form-group">
                                 <label>Confirm Password {!! $isEdit ? '' : '<span class="required-mark">*</span>' !!}</label>
-                                <input type="password" name="password_confirmation" {{ $isEdit ? '' : 'required' }}>
+                                <div class="pw-wrap">
+                                    <input type="password" name="password_confirmation" id="passwordConfirmInput"
+                                        autocomplete="new-password" {{ $isEdit ? '' : 'required' }}>
+                                    <button type="button" class="pw-toggle"
+                                        onclick="togglePw('passwordConfirmInput', this)" tabindex="-1">Show</button>
+                                </div>
                                 @error('password_confirmation')
                                     <small class="error-text">{{ $message }}</small>
                                 @enderror
@@ -449,10 +834,42 @@
                                         lowercase letters</span></li>
                                 <li data-rule="number"><span class="requirement-icon">•</span><span>atleast one
                                         number</span></li>
-                                <li data-rule="special"><span class="requirement-icon">•</span><span>atleast one special
+                                <li data-rule="special"><span class="requirement-icon">•</span><span>atleast one
+                                        special
                                         characters</span></li>
                             </ul>
                         </div>
+
+                        <div class="form-group">
+                            <label>Phone Number
+                                <span id="phoneRequiredMark" class="required-mark"
+                                    @if (!($isTLEdit || ($hasOldRoleId && (string) old('role_id') === (string) $tlRoleId))) hidden @endif>*</span>
+                                <span id="phoneOptionalMark" class="field-optional"
+                                    @if ($isTLEdit || ($hasOldRoleId && (string) old('role_id') === (string) $tlRoleId)) hidden @endif>Optional</span>
+                            </label>
+                            <div class="phone-input-wrap">
+                                <span class="phone-cc">+63</span>
+                                <input type="tel" name="phone" id="phoneInput"
+                                    value="{{ old('phone', $user->phone ?? '') }}" placeholder="9XXXXXXXXX"
+                                    maxlength="11" inputmode="numeric" autocomplete="tel"
+                                    @if ($isTLEdit || ($hasOldRoleId && (string) old('role_id') === (string) $tlRoleId)) required @endif>
+                            </div>
+                            {{-- <small class="field-note">Numbers only · start with 9 or 09 · max 11 digits</small> --}}
+                            @error('phone')
+                                <small class="error-text">{{ $message }}</small>
+                            @enderror
+                        </div>
+
+                        @if ($isEdit)
+                            <div class="form-group">
+                                <label>Role</label>
+                                <div class="locked-field">
+                                    <span>{{ $user->role->name ?? '—' }}</span>
+                                    <span class="locked-badge">Locked</span>
+                                </div>
+                                <small class="field-note">Role cannot be changed after user creation.</small>
+                            </div>
+                        @endif
 
                         <div class="form-group">
                             <label>Status</label>
@@ -523,7 +940,8 @@
                                         <label>Plate Number <span class="required-mark">*</span></label>
                                         <input type="text" name="unit_plate_number"
                                             value="{{ old('unit_plate_number', $user->unit?->plate_number ?? '') }}"
-                                            placeholder="e.g. ABC 1234" @if ($showTLSections && !$isEdit) required @endif>
+                                            placeholder="e.g. ABC 1234"
+                                            @if ($showTLSections && !$isEdit) required @endif>
                                         @error('unit_plate_number')
                                             <small class="error-text">{{ $message }}</small>
                                         @enderror
@@ -531,30 +949,58 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label>Truck Type <span class="required-mark">*</span></label>
-                                    <div class="ttc-cards" id="truckTypeCards">
-                                        @forelse ($truckTypes as $truckType)
-                                            <div class="ttc-card" data-type="{{ $truckType->name }}"
-                                                data-configured="false">
-                                                <div class="ttc-card-body">
-                                                    <strong class="ttc-card-name">{{ $truckType->name }}</strong>
-                                                    <span class="ttc-card-label">Loading…</span>
-                                                </div>
-                                                <div class="ttc-card-actions">
-                                                    <button type="button" class="ttc-card-edit-btn" hidden>Edit</button>
-                                                </div>
-                                            </div>
-                                        @empty
-                                            <p class="field-note">No active truck types found. Use Manage Truck Types to
-                                                add one.</p>
-                                        @endforelse
+                                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+                                        <label style="margin:0;">Truck Type <span class="required-mark">*</span></label>
+                                        <button type="button" class="tc-open-modal-btn" id="openTruckClassModal">Add
+                                            Truck Class</button>
                                     </div>
-                                    <button type="button" id="manageTruckTypesLink"
-                                        class="manage-truck-types-link">Manage Truck Types</button>
-                                    <input type="hidden" name="unit_truck_class" id="truckTypeHidden"
-                                        value="{{ old('unit_truck_class', $user->unit?->truckType?->name ?? '') }}">
-                                    <small id="truckTypeSelectionError" class="error-text" hidden>Please select and
-                                        configure a truck type.</small>
+                                    @php
+                                        $currentTruckId = $isTLEdit ? $user->unit?->truck_type_id ?? '' : '';
+                                        $selectedTruckId = old(
+                                            'unit_truck_id',
+                                            old('unit_truck_class', $currentTruckId),
+                                        );
+                                    @endphp
+                                    @if ($truckTypes->isEmpty())
+                                        <p style="font-family:sans-serif;font-size:13px;color:#000;margin:0;">No active
+                                            truck types yet. Add one using the button above.</p>
+                                    @else
+                                        <div class="truck-class-picker" id="truckClassPicker">
+                                            @foreach ($truckTypes as $tt)
+                                                <button type="button"
+                                                    class="tcp-card {{ (string) $selectedTruckId === (string) $tt->id ? 'selected' : '' }}"
+                                                    data-id="{{ $tt->id }}">
+                                                    <div class="tcp-card-left">
+                                                        <span class="tcp-card-name">{{ $tt->name }}</span>
+                                                        @if ($tt->description)
+                                                            <span class="tcp-card-note">{{ $tt->description }}</span>
+                                                        @endif
+                                                    </div>
+                                                    <div class="tcp-card-meta">
+                                                        <div class="tcp-meta-row">
+                                                            <span class="tcp-meta-label">Base Rate</span>
+                                                            <span>{{ number_format($tt->base_rate, 2) }}</span>
+                                                        </div>
+                                                        <div class="tcp-meta-row">
+                                                            <span class="tcp-meta-label">Per KM</span>
+                                                            <span>{{ number_format($tt->per_km_rate, 2) }}</span>
+                                                        </div>
+                                                        <div class="tcp-meta-row">
+                                                            <span class="tcp-meta-label">Kilo</span>
+                                                            <span>{{ $tt->max_tonnage !== null ? number_format($tt->max_tonnage, 2) : '—' }}</span>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                    <input type="hidden" name="unit_truck_id" id="truckClassHidden"
+                                        value="{{ $selectedTruckId }}">
+                                    <small id="truckClassError" class="error-text" hidden>Please select a truck
+                                        type.</small>
+                                    @error('unit_truck_id')
+                                        <small class="error-text">{{ $message }}</small>
+                                    @enderror
                                     @error('unit_truck_class')
                                         <small class="error-text">{{ $message }}</small>
                                     @enderror
@@ -574,166 +1020,101 @@
 
             </div>{{-- /form-card --}}
         </div>{{-- /form-wrapper --}}
-        <div id="truckTypeConfigModal" class="ttc-overlay" hidden>
-            <div class="ttc-modal">
-                <div class="ttc-modal-header">
-                    <h3 id="ttcModalTitle">Configure Truck Type</h3>
-                    <p>Set pricing and capacity before this type can be used.</p>
-                </div>
-                <div class="ttc-modal-body">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Base Rate (₱) <span class="required-mark">*</span></label>
-                            <input type="number" id="ttcBaseRate" min="0" step="0.01"
-                                placeholder="e.g. 4500">
-                            <small class="ttc-hint">Flat charge for the first 4 km</small>
+
+    </div>
+
+    {{-- ── Truck Class Modal ──────────────────────────────────────── --}}
+    <div id="truckClassModal">
+        <div class="tc-modal-box">
+            <p class="tc-modal-heading" id="tcModalTitle">Add Truck Class</p>
+
+            <div class="tc-modal-inner">
+
+                {{-- LEFT: Form --}}
+                <div>
+                    <p class="tc-form-section-title" id="tcFormSectionTitle">New Truck Class</p>
+
+                    <div id="tcErrorBox" class="tc-error-box"></div>
+
+                    <form id="tcModalForm" novalidate>
+                        <input type="hidden" id="tcEditId" value="">
+
+                        <div class="tc-field-wrap">
+                            <label class="tc-form-label" for="tcName">Truck Class Name *</label>
+                            <input type="text" id="tcName" class="tc-form-input" maxlength="100">
                         </div>
-                        <div class="form-group">
-                            <label>Per 4km Rate (₱) <span class="required-mark">*</span></label>
-                            <input type="number" id="ttcPerKmRate" min="0" step="0.01"
-                                placeholder="e.g. 200">
-                            <small class="ttc-hint">Added for every 4 km beyond the base</small>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Capacity (kg) <span class="required-mark">*</span></label>
-                        <input type="number" id="ttcCapacity" min="0" step="1" placeholder="e.g. 3000">
-                    </div>
-                    <div class="form-group">
-                        <label>Description <span class="field-optional">Optional</span></label>
-                        <input type="text" id="ttcDescription" placeholder="e.g. For medium-sized vehicles">
-                    </div>
-                    <div id="ttcError" class="ttc-error" hidden></div>
-                </div>
-                <div class="ttc-modal-footer">
-                    <button type="button" id="ttcCancelBtn" class="btn-cancel">Cancel</button>
-                    <button type="button" id="ttcSaveBtn" class="btn-primary-submit">Save Config</button>
-                </div>
-            </div>
-        </div>
 
-        <div id="manageTruckTypesModal" class="ttc-overlay" hidden>
-            <div
-                style="background:#fff;width:740px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.2);">
-
-                <div
-                    style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid #e5e7eb;flex-shrink:0;">
-                    <span style="font-size:15px;color:#111827;">Manage Truck Types</span>
-                    <button type="button" id="closeMgmtModal"
-                        style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;color:#374151;line-height:1;">&#215;</button>
-                </div>
-
-                <div style="padding:14px 24px;border-bottom:1px solid #e5e7eb;flex-shrink:0;">
-                    <button type="button" id="mgmtShowAddBtn"
-                        style="background:#0f172a;color:#fff;border:none;padding:7px 14px;cursor:pointer;font-size:13px;">Add
-                        Truck Type</button>
-
-                    <div id="mgmtAddForm" hidden style="margin-top:14px;">
-                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+                        <div class="tc-row-2">
                             <div>
-                                <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Name</label>
-                                <input type="text" id="mgmtAddName" placeholder="e.g. Flatbed"
-                                    style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                                <label class="tc-form-label" for="tcBaseRate">Base Rate *</label>
+                                <input type="number" id="tcBaseRate" class="tc-form-input" min="0"
+                                    step="0.01">
                             </div>
                             <div>
-                                <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Base Rate
-                                    (₱)</label>
-                                <input type="number" id="mgmtAddBase" min="0" step="0.01" placeholder="1500"
-                                    style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
-                            </div>
-                            <div>
-                                <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Per KM Rate
-                                    (₱)</label>
-                                <input type="number" id="mgmtAddKm" min="0" step="0.01" placeholder="200"
-                                    style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
-                            </div>
-                            <div>
-                                <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Capacity
-                                    (kg)</label>
-                                <input type="number" id="mgmtAddTonnage" min="0" step="1"
-                                    placeholder="e.g. 1500"
-                                    style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+                                <label class="tc-form-label" for="tcPerKm">Per KM *</label>
+                                <input type="number" id="tcPerKm" class="tc-form-input" min="0"
+                                    step="0.01">
                             </div>
                         </div>
-                        <div style="margin-top:10px;">
-                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Description
-                                (optional)</label>
-                            <input type="text" id="mgmtAddDesc" placeholder="Short description"
-                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
+
+                        <div class="tc-field-wrap">
+                            <label class="tc-form-label" for="tcKilo">Kilo *</label>
+                            <input type="number" id="tcKilo" class="tc-form-input" min="0" step="0.01">
                         </div>
-                        <div id="mgmtAddError" hidden style="color:#dc2626;font-size:12px;margin-top:8px;"></div>
-                        <div style="display:flex;gap:8px;margin-top:10px;">
-                            <button type="button" id="mgmtCancelAddBtn"
-                                style="padding:7px 14px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:13px;">Cancel</button>
-                            <button type="button" id="mgmtSaveAddBtn"
-                                style="padding:7px 14px;background:#0f172a;color:#fff;border:none;cursor:pointer;font-size:13px;">Save</button>
+
+                        <div class="tc-field-wrap">
+                            <label class="tc-form-label" for="tcDescription">Description <span
+                                    style="color:#000;">optional</span></label>
+                            <textarea id="tcDescription" class="tc-form-textarea" maxlength="100"></textarea>
+                            <span class="tc-desc-note" id="tcDescCounter">0 / 100</span>
                         </div>
-                    </div>
+
+                        <div class="tc-actions">
+                            <button type="submit" class="tc-btn tc-btn-primary" id="tcSubmitBtn">Add</button>
+                            <button type="button" class="tc-btn tc-btn-secondary" id="tcCancelBtn">Cancel</button>
+                        </div>
+                    </form>
                 </div>
 
-                <div style="overflow-y:auto;flex:1;">
-                    <div id="mgmtActionError" hidden
-                        style="margin:12px 24px 0;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:13px;">
-                    </div>
-                    <div id="mgmtListContent" style="padding:0 24px;">
-                        <p style="color:#6b7280;font-size:13px;padding:20px 0;text-align:center;">Loading...</p>
-                    </div>
-                </div>
+                <div class="tc-col-divider"></div>
 
-                <div id="mgmtEditSection" hidden
-                    style="padding:16px 24px;border-top:1px solid #e5e7eb;flex-shrink:0;background:#f9fafb;">
-                    <p style="margin:0 0 12px;font-size:13px;color:#374151;">Editing: <span id="mgmtEditingLabel"
-                            style="color:#111827;"></span></p>
-                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
-                        <div>
-                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Name</label>
-                            <input type="text" id="mgmtEditName"
-                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
-                        </div>
-                        <div>
-                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Base Rate
-                                (₱)</label>
-                            <input type="number" id="mgmtEditBase" min="0" step="0.01"
-                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
-                        </div>
-                        <div>
-                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Per KM Rate
-                                (₱)</label>
-                            <input type="number" id="mgmtEditKm" min="0" step="0.01"
-                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
-                        </div>
-                        <div>
-                            <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Capacity
-                                (kg)</label>
-                            <input type="number" id="mgmtEditTonnage" min="0" step="1"
-                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
-                        </div>
+                {{-- RIGHT: Existing list --}}
+                <div id="tcExistingSection">
+                    <p class="tc-existing-label">Existing Truck Classes</p>
+                    <div id="tcExistingList">
+                        <p class="tc-empty-note">Loading...</p>
                     </div>
-                    <div style="margin-top:10px;">
-                        <label style="display:block;font-size:12px;margin-bottom:4px;color:#374151;">Description</label>
-                        <input type="text" id="mgmtEditDesc"
-                            style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d1d5db;font-size:13px;">
-                    </div>
-                    <div id="mgmtEditError" hidden style="color:#dc2626;font-size:12px;margin-top:8px;"></div>
-                    <div style="display:flex;gap:8px;margin-top:10px;">
-                        <button type="button" id="mgmtCancelEditBtn"
-                            style="padding:7px 14px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:13px;">Cancel</button>
-                        <button type="button" id="mgmtSaveEditBtn"
-                            style="padding:7px 14px;background:#0f172a;color:#fff;border:none;cursor:pointer;font-size:13px;">Update</button>
-                        <button type="button" id="mgmtDeleteEditBtn"
-                            style="padding:7px 14px;background:none;border:1px solid #dc2626;color:#dc2626;cursor:pointer;font-size:13px;margin-left:auto;">Delete</button>
-                    </div>
+                    <div class="tc-pagination" id="tcPagination"></div>
                 </div>
 
             </div>
         </div>
+    </div>
 
+    {{-- ── Remove Confirm Modal ───────────────────────────────────── --}}
+    <div id="tcConfirmModal">
+        <div class="tc-confirm-box">
+            <p class="tc-confirm-msg" id="tcConfirmMsg">Remove this truck class?</p>
+            <div class="tc-confirm-actions">
+                <button type="button" class="tc-btn tc-btn-primary" id="tcConfirmOk">Remove</button>
+                <button type="button" class="tc-btn tc-btn-secondary" id="tcConfirmCancel">Cancel</button>
+            </div>
+        </div>
     </div>
 
 @endsection
 
 @push('scripts')
     <script>
+        // ── Password show/hide (global — needed by inline onclick) ──────────
+        function togglePw(inputId, btn) {
+            var input = document.getElementById(inputId);
+            if (!input) return;
+            var isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            btn.textContent = isHidden ? 'Hide' : 'Show';
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof lucide !== 'undefined') lucide.createIcons();
 
@@ -752,18 +1133,47 @@
             const sectionDriverDetails = document.getElementById('sectionDriverDetails');
             const sectionUnitDetails = document.getElementById('sectionUnitDetails');
 
-            const setSubmitBlocked = (blocked) => {
-                if (!createUserSubmit) return;
-                createUserSubmit.disabled = blocked;
-                createUserSubmit.classList.toggle('is-disabled', blocked);
-            };
+            const phoneInput = document.getElementById('phoneInput');
+            const phoneRequiredMark = document.getElementById('phoneRequiredMark');
+            const phoneOptionalMark = document.getElementById('phoneOptionalMark');
+
+            const truckClassHidden = document.getElementById('truckClassHidden');
+            const truckClassPicker = document.getElementById('truckClassPicker');
+            const truckClassError = document.getElementById('truckClassError');
+            const csrfToken = document.querySelector('input[name="_token"]')?.value;
 
             let selectedIsTL = false;
-
             if (!isEditMode && hiddenRoleId?.value) {
                 selectedIsTL = Number(hiddenRoleId.value) === tlRoleId;
             }
 
+            // ── Truck class picker ──────────────────────────────────────────
+            const selectClass = (id) => {
+                truckClassPicker?.querySelectorAll('.tcp-card').forEach(c => {
+                    c.classList.toggle('selected', String(c.dataset.id) === String(id));
+                });
+                if (truckClassHidden) truckClassHidden.value = id;
+                if (truckClassError) truckClassError.hidden = true;
+            };
+
+            truckClassPicker?.querySelectorAll('.tcp-card').forEach(card => {
+                card.addEventListener('click', () => selectClass(card.dataset.id));
+            });
+
+            // Pre-select in edit mode
+            if (isTLEditMode && truckClassHidden?.value) {
+                selectClass(truckClassHidden.value);
+            }
+
+            // ── Phone required toggle ───────────────────────────────────────
+            const setPhoneRequired = (required) => {
+                if (!phoneInput) return;
+                required ? phoneInput.setAttribute('required', '') : phoneInput.removeAttribute('required');
+                if (phoneRequiredMark) phoneRequiredMark.hidden = !required;
+                if (phoneOptionalMark) phoneOptionalMark.hidden = required;
+            };
+
+            // ── Role chooser ────────────────────────────────────────────────
             const showForm = (roleId, roleLabel, isTL) => {
                 selectedIsTL = isTL;
                 if (hiddenRoleId) hiddenRoleId.value = roleId;
@@ -780,14 +1190,7 @@
                     isTL ? el.setAttribute('required', '') : el.removeAttribute('required');
                 });
 
-                if (isTL) {
-                    loadAllConfigs();
-                    const sel = truckTypeHidden?.value;
-                    truckTypeConfigured = sel ? (configCache[sel]?.configured === true) : false;
-                    setSubmitBlocked(!truckTypeConfigured);
-                } else {
-                    setSubmitBlocked(false);
-                }
+                setPhoneRequired(isTL);
 
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             };
@@ -807,215 +1210,29 @@
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             });
 
-            let truckTypeConfigured = false;
-            let currentTruckTypeName = '';
-            let configsLoaded = false;
-
-            const configCache = {};
-            const typeCardMap = {};
-
-            const truckTypeHidden = document.getElementById('truckTypeHidden');
-            const truckTypeCards = document.getElementById('truckTypeCards');
-            const truckTypeSelectionError = document.getElementById('truckTypeSelectionError');
-            const configModal = document.getElementById('truckTypeConfigModal');
-            const ttcModalTitle = document.getElementById('ttcModalTitle');
-            const ttcBaseRate = document.getElementById('ttcBaseRate');
-            const ttcPerKmRate = document.getElementById('ttcPerKmRate');
-            const ttcCapacity = document.getElementById('ttcCapacity');
-            const ttcDescription = document.getElementById('ttcDescription');
-            const ttcError = document.getElementById('ttcError');
-            const ttcSaveBtn = document.getElementById('ttcSaveBtn');
-            const ttcCancelBtn = document.getElementById('ttcCancelBtn');
-            const csrfToken = document.querySelector('input[name="_token"]')?.value;
-
-            const fmt = v => v != null ?
-                `₱${Number(v).toLocaleString('en-PH', { minimumFractionDigits: 0 })}` :
-                '—';
-
-            const renderCard = (name) => {
-                const card = typeCardMap[name];
-                const config = configCache[name];
-                if (!card) return;
-                const label = card.querySelector('.ttc-card-label');
-                const editBtn = card.querySelector('.ttc-card-edit-btn');
-                if (!config || !config.configured) {
-                    label.textContent = 'Tap to configure';
-                    label.className = 'ttc-card-label';
-                    card.dataset.configured = 'false';
-                    if (editBtn) editBtn.hidden = true;
-                } else {
-                    label.textContent =
-                        `${fmt(config.base_rate)} base · ${fmt(config.per_km_rate)}/4km · ${config.capacity ?? '—'} kg`;
-                    label.className = 'ttc-card-label is-configured';
-                    card.dataset.configured = 'true';
-                    if (editBtn) editBtn.hidden = false;
+            // Restore TL state after validation-error redirect
+            if (!isEditMode && hiddenRoleId?.value) {
+                const isTL = Number(hiddenRoleId.value) === tlRoleId;
+                if (isTL) {
+                    setPhoneRequired(true);
+                    if (truckClassHidden?.value) selectClass(truckClassHidden.value);
                 }
-                if (truckTypeHidden?.value === name) highlightCard(name);
-            };
-
-            const highlightCard = (name) => {
-                Object.values(typeCardMap).forEach(c => c.classList.remove('selected'));
-                typeCardMap[name]?.classList.add('selected');
-            };
-
-            const selectCard = (name) => {
-                highlightCard(name);
-                if (truckTypeHidden) truckTypeHidden.value = name;
-                if (truckTypeSelectionError) truckTypeSelectionError.hidden = true;
-                truckTypeConfigured = configCache[name]?.configured === true;
-                if (sectionUnitDetails && !sectionUnitDetails.hidden) {
-                    setSubmitBlocked(!truckTypeConfigured);
-                }
-            };
-
-            const openConfigModal = (name, existing = null) => {
-                currentTruckTypeName = name;
-                if (ttcModalTitle) ttcModalTitle.textContent = `Configure ${name}`;
-                if (ttcBaseRate) ttcBaseRate.value = existing?.base_rate ?? '';
-                if (ttcPerKmRate) ttcPerKmRate.value = existing?.per_km_rate ?? '';
-                if (ttcCapacity) ttcCapacity.value = existing?.capacity ?? '';
-                if (ttcDescription) ttcDescription.value = existing?.description ?? '';
-                if (ttcError) ttcError.hidden = true;
-                if (configModal) configModal.hidden = false;
-            };
-
-            const allTruckTypeNames = @json($truckTypes->pluck('name'));
-
-            const loadAllConfigs = async () => {
-                if (configsLoaded) return;
-                configsLoaded = true;
-                await Promise.all(allTruckTypeNames.map(async (name) => {
-                    const label = typeCardMap[name]?.querySelector('.ttc-card-label');
-                    if (label) label.textContent = 'Loading…';
-                    try {
-                        const res = await fetch(
-                            `/superadmin/truck-type-config/${encodeURIComponent(name)}`, {
-                                headers: {
-                                    'Accept': 'application/json'
-                                },
-                            });
-                        configCache[name] = await res.json();
-                    } catch {
-                        configCache[name] = {
-                            configured: false
-                        };
-                    }
-                    renderCard(name);
-                }));
-                const sel = truckTypeHidden?.value;
-                if (sel) {
-                    truckTypeConfigured = configCache[sel]?.configured === true;
-                    setSubmitBlocked(!truckTypeConfigured);
-                }
-            };
-
-            truckTypeCards?.querySelectorAll('.ttc-card').forEach(card => {
-                const name = card.dataset.type;
-                typeCardMap[name] = card;
-
-                card.addEventListener('click', (e) => {
-                    if (e.target.closest('.ttc-card-edit-btn')) return;
-                    card.dataset.configured === 'true' ? selectCard(name) : openConfigModal(name,
-                        null);
-                });
-
-                card.querySelector('.ttc-card-edit-btn')?.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    openConfigModal(name, configCache[name]);
-                });
-            });
-
-            if (isTLEditMode) {
-                loadAllConfigs();
-                setSubmitBlocked(false);
             }
 
-            ttcCancelBtn?.addEventListener('click', () => {
-                if (configModal) configModal.hidden = true;
-                if (ttcError) ttcError.hidden = true;
-                if (!truckTypeHidden?.value) {
-                    truckTypeConfigured = false;
-                    setSubmitBlocked(true);
-                }
-            });
-
-            ttcSaveBtn?.addEventListener('click', async () => {
-                const base_rate = ttcBaseRate?.value.trim() ?? '';
-                const per_km_rate = ttcPerKmRate?.value.trim() ?? '';
-                const capacity = ttcCapacity?.value.trim() ?? '';
-
-                if (!base_rate || !per_km_rate || !capacity) {
-                    if (ttcError) {
-                        ttcError.textContent = 'Base Rate, Per 4km Rate, and Capacity are required.';
-                        ttcError.hidden = false;
-                    }
-                    return;
-                }
-
-                if (ttcSaveBtn) ttcSaveBtn.disabled = true;
-                if (ttcError) ttcError.hidden = true;
-
-                try {
-                    const res = await fetch(
-                        `/superadmin/truck-type-config/${encodeURIComponent(currentTruckTypeName)}`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': csrfToken
-                            },
-                            body: JSON.stringify({
-                                base_rate,
-                                per_km_rate,
-                                capacity,
-                                description: ttcDescription?.value.trim() || null
-                            }),
-                        });
-                    const data = await res.json();
-
-                    if (data.success) {
-                        configCache[currentTruckTypeName] = {
-                            configured: true,
-                            base_rate: parseFloat(base_rate),
-                            per_km_rate: parseFloat(per_km_rate),
-                            capacity: parseFloat(capacity),
-                            description: ttcDescription?.value.trim() || null,
-                        };
-                        renderCard(currentTruckTypeName);
-                        selectCard(currentTruckTypeName);
-                        if (configModal) configModal.hidden = true;
-                    } else {
-                        if (ttcError) {
-                            ttcError.textContent = 'Failed to save config. Please try again.';
-                            ttcError.hidden = false;
-                        }
-                    }
-                } catch {
-                    if (ttcError) {
-                        ttcError.textContent = 'Network error. Please try again.';
-                        ttcError.hidden = false;
-                    }
-                } finally {
-                    if (ttcSaveBtn) ttcSaveBtn.disabled = false;
-                }
-            });
-
+            // ── Form submit guard (create mode) ────────────────────────────
             form?.addEventListener('submit', (e) => {
                 if (isEditMode) return;
-                if (selectedIsTL && !truckTypeHidden?.value) {
+                if (selectedIsTL && !truckClassHidden?.value) {
                     e.preventDefault();
-                    if (truckTypeSelectionError) truckTypeSelectionError.hidden = false;
-                    truckTypeCards?.scrollIntoView({
+                    if (truckClassError) truckClassError.hidden = false;
+                    truckClassPicker?.scrollIntoView({
                         behavior: 'smooth',
                         block: 'center'
                     });
                 }
             });
 
-            if (!isEditMode && selectedIsTL) {
-                loadAllConfigs?.();
-            }
-
+            // ── Password requirements ───────────────────────────────────────
             const passwordInput = document.getElementById('passwordInput');
             const requirementsBox = document.getElementById('passwordRequirements');
 
@@ -1053,7 +1270,7 @@
                 });
             }
 
-            const phoneInput = document.getElementById('phoneInput');
+            // ── Phone sanitization ──────────────────────────────────────────
             if (phoneInput) {
                 const cleanPhone = () => {
                     let v = phoneInput.value.replace(/\D/g, '');
@@ -1063,16 +1280,13 @@
                 };
 
                 phoneInput.addEventListener('input', cleanPhone);
-
                 phoneInput.addEventListener('keydown', (e) => {
-                    const allowed = [
-                        'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
-                        'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End',
+                    const allowed = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+                        'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'
                     ];
                     if (allowed.includes(e.key)) return;
                     if (!/^\d$/.test(e.key)) e.preventDefault();
                 });
-
                 phoneInput.addEventListener('paste', (e) => {
                     e.preventDefault();
                     const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,
@@ -1083,403 +1297,7 @@
                 });
             }
 
-
-            const manageTruckTypesModal = document.getElementById('manageTruckTypesModal');
-            const mgmtListContent = document.getElementById('mgmtListContent');
-            const mgmtAddForm = document.getElementById('mgmtAddForm');
-            const mgmtAddError = document.getElementById('mgmtAddError');
-            const mgmtEditSection = document.getElementById('mgmtEditSection');
-            const mgmtEditingLabel = document.getElementById('mgmtEditingLabel');
-            const mgmtEditError = document.getElementById('mgmtEditError');
-            const mgmtActionError = document.getElementById('mgmtActionError');
-            let mgmtEditingId = null;
-
-            function showMgmtActionError(msg) {
-                if (!mgmtActionError) return;
-                mgmtActionError.textContent = msg;
-                mgmtActionError.hidden = false;
-            }
-
-            function hideMgmtActionError() {
-                if (mgmtActionError) mgmtActionError.hidden = true;
-            }
-
-            document.getElementById('manageTruckTypesLink')?.addEventListener('click', () => {
-                if (manageTruckTypesModal) manageTruckTypesModal.hidden = false;
-                if (mgmtAddForm) mgmtAddForm.hidden = true;
-                if (mgmtEditSection) mgmtEditSection.hidden = true;
-                hideMgmtActionError();
-                mgmtLoadList();
-            });
-
-            const closeMgmt = async () => {
-                if (manageTruckTypesModal) manageTruckTypesModal.hidden = true;
-                await reloadTruckTypeCards();
-            };
-
-            document.getElementById('closeMgmtModal')?.addEventListener('click', closeMgmt);
-
-            manageTruckTypesModal?.addEventListener('click', (e) => {
-                if (e.target === manageTruckTypesModal) closeMgmt();
-            });
-
-            document.getElementById('mgmtShowAddBtn')?.addEventListener('click', () => {
-                if (!mgmtAddForm) return;
-                mgmtAddForm.hidden = !mgmtAddForm.hidden;
-                if (mgmtEditSection) mgmtEditSection.hidden = true;
-                if (mgmtAddError) mgmtAddError.hidden = true;
-            });
-
-            document.getElementById('mgmtCancelAddBtn')?.addEventListener('click', () => {
-                if (mgmtAddForm) mgmtAddForm.hidden = true;
-                mgmtClearAddForm();
-            });
-
-            document.getElementById('mgmtCancelEditBtn')?.addEventListener('click', () => {
-                if (mgmtEditSection) mgmtEditSection.hidden = true;
-                mgmtEditingId = null;
-            });
-
-            document.getElementById('mgmtDeleteEditBtn')?.addEventListener('click', async () => {
-                if (!mgmtEditingId) return;
-                const label = mgmtEditingLabel?.textContent || 'this truck type';
-                if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
-                const btn = document.getElementById('mgmtDeleteEditBtn');
-                btn.disabled = true;
-                try {
-                    const res = await fetch(`/superadmin/truck-types-data/${mgmtEditingId}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken
-                        }
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        hideMgmtActionError();
-                        if (mgmtEditSection) mgmtEditSection.hidden = true;
-                        mgmtEditingId = null;
-                        mgmtLoadList();
-                    } else {
-                        showMgmtActionError(data.message || 'Cannot delete this truck type.');
-                    }
-                } catch {
-                    showMgmtActionError('Network error. Please try again.');
-                } finally {
-                    btn.disabled = false;
-                }
-            });
-
-            function mgmtClearAddForm() {
-                ['mgmtAddName', 'mgmtAddBase', 'mgmtAddKm', 'mgmtAddTonnage', 'mgmtAddDesc'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.value = '';
-                });
-                if (mgmtAddError) mgmtAddError.hidden = true;
-            }
-
-            async function mgmtLoadList() {
-                if (mgmtListContent) mgmtListContent.innerHTML =
-                    '<p style="color:#6b7280;font-size:13px;padding:20px 0;text-align:center;">Loading...</p>';
-                try {
-                    const res = await fetch('/superadmin/truck-types-data', {
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
-                    if (!res.ok) throw new Error();
-                    mgmtRenderList(await res.json());
-                } catch {
-                    if (mgmtListContent) mgmtListContent.innerHTML =
-                        '<p style="color:#dc2626;font-size:13px;padding:20px 0;text-align:center;">Failed to load. Please try again.</p>';
-                }
-            }
-
-            function mgmtRenderList(types) {
-                if (!mgmtListContent) return;
-                if (!types.length) {
-                    mgmtListContent.innerHTML =
-                        '<p style="color:#6b7280;font-size:13px;padding:20px 0;text-align:center;">No truck types yet. Add one above.</p>';
-                    return;
-                }
-                let html = '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
-                ['Name', 'Base Rate', 'Per KM', 'Capacity (kg)', 'Status', ''].forEach(h => {
-                    html +=
-                        `<th style="text-align:left;font-size:12px;color:#6b7280;padding:10px 6px;border-bottom:1px solid #e5e7eb;">${h}</th>`;
-                });
-                html += '</tr></thead><tbody>';
-                types.forEach(t => {
-                    const base = t.base_rate != null ? '&#8369;' + Number(t.base_rate).toLocaleString() :
-                        '&mdash;';
-                    const km = t.per_km_rate != null ? '&#8369;' + Number(t.per_km_rate).toLocaleString() :
-                        '&mdash;';
-                    const ton = t.max_tonnage ? Number(t.max_tonnage).toLocaleString() + ' kg' : '&mdash;';
-                    const tog = t.status === 'active' ? 'Disable' : 'Enable';
-                    const desc = (t.description ?? '').replace(/"/g, '&quot;');
-                    html += `<tr>
-                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;">${t.name}</td>
-                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;">${base}</td>
-                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;">${km}</td>
-                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;">${ton}</td>
-                        <td style="padding:10px 6px;font-size:13px;border-bottom:1px solid #f3f4f6;color:${t.status === 'active' ? '#16a34a' : '#6b7280'};">${t.status}</td>
-                        <td style="padding:10px 6px;border-bottom:1px solid #f3f4f6;white-space:nowrap;">
-                            <button type="button" class="mgmt-edit-btn" style="margin-right:6px;padding:4px 10px;background:none;border:1px solid #374151;cursor:pointer;font-size:12px;"
-                                data-id="${t.id}" data-name="${t.name}" data-base="${t.base_rate ?? ''}" data-km="${t.per_km_rate ?? ''}" data-tonnage="${t.max_tonnage ?? ''}" data-desc="${desc}">Edit</button>
-                            <button type="button" class="mgmt-toggle-btn" style="margin-right:6px;padding:4px 10px;background:none;border:1px solid #374151;cursor:pointer;font-size:12px;"
-                                data-id="${t.id}" data-name="${t.name}" data-status="${t.status}">${tog}</button>
-                            <button type="button" class="mgmt-delete-btn" style="padding:4px 10px;background:none;border:1px solid #dc2626;color:#dc2626;cursor:pointer;font-size:12px;"
-                                data-id="${t.id}" data-name="${t.name}">Delete</button>
-                        </td>
-                    </tr>`;
-                });
-                html += '</tbody></table>';
-                mgmtListContent.innerHTML = html;
-
-                mgmtListContent.querySelectorAll('.mgmt-edit-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        mgmtEditingId = btn.dataset.id;
-                        if (mgmtEditingLabel) mgmtEditingLabel.textContent = btn.dataset.name;
-                        const set = (id, v) => {
-                            const el = document.getElementById(id);
-                            if (el) el.value = v;
-                        };
-                        set('mgmtEditName', btn.dataset.name);
-                        set('mgmtEditBase', btn.dataset.base);
-                        set('mgmtEditKm', btn.dataset.km);
-                        set('mgmtEditTonnage', btn.dataset.tonnage);
-                        set('mgmtEditDesc', btn.dataset.desc);
-                        if (mgmtEditError) mgmtEditError.hidden = true;
-                        if (mgmtEditSection) {
-                            mgmtEditSection.hidden = false;
-                            mgmtEditSection.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'nearest'
-                            });
-                        }
-                        if (mgmtAddForm) mgmtAddForm.hidden = true;
-                    });
-                });
-
-                mgmtListContent.querySelectorAll('.mgmt-toggle-btn').forEach(btn => {
-                    btn.addEventListener('click', async () => {
-                        btn.disabled = true;
-                        try {
-                            const res = await fetch(
-                                `/superadmin/truck-types-data/${btn.dataset.id}/toggle`, {
-                                    method: 'PATCH',
-                                    headers: {
-                                        'Accept': 'application/json',
-                                        'X-CSRF-TOKEN': csrfToken
-                                    }
-                                });
-                            const data = await res.json();
-                            if (data.success) {
-                                hideMgmtActionError();
-                                mgmtLoadList();
-                            } else showMgmtActionError(data.message ||
-                                'Cannot toggle this truck type.');
-                        } catch {
-                            showMgmtActionError('Network error. Please try again.');
-                        } finally {
-                            btn.disabled = false;
-                        }
-                    });
-                });
-
-                mgmtListContent.querySelectorAll('.mgmt-delete-btn').forEach(btn => {
-                    btn.addEventListener('click', async () => {
-                        btn.disabled = true;
-                        hideMgmtActionError();
-                        try {
-                            const res = await fetch(
-                                `/superadmin/truck-types-data/${btn.dataset.id}`, {
-                                    method: 'DELETE',
-                                    headers: {
-                                        'Accept': 'application/json',
-                                        'X-CSRF-TOKEN': csrfToken
-                                    }
-                                });
-                            const data = await res.json();
-                            if (data.success) mgmtLoadList();
-                            else showMgmtActionError(data.message ||
-                                'Cannot delete this truck type.');
-                        } catch {
-                            showMgmtActionError('Network error. Please try again.');
-                        } finally {
-                            btn.disabled = false;
-                        }
-                    });
-                });
-            }
-
-            document.getElementById('mgmtSaveAddBtn')?.addEventListener('click', async () => {
-                const name = document.getElementById('mgmtAddName')?.value.trim();
-                const base = document.getElementById('mgmtAddBase')?.value.trim();
-                const km = document.getElementById('mgmtAddKm')?.value.trim();
-                if (!name || !base || !km) {
-                    if (mgmtAddError) {
-                        mgmtAddError.textContent = 'Name, Base Rate, and Per KM Rate are required.';
-                        mgmtAddError.hidden = false;
-                    }
-                    return;
-                }
-                const btn = document.getElementById('mgmtSaveAddBtn');
-                btn.disabled = true;
-                if (mgmtAddError) mgmtAddError.hidden = true;
-                try {
-                    const res = await fetch('/superadmin/truck-types-data', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken
-                        },
-                        body: JSON.stringify({
-                            name,
-                            base_rate: base,
-                            per_km_rate: km,
-                            max_tonnage: document.getElementById('mgmtAddTonnage')
-                                ?.value.trim() || null,
-                            description: document.getElementById('mgmtAddDesc')?.value
-                                .trim() || null
-                        })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        mgmtClearAddForm();
-                        if (mgmtAddForm) mgmtAddForm.hidden = true;
-                        mgmtLoadList();
-                    } else {
-                        const msg = data.errors ? Object.values(data.errors).flat().join(' ') : (data
-                            .message || 'Failed to save.');
-                        if (mgmtAddError) {
-                            mgmtAddError.textContent = msg;
-                            mgmtAddError.hidden = false;
-                        }
-                    }
-                } catch {
-                    if (mgmtAddError) {
-                        mgmtAddError.textContent = 'Network error. Please try again.';
-                        mgmtAddError.hidden = false;
-                    }
-                } finally {
-                    btn.disabled = false;
-                }
-            });
-
-            document.getElementById('mgmtSaveEditBtn')?.addEventListener('click', async () => {
-                if (!mgmtEditingId) return;
-                const name = document.getElementById('mgmtEditName')?.value.trim();
-                const base = document.getElementById('mgmtEditBase')?.value.trim();
-                const km = document.getElementById('mgmtEditKm')?.value.trim();
-                if (!name || !base || !km) {
-                    if (mgmtEditError) {
-                        mgmtEditError.textContent = 'Name, Base Rate, and Per KM Rate are required.';
-                        mgmtEditError.hidden = false;
-                    }
-                    return;
-                }
-                const btn = document.getElementById('mgmtSaveEditBtn');
-                btn.disabled = true;
-                if (mgmtEditError) mgmtEditError.hidden = true;
-                try {
-                    const res = await fetch(`/superadmin/truck-types-data/${mgmtEditingId}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken
-                        },
-                        body: JSON.stringify({
-                            name,
-                            base_rate: base,
-                            per_km_rate: km,
-                            max_tonnage: document.getElementById('mgmtEditTonnage')
-                                ?.value.trim() || null,
-                            description: document.getElementById('mgmtEditDesc')?.value
-                                .trim() || null
-                        })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        if (mgmtEditSection) mgmtEditSection.hidden = true;
-                        mgmtEditingId = null;
-                        mgmtLoadList();
-                    } else {
-                        const msg = data.errors ? Object.values(data.errors).flat().join(' ') : (data
-                            .message || 'Failed to update.');
-                        if (mgmtEditError) {
-                            mgmtEditError.textContent = msg;
-                            mgmtEditError.hidden = false;
-                        }
-                    }
-                } catch {
-                    if (mgmtEditError) {
-                        mgmtEditError.textContent = 'Network error. Please try again.';
-                        mgmtEditError.hidden = false;
-                    }
-                } finally {
-                    btn.disabled = false;
-                }
-            });
-
-            async function reloadTruckTypeCards() {
-                try {
-                    const res = await fetch('/superadmin/truck-types-data', {
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
-                    if (!res.ok) return;
-                    const all = await res.json();
-                    const active = all.filter(t => t.status === 'active');
-
-                    if (!truckTypeCards) return;
-
-                    allTruckTypeNames.length = 0;
-                    Object.keys(typeCardMap).forEach(k => delete typeCardMap[k]);
-                    Object.keys(configCache).forEach(k => delete configCache[k]);
-                    configsLoaded = false;
-
-                    truckTypeCards.innerHTML = '';
-
-                    if (!active.length) {
-                        truckTypeCards.innerHTML =
-                            '<p class="field-note">No active truck types. Use Manage Truck Types to add one.</p>';
-                    } else {
-                        active.forEach(t => {
-                            allTruckTypeNames.push(t.name);
-                            const div = document.createElement('div');
-                            div.className = 'ttc-card';
-                            div.dataset.type = t.name;
-                            div.dataset.configured = 'false';
-                            div.innerHTML =
-                                `<div class="ttc-card-body"><strong class="ttc-card-name">${t.name}</strong><span class="ttc-card-label">Loading…</span></div><div class="ttc-card-actions"><button type="button" class="ttc-card-edit-btn" hidden>Edit</button></div>`;
-                            truckTypeCards.appendChild(div);
-                            typeCardMap[t.name] = div;
-                            div.addEventListener('click', (e) => {
-                                if (e.target.closest('.ttc-card-edit-btn')) return;
-                                div.dataset.configured === 'true' ? selectCard(t.name) :
-                                    openConfigModal(t.name, null);
-                            });
-                            div.querySelector('.ttc-card-edit-btn')?.addEventListener('click', (e) => {
-                                e.stopPropagation();
-                                openConfigModal(t.name, configCache[t.name]);
-                            });
-                        });
-                    }
-
-                    const sel = truckTypeHidden?.value;
-                    if (sel && !active.some(t => t.name === sel) && truckTypeHidden) truckTypeHidden.value = '';
-
-                    if (sectionUnitDetails && !sectionUnitDetails.hidden && active.length)
-                        await loadAllConfigs();
-
-                } catch (e) {
-                    console.error('reloadTruckTypeCards failed', e);
-                }
-            }
-
+            // ── AJAX submit (edit mode) ─────────────────────────────────────
             if (isEditMode && form) {
                 const ajaxErrorBanner = document.getElementById('ajaxErrorBanner');
                 const ajaxErrorText = document.getElementById('ajaxErrorText');
@@ -1529,8 +1347,7 @@
                         const data = await res.json();
 
                         if (res.ok && data.success) {
-                            sessionStorage.setItem('sa_flash_success', data.message ||
-                                'User updated successfully.');
+                            sessionStorage.setItem('sa_flash_success', data.message || '');
                             window.location.href = '{{ route('superadmin.users.index') }}';
                         } else if (data.errors) {
                             showFieldErrors(data.errors);
@@ -1548,6 +1365,304 @@
                     }
                 });
             }
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tcModal = document.getElementById('truckClassModal');
+            if (!tcModal) return;
+
+            const tcStoreUrl = '{{ route('superadmin.truck-types.store') }}';
+            const tcIndexUrl = '{{ route('superadmin.truck-types.index') }}';
+            const tcBaseUrl = '{{ url('superadmin/truck-types') }}';
+            const csrfTk = document.querySelector('input[name="_token"]')?.value;
+
+            const tcModalTitle = document.getElementById('tcModalTitle');
+            const tcFormSectionTitle = document.getElementById('tcFormSectionTitle');
+            const tcExistingList = document.getElementById('tcExistingList');
+            const tcErrorBox = document.getElementById('tcErrorBox');
+            const tcForm = document.getElementById('tcModalForm');
+            const tcEditId = document.getElementById('tcEditId');
+            const tcName = document.getElementById('tcName');
+            const tcBaseRate = document.getElementById('tcBaseRate');
+            const tcPerKm = document.getElementById('tcPerKm');
+            const tcKilo = document.getElementById('tcKilo');
+            const tcDescription = document.getElementById('tcDescription');
+            const tcDescCounter = document.getElementById('tcDescCounter');
+            const tcSubmitBtn = document.getElementById('tcSubmitBtn');
+            const tcCancelBtn = document.getElementById('tcCancelBtn');
+
+            const escHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const escAttr = s => String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+            const resetForm = () => {
+                tcEditId.value = '';
+                tcName.value = '';
+                tcBaseRate.value = '';
+                tcPerKm.value = '';
+                tcKilo.value = '';
+                tcDescription.value = '';
+                tcDescCounter.textContent = '0 / 100';
+                tcErrorBox.style.display = 'none';
+                tcErrorBox.textContent = '';
+                tcSubmitBtn.textContent = 'Add';
+                tcModalTitle.textContent = 'Add Truck Class';
+                tcFormSectionTitle.textContent = 'New Truck Class';
+            };
+
+            const PER_PAGE = 5;
+            let tcAllTypes = [];
+            let tcCurrentPage = 1;
+            const tcPagination = document.getElementById('tcPagination');
+
+            const fillEditForm = (btn) => {
+                tcEditId.value = btn.dataset.id;
+                tcName.value = btn.dataset.name;
+                tcBaseRate.value = btn.dataset.base;
+                tcPerKm.value = btn.dataset.perkm;
+                tcKilo.value = btn.dataset.kilo;
+                tcDescription.value = btn.dataset.desc;
+                const dLen = btn.dataset.desc.length;
+                tcDescCounter.textContent = dLen + ' / 100' + (dLen >= 100 ? ' (max)' : '');
+                tcSubmitBtn.textContent = 'Edit';
+                tcModalTitle.textContent = 'Edit Truck Class';
+                tcFormSectionTitle.textContent = 'Edit Truck Class';
+                tcErrorBox.style.display = 'none';
+                tcName.focus();
+            };
+
+            const renderPage = (page) => {
+                tcCurrentPage = page;
+                const start = (page - 1) * PER_PAGE;
+                const slice = tcAllTypes.slice(start, start + PER_PAGE);
+
+                const tbl = document.createElement('table');
+                tbl.className = 'tc-table';
+                tbl.innerHTML =
+                    '<thead><tr><th>Name</th><th>Base Rate</th><th>Per KM</th><th>Kilo</th><th></th></tr></thead><tbody></tbody>';
+                const tbody = tbl.querySelector('tbody');
+                slice.forEach(t => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML =
+                        '<td>' + escHtml(t.name) + '</td>' +
+                        '<td>' + (t.base_rate ?? '-') + '</td>' +
+                        '<td>' + (t.per_km_rate ?? '-') + '</td>' +
+                        '<td>' + (t.max_tonnage ?? '-') + '</td>' +
+                        '<td style="white-space:nowrap;">' +
+                        '<button type="button" class="tc-edit-row-btn"' +
+                        ' data-id="' + t.id + '"' +
+                        ' data-name="' + escAttr(t.name) + '"' +
+                        ' data-base="' + (t.base_rate ?? '') + '"' +
+                        ' data-perkm="' + (t.per_km_rate ?? '') + '"' +
+                        ' data-kilo="' + (t.max_tonnage ?? '') + '"' +
+                        ' data-desc="' + escAttr(t.description ?? '') + '">Edit</button>' +
+                        '<button type="button" class="tc-remove-row-btn" data-id="' + t.id +
+                        '" data-name="' + escAttr(t.name) + '">Remove</button>' +
+                        '</td>';
+                    tbody.appendChild(tr);
+                });
+                tbl.querySelectorAll('.tc-edit-row-btn').forEach(btn => {
+                    btn.addEventListener('click', () => fillEditForm(btn));
+                });
+                tbl.querySelectorAll('.tc-remove-row-btn').forEach(btn => {
+                    btn.addEventListener('click', () => removeTruckClass(btn.dataset.id, btn.dataset
+                        .name));
+                });
+                tcExistingList.innerHTML = '';
+                tcExistingList.appendChild(tbl);
+
+                const totalPages = Math.ceil(tcAllTypes.length / PER_PAGE);
+                tcPagination.innerHTML = '';
+                if (totalPages > 1) {
+                    const prevBtn = document.createElement('button');
+                    prevBtn.type = 'button';
+                    prevBtn.className = 'tc-page-btn';
+                    prevBtn.textContent = 'Prev';
+                    prevBtn.disabled = page === 1;
+                    prevBtn.addEventListener('click', () => renderPage(page - 1));
+                    tcPagination.appendChild(prevBtn);
+
+                    for (let i = 1; i <= totalPages; i++) {
+                        const pb = document.createElement('button');
+                        pb.type = 'button';
+                        pb.className = 'tc-page-btn' + (i === page ? ' active' : '');
+                        pb.textContent = i;
+                        pb.addEventListener('click', () => renderPage(i));
+                        tcPagination.appendChild(pb);
+                    }
+
+                    const nextBtn = document.createElement('button');
+                    nextBtn.type = 'button';
+                    nextBtn.className = 'tc-page-btn';
+                    nextBtn.textContent = 'Next';
+                    nextBtn.disabled = page === totalPages;
+                    nextBtn.addEventListener('click', () => renderPage(page + 1));
+                    tcPagination.appendChild(nextBtn);
+                }
+            };
+
+            const tcConfirmModal = document.getElementById('tcConfirmModal');
+            const tcConfirmMsg = document.getElementById('tcConfirmMsg');
+            const tcConfirmOk = document.getElementById('tcConfirmOk');
+            const tcConfirmCancel = document.getElementById('tcConfirmCancel');
+
+            let tcConfirmResolve = null;
+            const openConfirm = (msg) => new Promise(resolve => {
+                tcConfirmMsg.textContent = msg;
+                tcConfirmModal.style.display = 'block';
+                tcConfirmResolve = resolve;
+            });
+
+            tcConfirmOk?.addEventListener('click', () => {
+                tcConfirmModal.style.display = 'none';
+                if (tcConfirmResolve) {
+                    tcConfirmResolve(true);
+                    tcConfirmResolve = null;
+                }
+            });
+            tcConfirmCancel?.addEventListener('click', () => {
+                tcConfirmModal.style.display = 'none';
+                if (tcConfirmResolve) {
+                    tcConfirmResolve(false);
+                    tcConfirmResolve = null;
+                }
+            });
+
+            const removeTruckClass = async (id, name) => {
+                const confirmed = await openConfirm('Remove truck class "' + name +
+                    '"? This cannot be undone.');
+                if (!confirmed) return;
+                tcErrorBox.style.display = 'none';
+                try {
+                    const res = await fetch(tcBaseUrl + '/' + id, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfTk,
+                        },
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        tcAllTypes = tcAllTypes.filter(t => String(t.id) !== String(id));
+                        // If current page is now empty and not first, go back one
+                        const totalPages = Math.ceil(tcAllTypes.length / PER_PAGE);
+                        const goTo = tcCurrentPage > totalPages && totalPages > 0 ? totalPages :
+                            tcCurrentPage || 1;
+                        if (tcAllTypes.length === 0) {
+                            tcExistingList.innerHTML = '<p class="tc-empty-note">No truck classes yet.</p>';
+                            if (tcPagination) tcPagination.innerHTML = '';
+                        } else {
+                            renderPage(goTo);
+                        }
+                        // If we were editing this item, reset the form
+                        if (tcEditId.value === String(id)) resetForm();
+                    } else {
+                        tcErrorBox.textContent = data.message || 'Could not remove truck class.';
+                        tcErrorBox.style.display = 'block';
+                    }
+                } catch {
+                    tcErrorBox.textContent = 'Network error. Please try again.';
+                    tcErrorBox.style.display = 'block';
+                }
+            };
+
+            const loadExisting = async () => {
+                tcExistingList.innerHTML = '<p class="tc-empty-note">Loading...</p>';
+                if (tcPagination) tcPagination.innerHTML = '';
+                try {
+                    const res = await fetch(tcIndexUrl, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfTk
+                        }
+                    });
+                    const types = await res.json();
+                    if (!Array.isArray(types) || !types.length) {
+                        tcExistingList.innerHTML = '<p class="tc-empty-note">No truck classes yet.</p>';
+                        tcAllTypes = [];
+                        return;
+                    }
+                    tcAllTypes = types;
+                    renderPage(1);
+                } catch {
+                    tcExistingList.innerHTML = '<p class="tc-empty-note">Failed to load.</p>';
+                }
+            };
+
+            tcDescription?.addEventListener('input', () => {
+                const len = tcDescription.value.length;
+                tcDescCounter.textContent = len + ' / 100' + (len >= 100 ? ' (max)' : '');
+            });
+
+            document.getElementById('openTruckClassModal')?.addEventListener('click', () => {
+                resetForm();
+                tcModal.style.display = 'block';
+                loadExisting();
+            });
+
+            tcCancelBtn?.addEventListener('click', () => {
+                tcModal.style.display = 'none';
+                resetForm();
+            });
+
+            tcModal.addEventListener('click', e => {
+                if (e.target === tcModal) {
+                    tcModal.style.display = 'none';
+                    resetForm();
+                }
+            });
+
+            tcForm?.addEventListener('submit', async e => {
+                e.preventDefault();
+                tcErrorBox.style.display = 'none';
+                tcErrorBox.textContent = '';
+
+                const id = tcEditId.value;
+                const payload = {
+                    name: tcName.value.trim(),
+                    base_rate: tcBaseRate.value,
+                    per_km_rate: tcPerKm.value,
+                    max_tonnage: tcKilo.value || null,
+                    description: tcDescription.value.trim() || null,
+                };
+
+                if (!payload.name || !payload.base_rate || !payload.per_km_rate) {
+                    tcErrorBox.textContent = 'Truck Class Name, Base Rate, and Per KM are required.';
+                    tcErrorBox.style.display = 'block';
+                    return;
+                }
+
+                tcSubmitBtn.disabled = true;
+                try {
+                    const url = id ? (tcBaseUrl + '/' + id) : tcStoreUrl;
+                    const method = id ? 'PUT' : 'POST';
+                    const res = await fetch(url, {
+                        method,
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfTk,
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        resetForm();
+                        loadExisting();
+                    } else if (data.errors) {
+                        tcErrorBox.textContent = Object.values(data.errors).flat().join(' ');
+                        tcErrorBox.style.display = 'block';
+                    } else {
+                        tcErrorBox.textContent = data.message || 'Something went wrong.';
+                        tcErrorBox.style.display = 'block';
+                    }
+                } catch {
+                    tcErrorBox.textContent = 'Network error. Please try again.';
+                    tcErrorBox.style.display = 'block';
+                } finally {
+                    tcSubmitBtn.disabled = false;
+                }
+            });
         });
     </script>
 @endpush

@@ -192,8 +192,8 @@ class UserManagementController extends Controller
             abort(403, 'Cannot modify Super Admin.');
         }
 
-        $activeTruckTypeNames = TruckType::where('status', 'active')->pluck('name')->toArray();
         $existingUnitId = $user->unit?->id;
+        $isTeamLeaderEdit = $user->role->name === 'Team Leader';
 
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:100',
@@ -203,13 +203,21 @@ class UserManagementController extends Controller
             'driver_middle_name' => 'nullable|string|max:100',
             'driver_last_name' => 'nullable|string|max:100',
             'email' => $this->emailRules($user),
-            'phone' => ['nullable', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)],
+            'phone' => $isTeamLeaderEdit
+                ? ['required', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)]
+                : ['nullable', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)],
             'status' => 'required|in:active,inactive',
             'unit_plate_number' => [
-                'nullable', 'string', 'max:50',
+                'nullable',
+                'string',
+                'max:50',
                 Rule::unique('units', 'plate_number')->ignore($existingUnitId),
             ],
-            'unit_truck_class' => ['nullable', Rule::in($activeTruckTypeNames)],
+            'unit_truck_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('truck_types', 'id')->where('status', 'active'),
+            ],
             'role_id' => [
                 'nullable',
                 function (string $attribute, mixed $value, \Closure $fail) use ($user) {
@@ -220,7 +228,8 @@ class UserManagementController extends Controller
             ],
         ], [
             'unit_plate_number.unique' => 'This plate number is already registered to another unit.',
-            'unit_truck_class.in'      => 'Please select a valid active truck type.',
+            'unit_truck_id.exists'      => 'Please select a valid truck type.',
+            'phone.required'           => 'Phone number is required for Team Leader accounts.',
             'phone.regex'              => 'Enter a valid Philippine mobile number starting with 9 or 09.',
             'phone.unique'             => 'This phone number is already registered to another user.',
         ]);
@@ -280,8 +289,10 @@ class UserManagementController extends Controller
                     $unit->plate_number = strtoupper(trim((string) $request->unit_plate_number));
                 }
 
-                if ($request->filled('unit_truck_class')) {
-                    $truckType = TruckType::where('name', $request->unit_truck_class)->first();
+                if ($request->filled('unit_truck_id')) {
+                    $truckType = TruckType::where('id', $request->unit_truck_id)
+                        ->where('status', 'active')
+                        ->first();
                     if ($truckType) {
                         $unit->truck_type_id = $truckType->id;
                     }
@@ -323,7 +334,7 @@ class UserManagementController extends Controller
             'requires_relogin' => $requiresRelogin,
             'message' => $requiresRelogin
                 ? 'User updated. Ask the team member to log out and sign back in so the new access is applied.'
-                : 'User details updated successfully.',
+                : '',
         ]);
     }
 
@@ -331,6 +342,7 @@ class UserManagementController extends Controller
     {
         $roles = $this->manageableRoles();
         $teamLeaderCapacity = $this->teamLeaderCapacity();
+
         $truckTypes = TruckType::where('status', 'active')->orderBy('name')->get();
 
         return view('superadmin.users.create', compact('roles', 'teamLeaderCapacity', 'truckTypes'));
@@ -345,14 +357,14 @@ class UserManagementController extends Controller
         $isTeamLeader       = $teamLeaderRoleId > 0
             && (int) $request->input('role_id', 0) === $teamLeaderRoleId;
 
-        $activeTruckTypeNames = TruckType::where('status', 'active')->pluck('name')->toArray();
-
         $rules = [
             'first_name'  => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
             'last_name'   => 'required|string|max:100',
             'email'       => $this->emailRules(),
-            'phone'       => ['nullable', 'regex:/^09[1-9]\d{8}$/', 'unique:users,phone'],
+            'phone'       => $isTeamLeader
+                ? ['required', 'regex:/^09[1-9]\d{8}$/', 'unique:users,phone']
+                : ['nullable', 'regex:/^09[1-9]\d{8}$/', 'unique:users,phone'],
             'password'    => ['required', 'confirmed', Password::min(12)->mixedCase()->numbers()->symbols()],
             'role_id'     => [
                 'required',
@@ -377,21 +389,26 @@ class UserManagementController extends Controller
                 'driver_last_name'   => 'required|string|max:100',
                 'unit_name'          => 'required|string|max:100',
                 'unit_plate_number'  => 'required|string|max:50|unique:units,plate_number',
-                'unit_truck_class'   => ['required', Rule::in($activeTruckTypeNames)],
+                'unit_truck_id'      => [
+                    'required',
+                    'integer',
+                    Rule::exists('truck_types', 'id')->where('status', 'active'),
+                ],
             ]);
         }
 
         $messages = [
             'email.required'               => 'Email is required.',
             'email.unique'                 => 'This email is already registered.',
+            'phone.required'               => 'Phone number is required for Team Leader accounts.',
             'phone.regex'                  => 'Enter a valid Philippine mobile number starting with 9 or 09 (e.g. 09171234567).',
             'phone.unique'                 => 'This phone number is already registered to another user.',
             'password.confirmed'           => 'Password confirmation does not match.',
             'unit_name.required'           => 'Unit name is required.',
             'unit_plate_number.required'   => 'Plate number is required.',
             'unit_plate_number.unique'     => 'This plate number is already registered.',
-            'unit_truck_class.required'    => 'Truck type is required.',
-            'unit_truck_class.in'          => 'Please select a valid active truck type.',
+            'unit_truck_id.required'       => 'Truck type is required.',
+            'unit_truck_id.exists'         => 'Please select a valid active truck type.',
         ];
 
         $validated = $request->validate($rules, $messages);
@@ -399,22 +416,25 @@ class UserManagementController extends Controller
         if ($isTeamLeader) {
             DB::transaction(function () use ($validated) {
                 $teamLeader = User::create([
-                    'name'        => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
-                    'first_name'  => $validated['first_name'],
-                    'middle_name' => $validated['middle_name'] ?? null,
-                    'last_name'   => $validated['last_name'],
-                    'email'       => $validated['email'],
-                    'phone'       => $validated['phone'] ?? null,
-                    'password'    => Hash::make($validated['password']),
-                    'role_id'     => $validated['role_id'],
-                    'status'      => $validated['status'],
+                    'name'                 => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
+                    'first_name'           => $validated['first_name'],
+                    'middle_name'          => $validated['middle_name'] ?? null,
+                    'last_name'            => $validated['last_name'],
+                    'email'                => $validated['email'],
+                    'phone'                => $validated['phone'] ?? null,
+                    'password'             => Hash::make($validated['password']),
+                    'role_id'              => $validated['role_id'],
+                    'status'               => $validated['status'],
+                    'must_change_password' => true,
                 ]);
 
                 $driverFirst  = trim((string) ($validated['driver_first_name'] ?? ''));
                 $driverMiddle = trim((string) ($validated['driver_middle_name'] ?? ''));
                 $driverLast   = trim((string) ($validated['driver_last_name'] ?? ''));
 
-                $truckType = TruckType::where('name', $validated['unit_truck_class'])->first();
+                $truckType = TruckType::where('id', $validated['unit_truck_id'])
+                    ->where('status', 'active')
+                    ->first();
 
                 if (!$truckType) {
                     throw new \Exception('Truck type not configured. Please set rates first.');
@@ -466,15 +486,16 @@ class UserManagementController extends Controller
             });
         } else {
             $user = User::create([
-                'name'        => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
-                'first_name'  => $validated['first_name'],
-                'middle_name' => $validated['middle_name'] ?? null,
-                'last_name'   => $validated['last_name'],
-                'email'       => $validated['email'],
-                'phone'       => $validated['phone'] ?? null,
-                'password'    => Hash::make($validated['password']),
-                'role_id'     => $validated['role_id'],
-                'status'      => $validated['status'],
+                'name'                 => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
+                'first_name'           => $validated['first_name'],
+                'middle_name'          => $validated['middle_name'] ?? null,
+                'last_name'            => $validated['last_name'],
+                'email'                => $validated['email'],
+                'phone'                => $validated['phone'] ?? null,
+                'password'             => Hash::make($validated['password']),
+                'role_id'              => $validated['role_id'],
+                'status'               => $validated['status'],
+                'must_change_password' => true,
             ]);
 
             $role = Role::find($validated['role_id']);

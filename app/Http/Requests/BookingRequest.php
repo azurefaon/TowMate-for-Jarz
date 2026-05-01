@@ -116,6 +116,11 @@ class BookingRequest extends FormRequest
             'scheduled_date' => 'nullable|required_if:service_type,schedule|date|after_or_equal:today',
             'scheduled_time' => 'nullable|required_if:service_type,schedule|date_format:H:i',
             'confirmation_type' => 'nullable|in:call,system',
+            'vehicle_make'         => 'nullable|string|max:100',
+            'vehicle_model'        => 'nullable|string|max:100',
+            'vehicle_year'         => 'nullable|integer|min:1900|max:2100',
+            'vehicle_color'        => 'nullable|string|max:50',
+            'vehicle_plate_number' => 'nullable|string|max:20',
         ];
     }
 
@@ -140,17 +145,22 @@ class BookingRequest extends FormRequest
         $validated = parent::validated();
 
         return array_merge($validated, [
-            'distance_km' => $this->input('distance_km'),
-            'distance' => $this->input('distance'),
-            'price' => $this->input('price'),
-            'discount_code' => $this->input('discount_code'),
-            'pickup_notes' => $this->input('pickup_notes') ?: $this->input('pickup_landmark'),
-            'pickup_landmark' => $this->input('pickup_landmark'),
-            'dropoff_landmark' => $this->input('dropoff_landmark'),
+            'distance_km'          => $this->input('distance_km'),
+            'distance'             => $this->input('distance'),
+            'price'                => $this->input('price'),
+            'discount_code'        => $this->input('discount_code'),
+            'pickup_notes'         => $this->input('pickup_notes') ?: $this->input('pickup_landmark'),
+            'pickup_landmark'      => $this->input('pickup_landmark'),
+            'dropoff_landmark'     => $this->input('dropoff_landmark'),
             'additional_directions' => $this->input('additional_directions'),
-            'vehicle_category' => $this->input('vehicle_category'),
-            'is_pwd' => ($validated['customer_type'] ?? 'regular') === 'pwd',
-            'is_senior' => ($validated['customer_type'] ?? 'regular') === 'senior',
+            'vehicle_category'     => $this->input('vehicle_category'),
+            'vehicle_make'         => $this->input('vehicle_make'),
+            'vehicle_model'        => $this->input('vehicle_model'),
+            'vehicle_year'         => $this->input('vehicle_year'),
+            'vehicle_color'        => $this->input('vehicle_color'),
+            'vehicle_plate_number' => $this->input('vehicle_plate_number'),
+            'is_pwd'               => ($validated['customer_type'] ?? 'regular') === 'pwd',
+            'is_senior'            => ($validated['customer_type'] ?? 'regular') === 'senior',
         ]);
     }
 

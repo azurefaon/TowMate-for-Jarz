@@ -35,6 +35,7 @@ class User extends Authenticatable
         'password_request_resolved_at',
         'archived_at',
         'email_verified_at',
+        'must_change_password',
     ];
 
     protected static function booted(): void
@@ -109,6 +110,7 @@ class User extends Authenticatable
             'password_requested_at' => 'datetime',
             'password_request_resolved_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
         ];
     }
 }

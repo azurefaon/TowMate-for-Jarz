@@ -4,95 +4,6 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/users.css') }}">
-    <style>
-        .sa-dialog-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.55);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            padding: 16px;
-        }
-
-        .sa-dialog-backdrop.is-open {
-            display: flex;
-        }
-
-        .sa-dialog-card {
-            width: min(460px, 100%);
-            background: #fff;
-            border-radius: 20px;
-            padding: 20px;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
-        }
-
-        .sa-dialog-card h3 {
-            margin: 0 0 8px;
-            color: #0f172a;
-        }
-
-        .sa-dialog-card p {
-            margin: 0;
-            color: #475569;
-            line-height: 1.5;
-        }
-
-        .sa-dialog-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 18px;
-        }
-
-        .sa-dialog-btn {
-            border: 0;
-            border-radius: 12px;
-            padding: 10px 16px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .sa-dialog-btn.cancel {
-            background: #e2e8f0;
-            color: #0f172a;
-        }
-
-        .sa-dialog-btn.confirm {
-            background: linear-gradient(135deg, #7f1d1d, #b91c1c);
-            color: #fff;
-        }
-
-        .user-view-switch {
-            display: inline-flex;
-            gap: 8px;
-            padding: 6px;
-            /* border-radius: 14px; */
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            margin: 14px 0 0;
-            flex-wrap: wrap;
-        }
-
-        .user-view-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 9px 12px;
-            /* border-radius: 10px; */
-            text-decoration: none;
-            font-weight: 700;
-            color: #475569;
-        }
-
-        .user-view-link.active {
-            background: #111827;
-            color: #fff;
-            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.15);
-        }
-    </style>
 @endpush
 
 @section('content')
@@ -100,46 +11,30 @@
         <div class="page-top">
             <div>
                 <h1>Archived Users</h1>
-                <p>Restore removed accounts or review archived team members.</p>
-            </div>
-
-            <div class="page-actions">
-                <a href="{{ route('superadmin.users.index') }}" class="btn-secondary-link">
-                    {{-- <i data-lucide="arrow-left"></i> --}}
-                    Back to Active Users
-                </a>
             </div>
         </div>
 
+        @php
+            $tlRole = $roles->firstWhere('name', 'Team Leader');
+            $dispRole = $roles->firstWhere('name', 'Admin');
+        @endphp
         <div class="user-view-switch">
-            <a href="{{ route('superadmin.users.index') }}" class="user-view-link">
-                {{-- <i data-lucide="users"></i> --}}
-                Active Users
-            </a>
-            <a href="{{ route('superadmin.users.archived') }}" class="user-view-link active">
-                {{-- <i data-lucide="archive"></i> --}}
-                Archived Users
-            </a>
-        </div>
-
-        <div class="overview-grid compact-grid">
-            <div class="overview-card">
-                <span>Archived Accounts</span>
-                <strong>{{ $stats['archived'] }}</strong>
-                <small>Currently stored in archive</small>
-            </div>
-            <div class="overview-card muted-card">
-                <span>Active Accounts</span>
-                <strong>{{ $stats['active'] }}</strong>
-                <small>Available for login</small>
-            </div>
+            <a href="{{ route('superadmin.users.index') }}" class="user-view-link">All Users</a>
+            @if ($tlRole)
+                <a href="{{ route('superadmin.users.index', ['role' => $tlRole->id]) }}" class="user-view-link">Team
+                    Leaders</a>
+            @endif
+            @if ($dispRole)
+                <a href="{{ route('superadmin.users.index', ['role' => $dispRole->id]) }}"
+                    class="user-view-link">Dispatchers</a>
+            @endif
+            <a href="{{ route('superadmin.users.archived') }}" class="user-view-link active">Archived Users</a>
         </div>
 
         <div class="table-card">
             <div class="table-header soft-header">
                 <form method="GET" class="filters">
                     <div class="search-container">
-                        <i data-lucide="search" class="search-icon"></i>
                         <input type="text" name="search" value="{{ request('search') }}"
                             placeholder="Search archived users..." class="search-input">
                     </div>
@@ -244,7 +139,6 @@
                             <tr>
                                 <td colspan="6">
                                     <div class="empty-state small-empty">
-                                        <i data-lucide="archive"></i>
                                         <h3>No archived users</h3>
                                         <p>Removed accounts will appear here for easy restore.</p>
                                     </div>

@@ -250,19 +250,27 @@
         }
 
         .incoming-card--scheduled {
-            border: 1px solid #bae6fd;
-            background: linear-gradient(135deg, #f8fdff, #f0f9ff);
-            box-shadow: 0 8px 22px rgba(14, 116, 144, 0.08);
+            border: 1px solid #facc15;
+            background: #fffef0;
         }
 
         .incoming-card--scheduled .incoming-route strong {
-            color: #0c4a6e;
+            color: #111;
         }
 
-        .status-badge.scheduled {
-            background: #e0f2fe;
-            color: #075985;
-            border: 1px solid #7dd3fc;
+        .incoming-card--scheduled-confirmed {
+            border: 2px solid #facc15;
+            background: #fffce0;
+        }
+
+        .incoming-panel {
+            display: none;
+        }
+
+        .status-badge.scheduled_confirmed {
+            background: #facc15;
+            color: #111;
+            border: 1px solid #d4a017;
         }
 
         .btn-accept[disabled] {
@@ -850,6 +858,20 @@
                         {{ $queueCounts['all'] ?? 0 }}
                     </span>
                 </button>
+                <button type="button" class="queue-filter-btn" data-filter="book-now">
+                    <span>Book Now</span>
+                    <span class="queue-tab-count {{ ($queueCounts['book-now'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="book-now">
+                        {{ $queueCounts['book-now'] ?? 0 }}
+                    </span>
+                </button>
+                <button type="button" class="queue-filter-btn" data-filter="scheduled">
+                    <span>Scheduled</span>
+                    <span class="queue-tab-count {{ ($queueCounts['scheduled'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="scheduled">
+                        {{ $queueCounts['scheduled'] ?? 0 }}
+                    </span>
+                </button>
             </div>
 
             <div class="incoming-list" id="incomingList" data-default-filter="active"
@@ -1140,6 +1162,107 @@
 
         </div>
 
+        {{-- ── Book Now Queue Panel ──────────────────────────────────────────── --}}
+        <div id="bookNowPanel" class="incoming-panel" style="display:none;">
+            @if ($bookNowRequests->isEmpty())
+                <div class="empty-state">
+                    <p>No book-now requests in queue.</p>
+                </div>
+            @else
+                @foreach ($bookNowRequests as $booking)
+                    <div class="incoming-card" data-queue="book-now" data-id="{{ $booking->job_code ?? $booking->id }}"
+                        data-status="{{ $booking->status }}">
+                        <div class="incoming-left">
+                            <div class="incoming-header">
+                                <span class="queue-chip book-now">Book Now</span>
+                                <span
+                                    class="status-badge {{ $booking->status }}">{{ ucfirst(str_replace('_', ' ', $booking->status)) }}</span>
+                                <span
+                                    style="font-size:0.78rem;color:#64748b;">{{ $booking->created_at->diffForHumans() }}</span>
+                            </div>
+                            <div class="incoming-route">
+                                <strong>{{ $booking->pickup_address }}</strong>
+                                <span class="arrow">→</span>
+                                <span>{{ $booking->dropoff_address }}</span>
+                            </div>
+                            <div class="incoming-details">
+                                <span><strong>Customer:</strong> {{ $booking->customer->full_name ?? 'Guest' }}</span>
+                                <span><strong>Phone:</strong> {{ $booking->customer->phone ?? 'N/A' }}</span>
+                                <span><strong>Truck:</strong> {{ $booking->truckType->name ?? '—' }}</span>
+                                <span><strong>Ref:</strong> {{ $booking->booking_code }}</span>
+                            </div>
+                        </div>
+                        <div class="incoming-right">
+                            <div class="incoming-price">₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            @endif
+        </div>
+
+        {{-- ── Scheduled Queue Panel ────────────────────────────────────────── --}}
+        <div id="scheduledPanel" class="incoming-panel" style="display:none;">
+            @if ($scheduledRequests->isEmpty())
+                <div class="empty-state">
+                    <p>No scheduled bookings in queue.</p>
+                </div>
+            @else
+                @foreach ($scheduledRequests as $booking)
+                    @php
+                        $isConfirmed = $booking->status === 'scheduled_confirmed';
+                        $expiresAt = $booking->scheduled_expires_at;
+                        $expiresLabel = $expiresAt ? $expiresAt->diffForHumans() : '—';
+                        $scheduledFor = $booking->scheduled_for;
+                    @endphp
+                    <div class="incoming-card {{ $isConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }}"
+                        data-queue="scheduled" data-id="{{ $booking->job_code ?? $booking->id }}"
+                        data-status="{{ $booking->status }}">
+                        <div class="incoming-left">
+                            <div class="incoming-header">
+                                <span
+                                    class="queue-chip scheduled">{{ $isConfirmed ? 'Confirmed Schedule' : 'Scheduled' }}</span>
+                                <span
+                                    class="status-badge {{ $booking->status }}">{{ ucfirst(str_replace('_', ' ', $booking->status)) }}</span>
+                            </div>
+                            <div class="incoming-route">
+                                <strong>{{ $booking->pickup_address }}</strong>
+                                <span class="arrow">→</span>
+                                <span>{{ $booking->dropoff_address }}</span>
+                            </div>
+                            <div class="incoming-details">
+                                <span><strong>Customer:</strong> {{ $booking->customer->full_name ?? 'Guest' }}</span>
+                                <span><strong>Phone:</strong> {{ $booking->customer->phone ?? 'N/A' }}</span>
+                                <span><strong>Truck:</strong> {{ $booking->truckType->name ?? '—' }}</span>
+                                <span><strong>Ref:</strong> {{ $booking->booking_code }}</span>
+                            </div>
+                            @if ($scheduledFor)
+                                <div class="incoming-details"
+                                    style="margin-top:6px;background:#facc1511;padding:6px 8px;border-left:3px solid #facc15;">
+                                    <span><strong>Scheduled:</strong> {{ $scheduledFor->format('D, M j, Y') }} at
+                                        {{ $scheduledFor->format('g:i A') }}</span>
+                                    <span><strong>Expires:</strong> {{ $expiresLabel }}</span>
+                                </div>
+                            @endif
+                        </div>
+                        <div class="incoming-right">
+                            <div class="incoming-price">₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}
+                            </div>
+                            @if ($isConfirmed)
+                                <div style="margin-top:8px;">
+                                    <button type="button" class="btn-accept"
+                                        data-id="{{ $booking->job_code ?? $booking->id }}" data-action="accept"
+                                        title="Assign a unit to this scheduled booking">
+                                        Dispatch Now
+                                    </button>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            @endif
+        </div>
+
         @include('admin-dashboard.pages._quotations-section')
 
         <div id="actionModal" class="hidden" aria-hidden="true" role="dialog" aria-modal="true">
@@ -1159,39 +1282,35 @@
                         <div
                             style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px; font-size:.87rem; color:#374151;">
                             <div>
-                                <div
-                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                <div style="color:#3b3b3b; font-size:.72rem; text-transform:uppercase; margin-bottom:3px;">
                                     Customer</div>
-                                <div id="cfCustomerName" style="font-weight:700; color:#0f172a;">—</div>
+                                <div id="cfCustomerName" color:#0f172a;">—</div>
                             </div>
                             <div>
-                                <div
-                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                <div style="color:#3b3b3b; font-size:.72rem; text-transform:uppercase; margin-bottom:3px;">
                                     Phone</div>
-                                <div id="cfCustomerPhone" style="font-weight:700; color:#0f172a;">—</div>
+                                <div id="cfCustomerPhone" color:#0f172a;">—</div>
                             </div>
                             <div style="grid-column:1/-1;">
-                                <div
-                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                <div style="color:#3b3b3b; font-size:.72rem; text-transform:uppercase; margin-bottom:3px;">
                                     Route</div>
-                                <div id="cfRoute" style="font-weight:600; color:#0f172a; line-height:1.4;">—</div>
+                                <div id="cfRoute" color:#0f172a; line-height:1.4;">—</div>
                             </div>
                             <div>
-                                <div
-                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                <div style="color:#3b3b3b; font-size:.72rem; text-transform:uppercase; margin-bottom:3px;">
                                     Vehicle Type</div>
-                                <div id="cfTruckType" style="font-weight:700; color:#0f172a;">—</div>
+                                <div id="cfTruckType" color:#0f172a;">—</div>
                             </div>
                             <div>
                                 <div
-                                    style="color:#94a3b8; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                    style="color:#3b3b3b; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
                                     Distance</div>
-                                <div id="cfDistance" style="font-weight:700; color:#0f172a;">—</div>
+                                <div id="cfDistance" color:#0f172a;">—</div>
                             </div>
                         </div>
                         <div
                             style="margin-top:14px; padding:10px 14px; background:#fff; border:1px solid #000000; display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:.85rem; font-weight:600; color:#000000;">Agreed Total (Price
+                            <span style="font-size:.85rem; color:#000000;">Agreed Total (Price
                                 Locked)</span>
                             <span id="cfAgreedTotal" style="font-size:1.1rem; color:#000000;">—</span>
                         </div>

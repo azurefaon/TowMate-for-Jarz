@@ -42,6 +42,7 @@
                     <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a; margin-bottom: 3px;"
                         id="qmCustomerName">—</div>
                     <div style="font-size: 0.82rem; color: #64748b; font-weight: 500;" id="qmCustomerPhone">—</div>
+                    <div style="font-size: 0.82rem; color: #64748b; font-weight: 500;" id="qmCustomerEmail">—</div>
                 </div>
             </div>
 
@@ -143,7 +144,8 @@
                         <option value="">Select a unit</option>
                         @forelse($availableUnits as $unit)
                             <option value="{{ $unit['id'] }}" data-base-rate="{{ $unit['base_rate'] ?? 0 }}">
-                                {{ $unit['label'] }} · {{ $unit['team_leader_name'] }}
+                                {{ $unit['label'] }} ({{ ucfirst($unit['truck_class'] ?? 'N/A') }}) ·
+                                {{ $unit['team_leader_name'] }}
                             </option>
                         @empty
                             <option value="" disabled>No online ready units available</option>
@@ -185,7 +187,7 @@
                         <label
                             style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 6px;">Note
                             <span style="font-weight: 400; color: #94a3b8;">(optional)</span></label>
-                        <textarea id="qmPriceNote" rows="2" placeholder="e.g. Rush fee, toll charges..."
+                        <textarea id="qmPriceNote" rows="2" placeholder="example Rush fee, toll charges etc."
                             style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.88rem; color: #0f172a; resize: vertical; outline: none; box-sizing: border-box;"
                             onfocusin="this.style.borderColor='#6366f1'" onfocusout="this.style.borderColor='#d1d5db'"></textarea>
                     </div>
@@ -278,6 +280,7 @@
                 // Customer info
                 document.getElementById('qmCustomerName').textContent = q.customer_name || '—';
                 document.getElementById('qmCustomerPhone').textContent = q.customer_phone || '—';
+                document.getElementById('qmCustomerEmail').textContent = q.customer_email || '—';
                 document.getElementById('qmQuotationNumber').textContent = q.quotation_number || '—';
                 document.getElementById('qmPickupAddress').textContent = q.pickup_address || '—';
                 document.getElementById('qmDropoffAddress').textContent = q.dropoff_address || '—';
@@ -342,10 +345,12 @@
                 if (q.status === 'pending') {
                     if (unitSection) unitSection.style.display = 'block';
                     if (unitSelect) {
-                        unitSelect.value = '';
                         unitSelect.onchange = function() {
                             recalcQuotationTotal();
                         };
+                        // Auto-select the first available unit
+                        const firstAvail = Array.from(unitSelect.options).find(o => o.value && !o.disabled);
+                        unitSelect.value = firstAvail ? firstAvail.value : '';
                     }
                 } else {
                     if (unitSection) unitSection.style.display = 'none';
@@ -363,6 +368,9 @@
                     document.getElementById('qmCalculatedPrice').textContent = fmt(newTotal);
                     window.qmCustomerPrice = baseRate + (window.qmDistanceFee || 0);
                 }
+
+                // Run initial calc with auto-selected unit
+                if (q.status === 'pending') recalcQuotationTotal();
 
                 // Real-time total recalc
                 const otherFeesInput = document.getElementById('qmOtherFeesInput');

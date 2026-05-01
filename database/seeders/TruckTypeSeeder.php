@@ -16,6 +16,7 @@ class TruckTypeSeeder extends Seeder
         $truckTypes = [
             [
                 'name' => 'Motorcycle',
+                'class' => 'light',
                 'base_rate' => 100.00,
                 'per_km_rate' => 200.00,
                 'max_tonnage' => 0.50,
@@ -24,6 +25,7 @@ class TruckTypeSeeder extends Seeder
             ],
             [
                 'name' => 'Sedan',
+                'class' => 'medium',
                 'base_rate' => 500.00,
                 'per_km_rate' => 200.00,
                 'max_tonnage' => 2.00,
@@ -32,6 +34,7 @@ class TruckTypeSeeder extends Seeder
             ],
             [
                 'name' => 'SUV',
+                'class' => 'medium',
                 'base_rate' => 700.00,
                 'per_km_rate' => 200.00,
                 'max_tonnage' => 3.00,
@@ -40,6 +43,7 @@ class TruckTypeSeeder extends Seeder
             ],
             [
                 'name' => 'Truck',
+                'class' => 'heavy',
                 'base_rate' => 1000.00,
                 'per_km_rate' => 200.00,
                 'max_tonnage' => 5.00,

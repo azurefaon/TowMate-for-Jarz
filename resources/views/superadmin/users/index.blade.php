@@ -4,310 +4,6 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/users.css') }}">
-    <style>
-        .user-management-page .modal-card {
-            max-width: 900px;
-            width: 95%;
-        }
-
-        .user-management-page .modal-form {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-        }
-
-        .user-management-page .modal-form .form-helper-text,
-        .user-management-page .modal-actions {
-            grid-column: span 2;
-        }
-
-        .sa-dialog-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.55);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            padding: 16px;
-        }
-
-        .sa-dialog-backdrop.is-open {
-            display: flex;
-        }
-
-        .sa-dialog-card {
-            width: min(460px, 100%);
-            background: #fff;
-            border-radius: 20px;
-            padding: 20px;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
-        }
-
-        .sa-dialog-card h3 {
-            margin: 0 0 8px;
-            color: #0f172a;
-        }
-
-        .sa-dialog-card p {
-            margin: 0;
-            color: #475569;
-            line-height: 1.5;
-        }
-
-        .sa-dialog-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 18px;
-        }
-
-        .sa-dialog-btn {
-            border: 0;
-            border-radius: 12px;
-            padding: 10px 16px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .sa-dialog-btn.cancel {
-            background: #e2e8f0;
-            color: #0f172a;
-        }
-
-        .sa-dialog-btn.confirm {
-            background: linear-gradient(135deg, #111827, #1f2937);
-            color: #fff;
-        }
-
-        .user-view-switch {
-            display: inline-flex;
-            gap: 8px;
-            padding: 6px;
-            /* border-radius: 14px; */
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            margin: 14px 0 0;
-            flex-wrap: wrap;
-            font-family: sans-serif
-        }
-
-        .user-view-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 9px 12px;
-            /* border-radius: 10px; */
-            text-decoration: none;
-            font-weight: 700;
-            color: #475569;
-        }
-
-        .user-view-link.active {
-            background: #111827;
-            color: #fff;
-            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.15);
-        }
-
-        .request-review-card {
-            margin: 20px 0 22px;
-            padding: 18px;
-            /* border-radius: 18px; */
-            border: 1px solid #fde68a;
-            background: linear-gradient(180deg, #fffdf4 0%, #ffffff 100%);
-            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
-        }
-
-        .request-review-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 12px;
-            margin-bottom: 14px;
-            flex-wrap: wrap;
-        }
-
-        .request-review-head h2 {
-            margin: 0 0 4px;
-            color: #0f172a;
-            font-size: 1.05rem;
-        }
-
-        .request-review-head p {
-            margin: 0;
-            color: #475569;
-        }
-
-        .request-review-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 12px;
-        }
-
-        .request-item {
-            padding: 14px;
-            border-radius: 14px;
-            border: 1px solid #e5e7eb;
-            background: #fff;
-        }
-
-        .request-item strong {
-            display: block;
-            color: #0f172a;
-            margin-bottom: 4px;
-        }
-
-        .request-meta,
-        .request-note,
-        .request-time {
-            color: #475569;
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-
-        .request-note {
-            margin-top: 8px;
-        }
-
-        .request-time {
-            display: inline-flex;
-            margin-top: 8px;
-            padding: 5px 8px;
-            border-radius: 999px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-        }
-
-        .request-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 12px;
-        }
-
-        .request-actions form {
-            margin: 0;
-        }
-
-        .request-password-form {
-            width: 100%;
-            display: grid;
-            gap: 8px;
-            margin-top: 2px;
-        }
-
-        .request-password-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px;
-        }
-
-        .request-field {
-            display: grid;
-            gap: 4px;
-        }
-
-        .request-field span {
-            font-size: 0.74rem;
-            font-weight: 700;
-            color: #475569;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .request-field input {
-            width: 100%;
-            min-height: 40px;
-            border-radius: 10px;
-            border: 1px solid #dbe3ef;
-            background: #fff;
-            padding: 10px 12px;
-            font-size: 0.9rem;
-            color: #0f172a;
-        }
-
-        .request-field-help {
-            color: #64748b;
-            font-size: 0.78rem;
-            margin: 0;
-        }
-
-        .request-btn {
-            border: 0;
-            border-radius: 10px;
-            padding: 8px 12px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        .request-btn.primary {
-            background: #111827;
-            color: #fff;
-        }
-
-        .request-btn.secondary {
-            background: #f8fafc;
-            color: #0f172a;
-            border: 1px solid #e2e8f0;
-        }
-
-        /* ── Flash banners ───────────────────────────── */
-        .sa-flash-banner {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 13px 16px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 500;
-            margin-bottom: 16px;
-        }
-
-        .sa-flash-banner span {
-            flex: 1;
-        }
-
-        .sa-flash-success {
-            background: #f0fdf4;
-            color: #166534;
-            border: 1px solid #bbf7d0;
-        }
-
-        .sa-flash-error {
-            background: #fef2f2;
-            color: #991b1b;
-            border: 1px solid #fecaca;
-        }
-
-        .sa-flash-close {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 18px;
-            line-height: 1;
-            color: inherit;
-            opacity: 0.6;
-            padding: 0 4px;
-        }
-
-        .sa-flash-close:hover {
-            opacity: 1;
-        }
-
-        .request-pill {
-            display: inline-flex;
-            align-items: center;
-            margin-top: 6px;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: #fff7ed;
-            color: #9a3412;
-            border: 1px solid #fdba74;
-            font-size: 0.74rem;
-            font-weight: 700;
-        }
-    </style>
 @endpush
 
 @section('content')
@@ -316,13 +12,11 @@
         {{-- Session flash (normal form POST redirects) --}}
         @if (session('success'))
             <div class="sa-flash-banner sa-flash-success" id="saFlashBanner">
-                <i data-lucide="check-circle" style="width:17px;height:17px;flex-shrink:0;"></i>
                 <span>{{ session('success') }}</span>
                 <button type="button" onclick="this.closest('.sa-flash-banner').remove()" class="sa-flash-close">×</button>
             </div>
         @elseif (session('error'))
             <div class="sa-flash-banner sa-flash-error" id="saFlashBanner">
-                <i data-lucide="alert-circle" style="width:17px;height:17px;flex-shrink:0;"></i>
                 <span>{{ session('error') }}</span>
                 <button type="button" onclick="this.closest('.sa-flash-banner').remove()" class="sa-flash-close">×</button>
             </div>
@@ -442,7 +136,6 @@
             <div class="table-header">
                 <form method="GET" class="filters">
                     <div class="search-container">
-                        <i data-lucide="search" class="search-icon"></i>
                         <input type="text" name="search" value="{{ request('search') }}"
                             placeholder="Search by name or email..." class="search-input">
                     </div>
@@ -490,8 +183,7 @@
                             <tr>
                                 <td data-label="User">
                                     <div class="user-info">
-                                        <div class="avatar"
-                                            style="background: {{ ['#111111', '#facc15', '#d97706', '#374151', '#b45309', '#1f2937', '#ca8a04'][crc32($user->name) % 7] }}; color: {{ in_array(crc32($user->name) % 7, [1]) ? '#111111' : '#ffffff' }};">
+                                        <div class="avatar">
                                             {{ strtoupper(substr($user->name, 0, 1)) }}
                                         </div>
 
@@ -515,27 +207,12 @@
                                             (int) $user->role_id === 2 &&
                                             \Illuminate\Support\Facades\Cache::has('dispatcher:presence:' . $user->id);
                                     @endphp
-                                    <div class="status-stack">
-                                        <span
-                                            class="status-badge {{ $user->status }}">{{ ucfirst($user->status) }}</span>
-
-                                        @if ($dispatcherOnline)
-                                            <small class="self-tag">Dispatcher online</small>
-                                        @endif
-
-                                        @if ($user->id !== auth()->id())
-                                            <label class="switch"
-                                                title="{{ $dispatcherOnline ? 'This dispatcher is online and cannot be changed right now.' : 'Toggle user status' }}">
-                                                <input type="checkbox"
-                                                    onchange="document.getElementById('toggle-{{ $user->id }}').submit();"
-                                                    {{ $user->status == 'active' ? 'checked' : '' }}
-                                                    {{ $dispatcherOnline ? 'disabled' : '' }}>
-                                                <span class="slider"></span>
-                                            </label>
-                                        @else
-                                            <small class="self-tag">Current user</small>
-                                        @endif
-                                    </div>
+                                    <span class="status-badge {{ $user->status }}">{{ ucfirst($user->status) }}</span>
+                                    @if ($user->id === auth()->id())
+                                        <small class="self-tag">You</small>
+                                    @elseif ($dispatcherOnline)
+                                        <small class="self-tag">Online</small>
+                                    @endif
                                 </td>
 
                                 <td data-label="Joined">{{ $user->created_at->format('M d, Y') }}</td>
@@ -543,40 +220,45 @@
 
                                 <td data-label="Actions">
                                     <div class="action-group">
-                                        <a href="{{ route('superadmin.users.edit', $user->id) }}" class="action-btn">
-                                            {{-- <i data-lucide="pencil"></i> --}}
-                                            Edit
-                                        </a>
+                                        <a href="{{ route('superadmin.users.edit', $user->id) }}"
+                                            class="action-btn edit-btn">Edit</a>
 
                                         @if ($user->id !== auth()->id())
+                                            {{-- Active / Inactive toggle --}}
+                                            <form method="POST"
+                                                action="{{ route('superadmin.users.toggle', $user->id) }}"
+                                                style="display:inline;">
+                                                @csrf
+                                                @method('PATCH')
+                                                @if ($user->status === 'active')
+                                                    <button type="submit" class="action-btn deactivate-btn"
+                                                        {{ $dispatcherOnline ? 'disabled' : '' }}
+                                                        title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Set user inactive' }}">Inactive</button>
+                                                @else
+                                                    <button type="submit" class="action-btn activate-btn"
+                                                        title="Set user active">Active</button>
+                                                @endif
+                                            </form>
+
+                                            {{-- Archive / Remove --}}
                                             <form method="POST" action="{{ route('superadmin.users.archive', $user) }}"
                                                 class="js-confirm-action" data-confirm-title="Move user to archive?"
                                                 data-confirm-message="{{ $user->name }} will be moved to the archive panel."
-                                                data-confirm-button="Move to Archive">
+                                                data-confirm-button="Move to Archive" style="display:inline;">
                                                 @csrf
                                                 @method('PATCH')
                                                 <button type="submit" class="action-btn archive-btn"
                                                     {{ $dispatcherOnline ? 'disabled' : '' }}
-                                                    title="{{ $dispatcherOnline ? 'This dispatcher is online and cannot be removed right now.' : 'Move user to archive' }}">
-                                                    <i data-lucide="archive"></i>
-                                                    Remove
-                                                </button>
+                                                    title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Move user to archive' }}">Remove</button>
                                             </form>
                                         @endif
                                     </div>
-
-                                    <form id="toggle-{{ $user->id }}" method="POST"
-                                        action="{{ route('superadmin.users.toggle', $user->id) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                    </form>
                                 </td>
                             </tr>
                         @empty
                             <tr>
                                 <td colspan="6">
                                     <div class="empty-state">
-                                        <i data-lucide="users"></i>
                                         <h3>No users found</h3>
                                         <p>Try adjusting the search filters or add a new team member.</p>
                                     </div>
@@ -703,7 +385,7 @@
                 const banner = document.createElement('div');
                 banner.className = 'sa-flash-banner sa-flash-success';
                 banner.innerHTML =
-                    `<i data-lucide="check-circle" style="width:17px;height:17px;flex-shrink:0;"></i><span>${storedFlash}</span><button type="button" onclick="this.closest('.sa-flash-banner').remove()" class="sa-flash-close">×</button>`;
+                    `<span>${storedFlash}</span><button type="button" onclick="this.closest('.sa-flash-banner').remove()" class="sa-flash-close">×</button>`;
                 document.querySelector('.user-management-page')?.prepend(banner);
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }

@@ -329,6 +329,10 @@
     margin-bottom: 18px;
 }
 
+.ajax-error-banner[hidden] {
+    display: none;
+}
+
 .teamleader-capacity-card {
     display: flex;
     justify-content: space-between;

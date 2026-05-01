@@ -84,6 +84,8 @@ class Booking extends Model
         'paymongo_intent_id',
         'paymongo_client_key',
 
+        'scheduled_expires_at',
+
         'status',
     ];
 
@@ -130,6 +132,7 @@ class Booking extends Model
             'customer_verified_at' => 'datetime',
             'returned_at' => 'datetime',
             'payment_submitted_at' => 'datetime',
+            'scheduled_expires_at' => 'datetime',
             'base_rate' => 'decimal:2',
             'per_km_rate' => 'decimal:2',
             'computed_total' => 'decimal:2',
@@ -386,5 +389,36 @@ class Booking extends Model
     public function receipt()
     {
         return $this->hasOne(Receipt::class);
+    }
+
+    // ── Scheduled booking helpers ──────────────────────────────────
+
+    /** Is this booking in the scheduled queue (not yet confirmed by customer)? */
+    public function getIsScheduledQueueAttribute(): bool
+    {
+        return in_array($this->status, ['scheduled', 'scheduled_confirmed'], true);
+    }
+
+    /** Is the scheduled slot expired (> 7 days without acceptance)? */
+    public function getIsScheduledExpiredAttribute(): bool
+    {
+        return ! is_null($this->scheduled_expires_at)
+            && $this->scheduled_expires_at->isPast();
+    }
+
+    /** Scope: upcoming scheduled bookings not yet expired/cancelled */
+    public function scopeScheduledQueue($query)
+    {
+        return $query->whereIn('status', ['scheduled', 'scheduled_confirmed']);
+    }
+
+    /** Scope: book-now bookings pending dispatcher action */
+    public function scopeBookNowQueue($query)
+    {
+        return $query->whereIn('status', ['requested', 'reviewed'])
+            ->where(function ($q) {
+                $q->whereNull('service_type')
+                    ->orWhere('service_type', 'book_now');
+            });
     }
 }

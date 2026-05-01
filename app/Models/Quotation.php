@@ -41,6 +41,8 @@ class Quotation extends Model
         'follow_up_sent_at',
         'response_note',
         'link_version',
+        'scheduled_date',
+        'scheduled_time',
     ];
 
     protected $casts = [
@@ -52,6 +54,7 @@ class Quotation extends Model
         'counter_offer_amount' => 'decimal:2',
         'expiry_hours' => 'integer',
         'link_version' => 'integer',
+        'scheduled_date' => 'date',
         'sent_at' => 'datetime',
         'expires_at' => 'datetime',
         'viewed_at' => 'datetime',

@@ -145,10 +145,8 @@
 
                                 <input type="hidden" name="confirmation_type" value="system">
                                 <input type="hidden" name="schedule_fallback_accepted" value="0">
-                                <input type="hidden" id="truck_type_id" name="truck_type_id"
-                                    value="{{ optional($truckTypes->first())->id }}"
-                                    data-base="{{ optional($truckTypes->first())->base_rate }}"
-                                    data-perkm="{{ optional($truckTypes->first())->per_km_rate }}">
+                                <input type="hidden" id="truck_type_id" name="truck_type_id" value="">
+                                <input type="hidden" id="truck_class_hidden" name="truck_class" value="">
                                 <input type="hidden" id="vehicle_category" name="vehicle_category" value="4_wheeler">
 
                                 <!-- Hidden ETA field for backend -->
@@ -259,6 +257,101 @@
                                     </div>
                                 </div>
 
+
+
+                            </div>
+
+                            <div class="form-section compact-section">
+                                <h3>Vehicle Details</h3>
+
+                                {{-- Truck Class Picker --}}
+                                @php
+                                    $lf_selectedTruck = old('truck_type_id', '');
+                                    $lf_classLabel = ['light' => 'Light', 'medium' => 'Medium', 'heavy' => 'Heavy'];
+                                    $lf_classColor = [
+                                        'light' => '#1d4ed8',
+                                        'medium' => '#7c3aed',
+                                        'heavy' => '#c2410c',
+                                    ];
+                                    $lf_classBg = ['light' => '#eff6ff', 'medium' => '#faf5ff', 'heavy' => '#fff7ed'];
+                                @endphp
+
+                                <div class="form-group" style="margin-bottom:18px;">
+                                    <label style="display:block;margin-bottom:10px;font-weight:600;color:#111;">Truck Type
+                                        <span style="color:#dc2626;">*</span></label>
+
+                                    <div id="lf_class_grid"
+                                        style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;">
+                                        @foreach ($truckTypes as $truck)
+                                            @php
+                                                $isAvail = $truck->available_units_count > 0;
+                                                $cls = $truck->class ?? 'other';
+                                                $clsLbl = $lf_classLabel[$cls] ?? ucfirst($cls);
+                                                $clsColor = $lf_classColor[$cls] ?? '#52525b';
+                                                $clsBg = $lf_classBg[$cls] ?? '#f4f4f5';
+                                                $isSel = (string) $lf_selectedTruck === (string) $truck->id;
+                                            @endphp
+                                            <div class="lf-class-card {{ $isSel ? 'lf-selected' : '' }} {{ !$isAvail ? 'lf-unavailable' : '' }}"
+                                                data-class="{{ $cls }}" data-truck-id="{{ $truck->id }}"
+                                                data-base="{{ (float) $truck->base_rate }}"
+                                                data-perkm="{{ (float) $truck->per_km_rate }}"
+                                                data-available="{{ $isAvail ? 1 : 0 }}" role="button"
+                                                tabindex="{{ $isAvail ? 0 : -1 }}"
+                                                aria-disabled="{{ !$isAvail ? 'true' : 'false' }}"
+                                                style="
+                                                    border: 2px solid {{ $isSel ? '#111827' : '#e5e7eb' }};
+                                                    border-radius: 10px;
+                                                    padding: 10px 12px;
+                                                    cursor: {{ $isAvail ? 'pointer' : 'not-allowed' }};
+                                                    background: {{ $isSel ? '#111827' : '#fff' }};
+                                                    color: {{ $isSel ? '#fff' : '#111827' }};
+                                                    opacity: {{ !$isAvail ? '.45' : '1' }};
+                                                    transition: border-color .15s, background .15s;
+                                                    user-select: none;
+                                                ">
+
+                                                {{-- Class badge --}}
+                                                <span
+                                                    style="
+                                                    display:inline-block;
+                                                    font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+                                                    padding:2px 7px;border-radius:999px;margin-bottom:6px;
+                                                    background:{{ $isSel ? 'rgba(255,255,255,.15)' : $clsBg }};
+                                                    color:{{ $isSel ? '#d4d4d8' : $clsColor }};
+                                                "
+                                                    class="lf-cls-badge">{{ $clsLbl }}</span>
+
+                                                <div
+                                                    style="font-size:13px;font-weight:800;line-height:1.3;margin-bottom:6px;">
+                                                    {{ $truck->name }}</div>
+
+                                                <div style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;margin-bottom:6px;color:{{ $isSel ? '#d4d4d8' : '#6b7280' }};"
+                                                    class="lf-avail-row">
+                                                    <span
+                                                        style="width:6px;height:6px;border-radius:50%;background:{{ $isAvail ? '#22c55e' : '#9ca3af' }};display:inline-block;flex-shrink:0;"></span>
+                                                    @if ($isAvail)
+                                                        {{ $truck->available_units_count }}
+                                                        unit{{ $truck->available_units_count !== 1 ? 's' : '' }}
+                                                    @else
+                                                        No units
+                                                    @endif
+                                                </div>
+
+                                                <div style="font-size:10px;font-weight:700;color:{{ $isSel ? '#a1a1aa' : '#52525b' }};"
+                                                    class="lf-rate-row">
+                                                    ₱{{ number_format($truck->base_rate, 0) }} +
+                                                    ₱{{ number_format($truck->per_km_rate, 0) }}/km
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+
+                                    <div id="lf_all_unavail"
+                                        style="display:none;font-size:12px;color:#6b7280;margin-top:8px;">
+                                        No units available right now — switch to <strong>Schedule Later</strong> to reserve.
+                                    </div>
+                                </div>
+
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="customer_vehicle_type">Your Vehicle Type *</label>
@@ -270,13 +363,6 @@
                                         @enderror
                                     </div>
                                 </div>
-
-
-                            </div>
-
-                            <div class="form-section compact-section">
-                                <h3>Vehicle Details</h3>
-
                                 <div class="form-group">
                                     <label style="color:#000;font-weight:600;">
                                         Vehicle Images <span style="color:#dc2626;font-weight:700;">*</span>
@@ -330,17 +416,14 @@
 
                             <div class="form-actions">
                                 <button type="button" class="btn-secondary" onclick="history.back()">
-                                    <i class='bx bx-arrow-back'></i>
                                     Back
                                 </button>
                                 <button type="button" class="btn-primary" id="submitBookingBtn">
                                     <span>Book Now</span>
-                                    <i class='bx bx-check-circle'></i>
                                 </button>
                                 <button type="button" class="btn-primary" id="scheduleBookingBtn"
                                     style="display:none;">
                                     <span>Schedule Booking</span>
-                                    <i class='bx bx-calendar'></i>
                                 </button>
                             </div>
                         </form>
@@ -361,14 +444,12 @@
                 </div>
             </div>
 
-            <!-- Vehicle Type Selection Modal - REMOVED -->
         </section>
 
     </div>
 
     @push('scripts')
         <script src="{{ asset('home_page/js/landing.js') }}"></script>
-        {{-- Zone selection JS removed --}}
         {{-- Google Maps is disabled for now while Leaflet is active.
         <script
             src="https://maps.googleapis.com/maps/api/js?key={{ urlencode(config('services.google_maps.key')) }}&libraries=places"
@@ -377,9 +458,7 @@
         <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
         <script src="{{ asset('customer/js/booking-debug.js') }}?v={{ time() }}"></script>
         <script>
-            // Ensure ETA is set before submitting the form
             function setEtaHiddenField() {
-                // Try to get ETA from global or snapshot (depends on map.js/booking-debug.js)
                 let eta = null;
                 if (typeof currentEtaMinutes !== 'undefined') {
                     eta = currentEtaMinutes;
@@ -389,20 +468,17 @@
                         eta = snap.etaMinutes;
                     }
                 }
-                // Fallback: try to parse from summary if needed
                 if (!eta) {
                     const etaInput = document.getElementById('eta_minutes');
                     if (etaInput && etaInput.value) {
                         eta = etaInput.value;
                     }
                 }
-                // Set the hidden input
                 const etaInput = document.getElementById('eta_minutes');
                 if (etaInput) {
                     etaInput.value = eta && !isNaN(eta) ? Math.round(eta) : '';
                 }
             }
-            // Attach to confirm button
             document.addEventListener('DOMContentLoaded', function() {
                 const confirmBookingBtn = document.getElementById('confirmBookingBtn');
                 if (confirmBookingBtn) {
@@ -686,6 +762,20 @@
                     valid = false;
                 }
 
+                const truckClassVal = document.getElementById('truck_class_hidden')?.value;
+                if (!truckClassVal) {
+                    const firstCard = document.querySelector('.lf-class-card');
+                    if (firstCard) {
+                        firstCard.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                        firstCard.style.outline = '2px solid #dc2626';
+                        setTimeout(() => firstCard.style.outline = '', 2000);
+                    }
+                    valid = false;
+                }
+
                 if (!valid && firstInvalidField) {
                     firstInvalidField.focus();
                     firstInvalidField.reportValidity();
@@ -731,7 +821,6 @@
                     return;
                 }
 
-                // If no units available, show schedule-or-cancel modal before proceeding
                 if (typeof window.checkBookNowAvailability === 'function') {
                     const canProceed = await window.checkBookNowAvailability();
                     if (!canProceed) return;
@@ -782,97 +871,155 @@
                 `;
             }
 
+            function resolveTruckLabel() {
+                const id = document.getElementById('truck_type_id')?.value;
+                const card = id ? document.querySelector(`.lf-class-card[data-truck-id="${id}"]`) : null;
+                if (!card) return 'Not selected';
+                const name = card.querySelector('.lf-rate-row')?.previousElementSibling
+                    ?.previousElementSibling?.textContent?.trim() ||
+                    card.querySelectorAll('div')[1]?.textContent?.trim();
+                const cls = card.dataset.class;
+                const clsLbl = cls === 'light' ? 'Light' : cls === 'medium' ? 'Medium' : cls === 'heavy' ? 'Heavy' : '';
+                return name ? `${name}${clsLbl ? ' (' + clsLbl + ')' : ''}` : 'Not selected';
+            }
+
             function showConfirmationSummary() {
-                const pickup = document.getElementById('pickup_address').value;
-                const dropoff = document.getElementById('dropoff_address').value;
-                const customerVehicleType = document.getElementById('customerVehicleType').value;
-
-                const phone = document.getElementById('phone').value;
-                const email = document.getElementById('email').value;
-                const notes = document.getElementById('notes').value;
-                const serviceType = serviceTypeInput?.value === 'schedule' ? 'Scheduled Later' : 'Book Now';
-                const scheduleText = serviceTypeInput?.value === 'schedule' ?
-                    `${scheduledDateInput?.value || 'N/A'} ${scheduledTimeInput?.value || ''}`.trim() : 'Immediate dispatch';
-
-                const fullName = [
-                    document.getElementById('first_name').value,
-                    document.getElementById('middle_name').value,
-                    document.getElementById('last_name').value,
-                ].filter(Boolean).join(' ');
-                const pricingSnapshot = (typeof getPricingSnapshot === 'function') ? getPricingSnapshot() : {};
-                const baseRate = pricingSnapshot.baseRateText || '₱0.00';
-                const distance = pricingSnapshot.distanceText || '0 km';
-                const eta = pricingSnapshot.etaText || 'Pending route';
-                const rate = pricingSnapshot.perKmRateText || '';
-                const distanceFee = pricingSnapshot.distanceFeeText || '₱0.00';
-                const excessKm = pricingSnapshot.excessKmText || '';
-                const excessFee = pricingSnapshot.excessFeeText || '₱0.00';
-                const discount = pricingSnapshot.discountAmountText || '₱0.00';
-                const total = pricingSnapshot.totalText || '₱0.00';
-
-                const customerItems = [{
-                        label: 'Name',
-                        value: fullName || 'Not provided',
-                        wide: true
-                    },
-                    phone ? {
-                        label: 'Phone',
-                        value: phone
-                    } : null,
-                    email ? {
-                        label: 'Email',
-                        value: email
-                    } : null,
-                ];
-
-                const tripItems = [{
-                        label: 'Booking Mode',
-                        value: serviceType
-                    },
-                    {
-                        label: 'Preferred Dispatch',
-                        value: scheduleText
-                    },
-                    {
-                        label: 'Customer Vehicle',
-                        value: customerVehicleType || 'Not specified'
-                    },
-                    {
-                        label: 'Pickup',
-                        value: pickup || 'Not selected',
-                        wide: true
-                    },
-                    {
-                        label: 'Drop-off',
-                        value: dropoff || 'Not selected',
-                        wide: true
-                    },
-                    notes ? {
-                        label: 'Special Notes',
-                        value: notes,
-                        wide: true
-                    } : null,
-                ];
-
-                const fareItems = [{
-                        label: 'Distance',
-                        value: distance
-                    },
-                    rate && rate !== '₱0.00' ? {
-                        label: 'Per-4km Charge',
-                        value: rate
-                    } : null,
-                    {
-                        label: 'Distance Fee',
-                        value: distanceFee
-                    },
-                    discount && discount !== '₱0.00' ? {
-                        label: 'Discount',
-                        value: discount
-                    } : null,
-                ];
-
+                confirmBookingBtn.disabled = true;
                 bookingSummary.innerHTML = `
+                    <div style="padding:48px 0;text-align:center;">
+                        <div style="display:inline-block;width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#111827;border-radius:50%;animation:lf-spin 0.7s linear infinite;margin-bottom:14px;"></div>
+                        <p style="margin:0;font-size:0.9rem;color:#6b7280;font-weight:500;">Calculating fare...</p>
+                    </div>
+                `;
+                if (!document.getElementById('lf-spin-style')) {
+                    const s = document.createElement('style');
+                    s.id = 'lf-spin-style';
+                    s.textContent = '@keyframes lf-spin{to{transform:rotate(360deg)}}';
+                    document.head.appendChild(s);
+                }
+                confirmationModal.classList.add('modal-open');
+
+                setTimeout(function() {
+                    const pickup = document.getElementById('pickup_address').value;
+                    const dropoff = document.getElementById('dropoff_address').value;
+                    const customerVehicleType = document.getElementById('customerVehicleType').value;
+
+                    const phone = document.getElementById('phone').value;
+                    const email = document.getElementById('email').value;
+                    const notes = document.getElementById('notes').value;
+                    const serviceType = serviceTypeInput?.value === 'schedule' ? 'Scheduled Later' : 'Book Now';
+                    const scheduleText = serviceTypeInput?.value === 'schedule' ?
+                        `${scheduledDateInput?.value || 'N/A'} ${scheduledTimeInput?.value || ''}`.trim() :
+                        'Immediate dispatch';
+
+                    const fullName = [
+                        document.getElementById('first_name').value,
+                        document.getElementById('middle_name').value,
+                        document.getElementById('last_name').value,
+                    ].filter(Boolean).join(' ');
+                    const pricingSnapshot = (typeof getPricingSnapshot === 'function') ? getPricingSnapshot() : {};
+                    const _truckId = document.getElementById('truck_type_id')?.value;
+                    const _rateData = _truckId && truckRates[_truckId] ? truckRates[_truckId] : null;
+                    const _baseRateNum = _rateData ? Number(_rateData.base) : 0;
+                    const baseRate = _baseRateNum > 0 ?
+                        '₱' + _baseRateNum.toLocaleString('en-PH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        }) :
+                        (pricingSnapshot.baseRateText || '₱0.00');
+                    const distance = pricingSnapshot.distanceText || '0 km';
+                    const rate = pricingSnapshot.perKmRateText || '';
+                    const distanceFee = pricingSnapshot.distanceFeeText || '₱0.00';
+                    const _distanceFeeNum = pricingSnapshot.distanceFee != null ? Number(pricingSnapshot.distanceFee) :
+                        parseFloat((distanceFee || '0').replace(/[^0-9.-]/g, '')) || 0;
+                    const _discountNum = pricingSnapshot.discountAmount != null ? Number(pricingSnapshot
+                        .discountAmount) : 0;
+                    const discount = _discountNum > 0 ? ('₱' + _discountNum.toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    })) : '';
+                    const _computedTotal = _baseRateNum + _distanceFeeNum - _discountNum;
+                    const total = '₱' + _computedTotal.toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    const truckLabel = resolveTruckLabel();
+
+                    const customerItems = [{
+                            label: 'Name',
+                            value: fullName || 'Not provided',
+                            wide: true
+                        },
+                        phone ? {
+                            label: 'Phone',
+                            value: phone
+                        } : null,
+                        email ? {
+                            label: 'Email',
+                            value: email
+                        } : null,
+                    ];
+
+                    const tripItems = [{
+                            label: 'Booking Mode',
+                            value: serviceType
+                        },
+                        {
+                            label: 'Preferred Dispatch',
+                            value: scheduleText
+                        },
+                        {
+                            label: 'Truck Type',
+                            value: truckLabel
+                        },
+                        {
+                            label: 'Customer Vehicle',
+                            value: customerVehicleType || 'Not specified'
+                        },
+                        {
+                            label: 'Pickup',
+                            value: pickup || 'Not selected',
+                            wide: true
+                        },
+                        {
+                            label: 'Drop-off',
+                            value: dropoff || 'Not selected',
+                            wide: true
+                        },
+                        notes ? {
+                            label: 'Special Notes',
+                            value: notes,
+                            wide: true
+                        } : null,
+                    ];
+
+                    const fareItems = [{
+                            label: 'Truck Type',
+                            value: truckLabel
+                        },
+                        {
+                            label: 'Base Rate',
+                            value: baseRate
+                        },
+                        {
+                            label: 'Distance',
+                            value: distance
+                        },
+                        rate && rate !== '₱0.00' ? {
+                            label: 'Per-4km Charge',
+                            value: rate
+                        } : null,
+                        {
+                            label: 'Distance Fee',
+                            value: distanceFee
+                        },
+                        discount && discount !== '₱0.00' ? {
+                            label: 'Discount',
+                            value: discount
+                        } : null,
+                    ];
+
+                    bookingSummary.innerHTML = `
                     <div class="summary-card">
                         ${renderSummarySection('Customer Information', customerItems)}
                         ${renderSummarySection('Trip Details', tripItems)}
@@ -883,7 +1030,8 @@
                     </div>
                 `;
 
-                confirmationModal.classList.add('modal-open');
+                    confirmBookingBtn.disabled = false;
+                }, 420);
             }
 
             confirmBookingBtn.addEventListener('click', function() {
@@ -892,9 +1040,23 @@
                 confirmBookingBtn.textContent = 'Processing...';
                 setEtaHiddenField();
 
+                // Sync price_input with the computed total (base rate + distance fee - discount)
+                const _syncTruckId = document.getElementById('truck_type_id')?.value;
+                const _syncRateData = _syncTruckId && truckRates[_syncTruckId] ? truckRates[_syncTruckId] : null;
+                const _syncBase = _syncRateData ? Number(_syncRateData.base) : 0;
+                const _syncSnap = (typeof getPricingSnapshot === 'function') ? getPricingSnapshot() : {};
+                const _syncDistFeeRaw = String(_syncSnap.distanceFeeText || '0').replace(/[^0-9.-]/g, '');
+                const _syncDistFee = parseFloat(_syncDistFeeRaw) || 0;
+                const _syncDiscount = parseFloat(String(_syncSnap.discountAmountText || '0').replace(/[^0-9.-]/g,
+                    '')) || 0;
+                const _syncTotal = _syncBase + _syncDistFee - _syncDiscount;
+                const priceInput = document.getElementById('price_input');
+                if (priceInput && _syncTotal > 0) {
+                    priceInput.value = _syncTotal.toFixed(2);
+                }
+
                 const fd = new FormData(bookingForm);
 
-                // Inject bucket files — cross-browser safe (bypasses read-only input.files)
                 fd.delete('vehicle_images[]');
                 const bkt = window.getUploadBucket ? window.getUploadBucket() : null;
                 if (bkt) {
@@ -1164,5 +1326,111 @@
         </script>
 
         <script src="{{ asset('customer/js/map.js') }}?v={{ filemtime(public_path('customer/js/map.js')) }}"></script>
+
+        {{-- Truck Type Picker JS --}}
+        <script>
+            (function() {
+                let selectedTruckId = '';
+                let isScheduleMode = false;
+
+                function selectCard(card) {
+                    if (card.dataset.available !== '1' && !isScheduleMode) return;
+                    document.querySelectorAll('.lf-class-card').forEach(c => {
+                        c.style.background = '#fff';
+                        c.style.borderColor = '#e5e7eb';
+                        c.style.color = '#111827';
+                        c.classList.remove('lf-selected');
+                        const badge = c.querySelector('.lf-cls-badge');
+                        if (badge) {
+                            badge.style.background = badge.dataset.origBg || '';
+                            badge.style.color = badge.dataset.origColor || '';
+                        }
+                        const avail = c.querySelector('.lf-avail-row');
+                        if (avail) avail.style.color = '#6b7280';
+                        const rate = c.querySelector('.lf-rate-row');
+                        if (rate) rate.style.color = '#52525b';
+                    });
+                    card.style.background = '#111827';
+                    card.style.borderColor = '#111827';
+                    card.style.color = '#fff';
+                    card.classList.add('lf-selected');
+                    selectedTruckId = card.dataset.truckId || '';
+                    document.getElementById('truck_type_id').value = selectedTruckId;
+                    document.getElementById('truck_class_hidden').value = card.dataset.class || '';
+                    const badge = card.querySelector('.lf-cls-badge');
+                    if (badge) {
+                        badge.style.background = 'rgba(255,255,255,.15)';
+                        badge.style.color = '#d4d4d8';
+                    }
+                    const avail = card.querySelector('.lf-avail-row');
+                    if (avail) avail.style.color = '#d4d4d8';
+                    const rate = card.querySelector('.lf-rate-row');
+                    if (rate) rate.style.color = '#a1a1aa';
+                }
+
+                function updateCardAvailability() {
+                    const msg = document.getElementById('lf_all_unavail');
+                    let anyAvail = false;
+                    document.querySelectorAll('.lf-class-card').forEach(card => {
+                        const orig = card.dataset.available === '1';
+                        if (isScheduleMode || orig) {
+                            card.style.opacity = '1';
+                            card.style.cursor = 'pointer';
+                            card.style.pointerEvents = '';
+                            card.setAttribute('tabindex', '0');
+                            card.setAttribute('aria-disabled', 'false');
+                            anyAvail = true;
+                        } else {
+                            card.style.opacity = '.45';
+                            card.style.cursor = 'not-allowed';
+                            card.style.pointerEvents = 'none';
+                            card.setAttribute('tabindex', '-1');
+                            card.setAttribute('aria-disabled', 'true');
+                            if (card.classList.contains('lf-selected')) {
+                                card.style.background = '#fff';
+                                card.style.borderColor = '#e5e7eb';
+                                card.style.color = '#111827';
+                                card.classList.remove('lf-selected');
+                                selectedTruckId = '';
+                                document.getElementById('truck_type_id').value = '';
+                                document.getElementById('truck_class_hidden').value = '';
+                            }
+                        }
+                    });
+                    if (msg) msg.style.display = (!anyAvail && !isScheduleMode) ? 'block' : 'none';
+                }
+
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.querySelectorAll('.lf-cls-badge').forEach(b => {
+                        b.dataset.origBg = b.style.background;
+                        b.dataset.origColor = b.style.color;
+                    });
+
+                    document.querySelectorAll('.lf-class-card').forEach(card => {
+                        card.addEventListener('click', () => selectCard(card));
+                        card.addEventListener('keydown', e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                selectCard(card);
+                            }
+                        });
+                    });
+
+                    const oldId = document.getElementById('truck_type_id').value;
+                    if (oldId) {
+                        const existing = document.querySelector(`.lf-class-card[data-truck-id="${oldId}"]`);
+                        if (existing) selectCard(existing);
+                    }
+
+                    const svcSel = document.getElementById('service_type');
+                    svcSel && svcSel.addEventListener('change', () => {
+                        isScheduleMode = svcSel.value === 'schedule';
+                        updateCardAvailability();
+                    });
+
+                    updateCardAvailability();
+                });
+            })();
+        </script>
     @endpush
 @endsection

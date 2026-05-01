@@ -8,6 +8,7 @@ class TruckType extends Model
 {
     protected $fillable = [
         'name',
+        'class',
         'base_rate',
         'per_km_rate',
         'max_tonnage',

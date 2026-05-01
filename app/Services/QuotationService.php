@@ -141,10 +141,26 @@ class QuotationService
                 'eta_minutes' => $quotation->eta_minutes,
                 'vehicle_image_path' => $quotation->vehicle_image_path,
                 'final_total' => $quotation->estimated_price,
-                'status' => 'confirmed',
+                'service_type' => $quotation->service_type,
+                'scheduled_date' => $quotation->scheduled_date?->toDateString(),
+                'scheduled_time' => $quotation->scheduled_time,
+                'scheduled_expires_at' => ($quotation->service_type === 'schedule')
+                    ? now()->addDays(7)
+                    : null,
+                'status' => ($quotation->service_type === 'schedule') ? 'scheduled_confirmed' : 'confirmed',
                 'customer_approved_at' => now(),
                 'price_locked_at' => now(),
             ]);
+
+            // If scheduled, track slot capacity
+            if ($quotation->service_type === 'schedule' && $quotation->scheduled_date) {
+                $date = $quotation->scheduled_date->toDateString();
+                \Illuminate\Support\Facades\DB::table('booking_capacity')
+                    ->updateOrInsert(
+                        ['booking_date' => $date],
+                        ['slots_used' => \Illuminate\Support\Facades\DB::raw('slots_used + 1'), 'updated_at' => now()]
+                    );
+            }
 
             DB::commit();
 

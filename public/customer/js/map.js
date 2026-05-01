@@ -2100,16 +2100,16 @@ function openNoUnitModal() {
         var overlay = document.createElement("div");
         overlay.id = "noUnitModal";
         overlay.style.cssText = [
-            "position:fixed;inset:0;background:rgba(9,9,11,.55);",
+            "position:fixed;inset:0;background:rgba(0,0,0,.6);",
             "display:flex;align-items:center;justify-content:center;",
             "padding:24px;z-index:4000;",
         ].join("");
 
         var box = document.createElement("div");
         box.style.cssText = [
-            "width:min(420px,96vw);background:#fff;border-radius:18px;",
-            "border:1px solid #e4e4e7;padding:28px 28px 24px;",
-            "box-shadow:0 24px 60px rgba(9,9,11,.14);",
+            "width:min(420px,96vw);background:#fff;",
+            "border:2px solid #111;padding:28px 28px 24px;",
+            "font-family:sans-serif;",
         ].join("");
 
         var availability = latestAvailability || {};
@@ -2118,14 +2118,14 @@ function openNoUnitModal() {
             "No units are currently available for immediate dispatch.";
 
         box.innerHTML = [
-            '<p style="margin:0 0 6px;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:.06em;">Availability</p>',
-            '<h3 style="margin:0 0 10px;font-size:17px;color:#09090b;">No units available right now</h3>',
-            '<p style="margin:0 0 20px;font-size:13px;color:#52525b;line-height:1.6;">' +
+            '<p style="margin:0 0 6px;font-size:11px;font-family:sans-serif;color:#555;text-transform:uppercase;letter-spacing:.06em;">Availability</p>',
+            '<h3 style="margin:0 0 10px;font-size:17px;font-family:sans-serif;color:#111;">No units available right now</h3>',
+            '<p style="margin:0 0 20px;font-size:13px;font-family:sans-serif;color:#444;line-height:1.6;">' +
                 _escHtml(msg) +
-                " Choose an option below to continue.</p>",
+                " You can schedule for a later time, or cancel to go back.</p>",
             '<div style="display:flex;flex-direction:column;gap:10px;">',
-            '<button id="noUnitScheduleBtn" style="padding:12px 18px;border-radius:10px;border:1px solid #09090b;background:#09090b;color:#fff;font-size:13px;cursor:pointer;">Schedule for Later</button>',
-            '<button id="noUnitCancelBtn"   style="padding:12px 18px;border-radius:10px;border:1px solid #e4e4e7;background:#fff;color:#3f3f46;font-size:13px;cursor:pointer;">Cancel</button>',
+            '<button id="noUnitScheduleBtn" style="padding:12px 18px;border:1px solid #111;background:#facc15;color:#111;font-size:13px;font-family:sans-serif;cursor:pointer;">Schedule for Later</button>',
+            '<button id="noUnitCancelBtn"   style="padding:12px 18px;border:1px solid #111;background:#fff;color:#111;font-size:13px;font-family:sans-serif;cursor:pointer;">Cancel</button>',
             "</div>",
         ].join("");
 
@@ -2138,7 +2138,7 @@ function openNoUnitModal() {
         }
 
         document.getElementById("noUnitScheduleBtn").onclick = function () {
-            // Switch form to schedule mode
+            // Switch form to schedule mode, then let user fill in date/time before re-submitting
             var sel =
                 elements.serviceTypeSelect ||
                 document.getElementById("service_type");
@@ -2147,7 +2147,16 @@ function openNoUnitModal() {
                 sel.dispatchEvent(new Event("change"));
             }
             prefillRecommendedScheduleWindow();
-            close(true);
+            // Scroll schedule fields into view so the user can complete them
+            var scheduleSection = document.getElementById("scheduleFields");
+            if (scheduleSection) {
+                scheduleSection.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                });
+            }
+            // Return false — user must fill in date/time then re-click submit
+            close(false);
         };
 
         document.getElementById("noUnitCancelBtn").onclick = function () {

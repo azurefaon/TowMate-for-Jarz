@@ -4,7 +4,9 @@
 document.addEventListener("click", function (e) {
     const pqSendBtn = e.target.closest(".pq-send-btn");
     const pqCancelBtn = e.target.closest(".pq-cancel-btn");
-    const acceptBtn = e.target.closest(".btn-accept:not(.pq-send-btn):not(.btn-complete-job)");
+    const acceptBtn = e.target.closest(
+        ".btn-accept:not(.pq-send-btn):not(.btn-complete-job)",
+    );
     const rejectBtn = e.target.closest(".btn-reject:not(.pq-cancel-btn)");
     const viewBtn = e.target.closest(".btn-view-quote");
 
@@ -177,7 +179,9 @@ document.addEventListener("DOMContentLoaded", function () {
     var unitSelect = document.getElementById("unitSelect");
     var unitHelper = document.getElementById("unitHelper");
     var quotationReviewGrid = document.getElementById("quotationReviewGrid");
-    var confirmedBookingPanel = document.getElementById("confirmedBookingPanel");
+    var confirmedBookingPanel = document.getElementById(
+        "confirmedBookingPanel",
+    );
     var unitWrapper = document.getElementById("unitWrapper");
     var finalTotalPreview = document.getElementById("finalTotalPreview");
     var discountLabel = document.getElementById("discountLabel");
@@ -345,6 +349,21 @@ document.addEventListener("DOMContentLoaded", function () {
         var filterButtons = document.querySelectorAll(".queue-filter-btn");
         var cards = queueList.querySelectorAll(".incoming-card");
         state.activeFilter = filter || "active";
+
+        // Panels for the separate book-now / scheduled queues
+        var bookNowPanel = document.getElementById("bookNowPanel");
+        var scheduledPanel = document.getElementById("scheduledPanel");
+
+        // Show/hide the main incomingList vs separate panels
+        var isBookNow = state.activeFilter === "book-now";
+        var isScheduled = state.activeFilter === "scheduled";
+
+        if (queueList) {
+            queueList.style.display = isBookNow || isScheduled ? "none" : "";
+        }
+        if (bookNowPanel) bookNowPanel.style.display = isBookNow ? "" : "none";
+        if (scheduledPanel)
+            scheduledPanel.style.display = isScheduled ? "" : "none";
 
         Array.prototype.forEach.call(filterButtons, function (button) {
             var isActive =
@@ -1241,7 +1260,8 @@ document.addEventListener("DOMContentLoaded", function () {
         } else if (state.activeFilter === "returned") {
             message = "No returned tasks need reassignment right now.";
         } else if (state.activeFilter === "ready_completion") {
-            message = "No tasks are awaiting completion confirmation right now.";
+            message =
+                "No tasks are awaiting completion confirmation right now.";
         } else if (state.activeFilter === "book-now") {
             message = "No urgent Book Now requests are waiting right now.";
         }
@@ -1447,13 +1467,28 @@ document.addEventListener("DOMContentLoaded", function () {
                   : "Review the automatic pricing, add an optional dispatcher adjustment, and reserve a ready unit for the team leader.";
             if (currentStatus === "confirmed" && !isReturnedTask) {
                 if (confirmedBookingPanel) {
-                    var cfCustomerName = state.selectedCard.getAttribute("data-customer-name") || "—";
-                    var cfPhone = state.selectedCard.getAttribute("data-customer-phone") || "—";
-                    var cfPickup = state.selectedCard.getAttribute("data-pickup") || "";
-                    var cfDropoff = state.selectedCard.getAttribute("data-dropoff") || "";
-                    var cfKm = parseNumericPrice(state.selectedCard.getAttribute("data-distance-km") || 0);
-                    var cfTotal = parseNumericPrice(state.selectedCard.getAttribute("data-current-price") || 0);
-                    var cfTruck = state.selectedCard.getAttribute("data-truck-type") || "—";
+                    var cfCustomerName =
+                        state.selectedCard.getAttribute("data-customer-name") ||
+                        "—";
+                    var cfPhone =
+                        state.selectedCard.getAttribute(
+                            "data-customer-phone",
+                        ) || "—";
+                    var cfPickup =
+                        state.selectedCard.getAttribute("data-pickup") || "";
+                    var cfDropoff =
+                        state.selectedCard.getAttribute("data-dropoff") || "";
+                    var cfKm = parseNumericPrice(
+                        state.selectedCard.getAttribute("data-distance-km") ||
+                            0,
+                    );
+                    var cfTotal = parseNumericPrice(
+                        state.selectedCard.getAttribute("data-current-price") ||
+                            0,
+                    );
+                    var cfTruck =
+                        state.selectedCard.getAttribute("data-truck-type") ||
+                        "—";
                     var cfNameEl = document.getElementById("cfCustomerName");
                     var cfPhoneEl = document.getElementById("cfCustomerPhone");
                     var cfRouteEl = document.getElementById("cfRoute");
@@ -1462,30 +1497,50 @@ document.addEventListener("DOMContentLoaded", function () {
                     var cfTotalEl = document.getElementById("cfAgreedTotal");
                     if (cfNameEl) cfNameEl.textContent = cfCustomerName;
                     if (cfPhoneEl) cfPhoneEl.textContent = cfPhone;
-                    if (cfRouteEl) cfRouteEl.textContent = cfPickup + (cfDropoff ? " → " + cfDropoff : "");
+                    if (cfRouteEl)
+                        cfRouteEl.textContent =
+                            cfPickup + (cfDropoff ? " → " + cfDropoff : "");
                     if (cfTruckEl) cfTruckEl.textContent = cfTruck;
-                    if (cfDistEl) cfDistEl.textContent = cfKm > 0 ? cfKm.toFixed(2) + " km" : "—";
-                    if (cfTotalEl) cfTotalEl.textContent = cfTotal > 0 ? "₱" + formatCurrencyValue(cfTotal) : "—";
+                    if (cfDistEl)
+                        cfDistEl.textContent =
+                            cfKm > 0 ? cfKm.toFixed(2) + " km" : "—";
+                    if (cfTotalEl)
+                        cfTotalEl.textContent =
+                            cfTotal > 0
+                                ? "₱" + formatCurrencyValue(cfTotal)
+                                : "—";
 
-                    var recommendedUnitId = state.selectedCard.getAttribute("data-recommended-unit") || "";
-                    var cfUnitBox  = document.getElementById("cfUnitBox");
+                    var recommendedUnitId =
+                        state.selectedCard.getAttribute(
+                            "data-recommended-unit",
+                        ) || "";
+                    var cfUnitBox = document.getElementById("cfUnitBox");
                     var cfUnitName = document.getElementById("cfUnitName");
                     var cfUnitType = document.getElementById("cfUnitType");
-                    var cfUnitTl   = document.getElementById("cfUnitTl");
+                    var cfUnitTl = document.getElementById("cfUnitTl");
 
                     if (recommendedUnitId && unitSelect) {
-                        var matchOpt = unitSelect.querySelector("option[value='" + recommendedUnitId + "']");
+                        var matchOpt = unitSelect.querySelector(
+                            "option[value='" + recommendedUnitId + "']",
+                        );
                         if (matchOpt) {
                             unitSelect.value = recommendedUnitId;
-                            var optText  = matchOpt.textContent.trim();
-                            var optTl    = matchOpt.getAttribute("data-team-leader") || "—";
-                            var typeMatch = optText.match(/\b(heavy|medium|light)\b/i);
-                            var unitType  = typeMatch ? typeMatch[0].charAt(0).toUpperCase() + typeMatch[0].slice(1).toLowerCase() : cfTruck;
+                            var optText = matchOpt.textContent.trim();
+                            var optTl =
+                                matchOpt.getAttribute("data-team-leader") ||
+                                "—";
+                            var typeMatch = optText.match(
+                                /\b(heavy|medium|light)\b/i,
+                            );
+                            var unitType = typeMatch
+                                ? typeMatch[0].charAt(0).toUpperCase() +
+                                  typeMatch[0].slice(1).toLowerCase()
+                                : cfTruck;
                             var unitLabel = optText.split("·")[0].trim();
                             if (cfUnitName) cfUnitName.textContent = unitLabel;
                             if (cfUnitType) cfUnitType.textContent = unitType;
-                            if (cfUnitTl)   cfUnitTl.textContent   = optTl;
-                            if (cfUnitBox)  cfUnitBox.style.display = "block";
+                            if (cfUnitTl) cfUnitTl.textContent = optTl;
+                            if (cfUnitBox) cfUnitBox.style.display = "block";
                         } else {
                             if (cfUnitBox) cfUnitBox.style.display = "none";
                         }
@@ -1495,16 +1550,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     confirmedBookingPanel.style.display = "block";
                 }
-                if (quotationReviewGrid) quotationReviewGrid.style.display = "none";
+                if (quotationReviewGrid)
+                    quotationReviewGrid.style.display = "none";
                 if (priceWrapper) priceWrapper.style.display = "none";
                 if (unitWrapper) unitWrapper.style.display = "none";
             } else {
-                if (confirmedBookingPanel) confirmedBookingPanel.style.display = "none";
-                if (quotationReviewGrid) quotationReviewGrid.style.display = "grid";
+                if (confirmedBookingPanel)
+                    confirmedBookingPanel.style.display = "none";
+                if (quotationReviewGrid)
+                    quotationReviewGrid.style.display = "grid";
                 if (priceWrapper) priceWrapper.style.display = "block";
                 if (unitWrapper) unitWrapper.style.display = "block";
             }
-            if (dispatcherNoteWrapper) dispatcherNoteWrapper.style.display = "block";
+            if (dispatcherNoteWrapper)
+                dispatcherNoteWrapper.style.display = "block";
             rejectReasonWrapper.style.display = "none";
             if (negotiationHint && negotiationHintText) {
                 if (isReturnedTask && (returnReason || returnedBy)) {
@@ -1632,11 +1691,13 @@ document.addEventListener("DOMContentLoaded", function () {
             modalText.innerText =
                 "This will email the customer with the rejection reason and close the request.";
             state.reviewData = null;
-            if (confirmedBookingPanel) confirmedBookingPanel.style.display = "none";
+            if (confirmedBookingPanel)
+                confirmedBookingPanel.style.display = "none";
             if (quotationReviewGrid) quotationReviewGrid.style.display = "none";
             if (priceWrapper) priceWrapper.style.display = "none";
             if (unitWrapper) unitWrapper.style.display = "none";
-            if (dispatcherNoteWrapper) dispatcherNoteWrapper.style.display = "none";
+            if (dispatcherNoteWrapper)
+                dispatcherNoteWrapper.style.display = "none";
             if (negotiationHint) negotiationHint.style.display = "none";
             rejectReasonWrapper.style.display = "block";
             if (confirmActionBtn) {
