@@ -91,9 +91,12 @@
                             </td>
                             <td style="padding: 16px;">
                                 @if ($serviceType === 'schedule')
-                                    <span style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.72rem; font-weight:700; background:#dbeafe; color:#1e40af; text-transform:uppercase; letter-spacing:0.04em;">Scheduled</span>
+                                    <span
+                                        style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.72rem; font-weight:700; background:#dbeafe; color:#1e40af; text-transform:uppercase; letter-spacing:0.04em;">Scheduled</span>
                                 @else
-                                    <span style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.72rem; font-weight:700; background:#dcfce7; color:#166534; text-transform:uppercase; letter-spacing:0.04em;">Book Now</span>
+                                    <span
+                                        style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.72rem; font-weight:700; background:#dcfce7; color:#166534; text-transform:uppercase; letter-spacing:0.04em;">Book
+                                        Now</span>
                                 @endif
                             </td>
                             <td style="padding: 16px;">
@@ -150,8 +153,8 @@
                                     </span>
                                 @else
                                     <span
-                                        style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #dcfce7; color: #166534; text-transform: uppercase; letter-spacing: 0.03em;">
-                                        🟢 Active
+                                        style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #fef9c3; color: #713f12; text-transform: uppercase; letter-spacing: 0.03em;">
+                                        ⏳ Awaiting Confirmation
                                     </span>
                                 @endif
                             </td>

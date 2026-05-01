@@ -16,13 +16,10 @@
 
         <div class="jobs-grid">
             @forelse ($jobs as $job)
-                <article class="job-card"
-                    data-job-id="{{ $job->job_code }}"
-                    data-booking-id="{{ $job->id }}"
+                <article class="job-card" data-job-id="{{ $job->job_code }}" data-booking-id="{{ $job->id }}"
                     data-confirm-url="{{ route('jobs.confirm-payment', $job) }}"
                     data-customer="{{ optional($job->customer)->full_name ?? (optional($job->customer)->name ?? 'Customer unavailable') }}"
-                    data-service="{{ optional($job->truckType)->name ?? 'General Tow' }}"
-                    data-status="{{ $job->status }}"
+                    data-service="{{ optional($job->truckType)->name ?? 'General Tow' }}" data-status="{{ $job->status }}"
                     data-unit="{{ optional($job->unit)->name ?? 'Unassigned' }}"
                     data-teamleader="{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? (optional($job->assignedTeamLeader)->name ?? 'Unassigned')) }}"
                     data-driver="{{ $job->driver_name ?? (optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned')) }}"
@@ -30,7 +27,7 @@
                     data-pickup="{{ $job->pickup_address ?? 'Pickup location pending' }}"
                     data-dropoff="{{ $job->dropoff_address ?? 'Drop-off location pending' }}"
                     data-payment-method="{{ $job->payment_method ?? '' }}"
-                    data-payment-proof="{{ $job->payment_proof_path ? asset('storage/' . $job->payment_proof_path) : '' }}"
+                    data-payment-proof="{{ e(json_encode($job->payment_proof_path ? array_values(array_map(fn($p) => asset('storage/' . $p), (array) $job->payment_proof_path)) : [])) }}"
                     data-payment-submitted-at="{{ $job->payment_submitted_at ? $job->payment_submitted_at->format('M d, Y g:i A') : '' }}">
 
                     <div class="job-header">
@@ -50,7 +47,8 @@
                         <div class="job-meta-grid">
                             <div class="job-meta-item">
                                 <span class="job-label">Customer</span>
-                                <span class="job-value">{{ optional($job->customer)->full_name ?? (optional($job->customer)->name ?? 'Unknown') }}</span>
+                                <span
+                                    class="job-value">{{ optional($job->customer)->full_name ?? (optional($job->customer)->name ?? 'Unknown') }}</span>
                             </div>
                             <div class="job-meta-item">
                                 <span class="job-label">Tow Type</span>
@@ -62,11 +60,13 @@
                             </div>
                             <div class="job-meta-item">
                                 <span class="job-label">Team Leader</span>
-                                <span class="job-value">{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? (optional($job->assignedTeamLeader)->name ?? 'Unassigned')) }}</span>
+                                <span
+                                    class="job-value">{{ optional(optional($job->unit)->teamLeader)->full_name ?? (optional(optional($job->unit)->teamLeader)->name ?? (optional($job->assignedTeamLeader)->name ?? 'Unassigned')) }}</span>
                             </div>
                             <div class="job-meta-item full-width">
                                 <span class="job-label">Member Driver</span>
-                                <span class="job-value">{{ $job->driver_name ?? (optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned')) }}</span>
+                                <span
+                                    class="job-value">{{ $job->driver_name ?? (optional(optional($job->unit)->driver)->full_name ?? (optional(optional($job->unit)->driver)->name ?? 'No member assigned')) }}</span>
                             </div>
                         </div>
 
@@ -165,9 +165,8 @@
                         </div>
                         <div class="payment-proof-area" id="paymentProofArea" style="display:none;">
                             <span class="detail-label">Payment Proof</span>
-                            <a id="job-payment-proof-link" href="#" target="_blank" rel="noopener">
-                                <img id="job-payment-proof" src="" alt="Payment proof" class="payment-proof-img">
-                            </a>
+                            <div id="job-payment-proof-container"
+                                style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
                         </div>
                     </div>
                 </div>

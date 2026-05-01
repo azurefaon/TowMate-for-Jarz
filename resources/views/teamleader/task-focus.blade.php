@@ -1121,12 +1121,13 @@
                                 Upload GCash Screenshot</div>
                             <label
                                 style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
-                                <input type="file" id="gcashProofInput" accept="image/*" capture="environment"
-                                    style="display:none;">
+                                <input type="file" id="gcashProofInput" accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                                    multiple style="display:none;">
                                 <div id="gcashProofPlaceholder">
                                     {{-- <div style="font-size:24px;margin-bottom:6px;">📷</div> --}}
                                     <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB
+                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG or PNG only · max 5
+                                        images · 5 MB each
                                     </div>
                                 </div>
                                 <img id="gcashProofPreview" src="" alt=""
@@ -1160,13 +1161,14 @@
                                 Upload Bank Transfer Receipt</div>
                             <label
                                 style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
-                                <input type="file" id="bankProofInput" accept="image/*" capture="environment"
-                                    style="display:none;">
+                                <input type="file" id="bankProofInput" accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                                    multiple style="display:none;">
                                 <div id="bankProofPlaceholder">
                                     {{-- <div style="font-size:24px;margin-bottom:6px;">🏦</div> --}}
                                     <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo of
                                         the receipt</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB
+                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG or PNG only · max 5
+                                        images · 5 MB each
                                     </div>
                                 </div>
                                 <img id="bankProofPreview" src="" alt=""
@@ -1193,16 +1195,17 @@
                             </div>
                             <div
                                 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">
-                                Upload Receipt / Photo (Optional)</div>
+                                Upload Receipt</div>
                             <label
                                 style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;margin-bottom:12px;">
-                                <input type="file" id="cashProofInput" accept="image/*" capture="environment"
-                                    style="display:none;">
+                                <input type="file" id="cashProofInput" accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                                    multiple style="display:none;">
                                 <div id="cashProofPlaceholder">
                                     {{-- <div style="font-size:24px;margin-bottom:6px;">💵</div> --}}
                                     <div style="font-size:13px;font-weight:600;color:#18181b;">Optional: take a photo as
                                         record</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5 MB
+                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG or PNG only · max 5
+                                        images · 5 MB each
                                     </div>
                                 </div>
                                 <img id="cashProofPreview" src="" alt=""
@@ -1230,14 +1233,14 @@
                                     Upload Cheque Photo</div>
                                 <label
                                     style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
-                                    <input type="file" id="chequeProofInput" accept="image/*" capture="environment"
-                                        style="display:none;">
+                                    <input type="file" id="chequeProofInput"
+                                        accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple style="display:none;">
                                     <div id="chequeProofPlaceholder">
                                         <div style="font-size:24px;margin-bottom:6px;">🗒️</div>
                                         <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo
                                             of the cheque</div>
-                                        <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG, PNG or WebP · max 5
-                                            MB</div>
+                                        <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG or PNG only · max 5
+                                            images · 5 MB each</div>
                                     </div>
                                     <img id="chequeProofPreview" src="" alt=""
                                         style="display:none;width:100%;max-height:180px;object-fit:contain;border-radius:8px;">

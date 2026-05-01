@@ -32,7 +32,7 @@
         <div class="text-center mb-8">
             <h1 class="text-3xl font-bold text-gray-900 mb-2">Your Towing Service Quotation</h1>
             <p class="text-gray-600">Reference: <span
-                    class="font-semibold text-blue-600">{{ $quotation->quotation_number }}</span></p>
+                    class="font-semibold text-yellow-500">{{ $quotation->quotation_number }}</span></p>
         </div>
 
         <!-- Success/Error Messages -->
@@ -65,12 +65,12 @@
             $urgency = $timeRemaining['urgency'] ?? 'normal';
 
             $bannerColors = [
-                'urgent' => 'bg-red-50 border-red-300 text-red-800',
-                'warning' => 'bg-yellow-50 border-yellow-300 text-yellow-800',
-                'normal' => 'bg-blue-50 border-blue-300 text-blue-800',
-                'expired' => 'bg-gray-50 border-gray-300 text-gray-800',
-                'accepted' => 'bg-green-50 border-green-300 text-green-800',
-                'rejected' => 'bg-gray-50 border-gray-300 text-gray-800',
+                'urgent' => 'bg-red-50 border-red-400 text-red-900',
+                'warning' => 'bg-yellow-50 border-yellow-400 text-yellow-900',
+                'normal' => 'bg-yellow-50 border-yellow-400 text-yellow-900',
+                'expired' => 'bg-gray-100 border-gray-400 text-gray-800',
+                'accepted' => 'bg-gray-900 border-gray-700 text-white',
+                'rejected' => 'bg-gray-100 border-gray-400 text-gray-800',
             ];
 
             $statusBanner =
@@ -90,11 +90,11 @@
                     <div>
                         <p class="font-semibold text-lg">
                             @if ($urgency === 'urgent')
-                                ⏰ Expires Soon!
+                                Expires Soon!
                             @elseif($urgency === 'warning')
                                 ⚠️ Expiring Soon
                             @else
-                                ✅ Active Quotation
+                                Awaiting Your Confirmation
                             @endif
                         </p>
                         <p class="text-sm mt-1" id="countdown">{{ $timeRemaining['message'] }}</p>
@@ -106,9 +106,9 @@
                 </div>
             </div>
         @elseif($quotation->status === 'accepted')
-            <div class="mb-6 border-2 bg-green-50 border-green-300 text-green-800 px-6 py-4 rounded-lg">
+            <div class="mb-6 border-2 bg-gray-900 border-gray-700 text-white px-6 py-4 rounded-lg">
                 <p class="font-semibold text-lg">Quotation Accepted</p>
-                <p class="text-sm mt-1">Your booking has been confirmed!</p>
+                <p class="text-sm mt-1 opacity-80">Your booking has been confirmed!</p>
             </div>
         @elseif($quotation->status === 'rejected')
             <div class="mb-6 border-2 bg-gray-50 border-gray-300 text-gray-800 px-6 py-4 rounded-lg">
@@ -131,20 +131,20 @@
         <div class="bg-white rounded-lg shadow-lg overflow-hidden mb-6">
 
             <!-- Customer Info -->
-            <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4">
-                <h2 class="text-xl font-semibold mb-2">Customer Information</h2>
+            <div class="bg-gray-900 text-white px-6 py-4">
+                <h2 class="text-xl font-semibold mb-2 text-yellow-400">Customer Information</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div>
-                        <p class="opacity-75">Name</p>
-                        <p class="font-semibold">{{ $quotation->customer->name }}</p>
+                        <p class="opacity-60">Name</p>
+                        <p class="font-semibold">{{ $quotation->customer->full_name }}</p>
                     </div>
                     <div>
-                        <p class="opacity-75">Phone</p>
+                        <p class="opacity-60">Phone</p>
                         <p class="font-semibold">{{ $quotation->customer->phone }}</p>
                     </div>
                     @if ($quotation->customer->email)
                         <div>
-                            <p class="opacity-75">Email</p>
+                            <p class="opacity-60">Email</p>
                             <p class="font-semibold">{{ $quotation->customer->email }}</p>
                         </div>
                     @endif
@@ -198,8 +198,8 @@
 
                     <!-- Vehicle Details -->
                     @if ($quotation->vehicle_make || $quotation->vehicle_model)
-                        <div class="bg-blue-50 rounded-lg p-4 mt-4">
-                            <p class="text-sm font-semibold text-blue-900 mb-2">Your Vehicle</p>
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                            <p class="text-sm font-semibold text-gray-900 mb-2">Your Vehicle</p>
                             <p class="text-gray-700">
                                 @if ($quotation->vehicle_year)
                                     {{ $quotation->vehicle_year }}
@@ -221,27 +221,31 @@
             <div class="px-6 py-5 bg-gray-50">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Price Breakdown</h3>
 
+                @php
+                    $baseRate = (float) ($quotation->truckType->base_rate ?? 0);
+                    $distanceCharge = (float) ($quotation->estimated_price ?? 0) - $baseRate;
+                @endphp
+
                 <div class="space-y-3">
                     <div class="flex justify-between text-gray-700">
                         <span>Base Rate ({{ $quotation->truckType->name }})</span>
-                        <span>₱{{ number_format($quotation->truckType->base_price ?? 0, 2) }}</span>
+                        <span>₱{{ number_format($baseRate, 2) }}</span>
                     </div>
                     <div class="flex justify-between text-gray-700">
                         <span>Distance Charge ({{ number_format($quotation->distance_km, 2) }} km)</span>
-                        <span>₱{{ number_format($quotation->estimated_price - ($quotation->truckType->base_price ?? 0), 2) }}</span>
+                        <span>₱{{ number_format(max(0, $distanceCharge), 2) }}</span>
                     </div>
 
                     @if ($quotation->counter_offer_amount)
-                        <div class="flex justify-between text-blue-600 border-t border-gray-300 pt-3">
+                        <div class="flex justify-between text-yellow-600 border-t border-gray-300 pt-3">
                             <span class="font-semibold">Your Counter Offer</span>
-                            <span
-                                class="font-semibold">₱{{ number_format($quotation->counter_offer_amount, 2) }}</span>
+                            <span class="font-semibold">₱{{ number_format($quotation->counter_offer_amount, 2) }}</span>
                         </div>
                     @endif
 
-                    <div class="flex justify-between text-xl font-bold text-black-900 border-t-2 border-gray-300 pt-3">
+                    <div class="flex justify-between text-xl font-bold text-gray-900 border-t-2 border-gray-900 pt-3">
                         <span>Total Amount</span>
-                        <span class="text-blue-600">₱{{ number_format($quotation->estimated_price, 2) }}</span>
+                        <span class="text-yellow-500">₱{{ number_format($quotation->estimated_price, 2) }}</span>
                     </div>
                 </div>
             </div>
@@ -260,8 +264,8 @@
                     <h3 class="text-lg font-semibold text-gray-900 mb-4">Ready to proceed?</h3>
                     <div class="text-center">
                         <a href="{{ $signedAcceptUrl }}"
-                            class="bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-4 px-12 rounded-lg">
-                            ✅ Accept & Continue
+                            class="inline-block bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold text-lg py-4 px-12 rounded-lg">
+                            Accept and Continue
                         </a>
                         <p class="text-sm text-gray-500 mt-4">By accepting, you agree to the quoted price and service
                             terms.</p>

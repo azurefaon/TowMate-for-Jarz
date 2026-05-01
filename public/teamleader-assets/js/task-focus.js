@@ -3,75 +3,90 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!panel) return;
 
     // ── Element refs ──
-    var statusBadge     = document.getElementById("focusStatusBadge");
-    var statusNote      = document.getElementById("focusStatusNote");
-    var feedback        = document.getElementById("focusFeedback");
-    var proceedBtn      = document.getElementById("proceedBtn");
-    var startTowBtn     = document.getElementById("startTowBtn");
+    var statusBadge = document.getElementById("focusStatusBadge");
+    var statusNote = document.getElementById("focusStatusNote");
+    var feedback = document.getElementById("focusFeedback");
+    var proceedBtn = document.getElementById("proceedBtn");
+    var startTowBtn = document.getElementById("startTowBtn");
     var completeTaskBtn = document.getElementById("completeTaskBtn");
-    var returnTaskBtn   = document.getElementById("returnTaskBtn");
+    var returnTaskBtn = document.getElementById("returnTaskBtn");
     var navigateMapsBtn = document.getElementById("navigateMapsBtn");
-    var backToDashBtn   = document.getElementById("backToDashboardBtn");
+    var backToDashBtn = document.getElementById("backToDashboardBtn");
 
     // Payment area
-    var paymongoArea          = document.getElementById("paymongoArea");
-    var pmMethodArea          = document.getElementById("pmMethodArea");
-    var paymentSubmittedCard  = document.getElementById("paymentSubmittedCard");
+    var paymongoArea = document.getElementById("paymongoArea");
+    var pmMethodArea = document.getElementById("pmMethodArea");
+    var paymentSubmittedCard = document.getElementById("paymentSubmittedCard");
 
     // Payment method tabs
-    var pmTabGcash   = document.getElementById("pmTabGcash");
-    var pmTabBank    = document.getElementById("pmTabBank");
-    var pmTabCash    = document.getElementById("pmTabCash");
-    var pmTabCheque  = document.getElementById("pmTabCheque");
+    var pmTabGcash = document.getElementById("pmTabGcash");
+    var pmTabBank = document.getElementById("pmTabBank");
+    var pmTabCash = document.getElementById("pmTabCash");
+    var pmTabCheque = document.getElementById("pmTabCheque");
 
     // Payment sections
-    var pmGcashSection  = document.getElementById("pmGcashSection");
-    var pmBankSection   = document.getElementById("pmBankSection");
-    var pmCashSection   = document.getElementById("pmCashSection");
+    var pmGcashSection = document.getElementById("pmGcashSection");
+    var pmBankSection = document.getElementById("pmBankSection");
+    var pmCashSection = document.getElementById("pmCashSection");
     var pmChequeSection = document.getElementById("pmChequeSection");
 
     // GCash refs
-    var gcashProofInput       = document.getElementById("gcashProofInput");
-    var gcashProofPreview     = document.getElementById("gcashProofPreview");
-    var gcashProofPlaceholder = document.getElementById("gcashProofPlaceholder");
-    var gcashProofError       = document.getElementById("gcashProofError");
-    var gcashSubmitBtn        = document.getElementById("gcashSubmitBtn");
+    var gcashProofInput = document.getElementById("gcashProofInput");
+    var gcashProofPreview = document.getElementById("gcashProofPreview");
+    var gcashProofPlaceholder = document.getElementById(
+        "gcashProofPlaceholder",
+    );
+    var gcashProofError = document.getElementById("gcashProofError");
+    var gcashSubmitBtn = document.getElementById("gcashSubmitBtn");
 
     // Bank Transfer refs
-    var bankProofInput        = document.getElementById("bankProofInput");
-    var bankProofPreview      = document.getElementById("bankProofPreview");
-    var bankProofPlaceholder  = document.getElementById("bankProofPlaceholder");
-    var bankProofError        = document.getElementById("bankProofError");
-    var bankSubmitBtn         = document.getElementById("bankSubmitBtn");
+    var bankProofInput = document.getElementById("bankProofInput");
+    var bankProofPreview = document.getElementById("bankProofPreview");
+    var bankProofPlaceholder = document.getElementById("bankProofPlaceholder");
+    var bankProofError = document.getElementById("bankProofError");
+    var bankSubmitBtn = document.getElementById("bankSubmitBtn");
 
     // Cash refs
-    var cashProofInput        = document.getElementById("cashProofInput");
-    var cashProofPreview      = document.getElementById("cashProofPreview");
-    var cashProofPlaceholder  = document.getElementById("cashProofPlaceholder");
-    var cashConfirmBtn        = document.getElementById("cashConfirmBtn");
+    var cashProofInput = document.getElementById("cashProofInput");
+    var cashProofPreview = document.getElementById("cashProofPreview");
+    var cashProofPlaceholder = document.getElementById("cashProofPlaceholder");
+    var cashConfirmBtn = document.getElementById("cashConfirmBtn");
 
     // Cheque refs
-    var chequeProofInput       = document.getElementById("chequeProofInput");
-    var chequeProofPreview     = document.getElementById("chequeProofPreview");
-    var chequeProofPlaceholder = document.getElementById("chequeProofPlaceholder");
-    var chequeProofError       = document.getElementById("chequeProofError");
-    var chequeSubmitBtn        = document.getElementById("chequeSubmitBtn");
+    var chequeProofInput = document.getElementById("chequeProofInput");
+    var chequeProofPreview = document.getElementById("chequeProofPreview");
+    var chequeProofPlaceholder = document.getElementById(
+        "chequeProofPlaceholder",
+    );
+    var chequeProofError = document.getElementById("chequeProofError");
+    var chequeSubmitBtn = document.getElementById("chequeSubmitBtn");
 
     // Return modal
-    var returnTaskModal         = document.getElementById("returnTaskModal");
-    var returnReasonPreset      = document.getElementById("returnReasonPreset");
-    var returnReasonNote        = document.getElementById("returnReasonNote");
-    var returnReasonError       = document.getElementById("returnReasonError");
-    var returnReasonDescription = document.getElementById("returnReasonDescription");
-    var returnReasonNoteReq     = document.getElementById("returnReasonNoteRequired");
-    var returnReasonNoteHint    = document.getElementById("returnReasonNoteHint");
-    var cancelReturnBtn         = document.getElementById("cancelReturnBtn");
-    var confirmReturnBtn        = document.getElementById("confirmReturnBtn");
+    var returnTaskModal = document.getElementById("returnTaskModal");
+    var returnReasonPreset = document.getElementById("returnReasonPreset");
+    var returnReasonNote = document.getElementById("returnReasonNote");
+    var returnReasonError = document.getElementById("returnReasonError");
+    var returnReasonDescription = document.getElementById(
+        "returnReasonDescription",
+    );
+    var returnReasonNoteReq = document.getElementById(
+        "returnReasonNoteRequired",
+    );
+    var returnReasonNoteHint = document.getElementById("returnReasonNoteHint");
+    var cancelReturnBtn = document.getElementById("cancelReturnBtn");
+    var confirmReturnBtn = document.getElementById("confirmReturnBtn");
 
-    var returnReasons        = [];
+    var returnReasons = [];
     var selectedReturnReason = null;
-    var pollTimer            = null;
-    var stepOrder = ["claimed", "navigate", "work", "dropoff", "payment", "complete"];
+    var pollTimer = null;
+    var stepOrder = [
+        "claimed",
+        "navigate",
+        "work",
+        "dropoff",
+        "payment",
+        "complete",
+    ];
 
     // Toast container
     var toastWrap = document.createElement("div");
@@ -85,77 +100,190 @@ document.addEventListener("DOMContentLoaded", function () {
     startPolling();
 
     // ── Action buttons ──
-    proceedBtn && proceedBtn.addEventListener("click", function () {
-        submitAction(panel.dataset.proceedEndpoint, {});
-    });
+    proceedBtn &&
+        proceedBtn.addEventListener("click", function () {
+            submitAction(panel.dataset.proceedEndpoint, {});
+        });
 
-    navigateMapsBtn && navigateMapsBtn.addEventListener("click", function () {
-        openMapsWithPickup();
-    });
+    navigateMapsBtn &&
+        navigateMapsBtn.addEventListener("click", function () {
+            openMapsWithPickup();
+        });
 
-    startTowBtn && startTowBtn.addEventListener("click", function () {
-        submitAction(panel.dataset.startEndpoint, {});
-    });
+    startTowBtn &&
+        startTowBtn.addEventListener("click", function () {
+            submitAction(panel.dataset.startEndpoint, {});
+        });
 
-    completeTaskBtn && completeTaskBtn.addEventListener("click", function () {
-        submitAction(panel.dataset.completeEndpoint, {});
-    });
+    completeTaskBtn &&
+        completeTaskBtn.addEventListener("click", function () {
+            submitAction(panel.dataset.completeEndpoint, {});
+        });
 
     returnTaskBtn && returnTaskBtn.addEventListener("click", openReturnModal);
 
     // ── Payment method tab switching ──
-    pmTabGcash  && pmTabGcash.addEventListener("click",  function () { switchPmTab("gcash"); });
-    pmTabBank   && pmTabBank.addEventListener("click",   function () { switchPmTab("bank"); });
-    pmTabCash   && pmTabCash.addEventListener("click",   function () { switchPmTab("cash"); });
-    pmTabCheque && pmTabCheque.addEventListener("click", function () { switchPmTab("cheque"); });
+    pmTabGcash &&
+        pmTabGcash.addEventListener("click", function () {
+            switchPmTab("gcash");
+        });
+    pmTabBank &&
+        pmTabBank.addEventListener("click", function () {
+            switchPmTab("bank");
+        });
+    pmTabCash &&
+        pmTabCash.addEventListener("click", function () {
+            switchPmTab("cash");
+        });
+    pmTabCheque &&
+        pmTabCheque.addEventListener("click", function () {
+            switchPmTab("cheque");
+        });
 
     function switchPmTab(method) {
         var tabs = {
-            gcash: pmTabGcash, bank: pmTabBank,
-            cash: pmTabCash,   cheque: pmTabCheque,
+            gcash: pmTabGcash,
+            bank: pmTabBank,
+            cash: pmTabCash,
+            cheque: pmTabCheque,
         };
         var sections = {
-            gcash: pmGcashSection, bank: pmBankSection,
-            cash: pmCashSection,   cheque: pmChequeSection,
+            gcash: pmGcashSection,
+            bank: pmBankSection,
+            cash: pmCashSection,
+            cheque: pmChequeSection,
         };
         Object.keys(tabs).forEach(function (key) {
-            if (tabs[key]) tabs[key].classList.toggle("tf-pm-tab--active", key === method);
+            if (tabs[key])
+                tabs[key].classList.toggle("tf-pm-tab--active", key === method);
             hide(sections[key], key !== method);
         });
     }
 
     // ── Generic file-change handler ──
-    function wireProofInput(input, preview, placeholder) {
+    var ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
+    var MAX_PROOF_FILES = 5;
+    var MAX_PROOF_BYTES = 5 * 1024 * 1024;
+
+    function wireProofInput(input, preview, placeholder, previewContainer) {
         if (!input) return;
         input.addEventListener("change", function () {
-            var file = this.files[0];
-            if (!file) return;
-            if (file.size > 5 * 1024 * 1024) {
-                showToast("File too large. Maximum 5 MB.", "error");
+            var files = Array.from(this.files);
+            if (!files.length) return;
+
+            // Count check
+            if (files.length > MAX_PROOF_FILES) {
+                showToast(
+                    "You can upload a maximum of " +
+                        MAX_PROOF_FILES +
+                        " images.",
+                    "error",
+                );
                 this.value = "";
                 return;
             }
-            var reader = new FileReader();
-            reader.onload = function (e) {
-                if (preview)     { preview.src = e.target.result; preview.style.display = "block"; }
-                if (placeholder) { placeholder.style.display = "none"; }
-            };
-            reader.readAsDataURL(file);
+
+            // Type & size check for each file
+            for (var i = 0; i < files.length; i++) {
+                var f = files[i];
+                if (ALLOWED_TYPES.indexOf(f.type) === -1) {
+                    showToast(
+                        'Only JPG and PNG images are accepted. "' +
+                            f.name +
+                            '" is not allowed.',
+                        "error",
+                    );
+                    this.value = "";
+                    return;
+                }
+                if (f.size > MAX_PROOF_BYTES) {
+                    showToast(
+                        '"' + f.name + '" exceeds the 5 MB limit.',
+                        "error",
+                    );
+                    this.value = "";
+                    return;
+                }
+            }
+
+            // Build multi-preview
+            var container = previewContainer || (preview && preview.parentNode);
+            // Remove old extra previews
+            if (container) {
+                var old = container.querySelectorAll(".proof-extra-preview");
+                old.forEach(function (el) {
+                    el.remove();
+                });
+            }
+
+            if (files.length === 1) {
+                // Single: use existing preview img
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    if (preview) {
+                        preview.src = e.target.result;
+                        preview.style.display = "block";
+                    }
+                    if (placeholder) {
+                        placeholder.style.display = "none";
+                    }
+                };
+                reader.readAsDataURL(files[0]);
+            } else {
+                // Multiple: hide single preview, show thumbnails
+                if (preview) preview.style.display = "none";
+                if (placeholder) placeholder.style.display = "none";
+                if (container) {
+                    var grid = document.createElement("div");
+                    grid.className = "proof-extra-preview";
+                    grid.style.cssText =
+                        "display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;justify-content:center;";
+                    files.forEach(function (f) {
+                        var r = new FileReader();
+                        r.onload = function (e) {
+                            var img = document.createElement("img");
+                            img.src = e.target.result;
+                            img.style.cssText =
+                                "width:72px;height:72px;object-fit:cover;border-radius:8px;border:1.5px solid #e4e4e7;";
+                            grid.appendChild(img);
+                        };
+                        r.readAsDataURL(f);
+                    });
+                    container.appendChild(grid);
+
+                    // Show a count badge
+                    var badge = document.createElement("div");
+                    badge.className = "proof-extra-preview";
+                    badge.style.cssText =
+                        "font-size:11px;font-weight:700;color:#52525b;text-align:center;margin-top:6px;";
+                    badge.textContent =
+                        files.length +
+                        " image" +
+                        (files.length > 1 ? "s" : "") +
+                        " selected";
+                    container.appendChild(badge);
+                }
+            }
         });
     }
 
-    wireProofInput(gcashProofInput,   gcashProofPreview,   gcashProofPlaceholder);
-    wireProofInput(bankProofInput,    bankProofPreview,    bankProofPlaceholder);
-    wireProofInput(cashProofInput,    cashProofPreview,    cashProofPlaceholder);
-    wireProofInput(chequeProofInput,  chequeProofPreview,  chequeProofPlaceholder);
+    wireProofInput(gcashProofInput, gcashProofPreview, gcashProofPlaceholder);
+    wireProofInput(bankProofInput, bankProofPreview, bankProofPlaceholder);
+    wireProofInput(cashProofInput, cashProofPreview, cashProofPlaceholder);
+    wireProofInput(
+        chequeProofInput,
+        chequeProofPreview,
+        chequeProofPlaceholder,
+    );
 
     // ── Generic proof submit ──
     function submitProof(method, fileInput, errorEl, submitBtn) {
-        var file = fileInput && fileInput.files[0];
-        var requiresProof = (method !== "cash");
+        var files = fileInput ? Array.from(fileInput.files) : [];
+        var requiresProof = method !== "cash";
 
-        if (requiresProof && !file) {
-            if (errorEl) errorEl.textContent = "Please take or choose a photo first.";
+        if (requiresProof && files.length === 0) {
+            if (errorEl)
+                errorEl.textContent = "Please take or choose a photo first.";
             return;
         }
         if (errorEl) errorEl.textContent = "";
@@ -165,117 +293,185 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (submitBtn) {
             submitBtn.disabled = true;
-            submitBtn.dataset.defaultText = submitBtn.dataset.defaultText || submitBtn.textContent;
+            submitBtn.dataset.defaultText =
+                submitBtn.dataset.defaultText || submitBtn.textContent;
             submitBtn.textContent = "Submitting…";
         }
 
         var formData = new FormData();
         formData.append("payment_method", method);
-        if (file) formData.append("payment_proof", file);
-        formData.append("_token", (window.TeamLeaderConfig && window.TeamLeaderConfig.csrfToken) || "");
+        files.forEach(function (f) {
+            formData.append("payment_proofs[]", f);
+        });
+        formData.append(
+            "_token",
+            (window.TeamLeaderConfig && window.TeamLeaderConfig.csrfToken) ||
+                "",
+        );
 
         fetch(endpoint, {
             method: "POST",
             headers: {
-                "Accept": "application/json",
-                "X-CSRF-TOKEN": (window.TeamLeaderConfig && window.TeamLeaderConfig.csrfToken) || "",
+                Accept: "application/json",
+                "X-CSRF-TOKEN":
+                    (window.TeamLeaderConfig &&
+                        window.TeamLeaderConfig.csrfToken) ||
+                    "",
             },
             body: formData,
         })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-            if (!data.success) throw new Error(data.message || "Submission failed.");
-            showToast(data.message || "Payment submitted!", "success");
-            if (data.task) applyTask(data.task);
-            setFeedback("Proof submitted. Waiting for dispatcher to confirm.", false);
-        })
-        .catch(function (err) {
-            if (errorEl) errorEl.textContent = err.message || "Submission failed. Try again.";
-            showToast(err.message || "Submission failed.", "error");
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.textContent = submitBtn.dataset.defaultText || "Submit";
-            }
-        });
+            .then(function (res) {
+                return res.json();
+            })
+            .then(function (data) {
+                if (!data.success)
+                    throw new Error(data.message || "Submission failed.");
+                showToast(data.message || "Payment submitted!", "success");
+                if (data.task) applyTask(data.task);
+                setFeedback(
+                    "Proof submitted. Waiting for dispatcher to confirm.",
+                    false,
+                );
+            })
+            .catch(function (err) {
+                if (errorEl)
+                    errorEl.textContent =
+                        err.message || "Submission failed. Try again.";
+                showToast(err.message || "Submission failed.", "error");
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent =
+                        submitBtn.dataset.defaultText || "Submit";
+                }
+            });
     }
 
     // ── Wire proof submit buttons ──
-    gcashSubmitBtn  && gcashSubmitBtn.addEventListener("click", function () {
-        submitProof("gcash",  gcashProofInput,  gcashProofError,  gcashSubmitBtn);
-    });
-    bankSubmitBtn   && bankSubmitBtn.addEventListener("click", function () {
-        submitProof("bank",   bankProofInput,   bankProofError,   bankSubmitBtn);
-    });
-    cashConfirmBtn  && cashConfirmBtn.addEventListener("click", function () {
-        submitProof("cash",   cashProofInput,   null,             cashConfirmBtn);
-    });
-    chequeSubmitBtn && chequeSubmitBtn.addEventListener("click", function () {
-        submitProof("cheque", chequeProofInput, chequeProofError, chequeSubmitBtn);
-    });
+    gcashSubmitBtn &&
+        gcashSubmitBtn.addEventListener("click", function () {
+            submitProof(
+                "gcash",
+                gcashProofInput,
+                gcashProofError,
+                gcashSubmitBtn,
+            );
+        });
+    bankSubmitBtn &&
+        bankSubmitBtn.addEventListener("click", function () {
+            submitProof("bank", bankProofInput, bankProofError, bankSubmitBtn);
+        });
+    cashConfirmBtn &&
+        cashConfirmBtn.addEventListener("click", function () {
+            submitProof("cash", cashProofInput, null, cashConfirmBtn);
+        });
+    chequeSubmitBtn &&
+        chequeSubmitBtn.addEventListener("click", function () {
+            submitProof(
+                "cheque",
+                chequeProofInput,
+                chequeProofError,
+                chequeSubmitBtn,
+            );
+        });
 
     // ── Return modal events ──
-    returnReasonPreset && returnReasonPreset.addEventListener("change", function () {
-        selectedReturnReason = returnReasons.find(function (r) { return r.value === returnReasonPreset.value; });
+    returnReasonPreset &&
+        returnReasonPreset.addEventListener("change", function () {
+            selectedReturnReason = returnReasons.find(function (r) {
+                return r.value === returnReasonPreset.value;
+            });
 
-        if (selectedReturnReason) {
-            if (returnReasonDescription) returnReasonDescription.textContent = selectedReturnReason.description || "";
-            var req = selectedReturnReason.requires_note;
-            if (returnReasonNoteReq)  returnReasonNoteReq.style.display = req ? "inline" : "none";
-            if (returnReasonNoteHint) {
-                returnReasonNoteHint.textContent = req
-                    ? "Required (minimum " + (selectedReturnReason.value === "other" ? 20 : 10) + " characters)"
-                    : "Optional";
+            if (selectedReturnReason) {
+                if (returnReasonDescription)
+                    returnReasonDescription.textContent =
+                        selectedReturnReason.description || "";
+                var req = selectedReturnReason.requires_note;
+                if (returnReasonNoteReq)
+                    returnReasonNoteReq.style.display = req ? "inline" : "none";
+                if (returnReasonNoteHint) {
+                    returnReasonNoteHint.textContent = req
+                        ? "Required (minimum " +
+                          (selectedReturnReason.value === "other" ? 20 : 10) +
+                          " characters)"
+                        : "Optional";
+                }
+                if (returnReasonNote) {
+                    returnReasonNote.placeholder = req
+                        ? "Please provide a detailed explanation..."
+                        : "Add optional notes for dispatch...";
+                }
+            } else {
+                if (returnReasonDescription)
+                    returnReasonDescription.textContent = "";
+                if (returnReasonNoteReq)
+                    returnReasonNoteReq.style.display = "none";
+                if (returnReasonNoteHint) returnReasonNoteHint.textContent = "";
             }
-            if (returnReasonNote) {
-                returnReasonNote.placeholder = req
-                    ? "Please provide a detailed explanation..."
-                    : "Add optional notes for dispatch...";
+        });
+
+    cancelReturnBtn &&
+        cancelReturnBtn.addEventListener("click", closeReturnModal);
+
+    confirmReturnBtn &&
+        confirmReturnBtn.addEventListener("click", function () {
+            var code = (
+                returnReasonPreset ? returnReasonPreset.value : ""
+            ).trim();
+            var note = (returnReasonNote ? returnReasonNote.value : "").trim();
+
+            if (!code) {
+                setReturnError("Please select a return reason.");
+                return;
             }
-        } else {
-            if (returnReasonDescription) returnReasonDescription.textContent = "";
-            if (returnReasonNoteReq)     returnReasonNoteReq.style.display = "none";
-            if (returnReasonNoteHint)    returnReasonNoteHint.textContent = "";
-        }
-    });
 
-    cancelReturnBtn && cancelReturnBtn.addEventListener("click", closeReturnModal);
-
-    confirmReturnBtn && confirmReturnBtn.addEventListener("click", function () {
-        var code = (returnReasonPreset ? returnReasonPreset.value : "").trim();
-        var note = (returnReasonNote   ? returnReasonNote.value   : "").trim();
-
-        if (!code) { setReturnError("Please select a return reason."); return; }
-
-        var reason = returnReasons.find(function (r) { return r.value === code; });
-        if (reason && reason.requires_note && !note) {
-            setReturnError("Additional details are required for this return reason."); return;
-        }
-        if (reason && reason.requires_note) {
-            var min = reason.value === "other" ? 20 : 10;
-            if (note.length < min) {
-                setReturnError("Please provide at least " + min + " characters of explanation."); return;
+            var reason = returnReasons.find(function (r) {
+                return r.value === code;
+            });
+            if (reason && reason.requires_note && !note) {
+                setReturnError(
+                    "Additional details are required for this return reason.",
+                );
+                return;
             }
-        }
+            if (reason && reason.requires_note) {
+                var min = reason.value === "other" ? 20 : 10;
+                if (note.length < min) {
+                    setReturnError(
+                        "Please provide at least " +
+                            min +
+                            " characters of explanation.",
+                    );
+                    return;
+                }
+            }
 
-        setReturnError("");
-        closeReturnModal();
-        submitAction(panel.dataset.returnEndpoint, { return_reason_code: code, return_reason_note: note }, true);
-    });
+            setReturnError("");
+            closeReturnModal();
+            submitAction(
+                panel.dataset.returnEndpoint,
+                { return_reason_code: code, return_reason_note: note },
+                true,
+            );
+        });
 
     // ── Maps navigation ──
     function openMapsWithPickup() {
         var addr = (panel.dataset.pickupAddress || "").trim();
         if (!addr) return;
         window.open(
-            "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addr),
+            "https://www.google.com/maps/search/?api=1&query=" +
+                encodeURIComponent(addr),
             "_blank",
-            "noopener,noreferrer"
+            "noopener,noreferrer",
         );
     }
 
     // ── Core submit (for non-payment actions) ──
     function submitAction(endpoint, payload, redirectAfter, silent) {
-        if (!endpoint) { setFeedback("This action is unavailable right now.", true); return; }
+        if (!endpoint) {
+            setFeedback("This action is unavailable right now.", true);
+            return;
+        }
 
         if (!silent) {
             disableControls(true);
@@ -286,40 +482,59 @@ document.addEventListener("DOMContentLoaded", function () {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Accept": "application/json",
+                Accept: "application/json",
                 "X-Requested-With": "XMLHttpRequest",
-                "X-CSRF-TOKEN": (window.TeamLeaderConfig && window.TeamLeaderConfig.csrfToken) || "",
+                "X-CSRF-TOKEN":
+                    (window.TeamLeaderConfig &&
+                        window.TeamLeaderConfig.csrfToken) ||
+                    "",
             },
             body: JSON.stringify(payload || {}),
         })
-        .then(function (res) {
-            return res.json().catch(function () { return {}; }).then(function (data) {
-                return { ok: res.ok, data: data };
-            });
-        })
-        .then(function (result) {
-            if (!result.ok || !result.data.success) {
-                if (result.data && result.data.redirect_url) {
-                    stopPolling();
-                    window.setTimeout(function () { window.location.replace(result.data.redirect_url); }, 200);
+            .then(function (res) {
+                return res
+                    .json()
+                    .catch(function () {
+                        return {};
+                    })
+                    .then(function (data) {
+                        return { ok: res.ok, data: data };
+                    });
+            })
+            .then(function (result) {
+                if (!result.ok || !result.data.success) {
+                    if (result.data && result.data.redirect_url) {
+                        stopPolling();
+                        window.setTimeout(function () {
+                            window.location.replace(result.data.redirect_url);
+                        }, 200);
+                    }
+                    throw new Error(
+                        result.data.message || "Unable to update the task.",
+                    );
                 }
-                throw new Error(result.data.message || "Unable to update the task.");
-            }
-            if (result.data.task) applyTask(result.data.task);
-            if (!silent) showToast(result.data.message || "Task updated.", "success");
-            setFeedback(result.data.message || "Task updated.", false);
-            if (redirectAfter && result.data.redirect_url) {
-                window.setTimeout(function () { window.location.href = result.data.redirect_url; }, 350);
-            }
-        })
-        .catch(function (err) {
-            if (!silent) showToast(err.message || "Request failed.", "error");
-            setFeedback(err.message || "Request failed.", true);
-        })
-        .finally(function () {
-            if (!silent) disableControls(false);
-            applyStatus(panel.dataset.currentStatus || "assigned");
-        });
+                if (result.data.task) applyTask(result.data.task);
+                if (!silent)
+                    showToast(
+                        result.data.message || "Task updated.",
+                        "success",
+                    );
+                setFeedback(result.data.message || "Task updated.", false);
+                if (redirectAfter && result.data.redirect_url) {
+                    window.setTimeout(function () {
+                        window.location.href = result.data.redirect_url;
+                    }, 350);
+                }
+            })
+            .catch(function (err) {
+                if (!silent)
+                    showToast(err.message || "Request failed.", "error");
+                setFeedback(err.message || "Request failed.", true);
+            })
+            .finally(function () {
+                if (!silent) disableControls(false);
+                applyStatus(panel.dataset.currentStatus || "assigned");
+            });
     }
 
     // ── Apply task from API response ──
@@ -327,7 +542,9 @@ document.addEventListener("DOMContentLoaded", function () {
         panel.dataset.currentStatus = task.status || "assigned";
 
         if (statusBadge) {
-            statusBadge.className = "tf-status-pill " + (task.ui_status || "assigned").replace(/_/g, "-");
+            statusBadge.className =
+                "tf-status-pill " +
+                (task.ui_status || "assigned").replace(/_/g, "-");
             statusBadge.textContent = task.status_label || "Active";
         }
         if (statusNote) statusNote.textContent = task.status_note || "";
@@ -340,27 +557,33 @@ document.addEventListener("DOMContentLoaded", function () {
     function applyStatus(status, task) {
         var t = task || buildDefaultTask(status);
 
-        hide(proceedBtn,      !t.can_proceed);
+        hide(proceedBtn, !t.can_proceed);
         hide(navigateMapsBtn, status !== "on_the_way");
-        hide(startTowBtn,     !t.can_start);
+        hide(startTowBtn, !t.can_start);
         hide(completeTaskBtn, !t.can_complete);
-        hide(returnTaskBtn,   !t.can_return);
-        hide(backToDashBtn,   !t.is_completed);
+        hide(returnTaskBtn, !t.can_return);
+        hide(backToDashBtn, !t.is_completed);
 
         if (status === "payment_pending") {
-            if (paymongoArea)        paymongoArea.classList.remove("hidden");
-            hide(pmMethodArea,       false);
+            if (paymongoArea) paymongoArea.classList.remove("hidden");
+            hide(pmMethodArea, false);
             hide(paymentSubmittedCard, true);
-            setFeedback("Collect payment from the customer using one of the methods below.", false);
+            setFeedback(
+                "Collect payment from the customer using one of the methods below.",
+                false,
+            );
             startPolling();
             return;
         }
 
         if (status === "payment_submitted") {
-            if (paymongoArea)        paymongoArea.classList.remove("hidden");
-            hide(pmMethodArea,       true);
+            if (paymongoArea) paymongoArea.classList.remove("hidden");
+            hide(pmMethodArea, true);
             hide(paymentSubmittedCard, false);
-            setFeedback("Payment proof submitted. Waiting for dispatcher to confirm.", false);
+            setFeedback(
+                "Payment proof submitted. Waiting for dispatcher to confirm.",
+                false,
+            );
             startPolling();
             return;
         }
@@ -371,7 +594,8 @@ document.addEventListener("DOMContentLoaded", function () {
             stopPolling();
             setFeedback("Job complete. Redirecting to dashboard…", false);
             window.setTimeout(function () {
-                window.location.href = panel.dataset.tasksUrl || panel.dataset.dashboardUrl;
+                window.location.href =
+                    panel.dataset.tasksUrl || panel.dataset.dashboardUrl;
             }, 1500);
             return;
         }
@@ -382,10 +606,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function buildDefaultTask(status) {
         return {
-            can_proceed:  status === "assigned",
-            can_start:    status === "on_the_way",
+            can_proceed: status === "assigned",
+            can_start: status === "on_the_way",
             can_complete: status === "in_progress",
-            can_return:   status === "assigned" || status === "on_the_way",
+            can_return: status === "assigned" || status === "on_the_way",
             is_completed: status === "completed",
         };
     }
@@ -393,21 +617,26 @@ document.addEventListener("DOMContentLoaded", function () {
     // ── Stepper ──
     function updateFlowSteps(status) {
         var current = "claimed";
-        if      (status === "on_the_way")           current = "navigate";
-        else if (status === "in_progress")           current = "work";
-        else if (status === "payment_pending" || status === "payment_submitted" || status === "waiting_verification") current = "payment";
-        else if (status === "completed")             current = "complete";
+        if (status === "on_the_way") current = "navigate";
+        else if (status === "in_progress") current = "work";
+        else if (
+            status === "payment_pending" ||
+            status === "payment_submitted" ||
+            status === "waiting_verification"
+        )
+            current = "payment";
+        else if (status === "completed") current = "complete";
 
         var currentIdx = stepOrder.indexOf(current);
 
         document.querySelectorAll("[data-step]").forEach(function (node) {
             var idx = stepOrder.indexOf(node.dataset.step);
             node.classList.toggle("is-complete", idx < currentIdx);
-            node.classList.toggle("is-active",   idx === currentIdx);
+            node.classList.toggle("is-active", idx === currentIdx);
         });
 
         document.querySelectorAll("[data-line]").forEach(function (line) {
-            var parts   = (line.dataset.line || "").split("-");
+            var parts = (line.dataset.line || "").split("-");
             var fromIdx = stepOrder.indexOf(parts[0]);
             line.classList.toggle("is-done", fromIdx < currentIdx);
         });
@@ -418,24 +647,33 @@ document.addEventListener("DOMContentLoaded", function () {
         if (pollTimer) return;
         pollTimer = window.setInterval(function () {
             fetch(panel.dataset.statusEndpoint, {
-                headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+                headers: {
+                    Accept: "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
             })
-            .then(function (res) {
-                return res.json().catch(function () { return {}; }).then(function (d) {
-                    return { ok: res.ok, data: d };
-                });
-            })
-            .then(function (result) {
-                if (!result.ok || result.data.success === false) {
-                    if (result.data && result.data.redirect_url) {
-                        stopPolling();
-                        window.location.replace(result.data.redirect_url);
+                .then(function (res) {
+                    return res
+                        .json()
+                        .catch(function () {
+                            return {};
+                        })
+                        .then(function (d) {
+                            return { ok: res.ok, data: d };
+                        });
+                })
+                .then(function (result) {
+                    if (!result.ok || result.data.success === false) {
+                        if (result.data && result.data.redirect_url) {
+                            stopPolling();
+                            window.location.replace(result.data.redirect_url);
+                        }
+                        return;
                     }
-                    return;
-                }
-                if (result.data && result.data.task) applyTask(result.data.task);
-            })
-            .catch(function () {});
+                    if (result.data && result.data.task)
+                        applyTask(result.data.task);
+                })
+                .catch(function () {});
         }, 10000);
     }
 
@@ -448,37 +686,54 @@ document.addEventListener("DOMContentLoaded", function () {
     // ── Return modal ──
     function loadReturnReasons() {
         fetch("/teamleader/return-reasons", {
-            headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
         })
-        .then(function (r) { return r.json(); })
-        .then(function (reasons) {
-            returnReasons = reasons || [];
-            if (!returnReasonPreset || returnReasons.length === 0) return;
-            returnReasonPreset.innerHTML = '<option value="">Select a reason</option>';
-            var pri = { critical: 0, high: 1, medium: 2 };
-            returnReasons.slice().sort(function (a, b) { return (pri[a.priority] || 9) - (pri[b.priority] || 9); })
-                .forEach(function (r) {
-                    var opt = document.createElement("option");
-                    opt.value = r.value;
-                    opt.textContent = r.label;
-                    returnReasonPreset.appendChild(opt);
-                });
-        })
-        .catch(function () { returnReasons = []; });
+            .then(function (r) {
+                return r.json();
+            })
+            .then(function (reasons) {
+                returnReasons = reasons || [];
+                if (!returnReasonPreset || returnReasons.length === 0) return;
+                returnReasonPreset.innerHTML =
+                    '<option value="">Select a reason</option>';
+                var pri = { critical: 0, high: 1, medium: 2 };
+                returnReasons
+                    .slice()
+                    .sort(function (a, b) {
+                        return (pri[a.priority] || 9) - (pri[b.priority] || 9);
+                    })
+                    .forEach(function (r) {
+                        var opt = document.createElement("option");
+                        opt.value = r.value;
+                        opt.textContent = r.label;
+                        returnReasonPreset.appendChild(opt);
+                    });
+            })
+            .catch(function () {
+                returnReasons = [];
+            });
     }
 
     function openReturnModal() {
-        if (!returnTaskModal) { setFeedback("Return dialog unavailable.", true); return; }
+        if (!returnTaskModal) {
+            setFeedback("Return dialog unavailable.", true);
+            return;
+        }
         if (returnReasonPreset) returnReasonPreset.value = "";
-        if (returnReasonNote)   returnReasonNote.value   = "";
+        if (returnReasonNote) returnReasonNote.value = "";
         if (returnReasonDescription) returnReasonDescription.textContent = "";
-        if (returnReasonNoteReq)     returnReasonNoteReq.style.display   = "none";
-        if (returnReasonNoteHint)    returnReasonNoteHint.textContent     = "";
+        if (returnReasonNoteReq) returnReasonNoteReq.style.display = "none";
+        if (returnReasonNoteHint) returnReasonNoteHint.textContent = "";
         selectedReturnReason = null;
         setReturnError("");
         returnTaskModal.classList.remove("hidden");
         returnTaskModal.setAttribute("aria-hidden", "false");
-        window.setTimeout(function () { if (returnReasonPreset) returnReasonPreset.focus(); }, 30);
+        window.setTimeout(function () {
+            if (returnReasonPreset) returnReasonPreset.focus();
+        }, 30);
     }
 
     function closeReturnModal() {
@@ -501,9 +756,12 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function disableControls(disabled) {
-        [proceedBtn, startTowBtn, completeTaskBtn, returnTaskBtn].forEach(function (btn) {
-            if (btn && !btn.classList.contains("hidden")) btn.disabled = disabled;
-        });
+        [proceedBtn, startTowBtn, completeTaskBtn, returnTaskBtn].forEach(
+            function (btn) {
+                if (btn && !btn.classList.contains("hidden"))
+                    btn.disabled = disabled;
+            },
+        );
     }
 
     function setFeedback(msg, isError) {
@@ -517,6 +775,8 @@ document.addEventListener("DOMContentLoaded", function () {
         t.className = "tl-toast tl-toast--" + (type || "success");
         t.textContent = msg;
         toastWrap.appendChild(t);
-        window.setTimeout(function () { t.remove(); }, 3500);
+        window.setTimeout(function () {
+            t.remove();
+        }, 3500);
     }
 });

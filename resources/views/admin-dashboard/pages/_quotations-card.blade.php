@@ -109,7 +109,7 @@
                                 $timeRemaining = $quotation->getTimeRemaining();
                                 $urgency = $timeRemaining['urgency'] ?? 'normal';
                                 $accentColor = match ($urgency) {
-                                    'urgent' => '#ef4444',
+                                    'urgent' => '#ffffff',
                                     'warning' => '#f59e0b',
                                     default => '#ffffff',
                                 };
@@ -126,7 +126,7 @@
                                 $badgeText = match ($urgency) {
                                     'urgent' => 'URGENT',
                                     'warning' => 'EXPIRING',
-                                    default => 'SENT',
+                                    default => 'AWAITING CONFIRMATION',
                                 };
                             @endphp
                             <div style="border: 1px solid #e5e7eb; border-left: 4px solid {{ $accentColor }}; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"

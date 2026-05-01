@@ -28,6 +28,7 @@ use App\Http\Controllers\Customer\DashboardController;
 use App\Http\Controllers\Customer\HistoryController;
 use App\Http\Controllers\Customer\TrackController;
 use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\PublicTrackController;
 
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingController;
@@ -88,6 +89,11 @@ Route::prefix('geo')
 // API endpoints for customer booking form
 Route::get('/api/vehicle-types/by-category/{category}', [VehicleTypeController::class, 'getByCategory']);
 Route::get('/api/vehicle-types/{vehicleType}/truck-types', [VehicleTypeController::class, 'getTruckTypesByVehicle']);
+
+// Public booking tracker (no auth required)
+Route::get('/track-booking', [PublicTrackController::class, 'index'])
+    ->middleware('throttle:30,1')
+    ->name('public.track');
 
 // New Quotation Routes (Customer View)
 Route::get('/quotation/{quotation}', [QuotationController::class, 'show'])

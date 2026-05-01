@@ -484,26 +484,30 @@ class TeamLeaderController extends Controller
         }
 
         $validated = $request->validate([
-            'payment_method' => 'required|in:gcash,bank,cash,cheque',
-            'payment_proof'  => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120',
+            'payment_method'     => 'required|in:gcash,bank,cash,cheque',
+            'payment_proofs'     => 'nullable|array|max:5',
+            'payment_proofs.*'   => 'file|mimes:jpg,jpeg,png|max:5120',
         ]);
 
         $method = $validated['payment_method'];
 
-        if (in_array($method, ['gcash', 'bank', 'cheque'], true) && ! $request->hasFile('payment_proof')) {
+        if (in_array($method, ['gcash', 'bank', 'cheque'], true) && ! $request->hasFile('payment_proofs')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Please upload a photo of the payment proof.',
             ], 422);
         }
 
-        $path = $request->hasFile('payment_proof')
-            ? $request->file('payment_proof')->store('payment-proofs', 'public')
-            : null;
+        $paths = [];
+        if ($request->hasFile('payment_proofs')) {
+            foreach ($request->file('payment_proofs') as $file) {
+                $paths[] = $file->store('payment-proofs', 'public');
+            }
+        }
 
         $task->update([
             'payment_method'       => $method,
-            'payment_proof_path'   => $path,
+            'payment_proof_path'   => count($paths) > 0 ? $paths : null,
             'payment_submitted_at' => now(),
             'status'               => 'payment_submitted',
         ]);
@@ -942,9 +946,12 @@ class TeamLeaderController extends Controller
             // Payment
             'payment_method'        => $booking->payment_method,
             'payment_method_label'  => $paymentMethodLabel,
-            'payment_proof_path'    => $booking->payment_proof_path
-                ? \Illuminate\Support\Facades\Storage::disk('public')->url($booking->payment_proof_path)
-                : null,
+            'payment_proof_urls'    => $booking->payment_proof_path
+                ? array_values(array_map(
+                    fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p),
+                    (array) $booking->payment_proof_path
+                ))
+                : [],
             'payment_submitted_at'  => optional($booking->payment_submitted_at)->diffForHumans(),
             'paymongo_link_id'      => $booking->paymongo_link_id,
             'paymongo_checkout_url' => $booking->paymongo_checkout_url,

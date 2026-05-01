@@ -167,6 +167,20 @@ class QuotationService
             $booking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
             event(new BookingStatusUpdated($booking));
 
+            // Send final confirmation email to customer
+            if ($booking->customer && $booking->customer->email) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($booking->customer->email)
+                        ->send(new \App\Mail\FinalQuotationConfirmedMail($booking));
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Failed to send booking confirmation email', [
+                        'booking_id'     => $booking->id,
+                        'customer_email' => $booking->customer->email,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return $booking;
         } catch (\Exception $e) {
             DB::rollBack();

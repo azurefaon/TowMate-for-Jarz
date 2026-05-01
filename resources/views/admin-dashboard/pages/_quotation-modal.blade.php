@@ -185,7 +185,7 @@
                     </div>
                     <div>
                         <label
-                            style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 6px;">Note
+                            style="display: block; font-size: 0.8rem; font-family: sans-serif; color: #000000; margin-bottom: 6px;">Note
                             <span style="font-weight: 400; color: #94a3b8;">(optional)</span></label>
                         <textarea id="qmPriceNote" rows="2" placeholder="example Rush fee, toll charges etc."
                             style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.88rem; color: #0f172a; resize: vertical; outline: none; box-sizing: border-box;"

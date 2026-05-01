@@ -968,7 +968,7 @@
                         data-payment-method="{{ e($booking->payment_method ?? '') }}"
                         data-payment-method-label="{{ e($cj_paymentMethodLabel) }}"
                         data-payment-status-label="{{ e($cj_paymentStatusLabel) }}"
-                        data-payment-proof-url="{{ $booking->payment_proof_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($booking->payment_proof_path) : '' }}"
+                        data-payment-proof-url="{{ e(json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p), (array) $booking->payment_proof_path)) : [])) }}"
                         data-paymongo-ref="{{ e($cj_paymongoRef) }}"
                         data-discount-percentage="{{ $booking->discount_percentage ?? 0 }}"
                         data-discount-reason="{{ e($booking->discount_reason ?? '') }}"
@@ -1490,251 +1490,243 @@
 
         {{-- Complete Job Modal --}}
         <div id="completeJobModal"
-            style="display:none;position:fixed;inset:0;z-index:10000;align-items:flex-start;justify-content:center;background:rgba(10,14,30,.6);backdrop-filter:blur(4px);padding:24px 16px;overflow-y:auto;"
+            style="display:none;position:fixed;inset:0;z-index:10000;align-items:flex-start;justify-content:center;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);padding:20px 16px;overflow-y:auto;"
             aria-modal="true" role="dialog" hidden>
             <div
-                style="background:#fff;border-radius:20px;width:100%;max-width:640px;margin:auto;box-shadow:0 32px 80px rgba(0,0,0,.25);overflow:hidden;display:flex;flex-direction:column;">
+                style="background:#fff;border-radius:16px;width:100%;max-width:680px;margin:auto;box-shadow:0 32px 80px rgba(0,0,0,.2);overflow:hidden;display:flex;flex-direction:column;border:1px solid #e2e8f0;">
 
-                {{-- ── Header ── --}}
-                <div
-                    style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid #f1f5f9;">
-                    <div style="display:flex;align-items:center;gap:12px;">
-                        <div
-                            style="width:40px;height:40px;border-radius:11px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                            <svg width="20" height="20" fill="none" stroke="#16a34a" stroke-width="2.2"
-                                viewBox="0 0 24 24">
-                                <polyline points="20 6 9 17 4 12" />
-                            </svg>
+                {{-- ── PDF LETTERHEAD ── --}}
+                <div style="background:#fff;border-bottom:3px solid #facc15;padding:20px 28px 16px;position:relative;">
+                    {{-- Close button --}}
+                    <button id="completeJobClose" type="button" aria-label="Close"
+                        style="position:absolute;top:14px;right:16px;width:28px;height:28px;border-radius:7px;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
+                    {{-- Logo bar --}}
+                    <div
+                        style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;">
+                        <img src="{{ asset('customer/image/accridetedlogo.png') }}" alt="MMDA Accredited"
+                            style="height:80px;width:auto;object-fit:contain;">
+                        <div style="text-align:center;flex:1;">
+                            <div
+                                style="font-size:1.5rem;font-weight:900;color:#0f172a;letter-spacing:.06em;text-transform:uppercase;line-height:1;">
+                                TowMate</div>
+                            <div
+                                style="font-size:.65rem;font-weight:600;color:#94a3b8;letter-spacing:.12em;text-transform:uppercase;margin-top:4px;">
+                                Towing Management System</div>
                         </div>
+                        <img src="{{ asset('customer/image/TowingLogo.png') }}" alt="Jarz Towing"
+                            style="height:80px;width:auto;object-fit:contain;">
+                    </div>
+                    {{-- Document title + ref --}}
+                    <div
+                        style="border-top:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;padding:10px 0;text-align:center;">
+                        <div
+                            style="font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:#b45309;">
+                            Job Completion Record</div>
+                        <div id="cjRefBadge"
+                            style="font-size:.8rem;font-weight:700;color:#475569;font-family:monospace;letter-spacing:.06em;margin-top:3px;">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── PRICE SUMMARY BAND ── --}}
+                <div
+                    style="background:linear-gradient(90deg,#fef9c3 0%,#fef3c7 100%);padding:16px 28px;border-bottom:1px solid #fde68a;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                         <div>
-                            <div style="font-size:.95rem;font-weight:700;color:#0f172a;line-height:1.2;">Complete Job</div>
-                            <div id="cjRefBadge"
-                                style="font-size:.8rem;font-weight:700;color:#16a34a;margin-top:2px;font-family:monospace;letter-spacing:.04em;">
+                            <div
+                                style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#92400e;margin-bottom:3px;">
+                                Total Amount Collected</div>
+                            <div id="cjTotalBig"
+                                style="font-size:2rem;font-weight:900;color:#0f172a;letter-spacing:-.02em;line-height:1;">—
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 28px;text-align:right;">
+                            <div style="font-size:.75rem;color:#78716c;white-space:nowrap;">Base Rate</div>
+                            <div id="cjBaseRate" style="font-size:.75rem;font-weight:700;color:#1c1917;">—</div>
+                            <div style="font-size:.75rem;color:#78716c;white-space:nowrap;">Distance Fee</div>
+                            <div id="cjDistanceFee" style="font-size:.75rem;font-weight:700;color:#1c1917;">—</div>
+                            <div style="font-size:.75rem;color:#78716c;white-space:nowrap;">Additional Fee</div>
+                            <div id="cjAdditionalFee" style="font-size:.75rem;font-weight:700;color:#1c1917;">—</div>
+                            <div id="cjDiscountRow"
+                                style="font-size:.75rem;color:#b45309;white-space:nowrap;display:none;">Discount</div>
+                            <div id="cjDiscount" style="font-size:.75rem;font-weight:700;color:#b45309;display:none;">—
                             </div>
                         </div>
                     </div>
-                    <button id="completeJobClose" type="button" aria-label="Close"
-                        style="width:32px;height:32px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;font-size:1.1rem;line-height:1;flex-shrink:0;">
-                        &#x2715;
-                    </button>
                 </div>
 
-                {{-- ── Price Summary ── --}}
-                <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:22px 24px;">
-                    <div
-                        style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px;">
-                        Total Amount</div>
-                    <div id="cjTotalBig"
-                        style="font-size:2rem;font-weight:800;color:#4ade80;letter-spacing:-.02em;line-height:1;">—</div>
-                    <div
-                        style="margin-top:16px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;">
-                        <div style="display:flex;justify-content:space-between;font-size:.8rem;"><span
-                                style="color:#94a3b8;">Base Rate</span><span id="cjBaseRate"
-                                style="color:#e2e8f0;font-weight:600;">—</span></div>
-                        <div style="display:flex;justify-content:space-between;font-size:.8rem;"><span
-                                style="color:#94a3b8;">Distance Fee</span><span id="cjDistanceFee"
-                                style="color:#e2e8f0;font-weight:600;">—</span></div>
-                        <div style="display:flex;justify-content:space-between;font-size:.8rem;"><span
-                                style="color:#94a3b8;">Additional Fee</span><span id="cjAdditionalFee"
-                                style="color:#e2e8f0;font-weight:600;">—</span></div>
-                        <div id="cjDiscountRow" style="display:flex;justify-content:space-between;font-size:.8rem;"><span
-                                style="color:#fbbf24;">Discount</span><span id="cjDiscount"
-                                style="color:#fbbf24;font-weight:600;">—</span></div>
-                    </div>
-                </div>
+                {{-- ── BODY ── --}}
+                <div style="padding:20px 28px;display:flex;flex-direction:column;gap:18px;background:#fafafa;">
 
-                {{-- ── Body ── --}}
-                <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;">
-
-                    {{-- Customer --}}
+                    {{-- Customer Information --}}
                     <div>
-                        <div
-                            style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#2563eb;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
-                            Customer Information
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                            <div
+                                style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#2563eb;white-space:nowrap;">
+                                Customer Information</div>
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                         </div>
-                        <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff;">
                             <div style="display:grid;grid-template-columns:1fr 1fr;">
                                 <div
-                                    style="padding:11px 14px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">
+                                    style="padding:10px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Full Name</div>
-                                    <div id="cjCustomerName" style="font-size:.88rem;font-weight:700;color:#0f172a;">—
+                                    <div id="cjCustomerName" style="font-size:.85rem;font-weight:700;color:#0f172a;">—
                                     </div>
                                 </div>
-                                <div style="padding:11px 14px;border-bottom:1px solid #f1f5f9;">
+                                <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Customer Type</div>
-                                    <div id="cjCustomerType" style="font-size:.88rem;font-weight:600;color:#0f172a;">—
+                                    <div id="cjCustomerType" style="font-size:.85rem;font-weight:600;color:#0f172a;">—
                                     </div>
                                 </div>
                                 <div
-                                    style="padding:11px 14px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">
+                                    style="padding:10px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;display:flex;align-items:center;gap:4px;">
-                                        <svg width="10" height="10" fill="none" stroke="#94a3b8"
-                                            stroke-width="2" viewBox="0 0 24 24">
-                                            <path
-                                                d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.08 4.18 2 2 0 0 1 5.09 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L9.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-                                        </svg>
-                                        Phone
-                                    </div>
-                                    <div id="cjCustomerPhone" style="font-size:.88rem;font-weight:600;color:#0f172a;">—
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                        Phone</div>
+                                    <div id="cjCustomerPhone" style="font-size:.85rem;font-weight:600;color:#0f172a;">—
                                     </div>
                                 </div>
-                                <div style="padding:11px 14px;border-bottom:1px solid #f1f5f9;">
+                                <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;display:flex;align-items:center;gap:4px;">
-                                        <svg width="10" height="10" fill="none" stroke="#94a3b8"
-                                            stroke-width="2" viewBox="0 0 24 24">
-                                            <path
-                                                d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                                            <polyline points="22,6 12,13 2,6" />
-                                        </svg>
-                                        Email
-                                    </div>
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                        Email</div>
                                     <div id="cjCustomerEmail"
-                                        style="font-size:.82rem;font-weight:600;color:#0f172a;word-break:break-all;">—
-                                    </div>
+                                        style="font-size:.8rem;font-weight:600;color:#0f172a;word-break:break-all;">—</div>
                                 </div>
-                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;display:flex;align-items:center;gap:4px;">
-                                        <svg width="10" height="10" fill="none" stroke="#94a3b8"
-                                            stroke-width="2" viewBox="0 0 24 24">
-                                            <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" />
-                                            <circle cx="12" cy="10" r="3" />
-                                        </svg>
-                                        Pickup
-                                    </div>
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                        Pickup</div>
                                     <div id="cjPickup"
-                                        style="font-size:.82rem;font-weight:600;color:#0f172a;line-height:1.4;">—</div>
+                                        style="font-size:.8rem;font-weight:600;color:#0f172a;line-height:1.4;">—</div>
                                 </div>
-                                <div style="padding:11px 14px;">
+                                <div style="padding:10px 14px;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;display:flex;align-items:center;gap:4px;">
-                                        <svg width="10" height="10" fill="none" stroke="#94a3b8"
-                                            stroke-width="2" viewBox="0 0 24 24">
-                                            <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" />
-                                            <circle cx="12" cy="10" r="3" />
-                                        </svg>
-                                        Dropoff
-                                    </div>
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                        Drop-off</div>
                                     <div id="cjDropoff"
-                                        style="font-size:.82rem;font-weight:600;color:#0f172a;line-height:1.4;">—</div>
+                                        style="font-size:.8rem;font-weight:600;color:#0f172a;line-height:1.4;">—</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {{-- Payment --}}
+                    {{-- Payment Information --}}
                     <div>
-                        <div
-                            style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#ea580c;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
-
-                            Payment Information
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                            <div
+                                style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#ea580c;white-space:nowrap;">
+                                Payment Information</div>
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                         </div>
-                        <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff;">
                             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;">
-                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Mode</div>
                                     <div id="cjPaymentMode" style="font-size:.88rem;font-weight:700;color:#0f172a;">—
                                     </div>
                                 </div>
-                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Status</div>
                                     <div id="cjPaymentStatus" style="font-size:.88rem;font-weight:700;color:#0f172a;">—
                                     </div>
                                 </div>
-                                <div style="padding:11px 14px;">
+                                <div style="padding:10px 14px;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Reference #</div>
                                     <div id="cjPaymongoRef"
                                         style="font-size:.78rem;font-weight:600;color:#0f172a;word-break:break-all;">—
                                     </div>
                                 </div>
                             </div>
-                            {{-- Proof image row --}}
                             <div id="cjProofRow" style="display:none;border-top:1px solid #f1f5f9;padding:12px 14px;">
                                 <div
-                                    style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">
+                                    style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;letter-spacing:.08em;">
                                     Proof of Payment</div>
-                                <a id="cjProofLink" href="#" target="_blank" rel="noopener noreferrer"
-                                    style="display:block;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;max-height:200px;background:#f8fafc;">
-                                    <img id="cjProofImg" src="" alt="Payment proof"
-                                        style="width:100%;max-height:200px;object-fit:contain;display:block;">
-                                </a>
-                                <p style="margin:5px 0 0;font-size:.72rem;color:#94a3b8;text-align:center;">Click to open
-                                    full size</p>
+                                <div id="cjProofImagesContainer" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                                <p style="margin:6px 0 0;font-size:.7rem;color:#94a3b8;text-align:center;">Click an image
+                                    to open full size</p>
                             </div>
                         </div>
                     </div>
 
-                    {{-- Unit & Team Leader --}}
+                    {{-- Unit & Team Details --}}
                     <div>
-                        <div
-                            style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#16a34a;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
-                            Unit &amp; Team Details
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                            <div
+                                style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#16a34a;white-space:nowrap;">
+                                Unit &amp; Team Details</div>
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                         </div>
-                        <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff;">
                             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;">
                                 <div
-                                    style="padding:11px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
+                                    style="padding:10px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Unit Name</div>
-                                    <div id="cjUnitName" style="font-size:.88rem;font-weight:700;color:#0f172a;">—</div>
+                                    <div id="cjUnitName" style="font-size:.85rem;font-weight:700;color:#0f172a;">—</div>
                                 </div>
                                 <div
-                                    style="padding:11px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
+                                    style="padding:10px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Plate No.</div>
-                                    <div id="cjUnitPlate" style="font-size:.88rem;font-weight:700;color:#0f172a;">—</div>
+                                    <div id="cjUnitPlate" style="font-size:.85rem;font-weight:700;color:#0f172a;">—</div>
                                 </div>
-                                <div style="padding:11px 14px;border-bottom:1px solid #f1f5f9;">
+                                <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Truck Type</div>
-                                    <div id="cjTruckType" style="font-size:.88rem;font-weight:600;color:#0f172a;">—</div>
+                                    <div id="cjTruckType" style="font-size:.85rem;font-weight:600;color:#0f172a;">—</div>
                                 </div>
-                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Base Rate (Type)</div>
-                                    <div id="cjTruckBaseRate" style="font-size:.88rem;font-weight:600;color:#0f172a;">—
+                                    <div id="cjTruckBaseRate" style="font-size:.85rem;font-weight:600;color:#0f172a;">—
                                     </div>
                                 </div>
-                                <div style="padding:11px 14px;border-right:1px solid #f1f5f9;">
+                                <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Team Leader</div>
-                                    <div id="cjTlName" style="font-size:.88rem;font-weight:700;color:#0f172a;">—</div>
+                                    <div id="cjTlName" style="font-size:.85rem;font-weight:700;color:#0f172a;">—</div>
                                 </div>
-                                <div style="padding:11px 14px;">
+                                <div style="padding:10px 14px;">
                                     <div
-                                        style="font-size:.63rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:3px;">
+                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
                                         Driver</div>
-                                    <div id="cjDriverName" style="font-size:.88rem;font-weight:700;color:#0f172a;">—</div>
+                                    <div id="cjDriverName" style="font-size:.85rem;font-weight:700;color:#0f172a;">—</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {{-- Vehicle photo (optional) --}}
+                    {{-- Vehicle Photo (optional) --}}
                     <div id="cjVehiclePhotoWrap" style="display:none;">
-                        <div
-                            style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
-                            Vehicle Photo
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                            <div
+                                style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#7c3aed;white-space:nowrap;">
+                                Vehicle Photo</div>
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                         </div>
                         <a id="cjVehicleLink" href="#" target="_blank" rel="noopener noreferrer"
-                            style="display:block;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;max-height:180px;background:#f8fafc;">
+                            style="display:block;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;max-height:180px;background:#f8fafc;">
                             <img id="cjVehicleImg" src="" alt="Vehicle"
                                 style="width:100%;max-height:180px;object-fit:cover;display:block;">
                         </a>
@@ -1742,22 +1734,20 @@
 
                 </div>
 
-                {{-- ── Footer ── --}}
+                {{-- ── FOOTER ── --}}
                 <div
-                    style="padding:14px 24px 20px;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                    <p style="font-size:.76rem;color:#94a3b8;margin:0;flex:1;">Receipt will be emailed to the customer on
-                        completion.</p>
+                    style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                    <div style="font-size:.65rem;color:#94a3b8;line-height:1.5;">
+                        Generated by TowMate &middot; {{ date('M d, Y') }}<br>
+                        <span>Receipt will be emailed to customer on completion.</span>
+                    </div>
                     <div style="display:flex;gap:10px;flex-shrink:0;">
                         <button id="completeJobCancel" type="button"
-                            style="padding:9px 18px;border-radius:9px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:.87rem;font-weight:600;cursor:pointer;">
+                            style="padding:9px 18px;border-radius:9px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:.87rem;font-weight:600;cursor:pointer;">
                             Cancel
                         </button>
                         <button id="completeJobOk" type="button"
-                            style="padding:9px 22px;border-radius:9px;border:none;background:#16a34a;color:#fff;font-size:.87rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
-                            <svg width="14" height="14" fill="none" stroke="#fff" stroke-width="2.2"
-                                viewBox="0 0 24 24">
-                                <polyline points="20 6 9 17 4 12" />
-                            </svg>
+                            style="padding:9px 22px;border-radius:9px;border:none;background:#facc15;color:#0f172a;font-size:.87rem;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;">
                             Mark as Completed
                         </button>
                     </div>
@@ -2569,12 +2559,15 @@
                 setText('cjAdditionalFee', additionalFee > 0 ? fmt(additionalFee) : '—');
 
                 var discountRow = document.getElementById('cjDiscountRow');
+                var discountVal = document.getElementById('cjDiscount');
                 if (discountPct > 0) {
                     setText('cjDiscount', '-' + discountPct + '%' + (ds.discountReason ? ' · ' + ds.discountReason :
                         ''));
-                    if (discountRow) discountRow.style.display = 'flex';
+                    if (discountRow) discountRow.style.display = 'block';
+                    if (discountVal) discountVal.style.display = 'block';
                 } else {
                     if (discountRow) discountRow.style.display = 'none';
+                    if (discountVal) discountVal.style.display = 'none';
                 }
 
                 // ── Header ref ──
@@ -2593,10 +2586,32 @@
                 setText('cjPaymentStatus', ds.paymentStatusLabel || '—');
                 setText('cjPaymongoRef', ds.paymongoRef || '—');
 
-                var proofUrl = ds.paymentProofUrl || '';
-                if (proofUrl) {
-                    document.getElementById('cjProofImg').src = proofUrl;
-                    document.getElementById('cjProofLink').href = proofUrl;
+                var proofUrls = [];
+                try {
+                    proofUrls = JSON.parse(ds.paymentProofUrl || '[]');
+                } catch (e) {
+                    proofUrls = [];
+                }
+                if (!Array.isArray(proofUrls)) proofUrls = proofUrls ? [proofUrls] : [];
+                var proofContainer = document.getElementById('cjProofImagesContainer');
+                if (proofContainer) {
+                    proofContainer.innerHTML = '';
+                    proofUrls.forEach(function(url) {
+                        var a = document.createElement('a');
+                        a.href = url;
+                        a.target = '_blank';
+                        a.rel = 'noopener noreferrer';
+                        a.style.cssText =
+                            'flex:1 1 calc(50% - 4px);min-width:100px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;background:#f8fafc;display:block;';
+                        var img = document.createElement('img');
+                        img.src = url;
+                        img.alt = 'Payment proof';
+                        img.style.cssText = 'width:100%;max-height:180px;object-fit:contain;display:block;';
+                        a.appendChild(img);
+                        proofContainer.appendChild(a);
+                    });
+                }
+                if (proofUrls.length > 0) {
                     show('cjProofRow');
                 } else {
                     hide('cjProofRow');
@@ -2627,7 +2642,7 @@
                 modal.style.display = 'flex';
                 okBtn.disabled = false;
                 okBtn.innerHTML =
-                    '<svg width="14" height="14" fill="none" stroke="#fff" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Mark as Completed';
+                    '<svg width="14" height="14" fill="none" stroke="#09090b" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Mark as Completed';
                 okBtn.focus();
             }
 

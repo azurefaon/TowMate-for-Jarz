@@ -5,7 +5,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const modal = document.getElementById("jobModal");
     const overlay = modal?.querySelector(".modal-overlay");
-    const closeButtons = modal?.querySelectorAll(".close-modal, .close-modal-btn") ?? [];
+    const closeButtons =
+        modal?.querySelectorAll(".close-modal, .close-modal-btn") ?? [];
     const confirmPaymentBtn = document.getElementById("confirmPaymentBtn");
     const paymentSection = document.getElementById("paymentSection");
     const paymentProofArea = document.getElementById("paymentProofArea");
@@ -65,15 +66,39 @@ document.addEventListener("DOMContentLoaded", function () {
                 card.dataset.paymentSubmittedAt || "—",
             );
 
-            const proofUrl = card.dataset.paymentProof;
-            if (paymentProofArea) {
-                paymentProofArea.style.display = proofUrl ? "" : "none";
+            var proofUrls = [];
+            try {
+                proofUrls = JSON.parse(card.dataset.paymentProof || "[]");
+            } catch (e) {
+                proofUrls = [];
             }
-            if (proofUrl) {
-                const img = document.getElementById("job-payment-proof");
-                const link = document.getElementById("job-payment-proof-link");
-                if (img) img.src = proofUrl;
-                if (link) link.href = proofUrl;
+            if (!Array.isArray(proofUrls))
+                proofUrls = proofUrls ? [proofUrls] : [];
+            var proofContainer = document.getElementById(
+                "job-payment-proof-container",
+            );
+            if (paymentProofArea) {
+                paymentProofArea.style.display =
+                    proofUrls.length > 0 ? "" : "none";
+            }
+            if (proofContainer) {
+                proofContainer.innerHTML = "";
+                proofUrls.forEach(function (url) {
+                    var a = document.createElement("a");
+                    a.href = url;
+                    a.target = "_blank";
+                    a.rel = "noopener noreferrer";
+                    a.style.cssText =
+                        "flex:1 1 calc(50% - 4px);min-width:80px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;display:block;";
+                    var img = document.createElement("img");
+                    img.src = url;
+                    img.alt = "Payment proof";
+                    img.className = "payment-proof-img";
+                    img.style.cssText =
+                        "width:100%;max-height:160px;object-fit:contain;display:block;";
+                    a.appendChild(img);
+                    proofContainer.appendChild(a);
+                });
             }
         }
 
