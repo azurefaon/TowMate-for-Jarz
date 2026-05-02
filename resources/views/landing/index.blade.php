@@ -12,7 +12,8 @@
         {{-- {{ dd($landing) }} --}}
 
         <nav class="landing-nav">
-            <h2 class="logo">JARZ Towing Services</h2>
+            <img src="{{ asset('admin/images/TowingLogo.png') }}" alt="TowMate logo" class="logo"
+                style="height:44px;width:auto;object-fit:contain;display:block;">
 
             <div class="nav-links" id="navMenu">
                 <span class="nav-indicator"></span>

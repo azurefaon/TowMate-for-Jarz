@@ -61,8 +61,7 @@
 
         <nav class="landing-nav">
             <a href="{{ route('landing') }}" class="brand-lockup" aria-label="Jarz home">
-                <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz logo">
-                <h2 class="logo">JARZ</h2>
+                <img src="{{ asset('admin/images/TowingLogo.png') }}" alt="TowMate logo">
             </a>
 
             <a href="{{ route('landing') }}" class="nav-home-btn">
@@ -157,7 +156,8 @@
 
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label for="service_type">Booking Mode <span style="color:#dc2626;">*</span></label>
+                                            <label for="service_type">Booking Mode <span
+                                                    style="color:#dc2626;">*</span></label>
                                             <select id="service_type" name="service_type" required>
                                                 <option value="" disabled
                                                     {{ old('service_type') ? '' : 'selected' }}>
@@ -215,7 +215,8 @@
 
                                 <div class="form-row form-row-location">
                                     <div class="form-group">
-                                        <label for="pickup_address">Pickup Location or Landmark <span style="color:#dc2626;">*</span></label>
+                                        <label for="pickup_address">Pickup Location or Landmark <span
+                                                style="color:#dc2626;">*</span></label>
                                         <div class="input-map-wrapper">
                                             <input type="text" id="pickup_address" name="pickup_address"
                                                 placeholder="Where should we pick you up?" required
@@ -240,7 +241,8 @@
                                     </div>
 
                                     <div class="form-group">
-                                        <label for="dropoff_address">Drop-off Location or Landmark <span style="color:#dc2626;">*</span></label>
+                                        <label for="dropoff_address">Drop-off Location or Landmark <span
+                                                style="color:#dc2626;">*</span></label>
                                         <div class="input-map-wrapper">
                                             <input type="text" id="dropoff_address" name="dropoff_address"
                                                 placeholder="Where are you headed?" required
@@ -361,7 +363,8 @@
 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="customer_vehicle_type">Your Vehicle Type <span style="color:#dc2626;">*</span></label>
+                                        <label for="customer_vehicle_type">Your Vehicle Type <span
+                                                style="color:#dc2626;">*</span></label>
                                         <input type="text" name="customer_vehicle_type" id="customerVehicleType"
                                             placeholder="Sedan, SUV, Motorcycle, Truck"
                                             value="{{ old('customer_vehicle_type') }}" required>
@@ -862,7 +865,10 @@
                         if (grid) {
                             grid.style.outline = '2px solid #dc2626';
                             grid.style.borderRadius = '10px';
-                            setTimeout(() => { grid.style.outline = ''; grid.style.borderRadius = ''; }, 2000);
+                            setTimeout(() => {
+                                grid.style.outline = '';
+                                grid.style.borderRadius = '';
+                            }, 2000);
                         }
                         if (!truckErr) {
                             truckErr = document.createElement('span');
@@ -883,12 +889,14 @@
                         if (schedDate) clearFieldError(schedDate);
                         if (schedTime) clearFieldError(schedTime);
                         if (!schedDate || !schedDate.value) {
-                            if (schedDate) setFieldError(schedDate, 'Please choose a preferred date for Vehicle ' + vn + '.');
+                            if (schedDate) setFieldError(schedDate, 'Please choose a preferred date for Vehicle ' + vn +
+                                '.');
                             firstInvalidField = firstInvalidField || schedDate;
                             valid = false;
                         }
                         if (!schedTime || !schedTime.value) {
-                            if (schedTime) setFieldError(schedTime, 'Please choose a preferred time for Vehicle ' + vn + '.');
+                            if (schedTime) setFieldError(schedTime, 'Please choose a preferred time for Vehicle ' + vn +
+                                '.');
                             firstInvalidField = firstInvalidField || schedTime;
                             valid = false;
                         }
@@ -1183,21 +1191,29 @@
                             } : null,
                             {
                                 label: 'Vehicle ' + ev.vNum + ' Estimate',
-                                value: ev.isScheduled ? 'TBD (scheduled)' : '₱' + (ev.price || 0).toLocaleString('en-PH', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })
+                                value: ev.isScheduled ? 'TBD (scheduled)' : '₱' + (ev.price || 0)
+                                    .toLocaleString('en-PH', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    })
                             },
                         ];
                         extraSectionsHtml += renderSummarySection('Vehicle ' + ev.vNum, evItems);
                     });
 
                     const hasScheduledExtra = extraVehicles.some(ev => ev.isScheduled);
-                    const confirmedExtraTotal = extraVehicles.reduce((acc, ev) => acc + (ev.isScheduled ? 0 : (ev.price || 0)), 0);
+                    const confirmedExtraTotal = extraVehicles.reduce((acc, ev) => acc + (ev.isScheduled ? 0 : (ev
+                        .price || 0)), 0);
                     const grandTotalNum = _computedTotal + confirmedExtraTotal;
-                    const grandTotalStr = hasScheduledExtra
-                        ? '₱' + grandTotalNum.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' + scheduled'
-                        : '₱' + grandTotalNum.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const grandTotalStr = hasScheduledExtra ?
+                        '₱' + grandTotalNum.toLocaleString('en-PH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        }) + ' + scheduled' :
+                        '₱' + grandTotalNum.toLocaleString('en-PH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        });
 
                     bookingSummary.innerHTML = `
                     <div class="summary-card">
@@ -1209,14 +1225,14 @@
                         })}
                         ${extraSectionsHtml}
                         ${hasExtra ? `
-                                                            <div class="summary-section">
-                                                                <div class="summary-section-title">Grand Total (All ${1 + extraVehicles.length} Vehicles)</div>
-                                                                <div class="summary-grid">
-                                                                    <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
-                                                                </div>
-                                                                <p class="summary-helper-note">Actual cost may vary according to vehicle type and booking mode.${hasScheduledExtra ? ' Scheduled vehicles will be quoted separately.' : ''}</p>
-                                                            </div>
-                                                        ` : ''}
+                                                                    <div class="summary-section">
+                                                                        <div class="summary-section-title">Grand Total (All ${1 + extraVehicles.length} Vehicles)</div>
+                                                                        <div class="summary-grid">
+                                                                            <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
+                                                                        </div>
+                                                                        <p class="summary-helper-note">Actual cost may vary according to vehicle type and booking mode.${hasScheduledExtra ? ' Scheduled vehicles will be quoted separately.' : ''}</p>
+                                                                    </div>
+                                                                ` : ''}
                     </div>
                 `;
 
@@ -1746,7 +1762,8 @@
                         '<div class="form-row">' +
                         '<div class="form-group">' +
                         '<label>Preferred Date <span style="color:#dc2626;">*</span></label>' +
-                        '<input type="date" class="ev-sched-date" name="' + p + 'scheduled_date" min="' + new Date().toISOString().split('T')[0] + '">' +
+                        '<input type="date" class="ev-sched-date" name="' + p + 'scheduled_date" min="' + new Date()
+                        .toISOString().split('T')[0] + '">' +
                         '</div>' +
                         '<div class="form-group">' +
                         '<label>Preferred Time <span style="color:#dc2626;">*</span></label>' +

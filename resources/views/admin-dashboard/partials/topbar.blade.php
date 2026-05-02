@@ -6,8 +6,15 @@
 @endphp
 
 <div class="topbar">
-    <div class="topbar-copy">
-        <h2>@yield('title', 'Dispatcher Panel')</h2>
+    <div class="topbar-left">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Toggle navigation">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <div class="topbar-copy">
+            <h2>@yield('title', 'Dispatcher Panel')</h2>
+        </div>
     </div>
 
     <div class="topbar-actions">

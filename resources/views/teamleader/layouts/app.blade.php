@@ -197,29 +197,29 @@
     <div class="tl-shell">
         <aside class="tl-sidebar">
             <a href="{{ $teamLeaderFocusUrl }}" class="tl-brand">
-                <span class="tl-brand__logo">JR</span>
+                {{-- <span class="tl-brand__logo">JR</span> --}}
                 <div>
                     <strong>Jarz</strong>
-                    <small>Team Leader Panel</small>
+                    {{-- <small>Team Leader Panel</small> --}}
                 </div>
             </a>
 
             <nav class="tl-nav" aria-label="Team leader navigation">
                 @if ($teamLeaderFocusLocked)
                     <a href="{{ $teamLeaderFocusUrl }}" class="tl-nav__link is-active">
-                        <i data-lucide="crosshair"></i>
+                        {{-- <i data-lucide="crosshair"></i> --}}
                         <span>Current Job Focus</span>
                     </a>
                 @else
                     <a href="{{ $teamLeaderDashboardUrl }}"
                         class="tl-nav__link {{ request()->routeIs('teamleader.dashboard') ? 'is-active' : '' }}">
-                        <i data-lucide="layout-dashboard"></i>
+                        {{-- <i data-lucide="layout-dashboard"></i> --}}
                         <span>Dashboard</span>
                     </a>
 
                     <a href="{{ $teamLeaderTasksUrl }}"
                         class="tl-nav__link {{ request()->routeIs('teamleader.tasks') || request()->routeIs('teamleader.bookings') || request()->routeIs('teamleader.task.*') ? 'is-active' : '' }}">
-                        <i data-lucide="clipboard-list"></i>
+                        {{-- <i data-lucide="clipboard-list"></i> --}}
                         <span>Tasks</span>
                     </a>
                 @endif

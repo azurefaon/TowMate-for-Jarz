@@ -22,18 +22,21 @@ body {
     gap: 16px;
     flex-wrap: wrap;
     padding: 16px 18px;
-    /* border-radius: 18px; */
     background: #ffffff;
-    border: 1px solid #ece7d8;
-    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.05);
+    border: 1px solid #000;
     overflow: visible;
+}
+
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .topbar-copy h2 {
     padding-top: 10px;
     margin: 0;
     font-size: 1.25rem;
-    font-weight: 700;
     color: #111827;
 }
 
@@ -55,12 +58,10 @@ body {
     align-items: center;
     min-height: 40px;
     padding: 8px 12px;
-    border-radius: 999px;
-    border: 1px solid #ece7d8;
-    background: #fffdf7;
+    border: 1px solid #000;
+    background: #ffffff;
     color: #52525b;
     font-size: 0.82rem;
-    font-weight: 700;
 }
 
 .notif-dropdown {
@@ -212,14 +213,7 @@ body {
 .stat-card {
     background: #ffffff;
     padding: 22px;
-    border-radius: 16px;
-    border: 1px solid #e5e7eb;
-    transition: all 0.25s ease;
-}
-
-.stat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.06);
+    border: 1px solid #000;
 }
 
 .stat-card p {
@@ -231,7 +225,6 @@ body {
 .stat-card h3 {
     font-size: 24px;
     margin: 6px 0;
-    font-weight: 600;
 }
 
 .stat-card span {
@@ -256,14 +249,7 @@ body {
 .crew-card {
     background: #ffffff;
     padding: 18px;
-    border-radius: 16px;
-    border: 1px solid #e5e7eb;
-    transition: all 0.25s ease;
-}
-
-.crew-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.06);
+    border: 1px solid #000;
 }
 
 .crew-top {
@@ -288,8 +274,8 @@ body {
     background: #dcfce7;
     color: #16a34a;
     padding: 4px 9px;
-    border-radius: 6px;
     font-size: 11px;
+    border: 1px solid #000;
 }
 
 .badge.busy {
@@ -306,11 +292,9 @@ body {
 .btn {
     background: #15803d;
     color: #fff;
-    border: none;
+    border: 1px solid #000;
     padding: 8px 14px;
-    border-radius: 8px;
     cursor: pointer;
-    transition: 0.2s;
 }
 
 .btn:hover {
@@ -319,11 +303,9 @@ body {
 
 .btn-light {
     background: #f1f5f9;
-    border: none;
+    border: 1px solid #000;
     padding: 8px 14px;
-    border-radius: 8px;
     cursor: pointer;
-    transition: 0.2s;
 }
 
 .btn-light:hover {
@@ -409,20 +391,18 @@ body {
 }
 
 .toggle-btn {
-    border: none;
+    border: 1px solid #000;
     background: transparent;
     padding: 8px 14px;
-    border-radius: 8px;
     font-size: 13px;
     cursor: pointer;
     color: #64748b;
-    transition: all 0.2s ease;
 }
 
 .toggle-btn.active {
     background: #ffffff;
     color: #0f172a;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #000;
 }
 
 .toggle-btn:hover {

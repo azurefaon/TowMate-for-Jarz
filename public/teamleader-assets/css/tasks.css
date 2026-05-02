@@ -116,14 +116,6 @@
     font-size: 14px;
 }
 
-.tl-task-card__note {
-    padding: 12px 14px;
-    background: #f8fafc;
-    border: 1px solid var(--tl-border);
-    border-radius: 14px;
-    color: var(--tl-muted);
-}
-
 .tl-task-card__actions {
     position: static;
 }

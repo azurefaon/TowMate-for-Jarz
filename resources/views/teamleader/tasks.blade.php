@@ -26,7 +26,6 @@
             <div class="tl-section-card__header">
                 <div>
                     <p class="tl-eyebrow">Approved Jobs</p>
-                    <h3>Only customer-approved bookings can be accepted by your crew</h3>
                 </div>
                 <div class="tl-stat-pills">
                     <span class="tl-stat-pill">Queue: <strong
@@ -114,7 +113,7 @@
             @empty
                 <div class="tl-empty-state" id="emptyTaskState">
                     <h3>No open tasks right now</h3>
-                    <p>New dispatcher handoffs will appear here when they are ready for a Team Leader to accept.</p>
+                    {{-- <p>New dispatcher handoffs will appear here when they are ready for a Team Leader to accept.</p> --}}
                 </div>
             @endforelse
         </section>

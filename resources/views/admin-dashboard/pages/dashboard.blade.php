@@ -20,9 +20,8 @@
         }
 
         .schedule-summary-pill {
-            border-radius: 16px;
             padding: 14px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid #000;
             background: #fff;
         }
 
@@ -54,9 +53,8 @@
 
         .schedule-status {
             padding: 6px 10px;
-            border-radius: 999px;
             font-size: 12px;
-            font-weight: 700;
+            border: 1px solid #000;
         }
 
         .schedule-status.due-now {

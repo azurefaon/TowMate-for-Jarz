@@ -92,7 +92,7 @@
             align-items: center;
             gap: 10px;
             padding: 5px 12px;
-            border-radius: 999px;
+            border: 1px solid #000;
             background: #fff;
             cursor: pointer;
         }
@@ -100,14 +100,12 @@
         .profile-avatar {
             width: 36px;
             height: 36px;
-            border-radius: 999px;
             display: inline-flex;
             align-items: center;
-            border: #111111 solid 1px;
+            border: 1px solid #000;
             justify-content: center;
             background: var(--jarz-surface);
             color: var(--jarz-text);
-            font-weight: 700;
         }
 
         .profile-meta {
@@ -126,10 +124,8 @@
             top: calc(100% + 10px);
             min-width: 180px;
             padding: 8px;
-            border-radius: 14px;
-            border: 0;
+            border: 1px solid #000;
             background: #fff;
-            box-shadow: 0 20px 50px rgba(48, 56, 65, 0.12);
             z-index: 20;
         }
 
@@ -142,7 +138,6 @@
             padding: 10px 12px;
             border: 0;
             background: transparent;
-            border-radius: 10px;
             color: var(--jarz-text);
             text-decoration: none;
             cursor: pointer;
@@ -172,6 +167,8 @@
         </div>
 
     </div>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <div class="logout-modal" id="logoutModal" aria-hidden="true">
         <div class="logout-backdrop" onclick="closeLogoutModal()"></div>
@@ -267,6 +264,35 @@
         if (typeof lucide !== "undefined") {
             lucide.createIcons();
         }
+
+        // ── Mobile sidebar toggle ──
+        (function() {
+            const hamburgerBtn = document.getElementById('hamburgerBtn');
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            function openSidebar() {
+                sidebar.classList.add('show');
+                overlay.classList.add('show');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('show');
+                overlay.classList.remove('show');
+                document.body.style.overflow = '';
+            }
+
+            if (hamburgerBtn) {
+                hamburgerBtn.addEventListener('click', function() {
+                    sidebar.classList.contains('show') ? closeSidebar() : openSidebar();
+                });
+            }
+
+            if (overlay) {
+                overlay.addEventListener('click', closeSidebar);
+            }
+        })();
     </script>
 
     @stack('scripts')

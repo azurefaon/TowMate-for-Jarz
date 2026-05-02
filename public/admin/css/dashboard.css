@@ -1,7 +1,7 @@
 :root {
     --dash-bg: #ffffff;
     --dash-panel: #ffffff;
-    --dash-border: #e5e7eb;
+    --dash-border: #000000;
     --dash-text: #111827;
     --dash-muted: #6b7280;
     --dash-primary: #facc15;
@@ -12,8 +12,8 @@
     --dash-warning-soft: #ffc800;
     --dash-danger: #dc2626;
     --dash-danger-soft: #fee2e2;
-    --dash-radius: 18px;
-    --dash-shadow: 0 12px 28px rgba(17, 24, 39, 0.06);
+    --dash-radius: 0;
+    --dash-shadow: none;
 }
 
 .dispatcher-dashboard {
@@ -32,10 +32,8 @@
     gap: 18px;
     flex-wrap: wrap;
     padding: 22px 24px;
-    border-radius: 22px;
-    border: 0;
+    border: 1px solid #000;
     background: #ffffff;
-    box-shadow: var(--dash-shadow);
 }
 
 .hero-copy {
@@ -82,16 +80,10 @@
     align-items: center;
     gap: 6px;
     padding: 8px 12px;
-    border-radius: 999px;
     background: #f8fafc;
-    border: 0;
+    border: 1px solid #000;
     color: #334155;
     font-size: 0.86rem;
-    font-style:
-        poppins,
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
 }
 
 .hero-tools {
@@ -104,16 +96,10 @@
 
 .date-display {
     padding: 11px 14px;
-    border-radius: 12px;
     background: #ffffff;
-    border: 0;
+    border: 1px solid #000;
     color: #334155;
     font-size: 0.86rem;
-    font-style:
-        poppins,
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
 }
 
 .refresh-btn {
@@ -122,16 +108,10 @@
     gap: 8px;
     min-height: 42px;
     padding: 10px 14px;
-    border-radius: 12px;
-    border: 0;
+    border: 1px solid #000;
     background: #facc15;
     color: #111827;
     cursor: pointer;
-    font-style:
-        poppins,
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
 }
 
 .refresh-btn i {
@@ -148,7 +128,6 @@
 
 .stat-kicker {
     font-size: 0.72rem;
-    font-family: sans-serif;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--dash-muted);
@@ -156,7 +135,6 @@
 
 .stat-number {
     font-size: clamp(1.8rem, 3vw, 2.4rem);
-    font-family: sans-serif;
     color: var(--dash-text);
     line-height: 1;
 }
@@ -165,17 +143,11 @@
     margin-top: 6px;
     color: var(--dash-muted);
     font-size: 0.92rem;
-    font-style:
-        poppins,
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
 }
 
 .stat-note {
     display: block;
     margin-top: 8px;
-    font-family: sans-serif;
     color: var(--dash-muted);
 }
 
@@ -183,6 +155,7 @@
 .active-card,
 .crew-card {
     background: #ffffff;
+    border: 1px solid #000;
 }
 
 .pending-card .stat-top i {
@@ -233,9 +206,7 @@
 .actions-card,
 .insight-card {
     background: var(--dash-panel);
-    border: 0;
-    border-radius: var(--dash-radius);
-    box-shadow: var(--dash-shadow);
+    border: 1px solid #000;
     overflow: hidden;
 }
 
@@ -336,32 +307,11 @@
     align-items: flex-start;
     gap: 8px;
     padding: 16px;
-    border-radius: 16px;
     text-decoration: none;
     color: #111827;
-    font-style:
-        poppins,
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
     min-height: 118px;
-    border: 0;
+    border: 1px solid #000;
     background: #ffffff;
-    box-shadow:
-        inset 0 0 0 1px #eef2f7,
-        0 10px 20px rgba(17, 24, 39, 0.06);
-    transition:
-        transform 0.18s ease,
-        box-shadow 0.18s ease,
-        background 0.18s ease;
-}
-
-.action-btn:hover {
-    transform: translateY(-2px);
-    background: #ffffff;
-    box-shadow:
-        inset 0 0 0 1px #facc15,
-        0 14px 28px rgba(17, 24, 39, 0.1);
 }
 
 .action-btn i {
@@ -404,22 +354,17 @@
 
 .filter-btn {
     padding: 8px 12px;
-    border: 0;
-    border-radius: 999px;
+    border: 1px solid #000;
     background: #ffffff;
     color: #475569;
     cursor: pointer;
     font-size: 0.82rem;
-    font-style:
-        poppins,
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
 }
 
 .filter-btn.active {
     background: #facc15;
     color: #111827;
+    border: 1px solid #000;
 }
 
 .activity-list {
@@ -433,15 +378,13 @@
     align-items: center;
     gap: 12px;
     padding: 14px;
-    border: 0;
-    border-radius: 14px;
-    background: #fbfdff;
+    border: 1px solid #000;
+    background: #ffffff;
 }
 
 .activity-icon {
     width: 42px;
     height: 42px;
-    border-radius: 12px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -487,14 +430,9 @@
 
 .activity-status {
     padding: 6px 10px;
-    border-radius: 999px;
     font-size: 0.74rem;
-    font-style:
-        poppins,
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
     text-transform: uppercase;
+    border: 1px solid #000;
 }
 
 .activity-status.pending {
@@ -553,15 +491,10 @@
     gap: 8px;
     margin-top: auto;
     padding: 10px 12px;
-    border-radius: 12px;
+    border: 1px solid #000;
     background: #fff7d6;
     color: #7c5a00;
     text-decoration: none;
-    font-style:
-        poppins,
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
 }
 
 .insight-link i {
@@ -679,36 +612,4 @@
     .page-header h1 {
         font-size: 1.75rem !important;
     }
-}
-
-/* Animations */
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.stat-card,
-.activity-card,
-.actions-card,
-.chart-card {
-    animation: slideUp 0.6s ease forwards;
-}
-
-.stat-card:nth-child(1) {
-    animation-delay: 0.1s;
-}
-.stat-card:nth-child(2) {
-    animation-delay: 0.2s;
-}
-.stat-card:nth-child(3) {
-    animation-delay: 0.3s;
-}
-.stat-card:nth-child(4) {
-    animation-delay: 0.4s;
 }
