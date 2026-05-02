@@ -50,6 +50,12 @@
             border-bottom: 0;
         }
 
+        @media (max-width: 768px) {
+            .sidebar-open .topbar {
+                z-index: 1;
+            }
+        }
+
         .topbar-copy h2 {
             color: var(--jarz-text);
         }
@@ -274,12 +280,14 @@
             function openSidebar() {
                 sidebar.classList.add('show');
                 overlay.classList.add('show');
+                document.body.classList.add('sidebar-open');
                 document.body.style.overflow = 'hidden';
             }
 
             function closeSidebar() {
                 sidebar.classList.remove('show');
                 overlay.classList.remove('show');
+                document.body.classList.remove('sidebar-open');
                 document.body.style.overflow = '';
             }
 
