@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+# Runs before the new version goes live.
+# Ensures the DB schema is up to date and the Super Admin account exists.
+releaseCommand = "php artisan migrate --force && php artisan db:seed --class=SuperAdminSeeder --force"
+
+# PHP built-in server bound to the Railway-assigned PORT.
+startCommand = "php artisan serve --host=0.0.0.0 --port=$PORT"
