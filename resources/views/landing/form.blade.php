@@ -99,7 +99,7 @@
                                 <h3>Quick Customer Details</h3>
                                 <div class="form-row form-row-three">
                                     <div class="form-group">
-                                        <label for="first_name">First Name *</label>
+                                        <label for="first_name">First Name <span style="color:#dc2626;">*</span></label>
                                         <input type="text" id="first_name" name="first_name" required
                                             value="{{ old('first_name') }}">
                                         @error('first_name')
@@ -115,7 +115,7 @@
                                         @enderror
                                     </div>
                                     <div class="form-group">
-                                        <label for="last_name">Last Name *</label>
+                                        <label for="last_name">Last Name <span style="color:#dc2626;">*</span></label>
                                         <input type="text" id="last_name" name="last_name" required
                                             value="{{ old('last_name') }}">
                                         @error('last_name')
@@ -126,7 +126,7 @@
 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="phone">Phone Number *</label>
+                                        <label for="phone">Phone Number <span style="color:#dc2626;">*</span></label>
                                         <input type="tel" id="phone" name="phone" placeholder="09123456789"
                                             required value="{{ old('phone') }}">
                                         @error('phone')
@@ -157,7 +157,7 @@
 
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label for="service_type">Booking Mode *</label>
+                                            <label for="service_type">Booking Mode <span style="color:#dc2626;">*</span></label>
                                             <select id="service_type" name="service_type" required>
                                                 <option value="" disabled
                                                     {{ old('service_type') ? '' : 'selected' }}>
@@ -215,7 +215,7 @@
 
                                 <div class="form-row form-row-location">
                                     <div class="form-group">
-                                        <label for="pickup_address">Pickup Location or Landmark *</label>
+                                        <label for="pickup_address">Pickup Location or Landmark <span style="color:#dc2626;">*</span></label>
                                         <div class="input-map-wrapper">
                                             <input type="text" id="pickup_address" name="pickup_address"
                                                 placeholder="Where should we pick you up?" required
@@ -240,7 +240,7 @@
                                     </div>
 
                                     <div class="form-group">
-                                        <label for="dropoff_address">Drop-off Location or Landmark *</label>
+                                        <label for="dropoff_address">Drop-off Location or Landmark <span style="color:#dc2626;">*</span></label>
                                         <div class="input-map-wrapper">
                                             <input type="text" id="dropoff_address" name="dropoff_address"
                                                 placeholder="Where are you headed?" required
@@ -361,7 +361,7 @@
 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="customer_vehicle_type">Your Vehicle Type *</label>
+                                        <label for="customer_vehicle_type">Your Vehicle Type <span style="color:#dc2626;">*</span></label>
                                         <input type="text" name="customer_vehicle_type" id="customerVehicleType"
                                             placeholder="Sedan, SUV, Motorcycle, Truck"
                                             value="{{ old('customer_vehicle_type') }}" required>
@@ -831,6 +831,70 @@
                     valid = false;
                 }
 
+                // ── Extra vehicle panels ──────────────────────────────────
+                document.querySelectorAll('#extra_vehicles_container .extra-vehicle-panel').forEach(function(panel) {
+                    const slot = parseInt(panel.dataset.slot);
+                    const vn = slot + 2;
+
+                    // Vehicle type text
+                    const vtypeInput = panel.querySelector('[name="vehicle_' + vn + '_customer_vehicle_type"]');
+                    if (vtypeInput) {
+                        clearFieldError(vtypeInput);
+                        if (!vtypeInput.value.trim()) {
+                            setFieldError(vtypeInput, 'Vehicle ' + vn + ' type is required.');
+                            firstInvalidField = firstInvalidField || vtypeInput;
+                            valid = false;
+                        }
+                    }
+
+                    // Truck class card selection
+                    const isScheduledPanel = panel.querySelector('.ev-is-scheduled')?.value === '1';
+                    const truckIdInput = panel.querySelector('.ev-truck-id');
+                    const grid = panel.querySelector('.ev-class-grid');
+                    const allCardsTaken = grid ? [...grid.querySelectorAll('.ev-class-card')].every(c => {
+                        const badge = c.querySelector('.ev-taken-badge');
+                        return badge && badge.style.display === 'flex';
+                    }) : false;
+                    let truckErr = panel.querySelector('.ev-truck-error');
+                    const needsTruckValidation = !isScheduledPanel || !allCardsTaken;
+                    if (needsTruckValidation && (!truckIdInput || !truckIdInput.value)) {
+                        valid = false;
+                        if (grid) {
+                            grid.style.outline = '2px solid #dc2626';
+                            grid.style.borderRadius = '10px';
+                            setTimeout(() => { grid.style.outline = ''; grid.style.borderRadius = ''; }, 2000);
+                        }
+                        if (!truckErr) {
+                            truckErr = document.createElement('span');
+                            truckErr.className = 'error-message ev-truck-error';
+                            const anchor = grid ? grid.parentElement : panel;
+                            anchor.insertBefore(truckErr, grid ? grid.nextSibling : null);
+                        }
+                        truckErr.textContent = 'Please select a truck type for Vehicle ' + vn + '.';
+                        if (!firstInvalidField) firstInvalidField = vtypeInput || null;
+                    } else {
+                        if (truckErr) truckErr.textContent = '';
+                    }
+
+                    // Schedule date/time (only when panel is in forced-schedule mode)
+                    if (isScheduledPanel) {
+                        const schedDate = panel.querySelector('.ev-sched-date');
+                        const schedTime = panel.querySelector('.ev-sched-time');
+                        if (schedDate) clearFieldError(schedDate);
+                        if (schedTime) clearFieldError(schedTime);
+                        if (!schedDate || !schedDate.value) {
+                            if (schedDate) setFieldError(schedDate, 'Please choose a preferred date for Vehicle ' + vn + '.');
+                            firstInvalidField = firstInvalidField || schedDate;
+                            valid = false;
+                        }
+                        if (!schedTime || !schedTime.value) {
+                            if (schedTime) setFieldError(schedTime, 'Please choose a preferred time for Vehicle ' + vn + '.');
+                            firstInvalidField = firstInvalidField || schedTime;
+                            valid = false;
+                        }
+                    }
+                });
+
                 if (!valid && firstInvalidField) {
                     firstInvalidField.focus();
                     firstInvalidField.reportValidity();
@@ -1092,6 +1156,18 @@
                                 value: ev.vtype || 'Not specified'
                             },
                             {
+                                label: 'Booking Mode',
+                                value: ev.isScheduled ? 'Scheduled Later' : 'Book Now'
+                            },
+                            ev.isScheduled && ev.schedDate ? {
+                                label: 'Preferred Date',
+                                value: ev.schedDate
+                            } : null,
+                            ev.isScheduled && ev.schedTime ? {
+                                label: 'Preferred Time',
+                                value: ev.schedTime
+                            } : null,
+                            {
                                 label: 'Pickup',
                                 value: ev.pickup || '—',
                                 wide: true
@@ -1101,17 +1177,13 @@
                                 value: ev.dropoff || '—',
                                 wide: true
                             },
-                            {
+                            ev.distKm ? {
                                 label: 'Distance',
-                                value: ev.distKm ? ev.distKm.toFixed(2) + ' km' : '—'
-                            },
-                            {
-                                label: 'ETA',
-                                value: ev.etaMin ? Math.round(ev.etaMin) + ' min' : '—'
-                            },
+                                value: ev.distKm.toFixed(2) + ' km'
+                            } : null,
                             {
                                 label: 'Vehicle ' + ev.vNum + ' Estimate',
-                                value: '₱' + (ev.price || 0).toLocaleString('en-PH', {
+                                value: ev.isScheduled ? 'TBD (scheduled)' : '₱' + (ev.price || 0).toLocaleString('en-PH', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2
                                 })
@@ -1120,11 +1192,12 @@
                         extraSectionsHtml += renderSummarySection('Vehicle ' + ev.vNum, evItems);
                     });
 
-                    const grandTotalNum = _computedTotal + extraTotalNum;
-                    const grandTotalStr = '₱' + grandTotalNum.toLocaleString('en-PH', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    });
+                    const hasScheduledExtra = extraVehicles.some(ev => ev.isScheduled);
+                    const confirmedExtraTotal = extraVehicles.reduce((acc, ev) => acc + (ev.isScheduled ? 0 : (ev.price || 0)), 0);
+                    const grandTotalNum = _computedTotal + confirmedExtraTotal;
+                    const grandTotalStr = hasScheduledExtra
+                        ? '₱' + grandTotalNum.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' + scheduled'
+                        : '₱' + grandTotalNum.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
                     bookingSummary.innerHTML = `
                     <div class="summary-card">
@@ -1141,7 +1214,7 @@
                                                                 <div class="summary-grid">
                                                                     <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
                                                                 </div>
-                                                                <p class="summary-helper-note">Actual cost may vary according to vehicle type and booking mode.</p>
+                                                                <p class="summary-helper-note">Actual cost may vary according to vehicle type and booking mode.${hasScheduledExtra ? ' Scheduled vehicles will be quoted separately.' : ''}</p>
                                                             </div>
                                                         ` : ''}
                     </div>
@@ -1604,10 +1677,13 @@
                         ' role="button"' +
                         ' tabindex="' + (avail ? '0' : '-1') + '"' +
                         ' aria-disabled="' + (avail ? 'false' : 'true') + '"' +
-                        ' style="border:2px solid #e5e7eb;border-radius:10px;padding:10px 12px;' +
+                        ' style="position:relative;border:2px solid #e5e7eb;border-radius:10px;padding:10px 12px;' +
                         'cursor:' + (avail ? 'pointer' : 'not-allowed') + ';background:#fff;color:#111827;' +
                         'user-select:none;transition:border-color .15s,background .15s;opacity:' + (avail ? '1' : '.45') +
                         ';">' +
+                        '<span class="ev-taken-badge" style="display:none;position:absolute;inset:0;border-radius:8px;' +
+                        'background:rgba(17,24,39,0.65);align-items:center;justify-content:center;' +
+                        'font-size:10px;font-weight:800;color:#fff;letter-spacing:.05em;pointer-events:none;">Class Taken</span>' +
                         '<span class="ev-cls-badge" style="display:inline-block;font-size:9px;font-weight:800;' +
                         'letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;' +
                         'margin-bottom:6px;background:' + truck.cls_bg + ';color:' + truck.cls_color + ';">' +
@@ -1653,7 +1729,7 @@
                         '<button type="button" class="ev-remove-btn" style="font-size:0.85rem;color:#dc2626;background:none;border:none;cursor:pointer;font-weight:600;padding:0;">× Remove</button>' +
                         '</div>' +
                         '<div class="form-row"><div class="form-group">' +
-                        '<label>Vehicle ' + vn + ' Type *</label>' +
+                        '<label>Vehicle ' + vn + ' Type <span style="color:#dc2626;">*</span></label>' +
                         '<input type="text" name="' + p +
                         'customer_vehicle_type" placeholder="Sedan, SUV, Motorcycle" autocomplete="off">' +
                         '</div></div>' +
@@ -1664,32 +1740,21 @@
                         '<div class="ev-class-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;">' +
                         cardsHtml + '</div>' +
                         '</div>' +
-                        '<div class="form-group" style="margin-bottom:14px;">' +
-                        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:#111;">' +
-                        '<input type="checkbox" class="ev-override-chk">' +
-                        'Vehicle ' + vn + ' has a different pickup &amp; drop-off' +
-                        '</label>' +
-                        '<input type="hidden" name="' + p + 'route_override" class="ev-override-val" value="0">' +
-                        '<p style="margin:6px 0 0;font-size:0.8rem;color:#6b7280;">Leave unchecked to reuse the main route.</p>' +
+                        '<div class="ev-schedule-section" style="display:none;margin-top:2px;margin-bottom:14px;padding:14px 16px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;">' +
+                        '<p style="margin:0 0 12px;font-size:0.82rem;font-weight:600;color:#92400e;">' +
+                        '⚠ All truck classes are currently taken. Schedule this vehicle for a later dispatch.</p>' +
+                        '<div class="form-row">' +
+                        '<div class="form-group">' +
+                        '<label>Preferred Date <span style="color:#dc2626;">*</span></label>' +
+                        '<input type="date" class="ev-sched-date" name="' + p + 'scheduled_date" min="' + new Date().toISOString().split('T')[0] + '">' +
                         '</div>' +
-                        '<div class="ev-route-fields" style="display:none;">' +
-                        '<div class="form-row form-row-location">' +
-                        '<div class="form-group"><label>Vehicle ' + vn + ' Pickup *</label>' +
-                        '<div class="input-map-wrapper">' +
-                        '<input type="text" class="ev-pickup-addr" name="' + p +
-                        'pickup_address" placeholder="Enter pickup location or landmark (e.g. Puregold Caloocan)" autocomplete="off">' +
-                        '<div class="ev-pickup-sugg suggestions"></div></div>' +
-                        '<input type="hidden" class="ev-pickup-lat" name="' + p + 'pickup_lat">' +
-                        '<input type="hidden" class="ev-pickup-lng" name="' + p + 'pickup_lng">' +
+                        '<div class="form-group">' +
+                        '<label>Preferred Time <span style="color:#dc2626;">*</span></label>' +
+                        '<input type="time" class="ev-sched-time" name="' + p + 'scheduled_time">' +
                         '</div>' +
-                        '<div class="form-group"><label>Vehicle ' + vn + ' Drop-off *</label>' +
-                        '<div class="input-map-wrapper">' +
-                        '<input type="text" class="ev-dropoff-addr" name="' + p +
-                        'dropoff_address" placeholder="Enter drop-off location or landmark (e.g. SM Fairview)" autocomplete="off">' +
-                        '<div class="ev-dropoff-sugg suggestions"></div></div>' +
-                        '<input type="hidden" class="ev-dropoff-lat" name="' + p + 'drop_lat">' +
-                        '<input type="hidden" class="ev-dropoff-lng" name="' + p + 'drop_lng">' +
-                        '</div></div></div>' +
+                        '</div>' +
+                        '</div>' +
+                        '<input type="hidden" class="ev-is-scheduled" name="' + p + 'is_scheduled" value="0">' +
                         '<input type="hidden" name="' + p + 'distance_km" class="ev-dist">' +
                         '<input type="hidden" name="' + p + 'eta_minutes" class="ev-eta">' +
                         '<input type="hidden" name="' + p + 'price" class="ev-price">';
@@ -1700,19 +1765,27 @@
                         distKm: 0,
                         etaMin: 0,
                         price: 0,
-                        routeAbort: null
+                        routeAbort: null,
+                        scheduled: false,
+                        schedDate: '',
+                        schedTime: ''
                     };
 
                     wireCardClicks(panel, slot);
-                    wireOverrideToggle(panel, slot);
-                    wireAddressSuggestions(panel, slot);
-                    panel.querySelector('.ev-remove-btn').addEventListener('click', () => removeVehicle(slot));
+                    wireScheduleInputs(panel, slot);
+                    panel.querySelector('.ev-remove-btn').addEventListener('click', () => removeLastVehicle());
 
                     container.appendChild(panel);
                     updateFlags();
                     updateAddBtnState();
                     syncAllClassLocks();
                     recomputeAll();
+                }
+
+                function removeLastVehicle() {
+                    if (activeSlots.length === 0) return;
+                    const lastSlot = activeSlots[activeSlots.length - 1];
+                    removeVehicle(lastSlot);
                 }
 
                 function removeVehicle(slot) {
@@ -1774,6 +1847,7 @@
                         panel.querySelectorAll('.ev-class-card').forEach(card => {
                             const isLocked = locked.has(card.dataset.class) && card.dataset.class !== '';
                             const origAvail = card.dataset.available === '1';
+                            const badge = card.querySelector('.ev-taken-badge');
                             if (isLocked) {
                                 card.style.opacity = '.35';
                                 card.style.cursor = 'not-allowed';
@@ -1781,6 +1855,7 @@
                                 card.style.filter = 'grayscale(80%)';
                                 card.setAttribute('aria-disabled', 'true');
                                 card.setAttribute('tabindex', '-1');
+                                if (badge) badge.style.display = 'flex';
                                 if (card.classList.contains('ev-selected')) deselectCard(panel, card, s);
                             } else {
                                 const avail = isSchedule || origAvail;
@@ -1790,9 +1865,59 @@
                                 card.style.filter = avail ? '' : 'grayscale(70%)';
                                 card.setAttribute('aria-disabled', avail ? 'false' : 'true');
                                 card.setAttribute('tabindex', avail ? '0' : '-1');
+                                if (badge) badge.style.display = 'none';
                             }
                         });
+                        checkForcedSchedule(panel, s);
                     });
+                }
+
+                function checkForcedSchedule(panel, slot) {
+                    const isGlobalSchedule = document.getElementById('service_type')?.value === 'schedule';
+                    if (isGlobalSchedule) {
+                        hideForcedSchedule(panel, slot);
+                        return;
+                    }
+                    const cards = panel.querySelectorAll('.ev-class-card');
+                    let hasSelectable = false;
+                    cards.forEach(card => {
+                        const badge = card.querySelector('.ev-taken-badge');
+                        const isTaken = badge && badge.style.display === 'flex';
+                        if (!isTaken && card.dataset.available === '1') hasSelectable = true;
+                    });
+                    if (cards.length > 0 && !hasSelectable) {
+                        showForcedSchedule(panel, slot);
+                    } else {
+                        hideForcedSchedule(panel, slot);
+                    }
+                }
+
+                function showForcedSchedule(panel, slot) {
+                    const schedSection = panel.querySelector('.ev-schedule-section');
+                    const isScheduledInput = panel.querySelector('.ev-is-scheduled');
+                    if (schedSection) schedSection.style.display = 'block';
+                    if (isScheduledInput) isScheduledInput.value = '1';
+                    if (vehicleState[slot]) vehicleState[slot].scheduled = true;
+                    panel.querySelectorAll('.ev-class-card').forEach(card => {
+                        const badge = card.querySelector('.ev-taken-badge');
+                        const isTaken = badge && badge.style.display === 'flex';
+                        if (!isTaken) {
+                            card.style.opacity = '1';
+                            card.style.cursor = 'pointer';
+                            card.style.pointerEvents = '';
+                            card.style.filter = '';
+                            card.setAttribute('aria-disabled', 'false');
+                            card.setAttribute('tabindex', '0');
+                        }
+                    });
+                }
+
+                function hideForcedSchedule(panel, slot) {
+                    const schedSection = panel.querySelector('.ev-schedule-section');
+                    const isScheduledInput = panel.querySelector('.ev-is-scheduled');
+                    if (schedSection) schedSection.style.display = 'none';
+                    if (isScheduledInput) isScheduledInput.value = '0';
+                    if (vehicleState[slot]) vehicleState[slot].scheduled = false;
                 }
 
                 function deselectCard(panel, card, slot) {
@@ -1844,16 +1969,17 @@
                     });
                 }
 
-                // ── Route override toggle ──────────────────────────────
-                function wireOverrideToggle(panel, slot) {
-                    const chk = panel.querySelector('.ev-override-chk');
-                    const val = panel.querySelector('.ev-override-val');
-                    const fields = panel.querySelector('.ev-route-fields');
-                    chk.addEventListener('change', () => {
-                        const on = chk.checked;
-                        val.value = on ? '1' : '0';
-                        fields.style.display = on ? 'block' : 'none';
-                        recomputeVehicle(panel, slot);
+                // ── Schedule date/time inputs ──────────────────────────
+                function wireScheduleInputs(panel, slot) {
+                    const dateEl = panel.querySelector('.ev-sched-date');
+                    const timeEl = panel.querySelector('.ev-sched-time');
+                    if (dateEl) dateEl.addEventListener('change', () => {
+                        if (vehicleState[slot]) vehicleState[slot].schedDate = dateEl.value;
+                        clearFieldError(dateEl);
+                    });
+                    if (timeEl) timeEl.addEventListener('change', () => {
+                        if (vehicleState[slot]) vehicleState[slot].schedTime = timeEl.value;
+                        clearFieldError(timeEl);
                     });
                 }
 
@@ -2095,16 +2221,13 @@
                         const vn = vNum(s);
                         const vtype = p.querySelector('input[name="vehicle_' + vn + '_customer_vehicle_type"]')
                             ?.value || '';
-                        const override = p.querySelector('.ev-override-val')?.value === '1';
-                        const pickup = override ?
-                            p.querySelector('.ev-pickup-addr')?.value :
-                            document.getElementById('pickup_address')?.value;
-                        const dropoff = override ?
-                            p.querySelector('.ev-dropoff-addr')?.value :
-                            document.getElementById('dropoff_address')?.value;
+                        const pickup = document.getElementById('pickup_address')?.value;
+                        const dropoff = document.getElementById('dropoff_address')?.value;
                         const distKm = parseFloat(p.querySelector('.ev-dist')?.value || '0') || 0;
-                        const etaMin = parseFloat(p.querySelector('.ev-eta')?.value || '0') || 0;
                         const price = parseFloat(p.querySelector('.ev-price')?.value || '0') || 0;
+                        const isScheduled = p.querySelector('.ev-is-scheduled')?.value === '1';
+                        const schedDate = p.querySelector('.ev-sched-date')?.value || '';
+                        const schedTime = p.querySelector('.ev-sched-time')?.value || '';
                         return {
                             vNum: vn,
                             truckId,
@@ -2113,9 +2236,10 @@
                             pickup,
                             dropoff,
                             distKm,
-                            etaMin,
                             price,
-                            routeOverridden: override
+                            isScheduled,
+                            schedDate,
+                            schedTime
                         };
                     }).filter(Boolean);
                 };

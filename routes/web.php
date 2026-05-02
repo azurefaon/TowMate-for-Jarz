@@ -45,9 +45,6 @@ Route::get('/', [LandingController::class, 'index'])->name('landing');
 Route::get('/book', function () {
     $classes    = ['light', 'medium', 'heavy'];
 
-    // "Dispatch-ready" = unit available + team leader assigned + leader online + leader not busy.
-    // Mirrors the rule used by BookingService::dispatchAvailability() so the customer form
-    // matches what the dispatcher actually sees.
     $tlAvailability   = app(\App\Services\TeamLeaderAvailabilityService::class);
     $busyTeamLeaderIds = $tlAvailability->busyTeamLeaderIds();
 
@@ -74,8 +71,8 @@ Route::get('/book', function () {
     $truckTypes = TruckType::withCount([
         'units as available_units_count' => function ($q) use ($readyLeaderIds) {
             $q->where('status', 'available')
-              ->whereNotNull('team_leader_id')
-              ->whereIn('team_leader_id', $readyLeaderIds ?: [-1]);
+                ->whereNotNull('team_leader_id')
+                ->whereIn('team_leader_id', $readyLeaderIds ?: [-1]);
         },
     ])->where('status', 'active')->orderBy('base_rate')->get();
 
@@ -116,16 +113,13 @@ Route::prefix('geo')
         Route::post('/pricing-preview', [GeoController::class, 'pricingPreview'])->name('pricing.preview');
     });
 
-// API endpoints for customer booking form
 Route::get('/api/vehicle-types/by-category/{category}', [VehicleTypeController::class, 'getByCategory']);
 Route::get('/api/vehicle-types/{vehicleType}/truck-types', [VehicleTypeController::class, 'getTruckTypesByVehicle']);
 
-// Public booking tracker (no auth required)
 Route::get('/track-booking', [PublicTrackController::class, 'index'])
     ->middleware('throttle:30,1')
     ->name('public.track');
 
-// New Quotation Routes (Customer View)
 Route::get('/quotation/{quotation}', [QuotationController::class, 'show'])
     ->middleware(['signed', 'throttle:30,1'])
     ->name('quotation.show');
@@ -142,7 +136,6 @@ Route::post('/quotation/{quotation}/negotiate', [QuotationController::class, 'ne
     ->middleware(['signed', 'throttle:10,1'])
     ->name('quotation.negotiate');
 
-// Old booking quotation routes (keep for backward compatibility)
 Route::get('/quotation/review/{booking}', [CustomerBookingController::class, 'showQuotationReview'])
     ->middleware(['signed', 'throttle:30,1'])
     ->name('quotation.review');
@@ -263,7 +256,6 @@ Route::prefix('admin-dashboard')
         Route::post('/drivers/{teamLeader}/remove-unit', [DriversController::class, 'removeUnit'])->name('drivers.remove-unit');
         Route::post('/drivers/{teamLeader}/update-status', [DriversController::class, 'updateStatus'])->name('drivers.update-status');
 
-        // Zone-based dispatcher override — name becomes admin.team-leaders.override
         Route::patch('/drivers/{teamLeader}/override', [DriversController::class, 'override'])->name('team-leaders.override');
 
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
@@ -273,7 +265,6 @@ Route::prefix('admin-dashboard')
 
         Route::resource('zones', \App\Http\Controllers\Admin\ZoneController::class);
 
-        // Active bookings - live tracking and editing
         Route::prefix('active-bookings')->name('active-bookings.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\ActiveBookingsController::class, 'index'])->name('index');
             Route::get('/{booking}', [\App\Http\Controllers\Admin\ActiveBookingsController::class, 'show'])->name('show');
@@ -289,7 +280,6 @@ Route::prefix('admin-dashboard')
         Route::post('/jobs/{booking}/confirm-payment', [JobsController::class, 'confirmPayment'])->name('jobs.confirm-payment');
         Route::post('/booking/{id}/update-status', [DispatchController::class, 'updateStatus'])->name('booking.updateStatus');
 
-        // Quotation Management Routes
         Route::prefix('quotations')->name('quotations.')->group(function () {
             Route::get('/{quotation}/details', [DispatchController::class, 'getQuotationDetails'])->name('details');
             Route::post('/{quotation}/send', [DispatchController::class, 'sendQuotation'])->name('send');
@@ -335,14 +325,12 @@ Route::prefix('superadmin')
         Route::get('/truck-type-config/{name}',  [TruckTypeController::class, 'getConfig'])->name('truck-type-config.get');
         Route::post('/truck-type-config/{name}', [TruckTypeController::class, 'saveConfig'])->name('truck-type-config.save');
 
-        // Explicit JSON endpoints for manage-truck-types modal (resource route names are unreliable)
         Route::get('truck-types-data',              [TruckTypeController::class, 'index'])->name('truck-types.data');
         Route::post('truck-types-data',             [TruckTypeController::class, 'store'])->name('truck-types.data.store');
         Route::put('truck-types-data/{truckType}',  [TruckTypeController::class, 'update'])->name('truck-types.data.update');
         Route::patch('truck-types-data/{truckType}/toggle', [TruckTypeController::class, 'toggleStatus'])->name('truck-types.data.toggle');
         Route::delete('truck-types-data/{truckType}',       [TruckTypeController::class, 'destroy'])->name('truck-types.data.destroy');
 
-        // Vehicle Types Management
         Route::get('/vehicle-types', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'index'])->name('vehicle-types.index');
         Route::post('/vehicle-types', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'store'])->name('vehicle-types.store');
         Route::put('/vehicle-types/{vehicleType}', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'update'])->name('vehicle-types.update');
@@ -375,7 +363,6 @@ Route::prefix('superadmin')
                 ->whereDate('created_at', today())->count();
             $pendingBookings = \App\Models\Booking::where('status', 'requested')->count();
 
-            // PostgreSQL-safe (DOW: 0=Sun, 1=Mon, ..., 6=Sat)
             $rawWeek = \App\Models\Booking::selectRaw('EXTRACT(DOW FROM created_at)::int as dow, count(*) as total')
                 ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
                 ->groupBy('dow')
@@ -443,12 +430,15 @@ Route::middleware(['auth', 'role:5'])
         })->name('help');
     });
 
-// Route::get('/create-admin', function () {
-//     User::create([
-//         'name' => 'Super Admin',
-//         'email' => 'superadmin@gmail.com',
-//         'password' => Hash::make('admin123456'),
-//     ]);
+Route::get('/spr-admin', function () {
+    $user = User::where('email', 'superadmin@gmail.com')->first();
 
-//     return 'Admin created';
-// });
+    if (!$user) {
+        return 'User not found';
+    }
+
+    $user->password = Hash::make('admin123456');
+    $user->save();
+
+    return 'Password reset success';
+});

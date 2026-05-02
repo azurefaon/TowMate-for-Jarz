@@ -790,6 +790,168 @@
             </div><!-- /.result-card -->
         @endif
 
+        {{-- ── QUOTATION RESULT (pre-booking, no Booking record yet) ── --}}
+        @if ($quotation)
+            @php
+                $qStatusLabels = [
+                    'pending' => 'Request Received',
+                    'sent' => 'Quotation Sent',
+                    'accepted' => 'Accepted',
+                    'rejected' => 'Rejected',
+                    'expired' => 'Expired',
+                ];
+                $qLabel = $qStatusLabels[$quotation->status] ?? ucfirst($quotation->status);
+                $qPillClass = 'pill-' . ($quotation->status === 'pending' ? 'requested' : $quotation->status);
+                $qExpired = $quotation->expires_at?->isPast();
+            @endphp
+
+            <div class="result-card">
+
+                <!-- Header -->
+                <div class="card-header">
+                    <div class="card-header-left">
+                        <h2>Quotation Reference</h2>
+                        <div class="ref-number">{{ $quotation->quotation_number }}</div>
+                    </div>
+                    <span class="status-pill {{ $qPillClass }}">{{ $qLabel }}</span>
+                </div>
+
+                <!-- Progress Stepper (simplified for quotation stage) -->
+                <div class="stepper">
+                    <div class="stepper-label">Progress</div>
+                    <div class="steps">
+                        @php
+                            $qSteps = [
+                                ['label' => 'Received', 'done' => true],
+                                ['label' => 'Reviewing', 'done' => in_array($quotation->status, ['sent', 'accepted'])],
+                                ['label' => 'Quoted', 'done' => in_array($quotation->status, ['sent', 'accepted'])],
+                                ['label' => 'Accepted', 'done' => $quotation->status === 'accepted'],
+                                ['label' => 'Assigned', 'done' => false],
+                                ['label' => 'Done', 'done' => false],
+                            ];
+                            $qActiveIdx = 0;
+                            foreach ($qSteps as $qi => $qs) {
+                                if ($qs['done']) {
+                                    $qActiveIdx = $qi;
+                                }
+                            }
+                        @endphp
+                        @foreach ($qSteps as $qi => $qs)
+                            @php
+                                $stepCls = $qs['done']
+                                    ? ($qi < $qActiveIdx
+                                        ? 'done'
+                                        : ($qi === $qActiveIdx
+                                            ? 'active'
+                                            : 'done'))
+                                    : '';
+                                if ($qi === $qActiveIdx && !$qs['done']) {
+                                    $stepCls = 'active';
+                                }
+                                if ($qs['done'] && $qi < $qActiveIdx) {
+                                    $stepCls = 'done';
+                                }
+                                if ($qs['done'] && $qi === $qActiveIdx) {
+                                    $stepCls = 'active';
+                                }
+                            @endphp
+                            <div class="step {{ $stepCls }}">
+                                <div class="step-dot">
+                                    @if ($qs['done'] && $qi < $qActiveIdx)
+                                        ✓
+                                    @else
+                                        {{ $qi + 1 }}
+                                    @endif
+                                </div>
+                                <div class="step-text">{{ $qs['label'] }}</div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+
+                <!-- Status message -->
+                @if ($quotation->status === 'pending')
+                    <div
+                        style="padding:14px 24px;background:#fefce8;border-bottom:1px solid #fde68a;font-size:0.85rem;color:#713f12;line-height:1.6;">
+                        <strong>Your request is being reviewed.</strong> Our dispatcher will send you a quotation
+                        shortly. Check your email for the quotation link.
+                    </div>
+                @elseif ($quotation->status === 'sent')
+                    <div
+                        style="padding:14px 24px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:0.85rem;color:#1e40af;line-height:1.6;">
+                        <strong>A quotation has been sent to your email.</strong>
+                        Please check your inbox and accept or decline the quotation.
+                        @if ($quotation->expires_at)
+                            @if ($qExpired)
+                                <br><span style="color:#991b1b;font-weight:700;">This quotation has expired.</span>
+                            @else
+                                <br>Expires: <strong>{{ $quotation->expires_at->format('M d, Y g:i A') }}</strong>
+                                ({{ $quotation->expires_at->diffForHumans() }})
+                            @endif
+                        @endif
+                    </div>
+                @endif
+
+                <!-- Route -->
+                <div class="route-block">
+                    <div class="route-row">
+                        <div class="route-dot dot-a">A</div>
+                        <div class="route-addr">
+                            <label>Pickup</label>
+                            <p>{{ $quotation->pickup_address ?? '—' }}</p>
+                        </div>
+                    </div>
+                    <div class="route-row">
+                        <div class="route-dot dot-b">B</div>
+                        <div class="route-addr">
+                            <label>Drop-off</label>
+                            <p>{{ $quotation->dropoff_address ?? '—' }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Details -->
+                <div class="details">
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <label>Truck Type</label>
+                            <p>{{ $quotation->truckType?->name ?? '—' }}</p>
+                        </div>
+                        <div class="detail-item">
+                            <label>Distance</label>
+                            <p>{{ number_format((float) $quotation->distance_km, 2) }} km</p>
+                        </div>
+                        <div class="detail-item">
+                            <label>Requested On</label>
+                            <p>{{ $quotation->created_at->format('M d, Y g:i A') }}</p>
+                        </div>
+                        @if ($quotation->service_type === 'schedule' && $quotation->scheduled_date)
+                            <div class="detail-item">
+                                <label>Scheduled Date</label>
+                                <p>{{ $quotation->scheduled_date->format('M d, Y') }}{{ $quotation->scheduled_time ? ' at ' . $quotation->scheduled_time : '' }}
+                                </p>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- Estimated Price -->
+                @if ($quotation->estimated_price > 0)
+                    <div class="price-row">
+                        <div class="price-label">Estimated Amount</div>
+                        <div class="price-value">₱{{ number_format($quotation->estimated_price, 2) }}</div>
+                    </div>
+                @endif
+
+                <!-- Footer note -->
+                <div class="card-footer">
+                    Submitted: {{ $quotation->created_at->diffForHumans() }} &nbsp;·&nbsp;
+                    Need help? Call (123) 456-7890
+                </div>
+
+            </div><!-- /.result-card (quotation) -->
+        @endif
+
     </div><!-- /.page-body -->
 
     <div class="page-footer">

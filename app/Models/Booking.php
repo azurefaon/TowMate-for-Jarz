@@ -14,6 +14,7 @@ class Booking extends Model
     protected $fillable = [
         'booking_code',
         'quotation_id',
+        'group_code',
         'customer_id',
         'truck_type_id',
         'assigned_unit_id',
@@ -102,7 +103,6 @@ class Booking extends Model
         });
 
         static::updated(function (Booking $booking) {
-            // Auto-update quotation when booking details change
             if ($booking->isDirty(['pickup_address', 'dropoff_address', 'truck_type_id', 'distance_km', 'final_total'])) {
                 if (in_array($booking->status, ['quoted', 'pending', 'reviewed'])) {
                     app(\App\Services\QuotationService::class)->updateQuotation($booking);
@@ -222,7 +222,6 @@ class Booking extends Model
 
     public function getDistanceFeeAmountAttribute(): float
     {
-        // Per-4km charge: ₱200 per complete 4km increment
         $distanceKm = (float) ($this->distance_km ?? 0);
         $kmIncrements = (int) floor($distanceKm / 4);
         return round($kmIncrements * 200.0, 2);
@@ -333,7 +332,6 @@ class Booking extends Model
 
     public function getNeedsReassignmentAttribute(): bool
     {
-        // ❌ CONFIRMED SHOULD NEVER BE RETURNED
         if ($this->status === 'confirmed') {
             return false;
         }
@@ -392,28 +390,22 @@ class Booking extends Model
         return $this->hasOne(Receipt::class);
     }
 
-    // ── Scheduled booking helpers ──────────────────────────────────
-
-    /** Is this booking in the scheduled queue (not yet confirmed by customer)? */
     public function getIsScheduledQueueAttribute(): bool
     {
         return in_array($this->status, ['scheduled', 'scheduled_confirmed'], true);
     }
 
-    /** Is the scheduled slot expired (> 7 days without acceptance)? */
     public function getIsScheduledExpiredAttribute(): bool
     {
         return ! is_null($this->scheduled_expires_at)
             && $this->scheduled_expires_at->isPast();
     }
 
-    /** Scope: upcoming scheduled bookings not yet expired/cancelled */
     public function scopeScheduledQueue($query)
     {
         return $query->whereIn('status', ['scheduled', 'scheduled_confirmed']);
     }
 
-    /** Scope: book-now bookings pending dispatcher action */
     public function scopeBookNowQueue($query)
     {
         return $query->whereIn('status', ['requested', 'reviewed'])

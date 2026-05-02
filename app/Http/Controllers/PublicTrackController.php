@@ -10,12 +10,13 @@ class PublicTrackController extends Controller
 {
     public function index(Request $request)
     {
-        $ref     = trim((string) $request->query('ref', ''));
-        $booking = null;
-        $error   = null;
+        $ref      = trim((string) $request->query('ref', ''));
+        $booking  = null;
+        $quotation = null;
+        $error    = null;
 
         if ($ref !== '') {
-            // Search by booking_code, quotation_number, or reference_number
+            // 1) Search existing booking by booking_code or booking.quotation_number
             $booking = Booking::with(['customer', 'truckType', 'unit.teamLeader'])
                 ->where(function ($q) use ($ref) {
                     $q->where('booking_code', $ref)
@@ -24,11 +25,19 @@ class PublicTrackController extends Controller
                 ->whereNotIn('status', ['cancelled'])
                 ->first();
 
+            // 2) If no booking yet, look for a Quotation (pre-booking state)
             if (! $booking) {
-                $error = 'No active booking found for reference <strong>' . e($ref) . '</strong>. Please double-check your reference number.';
+                $quotation = Quotation::with(['customer', 'truckType'])
+                    ->where('quotation_number', $ref)
+                    ->whereNotIn('status', ['rejected'])
+                    ->first();
+            }
+
+            if (! $booking && ! $quotation) {
+                $error = 'No active booking or quotation found for reference <strong>' . e($ref) . '</strong>. Please double-check your reference number.';
             }
         }
 
-        return view('public.track', compact('booking', 'error', 'ref'));
+        return view('public.track', compact('booking', 'quotation', 'error', 'ref'));
     }
 }

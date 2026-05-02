@@ -248,7 +248,7 @@
                 <h1>Booking Request Confirmed</h1>
                 <p>Submitted {{ $data['submitted_at'] }}</p>
             </div>
-            <div class="conf-top-brand">JARZ</div>
+            <div class="conf-top-brand">TowMate</div>
         </div>
 
         {{-- Reference Number --}}
@@ -408,6 +408,48 @@
             <span class="p-amount">PHP {{ number_format($data['estimated_price'], 2) }}</span>
         </div>
 
+        {{-- Multi-vehicle sections --}}
+        @foreach (['second_vehicle' => 'Vehicle 2', 'third_vehicle' => 'Vehicle 3', 'fourth_vehicle' => 'Vehicle 4'] as $key => $label)
+            @if (!empty($data[$key]))
+                @php $v = $data[$key]; @endphp
+                <div class="section" style="border-left:3px solid #facc15;padding-left:12px;">
+                    <div class="sec-head">{{ $label }} — {{ $v['truck_type'] ?? 'Tow Truck' }}</div>
+                    <div class="drow">
+                        <span class="dl">Reference</span>
+                        <span class="dv" style="font-family:'Courier New',monospace;">{{ $v['reference'] }}</span>
+                    </div>
+                    <div class="drow">
+                        <span class="dl">Service</span>
+                        <span class="dv">{{ $v['service_type'] ?? 'Book Now' }}</span>
+                    </div>
+                    @if (!empty($v['schedule_reason']))
+                        <div class="drow">
+                            <span class="dl">Note</span>
+                            <span class="dv" style="color:#92400e;">{{ $v['schedule_reason'] }}</span>
+                        </div>
+                    @endif
+                    <div class="drow">
+                        <span class="dl">Pickup</span>
+                        <span class="dv">{{ $v['pickup'] }}</span>
+                    </div>
+                    <div class="drow">
+                        <span class="dl">Drop-off</span>
+                        <span class="dv">{{ $v['dropoff'] }}</span>
+                    </div>
+                    @if (!empty($v['distance_km']))
+                        <div class="drow">
+                            <span class="dl">Distance</span>
+                            <span class="dv">{{ number_format($v['distance_km'], 1) }} km</span>
+                        </div>
+                    @endif
+                    <div class="drow">
+                        <span class="dl">Est. Price</span>
+                        <span class="dv">PHP {{ number_format($v['estimated_price'], 2) }}</span>
+                    </div>
+                </div>
+            @endif
+        @endforeach
+
         {{-- What's next --}}
         <div class="next-box">
             <p><strong>What happens next</strong></p>
@@ -416,12 +458,15 @@
             @if ($data['service_type'] === 'Scheduled')
                 <p>Your slot for the scheduled date has been reserved.</p>
             @endif
-            <p>To follow up, call us and provide your reference number: <strong>{{ $data['reference'] }}</strong></p>
+            <p>You can track your booking status using the button below or by visiting our tracking page with your reference
+                number.</p>
         </div>
 
         {{-- Actions --}}
         <div class="action-row no-print">
-            <a href="{{ route('landing') }}" class="btn-home">Back to Home</a>
+            <a href="{{ route('public.track') }}?ref={{ urlencode($data['reference']) }}" class="btn-home">Track Your
+                Booking</a>
+            <a href="{{ route('landing') }}" class="btn-home" style="background:#374151;">Back to Home</a>
             <button class="btn-print" onclick="window.print()">Print this page</button>
         </div>
 

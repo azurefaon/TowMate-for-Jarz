@@ -27,6 +27,7 @@ class Quotation extends Model
         'vehicle_color',
         'vehicle_plate_number',
         'vehicle_image_path',
+        'extra_vehicles',
         'estimated_price',
         'additional_fee',
         'discount',
@@ -60,6 +61,7 @@ class Quotation extends Model
         'viewed_at' => 'datetime',
         'responded_at' => 'datetime',
         'follow_up_sent_at' => 'datetime',
+        'extra_vehicles' => 'array',
     ];
 
     public function getVehicleImagePathsAttribute(): array

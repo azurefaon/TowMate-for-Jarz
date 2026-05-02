@@ -5,13 +5,11 @@ namespace App\Services;
 use App\Events\BookingStatusUpdated;
 use App\Models\Booking;
 use App\Models\Quotation;
+use App\Models\TruckType;
 use Illuminate\Support\Facades\DB;
 
 class QuotationService
 {
-    /**
-     * Generate unique quotation number (QT-YYYYMMDD-XXXX)
-     */
     public function generateQuotationNumber(): string
     {
         $prefix = 'QT';
@@ -31,9 +29,6 @@ class QuotationService
         return "{$prefix}-{$date}-{$newNumber}";
     }
 
-    /**
-     * Create new quotation from customer request
-     */
     public function createQuotation(array $data): Quotation
     {
         return Quotation::create([
@@ -51,8 +46,11 @@ class QuotationService
             'vehicle_color' => $data['vehicle_color'] ?? null,
             'vehicle_plate_number' => $data['vehicle_plate_number'] ?? null,
             'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
+            'extra_vehicles' => $data['extra_vehicles'] ?? null,
             'estimated_price' => $data['estimated_price'],
             'service_type' => $data['service_type'] ?? null,
+            'scheduled_date' => $data['scheduled_date'] ?? null,
+            'scheduled_time' => $data['scheduled_time'] ?? null,
             'status' => 'pending',
         ]);
     }
@@ -68,9 +66,6 @@ class QuotationService
             ->exists();
     }
 
-    /**
-     * Get active quotation for customer
-     */
     public function getActiveQuotation(int $customerId): ?Quotation
     {
         return Quotation::where('customer_id', $customerId)
@@ -83,8 +78,6 @@ class QuotationService
             ->first();
     }
 
-    //  Send quotation to customer sa dispatcher 
-    // int $expiryHours = 168
     public function sendQuotation(Quotation $quotation, int $expiryHours = 168): Quotation
     {
         $quotation->update([
@@ -94,7 +87,6 @@ class QuotationService
             'expiry_hours' => $expiryHours,
         ]);
 
-        // Send email with link to customer quotation view page
         if ($quotation->customer && $quotation->customer->email) {
             try {
                 \Illuminate\Support\Facades\Mail::to($quotation->customer->email)
@@ -111,15 +103,11 @@ class QuotationService
         return $quotation->fresh();
     }
 
-    /**
-     * Accept quotation and create booking
-     */
     public function acceptQuotation(Quotation $quotation, ?string $note = null): Booking
     {
         DB::beginTransaction();
 
         try {
-
             if ($quotation->status !== 'sent') {
                 throw new \Exception('Quotation already processed.');
             }
@@ -130,8 +118,12 @@ class QuotationService
                 'response_note' => $note,
             ]);
 
-            $booking = Booking::create([
+            $groupCode = $quotation->quotation_number;
+            $isScheduled = $quotation->service_type === 'schedule';
+
+            $primaryBooking = Booking::create([
                 'quotation_id' => $quotation->id,
+                'group_code' => $groupCode,
                 'customer_id' => $quotation->customer_id,
                 'truck_type_id' => $quotation->truck_type_id,
                 'pickup_address' => $quotation->pickup_address,
@@ -144,44 +136,87 @@ class QuotationService
                 'service_type' => $quotation->service_type,
                 'scheduled_date' => $quotation->scheduled_date?->toDateString(),
                 'scheduled_time' => $quotation->scheduled_time,
-                'scheduled_expires_at' => ($quotation->service_type === 'schedule')
-                    ? now()->addDays(7)
-                    : null,
-                'status' => ($quotation->service_type === 'schedule') ? 'scheduled_confirmed' : 'confirmed',
+                'scheduled_expires_at' => $isScheduled ? now()->addDays(7) : null,
+                'status' => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
                 'customer_approved_at' => now(),
                 'price_locked_at' => now(),
             ]);
 
-            // If scheduled, track slot capacity
-            if ($quotation->service_type === 'schedule' && $quotation->scheduled_date) {
+            if ($isScheduled && $quotation->scheduled_date) {
                 $date = $quotation->scheduled_date->toDateString();
-                \Illuminate\Support\Facades\DB::table('booking_capacity')
+                DB::table('booking_capacity')
                     ->updateOrInsert(
                         ['booking_date' => $date],
-                        ['slots_used' => \Illuminate\Support\Facades\DB::raw('slots_used + 1'), 'updated_at' => now()]
+                        ['slots_used' => DB::raw('slots_used + 1'), 'updated_at' => now()]
                     );
+            }
+
+            $extraVehicles = $quotation->extra_vehicles ?? [];
+
+            foreach ($extraVehicles as $ev) {
+                $evTruckTypeId = $ev['truck_type_id'] ?? null;
+                $evServiceType = $ev['service_type'] ?? $quotation->service_type ?? 'book_now';
+                $evScheduled = $evServiceType === 'schedule';
+                $evDate = $ev['scheduled_date'] ?? null;
+                $evTime = $ev['scheduled_time'] ?? null;
+                $evPrice = $ev['estimated_price'] ?? 0;
+
+                if (! $evTruckTypeId) {
+                    continue;
+                }
+
+                $evTruckType = TruckType::find($evTruckTypeId);
+                if (! $evTruckType) {
+                    continue;
+                }
+
+                $evBooking = Booking::create([
+                    'quotation_id' => $quotation->id,
+                    'group_code' => $groupCode,
+                    'customer_id' => $quotation->customer_id,
+                    'truck_type_id' => $evTruckTypeId,
+                    'pickup_address' => $quotation->pickup_address,
+                    'dropoff_address' => $quotation->dropoff_address,
+                    'pickup_notes' => $quotation->pickup_notes,
+                    'distance_km' => $ev['distance_km'] ?? $quotation->distance_km,
+                    'final_total' => $evPrice,
+                    'service_type' => $evServiceType,
+                    'scheduled_date' => $evDate,
+                    'scheduled_time' => $evTime,
+                    'scheduled_expires_at' => $evScheduled ? now()->addDays(7) : null,
+                    'status' => $evScheduled ? 'scheduled_confirmed' : 'confirmed',
+                    'customer_approved_at' => now(),
+                    'price_locked_at' => now(),
+                ]);
+
+                if ($evScheduled && $evDate) {
+                    DB::table('booking_capacity')
+                        ->updateOrInsert(
+                            ['booking_date' => $evDate],
+                            ['slots_used' => DB::raw('slots_used + 1'), 'updated_at' => now()]
+                        );
+                }
             }
 
             DB::commit();
 
-            $booking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
-            event(new BookingStatusUpdated($booking));
+            $primaryBooking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+            event(new BookingStatusUpdated($primaryBooking));
 
-            // Send final confirmation email to customer
-            if ($booking->customer && $booking->customer->email) {
+            if ($primaryBooking->customer && $primaryBooking->customer->email) {
                 try {
-                    \Illuminate\Support\Facades\Mail::to($booking->customer->email)
-                        ->send(new \App\Mail\FinalQuotationConfirmedMail($booking));
+                    \Illuminate\Support\Facades\Mail::to($primaryBooking->customer->email)
+                        ->send(new \App\Mail\FinalQuotationConfirmedMail($primaryBooking));
                 } catch (\Exception $e) {
                     \Illuminate\Support\Facades\Log::error('Failed to send booking confirmation email', [
-                        'booking_id'     => $booking->id,
-                        'customer_email' => $booking->customer->email,
-                        'error'          => $e->getMessage(),
+                        'booking_id' => $primaryBooking->id,
+                        'customer_email' => $primaryBooking->customer->email,
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }
 
-            return $booking;
+            return $primaryBooking;
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
@@ -213,8 +248,6 @@ class QuotationService
         $count = 0;
 
         foreach ($quotations as $quotation) {
-            // Mail::to($quotation->customer->email)->send(new QuotationFollowUpMail($quotation));
-
             $quotation->update(['follow_up_sent_at' => now()]);
             $count++;
         }
@@ -235,9 +268,6 @@ class QuotationService
             ->get();
     }
 
-    /**
-     * Update quotation price
-     */
     public function updateQuotationPrice(Quotation $quotation, float $newPrice): Quotation
     {
         $quotation->update([
@@ -247,7 +277,6 @@ class QuotationService
 
         $quotation->increment('link_version');
 
-        // pag nag send na, extend expiry and notify customer
         if ($quotation->status === 'sent') {
             $quotation->update([
                 'sent_at' => now(),
@@ -258,9 +287,6 @@ class QuotationService
         return $quotation->fresh();
     }
 
-    /**
-     * Extend quotation expiry
-     */
     public function extendQuotation(Quotation $quotation, int $additionalHours = 24): Quotation
     {
         if ($quotation->expires_at) {
@@ -270,16 +296,13 @@ class QuotationService
 
             $quotation->update([
                 'expires_at' => $newExpiry,
-                'status' => 'sent', // Reactivate if expired
+                'status' => 'sent',
             ]);
         }
 
         return $quotation->fresh();
     }
 
-    /**
-     * Renew expired quotation (generate fresh one)
-     */
     public function renewQuotation(Quotation $oldQuotation): Quotation
     {
         return $this->createQuotation([
@@ -295,6 +318,7 @@ class QuotationService
             'vehicle_color' => $oldQuotation->vehicle_color,
             'vehicle_plate_number' => $oldQuotation->vehicle_plate_number,
             'vehicle_image_path' => $oldQuotation->vehicle_image_path,
+            'extra_vehicles' => $oldQuotation->extra_vehicles,
             'estimated_price' => $oldQuotation->estimated_price,
         ]);
     }

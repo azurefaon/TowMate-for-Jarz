@@ -70,8 +70,5 @@ return new class extends Migration
         }
     }
 
-    public function down(): void
-    {
-        // Intentionally a no-op — don't delete accounts on rollback
-    }
+    public function down(): void {}
 };
