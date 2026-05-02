@@ -181,8 +181,6 @@
                     </tr>
 
                 </table>
-                <p style="margin:16px 0 0;font-size:11px;color:#a1a1aa;text-align:center;">© {{ date('Y') }}
-                    TowMate. All rights reserved.</p>
             </td>
         </tr>
     </table>

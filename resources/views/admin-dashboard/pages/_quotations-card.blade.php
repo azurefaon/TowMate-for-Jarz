@@ -5,27 +5,8 @@
     $totalActive = $pendingQuotations->count() + $sentQuotations->count() + $negotiatingQuotations->count();
 @endphp
 
-<style>
-    /* Floating quotations card — flat/plain overrides */
-    .quotations-card-section [style*="border-radius"] {
-        border-radius: 0 !important;
-    }
-
-    .quotations-card-section [style*="box-shadow"] {
-        box-shadow: none !important;
-    }
-
-    .quotations-card-section [style*="font-weight"] {
-        font-weight: 400 !important;
-    }
-
-    .quotations-card-section [style*="animation"] {
-        animation: none !important;
-    }
-</style>
-
 <div class="quotations-card-section" style="margin-bottom: 32px;">
-    <div style="background: #fff; border: 1px solid #000; overflow: hidden;">
+    <div style="background: #fff; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">
 
         <!-- Header -->
         <div
@@ -85,24 +66,17 @@
                                             {{ $quotation->created_at->diffForHumans() }}</div>
                                     </div>
                                     <span
-                                        style="font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #fef9c3; color: #854d0e; border: 1px solid #fde68a;">PENDING</span>
+                                        style="font-size: 0.68rem; font-size: 10px; padding: 2px 8px; border-radius: 999px; color: #000000;">PENDING</span>
                                 </div>
-                                <div style="font-size: 0.88rem; font-weight: 600; color: #0f172a; margin-bottom: 1px;">
+                                <div style="font-size: 0.88rem; color: #0f172a; margin-bottom: 1px;">
                                     {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}
                                 </div>
-                                <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 10px;">
+                                <div style="font-size: 0.78rem; color: #000000; margin-bottom: 10px;">
                                     {{ $quotation->customer->phone ?? '' }}</div>
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
-                                    @php
-                                        $qCardTotal =
-                                            floatval($quotation->estimated_price) +
-                                            collect($quotation->extra_vehicles ?? [])
-                                                ->filter(fn($ev) => ($ev['service_type'] ?? '') !== 'schedule')
-                                                ->sum('estimated_price');
-                                    @endphp
                                     <span
-                                        style="font-size: 1rem; color: #0f172a;">₱{{ number_format($qCardTotal, 2) }}</span>
+                                        style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
 
                                 </div>
                             </div>
@@ -134,12 +108,12 @@
                                 $badgeBg = match ($urgency) {
                                     'urgent' => '#ffffff',
                                     'warning' => '#fffbeb',
-                                    default => '#f0fdf4',
+                                    default => '#ffffff',
                                 };
                                 $badgeColor = match ($urgency) {
                                     'urgent' => '#000000',
                                     'warning' => '#b45309',
-                                    default => '#15803d',
+                                    default => '#00000',
                                 };
                                 $badgeText = match ($urgency) {
                                     'urgent' => 'URGENT',
@@ -161,9 +135,9 @@
                                             {{ $quotation->sent_at?->diffForHumans() ?? '—' }}</div>
                                     </div>
                                     <span
-                                        style="font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: {{ $badgeBg }}; color: {{ $badgeColor }}; border: 1px solid {{ $accentColor }}20;">{{ $badgeText }}</span>
+                                        style="font-size: 0.68rem;  padding: 2px 8px; background: {{ $badgeBg }}; color: {{ $badgeColor }}; border: 1px solid {{ $accentColor }}20;">{{ $badgeText }}</span>
                                 </div>
-                                <div style="font-size: 0.88rem; font-weight: 600; color: #0f172a; margin-bottom: 1px;">
+                                <div style="font-size: 0.88rem; color: #0f172a; margin-bottom: 1px;">
                                     {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}
                                 </div>
                                 <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 10px;">
@@ -172,25 +146,17 @@
                                 @if ($quotation->counter_offer_amount)
                                     <div
                                         style="padding: 6px 10px; border-radius: 7px; background: #fffbeb; border: 1px solid #fde68a; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                                        <span style="font-size: 0.72rem;">💬</span>
-                                        <span style="font-size: 0.75rem; color: #92400e; font-weight: 600;">Counter
+                                        <span style="font-size: 0.75rem; color: #000000; font-weight: 600;">Counter
                                             offer: ₱{{ number_format($quotation->counter_offer_amount, 2) }}</span>
                                     </div>
                                 @endif
 
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
-                                    @php
-                                        $qCardTotal =
-                                            floatval($quotation->estimated_price) +
-                                            collect($quotation->extra_vehicles ?? [])
-                                                ->filter(fn($ev) => ($ev['service_type'] ?? '') !== 'schedule')
-                                                ->sum('estimated_price');
-                                    @endphp
                                     <span
-                                        style="font-size: 1rem; color: #0f172a;">₱{{ number_format($qCardTotal, 2) }}</span>
+                                        style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
                                     <div style="text-align: right;">
-                                        <div style="font-size: 0.72rem; color: {{ $accentColor }};">
+                                        <div style="font-size: 0.72rem; color: {{ $accentColor }}; font-weight: 600;">
                                             {{ $timeRemaining['message'] ?? '—' }}</div>
                                     </div>
                                 </div>
@@ -222,14 +188,13 @@
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                                     <div>
-                                        <div
-                                            style="font-size: 0.78rem; font-weight: 700; color: #0f172a; font-family: monospace;">
+                                        <div style="font-size: 0.78rem; color: #0f172a; font-family: monospace;">
                                             {{ $quotation->quotation_number }}</div>
                                         <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 1px;">
                                             {{ $quotation->responded_at?->diffForHumans() ?? '—' }}</div>
                                     </div>
                                     <span
-                                        style="font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe;">NEGOTIATING</span>
+                                        style="font-size: 0.68rem; padding: 2px 8px;background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe;">NEGOTIATING</span>
                                 </div>
                                 <div style="font-size: 0.88rem; font-weight: 600; color: #0f172a; margin-bottom: 1px;">
                                     {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}
@@ -249,15 +214,8 @@
                                 @endif
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
-                                    @php
-                                        $qCardTotal =
-                                            floatval($quotation->estimated_price) +
-                                            collect($quotation->extra_vehicles ?? [])
-                                                ->filter(fn($ev) => ($ev['service_type'] ?? '') !== 'schedule')
-                                                ->sum('estimated_price');
-                                    @endphp
                                     <span
-                                        style="font-size: 1rem; color: #0f172a;">₱{{ number_format($qCardTotal, 2) }}</span>
+                                        style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
                                     <button type="button"
                                         onclick="event.stopPropagation(); viewQuotationDetails({{ $quotation->id }})"
                                         style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; cursor: pointer;">

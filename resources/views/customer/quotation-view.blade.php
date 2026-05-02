@@ -32,20 +32,19 @@
 
         .qv-ref {
             font-size: 0.75rem;
-            color: #71717a;
+            color: #000000;
             text-transform: uppercase;
             letter-spacing: .06em;
         }
 
         .qv-ref-num {
             font-size: 1.1rem;
-            color: #18181b;
-            font-family: 'Courier New', monospace;
+            color: #000000;
+            font-family: sans-serif;
         }
 
         .qv-banner {
             padding: 14px 18px;
-            /* border-radius: 10px; */
             margin-bottom: 18px;
             border: 1px solid;
         }
@@ -87,7 +86,6 @@
         .qv-card {
             background: #fff;
             border: 1px solid #e4e4e7;
-            /* border-radius: 14px; */
             padding: 20px 22px;
             margin-bottom: 14px;
         }
@@ -96,7 +94,7 @@
             font-size: 0.65rem;
             text-transform: uppercase;
             letter-spacing: .1em;
-            color: #a1a1aa;
+            color: #000000;
             border-bottom: 1px solid #f4f4f5;
             padding-bottom: 10px;
             margin-bottom: 14px;
@@ -116,7 +114,7 @@
         }
 
         .qv-label {
-            color: #71717a;
+            color: #000000;
             flex-shrink: 0;
         }
 
@@ -126,9 +124,7 @@
         }
 
         .qv-vehicle-block {
-            background: #f9f9f9;
             border: 1px solid #e4e4e7;
-            border-radius: 10px;
             padding: 14px 16px;
             margin-bottom: 10px;
         }
@@ -141,7 +137,7 @@
             font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: .07em;
-            color: #71717a;
+            color: #000000;
             margin-bottom: 10px;
         }
 
@@ -151,7 +147,6 @@
             align-items: center;
             background: #facc15;
             padding: 14px 20px;
-            border-radius: 10px;
             margin-bottom: 18px;
         }
 
@@ -161,7 +156,7 @@
 
         .qv-price-amount {
             font-size: 1.4rem;
-            font-family: 'Courier New', monospace;
+            font-family: sans-serif;
         }
 
         .qv-price-note {
@@ -205,7 +200,6 @@
             color: #18181b;
             font-size: 0.9rem;
             text-align: center;
-            border-radius: 10px;
             text-decoration: none;
             margin-bottom: 10px;
         }
@@ -243,7 +237,7 @@
             <div class="qv-ref">Booking Reference</div>
             <div class="qv-ref-num">{{ $quotation->quotation_number }}</div>
             @if ($totalVehicles > 1)
-                <div style="font-size:0.78rem;color:#71717a;margin-top:3px;">{{ $totalVehicles }} vehicles included in
+                <div style="font-size:0.78rem;color:#000000;margin-top:3px;">{{ $totalVehicles }} vehicles included in
                     this quotation</div>
             @endif
         </div>
@@ -349,7 +343,7 @@
 
             <div class="qv-vehicle-block">
                 <div class="qv-vehicle-head">
-                    Vehicle 1 &mdash; {{ $quotation->truckType->name ?? 'Tow Truck' }}
+                    Vehicle 1 - {{ $quotation->truckType->name ?? 'Tow Truck' }}
                     @if ($quotation->service_type === 'schedule')
                         <span class="qv-sched-badge">Scheduled</span>
                     @endif
@@ -393,7 +387,7 @@
                 @endphp
                 <div class="qv-vehicle-block">
                     <div class="qv-vehicle-head">
-                        Vehicle {{ $evIndex }} &mdash; {{ $ev['truck_type_name'] ?? 'Tow Truck' }}
+                        Vehicle {{ $evIndex }} - {{ $ev['truck_type_name'] ?? 'Tow Truck' }}
                         @if ($evScheduled)
                             <span class="qv-sched-badge">Scheduled</span>
                         @endif
@@ -469,7 +463,6 @@
 
         <div style="text-align:center;font-size:0.75rem;color:#a1a1aa;margin-top:24px;">
             <p>Need help? Contact TowMate dispatch.</p>
-            <p style="margin-top:4px;">© {{ date('Y') }} TowMate. All rights reserved.</p>
         </div>
 
     </div>

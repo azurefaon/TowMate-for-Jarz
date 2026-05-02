@@ -73,7 +73,7 @@
                         @if ($job->status === 'payment_submitted')
                             <div class="job-payment-alert">
                                 <i data-lucide="credit-card"></i>
-                                <span>Payment proof submitted — awaiting confirmation</span>
+                                <span>Payment proof submitted - awaiting confirmation</span>
                             </div>
                         @endif
 

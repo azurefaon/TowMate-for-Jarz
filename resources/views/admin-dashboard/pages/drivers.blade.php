@@ -30,7 +30,6 @@
                 $eff = 'available';
             }
 
-            // hindi pwedeng baguhin ni dispatcher if on job or no TL
             $locked = in_array($eff, ['on_job', 'no_tl']);
 
             $unit->eff_status = $eff;
@@ -43,7 +42,6 @@
             return $unit;
         });
 
-        /* ── Tab counts ── */
         $tabCounts = [
             'all' => $unitCards->count(),
             'available' => $unitCards->where('eff_status', 'available')->count(),
@@ -52,7 +50,6 @@
             'not_avail' => $unitCards->whereIn('eff_status', ['not_avail', 'no_tl'])->count(),
         ];
 
-        /* ── Zone summary (from team leaders, for sidebar) ── */
         $zoneSummary = collect();
         foreach ($teamLeaders as $tl) {
             $s = $teamLeaderStatuses->get($tl->id) ?? [];
@@ -99,11 +96,7 @@
             <div class="fleet-feedback fleet-feedback--error">{{ $errors->first() }}</div>
         @endif
 
-        {{-- Header --}}
         <div class="fleet-header">
-            <div>
-                {{-- <h1 class="fleet-title">Units Overview</h1> --}}
-            </div>
             <span class="fleet-total">{{ $unitCards->count() }} units</span>
         </div>
 
@@ -139,12 +132,10 @@
                 <div class="unit-grid" id="unitGrid">
                     @forelse($unitCards as $unit)
                         @php
-                            /* Tab key — not_avail and no_tl both go under not_avail tab */
                             $tabKey = in_array($unit->eff_status, ['not_avail', 'no_tl'])
                                 ? 'not_avail'
                                 : $unit->eff_status;
 
-                            /* TL initials */
                             $tlInitials = '';
                             if ($unit->tl_full) {
                                 $p = explode(' ', trim($unit->tl_full));
@@ -153,7 +144,6 @@
                                 );
                             }
 
-                            /* Badge */
                             [$statusLabel, $badgeCls] = match ($unit->eff_status) {
                                 'available' => ['Available', 'ubadge--available'],
                                 'on_job' => ['On Job', 'ubadge--on-job'],
@@ -163,14 +153,12 @@
                                 default => ['Unknown', 'ubadge--offline'],
                             };
 
-                            /* Lock message */
                             $lockMsg = match ($unit->eff_status) {
                                 'on_job' => 'Locked — unit is on a job',
                                 'no_tl' => 'No team leader assigned',
                                 default => 'Status locked',
                             };
 
-                            /* Current dispatcher_status value for the select */
                             $curDisp = $unit->dispatcher_status ?? 'available';
                         @endphp
                         @php

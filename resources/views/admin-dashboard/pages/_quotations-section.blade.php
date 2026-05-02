@@ -119,42 +119,42 @@
                                 @if ($quotation->status === 'pending')
                                     <span
                                         style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #fef3c7; color: #92400e; text-transform: uppercase; letter-spacing: 0.03em;">
-                                        ⏳ Pending Review
+                                        Pending Review
                                     </span>
                                 @elseif($quotation->status === 'negotiating')
                                     <span
                                         style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #f3e8ff; color: #7e22ce; text-transform: uppercase; letter-spacing: 0.03em; animation: pulse 2s infinite;">
-                                        💬 Negotiating
+                                        Negotiating
                                     </span>
                                 @elseif($quotation->urgency_level === 'urgent')
                                     <span
                                         style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #fee2e2; color: #991b1b; animation: pulse 2s infinite; text-transform: uppercase; letter-spacing: 0.03em;">
-                                        🔴 URGENT
+                                        URGENT
                                     </span>
                                 @elseif($quotation->urgency_level === 'warning')
                                     <span
                                         style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #fef3c7; color: #92400e; text-transform: uppercase; letter-spacing: 0.03em;">
-                                        🟡 Expiring Soon
+                                        Expiring Soon
                                     </span>
                                 @elseif($quotation->urgency_level === 'expired' || $quotation->status === 'expired' || $quotation->status === 'disregarded')
                                     <span
                                         style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #f1f5f9; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em;">
-                                        ⚫ Expired
+                                        Expired
                                     </span>
                                 @elseif($quotation->status === 'accepted')
                                     <span
                                         style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #dbeafe; color: #1e40af; text-transform: uppercase; letter-spacing: 0.03em;">
-                                        ✅ Accepted
+                                        Accepted
                                     </span>
                                 @elseif($quotation->status === 'rejected')
                                     <span
                                         style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #fee2e2; color: #991b1b; text-transform: uppercase; letter-spacing: 0.03em;">
-                                        ❌ Rejected
+                                        Rejected
                                     </span>
                                 @else
                                     <span
                                         style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #fef9c3; color: #713f12; text-transform: uppercase; letter-spacing: 0.03em;">
-                                        ⏳ Awaiting Confirmation
+                                        Awaiting Confirmation
                                     </span>
                                 @endif
                             </td>

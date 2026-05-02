@@ -43,7 +43,6 @@
 
             .conf-top-brand {
                 font-size: 1.25rem;
-                font-weight: 800;
                 letter-spacing: 0.1em;
                 white-space: nowrap;
             }
@@ -135,10 +134,10 @@
             }
 
             .dl {
-                color: #6b7280;
+                color: #000000;
                 min-width: 120px;
                 flex-shrink: 0;
-                font-size: 0.82rem;
+                font-size: 1.1rem;
             }
 
             .dv {
@@ -399,16 +398,17 @@
             @if (!empty($data['extra_vehicles']))
                 @foreach ($data['extra_vehicles'] as $ev)
                     @if (($ev['service_type'] ?? '') !== 'Scheduled')
-                    <div class="drow">
-                        <span class="dl">Vehicle {{ $ev['vehicle_index'] }}</span>
-                        <span class="dv">PHP {{ number_format($ev['estimated_price'] ?? 0, 2) }}</span>
-                    </div>
+                        <div class="drow">
+                            <span class="dl">Vehicle {{ $ev['vehicle_index'] }}</span>
+                            <span class="dv">PHP {{ number_format($ev['estimated_price'] ?? 0, 2) }}</span>
+                        </div>
                     @endif
                 @endforeach
             @endif
             <div class="drow">
                 <span class="dl">Final Price</span>
-                <span class="dv" style="color:#6b7280;font-weight:400;font-size:0.8rem;">Confirmed by dispatcher after review</span>
+                <span class="dv" style="color:#6b7280;font-weight:400;font-size:0.8rem;">Confirmed by dispatcher after
+                    review</span>
             </div>
         </div>
 
@@ -417,11 +417,13 @@
                 {{ !empty($data['has_scheduled_extra']) ? 'Confirmed Est. Total' : 'Estimated Total' }}
             </span>
             <span class="p-amount">
-                PHP {{ number_format($data['grand_total'] ?? $data['estimated_price'], 2) }}{{ !empty($data['has_scheduled_extra']) ? ' +' : '' }}
+                PHP
+                {{ number_format($data['grand_total'] ?? $data['estimated_price'], 2) }}{{ !empty($data['has_scheduled_extra']) ? ' +' : '' }}
             </span>
         </div>
         @if (!empty($data['has_scheduled_extra']))
-            <p style="font-size:0.77rem;color:#6b7280;margin:-16px 0 22px;line-height:1.5;">Scheduled vehicles will be quoted separately.</p>
+            <p style="font-size:0.77rem;color:#6b7280;margin:-16px 0 22px;line-height:1.5;">Scheduled vehicles will be
+                quoted separately.</p>
         @endif
 
         {{-- Extra vehicles --}}
@@ -430,7 +432,8 @@
                 <div class="sec-head">Additional Vehicles</div>
                 @foreach ($data['extra_vehicles'] as $ev)
                     <div style="border-left:3px solid #facc15;padding-left:12px;margin-bottom:14px;">
-                        <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">
+                        <div
+                            style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">
                             Vehicle {{ $ev['vehicle_index'] }} — {{ $ev['truck_type'] ?? 'Tow Truck' }}
                         </div>
                         <div class="drow">

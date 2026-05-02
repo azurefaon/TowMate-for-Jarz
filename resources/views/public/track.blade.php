@@ -42,7 +42,7 @@
 
         .nav-sub {
             font-size: 0.75rem;
-            color: #a1a1aa;
+            color: #05050b;
             font-weight: 500;
         }
 
@@ -67,7 +67,7 @@
 
         .hero p {
             font-size: 0.95rem;
-            color: #a1a1aa;
+            color: #000000;
             margin-bottom: 32px;
         }
 
@@ -310,7 +310,7 @@
         }
 
         .pill-cancelled::before {
-            background: #a1a1aa;
+            background: #000000;
         }
 
         @keyframes blink {
@@ -334,7 +334,7 @@
         .stepper-label {
             font-size: 0.7rem;
             font-weight: 700;
-            color: #a1a1aa;
+            color: #000000;
             text-transform: uppercase;
             letter-spacing: 0.07em;
             margin-bottom: 14px;
@@ -384,7 +384,7 @@
             justify-content: center;
             font-size: 0.72rem;
             font-weight: 800;
-            color: #a1a1aa;
+            color: #000000;
             position: relative;
             z-index: 1;
         }
@@ -406,7 +406,7 @@
             margin-top: 6px;
             font-size: 0.65rem;
             font-weight: 600;
-            color: #a1a1aa;
+            color: #000000;
             text-align: center;
             white-space: nowrap;
         }
@@ -437,16 +437,14 @@
         .detail-item label {
             display: block;
             font-size: 0.68rem;
-            font-weight: 700;
-            color: #a1a1aa;
-            text-transform: uppercase;
+            color: #000000;
+            text-trrgb(0, 0, 0): uppercase;
             letter-spacing: 0.06em;
             margin-bottom: 3px;
         }
 
         .detail-item p {
             font-size: 0.88rem;
-            font-weight: 600;
             color: #09090b;
             line-height: 1.4;
         }
@@ -475,7 +473,6 @@
             align-items: center;
             justify-content: center;
             font-size: 0.7rem;
-            font-weight: 800;
             color: #fff;
             flex-shrink: 0;
             margin-top: 1px;
@@ -491,15 +488,13 @@
 
         .route-addr label {
             font-size: 0.68rem;
-            font-weight: 700;
-            color: #a1a1aa;
+            color: #000000;
             text-transform: uppercase;
             letter-spacing: 0.06em;
         }
 
         .route-addr p {
             font-size: 0.85rem;
-            font-weight: 500;
             color: #0f172a;
             margin-top: 2px;
         }
@@ -516,25 +511,12 @@
 
         .price-label {
             font-size: 0.8rem;
-            font-weight: 600;
             color: #71717a;
         }
 
         .price-value {
             font-size: 1.15rem;
-            font-weight: 800;
             color: #09090b;
-        }
-
-        .price-locked {
-            font-size: 0.68rem;
-            font-weight: 700;
-            color: #166534;
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 999px;
-            padding: 2px 8px;
-            margin-left: 8px;
         }
 
         /* Unit row */
@@ -550,15 +532,13 @@
 
         .unit-label {
             font-size: 0.7rem;
-            font-weight: 700;
-            color: #a1a1aa;
+            color: #000000;
             text-transform: uppercase;
             letter-spacing: 0.06em;
         }
 
         .unit-value {
             font-size: 0.88rem;
-            font-weight: 600;
             color: #0f172a;
         }
 
@@ -568,7 +548,7 @@
             border-top: 1px solid #f1f5f9;
             background: #fafafa;
             font-size: 0.78rem;
-            color: #a1a1aa;
+            color: #000000;
             text-align: center;
         }
 
@@ -578,7 +558,7 @@
             padding: 24px 20px;
             border-top: 1px solid #f1f5f9;
             font-size: 0.78rem;
-            color: #a1a1aa;
+            color: #000000;
         }
     </style>
 </head>
@@ -759,7 +739,7 @@
                         <div>
                             <div class="price-label">Final Amount</div>
                             @if ($priceLocked)
-                                <span class="price-locked">Price Locked</span>
+                                {{-- <span class="price-locked">Price Locked</span> --}}
                             @endif
                         </div>
                         <div class="price-value">₱{{ number_format($finalTotal, 2) }}</div>

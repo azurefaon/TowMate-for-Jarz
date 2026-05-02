@@ -4,148 +4,218 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking Confirmed — TowMate</title>
+    <title>Booking Confirmed - TowMate</title>
 </head>
 
 <body
-    style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+    style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
 
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 16px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
         <tr>
             <td align="center">
-                <table width="520" cellpadding="0" cellspacing="0"
-                    style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e4e4e7;">
+                <table width="600" cellpadding="0" cellspacing="0"
+                    style="background:#ffffff;border:1px solid #cbd5e1;overflow:hidden;">
 
                     {{-- Header --}}
                     <tr>
-                        <td style="background:#09090b;padding:28px 32px;">
-                            <p
-                                style="margin:0 0 10px;font-size:12px;font-weight:700;color:#facc15;letter-spacing:0.1em;text-transform:uppercase;">
-                                TowMate</p>
-                            <h1 style="margin:0 0 6px;font-size:21px;font-weight:800;color:#ffffff;line-height:1.3;">
-                                Booking Confirmed</h1>
-                            <p style="margin:0;font-size:13px;color:#a1a1aa;">Your final quotation has been accepted and
-                                the price is locked.</p>
-                        </td>
-                    </tr>
-
-                    {{-- Greeting + Reference --}}
-                    <tr>
-                        <td style="padding:20px 32px 0;">
-                            <p style="margin:0 0 4px;font-size:14px;color:#18181b;">Hi
-                                <strong>{{ $booking->customer->full_name ?? 'Customer' }}</strong>,</p>
-                            <p style="margin:0;font-size:13px;color:#71717a;line-height:1.6;">Thank you for confirming.
-                                Your towing booking is now active and the dispatcher will proceed with your service.</p>
-                        </td>
-                    </tr>
-
-                    {{-- Reference badge --}}
-                    <tr>
-                        <td style="padding:16px 32px;">
-                            <table width="100%" cellpadding="0" cellspacing="0"
-                                style="background:#fafafa;border:1px solid #e4e4e7;border-radius:8px;">
+                        <td style="background:#09090b;padding:24px 32px;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
-                                    <td
-                                        style="padding:12px 16px;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.07em;font-weight:600;">
-                                        Booking Reference</td>
-                                    <td align="right"
-                                        style="padding:12px 16px;font-size:14px;font-weight:800;color:#09090b;font-family:monospace;">
-                                        {{ $booking->quotation_number ?? ($booking->reference_number ?? '—') }}</td>
+                                    <td>
+                                        <img src="{{ asset('admin/images/TowingLogo.png') }}" alt="TowMate"
+                                            style="height:40px;width:auto;display:block;margin-bottom:10px;">
+                                        <p style="margin:0;font-size:20px;color:#ffffff;">Booking Confirmed</p>
+                                        <p
+                                            style="margin:4px 0 0;font-size:11px;color:#22c55e;letter-spacing:0.08em;text-transform:uppercase;">
+                                            &#10003; Accredited Towing Service</p>
+                                    </td>
+                                    <td align="right" valign="top">
+                                        <p
+                                            style="margin:0;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;">
+                                            Date Issued</p>
+                                        <p style="margin:4px 0 0;font-size:13px;color:#a1a1aa;font-family:monospace;">
+                                            {{ now()->format('M d, Y') }}</p>
+                                    </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
 
-                    {{-- Route --}}
                     <tr>
-                        <td style="padding:0 32px 16px;">
-                            <p
-                                style="margin:0 0 10px;font-size:11px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:0.07em;">
-                                Route</p>
+                        <td style="background:#18181b;padding:12px 32px;">
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
-                                    <td style="padding:5px 0;vertical-align:top;width:70px;"><span
-                                            style="font-size:11px;color:#a1a1aa;font-weight:600;">FROM</span></td>
-                                    <td style="padding:5px 0;font-size:13px;color:#18181b;font-weight:500;">
+                                    <td>
+                                        <span
+                                            style="font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.1em;">Quotation
+                                            No.</span>
+                                        <span
+                                            style="font-size:15px;color:#ffffff;font-family:monospace;margin-left:12px;">{{ $booking->quotation_number ?? ($booking->reference_number ?? '—') }}</span>
+                                    </td>
+                                    <td align="right">
+                                        <span
+                                            style="display:inline-block;background:#16a34a;color:#ffffff;font-size:11px;padding:3px 10px;text-transform:uppercase;letter-spacing:0.08em;">CONFIRMED
+                                            &amp; LOCKED</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:24px 32px 0;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td style="width:50%;vertical-align:top;padding-right:16px;">
+                                        <p
+                                            style="margin:0 0 6px;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">
+                                            Bill To</p>
+                                        <p style="margin:0 0 2px;font-size:14px;color:#09090b;">
+                                            {{ $booking->customer->full_name ?? 'Customer' }}</p>
+                                        <p style="margin:0 0 1px;font-size:12px;color:#64748b;">
+                                            {{ $booking->customer->email ?? '—' }}</p>
+                                        <p style="margin:0;font-size:12px;color:#64748b;">
+                                            {{ $booking->customer->phone ?? '—' }}</p>
+                                    </td>
+                                    <td style="width:50%;vertical-align:top;padding-left:16px;">
+                                        <p
+                                            style="margin:0 0 6px;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">
+                                            Service Provider</p>
+                                        <p style="margin:0 0 2px;font-size:14px;color:#09090b;">TowMate
+                                            Towing Services</p>
+                                        <p style="margin:0 0 1px;font-size:12px;color:#64748b;">support@towmate.com</p>
+                                        <p style="margin:0;font-size:12px;color:#64748b;">(123) 456-7890</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:20px 32px 0;">
+                            <p
+                                style="margin:0 0 8px;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">
+                                Service Details</p>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;">
+                                <tr style="background:#f8fafc;">
+                                    <td
+                                        style="padding:8px 12px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;width:30%;border-right:1px solid #e2e8f0;">
+                                        Field</td>
+                                    <td
+                                        style="padding:8px 12px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;">
+                                        Details</td>
+                                </tr>
+                                <tr style="border-top:1px solid #e2e8f0;">
+                                    <td
+                                        style="padding:9px 12px;font-size:12px;color:#64748b;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+                                        Pickup Location</td>
+                                    <td
+                                        style="padding:9px 12px;font-size:12px;color:#0f172a;border-top:1px solid #e2e8f0;">
                                         {{ $booking->pickup_address ?? '—' }}</td>
                                 </tr>
-                                <tr>
-                                    <td style="padding:5px 0;vertical-align:top;"><span
-                                            style="font-size:11px;color:#a1a1aa;font-weight:600;">TO</span></td>
-                                    <td style="padding:5px 0;font-size:13px;color:#18181b;font-weight:500;">
+                                <tr style="border-top:1px solid #e2e8f0;background:#fafafa;">
+                                    <td
+                                        style="padding:9px 12px;font-size:12px;color:#64748b;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+                                        Drop-off Location</td>
+                                    <td
+                                        style="padding:9px 12px;font-size:12px;color:#0f172a;border-top:1px solid #e2e8f0;">
                                         {{ $booking->dropoff_address ?? '—' }}</td>
                                 </tr>
-                                <tr>
-                                    <td style="padding:5px 0;vertical-align:top;"><span
-                                            style="font-size:11px;color:#a1a1aa;font-weight:600;">TRUCK</span></td>
-                                    <td style="padding:5px 0;font-size:13px;color:#18181b;font-weight:500;">
+                                <tr style="border-top:1px solid #e2e8f0;">
+                                    <td
+                                        style="padding:9px 12px;font-size:12px;color:#64748b;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+                                        Truck Type</td>
+                                    <td
+                                        style="padding:9px 12px;font-size:12px;color:#0f172a;border-top:1px solid #e2e8f0;">
                                         {{ $booking->truckType->name ?? '—' }}</td>
                                 </tr>
-                                <tr>
-                                    <td style="padding:5px 0;vertical-align:top;"><span
-                                            style="font-size:11px;color:#a1a1aa;font-weight:600;">DISTANCE</span></td>
-                                    <td style="padding:5px 0;font-size:13px;color:#18181b;font-weight:500;">
+                                <tr style="background:#fafafa;border-top:1px solid #e2e8f0;">
+                                    <td
+                                        style="padding:9px 12px;font-size:12px;color:#64748b;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+                                        Distance</td>
+                                    <td
+                                        style="padding:9px 12px;font-size:12px;color:#0f172a;border-top:1px solid #e2e8f0;">
                                         {{ number_format((float) ($booking->distance_km ?? 0), 2) }} km</td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
 
-                    {{-- Price Breakdown --}}
+                    {{-- Price Breakdown Table --}}
                     <tr>
-                        <td style="padding:16px 32px;border-top:1px solid #e4e4e7;border-bottom:1px solid #e4e4e7;">
+                        <td style="padding:20px 32px 0;">
                             <p
-                                style="margin:0 0 12px;font-size:11px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:0.07em;">
-                                Final Price Breakdown</p>
-                            <table width="100%" cellpadding="0" cellspacing="0">
-                                <tr>
-                                    <td style="padding:5px 0;font-size:13px;color:#3f3f46;">Base rate
-                                        ({{ $booking->truckType->name ?? 'Truck' }})</td>
-                                    <td align="right"
-                                        style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">
-                                        ₱{{ number_format($priceBreakdown['base_rate'], 2) }}</td>
+                                style="margin:0 0 8px;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">
+                                Price Breakdown</p>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;">
+                                {{-- Table Head --}}
+                                <tr style="background:#f8fafc;">
+                                    <td
+                                        style="padding:8px 12px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;border-right:1px solid #e2e8f0;">
+                                        Description</td>
+                                    <td style="padding:8px 12px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;width:100px;"
+                                        align="right">Amount</td>
                                 </tr>
+                                {{-- Base Rate --}}
                                 <tr>
-                                    <td style="padding:5px 0;font-size:13px;color:#3f3f46;">Distance fee
-                                        ({{ $priceBreakdown['km_increments'] }} &times; ₱200 per 4km)</td>
-                                    <td align="right"
-                                        style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">
-                                        ₱{{ number_format($priceBreakdown['distance_fee'], 2) }}</td>
+                                    <td
+                                        style="padding:10px 12px;font-size:13px;color:#374151;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+                                        Base Rate
+                                        <span
+                                            style="font-size:11px;color:#94a3b8;display:block;margin-top:1px;">{{ $booking->truckType->name ?? 'Tow Truck' }}</span>
+                                    </td>
+                                    <td style="padding:10px 12px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;"
+                                        align="right">₱{{ number_format($priceBreakdown['base_rate'], 2) }}</td>
+                                </tr>
+                                {{-- Distance Fee --}}
+                                <tr style="background:#fafafa;">
+                                    <td
+                                        style="padding:10px 12px;font-size:13px;color:#374151;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+                                        Distance Fee
+                                        <span
+                                            style="font-size:11px;color:#94a3b8;display:block;margin-top:1px;">{{ $priceBreakdown['km_increments'] }}
+                                            × ₱200 per 4km ({{ number_format($priceBreakdown['distance_km'], 2) }}
+                                            km)</span>
+                                    </td>
+                                    <td style="padding:10px 12px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;"
+                                        align="right">₱{{ number_format($priceBreakdown['distance_fee'], 2) }}</td>
                                 </tr>
                                 @if ($priceBreakdown['additional_fee'] > 0)
+                                    {{-- Additional Fees --}}
                                     <tr>
-                                        <td style="padding:5px 0;font-size:13px;color:#3f3f46;">Additional fees</td>
-                                        <td align="right"
-                                            style="padding:5px 0;font-size:13px;color:#18181b;font-weight:600;">
-                                            ₱{{ number_format($priceBreakdown['additional_fee'], 2) }}</td>
+                                        <td
+                                            style="padding:10px 12px;font-size:13px;color:#374151;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+                                            Additional Fees
+                                        </td>
+                                        <td style="padding:10px 12px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;"
+                                            align="right">₱{{ number_format($priceBreakdown['additional_fee'], 2) }}
+                                        </td>
                                     </tr>
                                 @endif
-                                <tr>
-                                    <td colspan="2" style="padding:8px 0 0;">
-                                        <hr style="border:none;border-top:1px solid #e4e4e7;margin:0;">
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#09090b;">Total
-                                        (Locked)</td>
-                                    <td align="right"
-                                        style="padding:10px 0 0;font-size:20px;font-weight:800;color:#facc15;">
-                                        ₱{{ number_format($priceBreakdown['total'], 2) }}</td>
+                                {{-- Total Row --}}
+                                <tr style="background:#09090b;">
+                                    <td
+                                        style="padding:13px 12px;font-size:13px;color:#ffffff;border-top:2px solid #000000;">
+                                        TOTAL (LOCKED)</td>
+                                    <td style="padding:13px 12px;font-size:18px;color:#ffffff;border-top:2px solid #000000;font-family:monospace;"
+                                        align="right">₱{{ number_format($priceBreakdown['total'], 2) }}</td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
 
-                    {{-- Status notice --}}
+                    {{-- Confirmation Notice --}}
                     <tr>
                         <td style="padding:20px 32px;">
-                            <table width="100%" cellpadding="0" cellspacing="0"
-                                style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;">
                                 <tr>
-                                    <td
-                                        style="padding:14px 16px;font-size:13px;color:#166534;font-weight:600;line-height:1.6;">
-                                        Your booking is now confirmed. The dispatcher will assign a towing unit and you
-                                        will be notified when the team is on the way.
+                                    <td style="padding:14px 16px;">
+                                        <p
+                                            style="margin:0 0 4px;font-size:12px;color:#000000;text-transform:uppercase;letter-spacing:0.06em;">
+                                            Booking Active</p>
+                                        <p style="margin:0;font-size:12px;color:#000000;line-height:1.6;">Your booking
+                                            is confirmed and the price above is final. The dispatcher will assign a
+                                            towing unit and you will be notified when the team is on the way.</p>
                                     </td>
                                 </tr>
                             </table>
@@ -154,17 +224,17 @@
 
                     {{-- Footer --}}
                     <tr>
-                        <td style="padding:16px 32px;border-top:1px solid #e4e4e7;background:#fafafa;">
-                            <p style="margin:0;font-size:12px;color:#a1a1aa;line-height:1.6;">
-                                Questions? Call us at (123) 456-7890 or email support@towmate.com<br>
+                        <td style="padding:14px 32px;border-top:1px solid #e2e8f0;background:#f8fafc;">
+                            <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.7;">
+                                This is a computer-generated quotation. No signature is required.<br>
+                                Questions? Call <strong style="color:#64748b;">(123) 456-7890</strong> or email <strong
+                                    style="color:#64748b;">support@towmate.com</strong><br>
                                 Do not reply to this email — it is sent automatically.
                             </p>
                         </td>
                     </tr>
 
                 </table>
-                <p style="margin:16px 0 0;font-size:11px;color:#a1a1aa;text-align:center;">&copy; {{ date('Y') }}
-                    TowMate. All rights reserved.</p>
             </td>
         </tr>
     </table>

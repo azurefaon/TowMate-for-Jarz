@@ -100,7 +100,7 @@
             </div>
 
             <div id="qmImageGallery"
-                style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 20px; display: none;">
+                style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; margin-bottom: 20px; display: none;">
                 <div
                     style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
                     Vehicle Photos</div>
@@ -110,7 +110,7 @@
             </div>
 
             <div id="qmExtraVehiclesSection"
-                style="display:none; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+                style="display:none; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 20px;">
                 <div style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                     <span
                         style="font-size: 1.1rem; color: #000000; text-transform: uppercase; letter-spacing: 0.05em;">Additional
@@ -155,7 +155,7 @@
             </div>
 
             <div id="qmUnitSection"
-                style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px; display: none;">
+                style="border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 20px; display: none;">
                 <div style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                     <span
                         style="font-size: 1.1rem; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.05em;">Assign
@@ -165,7 +165,7 @@
                     <label style="display: block; font-size: 1.1rem; color: #000000; margin-bottom: 6px;">Available
                         Unit <span style="color: #dc2626;">*</span></label>
                     <select id="qmUnitSelect"
-                        style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.9rem; color: #0f172a; outline: none; box-sizing: border-box; background: #fff;">
+                        style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; font-size: 0.9rem; color: #0f172a; outline: none; box-sizing: border-box; background: #fff;">
                         <option value="">Select a unit</option>
                         @forelse($availableUnits as $unit)
                             <option value="{{ $unit['id'] }}" data-base-rate="{{ $unit['base_rate'] ?? 0 }}">
@@ -182,7 +182,7 @@
                 </div>
             </div>
 
-            <div style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+            <div style="border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 20px;">
                 <div
                     style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
                     <span
@@ -198,28 +198,28 @@
                         <input type="number" id="qmOtherFeesInput" step="0.01" min="0" value="0.00"
                             onfocus="if(this.value == '0' || this.value == '0.00') this.value = '';"
                             onblur="if(this.value == '') this.value = '0.00';"
-                            style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.9rem; color: #0f172a; outline: none; box-sizing: border-box;"
+                            style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; font-size: 0.9rem; color: #0f172a; outline: none; box-sizing: border-box;"
                             onfocusin="this.style.borderColor='#6366f1'"
                             onfocusout="this.style.borderColor='#d1d5db'">
                     </div>
                     <div
-                        style="background: #f1f5f9; border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 1.85rem; color: #475569;">New Total</span>
-                        <span style="font-size: 1.15rem; color: #0f172a;" id="qmCalculatedPrice">₱0.00</span>
+                        style="background: #f1f5f9; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 1.1rem; color: #475569;">New Total</span>
+                        <span style="font-size: 1.1rem; color: #0f172a;" id="qmCalculatedPrice">₱0.00</span>
                     </div>
                     <div>
                         <label
                             style="display: block; font-size: 0.8rem; font-family: sans-serif; color: #000000; margin-bottom: 6px;">Note
-                            <span style="font-weight: 400; color: #94a3b8;">(optional)</span></label>
+                            <span style=" color: #94a3b8;">(optional)</span></label>
                         <textarea id="qmPriceNote" rows="2" placeholder="example Rush fee, toll charges etc."
-                            style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.88rem; color: #0f172a; resize: vertical; outline: none; box-sizing: border-box;"
+                            style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; font-size: 0.88rem; color: #0f172a; resize: vertical; outline: none; box-sizing: border-box;"
                             onfocusin="this.style.borderColor='#6366f1'" onfocusout="this.style.borderColor='#d1d5db'"></textarea>
                     </div>
                 </div>
             </div>
 
             <div id="qmCounterOfferSection"
-                style="display: none; border: 1px solid #fde68a; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+                style="display: none; border: 1px solid #fde68a; overflow: hidden; margin-bottom: 20px;">
                 <div style="padding: 12px 16px; background: #fffbeb; border-bottom: 1px solid #fde68a;">
                     <span
                         style="font-size: 0.75rem; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.05em;">Customer

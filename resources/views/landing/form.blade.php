@@ -579,9 +579,13 @@
             }
 
             function applyBookingActionLabels() {
+                const isSchedule = serviceTypeInput?.value === 'schedule';
+
                 if (submitBookingBtn) {
-                    const labelTarget = submitBookingBtn.querySelector('span') || submitBookingBtn;
-                    labelTarget.textContent = getPrimaryActionLabel();
+                    submitBookingBtn.style.display = isSchedule ? 'none' : '';
+                }
+                if (scheduleBookingBtn) {
+                    scheduleBookingBtn.style.display = isSchedule ? '' : 'none';
                 }
 
                 if (confirmBookingBtn) {
@@ -596,24 +600,23 @@
             }
 
             function setSubmitBookingState(isBusy) {
-                if (!submitBookingBtn) {
-                    return;
-                }
+                const activeBtn = serviceTypeInput?.value === 'schedule' ? scheduleBookingBtn : submitBookingBtn;
+                if (!activeBtn) return;
 
-                const labelTarget = submitBookingBtn.querySelector('span') || submitBookingBtn;
+                const labelTarget = activeBtn.querySelector('span') || activeBtn;
 
                 if (isBusy) {
-                    submitBookingBtn.disabled = true;
-                    submitBookingBtn.classList.add('disabled');
-                    submitBookingBtn.setAttribute('aria-busy', 'true');
+                    activeBtn.disabled = true;
+                    activeBtn.classList.add('disabled');
+                    activeBtn.setAttribute('aria-busy', 'true');
                     labelTarget.textContent = 'Preparing...';
                     return;
                 }
 
-                submitBookingBtn.removeAttribute('aria-busy');
+                activeBtn.removeAttribute('aria-busy');
                 labelTarget.textContent = getPrimaryActionLabel();
-                submitBookingBtn.disabled = false;
-                submitBookingBtn.classList.remove('disabled');
+                activeBtn.disabled = false;
+                activeBtn.classList.remove('disabled');
             }
 
             function resetConfirmationState() {
@@ -901,6 +904,7 @@
             const scheduledDateInput = document.getElementById('scheduled_date');
             const scheduledTimeInput = document.getElementById('scheduled_time');
             const submitBookingBtn = document.getElementById('submitBookingBtn');
+            const scheduleBookingBtn = document.getElementById('scheduleBookingBtn');
 
             function toggleScheduleFields() {
                 if (!serviceTypeInput || !scheduleFields) {
@@ -928,18 +932,28 @@
             applyBookingActionLabels();
             serviceTypeInput?.addEventListener('change', toggleScheduleFields);
 
-            submitBookingBtn?.addEventListener('click', async function() {
+            async function handleBookingButtonClick() {
+                setSubmitBookingState(true);
+
                 if (!validateBookingForm()) {
+                    setSubmitBookingState(false);
                     return;
                 }
 
                 if (typeof window.checkBookNowAvailability === 'function') {
                     const canProceed = await window.checkBookNowAvailability();
-                    if (!canProceed) return;
+                    if (!canProceed) {
+                        setSubmitBookingState(false);
+                        return;
+                    }
                 }
 
+                setSubmitBookingState(false);
                 showConfirmationSummary();
-            });
+            }
+
+            submitBookingBtn?.addEventListener('click', handleBookingButtonClick);
+            scheduleBookingBtn?.addEventListener('click', handleBookingButtonClick);
 
             function escapeSummaryValue(value) {
                 return String(value ?? '')
@@ -1209,15 +1223,14 @@
                             helperNote: hasExtra ? '' : 'Actual cost may vary according to different vehicle and booking mode'
                         })}
                         ${extraSectionsHtml}
-                        ${hasExtra ? `
-                                                                                            <div class="summary-section">
-                                                                                                <div class="summary-section-title">Grand Total (All ${1 + extraVehicles.length} Vehicles)</div>
-                                                                                                <div class="summary-grid">
-                                                                                                    <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
-                                                                                                </div>
-                                                                                                <p class="summary-helper-note">Actual cost may vary according to vehicle type and booking mode.${hasScheduledExtra ? ' Scheduled vehicles will be quoted separately.' : ''}</p>
-                                                                                            </div>
-                                                                                        ` : ''}
+                        ${hasExtra ? ` <div class="summary-section">
+                                                        <div class="summary-section-title">Grand Total (All ${1 + extraVehicles.length} Vehicles)</div>
+                                                        <div class="summary-grid">
+                                                            <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
+                                                        </div>
+                                                        <p class="summary-helper-note">Actual cost may vary according to vehicle type and booking mode.${hasScheduledExtra ? ' Scheduled vehicles will be quoted separately.' : ''}</p>
+                                                    </div>
+                                                ` : ''}
                     </div>
                 `;
 
@@ -1231,7 +1244,6 @@
                 confirmBookingBtn.textContent = 'Processing...';
                 setEtaHiddenField();
 
-                // Sync price_input with the computed total (base rate + distance fee - discount)
                 const _syncTruckId = document.getElementById('truck_type_id')?.value;
                 const _syncRateData = _syncTruckId && truckRates[_syncTruckId] ? truckRates[_syncTruckId] : null;
                 const _syncBase = _syncRateData ? Number(_syncRateData.base) : 0;
@@ -1581,8 +1593,6 @@
                             card.setAttribute('aria-disabled', 'false');
                             anyAvail = true;
                         } else {
-                            // Stay visible but greyed-out & unclickable in book_now
-                            // when no unit of this class is available.
                             card.style.display = '';
                             card.style.opacity = '.45';
                             card.style.cursor = 'not-allowed';

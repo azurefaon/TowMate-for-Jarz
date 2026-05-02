@@ -1464,6 +1464,12 @@ function fitBothMarkers() {
 }
 
 async function calculateEstimate() {
+    console.log("calculateEstimate called", {
+        pickupCoords,
+        dropCoords,
+        vehicleSelect: elements.vehicleSelect?.value,
+    });
+
     if (!elements.vehicleSelect) {
         resetEstimatePreview(Boolean(pickupCoords && dropCoords));
         return;
@@ -1475,14 +1481,18 @@ async function calculateEstimate() {
             ?.value;
 
     if (!truckTypeId) {
+        console.log("No truck type selected");
         resetEstimatePreview(true);
         return;
     }
 
     if (!pickupCoords || !dropCoords) {
+        console.log("Missing coords, applying base preview");
         applyTruckBasePreview(Boolean(pickupCoords && dropCoords));
         return;
     }
+
+    console.log("Calling pricing API...");
 
     const payload = {
         truck_type_id: truckTypeId,

@@ -20,7 +20,7 @@ class BookingRejectedMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Booking Rejected - Jarz')
+        return $this->subject('Your booking could not be accepted — TowMate')
             ->view('emails.booking-rejected');
     }
 }
