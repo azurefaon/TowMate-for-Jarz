@@ -117,8 +117,8 @@
             </div>
             <div class="protect-box">
                 <small>User Retention Rule</small>
-                <h2>14 Days</h2>
-                <p>Archived users become eligible for permanent deletion after two weeks.</p>
+                <h2>1 Year</h2>
+                <p>Archived users become eligible for permanent deletion after 1 year.</p>
             </div>
         </section>
 

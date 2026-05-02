@@ -44,9 +44,39 @@ Route::get('/', [LandingController::class, 'index'])->name('landing');
 
 Route::get('/book', function () {
     $classes    = ['light', 'medium', 'heavy'];
+
+    // "Dispatch-ready" = unit available + team leader assigned + leader online + leader not busy.
+    // Mirrors the rule used by BookingService::dispatchAvailability() so the customer form
+    // matches what the dispatcher actually sees.
+    $tlAvailability   = app(\App\Services\TeamLeaderAvailabilityService::class);
+    $busyTeamLeaderIds = $tlAvailability->busyTeamLeaderIds();
+
+    $teamLeaderRoleIds = \App\Models\Role::query()
+        ->whereIn('name', ['Team Leader', 'team leader'])
+        ->pluck('id');
+
+    $teamLeadersQuery = \App\Models\User::visibleToOperations()->with(['unit']);
+    if ($teamLeaderRoleIds->isNotEmpty()) {
+        $teamLeadersQuery->whereIn('role_id', $teamLeaderRoleIds);
+    }
+
+    $teamLeaderStatuses = $tlAvailability->summarize(
+        $teamLeadersQuery->get(),
+        $busyTeamLeaderIds,
+    )['leaders']->keyBy('id');
+
+    $readyLeaderIds = $teamLeaderStatuses
+        ->filter(fn($s) => ($s['presence'] ?? 'offline') === 'online'
+            && ! $busyTeamLeaderIds->contains((int) $s['id']))
+        ->pluck('id')
+        ->all();
+
     $truckTypes = TruckType::withCount([
-        'units as available_units_count' => fn($q) => $q->where('status', 'available')
-            ->whereNotNull('team_leader_id'),
+        'units as available_units_count' => function ($q) use ($readyLeaderIds) {
+            $q->where('status', 'available')
+              ->whereNotNull('team_leader_id')
+              ->whereIn('team_leader_id', $readyLeaderIds ?: [-1]);
+        },
     ])->where('status', 'active')->orderBy('base_rate')->get();
 
     $classData = collect($classes)->mapWithKeys(function ($cls) use ($truckTypes) {
@@ -339,20 +369,31 @@ Route::prefix('superadmin')
         Route::post('/settings/landing', [SystemSettingsController::class, 'updateLanding'])->name('settings.landing.update');
 
         Route::get('/dashboard-stats', function () {
-            $todayBookings = \App\Models\Booking::whereDate('created_at', today())->count();
+            $todayBookings  = \App\Models\Booking::whereDate('created_at', today())->count();
             $completedToday = \App\Models\Booking::where('status', 'completed')
                 ->whereDate('completed_at', today())->count();
             $cancelledToday = \App\Models\Booking::where('status', 'cancelled')
                 ->whereDate('created_at', today())->count();
-            $weekBookings = \App\Models\Booking::selectRaw('DAYOFWEEK(created_at) as day, count(*) as total')
+            $pendingBookings = \App\Models\Booking::where('status', 'requested')->count();
+
+            // PostgreSQL-safe (DOW: 0=Sun, 1=Mon, ..., 6=Sat)
+            $rawWeek = \App\Models\Booking::selectRaw('EXTRACT(DOW FROM created_at)::int as dow, count(*) as total')
                 ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
-                ->groupBy('day')->orderBy('day')
-                ->pluck('total')->values();
+                ->groupBy('dow')
+                ->get()
+                ->keyBy('dow');
+
+            $weekBookings = [];
+            foreach ([1, 2, 3, 4, 5, 6, 0] as $dow) {
+                $weekBookings[] = (int) ($rawWeek->get($dow)?->total ?? 0);
+            }
+
             return response()->json([
-                'todayBookings'  => $todayBookings,
-                'completedToday' => $completedToday,
-                'cancelledToday' => $cancelledToday,
-                'weekBookings'   => $weekBookings,
+                'todayBookings'   => $todayBookings,
+                'completedToday'  => $completedToday,
+                'cancelledToday'  => $cancelledToday,
+                'pendingBookings' => $pendingBookings,
+                'weekBookings'    => $weekBookings,
             ]);
         })->name('dashboard.stats');
     });

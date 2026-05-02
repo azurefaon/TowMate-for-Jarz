@@ -427,20 +427,6 @@
 
     <div class="content" id="content">
 
-        @if (session('success'))
-            <div id="successPopup" class="success-popup">
-                <div class="success-box">
-                    <div class="checkmark-circle">
-                        <div class="background"></div>
-                        <div class="checkmark draw"></div>
-                    </div>
-
-                    <h3>Success</h3>
-                    <p>{{ session('success') }}</p>
-                </div>
-            </div>
-        @endif
-
         <div class="mobile-menu">
             <button id="menuToggle" class="menu-toggle">
                 <i data-lucide="menu"></i>
@@ -585,35 +571,6 @@
     </script>
 
     @stack('scripts')
-
-    <script>
-        // Auto-dismiss server-rendered toast
-        setTimeout(() => {
-            const popup = document.getElementById('successPopup');
-            if (popup) {
-                popup.style.opacity = "0";
-                popup.style.transition = "0.3s";
-                setTimeout(() => popup.remove(), 300);
-            }
-        }, 2500);
-
-        // Client-side flash (used by AJAX form redirects)
-        const _csFlash = sessionStorage.getItem('sa_flash_success');
-        if (_csFlash) {
-            sessionStorage.removeItem('sa_flash_success');
-            const toast = document.createElement('div');
-            toast.id = 'successPopup';
-            toast.className = 'success-popup';
-            toast.innerHTML =
-                `<div class="success-box"><div class="checkmark-circle"><div class="background"></div><div class="checkmark draw"></div></div><h3>Success</h3><p>${_csFlash}</p></div>`;
-            document.getElementById('content')?.prepend(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transition = '0.3s';
-                setTimeout(() => toast.remove(), 300);
-            }, 2500);
-        }
-    </script>
 
 </body>
 

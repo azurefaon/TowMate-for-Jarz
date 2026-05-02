@@ -14,7 +14,7 @@ class AuditLogController extends Controller
 
         $query = AuditLog::with('user')->latest();
 
-        $logs = $query->paginate(10);
+        $logs = $query->paginate(7);
 
         $totalLogs = AuditLog::count();
 

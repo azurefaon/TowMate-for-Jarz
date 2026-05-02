@@ -284,8 +284,14 @@
                                         style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;">
                                         @foreach ($truckTypes as $truck)
                                             @php
-                                                $isAvail = $truck->available_units_count > 0;
                                                 $cls = $truck->class ?? 'other';
+                                                // Class-level availability: if every truck type in this class
+                                                // has 0 dispatch-ready units, the whole class is unavailable
+                                                // (e.g. customer scenario: Heavy class greyed out when no
+                                                // online team leader is on a heavy unit).
+                                                $classAvailableUnits = (int) ($classData[$cls]['available_units'] ?? 0);
+                                                $classAvail = $classAvailableUnits > 0;
+                                                $isAvail = $truck->available_units_count > 0 && $classAvail;
                                                 $clsLbl = $lf_classLabel[$cls] ?? ucfirst($cls);
                                                 $clsColor = $lf_classColor[$cls] ?? '#52525b';
                                                 $clsBg = $lf_classBg[$cls] ?? '#f4f4f5';
@@ -295,7 +301,8 @@
                                                 data-class="{{ $cls }}" data-truck-id="{{ $truck->id }}"
                                                 data-base="{{ (float) $truck->base_rate }}"
                                                 data-perkm="{{ (float) $truck->per_km_rate }}"
-                                                data-available="{{ $isAvail ? 1 : 0 }}" role="button"
+                                                data-available="{{ $isAvail ? 1 : 0 }}"
+                                                data-class-available="{{ $classAvail ? 1 : 0 }}" role="button"
                                                 tabindex="{{ $isAvail ? 0 : -1 }}"
                                                 aria-disabled="{{ !$isAvail ? 'true' : 'false' }}"
                                                 style="
@@ -356,7 +363,7 @@
                                     <div class="form-group">
                                         <label for="customer_vehicle_type">Your Vehicle Type *</label>
                                         <input type="text" name="customer_vehicle_type" id="customerVehicleType"
-                                            placeholder="e.g., Sedan, SUV, Motorcycle, Truck"
+                                            placeholder="Sedan, SUV, Motorcycle, Truck"
                                             value="{{ old('customer_vehicle_type') }}" required>
                                         @error('customer_vehicle_type')
                                             <span class="error-message">{{ $message }}</span>
@@ -411,6 +418,182 @@
                                     @error('notes')
                                         <span class="error-message">{{ $message }}</span>
                                     @enderror
+                                </div>
+                            </div>
+
+                            {{-- ── Optional 2nd vehicle (multi-tow) ────────────────────────── --}}
+                            <div class="form-section compact-section" id="v2_wrapper">
+                                <div
+                                    style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                                    <div>
+                                        <h3 style="margin:0;">Need to tow another vehicle?</h3>
+                                        <p style="margin:4px 0 0;font-size:0.85rem;color:#6b7280;">
+                                            Add a second vehicle on the same booking. ETA &amp; pricing update
+                                            automatically.
+                                        </p>
+                                    </div>
+                                    <button type="button" id="v2_toggle_btn" class="btn-secondary"
+                                        style="padding:10px 16px;border-radius:999px;font-weight:600;">
+                                        + Add another vehicle
+                                    </button>
+                                </div>
+
+                                <input type="hidden" id="add_second_vehicle" name="add_second_vehicle"
+                                    value="{{ old('add_second_vehicle', '0') }}">
+
+                                <div id="v2_panel"
+                                    style="display:{{ old('add_second_vehicle') === '1' ? 'block' : 'none' }};margin-top:18px;border:1px dashed #e5e7eb;border-radius:14px;padding:18px;background:#fafafa;">
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="v2_customer_vehicle_type">Second Vehicle Type *</label>
+                                            <input type="text" id="v2_customer_vehicle_type"
+                                                name="vehicle_2_customer_vehicle_type"
+                                                placeholder="Sedan, SUV, Motorcycle"
+                                                value="{{ old('vehicle_2_customer_vehicle_type') }}">
+                                            @error('vehicle_2_customer_vehicle_type')
+                                                <span class="error-message">{{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group" style="margin-bottom:14px;">
+                                        <label style="display:block;margin-bottom:10px;font-weight:600;color:#111;">
+                                            Truck Type for Vehicle 2 <span style="color:#dc2626;">*</span>
+                                        </label>
+                                        <input type="hidden" id="v2_truck_type_id" name="vehicle_2_truck_type_id"
+                                            value="{{ old('vehicle_2_truck_type_id') }}">
+                                        <div id="v2_class_grid"
+                                            style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;">
+                                            @foreach ($truckTypes as $truck)
+                                                @php
+                                                    $cls = $truck->class ?? 'other';
+                                                    $classAvailableUnits =
+                                                        (int) ($classData[$cls]['available_units'] ?? 0);
+                                                    $classAvail = $classAvailableUnits > 0;
+                                                    $isAvail = $truck->available_units_count > 0 && $classAvail;
+                                                    $clsLbl = $lf_classLabel[$cls] ?? ucfirst($cls);
+                                                    $clsColor = $lf_classColor[$cls] ?? '#52525b';
+                                                    $clsBg = $lf_classBg[$cls] ?? '#f4f4f5';
+                                                @endphp
+                                                <div class="v2-class-card" data-class="{{ $cls }}"
+                                                    data-truck-id="{{ $truck->id }}"
+                                                    data-base="{{ (float) $truck->base_rate }}"
+                                                    data-perkm="{{ (float) $truck->per_km_rate }}"
+                                                    data-available="{{ $isAvail ? 1 : 0 }}"
+                                                    data-class-available="{{ $classAvail ? 1 : 0 }}" role="button"
+                                                    tabindex="0"
+                                                    style="border:2px solid #e5e7eb;border-radius:10px;padding:10px 12px;cursor:pointer;background:#fff;color:#111827;user-select:none;transition:border-color .15s, background .15s;">
+                                                    <span class="v2-cls-badge"
+                                                        style="display:inline-block;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;margin-bottom:6px;background:{{ $clsBg }};color:{{ $clsColor }};">
+                                                        {{ $clsLbl }}
+                                                    </span>
+                                                    <div
+                                                        style="font-size:13px;font-weight:800;line-height:1.3;margin-bottom:6px;">
+                                                        {{ $truck->name }}
+                                                    </div>
+                                                    <div class="v2-avail-row"
+                                                        style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;margin-bottom:6px;color:#6b7280;">
+                                                        <span
+                                                            style="width:6px;height:6px;border-radius:50%;background:{{ $isAvail ? '#22c55e' : '#9ca3af' }};display:inline-block;flex-shrink:0;"></span>
+                                                        @if ($isAvail)
+                                                            {{ $truck->available_units_count }}
+                                                            unit{{ $truck->available_units_count !== 1 ? 's' : '' }}
+                                                        @else
+                                                            No units
+                                                        @endif
+                                                    </div>
+                                                    <div class="v2-rate-row"
+                                                        style="font-size:10px;font-weight:700;color:#52525b;">
+                                                        ₱{{ number_format($truck->base_rate, 0) }} +
+                                                        ₱{{ number_format($truck->per_km_rate, 0) }}/km
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group" style="margin-bottom:14px;">
+                                        <label
+                                            style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:#111;">
+                                            <input type="checkbox" id="v2_route_override_chk"
+                                                {{ old('vehicle_2_route_override') === '1' ? 'checked' : '' }}>
+                                            This vehicle has a different pickup &amp; drop-off
+                                        </label>
+                                        <input type="hidden" id="v2_route_override" name="vehicle_2_route_override"
+                                            value="{{ old('vehicle_2_route_override', '0') }}">
+                                        <p style="margin:6px 0 0;font-size:0.8rem;color:#6b7280;">
+                                            Leave unchecked to reuse the main pickup &amp; drop-off above.
+                                        </p>
+                                    </div>
+
+                                    <div id="v2_route_fields"
+                                        style="display:{{ old('vehicle_2_route_override') === '1' ? 'block' : 'none' }};">
+                                        <div class="form-row form-row-location">
+                                            <div class="form-group">
+                                                <label for="v2_pickup_address">Vehicle 2 Pickup *</label>
+                                                <div class="input-map-wrapper">
+                                                    <input type="text" id="v2_pickup_address"
+                                                        name="vehicle_2_pickup_address"
+                                                        placeholder="Where should we pick up the 2nd vehicle?"
+                                                        autocomplete="off" value="{{ old('vehicle_2_pickup_address') }}">
+                                                    <div id="v2_pickup_suggestions" class="suggestions"></div>
+                                                </div>
+                                                <input type="hidden" id="v2_pickup_lat" name="vehicle_2_pickup_lat"
+                                                    value="{{ old('vehicle_2_pickup_lat') }}">
+                                                <input type="hidden" id="v2_pickup_lng" name="vehicle_2_pickup_lng"
+                                                    value="{{ old('vehicle_2_pickup_lng') }}">
+                                                @error('vehicle_2_pickup_address')
+                                                    <span class="error-message">{{ $message }}</span>
+                                                @enderror
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="v2_dropoff_address">Vehicle 2 Drop-off *</label>
+                                                <div class="input-map-wrapper">
+                                                    <input type="text" id="v2_dropoff_address"
+                                                        name="vehicle_2_dropoff_address"
+                                                        placeholder="Where is the 2nd vehicle headed?" autocomplete="off"
+                                                        value="{{ old('vehicle_2_dropoff_address') }}">
+                                                    <div id="v2_dropoff_suggestions" class="suggestions"></div>
+                                                </div>
+
+                                                <input type="hidden" id="v2_drop_lat" name="vehicle_2_drop_lat"
+                                                    value="{{ old('vehicle_2_drop_lat') }}">
+                                                <input type="hidden" id="v2_drop_lng" name="vehicle_2_drop_lng"
+                                                    value="{{ old('vehicle_2_drop_lng') }}">
+                                                @error('vehicle_2_dropoff_address')
+                                                    <span class="error-message">{{ $message }}</span>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <input type="hidden" id="v2_distance_km" name="vehicle_2_distance_km"
+                                        value="{{ old('vehicle_2_distance_km') }}">
+                                    <input type="hidden" id="v2_eta_minutes" name="vehicle_2_eta_minutes"
+                                        value="{{ old('vehicle_2_eta_minutes') }}">
+                                    <input type="hidden" id="v2_price" name="vehicle_2_price"
+                                        value="{{ old('vehicle_2_price') }}">
+
+                                    <div id="v2_pricing_row"
+                                        style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-top:6px;">
+                                        <div>
+                                            <div
+                                                style="font-size:0.78rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
+                                                Vehicle 2 estimate
+                                            </div>
+                                            <div style="font-size:0.85rem;color:#111;margin-top:2px;">
+                                                <span id="v2_distance_label">— km</span> ·
+                                                <span id="v2_eta_label">— min</span>
+                                            </div>
+                                        </div>
+                                        <div id="v2_price_label" style="font-size:1.05rem;font-weight:800;color:#111;">
+                                            ₱0.00</div>
+                                    </div>
+
+                                    <div id="v2_schedule_notice"
+                                        style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:0.8rem;font-weight:600;">
+                                    </div>
                                 </div>
                             </div>
 
@@ -1019,14 +1202,93 @@
                         } : null,
                     ];
 
+                    // ── 2nd vehicle summary (multi-tow) ────────────────────
+                    let v2Section = '';
+                    let v2GrandTotalNum = 0;
+                    const v2Active = document.getElementById('add_second_vehicle')?.value === '1';
+                    if (v2Active) {
+                        const v2TruckId = document.getElementById('v2_truck_type_id')?.value;
+                        const v2TruckCard = v2TruckId ? document.querySelector(
+                            `.v2-class-card[data-truck-id="${v2TruckId}"]`) : null;
+                        const v2TruckName = v2TruckCard ? v2TruckCard.querySelector('div[style*="font-weight:800"]')
+                            ?.textContent?.trim() : 'Not selected';
+                        const v2VehType = document.getElementById('v2_customer_vehicle_type')?.value || 'Not specified';
+                        const v2Override = document.getElementById('v2_route_override')?.value === '1';
+                        const v2Pickup = v2Override ? (document.getElementById('v2_pickup_address')?.value || pickup) :
+                            pickup;
+                        const v2Dropoff = v2Override ? (document.getElementById('v2_dropoff_address')?.value ||
+                            dropoff) : dropoff;
+                        const v2DistKm = parseFloat(document.getElementById('v2_distance_km')?.value || '0') || 0;
+                        const v2EtaMin = parseFloat(document.getElementById('v2_eta_minutes')?.value || '0') || 0;
+                        const v2PriceNum = parseFloat(document.getElementById('v2_price')?.value || '0') || 0;
+                        v2GrandTotalNum = v2PriceNum;
+
+                        const v2Items = [{
+                                label: 'Truck Type',
+                                value: v2TruckName
+                            },
+                            {
+                                label: 'Customer Vehicle',
+                                value: v2VehType
+                            },
+                            {
+                                label: 'Pickup',
+                                value: v2Pickup,
+                                wide: true
+                            },
+                            {
+                                label: 'Drop-off',
+                                value: v2Dropoff,
+                                wide: true
+                            },
+                            {
+                                label: 'Distance',
+                                value: v2DistKm ? v2DistKm.toFixed(2) + ' km' : '—'
+                            },
+                            {
+                                label: 'ETA',
+                                value: v2EtaMin ? Math.round(v2EtaMin) + ' min' : '—'
+                            },
+                            {
+                                label: 'Vehicle 2 Estimate',
+                                value: '₱' + v2PriceNum.toLocaleString('en-PH', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                })
+                            },
+                        ];
+                        const noticeEl = document.getElementById('v2_schedule_notice');
+                        const noticeNote = (noticeEl && noticeEl.style.display !== 'none') ? noticeEl.textContent
+                            .trim() : '';
+                        v2Section = renderSummarySection('Second Vehicle', v2Items, noticeNote ? {
+                            helperNote: noticeNote
+                        } : {});
+                    }
+
+                    const grandTotalNum = _computedTotal + v2GrandTotalNum;
+                    const grandTotalStr = '₱' + grandTotalNum.toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+
                     bookingSummary.innerHTML = `
                     <div class="summary-card">
                         ${renderSummarySection('Customer Information', customerItems)}
                         ${renderSummarySection('Trip Details', tripItems)}
                         ${renderSummarySection('Fare Summary', fareItems, {
-                            totalValue: total,
-                            helperNote: 'Actual cost may vary according to different vehicle and booking mode'
+                            totalValue: v2Active ? null : total,
+                            helperNote: v2Active ? '' : 'Actual cost may vary according to different vehicle and booking mode'
                         })}
+                        ${v2Section}
+                        ${v2Active ? `
+                                                    <div class="summary-section">
+                                                        <div class="summary-section-title">Grand Total (Both Vehicles)</div>
+                                                        <div class="summary-grid">
+                                                            <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
+                                                        </div>
+                                                        <p class="summary-helper-note">Actual cost may vary according to different vehicle and booking mode.</p>
+                                                    </div>
+                                                ` : ''}
                     </div>
                 `;
 
@@ -1357,6 +1619,11 @@
                     selectedTruckId = card.dataset.truckId || '';
                     document.getElementById('truck_type_id').value = selectedTruckId;
                     document.getElementById('truck_class_hidden').value = card.dataset.class || '';
+                    document.dispatchEvent(new CustomEvent('v1ClassSelected', {
+                        detail: {
+                            cls: card.dataset.class || ''
+                        }
+                    }));
                     const badge = card.querySelector('.lf-cls-badge');
                     if (badge) {
                         badge.style.background = 'rgba(255,255,255,.15)';
@@ -1374,16 +1641,22 @@
                     document.querySelectorAll('.lf-class-card').forEach(card => {
                         const orig = card.dataset.available === '1';
                         if (isScheduleMode || orig) {
+                            card.style.display = '';
                             card.style.opacity = '1';
                             card.style.cursor = 'pointer';
                             card.style.pointerEvents = '';
+                            card.style.filter = '';
                             card.setAttribute('tabindex', '0');
                             card.setAttribute('aria-disabled', 'false');
                             anyAvail = true;
                         } else {
+                            // Stay visible but greyed-out & unclickable in book_now
+                            // when no unit of this class is available.
+                            card.style.display = '';
                             card.style.opacity = '.45';
                             card.style.cursor = 'not-allowed';
                             card.style.pointerEvents = 'none';
+                            card.style.filter = 'grayscale(70%)';
                             card.setAttribute('tabindex', '-1');
                             card.setAttribute('aria-disabled', 'true');
                             if (card.classList.contains('lf-selected')) {
@@ -1430,6 +1703,389 @@
 
                     updateCardAvailability();
                 });
+            })();
+        </script>
+
+        {{-- ── Vehicle 2 (multi-tow) JS ─────────────────────────────────── --}}
+        <script>
+            (function() {
+                const wrapper = document.getElementById('v2_wrapper');
+                if (!wrapper) return;
+
+                const toggleBtn = document.getElementById('v2_toggle_btn');
+                const panel = document.getElementById('v2_panel');
+                const flagInput = document.getElementById('add_second_vehicle');
+                const truckInput = document.getElementById('v2_truck_type_id');
+                const overrideChk = document.getElementById('v2_route_override_chk');
+                const overrideInput = document.getElementById('v2_route_override');
+                const routeFields = document.getElementById('v2_route_fields');
+                const v2Pickup = document.getElementById('v2_pickup_address');
+                const v2Dropoff = document.getElementById('v2_dropoff_address');
+                const v2PickupLat = document.getElementById('v2_pickup_lat');
+                const v2PickupLng = document.getElementById('v2_pickup_lng');
+                const v2DropLat = document.getElementById('v2_drop_lat');
+                const v2DropLng = document.getElementById('v2_drop_lng');
+                const v2DistanceIn = document.getElementById('v2_distance_km');
+                const v2EtaIn = document.getElementById('v2_eta_minutes');
+                const v2PriceIn = document.getElementById('v2_price');
+                const v2DistLabel = document.getElementById('v2_distance_label');
+                const v2EtaLabel = document.getElementById('v2_eta_label');
+                const v2PriceLabel = document.getElementById('v2_price_label');
+                const v2Notice = document.getElementById('v2_schedule_notice');
+                const pickupSugg = document.getElementById('v2_pickup_suggestions');
+                const dropoffSugg = document.getElementById('v2_dropoff_suggestions');
+
+                function pesos(n) {
+                    return '₱' + Number(n || 0).toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                }
+
+                function setOpen(open) {
+                    panel.style.display = open ? 'block' : 'none';
+                    flagInput.value = open ? '1' : '0';
+                    toggleBtn.textContent = open ? '× Remove second vehicle' : '+ Add another vehicle';
+                    if (!open) {
+                        truckInput.value = '';
+                        document.querySelectorAll('.v2-class-card.v2-selected').forEach(c => c.click());
+                        v2Notice.style.display = 'none';
+                    }
+                    recompute();
+                }
+
+                toggleBtn.addEventListener('click', () => setOpen(panel.style.display === 'none'));
+
+                // ── Grey-out unavailable Vehicle 2 truck cards in book_now mode ──
+                function syncV2CardVisibility() {
+                    const isSchedule = (document.getElementById('service_type')?.value || 'book_now') === 'schedule';
+                    document.querySelectorAll('.v2-class-card').forEach(card => {
+                        const avail = card.dataset.available === '1';
+                        if (isSchedule || avail) {
+                            card.style.opacity = '1';
+                            card.style.cursor = 'pointer';
+                            card.style.pointerEvents = '';
+                            card.style.filter = '';
+                            card.setAttribute('aria-disabled', 'false');
+                            card.setAttribute('tabindex', '0');
+                        } else {
+                            card.style.opacity = '.45';
+                            card.style.cursor = 'not-allowed';
+                            card.style.pointerEvents = 'none';
+                            card.style.filter = 'grayscale(70%)';
+                            card.setAttribute('aria-disabled', 'true');
+                            card.setAttribute('tabindex', '-1');
+                            if (card.classList.contains('v2-selected')) {
+                                card.classList.remove('v2-selected');
+                                card.style.background = '#fff';
+                                card.style.borderColor = '#e5e7eb';
+                                card.style.color = '#111827';
+                                truckInput.value = '';
+                            }
+                        }
+                    });
+                }
+                syncV2CardVisibility();
+                document.getElementById('service_type')?.addEventListener('change', function() {
+                    syncV2CardVisibility();
+                    syncV2ClassLock(v1LockedClass);
+                });
+
+                // ── Lock V2: prevent selecting same class as V1 ────────
+                let v1LockedClass = '';
+
+                function syncV2ClassLock(cls) {
+                    if (cls != null) v1LockedClass = cls;
+                    document.querySelectorAll('.v2-class-card').forEach(card => {
+                        if (card.dataset.class === v1LockedClass && v1LockedClass !== '') {
+                            card.style.opacity = '.35';
+                            card.style.cursor = 'not-allowed';
+                            card.style.pointerEvents = 'none';
+                            card.style.filter = 'grayscale(80%)';
+                            card.setAttribute('aria-disabled', 'true');
+                            card.setAttribute('tabindex', '-1');
+                            if (card.classList.contains('v2-selected')) {
+                                card.style.background = '#fff';
+                                card.style.borderColor = '#e5e7eb';
+                                card.style.color = '#111827';
+                                card.classList.remove('v2-selected');
+                                truckInput.value = '';
+                                recompute();
+                            }
+                        }
+                    });
+                }
+                // Listen for V1 class selection
+                document.addEventListener('v1ClassSelected', function(e) {
+                    syncV2CardVisibility();
+                    syncV2ClassLock(e.detail?.cls || '');
+                });
+                // Seed on page load if V1 already has a card selected
+                (function() {
+                    const sel = document.querySelector('.lf-class-card.lf-selected');
+                    if (sel) syncV2ClassLock(sel.dataset.class || '');
+                })();
+
+                // ── Class picker (Vehicle 2) ───────────────────────────
+                document.querySelectorAll('.v2-class-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        if (card.getAttribute('aria-disabled') === 'true') return;
+                        document.querySelectorAll('.v2-class-card').forEach(c => {
+                            c.style.background = '#fff';
+                            c.style.borderColor = '#e5e7eb';
+                            c.style.color = '#111827';
+                            c.classList.remove('v2-selected');
+                        });
+                        card.style.background = '#111827';
+                        card.style.borderColor = '#111827';
+                        card.style.color = '#fff';
+                        card.classList.add('v2-selected');
+                        truckInput.value = card.dataset.truckId || '';
+                        recompute();
+                        evaluateAvailabilityNotice();
+                    });
+                });
+
+                // Restore old() selection if any
+                const preselectedId = truckInput.value;
+                if (preselectedId) {
+                    const c = document.querySelector(`.v2-class-card[data-truck-id="${preselectedId}"]`);
+                    if (c) c.click();
+                }
+
+                // ── Route override toggle ──────────────────────────────
+                function syncOverride() {
+                    const on = !!overrideChk.checked;
+                    overrideInput.value = on ? '1' : '0';
+                    routeFields.style.display = on ? 'block' : 'none';
+                    recompute();
+                }
+                overrideChk.addEventListener('change', syncOverride);
+
+                // ── Suggestions wiring (mirrors map.js getSuggestions) ─
+                function escHtml(str) {
+                    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                }
+
+                function attachSuggest(inputEl, suggBox, latEl, lngEl) {
+                    if (!inputEl || !suggBox) return;
+                    let timer = null;
+                    let loadingTimer = null;
+
+                    inputEl.addEventListener('input', () => {
+                        const q = inputEl.value.trim();
+                        latEl.value = '';
+                        lngEl.value = '';
+                        v2DistanceIn.value = '';
+                        v2EtaIn.value = '';
+                        recompute();
+
+                        clearTimeout(timer);
+                        clearTimeout(loadingTimer);
+                        if (q.length < 2) {
+                            suggBox.innerHTML = '';
+                            suggBox.style.display = 'none';
+                            return;
+                        }
+
+                        timer = setTimeout(async () => {
+                            loadingTimer = setTimeout(() => {
+                                suggBox.innerHTML =
+                                    '<div class="suggestion-loading">Loading</div>';
+                                suggBox.style.display = 'block';
+                            }, 400);
+
+                            try {
+                                const res = await fetch(window.bookingGeoConfig.searchUrl + '?q=' +
+                                    encodeURIComponent(q), {
+                                        headers: {
+                                            Accept: 'application/json',
+                                            'X-Requested-With': 'XMLHttpRequest'
+                                        },
+                                        credentials: 'same-origin',
+                                    });
+                                clearTimeout(loadingTimer);
+                                const data = await res.json();
+                                const features = (data && data.features) || [];
+
+                                suggBox.innerHTML = '';
+                                if (features.length === 0) {
+                                    suggBox.innerHTML =
+                                        '<div class="suggestion-empty">No results found. Try adding city or landmark.</div>';
+                                    suggBox.style.display = 'block';
+                                    return;
+                                }
+
+                                features.forEach((place) => {
+                                    const label = (place.label || '').trim();
+                                    const commaIdx = label.indexOf(',');
+                                    const primary = commaIdx > -1 ? label.substring(0, commaIdx)
+                                        .trim() :
+                                        label;
+                                    const secondary = commaIdx > -1 ? label.substring(commaIdx +
+                                            1).trim() :
+                                        '';
+                                    const coords = place.coordinates || [];
+
+                                    const row = document.createElement('div');
+                                    row.className = 'suggestion-row';
+                                    row.innerHTML =
+                                        '<span class="suggestion-body">' +
+                                        '<span class="suggestion-primary">' + escHtml(primary) +
+                                        '</span>' +
+                                        (secondary ? '<span class="suggestion-secondary">' +
+                                            escHtml(
+                                                secondary) + '</span>' : '') +
+                                        '</span>';
+
+                                    row.addEventListener('click', () => {
+                                        inputEl.value = label;
+                                        latEl.value = coords[1] != null ? coords[1] :
+                                            '';
+                                        lngEl.value = coords[0] != null ? coords[0] :
+                                            '';
+                                        suggBox.innerHTML = '';
+                                        suggBox.style.display = 'none';
+                                        fetchRouteDistance();
+                                    });
+
+                                    suggBox.appendChild(row);
+                                });
+                                suggBox.style.display = 'block';
+                            } catch (_) {
+                                clearTimeout(loadingTimer);
+                                suggBox.innerHTML = '';
+                                suggBox.style.display = 'none';
+                            }
+                        }, 250);
+                    });
+
+                    document.addEventListener('click', (ev) => {
+                        if (!suggBox.contains(ev.target) && ev.target !== inputEl) {
+                            suggBox.style.display = 'none';
+                        }
+                    });
+                }
+                attachSuggest(v2Pickup, pickupSugg, v2PickupLat, v2PickupLng);
+                attachSuggest(v2Dropoff, dropoffSugg, v2DropLat, v2DropLng);
+
+                // ── Fetch route distance for vehicle 2 (override mode) ─
+                let routeAbort = null;
+                async function fetchRouteDistance() {
+                    if (overrideInput.value !== '1') return;
+                    const a = v2PickupLat.value,
+                        b = v2PickupLng.value,
+                        c = v2DropLat.value,
+                        d = v2DropLng.value;
+                    if (!a || !b || !c || !d) return;
+                    try {
+                        if (routeAbort) routeAbort.abort();
+                        routeAbort = new AbortController();
+                        const url = window.bookingGeoConfig.routeUrl +
+                            `?from_lat=${a}&from_lng=${b}&to_lat=${c}&to_lng=${d}`;
+                        const res = await fetch(url, {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            credentials: 'same-origin',
+                            signal: routeAbort.signal,
+                        });
+                        const data = await res.json();
+                        const distKm = Number(data.distance_km || data.distance || 0);
+                        const etaMin = Number(data.duration_min || data.eta_minutes || 0);
+                        if (distKm > 0) {
+                            v2DistanceIn.value = distKm.toFixed(2);
+                            v2EtaIn.value = Math.round(etaMin);
+                            recompute();
+                        }
+                    } catch (e) {
+                        /* aborted/silent */
+                    }
+                }
+
+                // ── Recompute pricing/eta display ──────────────────────
+                function recompute() {
+                    if (panel.style.display === 'none') return;
+                    const truckId = truckInput.value;
+                    const rate = (truckId && truckRates[truckId]) ? truckRates[truckId] : null;
+                    if (!rate) {
+                        v2DistLabel.textContent = '— km';
+                        v2EtaLabel.textContent = '— min';
+                        v2PriceLabel.textContent = pesos(0);
+                        v2PriceIn.value = '';
+                        return;
+                    }
+
+                    let distKm, etaMin;
+                    if (overrideInput.value === '1') {
+                        distKm = parseFloat(v2DistanceIn.value || '0') || 0;
+                        etaMin = parseFloat(v2EtaIn.value || '0') || 0;
+                    } else {
+                        distKm = parseFloat(document.getElementById('distance_input').value || '0') || 0;
+                        etaMin = parseFloat(document.getElementById('eta_minutes').value || '0') || 0;
+                        v2DistanceIn.value = distKm ? distKm.toFixed(2) : '';
+                        v2EtaIn.value = etaMin ? Math.round(etaMin) : '';
+                    }
+
+                    const kmIncrements = Math.floor(distKm / 4);
+                    const distanceFee = kmIncrements * 200;
+                    const total = Number(rate.base) + distanceFee;
+
+                    v2DistLabel.textContent = (distKm ? distKm.toFixed(2) : '—') + ' km';
+                    v2EtaLabel.textContent = (etaMin ? Math.round(etaMin) : '—') + ' min';
+                    v2PriceLabel.textContent = pesos(total);
+                    v2PriceIn.value = total.toFixed(2);
+                }
+
+                // ── Availability notice (1 unit → 2nd auto-scheduled) ─
+                function evaluateAvailabilityNotice() {
+                    if (panel.style.display === 'none' || !truckInput.value) {
+                        v2Notice.style.display = 'none';
+                        return;
+                    }
+                    const svc = document.getElementById('service_type')?.value || 'book_now';
+                    if (svc !== 'book_now') {
+                        v2Notice.style.display = 'none';
+                        return;
+                    }
+
+                    let totalAvail = 0;
+                    document.querySelectorAll('.lf-class-card').forEach(c => {
+                        const n = parseInt(c.querySelector('.lf-avail-row')?.textContent?.match(/\d+/)?.[0] || '0',
+                            10);
+                        if (c.dataset.available === '1') totalAvail += n;
+                    });
+
+                    if (totalAvail < 2) {
+                        v2Notice.textContent = totalAvail === 1 ?
+                            'Heads up: only 1 unit is online right now. Your 2nd vehicle will be auto-scheduled for the next hour.' :
+                            'No units online right now — both vehicles will be scheduled.';
+                        v2Notice.style.display = 'block';
+                    } else {
+                        v2Notice.style.display = 'none';
+                    }
+                }
+
+                // Recompute when the main route updates
+                ['distance_input', 'eta_minutes'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        new MutationObserver(recompute).observe(el, {
+                            attributes: true,
+                            attributeFilter: ['value']
+                        });
+                        el.addEventListener('change', recompute);
+                    }
+                });
+                document.getElementById('service_type')?.addEventListener('change', evaluateAvailabilityNotice);
+
+                // Initial paint
+                syncOverride();
+                recompute();
+                evaluateAvailabilityNotice();
+
+                // Also recompute when any v2 hidden distance changes externally
+                setInterval(recompute, 1500);
             })();
         </script>
     @endpush

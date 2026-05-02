@@ -25,120 +25,42 @@
 
 
     <div class="dashboard-overview">
-        <div class="stats-grid">
 
-            <div class="stat-card">
+        <div class="kpi-row">
 
-                <div>
-                    <span>Total Users</span>
-                    <h2 class="counter" data-target="{{ $totalUsers }}">0</h2>
-                </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Total Users</span>
+                <div class="kpi-value counter" data-target="{{ $totalUsers }}">0</div>
             </div>
 
-            <div class="stat-card">
-
-                <div>
-                    <span>Total Bookings</span>
-                    <h2 class="counter" data-target="{{ $totalBookings }}">0</h2>
-                </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Total Bookings</span>
+                <div class="kpi-value counter" data-target="{{ $totalBookings }}">0</div>
             </div>
 
-            <div class="stat-card">
-
-                <div>
-                    <span>Revenue Tracked</span>
-                    <h2>₱{{ number_format($totalRevenue, 2) }}</h2>
-                </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Revenue Tracked</span>
+                <div class="kpi-value">₱{{ number_format($totalRevenue, 2) }}</div>
             </div>
 
-            <div class="stat-card">
-
-                <div>
-                    <span>Active Units</span>
-                    <h2 class="counter" data-target="{{ $activeUnits }}">0</h2>
-                </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Active Units</span>
+                <div class="kpi-value counter" data-target="{{ $activeUnits }}">0</div>
             </div>
 
-        </div>
-
-        <div class="metric-grid">
-
-            <div class="metric-card metric-bookings">
-
-                <div class="metric-header">
-                    <span>TODAY'S BOOKINGS</span>
-
-
-                </div>
-
-                <div class="metric-value" id="todayBookings">{{ $todayBookings }}</div>
-
-                <div class="metric-desc">
-                    @if ($todayBookings == 0)
-                        No bookings yet today
-                    @else
-                        Active booking requests
-                    @endif
-                </div>
-
-                {{-- <div class="metric-chart">
-                    <svg viewBox="0 0 300 80">
-                        <path d="M0 70 C60 40 120 60 180 45 C240 30 260 50 300 40 L300 80 L0 80 Z" />
-                    </svg>
-                </div> --}}
-
+            <div class="kpi-card kpi-accent-yellow">
+                <span class="kpi-label">Today's Bookings</span>
+                <div class="kpi-value" id="todayBookings">{{ $todayBookings }}</div>
             </div>
 
-            <div class="metric-card metric-completed">
-
-                <div class="metric-header">
-                    <span>COMPLETED TODAY</span>
-
-
-                </div>
-
-                <div class="metric-value" id="completedToday">{{ $completedToday }}</div>
-
-                <div class="metric-desc">
-                    @if ($completedToday == 0)
-                        No completions recorded
-                    @else
-                        Successful dispatches
-                    @endif
-                </div>
-
-                {{-- <div class="metric-chart">
-                    <svg viewBox="0 0 300 80">
-                        <path d="M0 65 C80 55 140 35 200 55 C240 70 260 40 300 45 L300 80 L0 80 Z" />
-                    </svg>
-                </div> --}}
-
+            <div class="kpi-card kpi-accent-green">
+                <span class="kpi-label">Completed Today</span>
+                <div class="kpi-value" id="completedToday">{{ $completedToday }}</div>
             </div>
 
-
-            <div class="metric-card metric-pending">
-
-                <div class="metric-header">
-                    <span>PENDING REVIEW</span>
-
-                </div>
-
-                <div class="metric-value" id="pendingBookingsMetric">{{ $pendingBookings }}</div>
-
-                <div class="metric-desc">
-                    @if ($pendingBookings == 0)
-                        Dispatch queues are clear right now
-                    @else
-                        Customer requests are waiting for review
-                    @endif
-                </div>
-
-                {{-- <div class="metric-chart">
-                    <svg viewBox="0 0 300 80">
-                        <path d="M0 60 C60 55 120 70 180 65 C220 55 260 50 300 55 L300 80 L0 80 Z" />
-                    </svg>
-                </div> --}}
-
+            <div class="kpi-card">
+                <span class="kpi-label">Pending Review</span>
+                <div class="kpi-value" id="pendingBookingsMetric">{{ $pendingBookings }}</div>
             </div>
 
         </div>
@@ -162,62 +84,21 @@
                 <div class="activity-list">
 
                     @forelse($recentActivities as $activity)
+                        @php
+                            $act = strtolower($activity->action);
+                            if (str_contains($act, 'booking') && str_contains($act, 'completed')) {
+                                $title = 'Booking Completed';
+                            } elseif (str_contains($act, 'booking') && str_contains($act, 'cancel')) {
+                                $title = 'Booking Cancelled';
+                            } else {
+                                $title = ucwords(str_replace('_', ' ', $activity->action));
+                            }
+                        @endphp
                         <div class="activity-item">
 
-                            <div class="activity-icon">
-
-                                @if (str_contains(strtolower($activity->action), 'completed'))
-                                    {{-- <i data-lucide="check-circle"></i> --}}
-                                @elseif(str_contains(strtolower($activity->action), 'cancel'))
-                                    {{-- <i data-lucide="x-circle"></i> --}}
-                                @elseif(str_contains(strtolower($activity->action), 'user'))
-                                    {{-- <i data-lucide="user-plus"></i> --}}
-                                @elseif(str_contains(strtolower($activity->action), 'unit'))
-                                    {{-- <i data-lucide="truck"></i> --}}
-                                @elseif(str_contains(strtolower($activity->action), 'setting'))
-                                    {{-- <i data-lucide="settings"></i> --}}
-                                @else
-                                    {{-- <i data-lucide="activity"></i> --}}
-                                @endif
-
-                            </div>
-
                             <div class="activity-text">
-
-                                <strong>
-
-                                    @if (str_contains(strtolower($activity->action), 'booking') && str_contains(strtolower($activity->action), 'completed'))
-                                        Booking #{{ $activity->reference ?? '' }} Completed
-                                    @elseif(str_contains(strtolower($activity->action), 'booking') && str_contains(strtolower($activity->action), 'cancel'))
-                                        Booking #{{ $activity->reference ?? '' }} Cancelled
-                                    @elseif(str_contains(strtolower($activity->action), 'user'))
-                                        New User Registered
-                                    @elseif(str_contains(strtolower($activity->action), 'unit'))
-                                        Unit {{ $activity->reference ?? '' }} Activated
-                                    @elseif(str_contains(strtolower($activity->action), 'setting'))
-                                        Settings Updated
-                                    @else
-                                        {{ ucfirst($activity->action) }}
-                                    @endif
-
-                                </strong>
-
-                                <span>
-
-                                    @if (str_contains(strtolower($activity->action), 'user'))
-                                        {{ $activity->reference }} · {{ $activity->description }}
-                                    @elseif(str_contains(strtolower($activity->action), 'unit'))
-                                        {{ $activity->description }} · Ready
-                                    @elseif(str_contains(strtolower($activity->action), 'booking'))
-                                        {{ $activity->description }}
-                                    @elseif(str_contains(strtolower($activity->action), 'setting'))
-                                        {{ $activity->description }}
-                                    @else
-                                        {{ $activity->description }}
-                                    @endif
-
-                                </span>
-
+                                <strong>{{ $title }}</strong>
+                                <span>{{ $activity->description }}</span>
                             </div>
 
                             <div class="activity-time">
@@ -243,95 +124,93 @@
 
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <script>
-        lucide.createIcons();
-        updateDashboard();
-    </script>
+        document.addEventListener('DOMContentLoaded', function() {
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-
-            const counters = document.querySelectorAll('.counter');
-
-            counters.forEach(counter => {
-
+            // — Counters —
+            document.querySelectorAll('.counter').forEach(counter => {
                 counter.innerText = '0';
-
                 const updateCounter = () => {
-
                     const target = +counter.getAttribute('data-target');
                     const current = +counter.innerText;
-                    const increment = target / 50;
-
+                    const increment = Math.ceil(target / 50) || 1;
                     if (current < target) {
-                        counter.innerText = Math.ceil(current + increment);
+                        counter.innerText = Math.min(current + increment, target);
                         setTimeout(updateCounter, 20);
                     } else {
                         counter.innerText = target;
                     }
-
                 };
-
                 updateCounter();
-
             });
 
-        });
-
-        const ctx = document.getElementById('bookingChart');
-
-        const bookingChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                datasets: [{
-                    label: 'Bookings',
-                    data: [],
-                    borderColor: '#facc15',
-                    backgroundColor: 'rgba(250, 204, 21, 0.22)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+            // — Booking chart (initial data from server) —
+            const ctx = document.getElementById('bookingChart');
+            const bookingChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Bookings',
+                        data: @json($weekBookings),
+                        borderColor: '#facc15',
+                        backgroundColor: 'rgba(250, 204, 21, 0.22)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#facc15',
+                        pointRadius: 4,
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
                     }
                 }
+            });
+
+            // — Live stats refresh —
+            function updateDashboard() {
+                fetch('{{ route('superadmin.dashboard.stats') }}')
+                    .then(res => res.json())
+                    .then(data => {
+                        const set = (id, val) => {
+                            const el = document.getElementById(id);
+                            if (el) el.innerText = val ?? 0;
+                        };
+                        set('todayBookings', data.todayBookings);
+                        set('completedToday', data.completedToday);
+                        set('pendingBookingsMetric', data.pendingBookings);
+
+                        // Update metric descriptions
+                        const pendingDesc = document.getElementById('pendingDesc');
+                        if (pendingDesc) {
+                            pendingDesc.innerText = (data.pendingBookings == 0) ?
+                                'Dispatch queues are clear right now' :
+                                'Customer requests are waiting for review';
+                        }
+
+                        bookingChart.data.datasets[0].data = data.weekBookings;
+                        bookingChart.update();
+                    })
+                    .catch(() => {}); // silent fail on network issues
             }
+
+            updateDashboard();
+            setInterval(updateDashboard, 10000);
+
+            // — Lucide icons —
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         });
-
-        function updateDashboard() {
-
-            fetch("{{ route('superadmin.dashboard.stats') }}")
-                .then(res => res.json())
-                .then(data => {
-
-                    const todayBookings = document.getElementById('todayBookings');
-                    const completedToday = document.getElementById('completedToday');
-                    const pendingBookingsMetric = document.getElementById('pendingBookingsMetric');
-
-                    if (todayBookings) todayBookings.innerText = data.todayBookings ?? 0;
-                    if (completedToday) completedToday.innerText = data.completedToday ?? 0;
-                    if (pendingBookingsMetric) pendingBookingsMetric.innerText = data.pendingBookings ?? 0;
-
-                    bookingChart.data.datasets[0].data = data.weekBookings;
-                    bookingChart.update();
-
-                });
-
-        }
-
-        setInterval(updateDashboard, 5000);
-
-        updateDashboard();
     </script>
 @endpush

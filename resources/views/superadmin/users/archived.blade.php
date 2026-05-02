@@ -87,7 +87,7 @@
                                 </td>
                                 <td data-label="Retention">
                                     @php
-                                        $deleteEligibleAt = optional($user->archived_at)?->copy()?->addDays(14);
+                                        $deleteEligibleAt = optional($user->archived_at)?->copy()?->addYear();
                                         $hoursRemaining = $deleteEligibleAt
                                             ? max(0, now()->diffInHours($deleteEligibleAt, false))
                                             : 0;

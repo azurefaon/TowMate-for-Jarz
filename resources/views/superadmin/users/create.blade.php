@@ -756,7 +756,7 @@
                             </div>
                         @endif
 
-                        <div class="form-section-title">Personal Information</div>
+                        <div class="form-section-title">Teamleader Information</div>
 
                         <div class="form-row">
                             <div class="form-group">

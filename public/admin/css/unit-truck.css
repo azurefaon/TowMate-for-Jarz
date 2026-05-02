@@ -88,9 +88,7 @@
 }
 
 .units-page .fleet-summary {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
+    display: none;
 }
 
 .units-page .summary-card {
@@ -140,19 +138,19 @@
 .units-page .table-card {
     background: #fff;
     border: 1px solid #e5e7eb;
-    border-radius: 20px;
+    border-radius: 0;
     overflow: hidden;
-    box-shadow: 0 12px 26px rgba(17, 17, 17, 0.04);
 }
 
 .units-page .table-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 16px;
-    padding: 18px;
+    gap: 12px;
+    padding: 14px 16px;
     border-bottom: 1px solid #e5e7eb;
     background: #ffffff;
+    flex-wrap: wrap;
 }
 
 .units-page .table-header h3 {
@@ -209,8 +207,8 @@
 
 .units-page .modern-table {
     width: 100%;
-    min-width: 980px;
-    border-collapse: separate;
+    min-width: 1200px;
+    border-collapse: collapse;
     border-spacing: 0;
 }
 
@@ -219,53 +217,67 @@
 }
 
 .units-page .modern-table th {
-    padding: 14px 16px;
-    color: #111827;
-    font-size: 0.78rem;
+    padding: 10px 12px;
+    color: #6b7280;
+    font-size: 0.72rem;
     font-family: sans-serif;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     text-align: left;
-    border-bottom: 1px solid #000000;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+    background: #f8fafc;
 }
 
 .units-page .modern-table td {
-    padding: 16px;
-    border-bottom: 1px solid #ffffff;
+    padding: 12px 12px;
+    border-bottom: 1px solid #f1f5f9;
     color: #1f2937;
-    vertical-align: top;
+    vertical-align: middle;
+    font-size: 13px;
+    max-width: 160px;
+}
+
+.units-page .cell-main {
+    display: block;
+    font-weight: 600;
+    color: #111111;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+}
+
+.units-page .rate-val {
+    font-weight: 600;
+    color: #111111;
+    white-space: nowrap;
+}
+
+.units-page .note-text {
+    display: block;
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #6b7280;
+    font-size: 12px;
+    cursor: default;
+}
+
+.units-page .row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .units-page .modern-table tbody tr:hover {
-    background: #ffffff;
-}
-
-.units-page .unit-cell {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.units-page .unit-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
-    background: #facc15;
-    color: #111827;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-family: sans-serif;
-    flex-shrink: 0;
+    background: #f8fbff;
 }
 
 .units-page .unit-name {
     display: block;
-    font-style:
-        poppins,
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
+    font-weight: 600;
     color: #111111;
 }
 
@@ -417,6 +429,30 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+}
+
+.units-page .form-row-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.units-page .name-fieldset {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 14px 6px;
+    margin-bottom: 14px;
+}
+
+.units-page .name-fieldset legend {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b7280;
+    padding: 0 6px;
+}
+
+.units-page .name-fieldset .form-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .units-page .form-group label {

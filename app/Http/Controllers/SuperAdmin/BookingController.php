@@ -71,6 +71,12 @@ class BookingController extends Controller
         if ($filters['status'] !== '') {
             if ($filters['status'] === 'active') {
                 $query->whereIn('status', ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job']);
+            } elseif ($filters['status'] === 'on_job') {
+                $query->whereIn('status', ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job']);
+            } elseif ($filters['status'] === 'scheduled') {
+                $query->whereIn('status', ['scheduled', 'scheduled_confirmed']);
+            } elseif ($filters['status'] === 'returned') {
+                $query->whereNotNull('returned_at');
             } else {
                 $query->where('status', $filters['status']);
             }

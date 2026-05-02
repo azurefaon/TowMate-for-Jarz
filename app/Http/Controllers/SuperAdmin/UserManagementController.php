@@ -618,8 +618,8 @@ class UserManagementController extends Controller
             return back()->with('error', 'Only archived users can be permanently deleted.');
         }
 
-        if ($user->archived_at->gt(now()->subDays(14))) {
-            return back()->with('error', 'Users must stay archived for at least 14 days before permanent deletion.');
+        if ($user->archived_at->gt(now()->subYear())) {
+            return back()->with('error', 'Users must stay archived for at least 1 year before permanent deletion.');
         }
 
         $reference = $user->name;

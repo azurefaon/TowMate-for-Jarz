@@ -59,16 +59,17 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!button) return;
 
         document.getElementById("editName").value = button.dataset.name || "";
-
         document.getElementById("editPlate").value = button.dataset.plate || "";
-
         document.getElementById("editStatus").value =
             button.dataset.status || "available";
-
         document.getElementById("editIssue").value = button.dataset.issue || "";
-
         document.getElementById("editTruckType").value =
             button.dataset.truck || "";
+
+        document.getElementById("editLeaderId").value =
+            button.dataset.leaderId || "";
+        document.getElementById("editDriverId").value =
+            button.dataset.driverId || "";
 
         if (editForm) {
             editForm.action = `${baseUrl}/${button.dataset.id}`;

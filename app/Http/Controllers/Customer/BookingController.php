@@ -195,6 +195,30 @@ class BookingController extends Controller
             $data['eta_minutes'] = $request->input('duration_min');
         }
 
+        // ── Multi-vehicle: detect optional 2nd tow request ──────────────
+        $wantSecondVehicle = (string) ($data['add_second_vehicle'] ?? '0') === '1'
+            && filled($data['vehicle_2_truck_type_id'] ?? null);
+
+        $availability = $this->bookingService->dispatchAvailability();
+        $readyUnits   = (int) ($availability['ready_units_count'] ?? 0);
+
+        if ($wantSecondVehicle && ($data['service_type'] ?? 'book_now') === 'book_now' && $readyUnits < 2) {
+            // Only one (or zero) units online → first stays as customer requested,
+            // second auto-falls back to a near-future schedule slot so dispatch can sequence it.
+            $secondScheduleAt = Carbon::now()->addHour()->second(0);
+            $data['vehicle_2_service_type']   = 'schedule';
+            $data['vehicle_2_scheduled_date'] = $secondScheduleAt->toDateString();
+            $data['vehicle_2_scheduled_time'] = $secondScheduleAt->format('H:i');
+            $data['vehicle_2_schedule_reason'] = $readyUnits === 1
+                ? 'Only 1 unit is available right now — your second vehicle is auto-scheduled for ' . $secondScheduleAt->format('g:i A') . '.'
+                : 'No units online right now — your second vehicle is auto-scheduled for ' . $secondScheduleAt->format('g:i A') . '.';
+        } else {
+            $data['vehicle_2_service_type']   = $data['service_type'] ?? 'book_now';
+            $data['vehicle_2_scheduled_date'] = $data['scheduled_date'] ?? null;
+            $data['vehicle_2_scheduled_time'] = $data['scheduled_time'] ?? null;
+            $data['vehicle_2_schedule_reason'] = null;
+        }
+
         // Create or find customer
         $customer = $existingCustomer ?? $this->bookingService->resolveCustomer($data);
 
@@ -227,6 +251,56 @@ class BookingController extends Controller
 
         $quotation->load(['customer', 'truckType']);
 
+        // ── Multi-vehicle: create second quotation if requested ────────
+        $secondQuotation = null;
+        if ($wantSecondVehicle) {
+            $v2TruckTypeInput = $data['vehicle_2_truck_type_id'];
+            $v2TruckType = is_numeric($v2TruckTypeInput)
+                ? TruckType::find($v2TruckTypeInput)
+                : TruckType::where('name', 'like', '%' . $v2TruckTypeInput . '%')->first();
+
+            if ($v2TruckType) {
+                $useOverride = (string) ($data['vehicle_2_route_override'] ?? '0') === '1'
+                    && filled($data['vehicle_2_pickup_address'] ?? null)
+                    && filled($data['vehicle_2_dropoff_address'] ?? null);
+
+                $v2Pickup    = $useOverride ? $data['vehicle_2_pickup_address'] : $data['pickup_address'];
+                $v2Dropoff   = $useOverride ? $data['vehicle_2_dropoff_address'] : $data['dropoff_address'];
+                $v2Distance  = $useOverride
+                    ? ($data['vehicle_2_distance_km'] ?? $data['distance_km'] ?? 0)
+                    : ($data['distance_km'] ?? 0);
+                $v2EtaInput  = $useOverride ? ($data['vehicle_2_eta_minutes'] ?? null) : ($data['eta_minutes'] ?? null);
+
+                $v2Pricing = $this->bookingService->calculatePricing([
+                    'truck_type_id' => $v2TruckType->id,
+                    'distance_km'   => $v2Distance,
+                    'customer_type' => $data['customer_type'] ?? 'regular',
+                ]);
+
+                $v2SubmittedPrice = isset($data['vehicle_2_price']) && is_numeric($data['vehicle_2_price']) && (float) $data['vehicle_2_price'] > 0
+                    ? (float) $data['vehicle_2_price']
+                    : $v2Pricing['final_total'];
+
+                $secondQuotation = $this->quotationService->createQuotation([
+                    'customer_id'        => $customer->id,
+                    'truck_type_id'      => $v2TruckType->id,
+                    'pickup_address'     => $v2Pickup,
+                    'dropoff_address'    => $v2Dropoff,
+                    'pickup_notes'       => $data['pickup_notes'] ?? null,
+                    'distance_km'        => $v2Distance,
+                    'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
+                    'estimated_price'    => $v2SubmittedPrice,
+                    'additional_fee'     => 0,
+                    'eta_minutes'        => $v2EtaInput,
+                    'service_type'       => $data['vehicle_2_service_type'] ?? 'book_now',
+                    'scheduled_date'     => $data['vehicle_2_scheduled_date'] ?? null,
+                    'scheduled_time'     => $data['vehicle_2_scheduled_time'] ?? null,
+                ]);
+
+                $secondQuotation->load(['customer', 'truckType']);
+            }
+        }
+
         // TODO: Send email notification about quotation request
         // if ($quotation->customer?->email) {
         //     Mail::to($quotation->customer->email)->send(new QuotationRequestReceivedMail($quotation));
@@ -257,6 +331,18 @@ class BookingController extends Controller
             'vehicle_color'  => $data['vehicle_color'] ?? null,
             'vehicle_plate'  => $data['vehicle_plate_number'] ?? null,
             'notes'          => $data['notes'] ?? null,
+            'second_vehicle' => $secondQuotation ? [
+                'reference'      => $secondQuotation->quotation_number,
+                'truck_type'     => $secondQuotation->truckType->name ?? null,
+                'pickup'         => $secondQuotation->pickup_address,
+                'dropoff'        => $secondQuotation->dropoff_address,
+                'distance_km'    => (float) $secondQuotation->distance_km,
+                'eta_minutes'    => $secondQuotation->eta_minutes,
+                'estimated_price' => (float) $secondQuotation->estimated_price,
+                'service_type'   => ($data['vehicle_2_service_type'] ?? 'book_now') === 'schedule' ? 'Scheduled' : 'Book Now',
+                'schedule_reason' => $data['vehicle_2_schedule_reason'] ?? null,
+                'route_overridden' => (string) ($data['vehicle_2_route_override'] ?? '0') === '1',
+            ] : null,
         ]]);
 
         if ($request->ajax() || $request->wantsJson()) {

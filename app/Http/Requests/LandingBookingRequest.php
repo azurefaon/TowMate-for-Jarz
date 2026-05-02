@@ -115,6 +115,21 @@ class LandingBookingRequest extends FormRequest
             'scheduled_date' => 'nullable|required_if:service_type,schedule|date|after_or_equal:today',
             'scheduled_time' => 'nullable|required_if:service_type,schedule|date_format:H:i',
             'confirmation_type' => 'nullable|in:call,system',
+
+            // ── Optional second vehicle (multi-tow) ─────────────────────
+            'add_second_vehicle' => 'nullable|in:0,1',
+            'vehicle_2_truck_type_id' => 'required_if:add_second_vehicle,1|nullable|string|max:255',
+            'vehicle_2_customer_vehicle_type' => 'required_if:add_second_vehicle,1|nullable|string|max:120',
+            'vehicle_2_route_override' => 'nullable|in:0,1',
+            'vehicle_2_pickup_address' => 'required_if:vehicle_2_route_override,1|nullable|string|max:1000',
+            'vehicle_2_pickup_lat' => 'required_if:vehicle_2_route_override,1|nullable|numeric|between:-90,90',
+            'vehicle_2_pickup_lng' => 'required_if:vehicle_2_route_override,1|nullable|numeric|between:-180,180',
+            'vehicle_2_dropoff_address' => 'required_if:vehicle_2_route_override,1|nullable|string|max:1000',
+            'vehicle_2_drop_lat' => 'required_if:vehicle_2_route_override,1|nullable|numeric|between:-90,90',
+            'vehicle_2_drop_lng' => 'required_if:vehicle_2_route_override,1|nullable|numeric|between:-180,180',
+            'vehicle_2_distance_km' => 'nullable|numeric|min:0|max:10000',
+            'vehicle_2_eta_minutes' => 'nullable|numeric|min:0|max:10000',
+            'vehicle_2_price' => 'nullable|string|max:50',
         ];
     }
 
@@ -149,6 +164,21 @@ class LandingBookingRequest extends FormRequest
             'vehicle_category' => $this->input('vehicle_category'),
             'is_pwd' => ($validated['customer_type'] ?? 'regular') === 'pwd',
             'is_senior' => ($validated['customer_type'] ?? 'regular') === 'senior',
+
+            // Optional second vehicle pass-through
+            'add_second_vehicle' => $this->input('add_second_vehicle'),
+            'vehicle_2_truck_type_id' => $this->input('vehicle_2_truck_type_id'),
+            'vehicle_2_customer_vehicle_type' => $this->input('vehicle_2_customer_vehicle_type'),
+            'vehicle_2_route_override' => $this->input('vehicle_2_route_override'),
+            'vehicle_2_pickup_address' => $this->input('vehicle_2_pickup_address'),
+            'vehicle_2_pickup_lat' => $this->input('vehicle_2_pickup_lat'),
+            'vehicle_2_pickup_lng' => $this->input('vehicle_2_pickup_lng'),
+            'vehicle_2_dropoff_address' => $this->input('vehicle_2_dropoff_address'),
+            'vehicle_2_drop_lat' => $this->input('vehicle_2_drop_lat'),
+            'vehicle_2_drop_lng' => $this->input('vehicle_2_drop_lng'),
+            'vehicle_2_distance_km' => $this->input('vehicle_2_distance_km'),
+            'vehicle_2_eta_minutes' => $this->input('vehicle_2_eta_minutes'),
+            'vehicle_2_price' => $this->input('vehicle_2_price'),
         ]);
     }
 

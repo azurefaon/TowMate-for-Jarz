@@ -1,5 +1,5 @@
 .booking-container {
-    padding: 30px;
+    padding: 20px 16px;
 }
 
 .booking-header {
@@ -181,28 +181,50 @@
 }
 
 .booking-table th {
-    font-size: 11px;
+    font-size: 10px;
     text-transform: uppercase;
     color: #64748b;
-    letter-spacing: 0.06em;
-    padding: 14px 16px;
+    letter-spacing: 0.05em;
+    padding: 10px 10px;
     background: #f8fafc;
     text-align: left;
     border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
 }
 
 .booking-table td {
-    max-width: 220px;
+    max-width: 140px;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 14px 16px;
-    font-size: 14px;
+    padding: 10px 10px;
+    font-size: 13px;
     vertical-align: top;
     color: #0f172a;
 }
 
+.booking-table td .cell-main {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    max-width: 100%;
+}
+
+.booking-table td .cell-sub {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    max-width: 100%;
+}
+
 .booking-table td.location {
-    max-width: 280px;
+    max-width: 130px;
+}
+
+.booking-table td.location .cell-main {
+    max-width: 120px;
+    cursor: default;
 }
 
 .booking-id,
@@ -226,9 +248,9 @@
 
 .status {
     display: inline-block;
-    padding: 6px 12px;
+    padding: 4px 8px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 11px;
     font-family: sans-serif;
 }
 
@@ -253,10 +275,10 @@
     background: #111827;
     color: #fff;
     border: none;
-    padding: 8px 12px;
+    padding: 6px 10px;
     border-radius: 10px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
     font-family: sans-serif;
 }
 

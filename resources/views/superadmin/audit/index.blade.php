@@ -96,6 +96,49 @@
             color: #6b7280;
             font-size: 13px;
         }
+
+        /* Pagination */
+        .audit-card .pagination-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .audit-card .pagination-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            height: 34px;
+            padding: 0 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            background: #fff;
+            text-decoration: none;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+
+        .audit-card .pagination-btn:hover:not(.disabled):not(.active) {
+            background: #f8fafc;
+            border-color: #d1d5db;
+        }
+
+        .audit-card .pagination-btn.active {
+            background: #111827;
+            border-color: #111827;
+            color: #fff;
+            font-weight: 700;
+            pointer-events: none;
+        }
+
+        .audit-card .pagination-btn.disabled {
+            opacity: 0.38;
+            pointer-events: none;
+        }
     </style>
 @endpush
 
@@ -128,7 +171,7 @@
         <section class="audit-card">
             <div style="margin-bottom: 12px;">
                 <h3>Recent Activity</h3>
-                <p class="audit-muted">Newest audit entries across the platform.</p>
+                {{-- <p class="audit-muted">Newest audit entries across the platform.</p> --}}
             </div>
 
             <div class="audit-table-wrap">

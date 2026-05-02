@@ -3,204 +3,240 @@
 @section('title', 'Vehicle Types Management')
 
 @push('styles')
-<style>
-    .vehicle-types-page {
-        padding: 20px;
-    }
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 30px;
-    }
-    .page-header h1 {
-        margin: 0 0 5px;
-        font-size: 1.8rem;
-    }
-    .page-header p {
-        margin: 0;
-        color: #64748b;
-    }
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 15px;
-        margin-bottom: 30px;
-    }
-    .stat-card {
-        background: #fff;
-        padding: 20px;
-        border-radius: 12px;
-        border: 1px solid #e5e7eb;
-    }
-    .stat-card span {
-        display: block;
-        color: #64748b;
-        font-size: 0.85rem;
-        margin-bottom: 8px;
-    }
-    .stat-card strong {
-        display: block;
-        font-size: 2rem;
-        color: #111827;
-    }
-    .table-card {
-        background: #fff;
-        border-radius: 12px;
-        border: 1px solid #e5e7eb;
-        overflow: hidden;
-    }
-    .modern-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    .modern-table th {
-        background: #f8fafc;
-        padding: 15px;
-        text-align: left;
-        font-weight: 600;
-        color: #111827;
-        border-bottom: 1px solid #e5e7eb;
-    }
-    .modern-table td {
-        padding: 15px;
-        border-bottom: 1px solid #f1f5f9;
-    }
-    .modern-table tbody tr:hover {
-        background: #f8fafc;
-    }
-    .badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    .badge-2_wheeler {
-        background: #dbeafe;
-        color: #1e40af;
-    }
-    .badge-4_wheeler {
-        background: #dcfce7;
-        color: #166534;
-    }
-    .badge-heavy_vehicle {
-        background: #fef3c7;
-        color: #92400e;
-    }
-    .status-pill {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    .status-pill.active {
-        background: #dcfce7;
-        color: #166534;
-    }
-    .status-pill.inactive {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-    .btn-primary {
-        background: #111827;
-        color: #fff;
-        padding: 10px 20px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 600;
-    }
-    .btn-primary:hover {
-        background: #1f2937;
-    }
-    .btn-sm {
-        padding: 6px 12px;
-        border-radius: 6px;
-        border: 1px solid #e5e7eb;
-        background: #fff;
-        cursor: pointer;
-        font-size: 0.85rem;
-        margin-right: 5px;
-    }
-    .btn-sm:hover {
-        background: #f8fafc;
-    }
-    .modal {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-    }
-    .modal-content {
-        background: #fff;
-        padding: 30px;
-        border-radius: 12px;
-        width: 90%;
-        max-width: 600px;
-        max-height: 90vh;
-        overflow-y: auto;
-    }
-    .modal-content h2 {
-        margin: 0 0 20px;
-    }
-    .form-group {
-        margin-bottom: 20px;
-    }
-    .form-group label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: 600;
-        color: #111827;
-    }
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        font-size: 0.95rem;
-    }
-    .form-group textarea {
-        resize: vertical;
-        min-height: 80px;
-    }
-    .form-group select[multiple] {
-        min-height: 120px;
-    }
-    .modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-top: 25px;
-    }
-    .alert {
-        padding: 15px 20px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-    }
-    .alert-success {
-        background: #dcfce7;
-        color: #166534;
-        border: 1px solid #bbf7d0;
-    }
-    .alert-error {
-        background: #fee2e2;
-        color: #991b1b;
-        border: 1px solid #fecaca;
-    }
-    .text-center {
-        text-align: center;
-    }
-</style>
+    <style>
+        .vehicle-types-page {
+            padding: 20px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .page-header h1 {
+            margin: 0 0 5px;
+            font-size: 1.8rem;
+        }
+
+        .page-header p {
+            margin: 0;
+            color: #64748b;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .stat-card span {
+            display: block;
+            color: #64748b;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+        }
+
+        .stat-card strong {
+            display: block;
+            font-size: 2rem;
+            color: #111827;
+        }
+
+        .table-card {
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
+        }
+
+        .modern-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .modern-table th {
+            background: #f8fafc;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #111827;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .modern-table td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .modern-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-2_wheeler {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-4_wheeler {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-heavy_vehicle {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-pill {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-pill.active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-pill.inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .btn-primary {
+            background: #111827;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background: #1f2937;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-right: 5px;
+        }
+
+        .btn-sm:hover {
+            background: #f8fafc;
+        }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-content h2 {
+            margin: 0 0 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-group select[multiple] {
+            min-height: 120px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+    </style>
 @endpush
 
 @section('content')
@@ -278,7 +314,8 @@
                             </td>
                             <td>
                                 <button class="btn-sm" onclick='editVehicleType(@json($type))'>Edit</button>
-                                <form method="POST" action="{{ route('superadmin.vehicle-types.toggle', $type->id) }}" style="display:inline;">
+                                <form method="POST" action="{{ route('superadmin.vehicle-types.toggle', $type->id) }}"
+                                    style="display:inline;">
                                     @csrf
                                     @method('PATCH')
                                     <button type="submit" class="btn-sm">
@@ -308,7 +345,7 @@
                     @csrf
                     <div class="form-group">
                         <label>Vehicle Name *</label>
-                        <input type="text" name="name" required placeholder="e.g., Sedan, Motorcycle, SUV">
+                        <input type="text" name="name" required placeholder="Sedan, Motorcycle, SUV">
                     </div>
                     <div class="form-group">
                         <label>Category *</label>
@@ -330,8 +367,9 @@
                     <div class="form-group">
                         <label>Compatible Tow Trucks (Hold Ctrl/Cmd to select multiple)</label>
                         <select name="truck_types[]" multiple>
-                            @foreach($truckTypes as $truck)
-                                <option value="{{ $truck->id }}">{{ $truck->name }} - ₱{{ number_format($truck->base_rate, 2) }}</option>
+                            @foreach ($truckTypes as $truck)
+                                <option value="{{ $truck->id }}">{{ $truck->name }} -
+                                    ₱{{ number_format($truck->base_rate, 2) }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -373,8 +411,9 @@
                     <div class="form-group">
                         <label>Compatible Tow Trucks</label>
                         <select name="truck_types[]" id="editTruckTypes" multiple>
-                            @foreach($truckTypes as $truck)
-                                <option value="{{ $truck->id }}">{{ $truck->name }} - ₱{{ number_format($truck->base_rate, 2) }}</option>
+                            @foreach ($truckTypes as $truck)
+                                <option value="{{ $truck->id }}">{{ $truck->name }} -
+                                    ₱{{ number_format($truck->base_rate, 2) }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -391,7 +430,7 @@
         function openAddModal() {
             document.getElementById('addModal').style.display = 'flex';
         }
-        
+
         function closeAddModal() {
             document.getElementById('addModal').style.display = 'none';
         }
@@ -402,7 +441,7 @@
             document.getElementById('editCategory').value = type.category;
             document.getElementById('editDescription').value = type.description || '';
             document.getElementById('editDisplayOrder').value = type.display_order;
-            
+
             // Load truck types for this vehicle
             fetch(`/api/vehicle-types/${type.id}/truck-types`)
                 .then(response => response.json())
@@ -412,7 +451,7 @@
                         option.selected = data.truckTypeIds.includes(parseInt(option.value));
                     });
                 });
-            
+
             document.getElementById('editModal').style.display = 'flex';
         }
 
@@ -424,7 +463,7 @@
         document.getElementById('addModal').addEventListener('click', function(e) {
             if (e.target === this) closeAddModal();
         });
-        
+
         document.getElementById('editModal').addEventListener('click', function(e) {
             if (e.target === this) closeEditModal();
         });

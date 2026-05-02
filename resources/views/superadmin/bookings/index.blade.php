@@ -89,13 +89,68 @@
         .booking-chip {
             display: inline-flex;
             align-items: center;
-            padding: 5px 10px;
+            padding: 3px 8px;
             border-radius: 999px;
             background: #f8fafc;
             color: #334155;
-            font-size: 0.78rem;
+            font-size: 11px;
             font-weight: 700;
             border: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+
+        .booking-status-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 14px;
+        }
+
+        .booking-status-tab {
+            padding: 7px 14px;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            color: #374151;
+            font-weight: 600;
+            font-size: 0.82rem;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+
+        .booking-status-tab.active,
+        .booking-status-tab:hover {
+            border-color: #111827;
+            background: #111827;
+            color: #fff;
+        }
+
+        .booking-status-tab.status-tab-completed.active,
+        .booking-status-tab.status-tab-completed:hover {
+            background: #166534;
+            border-color: #166534;
+            color: #fff;
+        }
+
+        .booking-status-tab.status-tab-scheduled.active,
+        .booking-status-tab.status-tab-scheduled:hover {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+            color: #fff;
+        }
+
+        .booking-status-tab.status-tab-onjob.active,
+        .booking-status-tab.status-tab-onjob:hover {
+            background: #9a3412;
+            border-color: #9a3412;
+            color: #fff;
+        }
+
+        .booking-status-tab.status-tab-returned.active,
+        .booking-status-tab.status-tab-returned:hover {
+            background: #6b21a8;
+            border-color: #6b21a8;
+            color: #fff;
         }
     </style>
 @endpush
@@ -118,7 +173,7 @@
                         placeholder="Search bookings, customers, or locations">
                 </div>
 
-                <select name="status" onchange="this.form.submit()">
+                {{-- <select name="status" onchange="this.form.submit()">
                     <option value="">All Status</option>
                     <option value="requested"
                         {{ ($filters['status'] ?? request('status')) == 'requested' ? 'selected' : '' }}>Requests</option>
@@ -126,7 +181,7 @@
                         Active</option>
                     <option value="completed"
                         {{ ($filters['status'] ?? request('status')) == 'completed' ? 'selected' : '' }}>Completed</option>
-                </select>
+                </select> --}}
 
                 <input type="hidden" name="period" value="{{ $filters['period'] ?? 'today' }}">
 
@@ -146,46 +201,52 @@
                 class="booking-period-tab {{ ($filters['period'] ?? '') === 'month' ? 'active' : '' }}">This Month</button>
         </form>
 
+        <div class="booking-status-tabs" id="bookingStatusTabs">
+            <button type="button" data-status=""
+                class="booking-status-tab {{ ($filters['status'] ?? '') === '' ? 'active' : '' }}">All</button>
+            <button type="button" data-status="completed"
+                class="booking-status-tab status-tab-completed {{ ($filters['status'] ?? '') === 'completed' ? 'active' : '' }}">Completed</button>
+            <button type="button" data-status="scheduled"
+                class="booking-status-tab status-tab-scheduled {{ ($filters['status'] ?? '') === 'scheduled' ? 'active' : '' }}">Scheduled</button>
+            <button type="button" data-status="on_job"
+                class="booking-status-tab status-tab-onjob {{ ($filters['status'] ?? '') === 'on_job' ? 'active' : '' }}">On
+                Job</button>
+            <button type="button" data-status="returned"
+                class="booking-status-tab status-tab-returned {{ ($filters['status'] ?? '') === 'returned' ? 'active' : '' }}">Returned</button>
+        </div>
+
         <div class="booking-period-note" id="bookingPeriodNote">
             <strong>Showing {{ $periodLabel }}</strong>
             <span>{{ $periodDescription }}</span>
         </div>
 
-        <div class="booking-summary" id="bookingSummary">
+        {{-- <div class="booking-summary" id="bookingSummary">
 
             <div class="summary-card blue-card">
-                <div class="summary-icon blue">
-                    {{-- <i data-lucide="clipboard"></i> --}}
-                </div>
+                
                 <div class="summary-number">{{ $stats['total'] }}</div>
                 <div class="summary-title">Total Bookings</div>
             </div>
 
             <div class="summary-card yellow-card">
-                <div class="summary-icon yellow">
-                    {{-- <i data-lucide="clock"></i> --}}
-                </div>
+                
                 <div class="summary-number">{{ $stats['requested'] }}</div>
                 <div class="summary-title">Requests</div>
             </div>
 
             <div class="summary-card orange-card">
-                <div class="summary-icon orange">
-                    {{-- <i data-lucide="truck"></i> --}}
-                </div>
+                
                 <div class="summary-number">{{ $stats['active'] }}</div>
                 <div class="summary-title">Active</div>
             </div>
 
             <div class="summary-card green-card">
-                <div class="summary-icon green">
-                    {{-- <i data-lucide="check-circle"></i> --}}
-                </div>
+                
                 <div class="summary-number">{{ $stats['completed'] }}</div>
                 <div class="summary-title">Completed</div>
             </div>
 
-        </div>
+        </div> --}}
 
         <div class="booking-table-card" id="bookingTableCard">
 
@@ -237,10 +298,12 @@
                                 </td>
 
                                 <td class="location">
-                                    <span class="cell-main">{{ $booking->pickup_address }}</span>
+                                    <span class="cell-main"
+                                        title="{{ $booking->pickup_address }}">{{ $booking->pickup_address }}</span>
                                 </td>
                                 <td class="location">
-                                    <span class="cell-main">{{ $booking->dropoff_address }}</span>
+                                    <span class="cell-main"
+                                        title="{{ $booking->dropoff_address }}">{{ $booking->dropoff_address }}</span>
                                 </td>
 
                                 <td>
@@ -413,6 +476,7 @@
         const bookingPage = document.getElementById('bookingPage');
         const bookingFiltersForm = document.getElementById('bookingFiltersForm');
         const bookingPeriodTabs = document.getElementById('bookingPeriodTabs');
+        const bookingStatusTabs = document.getElementById('bookingStatusTabs');
         const bookingTableCard = document.getElementById('bookingTableCard');
         const bookingIndexUrl = bookingPage?.dataset.indexUrl;
         const searchInput = bookingFiltersForm?.querySelector('[name="search"]');
@@ -464,6 +528,11 @@
                     button.classList.toggle('active', button.value === activePeriod);
                 });
 
+                const activeStatus = new URL(url, window.location.origin).searchParams.get('status') || '';
+                document.querySelectorAll('.booking-status-tab').forEach((button) => {
+                    button.classList.toggle('active', button.dataset.status === activeStatus);
+                });
+
                 if (periodInput) {
                     periodInput.value = activePeriod;
                 }
@@ -504,6 +573,15 @@
                     page: 1
                 }));
             }, 400);
+        });
+
+        bookingStatusTabs?.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-status]');
+            if (!button) return;
+            refreshBookings(buildFilterUrl({
+                status: button.dataset.status,
+                page: 1
+            }));
         });
 
         bookingPeriodTabs?.addEventListener('click', (event) => {
