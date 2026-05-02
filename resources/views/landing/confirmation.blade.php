@@ -393,62 +393,70 @@
         <div class="section">
             <div class="sec-head">Pricing</div>
             <div class="drow">
-                <span class="dl">Estimated Total</span>
+                <span class="dl">Vehicle 1</span>
                 <span class="dv" style="font-size:0.9rem;">PHP {{ number_format($data['estimated_price'], 2) }}</span>
             </div>
+            @if (!empty($data['extra_vehicles']))
+                @foreach ($data['extra_vehicles'] as $ev)
+                    @if (($ev['service_type'] ?? '') !== 'Scheduled')
+                    <div class="drow">
+                        <span class="dl">Vehicle {{ $ev['vehicle_index'] }}</span>
+                        <span class="dv">PHP {{ number_format($ev['estimated_price'] ?? 0, 2) }}</span>
+                    </div>
+                    @endif
+                @endforeach
+            @endif
             <div class="drow">
                 <span class="dl">Final Price</span>
-                <span class="dv" style="color:#6b7280;font-weight:400;font-size:0.8rem;">Set by dispatcher after
-                    review</span>
+                <span class="dv" style="color:#6b7280;font-weight:400;font-size:0.8rem;">Confirmed by dispatcher after review</span>
             </div>
         </div>
 
         <div class="price-bar">
-            <span class="p-label">Estimated Total</span>
-            <span class="p-amount">PHP {{ number_format($data['estimated_price'], 2) }}</span>
+            <span class="p-label">
+                {{ !empty($data['has_scheduled_extra']) ? 'Confirmed Est. Total' : 'Estimated Total' }}
+            </span>
+            <span class="p-amount">
+                PHP {{ number_format($data['grand_total'] ?? $data['estimated_price'], 2) }}{{ !empty($data['has_scheduled_extra']) ? ' +' : '' }}
+            </span>
         </div>
+        @if (!empty($data['has_scheduled_extra']))
+            <p style="font-size:0.77rem;color:#6b7280;margin:-16px 0 22px;line-height:1.5;">Scheduled vehicles will be quoted separately.</p>
+        @endif
 
-        {{-- Multi-vehicle sections --}}
-        @foreach (['second_vehicle' => 'Vehicle 2', 'third_vehicle' => 'Vehicle 3', 'fourth_vehicle' => 'Vehicle 4'] as $key => $label)
-            @if (!empty($data[$key]))
-                @php $v = $data[$key]; @endphp
-                <div class="section" style="border-left:3px solid #facc15;padding-left:12px;">
-                    <div class="sec-head">{{ $label }} — {{ $v['truck_type'] ?? 'Tow Truck' }}</div>
-                    <div class="drow">
-                        <span class="dl">Reference</span>
-                        <span class="dv" style="font-family:'Courier New',monospace;">{{ $v['reference'] }}</span>
-                    </div>
-                    <div class="drow">
-                        <span class="dl">Service</span>
-                        <span class="dv">{{ $v['service_type'] ?? 'Book Now' }}</span>
-                    </div>
-                    @if (!empty($v['schedule_reason']))
-                        <div class="drow">
-                            <span class="dl">Note</span>
-                            <span class="dv" style="color:#92400e;">{{ $v['schedule_reason'] }}</span>
+        {{-- Extra vehicles --}}
+        @if (!empty($data['extra_vehicles']) && count($data['extra_vehicles']))
+            <div class="section">
+                <div class="sec-head">Additional Vehicles</div>
+                @foreach ($data['extra_vehicles'] as $ev)
+                    <div style="border-left:3px solid #facc15;padding-left:12px;margin-bottom:14px;">
+                        <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">
+                            Vehicle {{ $ev['vehicle_index'] }} — {{ $ev['truck_type'] ?? 'Tow Truck' }}
                         </div>
-                    @endif
-                    <div class="drow">
-                        <span class="dl">Pickup</span>
-                        <span class="dv">{{ $v['pickup'] }}</span>
-                    </div>
-                    <div class="drow">
-                        <span class="dl">Drop-off</span>
-                        <span class="dv">{{ $v['dropoff'] }}</span>
-                    </div>
-                    @if (!empty($v['distance_km']))
                         <div class="drow">
-                            <span class="dl">Distance</span>
-                            <span class="dv">{{ number_format($v['distance_km'], 1) }} km</span>
+                            <span class="dl">Service</span>
+                            <span class="dv">{{ $ev['service_type'] ?? 'Book Now' }}</span>
                         </div>
-                    @endif
-                    <div class="drow">
-                        <span class="dl">Est. Price</span>
-                        <span class="dv">PHP {{ number_format($v['estimated_price'], 2) }}</span>
+                        @if (!empty($ev['scheduled_date']))
+                            <div class="drow">
+                                <span class="dl">Scheduled</span>
+                                <span class="dv">{{ $ev['scheduled_date'] }}</span>
+                            </div>
+                        @endif
+                        <div class="drow">
+                            <span class="dl">Est. Price</span>
+                            <span class="dv">
+                                @if (($ev['service_type'] ?? '') === 'Scheduled')
+                                    TBD (quoted separately)
+                                @else
+                                    PHP {{ number_format($ev['estimated_price'] ?? 0, 2) }}
+                                @endif
+                            </span>
+                        </div>
                     </div>
-                </div>
-            @endif
-        @endforeach
+                @endforeach
+            </div>
+        @endif
 
         {{-- What's next --}}
         <div class="next-box">

@@ -43,7 +43,8 @@ class TrackController extends Controller
 
         $booking = Booking::where(function ($query) use ($id) {
             $query->where('booking_code', $id)
-                ->orWhere('id', $id);
+                ->orWhere('id', $id)
+                ->orWhere('group_code', $id);
         })
             ->where('customer_id', $customerId)
             ->where(function ($q) {
@@ -61,9 +62,18 @@ class TrackController extends Controller
                 ->with('error', 'Booking not found or no longer available.');
         }
 
+        $siblingBookings = collect();
+        if ($booking->group_code) {
+            $siblingBookings = Booking::where('group_code', $booking->group_code)
+                ->where('id', '!=', $booking->id)
+                ->where('customer_id', $customerId)
+                ->with(['truckType', 'unit.driver', 'assignedTeamLeader'])
+                ->get();
+        }
+
         $truckTypes = TruckType::query()->orderBy('name')->get();
 
-        return view('customer.pages.track-show', compact('booking', 'truckTypes'));
+        return view('customer.pages.track-show', compact('booking', 'truckTypes', 'siblingBookings'));
     }
 
     protected function resolveCustomerId(): ?int

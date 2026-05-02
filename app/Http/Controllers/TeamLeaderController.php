@@ -77,8 +77,11 @@ class TeamLeaderController extends Controller
         }
 
         $focusLocked = filled($activeTask);
+        $tlUnit = Auth::user()?->unit;
+        $tlTruckClass = optional(optional($tlUnit)->truckType)->class;
+        $tlTruckTypeName = optional(optional($tlUnit)->truckType)->name;
 
-        return view('teamleader.tasks', compact('bookings', 'stats', 'focusLocked'));
+        return view('teamleader.tasks', compact('bookings', 'stats', 'focusLocked', 'tlTruckClass', 'tlTruckTypeName'));
     }
 
     public function showTask(Booking $booking)
@@ -731,13 +734,20 @@ class TeamLeaderController extends Controller
     {
         $teamLeaderId = Auth::id();
         $userUnit = Auth::user()?->unit;
+        $tlTruckClass = optional(optional($userUnit)->truckType)->class;
 
-        return Booking::with(['customer', 'truckType', 'unit.driver', 'unit.teamLeader', 'assignedTeamLeader'])
-            ->whereIn('status', ['assigned', 'on_the_way', 'in_progress']) // ONLY READY TASKS
+        $query = Booking::with(['customer', 'truckType', 'unit.driver', 'unit.teamLeader', 'assignedTeamLeader'])
+            ->whereIn('status', ['assigned', 'on_the_way', 'in_progress'])
             ->whereNotNull('assigned_unit_id')
             ->whereNotNull('assigned_team_leader_id')
             ->whereNull('returned_at')
             ->where('assigned_team_leader_id', $teamLeaderId);
+
+        if ($tlTruckClass) {
+            $query->whereHas('truckType', fn($q) => $q->where('class', $tlTruckClass));
+        }
+
+        return $query;
     }
 
     protected function ownedTasksQuery(bool $includeCompleted = false): Builder

@@ -276,8 +276,7 @@
         }
 
         .pill-waiting_verification {
-            background: #fefce8;
-            color: #713f12;
+            color: #000000;
         }
 
         .pill-waiting_verification::before {
@@ -285,8 +284,7 @@
         }
 
         .pill-payment_pending {
-            background: #fef2f2;
-            color: #991b1b;
+            color: #000000;
         }
 
         .pill-payment_pending::before {
@@ -294,17 +292,12 @@
         }
 
         .pill-completed {
-            background: #f0fdf4;
-            color: #166534;
+            color: #000000;
         }
 
-        .pill-completed::before {
-            background: #22c55e;
-        }
 
         .pill-scheduled_confirmed {
-            background: #fef9c3;
-            color: #78350f;
+            - color: #000000;
         }
 
         .pill-scheduled_confirmed::before {
@@ -592,13 +585,11 @@
 
 <body>
 
-    <!-- Nav -->
     <nav class="nav">
         <a href="{{ route('landing') }}" class="nav-brand">TowMate</a>
         <span class="nav-sub">Booking Tracker</span>
     </nav>
 
-    <!-- Hero / Search -->
     <div class="hero">
         <h1>Track Your <span>Booking</span></h1>
         <p>Enter your booking or quotation reference number to see your current status.</p>
@@ -612,7 +603,6 @@
         </div>
     </div>
 
-    <!-- Body -->
     <div class="page-body">
 
         @if ($ref !== '' && $error)
@@ -688,7 +678,6 @@
 
             <div class="result-card">
 
-                <!-- Header -->
                 <div class="card-header">
                     <div class="card-header-left">
                         <h2>Booking Reference</h2>
@@ -697,7 +686,6 @@
                     <span class="status-pill {{ $pillClass }}">{{ $statusLabel }}</span>
                 </div>
 
-                <!-- Progress Stepper -->
                 <div class="stepper">
                     <div class="stepper-label">Progress</div>
                     <div class="steps">
@@ -719,7 +707,6 @@
                     </div>
                 </div>
 
-                <!-- Route -->
                 <div class="route-block">
                     <div class="route-row">
                         <div class="route-dot dot-a">A</div>
@@ -737,7 +724,6 @@
                     </div>
                 </div>
 
-                <!-- Details -->
                 <div class="details">
                     <div class="details-grid">
                         <div class="detail-item">
@@ -768,7 +754,6 @@
                     </div>
                 </div>
 
-                <!-- Pricing -->
                 @if ($finalTotal > 0)
                     <div class="price-row">
                         <div>
@@ -781,16 +766,52 @@
                     </div>
                 @endif
 
-                <!-- Footer note -->
                 <div class="card-footer">
                     Last updated: {{ $booking->updated_at->diffForHumans() }} &nbsp;·&nbsp;
                     Need help? Call (123) 456-7890
                 </div>
 
-            </div><!-- /.result-card -->
+            </div>
+
+            @if (!empty($groupBookings) && $groupBookings->count() > 0)
+                <div style="margin-top:14px;">
+                    <div
+                        style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;margin-bottom:10px;">
+                        Additional Vehicles in This Booking</div>
+                    @foreach ($groupBookings as $gbIdx => $gb)
+                        @php
+                            $gbStatus = $gb->status;
+                            $gbLabel = match ($gbStatus) {
+                                'confirmed', 'accepted', 'assigned' => 'Confirmed',
+                                'on_the_way' => 'On the Way',
+                                'in_progress' => 'In Progress',
+                                'payment_pending', 'payment_submitted', 'waiting_verification' => 'Completing',
+                                'completed' => 'Completed',
+                                default => ucfirst(str_replace('_', ' ', $gbStatus)),
+                            };
+                        @endphp
+                        <div style="background:#fff;border:1px solid #e5e7eb;padding:14px 16px;margin-bottom:8px;">
+                            <div
+                                style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                                <div style="font-size:0.8rem;font-weight:700;">Vehicle {{ $gbIdx + 2 }} &mdash;
+                                    {{ $gb->truckType?->name ?? 'Tow Truck' }}</div>
+                                <span
+                                    style="font-size:0.72rem;font-weight:700;padding:3px 8px;background:#f0fdf4;color:#15803d;">{{ $gbLabel }}</span>
+                            </div>
+                            @if ($gb->unit?->teamLeader)
+                                <div style="font-size:0.8rem;color:#374151;">Team Leader:
+                                    {{ $gb->unit->teamLeader->full_name ?? $gb->unit->teamLeader->name }}</div>
+                            @endif
+                            @if ($gb->final_total > 0)
+                                <div style="font-size:0.8rem;color:#374151;margin-top:4px;">Amount:
+                                    &#8369;{{ number_format((float) $gb->final_total, 2) }}</div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         @endif
 
-        {{-- ── QUOTATION RESULT (pre-booking, no Booking record yet) ── --}}
         @if ($quotation)
             @php
                 $qStatusLabels = [
@@ -807,7 +828,6 @@
 
             <div class="result-card">
 
-                <!-- Header -->
                 <div class="card-header">
                     <div class="card-header-left">
                         <h2>Quotation Reference</h2>
@@ -816,7 +836,6 @@
                     <span class="status-pill {{ $qPillClass }}">{{ $qLabel }}</span>
                 </div>
 
-                <!-- Progress Stepper (simplified for quotation stage) -->
                 <div class="stepper">
                     <div class="stepper-label">Progress</div>
                     <div class="steps">
@@ -869,7 +888,6 @@
                     </div>
                 </div>
 
-                <!-- Status message -->
                 @if ($quotation->status === 'pending')
                     <div
                         style="padding:14px 24px;background:#fefce8;border-bottom:1px solid #fde68a;font-size:0.85rem;color:#713f12;line-height:1.6;">
@@ -892,7 +910,6 @@
                     </div>
                 @endif
 
-                <!-- Route -->
                 <div class="route-block">
                     <div class="route-row">
                         <div class="route-dot dot-a">A</div>
@@ -910,7 +927,6 @@
                     </div>
                 </div>
 
-                <!-- Details -->
                 <div class="details">
                     <div class="details-grid">
                         <div class="detail-item">
@@ -935,7 +951,6 @@
                     </div>
                 </div>
 
-                <!-- Estimated Price -->
                 @if ($quotation->estimated_price > 0)
                     <div class="price-row">
                         <div class="price-label">Estimated Amount</div>
@@ -943,16 +958,15 @@
                     </div>
                 @endif
 
-                <!-- Footer note -->
                 <div class="card-footer">
                     Submitted: {{ $quotation->created_at->diffForHumans() }} &nbsp;·&nbsp;
                     Need help? Call (123) 456-7890
                 </div>
 
-            </div><!-- /.result-card (quotation) -->
+            </div>
         @endif
 
-    </div><!-- /.page-body -->
+    </div>
 
     <div class="page-footer">
         <p>© {{ date('Y') }} TowMate · <a href="{{ route('landing') }}"

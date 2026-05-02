@@ -29,22 +29,26 @@ class QuotationController extends Controller
         $requestedVersion = (int) $request->query('v', 1);
         $isOutdated = ($quotation->link_version ?? 1) > $requestedVersion;
 
-        // Generate fresh signed URLs only when not outdated
         $expiresAt = $quotation->expires_at ?? now()->addDays(7);
         $remaining = now()->diffInSeconds($expiresAt, false);
         $validFor  = max($remaining, 60);
         $version   = $quotation->link_version ?? 1;
 
-        $signedAcceptUrl    = $isOutdated ? null : URL::temporarySignedRoute('quotation.accept',    now()->addSeconds($validFor), ['quotation' => $quotation->id, 'v' => $version]);
-        $signedRejectUrl    = URL::temporarySignedRoute('quotation.reject',    now()->addSeconds($validFor), ['quotation' => $quotation->id, 'v' => $version]);
-        $signedNegotiateUrl = URL::temporarySignedRoute('quotation.negotiate', now()->addSeconds($validFor), ['quotation' => $quotation->id, 'v' => $version]);
+        $signedAcceptUrl = $isOutdated ? null : URL::temporarySignedRoute(
+            'quotation.accept',
+            now()->addSeconds($validFor),
+            ['quotation' => $quotation->id, 'v' => $version]
+        );
+
+        $extraVehicles = $quotation->extra_vehicles ?? [];
+        $totalVehicles = 1 + count($extraVehicles);
 
         return view('customer.quotation-view', [
-            'quotation'          => $quotation,
-            'signedAcceptUrl'    => $signedAcceptUrl,
-            'signedRejectUrl'    => $signedRejectUrl,
-            'signedNegotiateUrl' => $signedNegotiateUrl,
-            'isOutdated'         => $isOutdated,
+            'quotation'       => $quotation,
+            'signedAcceptUrl' => $signedAcceptUrl,
+            'isOutdated'      => $isOutdated,
+            'extraVehicles'   => $extraVehicles,
+            'totalVehicles'   => $totalVehicles,
         ]);
     }
 

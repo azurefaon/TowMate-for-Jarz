@@ -46,6 +46,9 @@
                 @else
                     Bookings appear here once the dispatcher assigns your unit. Accept the task to start the job.
                 @endif
+                @if (!empty($tlTruckClass))
+                    <br>Showing tasks for: <strong>{{ $tlTruckTypeName ?? $tlTruckClass }}</strong> ({{ strtoupper($tlTruckClass) }} class)
+                @endif
             </div>
         </section>
 
@@ -73,7 +76,12 @@
                         <div>
                             <small>Truck Type</small>
                             <p>{{ $booking->truckType->name ?? 'General Towing' }}</p>
-                            <span>Quotation: {{ $booking->quotation_number ?? 'Pending' }}</span>
+                            <span>
+                                Ref: {{ $booking->group_code ?? $booking->quotation_number ?? 'Pending' }}
+                                @if ($booking->group_code && $booking->group_code !== $booking->booking_code)
+                                    &middot; Multi-vehicle group
+                                @endif
+                            </span>
                         </div>
                         <div>
                             <small>Assigned Truck</small>

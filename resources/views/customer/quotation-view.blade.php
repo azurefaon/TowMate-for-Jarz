@@ -5,318 +5,496 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quotation {{ $quotation->quotation_number }} - TowMate</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @keyframes pulse-slow {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.7;
-            }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
-        .pulse-slow {
-            animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        body {
+            background: #f4f4f5;
+            font-family: Arial, sans-serif;
+            color: #18181b;
+        }
+
+        .qv-wrap {
+            max-width: 680px;
+            margin: 0 auto;
+            padding: 28px 16px 60px;
+        }
+
+        .qv-brand {
+            font-size: 1.3rem;
+            letter-spacing: .08em;
+            margin-bottom: 24px;
+        }
+
+        .qv-ref {
+            font-size: 0.75rem;
+            color: #71717a;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+        }
+
+        .qv-ref-num {
+            font-size: 1.1rem;
+            color: #18181b;
+            font-family: 'Courier New', monospace;
+        }
+
+        .qv-banner {
+            padding: 14px 18px;
+            /* border-radius: 10px; */
+            margin-bottom: 18px;
+            border: 1px solid;
+        }
+
+        .qv-banner.pending {
+            background: #fffbeb;
+            border-color: #fcd34d;
+            color: #92400e;
+        }
+
+        .qv-banner.accepted {
+            background: #09090b;
+            border-color: #18181b;
+            color: #fff;
+        }
+
+        .qv-banner.expired {
+            background: #f4f4f5;
+            border-color: #d4d4d8;
+            color: #52525b;
+        }
+
+        .qv-banner.outdated {
+            background: #fff7ed;
+            border-color: #fb923c;
+            color: #9a3412;
+        }
+
+        .qv-banner-title {
+            font-size: 0.9rem;
+            margin-bottom: 3px;
+        }
+
+        .qv-banner-sub {
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .qv-card {
+            background: #fff;
+            border: 1px solid #e4e4e7;
+            /* border-radius: 14px; */
+            padding: 20px 22px;
+            margin-bottom: 14px;
+        }
+
+        .qv-section-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            color: #a1a1aa;
+            border-bottom: 1px solid #f4f4f5;
+            padding-bottom: 10px;
+            margin-bottom: 14px;
+        }
+
+        .qv-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 5px 0;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #f4f4f5;
+        }
+
+        .qv-row:last-child {
+            border-bottom: none;
+        }
+
+        .qv-label {
+            color: #71717a;
+            flex-shrink: 0;
+        }
+
+        .qv-value {
+            text-align: right;
+            word-break: break-word;
+        }
+
+        .qv-vehicle-block {
+            background: #f9f9f9;
+            border: 1px solid #e4e4e7;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+        }
+
+        .qv-vehicle-block:last-child {
+            margin-bottom: 0;
+        }
+
+        .qv-vehicle-head {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            color: #71717a;
+            margin-bottom: 10px;
+        }
+
+        .qv-price-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #facc15;
+            padding: 14px 20px;
+            border-radius: 10px;
+            margin-bottom: 18px;
+        }
+
+        .qv-price-label {
+            font-size: 0.85rem;
+        }
+
+        .qv-price-amount {
+            font-size: 1.4rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        .qv-price-note {
+            font-size: 0.75rem;
+            color: #52525b;
+            margin-top: 4px;
+        }
+
+        .qv-accept-btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            background: #18181b;
+            color: #facc15;
+            font-size: 1rem;
+            text-align: center;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            letter-spacing: .02em;
+        }
+
+        .qv-accept-btn:hover {
+            background: #09090b;
+        }
+
+        .qv-terms {
+            font-size: 0.75rem;
+            color: #71717a;
+            text-align: center;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+
+        .qv-track-btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            background: #facc15;
+            color: #18181b;
+            font-size: 0.9rem;
+            text-align: center;
+            border-radius: 10px;
+            text-decoration: none;
+            margin-bottom: 10px;
+        }
+
+        .qv-sched-badge {
+            display: inline-block;
+            background: #e0f2fe;
+            color: #075985;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+
+        .qv-countdown {
+            font-size: 0.78rem;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 480px) {
+            .qv-price-amount {
+                font-size: 1.15rem;
+            }
         }
     </style>
 </head>
 
-<body class="bg-gray-50 min-h-screen">
-    <div class="max-w-4xl mx-auto px-4 py-8">
+<body>
+    <div class="qv-wrap">
 
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">Your Towing Service Quotation</h1>
-            <p class="text-gray-600">Reference: <span
-                    class="font-semibold text-yellow-500">{{ $quotation->quotation_number }}</span></p>
+        <div class="qv-brand">TowMate</div>
+
+        <div style="margin-bottom:18px;">
+            <div class="qv-ref">Booking Reference</div>
+            <div class="qv-ref-num">{{ $quotation->quotation_number }}</div>
+            @if ($totalVehicles > 1)
+                <div style="font-size:0.78rem;color:#71717a;margin-top:3px;">{{ $totalVehicles }} vehicles included in
+                    this quotation</div>
+            @endif
         </div>
 
-        <!-- Success/Error Messages -->
         @if (session('success'))
-            <div class="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
-                {{ session('success') }}
+            <div class="qv-banner accepted" style="margin-bottom:18px;">
+                <div class="qv-banner-title">Done</div>
+                <div class="qv-banner-sub">{{ session('success') }}</div>
             </div>
         @endif
 
         @if (session('error'))
-            <div class="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
-                {{ session('error') }}
+            <div class="qv-banner" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;margin-bottom:18px;">
+                <div class="qv-banner-title">Error</div>
+                <div class="qv-banner-sub">{{ session('error') }}</div>
             </div>
         @endif
 
         @if (!empty($isOutdated) && $isOutdated)
-            <div class="mb-6 px-5 py-4 rounded-lg" style="background:#fef3c7;border:2px solid #f59e0b;">
-                <p class="font-bold text-lg" style="color:#92400e;">Quotation Updated</p>
-                <p class="text-sm mt-1" style="color:#78350f;">
-                    The dispatcher has revised this quotation after your link was sent.
-                    This link is no longer valid for acceptance.
-                    Please wait — the dispatcher will send you a new link with the updated details.
-                </p>
+            <div class="qv-banner outdated">
+                <div class="qv-banner-title">Quotation Updated</div>
+                <div class="qv-banner-sub">The dispatcher revised this quotation. This link is no longer valid for
+                    acceptance. A new link will be sent to your contact shortly.</div>
             </div>
         @endif
 
-        <!-- Status Banner -->
         @php
             $timeRemaining = $quotation->getTimeRemaining();
-            $urgency = $timeRemaining['urgency'] ?? 'normal';
-
-            $bannerColors = [
-                'urgent' => 'bg-red-50 border-red-400 text-red-900',
-                'warning' => 'bg-yellow-50 border-yellow-400 text-yellow-900',
-                'normal' => 'bg-yellow-50 border-yellow-400 text-yellow-900',
-                'expired' => 'bg-gray-100 border-gray-400 text-gray-800',
-                'accepted' => 'bg-gray-900 border-gray-700 text-white',
-                'rejected' => 'bg-gray-100 border-gray-400 text-gray-800',
-            ];
-
-            $statusBanner =
-                $bannerColors[
-                    $quotation->status === 'accepted'
-                        ? 'accepted'
-                        : ($quotation->status === 'rejected'
-                            ? 'rejected'
-                            : $urgency)
-                ] ?? $bannerColors['normal'];
+            $isSent = $quotation->status === 'sent';
+            $isAccepted = $quotation->status === 'accepted';
+            $isExpired = !$isSent || ($timeRemaining['expired'] ?? false);
+            $canAccept = $isSent && !$isExpired && !$isOutdated;
         @endphp
 
-        @if ($quotation->status === 'sent' && !$timeRemaining['expired'])
-            <div
-                class="mb-6 border-2 {{ $statusBanner }} px-6 py-4 rounded-lg {{ $urgency === 'urgent' ? 'pulse-slow' : '' }}">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="font-semibold text-lg">
-                            @if ($urgency === 'urgent')
-                                Expires Soon!
-                            @elseif($urgency === 'warning')
-                                ⚠️ Expiring Soon
-                            @else
-                                Awaiting Your Confirmation
-                            @endif
-                        </p>
-                        <p class="text-sm mt-1" id="countdown">{{ $timeRemaining['message'] }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-sm opacity-75">Sent on</p>
-                        <p class="font-semibold">{{ $quotation->sent_at->format('M d, Y h:i A') }}</p>
-                    </div>
-                </div>
+        @if ($isAccepted)
+            <div class="qv-banner accepted">
+                <div class="qv-banner-title">Quotation Accepted</div>
+                <div class="qv-banner-sub">Your booking has been confirmed. Track your booking below.</div>
             </div>
-        @elseif($quotation->status === 'accepted')
-            <div class="mb-6 border-2 bg-gray-900 border-gray-700 text-white px-6 py-4 rounded-lg">
-                <p class="font-semibold text-lg">Quotation Accepted</p>
-                <p class="text-sm mt-1 opacity-80">Your booking has been confirmed!</p>
+        @elseif ($isExpired && !$isAccepted)
+            <div class="qv-banner expired">
+                <div class="qv-banner-title">Quotation Expired</div>
+                <div class="qv-banner-sub">This quotation has expired. Please contact us for a new one.</div>
             </div>
-        @elseif($quotation->status === 'rejected')
-            <div class="mb-6 border-2 bg-gray-50 border-gray-300 text-gray-800 px-6 py-4 rounded-lg">
-                <p class="font-semibold text-lg">Quotation Rejected</p>
-                <p class="text-sm mt-1">You can request a new quotation anytime.</p>
+        @elseif ($quotation->status === 'pending')
+            <div class="qv-banner pending">
+                <div class="qv-banner-title">Under Review</div>
+                <div class="qv-banner-sub">Our team is reviewing your request. You will receive a notification once the
+                    quotation is ready.</div>
             </div>
-        @elseif($quotation->status === 'pending')
-            <div class="mb-6 border-2 bg-yellow-50 border-yellow-300 text-yellow-800 px-6 py-4 rounded-lg">
-                <p class="font-semibold text-lg">Under Review</p>
-                <p class="text-sm mt-1">Our team is reviewing your negotiation request.</p>
-            </div>
-        @else
-            <div class="mb-6 border-2 bg-gray-50 border-gray-300 text-gray-800 px-6 py-4 rounded-lg">
-                <p class="font-semibold text-lg">Quotation Expired</p>
-                <p class="text-sm mt-1">This quotation has expired. Please contact us for a new quotation.</p>
+        @elseif ($isSent && !$isExpired)
+            <div class="qv-banner pending">
+                <div class="qv-banner-title">Awaiting Your Confirmation</div>
+                <div class="qv-banner-sub qv-countdown" id="countdown">{{ $timeRemaining['message'] ?? '' }}</div>
             </div>
         @endif
 
-        <!-- Main Content Card -->
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden mb-6">
-
-            <!-- Customer Info -->
-            <div class="bg-gray-900 text-white px-6 py-4">
-                <h2 class="text-xl font-semibold mb-2 text-yellow-400">Customer Information</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    <div>
-                        <p class="opacity-60">Name</p>
-                        <p class="font-semibold">{{ $quotation->customer->full_name }}</p>
-                    </div>
-                    <div>
-                        <p class="opacity-60">Phone</p>
-                        <p class="font-semibold">{{ $quotation->customer->phone }}</p>
-                    </div>
-                    @if ($quotation->customer->email)
-                        <div>
-                            <p class="opacity-60">Email</p>
-                            <p class="font-semibold">{{ $quotation->customer->email }}</p>
-                        </div>
-                    @endif
-                </div>
+        <div class="qv-card">
+            <div class="qv-section-label">Customer</div>
+            <div class="qv-row">
+                <span class="qv-label">Name</span>
+                <span class="qv-value">{{ $quotation->customer->full_name }}</span>
             </div>
-
-            <!-- Service Details -->
-            <div class="px-6 py-5 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Service Details</h3>
-
-                <div class="space-y-4">
-                    <!-- Pickup -->
-                    <div class="flex items-start">
-                        <div
-                            class="flex-shrink-0 w-8 h-8 bg-black-100 rounded-full flex items-center justify-center mr-3">
-                            <span class="text-green-600 font-bold">A</span>
-                        </div>
-                        <div class="flex-1">
-                            <p class="text-sm text-gray-600">Pickup Location</p>
-                            <p class="font-semibold text-gray-900">{{ $quotation->pickup_address }}</p>
-                            @if ($quotation->pickup_notes)
-                                <p class="text-sm text-gray-500 mt-1">Note: {{ $quotation->pickup_notes }}</p>
-                            @endif
-                        </div>
-                    </div>
-
-                    <!-- Dropoff -->
-                    <div class="flex items-start">
-                        <div
-                            class="flex-shrink-0 w-8 h-8 bg-black-100 rounded-full flex items-center justify-center mr-3">
-                            <span class="text-red-600 font-bold">B</span>
-                        </div>
-                        <div class="flex-1">
-                            <p class="text-sm text-gray-600">Drop-off Location</p>
-                            <p class="font-semibold text-gray-900">{{ $quotation->dropoff_address }}</p>
-                        </div>
-                    </div>
-
-                    <!-- Distance & Vehicle -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                        <div class="bg-gray-50 rounded-lg p-3">
-                            <p class="text-sm text-gray-600">Distance</p>
-                            <p class="font-semibold text-gray-900">{{ number_format($quotation->distance_km, 2) }} km
-                            </p>
-                        </div>
-                        <div class="bg-gray-50 rounded-lg p-3">
-                            <p class="text-sm text-gray-600">Vehicle Type</p>
-                            <p class="font-semibold text-gray-900">{{ $quotation->truckType->name }}</p>
-                        </div>
-                    </div>
-
-                    <!-- Vehicle Details -->
-                    @if ($quotation->vehicle_make || $quotation->vehicle_model)
-                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
-                            <p class="text-sm font-semibold text-gray-900 mb-2">Your Vehicle</p>
-                            <p class="text-gray-700">
-                                @if ($quotation->vehicle_year)
-                                    {{ $quotation->vehicle_year }}
-                                @endif
-                                {{ $quotation->vehicle_make }} {{ $quotation->vehicle_model }}
-                                @if ($quotation->vehicle_color)
-                                    - {{ $quotation->vehicle_color }}
-                                @endif
-                            </p>
-                            @if ($quotation->vehicle_plate_number)
-                                <p class="text-sm text-gray-600 mt-1">Plate: {{ $quotation->vehicle_plate_number }}</p>
-                            @endif
-                        </div>
-                    @endif
-                </div>
+            <div class="qv-row">
+                <span class="qv-label">Phone</span>
+                <span class="qv-value">{{ $quotation->customer->phone }}</span>
             </div>
-
-            <!-- Price Breakdown -->
-            <div class="px-6 py-5 bg-gray-50">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Price Breakdown</h3>
-
-                @php
-                    $baseRate = (float) ($quotation->truckType->base_rate ?? 0);
-                    $distanceCharge = (float) ($quotation->estimated_price ?? 0) - $baseRate;
-                @endphp
-
-                <div class="space-y-3">
-                    <div class="flex justify-between text-gray-700">
-                        <span>Base Rate ({{ $quotation->truckType->name }})</span>
-                        <span>₱{{ number_format($baseRate, 2) }}</span>
-                    </div>
-                    <div class="flex justify-between text-gray-700">
-                        <span>Distance Charge ({{ number_format($quotation->distance_km, 2) }} km)</span>
-                        <span>₱{{ number_format(max(0, $distanceCharge), 2) }}</span>
-                    </div>
-
-                    @if ($quotation->counter_offer_amount)
-                        <div class="flex justify-between text-yellow-600 border-t border-gray-300 pt-3">
-                            <span class="font-semibold">Your Counter Offer</span>
-                            <span class="font-semibold">₱{{ number_format($quotation->counter_offer_amount, 2) }}</span>
-                        </div>
-                    @endif
-
-                    <div class="flex justify-between text-xl font-bold text-gray-900 border-t-2 border-gray-900 pt-3">
-                        <span>Total Amount</span>
-                        <span class="text-yellow-500">₱{{ number_format($quotation->estimated_price, 2) }}</span>
-                    </div>
+            @if ($quotation->customer->email)
+                <div class="qv-row">
+                    <span class="qv-label">Email</span>
+                    <span class="qv-value">{{ $quotation->customer->email }}</span>
                 </div>
-            </div>
+            @endif
         </div>
 
-        <!-- Action Buttons -->
-        @if ($quotation->status === 'sent' && !$timeRemaining['expired'])
-            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                @if (!empty($isOutdated) && $isOutdated)
-                    <h3 class="text-lg font-semibold mb-3" style="color:#92400e;">Waiting for Updated Quotation</h3>
-                    <p class="text-sm" style="color:#78350f;">
-                        The dispatcher has updated this quotation. A new link will be sent to your email shortly.
-                        You do not need to do anything — just wait for the new message.
-                    </p>
-                @else
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Ready to proceed?</h3>
-                    <div class="text-center">
-                        <a href="{{ $signedAcceptUrl }}"
-                            class="inline-block bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold text-lg py-4 px-12 rounded-lg">
-                            Accept and Continue
-                        </a>
-                        <p class="text-sm text-gray-500 mt-4">By accepting, you agree to the quoted price and service
-                            terms.</p>
+        <div class="qv-card">
+            <div class="qv-section-label">Route</div>
+            <div class="qv-row">
+                <span class="qv-label">Pickup</span>
+                <span class="qv-value">{{ $quotation->pickup_address }}</span>
+            </div>
+            <div class="qv-row">
+                <span class="qv-label">Drop-off</span>
+                <span class="qv-value">{{ $quotation->dropoff_address }}</span>
+            </div>
+            @if ($quotation->distance_km)
+                <div class="qv-row">
+                    <span class="qv-label">Distance</span>
+                    <span class="qv-value">{{ number_format($quotation->distance_km, 2) }} km</span>
+                </div>
+            @endif
+            @if ($quotation->service_type === 'schedule' && $quotation->scheduled_date)
+                <div class="qv-row">
+                    <span class="qv-label">Scheduled</span>
+                    <span class="qv-value">{{ $quotation->scheduled_date->format('M d, Y') }}
+                        {{ $quotation->scheduled_time ? '· ' . $quotation->scheduled_time : '' }}</span>
+                </div>
+            @endif
+        </div>
+
+        <div class="qv-card">
+            <div class="qv-section-label">Vehicles & Pricing</div>
+
+            <div class="qv-vehicle-block">
+                <div class="qv-vehicle-head">
+                    Vehicle 1 &mdash; {{ $quotation->truckType->name ?? 'Tow Truck' }}
+                    @if ($quotation->service_type === 'schedule')
+                        <span class="qv-sched-badge">Scheduled</span>
+                    @endif
+                </div>
+                @if ($quotation->vehicle_make || $quotation->vehicle_model)
+                    <div class="qv-row">
+                        <span class="qv-label">Make / Model</span>
+                        <span
+                            class="qv-value">{{ trim(($quotation->vehicle_make ?? '') . ' ' . ($quotation->vehicle_model ?? '')) }}</span>
                     </div>
                 @endif
+                @if ($quotation->vehicle_year)
+                    <div class="qv-row">
+                        <span class="qv-label">Year</span>
+                        <span class="qv-value">{{ $quotation->vehicle_year }}</span>
+                    </div>
+                @endif
+                @if ($quotation->vehicle_color)
+                    <div class="qv-row">
+                        <span class="qv-label">Color</span>
+                        <span class="qv-value">{{ $quotation->vehicle_color }}</span>
+                    </div>
+                @endif
+                @if ($quotation->vehicle_plate_number)
+                    <div class="qv-row">
+                        <span class="qv-label">Plate</span>
+                        <span class="qv-value">{{ $quotation->vehicle_plate_number }}</span>
+                    </div>
+                @endif
+                <div class="qv-row" style="margin-top:6px;">
+                    <span class="qv-label">Est. Price</span>
+                    <span class="qv-value"
+                        style="color:#09090b;">&#8369;{{ number_format($quotation->estimated_price, 2) }}</span>
+                </div>
+            </div>
+
+            @foreach ($extraVehicles as $ev)
+                @php
+                    $evIndex = $ev['vehicle_index'] ?? $loop->index + 2;
+                    $evScheduled = ($ev['service_type'] ?? '') === 'schedule';
+                @endphp
+                <div class="qv-vehicle-block">
+                    <div class="qv-vehicle-head">
+                        Vehicle {{ $evIndex }} &mdash; {{ $ev['truck_type_name'] ?? 'Tow Truck' }}
+                        @if ($evScheduled)
+                            <span class="qv-sched-badge">Scheduled</span>
+                        @endif
+                    </div>
+                    @if ($evScheduled && !empty($ev['scheduled_date']))
+                        <div class="qv-row">
+                            <span class="qv-label">Scheduled</span>
+                            <span
+                                class="qv-value">{{ $ev['scheduled_date'] }}{{ !empty($ev['scheduled_time']) ? ' · ' . $ev['scheduled_time'] : '' }}</span>
+                        </div>
+                    @endif
+                    @if (!empty($ev['distance_km']))
+                        <div class="qv-row">
+                            <span class="qv-label">Distance</span>
+                            <span class="qv-value">{{ number_format($ev['distance_km'], 2) }} km</span>
+                        </div>
+                    @endif
+                    <div class="qv-row" style="margin-top:6px;">
+                        <span class="qv-label">Est. Price</span>
+                        <span class="qv-value" style="color:{{ $evScheduled ? '#71717a' : '#09090b' }};">
+                            @if ($evScheduled)
+                                TBD (quoted separately)
+                            @else
+                                &#8369;{{ number_format($ev['estimated_price'] ?? 0, 2) }}
+                            @endif
+                        </span>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+
+        @php
+            $confirmedTotal = (float) $quotation->estimated_price;
+            $hasScheduledExtra = false;
+            foreach ($extraVehicles as $ev) {
+                if (($ev['service_type'] ?? '') !== 'schedule') {
+                    $confirmedTotal += (float) ($ev['estimated_price'] ?? 0);
+                } else {
+                    $hasScheduledExtra = true;
+                }
+            }
+        @endphp
+
+        <div class="qv-price-bar">
+            <div>
+                <div class="qv-price-label">{{ $hasScheduledExtra ? 'Confirmed Total' : 'Total Amount' }}</div>
+                @if ($hasScheduledExtra)
+                    <div class="qv-price-note">Scheduled vehicles will be quoted separately.</div>
+                @endif
+            </div>
+            <div class="qv-price-amount">
+                &#8369;{{ number_format($confirmedTotal, 2) }}{{ $hasScheduledExtra ? ' +' : '' }}
+            </div>
+        </div>
+
+        @if ($canAccept)
+            <div class="qv-card" style="text-align:center;">
+                <p style="font-size:0.88rem;margin-bottom:16px;color:#18181b;">Review the details above and confirm
+                    your booking.</p>
+                <a href="{{ $signedAcceptUrl }}" class="qv-accept-btn">Accept and Continue</a>
+                <p class="qv-terms">By accepting, you agree to the quoted price and service terms.</p>
+            </div>
+        @elseif ($isAccepted)
+            <div class="qv-card" style="text-align:center;">
+                <p style="font-size:0.88rem;margin-bottom:14px;color:#18181b;">Your booking is confirmed. Track its
+                    progress below.</p>
+                <a href="{{ route('public.track') }}?ref={{ urlencode($quotation->quotation_number) }}"
+                    class="qv-track-btn">
+                    Track Your Booking
+                </a>
             </div>
         @endif
 
-        <!-- Footer -->
-        <div class="text-center text-gray-600 text-sm">
-            <p class="mb-2">Need help? Contact us:</p>
-            <p class="font-semibold">Phone: (123) 456-7890 | Email: support@towmate.com</p>
-            <p class="mt-4 text-xs text-gray-500">© {{ date('Y') }} TowMate. All rights reserved.</p>
+        <div style="text-align:center;font-size:0.75rem;color:#a1a1aa;margin-top:24px;">
+            <p>Need help? Contact TowMate dispatch.</p>
+            <p style="margin-top:4px;">© {{ date('Y') }} TowMate. All rights reserved.</p>
         </div>
+
     </div>
 
-    <script>
-        // Countdown timer
-        @if ($quotation->status === 'sent' && !$timeRemaining['expired'])
-            const expiresAt = new Date('{{ $quotation->expires_at->toIso8601String() }}').getTime();
+    @if ($isSent && !$isExpired)
+        <script>
+            const expiresAt = new Date('{{ $quotation->expires_at?->toIso8601String() }}').getTime();
 
             function updateCountdown() {
-                const now = new Date().getTime();
-                const distance = expiresAt - now;
-
-                if (distance < 0) {
+                const dist = expiresAt - Date.now();
+                if (dist < 0) {
                     document.getElementById('countdown').textContent = 'Expired';
                     setTimeout(() => location.reload(), 2000);
                     return;
                 }
-
-                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-
-                let message = '';
-                if (days > 0) {
-                    message = `${days}d ${hours}h ${minutes}m remaining`;
-                } else if (hours > 0) {
-                    message = `${hours}h ${minutes}m remaining`;
-                } else {
-                    message = `${minutes}m remaining`;
-                }
-
-                document.getElementById('countdown').textContent = message;
+                const d = Math.floor(dist / 86400000);
+                const h = Math.floor((dist % 86400000) / 3600000);
+                const m = Math.floor((dist % 3600000) / 60000);
+                document.getElementById('countdown').textContent = d > 0 ? `${d}d ${h}h ${m}m remaining` : h > 0 ?
+                    `${h}h ${m}m remaining` : `${m}m remaining`;
             }
-
             updateCountdown();
-            setInterval(updateCountdown, 60000); // Update every minute
-        @endif
-    </script>
+            setInterval(updateCountdown, 60000);
+        </script>
+    @endif
 </body>
 
 </html>

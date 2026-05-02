@@ -668,6 +668,37 @@
 
     </div>{{-- /trk-grid --}}
 
+    @if (!empty($siblingBookings) && $siblingBookings->count() > 0)
+        <div style="margin-top:18px;">
+            <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#71717a;margin-bottom:10px;">Other Vehicles in This Booking Group</div>
+            @foreach ($siblingBookings as $sbIdx => $sb)
+                @php
+                    $sbStatus = $sb->status;
+                    $sbLabel = match($sbStatus) {
+                        'confirmed', 'accepted', 'assigned' => 'Confirmed',
+                        'on_the_way' => 'On the Way',
+                        'in_progress' => 'In Progress',
+                        'payment_pending', 'payment_submitted', 'waiting_verification' => 'Completing',
+                        'completed' => 'Completed',
+                        default => ucfirst(str_replace('_', ' ', $sbStatus)),
+                    };
+                @endphp
+                <div style="background:#fff;border:1px solid #e4e4e7;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div style="font-size:0.82rem;font-weight:700;color:#18181b;">Vehicle {{ $sbIdx + 2 }} &mdash; {{ $sb->truckType?->name ?? 'Tow Truck' }}</div>
+                        <span style="font-size:0.72rem;font-weight:700;padding:3px 9px;background:#f0fdf4;color:#15803d;border-radius:6px;">{{ $sbLabel }}</span>
+                    </div>
+                    @if ($sb->unit?->teamLeader)
+                        <div style="font-size:0.8rem;color:#52525b;">Team Leader: {{ $sb->unit->teamLeader->full_name ?? $sb->unit->teamLeader->name }}</div>
+                    @endif
+                    @if ($sb->final_total > 0)
+                        <div style="font-size:0.8rem;color:#52525b;margin-top:3px;">Amount: &#8369;{{ number_format((float)$sb->final_total, 2) }}</div>
+                    @endif
+                </div>
+            @endforeach
+        </div>
+    @endif
+
     {{-- Auto-refresh note --}}
     <div class="trk-refresh" id="trkRefreshNote">
         @if ($activeForPolling)

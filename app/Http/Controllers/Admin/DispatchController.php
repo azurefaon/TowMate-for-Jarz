@@ -154,6 +154,10 @@ class DispatchController extends Controller
             return $booking;
         });
 
+        $groupedIncoming = $incomingRequests->groupBy(fn($b) => $b->group_code ?: $b->booking_code);
+        $groupedBookNow  = $bookNowRequests->groupBy(fn($b) => $b->group_code ?: $b->booking_code);
+        $groupedScheduled = $scheduledRequests->groupBy(fn($b) => $b->group_code ?: $b->booking_code);
+
         $pendingQuotationCount = Quotation::where('status', 'pending')->count();
 
         $queueCounts = [
@@ -259,7 +263,7 @@ class DispatchController extends Controller
             'expired' => Quotation::where('status', 'expired')->count(),
         ];
 
-        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaders', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats', 'bookNowRequests', 'scheduledRequests'));
+        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaders', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats', 'bookNowRequests', 'scheduledRequests', 'groupedIncoming', 'groupedBookNow', 'groupedScheduled'));
     }
 
     protected function syncCustomerRiskFlag(?Customer $customer, ?string $reason): void
@@ -867,6 +871,8 @@ class DispatchController extends Controller
                 'service_type'          => $quotation->service_type,
                 'link_version'          => $quotation->link_version ?? 1,
                 'vehicle_image_paths'   => $quotation->vehicle_image_paths ?? [],
+                'extra_vehicles'        => $quotation->extra_vehicles ?? [],
+                'total_vehicles'        => 1 + count($quotation->extra_vehicles ?? []),
                 'created_at'            => $quotation->created_at->format('M d, Y h:i A'),
             ],
         ]);

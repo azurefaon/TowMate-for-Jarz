@@ -30,7 +30,6 @@
         .review-surface {
             background: #f8fafc;
             border: 1px solid #e5e7eb;
-            border-radius: 16px;
             padding: 12px;
         }
 
@@ -91,11 +90,9 @@
 
         .computed-total {
             padding: 10px 12px;
-            border-radius: 12px;
             background: linear-gradient(135deg, #fef3c7, #fff7ed);
             border: 1px solid #fcd34d;
             font-size: 1.08rem;
-            font-weight: 700;
             color: #92400e;
         }
 
@@ -115,7 +112,6 @@
             width: 100%;
             min-height: 40px;
             border: 1px solid #cbd5e1;
-            border-radius: 12px;
             padding: 8px 10px;
             background: #fff;
             color: #0f172a;
@@ -156,7 +152,6 @@
         .unit-select-shell {
             border: 1px solid #e2e8f0;
             background: linear-gradient(135deg, #fffdf5, #f8fafc);
-            border-radius: 14px;
             padding: 8px;
         }
 
@@ -213,9 +208,7 @@
             border: 1px solid #dbe2ea;
             background: #fff;
             color: #0f172a;
-            /* border-radius: 999px; */
             padding: 10px 14px;
-            font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
         }
@@ -227,11 +220,9 @@
             align-items: center;
             justify-content: center;
             padding: 0 6px;
-            border-radius: 999px;
             background: #dc2626;
             color: #fff;
             font-size: 11px;
-            font-weight: 700;
             line-height: 1;
             box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
         }
@@ -284,9 +275,7 @@
             align-items: center;
             gap: 6px;
             padding: 4px 10px;
-            border-radius: 999px;
             font-size: 12px;
-            font-weight: 700;
         }
 
         .queue-chip.book-now {
@@ -325,27 +314,27 @@
         }
 
         .queue-chip.ready_completion {
-            background: #f0fdf4;
-            color: #15803d;
-            border: 1px solid #bbf7d0;
+            /* background: #f0fdf4; */
+            color: #000000;
+            /* border: 1px solid #bbf7d0; */
         }
 
         .status-badge.payment-pending {
-            background: #fef3c7;
-            color: #7c5a00;
-            border-color: #f5d565;
+            /* background: #fef3c7; */
+            color: #000000;
+            /* border-color: #f5d565; */
         }
 
         .status-badge.confirmed {
-            background: #e0f2fe;
+            /* background: #e0f2fe; */
             color: #075985;
-            border-color: #7dd3fc;
+            /* border-color: #7dd3fc; */
         }
 
         .status-badge.returned {
-            background: #fee2e2;
+            /* background: #fee2e2; */
             color: #991b1b;
-            border-color: #fca5a5;
+            /* border-color: #fca5a5; */
         }
 
         .dp-tl-section {
@@ -365,19 +354,17 @@
         .dp-tl-title {
             margin: 0 0 4px;
             font-size: 1rem;
-            font-weight: 700;
             color: #0f172a;
         }
 
         .dp-tl-sub {
             margin: 0;
             font-size: .82rem;
-            color: #94a3b8;
+            color: #000000;
         }
 
         .dp-tl-link {
             font-size: .82rem;
-            font-weight: 600;
             color: #6366f1;
             text-decoration: none;
             white-space: nowrap;
@@ -391,18 +378,47 @@
         .dp-tl-empty {
             padding: 24px;
             text-align: center;
-            color: #94a3b8;
+            color: #000000;
             font-size: .88rem;
             background: #fff;
             border: 1px solid #e5e7eb;
-            border-radius: 14px;
+        }
+
+        .group-booking-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 7px 14px;
+            border-bottom: none;
+            font-size: 0.78rem;
+            color: #000000;
+        }
+
+        .group-vehicle-indicator {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #475569;
+            padding: 3px 0 8px;
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 8px;
+        }
+
+        .incoming-card--group-child {
+            border-top: none;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+        }
+
+        .incoming-card--group-child+.incoming-card--group-child {
+            margin-top: 2px;
         }
 
         .dp-tl-table-wrap {
             overflow-x: auto;
             background: #fff;
             border: 1px solid #e5e7eb;
-            border-radius: 16px;
             box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
         }
 
@@ -420,8 +436,7 @@
             padding: 11px 14px;
             text-align: left;
             font-size: .72rem;
-            font-weight: 700;
-            color: #94a3b8;
+            color: #000000;
             text-transform: uppercase;
             letter-spacing: .07em;
             white-space: nowrap;
@@ -453,11 +468,9 @@
         .dp-avatar {
             width: 34px;
             height: 34px;
-            border-radius: 9px;
             background: linear-gradient(135deg, #6366f1, #8b5cf6);
             color: #fff;
             font-size: .8rem;
-            font-weight: 700;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -465,14 +478,12 @@
         }
 
         .dp-name {
-            font-weight: 700;
             font-size: .88rem;
             color: #0f172a;
         }
 
         .dp-presence {
             font-size: .72rem;
-            font-weight: 600;
             display: flex;
             align-items: center;
             gap: 4px;
@@ -483,7 +494,6 @@
             content: '';
             width: 6px;
             height: 6px;
-            border-radius: 50%;
             display: inline-block;
         }
 
@@ -496,7 +506,7 @@
         }
 
         .dp-presence--offline {
-            color: #94a3b8;
+            color: #000000;
         }
 
         .dp-presence--offline::before {
@@ -507,25 +517,21 @@
         .dp-zone-badge {
             display: inline-block;
             padding: 3px 9px;
-            border-radius: 999px;
             font-size: .72rem;
-            font-weight: 700;
             background: #eff6ff;
             color: #1d4ed8;
         }
 
         .dp-zone-none {
             font-size: .78rem;
-            color: #94a3b8;
+            color: #000000;
         }
 
         /* Status badge */
         .dp-status-badge {
             display: inline-block;
             padding: 4px 10px;
-            border-radius: 999px;
             font-size: .72rem;
-            font-weight: 700;
             white-space: nowrap;
         }
 
@@ -559,12 +565,10 @@
             display: inline-block;
             margin-top: 4px;
             padding: 3px 9px;
-            border-radius: 6px;
             border: 1px solid #fecaca;
             background: #fef2f2;
             color: #b91c1c;
             font-size: .72rem;
-            font-weight: 600;
             cursor: pointer;
             transition: background .15s;
         }
@@ -588,7 +592,6 @@
         .dp-select {
             padding: 6px 10px;
             border: 1px solid #e5e7eb;
-            border-radius: 8px;
             font-size: .82rem;
             background: #f8fafc;
             color: #374151;
@@ -610,7 +613,6 @@
 
         .dp-saving {
             font-size: .72rem;
-            font-weight: 600;
             min-width: 36px;
         }
 
@@ -618,7 +620,6 @@
         .rr-panel {
             margin-top: 12px;
             padding: 12px;
-            border-radius: 10px;
             background: linear-gradient(135deg, #fef3c7, #fef9e7);
             border: 1px solid #fbbf24;
         }
@@ -635,9 +636,7 @@
             align-items: center;
             gap: 4px;
             padding: 4px 10px;
-            border-radius: 999px;
             font-size: 11px;
-            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.03em;
         }
@@ -662,7 +661,6 @@
 
         .rr-label {
             font-size: 13px;
-            font-weight: 700;
             color: #92400e;
         }
 
@@ -685,12 +683,10 @@
             align-items: center;
             gap: 4px;
             padding: 6px 12px;
-            border-radius: 8px;
             border: 1px solid #d97706;
             background: #fff;
             color: #92400e;
             font-size: 12px;
-            font-weight: 600;
             cursor: pointer;
             transition: all 0.15s;
         }
@@ -723,7 +719,6 @@
         .sf-modal-card {
             width: min(480px, 100%);
             background: #fff;
-            border-radius: 18px;
             padding: 24px;
             box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
         }
@@ -744,7 +739,6 @@
             display: block;
             margin: 12px 0 6px;
             font-size: 0.88rem;
-            font-weight: 600;
             color: #334155;
         }
 
@@ -753,7 +747,6 @@
         .sf-modal-card select {
             width: 100%;
             border: 1px solid #cbd5e1;
-            border-radius: 10px;
             padding: 10px 12px;
             font: inherit;
         }
@@ -772,9 +765,7 @@
 
         .sf-btn {
             padding: 10px 20px;
-            border-radius: 10px;
             font-size: 0.9rem;
-            font-weight: 600;
             cursor: pointer;
             transition: all 0.15s;
         }
@@ -877,243 +868,266 @@
             <div class="incoming-list" id="incomingList" data-default-filter="active"
                 data-assign-url-template="{{ url('/admin-dashboard/booking/__BOOKING__/assign') }}">
 
-                @forelse($incomingRequests as $booking)
-                    @php
-                        $isReadyCompletion = in_array($booking->status, [
-                            'waiting_verification',
-                            'payment_pending',
-                            'payment_submitted',
-                        ]);
-                        $isReturned = $booking->needs_reassignment;
-                        $queueBucket = $isReadyCompletion ? 'ready_completion' : ($isReturned ? 'returned' : 'active');
-                        $timingLabel = $isReadyCompletion
-                            ? 'Ready for Completion'
-                            : ($isReturned
-                                ? 'Returned'
-                                : 'Active Booking');
-                        $statusBadgeClass = $isReadyCompletion
-                            ? 'payment-pending'
-                            : ($isReturned
-                                ? 'returned'
-                                : 'confirmed');
-                        $statusBadgeLabel = $isReadyCompletion
-                            ? match ($booking->status) {
+                @forelse($groupedIncoming as $groupCode => $groupBookings)
+                    @php $isMultiGroup = $groupBookings->count() > 1; @endphp
+                    @if ($isMultiGroup)
+                        <div class="group-booking-header">
+                            <strong>Multi vehicle booking {{ $groupBookings->count() }} vehicles</strong>
+                            <span>{{ $groupBookings->first()->customer->full_name ?? 'Guest' }} &middot; Ref:
+                                {{ $groupCode }}</span>
+                        </div>
+                    @endif
+                    @foreach ($groupBookings as $vIdx => $booking)
+                        @php
+                            $isReadyCompletion = in_array($booking->status, [
+                                'waiting_verification',
+                                'payment_pending',
+                                'payment_submitted',
+                            ]);
+                            $isReturned = $booking->needs_reassignment;
+                            $queueBucket = $isReadyCompletion
+                                ? 'ready_completion'
+                                : ($isReturned
+                                    ? 'returned'
+                                    : 'active');
+                            $timingLabel = $isReadyCompletion
+                                ? 'Ready for Completion'
+                                : ($isReturned
+                                    ? 'Returned'
+                                    : 'Active Booking');
+                            $statusBadgeClass = $isReadyCompletion
+                                ? 'payment-pending'
+                                : ($isReturned
+                                    ? 'returned'
+                                    : 'confirmed');
+                            $statusBadgeLabel = $isReadyCompletion
+                                ? match ($booking->status) {
+                                    'waiting_verification' => 'Awaiting Verification',
+                                    'payment_pending' => 'Payment Pending',
+                                    'payment_submitted' => 'Payment Submitted',
+                                    default => ucfirst($booking->status),
+                                }
+                                : ($isReturned
+                                    ? 'Needs Reassignment'
+                                    : ucfirst($booking->status));
+
+                            // Extra data for Complete Job modal
+                            $cj_vehicleImgUrl = '';
+                            if ($booking->vehicle_image_path) {
+                                $cj_paths = json_decode($booking->vehicle_image_path, true);
+                                if (is_array($cj_paths) && !empty($cj_paths)) {
+                                    $cj_vehicleImgUrl = \Illuminate\Support\Facades\Storage::disk('public')->url(
+                                        $cj_paths[0],
+                                    );
+                                }
+                            }
+                            $cj_paymongoRef = $booking->paymongo_intent_id ?? ($booking->paymongo_link_id ?? '');
+                            $cj_paymentStatusLabel = match ($booking->status) {
+                                'payment_pending' => 'Pending',
+                                'payment_submitted' => 'Proof Submitted',
                                 'waiting_verification' => 'Awaiting Verification',
-                                'payment_pending' => 'Payment Pending',
-                                'payment_submitted' => 'Payment Submitted',
-                                default => ucfirst($booking->status),
-                            }
-                            : ($isReturned
-                                ? 'Needs Reassignment'
-                                : ucfirst($booking->status));
+                                default => ucfirst(str_replace('_', ' ', $booking->status)),
+                            };
+                            $cj_paymentMethodLabel = match ($booking->payment_method ?? '') {
+                                'gcash' => 'GCash',
+                                'bank' => 'Bank Transfer',
+                                'cash' => 'Cash',
+                                'cheque' => 'Cheque',
+                                default => '—',
+                            };
+                        @endphp
+                        <div class="incoming-card {{ $booking->is_scheduled && !$booking->is_dispatch_delayed ? 'incoming-card--scheduled' : '' }} {{ $isMultiGroup ? 'incoming-card--group-child' : '' }}"
+                            data-id="{{ $booking->job_code }}" data-status="{{ $booking->status }}"
+                            data-queue="{{ $queueBucket }}" data-group-code="{{ $groupCode }}"
+                            data-service-mode="{{ $booking->service_mode }}"
+                            data-scheduled-for="{{ optional($booking->scheduled_for)->toIso8601String() }}"
+                            data-current-price="{{ $booking->final_total }}"
+                            data-current-additional="{{ $booking->additional_fee }}"
+                            data-base-rate="{{ $booking->base_rate }}"
+                            data-distance-fee="{{ $booking->distance_fee_amount }}"
+                            data-distance-km="{{ $booking->distance_km }}" data-per-km-rate="{{ $booking->per_km_rate }}"
+                            data-customer-type="{{ ucfirst($booking->customer_type ?? (optional($booking->customer)->customer_type ?? 'regular')) }}"
+                            data-truck-type="{{ e($booking->truckType->name ?? 'Unknown') }}"
+                            data-dispatch-zone="{{ e($booking->dispatch_zone_label ?? 'General Dispatch Zone') }}"
+                            data-recommended-unit="{{ $booking->recommended_unit_id }}"
+                            data-recommended-summary="{{ e($booking->recommended_unit_summary ?? '') }}"
+                            data-assigned-unit="{{ $booking->assigned_unit_id }}"
+                            data-customer-note="{{ e($booking->customer_response_note ?? '') }}"
+                            data-counter-offer="{{ $booking->counter_offer_amount }}"
+                            data-dispatcher-note="{{ e($booking->remarks ?? ($booking->dispatcher_note ?? '')) }}"
+                            data-return-reason="{{ e($booking->return_reason ?? '') }}"
+                            data-returned-by="{{ e($booking->returnedByTeamLeader->full_name ?? ($booking->returnedByTeamLeader->name ?? '')) }}"
+                            data-returned-at="{{ optional($booking->returned_at)->toIso8601String() }}"
+                            data-created-at="{{ $booking->created_at->toISOString() }}"
+                            data-customer-name="{{ e($booking->customer->full_name ?? 'Guest') }}"
+                            data-customer-phone="{{ e($booking->customer->phone ?? 'N/A') }}"
+                            data-customer-email="{{ e($booking->customer->email ?? '—') }}"
+                            data-pickup="{{ e($booking->pickup_address ?? '') }}"
+                            data-dropoff="{{ e($booking->dropoff_address ?? '') }}"
+                            data-unit-name="{{ e($booking->unit->name ?? '—') }}"
+                            data-unit-plate="{{ e($booking->unit->plate_number ?? '—') }}"
+                            data-tl-name="{{ e($booking->unit->teamLeader->full_name ?? ($booking->unit->teamLeader->name ?? '—')) }}"
+                            data-tl-phone="{{ e($booking->unit->teamLeader->phone ?? '—') }}"
+                            data-driver-name="{{ e($booking->unit->driver->full_name ?? ($booking->unit->driver->name ?? ($booking->unit->driver_name ?? '—'))) }}"
+                            data-final-total="{{ $booking->final_total ?? 0 }}"
+                            data-job-code="{{ e($booking->job_code ?? '—') }}"
+                            data-payment-method="{{ e($booking->payment_method ?? '') }}"
+                            data-payment-method-label="{{ e($cj_paymentMethodLabel) }}"
+                            data-payment-status-label="{{ e($cj_paymentStatusLabel) }}"
+                            data-payment-proof-url="{{ e(json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p), (array) $booking->payment_proof_path)) : [])) }}"
+                            data-paymongo-ref="{{ e($cj_paymongoRef) }}"
+                            data-discount-percentage="{{ $booking->discount_percentage ?? 0 }}"
+                            data-discount-reason="{{ e($booking->discount_reason ?? '') }}"
+                            data-computed-total="{{ $booking->computed_total ?? 0 }}"
+                            data-distance-fee-amount="{{ $booking->distance_fee_amount ?? 0 }}"
+                            data-vehicle-image-url="{{ e($cj_vehicleImgUrl) }}"
+                            data-truck-type-base-rate="{{ $booking->unit->truckType->base_rate ?? ($booking->base_rate ?? 0) }}">
 
-                        // Extra data for Complete Job modal
-                        $cj_vehicleImgUrl = '';
-                        if ($booking->vehicle_image_path) {
-                            $cj_paths = json_decode($booking->vehicle_image_path, true);
-                            if (is_array($cj_paths) && !empty($cj_paths)) {
-                                $cj_vehicleImgUrl = \Illuminate\Support\Facades\Storage::disk('public')->url(
-                                    $cj_paths[0],
-                                );
-                            }
-                        }
-                        $cj_paymongoRef = $booking->paymongo_intent_id ?? ($booking->paymongo_link_id ?? '');
-                        $cj_paymentStatusLabel = match ($booking->status) {
-                            'payment_pending' => 'Pending',
-                            'payment_submitted' => 'Proof Submitted',
-                            'waiting_verification' => 'Awaiting Verification',
-                            default => ucfirst(str_replace('_', ' ', $booking->status)),
-                        };
-                        $cj_paymentMethodLabel = match ($booking->payment_method ?? '') {
-                            'gcash' => 'GCash',
-                            'bank' => 'Bank Transfer',
-                            'cash' => 'Cash',
-                            'cheque' => 'Cheque',
-                            default => '—',
-                        };
-                    @endphp
-                    <div class="incoming-card {{ $booking->is_scheduled && !$booking->is_dispatch_delayed ? 'incoming-card--scheduled' : '' }}"
-                        data-id="{{ $booking->job_code }}" data-status="{{ $booking->status }}"
-                        data-queue="{{ $queueBucket }}" data-service-mode="{{ $booking->service_mode }}"
-                        data-scheduled-for="{{ optional($booking->scheduled_for)->toIso8601String() }}"
-                        data-current-price="{{ $booking->final_total }}"
-                        data-current-additional="{{ $booking->additional_fee }}"
-                        data-base-rate="{{ $booking->base_rate }}" data-distance-fee="{{ $booking->distance_fee_amount }}"
-                        data-distance-km="{{ $booking->distance_km }}" data-per-km-rate="{{ $booking->per_km_rate }}"
-                        data-customer-type="{{ ucfirst($booking->customer_type ?? (optional($booking->customer)->customer_type ?? 'regular')) }}"
-                        data-truck-type="{{ e($booking->truckType->name ?? 'Unknown') }}"
-                        data-dispatch-zone="{{ e($booking->dispatch_zone_label ?? 'General Dispatch Zone') }}"
-                        data-recommended-unit="{{ $booking->recommended_unit_id }}"
-                        data-recommended-summary="{{ e($booking->recommended_unit_summary ?? '') }}"
-                        data-assigned-unit="{{ $booking->assigned_unit_id }}"
-                        data-customer-note="{{ e($booking->customer_response_note ?? '') }}"
-                        data-counter-offer="{{ $booking->counter_offer_amount }}"
-                        data-dispatcher-note="{{ e($booking->remarks ?? ($booking->dispatcher_note ?? '')) }}"
-                        data-return-reason="{{ e($booking->return_reason ?? '') }}"
-                        data-returned-by="{{ e($booking->returnedByTeamLeader->full_name ?? ($booking->returnedByTeamLeader->name ?? '')) }}"
-                        data-returned-at="{{ optional($booking->returned_at)->toIso8601String() }}"
-                        data-created-at="{{ $booking->created_at->toISOString() }}"
-                        data-customer-name="{{ e($booking->customer->full_name ?? 'Guest') }}"
-                        data-customer-phone="{{ e($booking->customer->phone ?? 'N/A') }}"
-                        data-customer-email="{{ e($booking->customer->email ?? '—') }}"
-                        data-pickup="{{ e($booking->pickup_address ?? '') }}"
-                        data-dropoff="{{ e($booking->dropoff_address ?? '') }}"
-                        data-unit-name="{{ e($booking->unit->name ?? '—') }}"
-                        data-unit-plate="{{ e($booking->unit->plate_number ?? '—') }}"
-                        data-tl-name="{{ e($booking->unit->teamLeader->full_name ?? ($booking->unit->teamLeader->name ?? '—')) }}"
-                        data-tl-phone="{{ e($booking->unit->teamLeader->phone ?? '—') }}"
-                        data-driver-name="{{ e($booking->unit->driver->full_name ?? ($booking->unit->driver->name ?? ($booking->unit->driver_name ?? '—'))) }}"
-                        data-final-total="{{ $booking->final_total ?? 0 }}"
-                        data-job-code="{{ e($booking->job_code ?? '—') }}"
-                        data-payment-method="{{ e($booking->payment_method ?? '') }}"
-                        data-payment-method-label="{{ e($cj_paymentMethodLabel) }}"
-                        data-payment-status-label="{{ e($cj_paymentStatusLabel) }}"
-                        data-payment-proof-url="{{ e(json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p), (array) $booking->payment_proof_path)) : [])) }}"
-                        data-paymongo-ref="{{ e($cj_paymongoRef) }}"
-                        data-discount-percentage="{{ $booking->discount_percentage ?? 0 }}"
-                        data-discount-reason="{{ e($booking->discount_reason ?? '') }}"
-                        data-computed-total="{{ $booking->computed_total ?? 0 }}"
-                        data-distance-fee-amount="{{ $booking->distance_fee_amount ?? 0 }}"
-                        data-vehicle-image-url="{{ e($cj_vehicleImgUrl) }}"
-                        data-truck-type-base-rate="{{ $booking->unit->truckType->base_rate ?? ($booking->base_rate ?? 0) }}">
+                            <div class="incoming-left">
 
-                        <div class="incoming-left">
+                                @if ($isMultiGroup)
+                                    <div class="group-vehicle-indicator">Vehicle {{ $vIdx + 1 }} of
+                                        {{ $groupBookings->count() }} &mdash;
+                                        {{ $booking->truckType->name ?? 'Tow Truck' }}</div>
+                                @endif
 
-                            <div class="incoming-route">
-                                <strong>{{ $booking->pickup_address ?? 'Unknown Pickup' }}</strong>
-                                <span class="arrow">→</span>
-                                <span>{{ $booking->dropoff_address ?? 'Unknown Dropoff' }}</span>
-                            </div>
-
-                            <div class="incoming-details">
-                                <span><strong>ETA:</strong>
-                                    @if ($booking->eta_minutes)
-                                        {{ round($booking->eta_minutes) }} min
-                                    @elseif ($booking->quotation && $booking->quotation->eta_minutes)
-                                        {{ round($booking->quotation->eta_minutes) }} min
-                                    @else
-                                        <span style="color:#b91c1c">No ETA</span>
-                                    @endif
-                                </span>
-                            </div>
-
-                            <div class="incoming-details">
-                                <span><strong>Customer:</strong> {{ $booking->customer->full_name ?? 'Guest' }}</span>
-                                <span><strong>Phone:</strong> {{ $booking->customer->phone ?? 'N/A' }}</span>
-                                <span><strong>Vehicle:</strong> {{ $booking->truckType->name ?? 'Unknown' }}</span>
-                                <span><strong>Reference:</strong> {{ $booking->job_code }}</span>
-                            </div>
-
-                            <div class="incoming-meta">
-                                <span class="time">
-                                    {{ $booking->created_at->diffForHumans() }}
-                                </span>
-                                <span class="queue-chip {{ $queueBucket }}">
-                                    {{ $timingLabel }}
-                                </span>
-                                <span class="status-badge {{ $statusBadgeClass }}">
-                                    {{ $statusBadgeLabel }}
-                                </span>
-                            </div>
-
-                            <div class="incoming-details" style="margin-top: 10px;">
-                                <span><strong>Dispatch Timing:</strong> {{ $booking->schedule_window_label }}</span>
-                            </div>
-
-                            <div class="incoming-details" style="margin-top: 10px;">
-                                <span><strong>Dispatch Zone:</strong>
-                                    {{ $booking->dispatch_zone_label ?? 'General Dispatch Zone' }}</span>
-                                <span><strong>Recommended unit:</strong>
-                                    {{ $booking->recommended_unit_label ?? 'Dispatcher will choose the best ready unit.' }}</span>
-                            </div>
-
-                            @if ($booking->needs_reassignment)
-                                <div class="incoming-details" style="margin-top: 10px;">
-                                    <span><strong>Returned by:</strong>
-                                        {{ $booking->returnedByTeamLeader->full_name ?? ($booking->returnedByTeamLeader->name ?? 'Team Leader') }}</span>
-                                    <span><strong>Reason:</strong>
-                                        {{ $booking->return_reason ?? 'Needs reassignment.' }}</span>
+                                <div class="incoming-route">
+                                    <strong>{{ $booking->pickup_address ?? 'Unknown Pickup' }}</strong>
+                                    <span class="arrow">→</span>
+                                    <span>{{ $booking->dropoff_address ?? 'Unknown Dropoff' }}</span>
                                 </div>
 
-                                @if (isset($booking->return_reason_parsed))
-                                    @php
-                                        $rrp = $booking->return_reason_parsed;
-                                        $isUnreachable = ($rrp['code'] ?? null) === 'customer_unreachable';
-                                    @endphp
-                                    @if (!$isUnreachable)
-                                        <div class="rr-panel">
-                                            <div class="rr-header">
-                                                <span class="rr-badge {{ $rrp['badge_class'] ?? 'rr-badge--medium' }}">
-                                                    {{ strtoupper($rrp['priority'] ?? 'medium') }} PRIORITY
-                                                </span>
-                                                <span class="rr-label">{{ $rrp['label'] ?? 'Returned' }}</span>
-                                            </div>
-                                            @if (filled($rrp['note'] ?? null))
-                                                <div class="rr-note">{{ $rrp['note'] }}</div>
-                                            @endif
-                                            @if (!empty($rrp['actions']))
-                                                <div class="rr-actions">
-                                                    @foreach ($rrp['actions'] as $action)
-                                                        <button type="button" class="rr-action-btn"
-                                                            data-action="{{ $action }}"
-                                                            data-booking-id="{{ $booking->job_code }}"
-                                                            data-customer-id="{{ $booking->customer_id }}">
-                                                            <span>{{ $returnReasonHandler->getActionIcon($action) }}</span>
-                                                            <span>{{ $returnReasonHandler->getActionLabel($action) }}</span>
-                                                        </button>
-                                                    @endforeach
+                                {{-- <div class="incoming-details">
+                                    <span><strong>ETA:</strong>
+                                        @if ($booking->eta_minutes)
+                                            {{ round($booking->eta_minutes) }} min
+                                        @elseif ($booking->quotation && $booking->quotation->eta_minutes)
+                                            {{ round($booking->quotation->eta_minutes) }} min
+                                        @else
+                                            <span style="color:#b91c1c">No ETA</span>
+                                        @endif
+                                    </span>
+                                </div> --}}
+
+                                <div class="incoming-details">
+                                    <span><strong>Customer:</strong> {{ $booking->customer->full_name ?? 'Guest' }}</span>
+                                    <span><strong>Phone:</strong> {{ $booking->customer->phone ?? 'N/A' }}</span>
+                                    <span><strong>Vehicle:</strong> {{ $booking->truckType->name ?? 'Unknown' }}</span>
+                                    <span><strong>Reference:</strong> {{ $booking->job_code }}</span>
+                                </div>
+
+                                <div class="incoming-meta">
+                                    <span class="time">
+                                        {{ $booking->created_at->diffForHumans() }}
+                                    </span>
+                                    <span class="queue-chip {{ $queueBucket }}">
+                                        {{ $timingLabel }}
+                                    </span>
+                                    <span class="status-badge {{ $statusBadgeClass }}">
+                                        {{ $statusBadgeLabel }}
+                                    </span>
+                                </div>
+
+                                <div class="incoming-details" style="margin-top: 10px;">
+                                    <span><strong>Dispatch Timing:</strong> {{ $booking->schedule_window_label }}</span>
+                                </div>
+
+                                <div class="incoming-details" style="margin-top: 10px;">
+                                    <span><strong>Dispatch Zone:</strong>
+                                        {{ $booking->dispatch_zone_label ?? 'General Dispatch Zone' }}</span>
+                                    <span><strong>Recommended unit:</strong>
+                                        {{ $booking->recommended_unit_label ?? 'Dispatcher will choose the best ready unit.' }}</span>
+                                </div>
+
+                                @if ($booking->needs_reassignment)
+                                    <div class="incoming-details" style="margin-top: 10px;">
+                                        <span><strong>Returned by:</strong>
+                                            {{ $booking->returnedByTeamLeader->full_name ?? ($booking->returnedByTeamLeader->name ?? 'Team Leader') }}</span>
+                                        <span><strong>Reason:</strong>
+                                            {{ $booking->return_reason ?? 'Needs reassignment.' }}</span>
+                                    </div>
+
+                                    @if (isset($booking->return_reason_parsed))
+                                        @php
+                                            $rrp = $booking->return_reason_parsed;
+                                            $isUnreachable = ($rrp['code'] ?? null) === 'customer_unreachable';
+                                        @endphp
+                                        @if (!$isUnreachable)
+                                            <div class="rr-panel">
+                                                <div class="rr-header">
+                                                    <span
+                                                        class="rr-badge {{ $rrp['badge_class'] ?? 'rr-badge--medium' }}">
+                                                        {{ strtoupper($rrp['priority'] ?? 'medium') }} PRIORITY
+                                                    </span>
+                                                    <span class="rr-label">{{ $rrp['label'] ?? 'Returned' }}</span>
                                                 </div>
-                                            @endif
-                                        </div>
+                                                @if (filled($rrp['note'] ?? null))
+                                                    <div class="rr-note">{{ $rrp['note'] }}</div>
+                                                @endif
+                                                @if (!empty($rrp['actions']))
+                                                    <div class="rr-actions">
+                                                        @foreach ($rrp['actions'] as $action)
+                                                            <button type="button" class="rr-action-btn"
+                                                                data-action="{{ $action }}"
+                                                                data-booking-id="{{ $booking->job_code }}"
+                                                                data-customer-id="{{ $booking->customer_id }}">
+                                                                <span>{{ $returnReasonHandler->getActionIcon($action) }}</span>
+                                                                <span>{{ $returnReasonHandler->getActionLabel($action) }}</span>
+                                                            </button>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endif
                                     @endif
                                 @endif
-                            @endif
 
-                        </div>
-
-                        @if ($booking->status === 'reviewed')
-                            <div class="incoming-details" style="margin-top: 10px;">
-                                <span><strong>Counter-offer:</strong>
-                                    {{ $booking->counter_offer_amount ? '₱' . number_format((float) $booking->counter_offer_amount, 2) : 'Not provided' }}</span>
-                                <span><strong>Customer note:</strong>
-                                    {{ $booking->customer_response_note ?? 'Customer requested a quotation adjustment.' }}</span>
                             </div>
-                        @endif
 
-                        @php
-                            $rrp = $booking->return_reason_parsed ?? null;
-                            $isCustomerUnreachable = isset($rrp) && ($rrp['code'] ?? null) === 'customer_unreachable';
-                        @endphp
-
-                        <div class="incoming-actions">
-                            @if ($isReadyCompletion)
-                                <button type="button" class="btn-complete-job"
-                                    data-booking-code="{{ $booking->job_code }}"
-                                    data-customer="{{ e($booking->customer->full_name ?? 'Customer') }}"
-                                    data-ref="{{ $booking->job_code }}"
-                                    data-amount="₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}"
-                                    data-status="{{ $booking->status }}"
-                                    data-confirm-url="{{ route('admin.jobs.confirm-payment', $booking) }}">
-                                    Complete Job
-                                </button>
-                            @elseif ($booking->needs_reassignment || $booking->needs_assignment)
-                                <button type="button" class="btn-accept" data-id="{{ $booking->job_code }}"
-                                    data-action="accept">
-                                    {{ $booking->needs_reassignment ? 'Reassign Task' : 'Start Job' }}
-                                </button>
-                                <button type="button" class="btn-reject" data-id="{{ $booking->job_code }}"
-                                    data-action="reject">
-                                    Cancel Booking
-                                </button>
-                            @else
-                                <span style="font-size: 0.85rem; color: #64748b;">
-                                    Booking is active and assigned to team leader
-                                </span>
+                            @if ($booking->status === 'reviewed')
+                                <div class="incoming-details" style="margin-top: 10px;">
+                                    <span><strong>Counter-offer:</strong>
+                                        {{ $booking->counter_offer_amount ? '₱' . number_format((float) $booking->counter_offer_amount, 2) : 'Not provided' }}</span>
+                                    <span><strong>Customer note:</strong>
+                                        {{ $booking->customer_response_note ?? 'Customer requested a quotation adjustment.' }}</span>
+                                </div>
                             @endif
+
+                            @php
+                                $rrp = $booking->return_reason_parsed ?? null;
+                                $isCustomerUnreachable =
+                                    isset($rrp) && ($rrp['code'] ?? null) === 'customer_unreachable';
+                            @endphp
+
+                            <div class="incoming-actions">
+                                @if ($isReadyCompletion)
+                                    <button type="button" class="btn-complete-job"
+                                        data-booking-code="{{ $booking->job_code }}"
+                                        data-customer="{{ e($booking->customer->full_name ?? 'Customer') }}"
+                                        data-ref="{{ $booking->job_code }}"
+                                        data-amount="₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}"
+                                        data-status="{{ $booking->status }}"
+                                        data-confirm-url="{{ route('admin.jobs.confirm-payment', $booking) }}">
+                                        Complete Job
+                                    </button>
+                                @elseif ($booking->needs_reassignment || $booking->needs_assignment)
+                                    <button type="button" class="btn-accept" data-id="{{ $booking->job_code }}"
+                                        data-action="accept">
+                                        {{ $booking->needs_reassignment ? 'Reassign Task' : 'Start Job' }}
+                                    </button>
+                                    <button type="button" class="btn-reject" data-id="{{ $booking->job_code }}"
+                                        data-action="reject">
+                                        Cancel Booking
+                                    </button>
+                                @else
+                                    <span style="font-size: 0.85rem; color: #64748b;">
+                                        Booking is active and assigned to team leader
+                                    </span>
+                                @endif
+                            </div>
+
                         </div>
-
-                    </div>
-
+                    @endforeach
                 @empty
                     <div class="empty-state" id="emptyState">
                         <p>No bookings in this queue right now.</p>
@@ -1164,37 +1178,55 @@
 
         {{-- ── Book Now Queue Panel ──────────────────────────────────────────── --}}
         <div id="bookNowPanel" class="incoming-panel" style="display:none;">
-            @if ($bookNowRequests->isEmpty())
+            @if ($groupedBookNow->isEmpty())
                 <div class="empty-state">
                     <p>No book-now requests in queue.</p>
                 </div>
             @else
-                @foreach ($bookNowRequests as $booking)
-                    <div class="incoming-card" data-queue="book-now" data-id="{{ $booking->job_code ?? $booking->id }}"
-                        data-status="{{ $booking->status }}">
+                @foreach ($groupedBookNow as $bnGroupCode => $bnGroupBookings)
+                    @php
+                        $bnPrimary = $bnGroupBookings->first();
+                        $bnCount = $bnGroupBookings->count();
+                        $bnTotal = $bnGroupBookings->sum('final_total');
+                    @endphp
+                    <div class="incoming-card" data-queue="book-now"
+                        data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}" data-status="{{ $bnPrimary->status }}">
                         <div class="incoming-left">
                             <div class="incoming-header">
-                                <span class="queue-chip book-now">Book Now</span>
+                                <span class="queue-chip book-now">Book
+                                    Now{{ $bnCount > 1 ? ' · ' . $bnCount . ' vehicles' : '' }}</span>
                                 <span
-                                    class="status-badge {{ $booking->status }}">{{ ucfirst(str_replace('_', ' ', $booking->status)) }}</span>
+                                    class="status-badge {{ $bnPrimary->status }}">{{ ucfirst(str_replace('_', ' ', $bnPrimary->status)) }}</span>
                                 <span
-                                    style="font-size:0.78rem;color:#64748b;">{{ $booking->created_at->diffForHumans() }}</span>
+                                    style="font-size:0.78rem;color:#64748b;">{{ $bnPrimary->created_at->diffForHumans() }}</span>
                             </div>
                             <div class="incoming-route">
-                                <strong>{{ $booking->pickup_address }}</strong>
+                                <strong>{{ $bnPrimary->pickup_address }}</strong>
                                 <span class="arrow">→</span>
-                                <span>{{ $booking->dropoff_address }}</span>
+                                <span>{{ $bnPrimary->dropoff_address }}</span>
                             </div>
                             <div class="incoming-details">
-                                <span><strong>Customer:</strong> {{ $booking->customer->full_name ?? 'Guest' }}</span>
-                                <span><strong>Phone:</strong> {{ $booking->customer->phone ?? 'N/A' }}</span>
-                                <span><strong>Truck:</strong> {{ $booking->truckType->name ?? '—' }}</span>
-                                <span><strong>Ref:</strong> {{ $booking->booking_code }}</span>
+                                <span><strong>Customer:</strong> {{ $bnPrimary->customer->full_name ?? 'Guest' }}</span>
+                                <span><strong>Phone:</strong> {{ $bnPrimary->customer->phone ?? 'N/A' }}</span>
+                                <span><strong>Ref:</strong> {{ $bnGroupCode }}</span>
                             </div>
+                            @if ($bnCount > 1)
+                                <div class="incoming-details"
+                                    style="margin-top:6px;border-left:3px solid #dcfce7;padding-left:8px;">
+                                    @foreach ($bnGroupBookings as $bnIdx => $bnVehicle)
+                                        <span>Vehicle {{ $bnIdx + 1 }}:
+                                            {{ $bnVehicle->truckType->name ?? 'Tow Truck' }} &middot;
+                                            &#8369;{{ number_format((float) ($bnVehicle->final_total ?? 0), 2) }}</span>
+                                    @endforeach
+                                </div>
+                            @else
+                                <div class="incoming-details">
+                                    <span><strong>Truck:</strong> {{ $bnPrimary->truckType->name ?? '—' }}</span>
+                                </div>
+                            @endif
                         </div>
                         <div class="incoming-right">
-                            <div class="incoming-price">₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}
-                            </div>
+                            <div class="incoming-price">&#8369;{{ number_format((float) $bnTotal, 2) }}</div>
                         </div>
                     </div>
                 @endforeach
@@ -1203,39 +1235,54 @@
 
         {{-- ── Scheduled Queue Panel ────────────────────────────────────────── --}}
         <div id="scheduledPanel" class="incoming-panel" style="display:none;">
-            @if ($scheduledRequests->isEmpty())
+            @if ($groupedScheduled->isEmpty())
                 <div class="empty-state">
                     <p>No scheduled bookings in queue.</p>
                 </div>
             @else
-                @foreach ($scheduledRequests as $booking)
+                @foreach ($groupedScheduled as $schGroupCode => $schGroupBookings)
                     @php
-                        $isConfirmed = $booking->status === 'scheduled_confirmed';
-                        $expiresAt = $booking->scheduled_expires_at;
+                        $schPrimary = $schGroupBookings->first();
+                        $schCount = $schGroupBookings->count();
+                        $schTotal = $schGroupBookings->sum('final_total');
+                        $isConfirmed = $schPrimary->status === 'scheduled_confirmed';
+                        $expiresAt = $schPrimary->scheduled_expires_at;
                         $expiresLabel = $expiresAt ? $expiresAt->diffForHumans() : '—';
-                        $scheduledFor = $booking->scheduled_for;
+                        $scheduledFor = $schPrimary->scheduled_for;
                     @endphp
                     <div class="incoming-card {{ $isConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }}"
-                        data-queue="scheduled" data-id="{{ $booking->job_code ?? $booking->id }}"
-                        data-status="{{ $booking->status }}">
+                        data-queue="scheduled" data-id="{{ $schPrimary->job_code ?? $schPrimary->id }}"
+                        data-status="{{ $schPrimary->status }}">
                         <div class="incoming-left">
                             <div class="incoming-header">
                                 <span
-                                    class="queue-chip scheduled">{{ $isConfirmed ? 'Confirmed Schedule' : 'Scheduled' }}</span>
+                                    class="queue-chip scheduled">{{ $isConfirmed ? 'Confirmed Schedule' : 'Scheduled' }}{{ $schCount > 1 ? ' · ' . $schCount . ' vehicles' : '' }}</span>
                                 <span
-                                    class="status-badge {{ $booking->status }}">{{ ucfirst(str_replace('_', ' ', $booking->status)) }}</span>
+                                    class="status-badge {{ $schPrimary->status }}">{{ ucfirst(str_replace('_', ' ', $schPrimary->status)) }}</span>
                             </div>
                             <div class="incoming-route">
-                                <strong>{{ $booking->pickup_address }}</strong>
+                                <strong>{{ $schPrimary->pickup_address }}</strong>
                                 <span class="arrow">→</span>
-                                <span>{{ $booking->dropoff_address }}</span>
+                                <span>{{ $schPrimary->dropoff_address }}</span>
                             </div>
                             <div class="incoming-details">
-                                <span><strong>Customer:</strong> {{ $booking->customer->full_name ?? 'Guest' }}</span>
-                                <span><strong>Phone:</strong> {{ $booking->customer->phone ?? 'N/A' }}</span>
-                                <span><strong>Truck:</strong> {{ $booking->truckType->name ?? '—' }}</span>
-                                <span><strong>Ref:</strong> {{ $booking->booking_code }}</span>
+                                <span><strong>Customer:</strong> {{ $schPrimary->customer->full_name ?? 'Guest' }}</span>
+                                <span><strong>Phone:</strong> {{ $schPrimary->customer->phone ?? 'N/A' }}</span>
+                                <span><strong>Ref:</strong> {{ $schGroupCode }}</span>
                             </div>
+                            @if ($schCount > 1)
+                                <div class="incoming-details"
+                                    style="margin-top:6px;border-left:3px solid #e0f2fe;padding-left:8px;">
+                                    @foreach ($schGroupBookings as $schIdx => $schVehicle)
+                                        <span>Vehicle {{ $schIdx + 1 }}:
+                                            {{ $schVehicle->truckType->name ?? 'Tow Truck' }}</span>
+                                    @endforeach
+                                </div>
+                            @else
+                                <div class="incoming-details">
+                                    <span><strong>Truck:</strong> {{ $schPrimary->truckType->name ?? '—' }}</span>
+                                </div>
+                            @endif
                             @if ($scheduledFor)
                                 <div class="incoming-details"
                                     style="margin-top:6px;background:#facc1511;padding:6px 8px;border-left:3px solid #facc15;">
@@ -1246,12 +1293,11 @@
                             @endif
                         </div>
                         <div class="incoming-right">
-                            <div class="incoming-price">₱{{ number_format((float) ($booking->final_total ?? 0), 2) }}
-                            </div>
+                            <div class="incoming-price">&#8369;{{ number_format((float) $schTotal, 2) }}</div>
                             @if ($isConfirmed)
                                 <div style="margin-top:8px;">
                                     <button type="button" class="btn-accept"
-                                        data-id="{{ $booking->job_code ?? $booking->id }}" data-action="accept"
+                                        data-id="{{ $schPrimary->job_code ?? $schPrimary->id }}" data-action="accept"
                                         title="Assign a unit to this scheduled booking">
                                         Dispatch Now
                                     </button>
@@ -1277,7 +1323,7 @@
                 <div id="confirmedBookingPanel" style="display:none; margin-bottom:14px;">
                     <div style="background:#ffffff; border:1px solid #bfd3c6; padding:16px;">
                         <div
-                            style="font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#15803d; margin-bottom:12px;">
+                            style="font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; color:#15803d; margin-bottom:12px;">
                             Booking to Assign</div>
                         <div
                             style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px; font-size:.87rem; color:#374151;">
@@ -1302,8 +1348,7 @@
                                 <div id="cfTruckType" color:#0f172a;">—</div>
                             </div>
                             <div>
-                                <div
-                                    style="color:#3b3b3b; font-size:.72rem; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                                <div style="color:#3b3b3b; font-size:.72rem; text-transform:uppercase; margin-bottom:3px;">
                                     Distance</div>
                                 <div id="cfDistance" color:#0f172a;">—</div>
                             </div>
@@ -1318,26 +1363,26 @@
                         {{-- Assigned unit card --}}
                         <div id="cfUnitBox" style="display:none; margin-top:12px; background:#ffffff; padding:14px 16px;">
                             <div
-                                style="font-size:.65rem; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; margin-bottom:10px;">
+                                style="font-size:.65rem; text-transform:uppercase; letter-spacing:.08em; color:#000000; margin-bottom:10px;">
                                 Assigned Unit</div>
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px;">
                                 <div>
                                     <div
-                                        style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">
+                                        style="font-size:.62rem; text-transform:uppercase; color:#000000; margin-bottom:2px;">
                                         Unit</div>
-                                    <div id="cfUnitName" style="font-size:.92rem; font-weight:800; color:#000000;">—</div>
+                                    <div id="cfUnitName" style="font-size:.92rem;  color:#000000;">—</div>
                                 </div>
                                 <div>
                                     <div
-                                        style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">
+                                        style="font-size:.62rem;  text-transform:uppercase; color:#000000; margin-bottom:2px;">
                                         Type</div>
-                                    <div id="cfUnitType" style="font-size:.88rem; font-weight:700; color:#000000;">—</div>
+                                    <div id="cfUnitType" style="font-size:.88rem;  color:#000000;">—</div>
                                 </div>
                                 <div style="grid-column:1/-1;">
                                     <div
-                                        style="font-size:.62rem; font-weight:700; text-transform:uppercase; color:#64748b; margin-bottom:2px;">
+                                        style="font-size:.62rem;  text-transform:uppercase; color:#000000; margin-bottom:2px;">
                                         Team Leader</div>
-                                    <div id="cfUnitTl" style="font-size:.88rem; font-weight:700; color:#000000;">—</div>
+                                    <div id="cfUnitTl" style="font-size:.88rem;  color:#000000;">—</div>
                                 </div>
                             </div>
                         </div>
@@ -1464,9 +1509,9 @@
             style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);"
             aria-modal="true" role="dialog" hidden>
             <div
-                style="background:#fff;border-radius:18px;padding:28px 28px 24px;max-width:400px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.18);">
+                style="background:#fff;padding:28px 28px 24px;max-width:400px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.18);">
                 <div
-                    style="width:44px;height:44px;border-radius:12px;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+                    style="width:44px;height:44px;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
                     <svg width="22" height="22" fill="none" stroke="#dc2626" stroke-width="2"
                         viewBox="0 0 24 24">
                         <polyline points="3 6 5 6 21 6" />
@@ -1476,54 +1521,48 @@
                         <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
                     </svg>
                 </div>
-                <h3 style="margin:0 0 6px;font-size:1rem;font-weight:700;color:#0f172a;">Remove Unit</h3>
+                <h3 style="margin:0 0 6px;font-size:1rem;color:#0f172a;">Remove Unit</h3>
                 <p id="dpConfirmBody" style="margin:0 0 22px;font-size:.88rem;color:#64748b;line-height:1.5;">Remove the
                     assigned unit from this team leader?</p>
                 <div style="display:flex;gap:10px;justify-content:flex-end;">
                     <button id="dpConfirmCancel" type="button"
-                        style="padding:9px 18px;border-radius:9px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:.88rem;font-weight:600;cursor:pointer;">Cancel</button>
+                        style="padding:9px 18px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:.88rem;cursor:pointer;">Cancel</button>
                     <button id="dpConfirmOk" type="button"
-                        style="padding:9px 18px;border-radius:9px;border:none;background:#dc2626;color:#fff;font-size:.88rem;font-weight:600;cursor:pointer;">Remove</button>
+                        style="padding:9px 18px;border:none;background:#dc2626;color:#fff;font-size:.88rem;cursor:pointer;">Remove</button>
                 </div>
             </div>
         </div>
 
-        {{-- Complete Job Modal --}}
         <div id="completeJobModal"
             style="display:none;position:fixed;inset:0;z-index:10000;align-items:flex-start;justify-content:center;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);padding:20px 16px;overflow-y:auto;"
             aria-modal="true" role="dialog" hidden>
             <div
-                style="background:#fff;border-radius:16px;width:100%;max-width:680px;margin:auto;box-shadow:0 32px 80px rgba(0,0,0,.2);overflow:hidden;display:flex;flex-direction:column;border:1px solid #e2e8f0;">
+                style="background:#fff;width:100%;max-width:680px;margin:auto;box-shadow:0 32px 80px rgba(0,0,0,.2);overflow:hidden;display:flex;flex-direction:column;border:1px solid #e2e8f0;">
 
-                {{-- ── PDF LETTERHEAD ── --}}
-                <div style="background:#fff;border-bottom:3px solid #facc15;padding:20px 28px 16px;position:relative;">
-                    {{-- Close button --}}
+                <div style="background:#fff;padding:20px 28px 16px;position:relative;">
                     <button id="completeJobClose" type="button" aria-label="Close"
-                        style="position:absolute;top:14px;right:16px;width:28px;height:28px;border-radius:7px;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
-                    {{-- Logo bar --}}
+                        style="position:absolute;top:14px;right:16px;width:28px;height:28px;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
                     <div
                         style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;">
                         <img src="{{ asset('customer/image/accridetedlogo.png') }}" alt="MMDA Accredited"
                             style="height:80px;width:auto;object-fit:contain;">
                         <div style="text-align:center;flex:1;">
                             <div
-                                style="font-size:1.5rem;font-weight:900;color:#0f172a;letter-spacing:.06em;text-transform:uppercase;line-height:1;">
+                                style="font-size:1.5rem;color:#0f172a;letter-spacing:.06em;text-transform:uppercase;line-height:1;">
                                 TowMate</div>
                             <div
-                                style="font-size:.65rem;font-weight:600;color:#94a3b8;letter-spacing:.12em;text-transform:uppercase;margin-top:4px;">
+                                style="font-size:.65rem;color:#000000;letter-spacing:.12em;text-transform:uppercase;margin-top:4px;">
                                 Towing Management System</div>
                         </div>
                         <img src="{{ asset('customer/image/TowingLogo.png') }}" alt="Jarz Towing"
                             style="height:80px;width:auto;object-fit:contain;">
                     </div>
-                    {{-- Document title + ref --}}
                     <div
                         style="border-top:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;padding:10px 0;text-align:center;">
-                        <div
-                            style="font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:#b45309;">
+                        <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.14em;color:#b45309;">
                             Job Completion Record</div>
                         <div id="cjRefBadge"
-                            style="font-size:.8rem;font-weight:700;color:#475569;font-family:monospace;letter-spacing:.06em;margin-top:3px;">
+                            style="font-size:.8rem;color:#475569;font-family:monospace;letter-spacing:.06em;margin-top:3px;">
                         </div>
                     </div>
                 </div>
@@ -1534,183 +1573,157 @@
                     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                         <div>
                             <div
-                                style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#92400e;margin-bottom:3px;">
+                                style="font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:#92400e;margin-bottom:3px;">
                                 Total Amount Collected</div>
                             <div id="cjTotalBig"
-                                style="font-size:2rem;font-weight:900;color:#0f172a;letter-spacing:-.02em;line-height:1;">—
+                                style="font-size:2rem;color:#0f172a;letter-spacing:-.02em;line-height:1;">—
                             </div>
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 28px;text-align:right;">
                             <div style="font-size:.75rem;color:#78716c;white-space:nowrap;">Base Rate</div>
-                            <div id="cjBaseRate" style="font-size:.75rem;font-weight:700;color:#1c1917;">—</div>
+                            <div id="cjBaseRate" style="font-size:.75rem;color:#1c1917;">—</div>
                             <div style="font-size:.75rem;color:#78716c;white-space:nowrap;">Distance Fee</div>
-                            <div id="cjDistanceFee" style="font-size:.75rem;font-weight:700;color:#1c1917;">—</div>
+                            <div id="cjDistanceFee" style="font-size:.75rem;color:#1c1917;">—</div>
                             <div style="font-size:.75rem;color:#78716c;white-space:nowrap;">Additional Fee</div>
-                            <div id="cjAdditionalFee" style="font-size:.75rem;font-weight:700;color:#1c1917;">—</div>
+                            <div id="cjAdditionalFee" style="font-size:.75rem;color:#1c1917;">—</div>
                             <div id="cjDiscountRow"
                                 style="font-size:.75rem;color:#b45309;white-space:nowrap;display:none;">Discount</div>
-                            <div id="cjDiscount" style="font-size:.75rem;font-weight:700;color:#b45309;display:none;">—
+                            <div id="cjDiscount" style="font-size:.75rem;color:#b45309;display:none;">—
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {{-- ── BODY ── --}}
                 <div style="padding:20px 28px;display:flex;flex-direction:column;gap:18px;background:#fafafa;">
 
-                    {{-- Customer Information --}}
                     <div>
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                             <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                             <div
-                                style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#2563eb;white-space:nowrap;">
+                                style="font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:#000000;white-space:nowrap;">
                                 Customer Information</div>
                             <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                         </div>
-                        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff;">
+                        <div style="border:1px solid #e2e8f0;overflow:hidden;background:#fff;">
                             <div style="display:grid;grid-template-columns:1fr 1fr;">
                                 <div
                                     style="padding:10px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Full Name</div>
-                                    <div id="cjCustomerName" style="font-size:.85rem;font-weight:700;color:#0f172a;">—
+                                    <div id="cjCustomerName" style="font-size:.85rem;color:#0f172a;">—
                                     </div>
                                 </div>
                                 <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Customer Type</div>
-                                    <div id="cjCustomerType" style="font-size:.85rem;font-weight:600;color:#0f172a;">—
+                                    <div id="cjCustomerType" style="font-size:.85rem;color:#0f172a;">—
                                     </div>
                                 </div>
                                 <div
                                     style="padding:10px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Phone</div>
-                                    <div id="cjCustomerPhone" style="font-size:.85rem;font-weight:600;color:#0f172a;">—
+                                    <div id="cjCustomerPhone" style="font-size:.85rem;color:#0f172a;">—
                                     </div>
                                 </div>
                                 <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Email</div>
-                                    <div id="cjCustomerEmail"
-                                        style="font-size:.8rem;font-weight:600;color:#0f172a;word-break:break-all;">—</div>
+                                    <div id="cjCustomerEmail" style="font-size:.8rem;color:#0f172a;word-break:break-all;">
+                                        —</div>
                                 </div>
                                 <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Pickup</div>
-                                    <div id="cjPickup"
-                                        style="font-size:.8rem;font-weight:600;color:#0f172a;line-height:1.4;">—</div>
+                                    <div id="cjPickup" style="font-size:.8rem;color:#0f172a;line-height:1.4;">—</div>
                                 </div>
                                 <div style="padding:10px 14px;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Drop-off</div>
-                                    <div id="cjDropoff"
-                                        style="font-size:.8rem;font-weight:600;color:#0f172a;line-height:1.4;">—</div>
+                                    <div id="cjDropoff" style="font-size:.8rem;color:#0f172a;line-height:1.4;">—</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {{-- Payment Information --}}
                     <div>
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                             <div
-                                style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#ea580c;white-space:nowrap;">
+                                style="font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:#000000;white-space:nowrap;">
                                 Payment Information</div>
-                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                         </div>
-                        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff;">
+                        <div style="border:1px solid #e2e8f0;overflow:hidden;background:#fff;">
                             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;">
                                 <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Mode</div>
-                                    <div id="cjPaymentMode" style="font-size:.88rem;font-weight:700;color:#0f172a;">—
+                                    <div id="cjPaymentMode" style="font-size:.88rem;color:#0f172a;">—
                                     </div>
                                 </div>
                                 <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Status</div>
-                                    <div id="cjPaymentStatus" style="font-size:.88rem;font-weight:700;color:#0f172a;">—
+                                    <div id="cjPaymentStatus" style="font-size:.88rem;color:#0f172a;">—
                                     </div>
                                 </div>
                                 <div style="padding:10px 14px;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Reference #</div>
-                                    <div id="cjPaymongoRef"
-                                        style="font-size:.78rem;font-weight:600;color:#0f172a;word-break:break-all;">—
+                                    <div id="cjPaymongoRef" style="font-size:.78rem;color:#0f172a;word-break:break-all;">—
                                     </div>
                                 </div>
                             </div>
                             <div id="cjProofRow" style="display:none;border-top:1px solid #f1f5f9;padding:12px 14px;">
-                                <div
-                                    style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;letter-spacing:.08em;">
+                                <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:8px;">
                                     Proof of Payment</div>
                                 <div id="cjProofImagesContainer" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-                                <p style="margin:6px 0 0;font-size:.7rem;color:#94a3b8;text-align:center;">Click an image
+                                <p style="margin:6px 0 0;font-size:.7rem;color:#000000;text-align:center;">Click an image
                                     to open full size</p>
                             </div>
                         </div>
                     </div>
 
-                    {{-- Unit & Team Details --}}
                     <div>
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                             <div style="flex:1;height:1px;background:#e2e8f0;"></div>
-                            <div
-                                style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#16a34a;white-space:nowrap;">
+                            <div style="font-size:.62rem;text-transform:uppercase;color:#000000;white-space:nowrap;">
                                 Unit &amp; Team Details</div>
                             <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                         </div>
-                        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff;">
+                        <div style="border:1px solid #e2e8f0;overflow:hidden;background:#fff;">
                             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;">
                                 <div
                                     style="padding:10px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Unit Name</div>
-                                    <div id="cjUnitName" style="font-size:.85rem;font-weight:700;color:#0f172a;">—</div>
+                                    <div id="cjUnitName" style="font-size:.85rem;color:#0f172a;">—</div>
                                 </div>
                                 <div
                                     style="padding:10px 14px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Plate No.</div>
-                                    <div id="cjUnitPlate" style="font-size:.85rem;font-weight:700;color:#0f172a;">—</div>
+                                    <div id="cjUnitPlate" style="font-size:.85rem;color:#0f172a;">—</div>
                                 </div>
                                 <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Truck Type</div>
-                                    <div id="cjTruckType" style="font-size:.85rem;font-weight:600;color:#0f172a;">—</div>
+                                    <div id="cjTruckType" style="font-size:.85rem;color:#0f172a;">—</div>
                                 </div>
                                 <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Base Rate (Type)</div>
-                                    <div id="cjTruckBaseRate" style="font-size:.85rem;font-weight:600;color:#0f172a;">—
+                                    <div id="cjTruckBaseRate" style="font-size:.85rem;color:#0f172a;">—
                                     </div>
                                 </div>
                                 <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Team Leader</div>
-                                    <div id="cjTlName" style="font-size:.85rem;font-weight:700;color:#0f172a;">—</div>
+                                    <div id="cjTlName" style="font-size:.85rem;color:#0f172a;">—</div>
                                 </div>
                                 <div style="padding:10px 14px;">
-                                    <div
-                                        style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">
+                                    <div style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                         Driver</div>
-                                    <div id="cjDriverName" style="font-size:.85rem;font-weight:700;color:#0f172a;">—</div>
+                                    <div id="cjDriverName" style="font-size:.85rem;color:#0f172a;">—</div>
                                 </div>
                             </div>
                         </div>
@@ -1721,12 +1734,12 @@
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                             <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                             <div
-                                style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#7c3aed;white-space:nowrap;">
+                                style="font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:#000000;white-space:nowrap;">
                                 Vehicle Photo</div>
                             <div style="flex:1;height:1px;background:#e2e8f0;"></div>
                         </div>
                         <a id="cjVehicleLink" href="#" target="_blank" rel="noopener noreferrer"
-                            style="display:block;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;max-height:180px;background:#f8fafc;">
+                            style="display:block;overflow:hidden;border:1px solid #e2e8f0;max-height:180px;background:#f8fafc;">
                             <img id="cjVehicleImg" src="" alt="Vehicle"
                                 style="width:100%;max-height:180px;object-fit:cover;display:block;">
                         </a>
@@ -1734,20 +1747,19 @@
 
                 </div>
 
-                {{-- ── FOOTER ── --}}
                 <div
                     style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-                    <div style="font-size:.65rem;color:#94a3b8;line-height:1.5;">
+                    <div style="font-size:.65rem;color:#000000;line-height:1.5;">
                         Generated by TowMate &middot; {{ date('M d, Y') }}<br>
                         <span>Receipt will be emailed to customer on completion.</span>
                     </div>
                     <div style="display:flex;gap:10px;flex-shrink:0;">
                         <button id="completeJobCancel" type="button"
-                            style="padding:9px 18px;border-radius:9px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:.87rem;font-weight:600;cursor:pointer;">
+                            style="padding:9px 18px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:.87rem;cursor:pointer;">
                             Cancel
                         </button>
                         <button id="completeJobOk" type="button"
-                            style="padding:9px 22px;border-radius:9px;border:none;background:#facc15;color:#0f172a;font-size:.87rem;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                            style="padding:9px 22px;border:none;background:#facc15;color:#0f172a;font-size:.87rem;cursor:pointer;display:flex;align-items:center;gap:6px;">
                             Mark as Completed
                         </button>
                     </div>
@@ -1953,7 +1965,7 @@
                 var el = document.getElementById(id);
                 if (el) {
                     el.textContent = on ? 'Saving…' : '';
-                    el.style.color = '#94a3b8';
+                    el.style.color = '#000000';
                 }
             }
 
@@ -2570,10 +2582,8 @@
                     if (discountVal) discountVal.style.display = 'none';
                 }
 
-                // ── Header ref ──
                 setText('cjRefBadge', '#' + (ds.jobCode || btn.dataset.ref || '—'));
 
-                // ── Customer ──
                 setText('cjCustomerName', ds.customerName || btn.dataset.customer);
                 setText('cjCustomerType', ds.customerType);
                 setText('cjCustomerPhone', ds.customerPhone);
@@ -2581,7 +2591,6 @@
                 setText('cjPickup', ds.pickup);
                 setText('cjDropoff', ds.dropoff);
 
-                // ── Payment ──
                 setText('cjPaymentMode', ds.paymentMethodLabel || '—');
                 setText('cjPaymentStatus', ds.paymentStatusLabel || '—');
                 setText('cjPaymongoRef', ds.paymongoRef || '—');
@@ -2602,7 +2611,7 @@
                         a.target = '_blank';
                         a.rel = 'noopener noreferrer';
                         a.style.cssText =
-                            'flex:1 1 calc(50% - 4px);min-width:100px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;background:#f8fafc;display:block;';
+                            'flex:1 1 calc(50% - 4px);min-width:100px;overflow:hidden;border:1px solid #e2e8f0;background:#f8fafc;display:block;';
                         var img = document.createElement('img');
                         img.src = url;
                         img.alt = 'Payment proof';
@@ -2617,7 +2626,6 @@
                     hide('cjProofRow');
                 }
 
-                // ── Unit ──
                 setText('cjUnitName', ds.unitName);
                 setText('cjUnitPlate', ds.unitPlate);
                 setText('cjTruckType', ds.truckType);
@@ -2625,7 +2633,6 @@
                 setText('cjTlName', ds.tlName);
                 setText('cjDriverName', ds.driverName);
 
-                // ── Vehicle photo ──
                 var vehicleUrl = ds.vehicleImageUrl || '';
                 if (vehicleUrl) {
                     document.getElementById('cjVehicleImg').src = vehicleUrl;
@@ -2642,7 +2649,7 @@
                 modal.style.display = 'flex';
                 okBtn.disabled = false;
                 okBtn.innerHTML =
-                    '<svg width="14" height="14" fill="none" stroke="#09090b" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Mark as Completed';
+                    'Mark as Completed';
                 okBtn.focus();
             }
 
@@ -2657,7 +2664,7 @@
                 var t = document.createElement('div');
                 t.textContent = msg;
                 t.style.cssText =
-                    'position:fixed;bottom:24px;right:24px;z-index:99999;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:700;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.15);animation:tl-slide-in .25s ease;background:' +
+                    'position:fixed;bottom:24px;right:24px;z-index:99999;padding:12px 20px;font-size:13px;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.15);animation:tl-slide-in .25s ease;background:' +
                     (ok ? '#09090b' : '#dc2626');
                 document.body.appendChild(t);
                 setTimeout(function() {

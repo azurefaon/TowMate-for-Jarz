@@ -282,10 +282,10 @@
     font-size: 12px;
     padding: 6px 12px;
     border-radius: 20px;
-    font-weight: 700;
+    /* font-weight: 700; */
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border: 1px solid #f5d565;
+    /* letter-spacing: 0.5px; */
+    /* border: 1px solid #f5d565; */
 }
 
 .status-badge.pending {

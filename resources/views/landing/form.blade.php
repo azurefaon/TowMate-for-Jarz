@@ -287,10 +287,6 @@
                                         @foreach ($truckTypes as $truck)
                                             @php
                                                 $cls = $truck->class ?? 'other';
-                                                // Class-level availability: if every truck type in this class
-                                                // has 0 dispatch-ready units, the whole class is unavailable
-                                                // (e.g. customer scenario: Heavy class greyed out when no
-                                                // online team leader is on a heavy unit).
                                                 $classAvailableUnits = (int) ($classData[$cls]['available_units'] ?? 0);
                                                 $classAvail = $classAvailableUnits > 0;
                                                 $isAvail = $truck->available_units_count > 0 && $classAvail;
@@ -319,25 +315,14 @@
                                                     user-select: none;
                                                 ">
 
-                                                {{-- Class badge --}}
-                                                <span
-                                                    style="
-                                                    display:inline-block;
-                                                    font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
-                                                    padding:2px 7px;border-radius:999px;margin-bottom:6px;
-                                                    background:{{ $isSel ? 'rgba(255,255,255,.15)' : $clsBg }};
-                                                    color:{{ $isSel ? '#d4d4d8' : $clsColor }};
-                                                "
-                                                    class="lf-cls-badge">{{ $clsLbl }}</span>
-
                                                 <div
                                                     style="font-size:13px;font-weight:800;line-height:1.3;margin-bottom:6px;">
                                                     {{ $truck->name }}</div>
 
                                                 <div style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;margin-bottom:6px;color:{{ $isSel ? '#d4d4d8' : '#6b7280' }};"
                                                     class="lf-avail-row">
-                                                    <span
-                                                        style="width:6px;height:6px;border-radius:50%;background:{{ $isAvail ? '#22c55e' : '#9ca3af' }};display:inline-block;flex-shrink:0;"></span>
+                                                    {{-- <span
+                                                        style="width:6px;height:6px;border-radius:50%;background:{{ $isAvail ? '#22c55e' : '#9ca3af' }};display:inline-block;flex-shrink:0;"></span> --}}
                                                     @if ($isAvail)
                                                         {{ $truck->available_units_count }}
                                                         unit{{ $truck->available_units_count !== 1 ? 's' : '' }}
@@ -1225,14 +1210,14 @@
                         })}
                         ${extraSectionsHtml}
                         ${hasExtra ? `
-                                                                    <div class="summary-section">
-                                                                        <div class="summary-section-title">Grand Total (All ${1 + extraVehicles.length} Vehicles)</div>
-                                                                        <div class="summary-grid">
-                                                                            <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
-                                                                        </div>
-                                                                        <p class="summary-helper-note">Actual cost may vary according to vehicle type and booking mode.${hasScheduledExtra ? ' Scheduled vehicles will be quoted separately.' : ''}</p>
-                                                                    </div>
-                                                                ` : ''}
+                                                                                            <div class="summary-section">
+                                                                                                <div class="summary-section-title">Grand Total (All ${1 + extraVehicles.length} Vehicles)</div>
+                                                                                                <div class="summary-grid">
+                                                                                                    <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
+                                                                                                </div>
+                                                                                                <p class="summary-helper-note">Actual cost may vary according to vehicle type and booking mode.${hasScheduledExtra ? ' Scheduled vehicles will be quoted separately.' : ''}</p>
+                                                                                            </div>
+                                                                                        ` : ''}
                     </div>
                 `;
 
@@ -1561,7 +1546,9 @@
                     card.style.color = '#fff';
                     card.classList.add('lf-selected');
                     selectedTruckId = card.dataset.truckId || '';
-                    document.getElementById('truck_type_id').value = selectedTruckId;
+                    const truckTypeInput = document.getElementById('truck_type_id');
+                    truckTypeInput.value = selectedTruckId;
+                    truckTypeInput.dispatchEvent(new Event('change'));
                     document.getElementById('truck_class_hidden').value = card.dataset.class || '';
                     document.dispatchEvent(new CustomEvent('v1ClassSelected', {
                         detail: {

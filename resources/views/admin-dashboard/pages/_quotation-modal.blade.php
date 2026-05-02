@@ -1,8 +1,28 @@
+<style>
+    /* Quotation modal — flat/plain overrides */
+    #quotationModal * {
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    #quotationModal [style*="font-weight"] {
+        font-weight: 400 !important;
+    }
+
+    #quotationModal .modal-card {
+        border: 1px solid #000 !important;
+    }
+
+    #quotationModal *:not(button):not(select):not(input):not(textarea):not(option) {
+        color: #000000 !important;
+    }
+</style>
+
 <div id="quotationModal"
-    style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(3px); align-items: center; justify-content: center; padding: 20px;"
+    style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(15, 23, 42, 0.55); align-items: center; justify-content: center; padding: 20px;"
     aria-hidden="true" role="dialog" aria-modal="true">
     <div class="modal-card"
-        style="width: min(860px, 100%); max-height: 92vh; overflow-y: auto; background: #fff; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.18); display: flex; flex-direction: column;">
+        style="width: min(1100px, 100%); max-height: 92vh; overflow-y: auto; background: #fff; display: flex; flex-direction: column;">
 
         <!-- Modal -->
         <div
@@ -96,6 +116,18 @@
                     uploaded.</p>
             </div>
 
+            <!-- Extra Vehicles (shown when quotation has multiple vehicles) -->
+            <div id="qmExtraVehiclesSection"
+                style="display:none; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+                <div style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <span
+                        style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Additional
+                        Vehicles</span>
+                    <span id="qmVehicleCount" style="margin-left:8px;font-size:0.72rem;color:#94a3b8;"></span>
+                </div>
+                <div id="qmExtraVehiclesList" style="padding: 14px 16px; display: grid; gap: 10px;"></div>
+            </div>
+
             <!-- Price Breakdown -->
             <div style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
                 <div style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
@@ -117,6 +149,11 @@
                         style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.88rem; color: #475569;">
                         <span>Additional Fees</span>
                         <span style="font-weight: 600;" id="qmOtherFees">₱0.00</span>
+                    </div>
+                    <div id="qmExtraVehiclesTotalRow"
+                        style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.88rem; color: #475569;">
+                        <span id="qmExtraVehiclesLabel">Additional Vehicles</span>
+                        <span id="qmExtraVehiclesTotal">₱0.00</span>
                     </div>
                     <div
                         style="border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; justify-content: space-between; align-items: baseline;">
@@ -151,7 +188,8 @@
                             <option value="" disabled>No online ready units available</option>
                         @endforelse
                     </select>
-                    <small style="font-size: 0.78rem; color: #94a3b8; margin-top: 6px; display: block;">Selecting a unit
+                    <small style="font-size: 0.78rem; color: #94a3b8; margin-top: 6px; display: block;">Selecting a
+                        unit
                         adds the unit base rate to the total. Unit must be assigned before sending.</small>
                 </div>
             </div>
@@ -163,7 +201,7 @@
                     <span
                         style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Adjust
                         Price</span>
-                    <span style="font-size: 0.72rem; color: #94a3b8;">Optional — enter 0 to keep base price</span>
+                    {{-- <span style="font-size: 0.72rem; color: #94a3b8;">Optional — enter 0 to keep base price</span> --}}
                 </div>
                 <div style="padding: 16px; display: grid; gap: 14px;">
                     <div>
@@ -287,6 +325,29 @@
                 document.getElementById('qmDistance').textContent = q.distance_km ? `${q.distance_km} km` : '—';
                 document.getElementById('qmTruckType').textContent = q.truck_type || '—';
 
+                // Extra vehicles
+                const evSection = document.getElementById('qmExtraVehiclesSection');
+                const evList = document.getElementById('qmExtraVehiclesList');
+                const evCount = document.getElementById('qmVehicleCount');
+                evList.innerHTML = '';
+                if (q.extra_vehicles && q.extra_vehicles.length > 0) {
+                    evSection.style.display = 'block';
+                    evCount.textContent = `(${q.total_vehicles} vehicles total)`;
+                    q.extra_vehicles.forEach(function(ev) {
+                        const isScheduled = ev.service_type === 'schedule';
+                        const priceText = isScheduled ? 'TBD (scheduled)' :
+                            `₱${parseFloat(ev.estimated_price || 0).toLocaleString('en-PH', {minimumFractionDigits:2,maximumFractionDigits:2})}`;
+                        const row = document.createElement('div');
+                        row.style.cssText =
+                            'padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;';
+                        row.innerHTML =
+                            `<div style="font-weight:700;color:#0f172a;margin-bottom:4px;">Vehicle ${ev.vehicle_index} — ${ev.truck_type_name || 'Tow Truck'}${isScheduled ? ' <span style="background:#e0f2fe;color:#075985;font-size:0.7rem;padding:2px 6px;border-radius:4px;font-weight:700;">Scheduled</span>' : ''}</div><div style="color:#64748b;">Est. Price: <strong style="color:#0f172a;">${priceText}</strong>${ev.scheduled_date ? ' · ' + ev.scheduled_date : ''}</div>`;
+                        evList.appendChild(row);
+                    });
+                } else {
+                    evSection.style.display = 'none';
+                }
+
                 // Vehicle image gallery
                 const gallery = document.getElementById('qmImageGallery');
                 const grid = document.getElementById('qmImageGrid');
@@ -334,10 +395,30 @@
                 document.getElementById('qmDistanceFeeLabel').textContent =
                     `Per-4km (${kmIncrements} × ₱200)`;
 
-                document.getElementById('qmTotalAmount').textContent = fmt(distanceFee);
-                document.getElementById('qmCalculatedPrice').textContent = fmt(distanceFee);
                 document.getElementById('qmOtherFeesRow').style.display = 'none';
                 window.qmDistanceFee = distanceFee;
+
+                // Extra vehicles total (non-scheduled only)
+                const evTotal = (q.extra_vehicles || []).reduce(function(s, ev) {
+                    return ev.service_type !== 'schedule' ? s + parseFloat(ev.estimated_price || 0) : s;
+                }, 0);
+                window.qmExtraVehiclesTotal = evTotal;
+                const evTotalRow = document.getElementById('qmExtraVehiclesTotalRow');
+                if (evTotalRow) {
+                    if (evTotal > 0) {
+                        const evCnt = (q.extra_vehicles || []).filter(function(ev) {
+                            return ev.service_type !== 'schedule';
+                        }).length;
+                        document.getElementById('qmExtraVehiclesLabel').textContent = 'Additional Vehicles (' +
+                            evCnt + ')';
+                        document.getElementById('qmExtraVehiclesTotal').textContent = fmt(evTotal);
+                        evTotalRow.style.display = 'flex';
+                    } else {
+                        evTotalRow.style.display = 'none';
+                    }
+                }
+                document.getElementById('qmTotalAmount').textContent = fmt(distanceFee + evTotal);
+                document.getElementById('qmCalculatedPrice').textContent = fmt(distanceFee + evTotal);
 
                 // Show unit section for pending quotations
                 const unitSection = document.getElementById('qmUnitSection');
@@ -363,10 +444,12 @@
                         0;
                     document.getElementById('qmBasePrice').textContent = baseRate > 0 ? fmt(baseRate) : 'TBD';
                     const fees = parseFloat(document.getElementById('qmOtherFeesInput').value || 0);
-                    const newTotal = baseRate + (window.qmDistanceFee || 0) + fees;
+                    const newTotal = baseRate + (window.qmDistanceFee || 0) + fees + (window.qmExtraVehiclesTotal ||
+                        0);
                     document.getElementById('qmTotalAmount').textContent = fmt(newTotal);
                     document.getElementById('qmCalculatedPrice').textContent = fmt(newTotal);
-                    window.qmCustomerPrice = baseRate + (window.qmDistanceFee || 0);
+                    window.qmCustomerPrice = baseRate + (window.qmDistanceFee || 0) + (window
+                        .qmExtraVehiclesTotal || 0);
                 }
 
                 // Run initial calc with auto-selected unit

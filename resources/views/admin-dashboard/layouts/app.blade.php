@@ -71,7 +71,6 @@
         .topbar-date {
             color: var(--jarz-text);
             opacity: 0.78;
-            font-weight: 600;
         }
 
         .main-content,
@@ -98,7 +97,6 @@
             align-items: center;
             gap: 10px;
             padding: 5px 12px;
-            border: 1px solid #000;
             background: #fff;
             cursor: pointer;
         }
@@ -109,6 +107,7 @@
             display: inline-flex;
             align-items: center;
             border: 1px solid #000;
+            border-radius: 5px;
             justify-content: center;
             background: var(--jarz-surface);
             color: var(--jarz-text);

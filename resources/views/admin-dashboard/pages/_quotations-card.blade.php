@@ -5,8 +5,27 @@
     $totalActive = $pendingQuotations->count() + $sentQuotations->count() + $negotiatingQuotations->count();
 @endphp
 
+<style>
+    /* Floating quotations card — flat/plain overrides */
+    .quotations-card-section [style*="border-radius"] {
+        border-radius: 0 !important;
+    }
+
+    .quotations-card-section [style*="box-shadow"] {
+        box-shadow: none !important;
+    }
+
+    .quotations-card-section [style*="font-weight"] {
+        font-weight: 400 !important;
+    }
+
+    .quotations-card-section [style*="animation"] {
+        animation: none !important;
+    }
+</style>
+
 <div class="quotations-card-section" style="margin-bottom: 32px;">
-    <div style="background: #fff; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">
+    <div style="background: #fff; border: 1px solid #000; overflow: hidden;">
 
         <!-- Header -->
         <div
@@ -75,15 +94,16 @@
                                     {{ $quotation->customer->phone ?? '' }}</div>
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                    @php
+                                        $qCardTotal =
+                                            floatval($quotation->estimated_price) +
+                                            collect($quotation->extra_vehicles ?? [])
+                                                ->filter(fn($ev) => ($ev['service_type'] ?? '') !== 'schedule')
+                                                ->sum('estimated_price');
+                                    @endphp
                                     <span
-                                        style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
-                                    <button type="button"
-                                        onclick="event.stopPropagation(); sendQuotationToCustomer({{ $quotation->id }})"
-                                        style="padding: 5px 14px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; background: #2563eb; color: #fff; border: none; cursor: pointer;"
-                                        onmouseover="this.style.background='#1d4ed8'"
-                                        onmouseout="this.style.background='#2563eb'">
-                                        Send →
-                                    </button>
+                                        style="font-size: 1rem; color: #0f172a;">₱{{ number_format($qCardTotal, 2) }}</span>
+
                                 </div>
                             </div>
                         @endforeach
@@ -94,9 +114,7 @@
             @if ($sentQuotations->count() > 0)
                 <div>
                     <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
-                        <div
-                            style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; animation: qpulse 2s ease-in-out infinite;">
-                        </div>
+
                         <span
                             style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em;">Waiting
                             for Customer</span>
@@ -114,12 +132,12 @@
                                     default => '#ffffff',
                                 };
                                 $badgeBg = match ($urgency) {
-                                    'urgent' => '#fef2f2',
+                                    'urgent' => '#ffffff',
                                     'warning' => '#fffbeb',
                                     default => '#f0fdf4',
                                 };
                                 $badgeColor = match ($urgency) {
-                                    'urgent' => '#dc2626',
+                                    'urgent' => '#000000',
                                     'warning' => '#b45309',
                                     default => '#15803d',
                                 };
@@ -162,10 +180,17 @@
 
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                    @php
+                                        $qCardTotal =
+                                            floatval($quotation->estimated_price) +
+                                            collect($quotation->extra_vehicles ?? [])
+                                                ->filter(fn($ev) => ($ev['service_type'] ?? '') !== 'schedule')
+                                                ->sum('estimated_price');
+                                    @endphp
                                     <span
-                                        style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
+                                        style="font-size: 1rem; color: #0f172a;">₱{{ number_format($qCardTotal, 2) }}</span>
                                     <div style="text-align: right;">
-                                        <div style="font-size: 0.72rem; color: {{ $accentColor }}; font-weight: 600;">
+                                        <div style="font-size: 0.72rem; color: {{ $accentColor }};">
                                             {{ $timeRemaining['message'] ?? '—' }}</div>
                                     </div>
                                 </div>
@@ -224,8 +249,15 @@
                                 @endif
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                    @php
+                                        $qCardTotal =
+                                            floatval($quotation->estimated_price) +
+                                            collect($quotation->extra_vehicles ?? [])
+                                                ->filter(fn($ev) => ($ev['service_type'] ?? '') !== 'schedule')
+                                                ->sum('estimated_price');
+                                    @endphp
                                     <span
-                                        style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
+                                        style="font-size: 1rem; color: #0f172a;">₱{{ number_format($qCardTotal, 2) }}</span>
                                     <button type="button"
                                         onclick="event.stopPropagation(); viewQuotationDetails({{ $quotation->id }})"
                                         style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; cursor: pointer;">
