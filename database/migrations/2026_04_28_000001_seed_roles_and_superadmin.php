@@ -62,7 +62,8 @@ return new class extends Migration
             ]);
 
             if (Schema::hasColumn('users', 'user_code')) {
-                $insert['user_code'] = strtoupper('SA-' . Str::random(6));
+                $insert['user_code'] = strtoupper('SA-' . Str::random(4));
+                // $insert['user_code'] = strtoupper('SA-' . Str::random(6));
             }
 
             DB::table('users')->insert($insert);

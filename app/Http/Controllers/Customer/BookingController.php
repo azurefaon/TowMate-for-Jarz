@@ -199,6 +199,12 @@ class BookingController extends Controller
         $wantSecondVehicle = (string) ($data['add_second_vehicle'] ?? '0') === '1'
             && filled($data['vehicle_2_truck_type_id'] ?? null);
 
+        // Extra vehicles 3 & 4
+        $wantVehicle3 = (string) ($data['add_vehicle_3'] ?? '0') === '1'
+            && filled($data['vehicle_3_truck_type_id'] ?? null);
+        $wantVehicle4 = (string) ($data['add_vehicle_4'] ?? '0') === '1'
+            && filled($data['vehicle_4_truck_type_id'] ?? null);
+
         $availability = $this->bookingService->dispatchAvailability();
         $readyUnits   = (int) ($availability['ready_units_count'] ?? 0);
 
@@ -301,6 +307,74 @@ class BookingController extends Controller
             }
         }
 
+        // ── Vehicle 3 quotation ───────────────────────────────────────────
+        $thirdQuotation = null;
+        if ($wantVehicle3) {
+            $v3TruckType = is_numeric($data['vehicle_3_truck_type_id'])
+                ? TruckType::find($data['vehicle_3_truck_type_id'])
+                : TruckType::where('name', 'like', '%' . $data['vehicle_3_truck_type_id'] . '%')->first();
+            if ($v3TruckType) {
+                $v3Override = (string) ($data['vehicle_3_route_override'] ?? '0') === '1'
+                    && filled($data['vehicle_3_pickup_address'] ?? null)
+                    && filled($data['vehicle_3_dropoff_address'] ?? null);
+                $v3Pickup   = $v3Override ? $data['vehicle_3_pickup_address'] : $data['pickup_address'];
+                $v3Dropoff  = $v3Override ? $data['vehicle_3_dropoff_address'] : $data['dropoff_address'];
+                $v3Distance = $v3Override ? ($data['vehicle_3_distance_km'] ?? $data['distance_km'] ?? 0) : ($data['distance_km'] ?? 0);
+                $v3Pricing  = $this->bookingService->calculatePricing(['truck_type_id' => $v3TruckType->id, 'distance_km' => $v3Distance, 'customer_type' => $data['customer_type'] ?? 'regular']);
+                $v3Price    = isset($data['vehicle_3_price']) && is_numeric($data['vehicle_3_price']) && (float) $data['vehicle_3_price'] > 0
+                    ? (float) $data['vehicle_3_price'] : $v3Pricing['final_total'];
+                $thirdQuotation = $this->quotationService->createQuotation([
+                    'customer_id'        => $customer->id,
+                    'truck_type_id'      => $v3TruckType->id,
+                    'pickup_address'     => $v3Pickup,
+                    'dropoff_address'    => $v3Dropoff,
+                    'distance_km'        => $v3Distance,
+                    'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
+                    'estimated_price'    => $v3Price,
+                    'additional_fee'     => 0,
+                    'eta_minutes'        => $v3Override ? ($data['vehicle_3_eta_minutes'] ?? null) : ($data['eta_minutes'] ?? null),
+                    'service_type'       => $data['service_type'] ?? 'book_now',
+                    'scheduled_date'     => $data['scheduled_date'] ?? null,
+                    'scheduled_time'     => $data['scheduled_time'] ?? null,
+                ]);
+                $thirdQuotation->load(['customer', 'truckType']);
+            }
+        }
+
+        // ── Vehicle 4 quotation ───────────────────────────────────────────
+        $fourthQuotation = null;
+        if ($wantVehicle4) {
+            $v4TruckType = is_numeric($data['vehicle_4_truck_type_id'])
+                ? TruckType::find($data['vehicle_4_truck_type_id'])
+                : TruckType::where('name', 'like', '%' . $data['vehicle_4_truck_type_id'] . '%')->first();
+            if ($v4TruckType) {
+                $v4Override = (string) ($data['vehicle_4_route_override'] ?? '0') === '1'
+                    && filled($data['vehicle_4_pickup_address'] ?? null)
+                    && filled($data['vehicle_4_dropoff_address'] ?? null);
+                $v4Pickup   = $v4Override ? $data['vehicle_4_pickup_address'] : $data['pickup_address'];
+                $v4Dropoff  = $v4Override ? $data['vehicle_4_dropoff_address'] : $data['dropoff_address'];
+                $v4Distance = $v4Override ? ($data['vehicle_4_distance_km'] ?? $data['distance_km'] ?? 0) : ($data['distance_km'] ?? 0);
+                $v4Pricing  = $this->bookingService->calculatePricing(['truck_type_id' => $v4TruckType->id, 'distance_km' => $v4Distance, 'customer_type' => $data['customer_type'] ?? 'regular']);
+                $v4Price    = isset($data['vehicle_4_price']) && is_numeric($data['vehicle_4_price']) && (float) $data['vehicle_4_price'] > 0
+                    ? (float) $data['vehicle_4_price'] : $v4Pricing['final_total'];
+                $fourthQuotation = $this->quotationService->createQuotation([
+                    'customer_id'        => $customer->id,
+                    'truck_type_id'      => $v4TruckType->id,
+                    'pickup_address'     => $v4Pickup,
+                    'dropoff_address'    => $v4Dropoff,
+                    'distance_km'        => $v4Distance,
+                    'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
+                    'estimated_price'    => $v4Price,
+                    'additional_fee'     => 0,
+                    'eta_minutes'        => $v4Override ? ($data['vehicle_4_eta_minutes'] ?? null) : ($data['eta_minutes'] ?? null),
+                    'service_type'       => $data['service_type'] ?? 'book_now',
+                    'scheduled_date'     => $data['scheduled_date'] ?? null,
+                    'scheduled_time'     => $data['scheduled_time'] ?? null,
+                ]);
+                $fourthQuotation->load(['customer', 'truckType']);
+            }
+        }
+
         // TODO: Send email notification about quotation request
         // if ($quotation->customer?->email) {
         //     Mail::to($quotation->customer->email)->send(new QuotationRequestReceivedMail($quotation));
@@ -342,6 +416,26 @@ class BookingController extends Controller
                 'service_type'   => ($data['vehicle_2_service_type'] ?? 'book_now') === 'schedule' ? 'Scheduled' : 'Book Now',
                 'schedule_reason' => $data['vehicle_2_schedule_reason'] ?? null,
                 'route_overridden' => (string) ($data['vehicle_2_route_override'] ?? '0') === '1',
+            ] : null,
+            'third_vehicle' => $thirdQuotation ? [
+                'reference'      => $thirdQuotation->quotation_number,
+                'truck_type'     => $thirdQuotation->truckType->name ?? null,
+                'pickup'         => $thirdQuotation->pickup_address,
+                'dropoff'        => $thirdQuotation->dropoff_address,
+                'distance_km'    => (float) $thirdQuotation->distance_km,
+                'eta_minutes'    => $thirdQuotation->eta_minutes,
+                'estimated_price' => (float) $thirdQuotation->estimated_price,
+                'route_overridden' => (string) ($data['vehicle_3_route_override'] ?? '0') === '1',
+            ] : null,
+            'fourth_vehicle' => $fourthQuotation ? [
+                'reference'      => $fourthQuotation->quotation_number,
+                'truck_type'     => $fourthQuotation->truckType->name ?? null,
+                'pickup'         => $fourthQuotation->pickup_address,
+                'dropoff'        => $fourthQuotation->dropoff_address,
+                'distance_km'    => (float) $fourthQuotation->distance_km,
+                'eta_minutes'    => $fourthQuotation->eta_minutes,
+                'estimated_price' => (float) $fourthQuotation->estimated_price,
+                'route_overridden' => (string) ($data['vehicle_4_route_override'] ?? '0') === '1',
             ] : null,
         ]]);
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\TokenBucketRateLimiter;
 use Illuminate\Auth\Events\Lockout;
@@ -35,8 +36,8 @@ class LoginRequest extends FormRequest
     {
         return [
             'role' => ['nullable', Rule::in(['superadmin', 'dispatcher', 'teamleader'])],
-            'email' => ['nullable', 'string', 'email', 'max:150'],
-            'password' => ['nullable', 'string', 'max:128'],
+            'email' => ['required', 'string', 'email', 'max:150'],
+            'password' => ['required', 'string', 'max:128'],
             'remember' => ['nullable', 'boolean'],
         ];
     }
@@ -174,6 +175,16 @@ class LoginRequest extends FormRequest
     {
         // Increment the hard-lock failure counter.
         RateLimiter::hit($this->throttleKey(), $this->decaySeconds());
+
+        // Log failed login attempt to audit log.
+        AuditLog::create([
+            'user_id'     => null,
+            'action'      => 'failed_login',
+            'entity_type' => 'User',
+            'entity_id'   => null,
+            'reference'   => (string) $this->input('email'),
+            'description' => 'Failed login attempt from IP ' . $this->ip(),
+        ]);
 
         throw ValidationException::withMessages([
             'auth' => 'Invalid credentials',

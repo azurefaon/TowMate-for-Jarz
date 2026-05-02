@@ -1,4 +1,4 @@
-@extends('landing.layouts.app')
+﻿@extends('landing.layouts.app')
 
 @section('content')
     {{-- All zone selection and related JS removed for clean customer form --}}
@@ -421,180 +421,29 @@
                                 </div>
                             </div>
 
-                            {{-- ── Optional 2nd vehicle (multi-tow) ────────────────────────── --}}
-                            <div class="form-section compact-section" id="v2_wrapper">
+                            {{-- ── Additional vehicles (multi-tow, up to 3 extra = 4 total) ── --}}
+                            <div class="form-section compact-section" id="extra_vehicles_section">
                                 <div
                                     style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
                                     <div>
-                                        <h3 style="margin:0;">Need to tow another vehicle?</h3>
+                                        <h3 style="margin:0;">Need to tow more vehicles?</h3>
                                         <p style="margin:4px 0 0;font-size:0.85rem;color:#6b7280;">
-                                            Add a second vehicle on the same booking. ETA &amp; pricing update
-                                            automatically.
+                                            Add up to 3 more vehicles (4 total). Estimates are shown in the booking
+                                            summary before you confirm.
                                         </p>
                                     </div>
-                                    <button type="button" id="v2_toggle_btn" class="btn-secondary"
+                                    <button type="button" id="add_extra_vehicle_btn" class="btn-secondary"
                                         style="padding:10px 16px;border-radius:999px;font-weight:600;">
                                         + Add another vehicle
                                     </button>
                                 </div>
 
-                                <input type="hidden" id="add_second_vehicle" name="add_second_vehicle"
-                                    value="{{ old('add_second_vehicle', '0') }}">
+                                {{-- hidden flags consumed by backend --}}
+                                <input type="hidden" id="add_second_vehicle" name="add_second_vehicle" value="0">
+                                <input type="hidden" id="extra_vehicle_count" name="extra_vehicle_count"
+                                    value="0">
 
-                                <div id="v2_panel"
-                                    style="display:{{ old('add_second_vehicle') === '1' ? 'block' : 'none' }};margin-top:18px;border:1px dashed #e5e7eb;border-radius:14px;padding:18px;background:#fafafa;">
-
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label for="v2_customer_vehicle_type">Second Vehicle Type *</label>
-                                            <input type="text" id="v2_customer_vehicle_type"
-                                                name="vehicle_2_customer_vehicle_type"
-                                                placeholder="Sedan, SUV, Motorcycle"
-                                                value="{{ old('vehicle_2_customer_vehicle_type') }}">
-                                            @error('vehicle_2_customer_vehicle_type')
-                                                <span class="error-message">{{ $message }}</span>
-                                            @enderror
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group" style="margin-bottom:14px;">
-                                        <label style="display:block;margin-bottom:10px;font-weight:600;color:#111;">
-                                            Truck Type for Vehicle 2 <span style="color:#dc2626;">*</span>
-                                        </label>
-                                        <input type="hidden" id="v2_truck_type_id" name="vehicle_2_truck_type_id"
-                                            value="{{ old('vehicle_2_truck_type_id') }}">
-                                        <div id="v2_class_grid"
-                                            style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;">
-                                            @foreach ($truckTypes as $truck)
-                                                @php
-                                                    $cls = $truck->class ?? 'other';
-                                                    $classAvailableUnits =
-                                                        (int) ($classData[$cls]['available_units'] ?? 0);
-                                                    $classAvail = $classAvailableUnits > 0;
-                                                    $isAvail = $truck->available_units_count > 0 && $classAvail;
-                                                    $clsLbl = $lf_classLabel[$cls] ?? ucfirst($cls);
-                                                    $clsColor = $lf_classColor[$cls] ?? '#52525b';
-                                                    $clsBg = $lf_classBg[$cls] ?? '#f4f4f5';
-                                                @endphp
-                                                <div class="v2-class-card" data-class="{{ $cls }}"
-                                                    data-truck-id="{{ $truck->id }}"
-                                                    data-base="{{ (float) $truck->base_rate }}"
-                                                    data-perkm="{{ (float) $truck->per_km_rate }}"
-                                                    data-available="{{ $isAvail ? 1 : 0 }}"
-                                                    data-class-available="{{ $classAvail ? 1 : 0 }}" role="button"
-                                                    tabindex="0"
-                                                    style="border:2px solid #e5e7eb;border-radius:10px;padding:10px 12px;cursor:pointer;background:#fff;color:#111827;user-select:none;transition:border-color .15s, background .15s;">
-                                                    <span class="v2-cls-badge"
-                                                        style="display:inline-block;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;margin-bottom:6px;background:{{ $clsBg }};color:{{ $clsColor }};">
-                                                        {{ $clsLbl }}
-                                                    </span>
-                                                    <div
-                                                        style="font-size:13px;font-weight:800;line-height:1.3;margin-bottom:6px;">
-                                                        {{ $truck->name }}
-                                                    </div>
-                                                    <div class="v2-avail-row"
-                                                        style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;margin-bottom:6px;color:#6b7280;">
-                                                        <span
-                                                            style="width:6px;height:6px;border-radius:50%;background:{{ $isAvail ? '#22c55e' : '#9ca3af' }};display:inline-block;flex-shrink:0;"></span>
-                                                        @if ($isAvail)
-                                                            {{ $truck->available_units_count }}
-                                                            unit{{ $truck->available_units_count !== 1 ? 's' : '' }}
-                                                        @else
-                                                            No units
-                                                        @endif
-                                                    </div>
-                                                    <div class="v2-rate-row"
-                                                        style="font-size:10px;font-weight:700;color:#52525b;">
-                                                        ₱{{ number_format($truck->base_rate, 0) }} +
-                                                        ₱{{ number_format($truck->per_km_rate, 0) }}/km
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group" style="margin-bottom:14px;">
-                                        <label
-                                            style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:#111;">
-                                            <input type="checkbox" id="v2_route_override_chk"
-                                                {{ old('vehicle_2_route_override') === '1' ? 'checked' : '' }}>
-                                            This vehicle has a different pickup &amp; drop-off
-                                        </label>
-                                        <input type="hidden" id="v2_route_override" name="vehicle_2_route_override"
-                                            value="{{ old('vehicle_2_route_override', '0') }}">
-                                        <p style="margin:6px 0 0;font-size:0.8rem;color:#6b7280;">
-                                            Leave unchecked to reuse the main pickup &amp; drop-off above.
-                                        </p>
-                                    </div>
-
-                                    <div id="v2_route_fields"
-                                        style="display:{{ old('vehicle_2_route_override') === '1' ? 'block' : 'none' }};">
-                                        <div class="form-row form-row-location">
-                                            <div class="form-group">
-                                                <label for="v2_pickup_address">Vehicle 2 Pickup *</label>
-                                                <div class="input-map-wrapper">
-                                                    <input type="text" id="v2_pickup_address"
-                                                        name="vehicle_2_pickup_address"
-                                                        placeholder="Where should we pick up the 2nd vehicle?"
-                                                        autocomplete="off" value="{{ old('vehicle_2_pickup_address') }}">
-                                                    <div id="v2_pickup_suggestions" class="suggestions"></div>
-                                                </div>
-                                                <input type="hidden" id="v2_pickup_lat" name="vehicle_2_pickup_lat"
-                                                    value="{{ old('vehicle_2_pickup_lat') }}">
-                                                <input type="hidden" id="v2_pickup_lng" name="vehicle_2_pickup_lng"
-                                                    value="{{ old('vehicle_2_pickup_lng') }}">
-                                                @error('vehicle_2_pickup_address')
-                                                    <span class="error-message">{{ $message }}</span>
-                                                @enderror
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="v2_dropoff_address">Vehicle 2 Drop-off *</label>
-                                                <div class="input-map-wrapper">
-                                                    <input type="text" id="v2_dropoff_address"
-                                                        name="vehicle_2_dropoff_address"
-                                                        placeholder="Where is the 2nd vehicle headed?" autocomplete="off"
-                                                        value="{{ old('vehicle_2_dropoff_address') }}">
-                                                    <div id="v2_dropoff_suggestions" class="suggestions"></div>
-                                                </div>
-
-                                                <input type="hidden" id="v2_drop_lat" name="vehicle_2_drop_lat"
-                                                    value="{{ old('vehicle_2_drop_lat') }}">
-                                                <input type="hidden" id="v2_drop_lng" name="vehicle_2_drop_lng"
-                                                    value="{{ old('vehicle_2_drop_lng') }}">
-                                                @error('vehicle_2_dropoff_address')
-                                                    <span class="error-message">{{ $message }}</span>
-                                                @enderror
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <input type="hidden" id="v2_distance_km" name="vehicle_2_distance_km"
-                                        value="{{ old('vehicle_2_distance_km') }}">
-                                    <input type="hidden" id="v2_eta_minutes" name="vehicle_2_eta_minutes"
-                                        value="{{ old('vehicle_2_eta_minutes') }}">
-                                    <input type="hidden" id="v2_price" name="vehicle_2_price"
-                                        value="{{ old('vehicle_2_price') }}">
-
-                                    <div id="v2_pricing_row"
-                                        style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-top:6px;">
-                                        <div>
-                                            <div
-                                                style="font-size:0.78rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
-                                                Vehicle 2 estimate
-                                            </div>
-                                            <div style="font-size:0.85rem;color:#111;margin-top:2px;">
-                                                <span id="v2_distance_label">— km</span> ·
-                                                <span id="v2_eta_label">— min</span>
-                                            </div>
-                                        </div>
-                                        <div id="v2_price_label" style="font-size:1.05rem;font-weight:800;color:#111;">
-                                            ₱0.00</div>
-                                    </div>
-
-                                    <div id="v2_schedule_notice"
-                                        style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:0.8rem;font-weight:600;">
-                                    </div>
-                                </div>
+                                <div id="extra_vehicles_container"></div>
                             </div>
 
                             <div class="form-actions">
@@ -687,9 +536,32 @@
                     ];
                 })
                 ->toArray();
+
+            $truckTypesForJs = $truckTypes
+                ->map(function ($t) use ($lf_classLabel, $lf_classColor, $lf_classBg, $classData) {
+                    $cls = $t->class ?? 'other';
+                    $classAvail = ((int) ($classData[$cls]['available_units'] ?? 0)) > 0;
+                    $avail = $t->available_units_count > 0 && $classAvail;
+                    return [
+                        'id' => $t->id,
+                        'name' => $t->name,
+                        'class' => $cls,
+                        'base_rate' => (float) $t->base_rate,
+                        'per_km_rate' => (float) $t->per_km_rate,
+                        'available' => $avail,
+                        'class_avail' => $classAvail,
+                        'available_units_count' => (int) $t->available_units_count,
+                        'cls_label' => $lf_classLabel[$cls] ?? ucfirst($cls),
+                        'cls_color' => $lf_classColor[$cls] ?? '#52525b',
+                        'cls_bg' => $lf_classBg[$cls] ?? '#f4f4f5',
+                    ];
+                })
+                ->values()
+                ->toArray();
         @endphp
         <script>
             const truckRates = {!! json_encode($truckRates, JSON_UNESCAPED_UNICODE) !!};
+            const extraVehicleTruckTypes = @json($truckTypesForJs);
 
             const bookingForm = document.querySelector('.booking-form');
             const confirmationModal = document.getElementById('confirmationModal');
@@ -1202,70 +1074,53 @@
                         } : null,
                     ];
 
-                    // ── 2nd vehicle summary (multi-tow) ────────────────────
-                    let v2Section = '';
-                    let v2GrandTotalNum = 0;
-                    const v2Active = document.getElementById('add_second_vehicle')?.value === '1';
-                    if (v2Active) {
-                        const v2TruckId = document.getElementById('v2_truck_type_id')?.value;
-                        const v2TruckCard = v2TruckId ? document.querySelector(
-                            `.v2-class-card[data-truck-id="${v2TruckId}"]`) : null;
-                        const v2TruckName = v2TruckCard ? v2TruckCard.querySelector('div[style*="font-weight:800"]')
-                            ?.textContent?.trim() : 'Not selected';
-                        const v2VehType = document.getElementById('v2_customer_vehicle_type')?.value || 'Not specified';
-                        const v2Override = document.getElementById('v2_route_override')?.value === '1';
-                        const v2Pickup = v2Override ? (document.getElementById('v2_pickup_address')?.value || pickup) :
-                            pickup;
-                        const v2Dropoff = v2Override ? (document.getElementById('v2_dropoff_address')?.value ||
-                            dropoff) : dropoff;
-                        const v2DistKm = parseFloat(document.getElementById('v2_distance_km')?.value || '0') || 0;
-                        const v2EtaMin = parseFloat(document.getElementById('v2_eta_minutes')?.value || '0') || 0;
-                        const v2PriceNum = parseFloat(document.getElementById('v2_price')?.value || '0') || 0;
-                        v2GrandTotalNum = v2PriceNum;
+                    // ── Extra vehicles summary (multi-tow, up to V2–V4) ────
+                    const extraVehicles = (typeof window.getExtraVehiclesData === 'function') ?
+                        window.getExtraVehiclesData() : [];
+                    const hasExtra = extraVehicles.length > 0;
 
-                        const v2Items = [{
+                    let extraSectionsHtml = '';
+                    let extraTotalNum = 0;
+                    extraVehicles.forEach(function(ev) {
+                        extraTotalNum += ev.price || 0;
+                        const evItems = [{
                                 label: 'Truck Type',
-                                value: v2TruckName
+                                value: ev.truckName || 'Not selected'
                             },
                             {
                                 label: 'Customer Vehicle',
-                                value: v2VehType
+                                value: ev.vtype || 'Not specified'
                             },
                             {
                                 label: 'Pickup',
-                                value: v2Pickup,
+                                value: ev.pickup || '—',
                                 wide: true
                             },
                             {
                                 label: 'Drop-off',
-                                value: v2Dropoff,
+                                value: ev.dropoff || '—',
                                 wide: true
                             },
                             {
                                 label: 'Distance',
-                                value: v2DistKm ? v2DistKm.toFixed(2) + ' km' : '—'
+                                value: ev.distKm ? ev.distKm.toFixed(2) + ' km' : '—'
                             },
                             {
                                 label: 'ETA',
-                                value: v2EtaMin ? Math.round(v2EtaMin) + ' min' : '—'
+                                value: ev.etaMin ? Math.round(ev.etaMin) + ' min' : '—'
                             },
                             {
-                                label: 'Vehicle 2 Estimate',
-                                value: '₱' + v2PriceNum.toLocaleString('en-PH', {
+                                label: 'Vehicle ' + ev.vNum + ' Estimate',
+                                value: '₱' + (ev.price || 0).toLocaleString('en-PH', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2
                                 })
                             },
                         ];
-                        const noticeEl = document.getElementById('v2_schedule_notice');
-                        const noticeNote = (noticeEl && noticeEl.style.display !== 'none') ? noticeEl.textContent
-                            .trim() : '';
-                        v2Section = renderSummarySection('Second Vehicle', v2Items, noticeNote ? {
-                            helperNote: noticeNote
-                        } : {});
-                    }
+                        extraSectionsHtml += renderSummarySection('Vehicle ' + ev.vNum, evItems);
+                    });
 
-                    const grandTotalNum = _computedTotal + v2GrandTotalNum;
+                    const grandTotalNum = _computedTotal + extraTotalNum;
                     const grandTotalStr = '₱' + grandTotalNum.toLocaleString('en-PH', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2
@@ -1275,20 +1130,20 @@
                     <div class="summary-card">
                         ${renderSummarySection('Customer Information', customerItems)}
                         ${renderSummarySection('Trip Details', tripItems)}
-                        ${renderSummarySection('Fare Summary', fareItems, {
-                            totalValue: v2Active ? null : total,
-                            helperNote: v2Active ? '' : 'Actual cost may vary according to different vehicle and booking mode'
+                        ${renderSummarySection('Fare Summary (Vehicle 1)', fareItems, {
+                            totalValue: hasExtra ? null : total,
+                            helperNote: hasExtra ? '' : 'Actual cost may vary according to different vehicle and booking mode'
                         })}
-                        ${v2Section}
-                        ${v2Active ? `
-                                                    <div class="summary-section">
-                                                        <div class="summary-section-title">Grand Total (Both Vehicles)</div>
-                                                        <div class="summary-grid">
-                                                            <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
-                                                        </div>
-                                                        <p class="summary-helper-note">Actual cost may vary according to different vehicle and booking mode.</p>
-                                                    </div>
-                                                ` : ''}
+                        ${extraSectionsHtml}
+                        ${hasExtra ? `
+                                                            <div class="summary-section">
+                                                                <div class="summary-section-title">Grand Total (All ${1 + extraVehicles.length} Vehicles)</div>
+                                                                <div class="summary-grid">
+                                                                    <div class="summary-total"><span>Estimated Total</span><h2>${grandTotalStr}</h2></div>
+                                                                </div>
+                                                                <p class="summary-helper-note">Actual cost may vary according to vehicle type and booking mode.</p>
+                                                            </div>
+                                                        ` : ''}
                     </div>
                 `;
 
@@ -1706,34 +1561,19 @@
             })();
         </script>
 
-        {{-- ── Vehicle 2 (multi-tow) JS ─────────────────────────────────── --}}
+
+        {{-- ── Multi-vehicle JS (up to 4 total = 1 main + 3 extra) ─────── --}}
         <script>
             (function() {
-                const wrapper = document.getElementById('v2_wrapper');
-                if (!wrapper) return;
-
-                const toggleBtn = document.getElementById('v2_toggle_btn');
-                const panel = document.getElementById('v2_panel');
+                const MAX_EXTRA = 3;
+                const addBtn = document.getElementById('add_extra_vehicle_btn');
+                const container = document.getElementById('extra_vehicles_container');
                 const flagInput = document.getElementById('add_second_vehicle');
-                const truckInput = document.getElementById('v2_truck_type_id');
-                const overrideChk = document.getElementById('v2_route_override_chk');
-                const overrideInput = document.getElementById('v2_route_override');
-                const routeFields = document.getElementById('v2_route_fields');
-                const v2Pickup = document.getElementById('v2_pickup_address');
-                const v2Dropoff = document.getElementById('v2_dropoff_address');
-                const v2PickupLat = document.getElementById('v2_pickup_lat');
-                const v2PickupLng = document.getElementById('v2_pickup_lng');
-                const v2DropLat = document.getElementById('v2_drop_lat');
-                const v2DropLng = document.getElementById('v2_drop_lng');
-                const v2DistanceIn = document.getElementById('v2_distance_km');
-                const v2EtaIn = document.getElementById('v2_eta_minutes');
-                const v2PriceIn = document.getElementById('v2_price');
-                const v2DistLabel = document.getElementById('v2_distance_label');
-                const v2EtaLabel = document.getElementById('v2_eta_label');
-                const v2PriceLabel = document.getElementById('v2_price_label');
-                const v2Notice = document.getElementById('v2_schedule_notice');
-                const pickupSugg = document.getElementById('v2_pickup_suggestions');
-                const dropoffSugg = document.getElementById('v2_dropoff_suggestions');
+                const countInput = document.getElementById('extra_vehicle_count');
+                if (!container || !addBtn) return;
+
+                const vehicleState = {}; // slot → { truckId, truckClass, distKm, etaMin, price, routeAbort }
+                let activeSlots = [];
 
                 function pesos(n) {
                     return '₱' + Number(n || 0).toLocaleString('en-PH', {
@@ -1742,144 +1582,312 @@
                     });
                 }
 
-                function setOpen(open) {
-                    panel.style.display = open ? 'block' : 'none';
-                    flagInput.value = open ? '1' : '0';
-                    toggleBtn.textContent = open ? '× Remove second vehicle' : '+ Add another vehicle';
-                    if (!open) {
-                        truckInput.value = '';
-                        document.querySelectorAll('.v2-class-card.v2-selected').forEach(c => c.click());
-                        v2Notice.style.display = 'none';
-                    }
-                    recompute();
+                function vNum(slot) {
+                    return slot + 2;
                 }
 
-                toggleBtn.addEventListener('click', () => setOpen(panel.style.display === 'none'));
+                function pfx(slot) {
+                    return 'vehicle_' + vNum(slot) + '_';
+                }
 
-                // ── Grey-out unavailable Vehicle 2 truck cards in book_now mode ──
-                function syncV2CardVisibility() {
-                    const isSchedule = (document.getElementById('service_type')?.value || 'book_now') === 'schedule';
-                    document.querySelectorAll('.v2-class-card').forEach(card => {
-                        const avail = card.dataset.available === '1';
-                        if (isSchedule || avail) {
-                            card.style.opacity = '1';
-                            card.style.cursor = 'pointer';
-                            card.style.pointerEvents = '';
-                            card.style.filter = '';
-                            card.setAttribute('aria-disabled', 'false');
-                            card.setAttribute('tabindex', '0');
+                // ── Build a single truck card HTML ─────────────────────
+                function buildCardHtml(truck) {
+                    const isSchedule = document.getElementById('service_type')?.value === 'schedule';
+                    const avail = isSchedule || truck.available;
+                    return '<div class="ev-class-card"' +
+                        ' data-class="' + truck.class + '"' +
+                        ' data-truck-id="' + truck.id + '"' +
+                        ' data-base="' + truck.base_rate + '"' +
+                        ' data-perkm="' + truck.per_km_rate + '"' +
+                        ' data-available="' + (truck.available ? '1' : '0') + '"' +
+                        ' data-class-available="' + (truck.class_avail ? '1' : '0') + '"' +
+                        ' role="button"' +
+                        ' tabindex="' + (avail ? '0' : '-1') + '"' +
+                        ' aria-disabled="' + (avail ? 'false' : 'true') + '"' +
+                        ' style="border:2px solid #e5e7eb;border-radius:10px;padding:10px 12px;' +
+                        'cursor:' + (avail ? 'pointer' : 'not-allowed') + ';background:#fff;color:#111827;' +
+                        'user-select:none;transition:border-color .15s,background .15s;opacity:' + (avail ? '1' : '.45') +
+                        ';">' +
+                        '<span class="ev-cls-badge" style="display:inline-block;font-size:9px;font-weight:800;' +
+                        'letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;' +
+                        'margin-bottom:6px;background:' + truck.cls_bg + ';color:' + truck.cls_color + ';">' +
+                        truck.cls_label + '</span>' +
+                        '<div style="font-size:13px;font-weight:800;line-height:1.3;margin-bottom:6px;">' + truck.name +
+                        '</div>' +
+                        '<div class="ev-avail-row" style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;margin-bottom:6px;color:#6b7280;">' +
+                        '<span style="width:6px;height:6px;border-radius:50%;background:' + (truck.available ? '#22c55e' :
+                            '#9ca3af') + ';display:inline-block;flex-shrink:0;"></span>' +
+                        (truck.available ? truck.available_units_count + ' unit' + (truck.available_units_count !== 1 ?
+                            's' : '') : 'No units') +
+                        '</div>' +
+                        '<div style="font-size:10px;font-weight:700;color:#52525b;">' +
+                        '₱' + truck.base_rate.toLocaleString('en-PH', {
+                            maximumFractionDigits: 0
+                        }) +
+                        ' + ₱' + truck.per_km_rate.toLocaleString('en-PH', {
+                            maximumFractionDigits: 0
+                        }) + '/km' +
+                        '</div></div>';
+                }
+
+                function addVehicle() {
+                    if (activeSlots.length >= MAX_EXTRA) return;
+                    let slot = 0;
+                    while (activeSlots.includes(slot)) slot++;
+                    activeSlots.push(slot);
+                    activeSlots.sort((a, b) => a - b);
+
+                    const vn = vNum(slot);
+                    const p = pfx(slot);
+                    const cardsHtml = (extraVehicleTruckTypes || []).map(buildCardHtml).join('');
+
+                    const panel = document.createElement('div');
+                    panel.className = 'extra-vehicle-panel';
+                    panel.dataset.slot = slot;
+                    panel.style.cssText =
+                        'margin-top:16px;border:1px dashed #e5e7eb;border-radius:14px;padding:18px;background:#fafafa;';
+
+                    panel.innerHTML =
+                        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
+                        '<strong style="font-size:0.95rem;color:#111;">Vehicle ' + vn + '</strong>' +
+                        '<button type="button" class="ev-remove-btn" style="font-size:0.85rem;color:#dc2626;background:none;border:none;cursor:pointer;font-weight:600;padding:0;">× Remove</button>' +
+                        '</div>' +
+                        '<div class="form-row"><div class="form-group">' +
+                        '<label>Vehicle ' + vn + ' Type *</label>' +
+                        '<input type="text" name="' + p +
+                        'customer_vehicle_type" placeholder="Sedan, SUV, Motorcycle" autocomplete="off">' +
+                        '</div></div>' +
+                        '<div class="form-group" style="margin-bottom:14px;">' +
+                        '<label style="display:block;margin-bottom:10px;font-weight:600;color:#111;">Truck Type for Vehicle ' +
+                        vn + ' <span style="color:#dc2626;">*</span></label>' +
+                        '<input type="hidden" name="' + p + 'truck_type_id" class="ev-truck-id">' +
+                        '<div class="ev-class-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;">' +
+                        cardsHtml + '</div>' +
+                        '</div>' +
+                        '<div class="form-group" style="margin-bottom:14px;">' +
+                        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:#111;">' +
+                        '<input type="checkbox" class="ev-override-chk">' +
+                        'Vehicle ' + vn + ' has a different pickup &amp; drop-off' +
+                        '</label>' +
+                        '<input type="hidden" name="' + p + 'route_override" class="ev-override-val" value="0">' +
+                        '<p style="margin:6px 0 0;font-size:0.8rem;color:#6b7280;">Leave unchecked to reuse the main route.</p>' +
+                        '</div>' +
+                        '<div class="ev-route-fields" style="display:none;">' +
+                        '<div class="form-row form-row-location">' +
+                        '<div class="form-group"><label>Vehicle ' + vn + ' Pickup *</label>' +
+                        '<div class="input-map-wrapper">' +
+                        '<input type="text" class="ev-pickup-addr" name="' + p +
+                        'pickup_address" placeholder="Enter pickup location or landmark (e.g. Puregold Caloocan)" autocomplete="off">' +
+                        '<div class="ev-pickup-sugg suggestions"></div></div>' +
+                        '<input type="hidden" class="ev-pickup-lat" name="' + p + 'pickup_lat">' +
+                        '<input type="hidden" class="ev-pickup-lng" name="' + p + 'pickup_lng">' +
+                        '</div>' +
+                        '<div class="form-group"><label>Vehicle ' + vn + ' Drop-off *</label>' +
+                        '<div class="input-map-wrapper">' +
+                        '<input type="text" class="ev-dropoff-addr" name="' + p +
+                        'dropoff_address" placeholder="Enter drop-off location or landmark (e.g. SM Fairview)" autocomplete="off">' +
+                        '<div class="ev-dropoff-sugg suggestions"></div></div>' +
+                        '<input type="hidden" class="ev-dropoff-lat" name="' + p + 'drop_lat">' +
+                        '<input type="hidden" class="ev-dropoff-lng" name="' + p + 'drop_lng">' +
+                        '</div></div></div>' +
+                        '<input type="hidden" name="' + p + 'distance_km" class="ev-dist">' +
+                        '<input type="hidden" name="' + p + 'eta_minutes" class="ev-eta">' +
+                        '<input type="hidden" name="' + p + 'price" class="ev-price">';
+
+                    vehicleState[slot] = {
+                        truckId: '',
+                        truckClass: '',
+                        distKm: 0,
+                        etaMin: 0,
+                        price: 0,
+                        routeAbort: null
+                    };
+
+                    wireCardClicks(panel, slot);
+                    wireOverrideToggle(panel, slot);
+                    wireAddressSuggestions(panel, slot);
+                    panel.querySelector('.ev-remove-btn').addEventListener('click', () => removeVehicle(slot));
+
+                    container.appendChild(panel);
+                    updateFlags();
+                    updateAddBtnState();
+                    syncAllClassLocks();
+                    recomputeAll();
+                }
+
+                function removeVehicle(slot) {
+                    const panel = container.querySelector('.extra-vehicle-panel[data-slot="' + slot + '"]');
+                    if (panel) container.removeChild(panel);
+                    activeSlots = activeSlots.filter(s => s !== slot);
+                    delete vehicleState[slot];
+                    updateFlags();
+                    updateAddBtnState();
+                    syncAllClassLocks();
+                }
+
+                function updateFlags() {
+                    const count = activeSlots.length;
+                    countInput.value = count;
+                    flagInput.value = count > 0 ? '1' : '0';
+                    // add_vehicle_N flags
+                    for (let s = 0; s < MAX_EXTRA; s++) {
+                        const vn = vNum(s);
+                        let el = document.getElementById('_ev_flag_' + vn);
+                        if (activeSlots.includes(s)) {
+                            if (!el) {
+                                el = document.createElement('input');
+                                el.type = 'hidden';
+                                el.id = '_ev_flag_' + vn;
+                                el.name = 'add_vehicle_' + vn;
+                                el.value = '1';
+                                container.appendChild(el);
+                            }
                         } else {
-                            card.style.opacity = '.45';
-                            card.style.cursor = 'not-allowed';
-                            card.style.pointerEvents = 'none';
-                            card.style.filter = 'grayscale(70%)';
-                            card.setAttribute('aria-disabled', 'true');
-                            card.setAttribute('tabindex', '-1');
-                            if (card.classList.contains('v2-selected')) {
-                                card.classList.remove('v2-selected');
-                                card.style.background = '#fff';
-                                card.style.borderColor = '#e5e7eb';
-                                card.style.color = '#111827';
-                                truckInput.value = '';
-                            }
+                            if (el) el.remove();
                         }
-                    });
+                    }
                 }
-                syncV2CardVisibility();
-                document.getElementById('service_type')?.addEventListener('change', function() {
-                    syncV2CardVisibility();
-                    syncV2ClassLock(v1LockedClass);
-                });
 
-                // ── Lock V2: prevent selecting same class as V1 ────────
-                let v1LockedClass = '';
-
-                function syncV2ClassLock(cls) {
-                    if (cls != null) v1LockedClass = cls;
-                    document.querySelectorAll('.v2-class-card').forEach(card => {
-                        if (card.dataset.class === v1LockedClass && v1LockedClass !== '') {
-                            card.style.opacity = '.35';
-                            card.style.cursor = 'not-allowed';
-                            card.style.pointerEvents = 'none';
-                            card.style.filter = 'grayscale(80%)';
-                            card.setAttribute('aria-disabled', 'true');
-                            card.setAttribute('tabindex', '-1');
-                            if (card.classList.contains('v2-selected')) {
-                                card.style.background = '#fff';
-                                card.style.borderColor = '#e5e7eb';
-                                card.style.color = '#111827';
-                                card.classList.remove('v2-selected');
-                                truckInput.value = '';
-                                recompute();
-                            }
-                        }
-                    });
+                function updateAddBtnState() {
+                    const full = activeSlots.length >= MAX_EXTRA;
+                    addBtn.disabled = full;
+                    addBtn.style.opacity = full ? '0.5' : '1';
+                    addBtn.style.cursor = full ? 'not-allowed' : '';
+                    addBtn.textContent = activeSlots.length === 0 ? '+ Add another vehicle' :
+                        activeSlots.length < MAX_EXTRA ? '+ Add another vehicle (' + (activeSlots.length + 1) + ' added)' :
+                        '+ Add another vehicle (max 4 total)';
                 }
-                // Listen for V1 class selection
-                document.addEventListener('v1ClassSelected', function(e) {
-                    syncV2CardVisibility();
-                    syncV2ClassLock(e.detail?.cls || '');
-                });
-                // Seed on page load if V1 already has a card selected
-                (function() {
-                    const sel = document.querySelector('.lf-class-card.lf-selected');
-                    if (sel) syncV2ClassLock(sel.dataset.class || '');
-                })();
 
-                // ── Class picker (Vehicle 2) ───────────────────────────
-                document.querySelectorAll('.v2-class-card').forEach(card => {
-                    card.addEventListener('click', () => {
-                        if (card.getAttribute('aria-disabled') === 'true') return;
-                        document.querySelectorAll('.v2-class-card').forEach(c => {
-                            c.style.background = '#fff';
-                            c.style.borderColor = '#e5e7eb';
-                            c.style.color = '#111827';
-                            c.classList.remove('v2-selected');
+                // ── Class lock across all vehicles ─────────────────────
+                function syncAllClassLocks() {
+                    const v1Class = document.getElementById('truck_class_hidden')?.value || '';
+                    activeSlots.forEach(s => {
+                        const panel = container.querySelector('.extra-vehicle-panel[data-slot="' + s + '"]');
+                        if (!panel) return;
+                        const locked = new Set();
+                        if (v1Class) locked.add(v1Class);
+                        activeSlots.forEach(other => {
+                            if (other !== s && vehicleState[other]?.truckClass)
+                                locked.add(vehicleState[other].truckClass);
                         });
-                        card.style.background = '#111827';
-                        card.style.borderColor = '#111827';
-                        card.style.color = '#fff';
-                        card.classList.add('v2-selected');
-                        truckInput.value = card.dataset.truckId || '';
-                        recompute();
-                        evaluateAvailabilityNotice();
+                        const isSchedule = document.getElementById('service_type')?.value === 'schedule';
+                        panel.querySelectorAll('.ev-class-card').forEach(card => {
+                            const isLocked = locked.has(card.dataset.class) && card.dataset.class !== '';
+                            const origAvail = card.dataset.available === '1';
+                            if (isLocked) {
+                                card.style.opacity = '.35';
+                                card.style.cursor = 'not-allowed';
+                                card.style.pointerEvents = 'none';
+                                card.style.filter = 'grayscale(80%)';
+                                card.setAttribute('aria-disabled', 'true');
+                                card.setAttribute('tabindex', '-1');
+                                if (card.classList.contains('ev-selected')) deselectCard(panel, card, s);
+                            } else {
+                                const avail = isSchedule || origAvail;
+                                card.style.opacity = avail ? '1' : '.45';
+                                card.style.cursor = avail ? 'pointer' : 'not-allowed';
+                                card.style.pointerEvents = avail ? '' : 'none';
+                                card.style.filter = avail ? '' : 'grayscale(70%)';
+                                card.setAttribute('aria-disabled', avail ? 'false' : 'true');
+                                card.setAttribute('tabindex', avail ? '0' : '-1');
+                            }
+                        });
                     });
-                });
+                }
 
-                // Restore old() selection if any
-                const preselectedId = truckInput.value;
-                if (preselectedId) {
-                    const c = document.querySelector(`.v2-class-card[data-truck-id="${preselectedId}"]`);
-                    if (c) c.click();
+                function deselectCard(panel, card, slot) {
+                    card.style.background = '#fff';
+                    card.style.borderColor = '#e5e7eb';
+                    card.style.color = '#111827';
+                    card.classList.remove('ev-selected');
+                    const truckIdInput = panel.querySelector('.ev-truck-id');
+                    if (truckIdInput) truckIdInput.value = '';
+                    if (vehicleState[slot]) {
+                        vehicleState[slot].truckId = '';
+                        vehicleState[slot].truckClass = '';
+                        vehicleState[slot].price = 0;
+                    }
+                    const priceIn = panel.querySelector('.ev-price');
+                    if (priceIn) priceIn.value = '';
+                }
+
+                // ── Card click handler ─────────────────────────────────
+                function wireCardClicks(panel, slot) {
+                    panel.querySelectorAll('.ev-class-card').forEach(card => {
+                        card.addEventListener('click', () => {
+                            if (card.getAttribute('aria-disabled') === 'true') return;
+                            panel.querySelectorAll('.ev-class-card').forEach(c => {
+                                c.style.background = '#fff';
+                                c.style.borderColor = '#e5e7eb';
+                                c.style.color = '#111827';
+                                c.classList.remove('ev-selected');
+                            });
+                            card.style.background = '#111827';
+                            card.style.borderColor = '#111827';
+                            card.style.color = '#fff';
+                            card.classList.add('ev-selected');
+                            const truckId = card.dataset.truckId || '';
+                            panel.querySelector('.ev-truck-id').value = truckId;
+                            if (vehicleState[slot]) {
+                                vehicleState[slot].truckId = truckId;
+                                vehicleState[slot].truckClass = card.dataset.class || '';
+                            }
+                            recomputeVehicle(panel, slot);
+                            syncAllClassLocks();
+                        });
+                        card.addEventListener('keydown', e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                card.click();
+                            }
+                        });
+                    });
                 }
 
                 // ── Route override toggle ──────────────────────────────
-                function syncOverride() {
-                    const on = !!overrideChk.checked;
-                    overrideInput.value = on ? '1' : '0';
-                    routeFields.style.display = on ? 'block' : 'none';
-                    recompute();
+                function wireOverrideToggle(panel, slot) {
+                    const chk = panel.querySelector('.ev-override-chk');
+                    const val = panel.querySelector('.ev-override-val');
+                    const fields = panel.querySelector('.ev-route-fields');
+                    chk.addEventListener('change', () => {
+                        const on = chk.checked;
+                        val.value = on ? '1' : '0';
+                        fields.style.display = on ? 'block' : 'none';
+                        recomputeVehicle(panel, slot);
+                    });
                 }
-                overrideChk.addEventListener('change', syncOverride);
 
-                // ── Suggestions wiring (mirrors map.js getSuggestions) ─
+                // ── Address suggestions ────────────────────────────────
+                function wireAddressSuggestions(panel, slot) {
+                    attachExtraSuggest(
+                        panel.querySelector('.ev-pickup-addr'),
+                        panel.querySelector('.ev-pickup-sugg'),
+                        panel.querySelector('.ev-pickup-lat'),
+                        panel.querySelector('.ev-pickup-lng'),
+                        panel, slot);
+                    attachExtraSuggest(
+                        panel.querySelector('.ev-dropoff-addr'),
+                        panel.querySelector('.ev-dropoff-sugg'),
+                        panel.querySelector('.ev-dropoff-lat'),
+                        panel.querySelector('.ev-dropoff-lng'),
+                        panel, slot);
+                }
+
                 function escHtml(str) {
                     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 }
 
-                function attachSuggest(inputEl, suggBox, latEl, lngEl) {
+                function attachExtraSuggest(inputEl, suggBox, latEl, lngEl, panel, slot) {
                     if (!inputEl || !suggBox) return;
-                    let timer = null;
-                    let loadingTimer = null;
-
+                    let timer = null,
+                        loadingTimer = null;
                     inputEl.addEventListener('input', () => {
                         const q = inputEl.value.trim();
                         latEl.value = '';
                         lngEl.value = '';
-                        v2DistanceIn.value = '';
-                        v2EtaIn.value = '';
-                        recompute();
-
+                        panel.querySelector('.ev-dist').value = '';
+                        panel.querySelector('.ev-eta').value = '';
+                        recomputeVehicle(panel, slot);
                         clearTimeout(timer);
                         clearTimeout(loadingTimer);
                         if (q.length < 2) {
@@ -1887,14 +1895,12 @@
                             suggBox.style.display = 'none';
                             return;
                         }
-
                         timer = setTimeout(async () => {
                             loadingTimer = setTimeout(() => {
                                 suggBox.innerHTML =
                                     '<div class="suggestion-loading">Loading</div>';
                                 suggBox.style.display = 'block';
                             }, 400);
-
                             try {
                                 const res = await fetch(window.bookingGeoConfig.searchUrl + '?q=' +
                                     encodeURIComponent(q), {
@@ -1902,42 +1908,34 @@
                                             Accept: 'application/json',
                                             'X-Requested-With': 'XMLHttpRequest'
                                         },
-                                        credentials: 'same-origin',
+                                        credentials: 'same-origin'
                                     });
                                 clearTimeout(loadingTimer);
                                 const data = await res.json();
                                 const features = (data && data.features) || [];
-
                                 suggBox.innerHTML = '';
                                 if (features.length === 0) {
                                     suggBox.innerHTML =
-                                        '<div class="suggestion-empty">No results found. Try adding city or landmark.</div>';
+                                        '<div class="suggestion-empty">No results found.</div>';
                                     suggBox.style.display = 'block';
                                     return;
                                 }
-
-                                features.forEach((place) => {
+                                features.forEach(place => {
                                     const label = (place.label || '').trim();
                                     const commaIdx = label.indexOf(',');
                                     const primary = commaIdx > -1 ? label.substring(0, commaIdx)
-                                        .trim() :
-                                        label;
+                                        .trim() : label;
                                     const secondary = commaIdx > -1 ? label.substring(commaIdx +
-                                            1).trim() :
-                                        '';
+                                        1).trim() : '';
                                     const coords = place.coordinates || [];
-
                                     const row = document.createElement('div');
                                     row.className = 'suggestion-row';
                                     row.innerHTML =
-                                        '<span class="suggestion-body">' +
-                                        '<span class="suggestion-primary">' + escHtml(primary) +
-                                        '</span>' +
+                                        '<span class="suggestion-body"><span class="suggestion-primary">' +
+                                        escHtml(primary) + '</span>' +
                                         (secondary ? '<span class="suggestion-secondary">' +
-                                            escHtml(
-                                                secondary) + '</span>' : '') +
+                                            escHtml(secondary) + '</span>' : '') +
                                         '</span>';
-
                                     row.addEventListener('click', () => {
                                         inputEl.value = label;
                                         latEl.value = coords[1] != null ? coords[1] :
@@ -1946,146 +1944,185 @@
                                             '';
                                         suggBox.innerHTML = '';
                                         suggBox.style.display = 'none';
-                                        fetchRouteDistance();
+                                        fetchExtraRoute(panel, slot);
                                     });
-
                                     suggBox.appendChild(row);
                                 });
                                 suggBox.style.display = 'block';
-                            } catch (_) {
+                            } catch (e) {
                                 clearTimeout(loadingTimer);
                                 suggBox.innerHTML = '';
                                 suggBox.style.display = 'none';
                             }
                         }, 250);
                     });
-
-                    document.addEventListener('click', (ev) => {
-                        if (!suggBox.contains(ev.target) && ev.target !== inputEl) {
+                    document.addEventListener('click', ev => {
+                        if (!suggBox.contains(ev.target) && ev.target !== inputEl)
                             suggBox.style.display = 'none';
-                        }
                     });
                 }
-                attachSuggest(v2Pickup, pickupSugg, v2PickupLat, v2PickupLng);
-                attachSuggest(v2Dropoff, dropoffSugg, v2DropLat, v2DropLng);
 
-                // ── Fetch route distance for vehicle 2 (override mode) ─
-                let routeAbort = null;
-                async function fetchRouteDistance() {
-                    if (overrideInput.value !== '1') return;
-                    const a = v2PickupLat.value,
-                        b = v2PickupLng.value,
-                        c = v2DropLat.value,
-                        d = v2DropLng.value;
-                    if (!a || !b || !c || !d) return;
+                // ── Fetch route for a specific extra vehicle ───────────
+                async function fetchExtraRoute(panel, slot) {
+                    const overrideVal = panel.querySelector('.ev-override-val');
+                    if (overrideVal?.value !== '1') return;
+                    const pLat = panel.querySelector('.ev-pickup-lat')?.value;
+                    const pLng = panel.querySelector('.ev-pickup-lng')?.value;
+                    const dLat = panel.querySelector('.ev-dropoff-lat')?.value;
+                    const dLng = panel.querySelector('.ev-dropoff-lng')?.value;
+                    if (!pLat || !pLng || !dLat || !dLng) return;
                     try {
-                        if (routeAbort) routeAbort.abort();
-                        routeAbort = new AbortController();
-                        const url = window.bookingGeoConfig.routeUrl +
-                            `?from_lat=${a}&from_lng=${b}&to_lat=${c}&to_lng=${d}`;
-                        const res = await fetch(url, {
+                        if (vehicleState[slot]?.routeAbort) vehicleState[slot].routeAbort.abort();
+                        const ctrl = new AbortController();
+                        if (vehicleState[slot]) vehicleState[slot].routeAbort = ctrl;
+                        const res = await fetch(window.bookingGeoConfig.routeUrl, {
+                            method: 'POST',
                             headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': window.bookingGeoConfig.csrfToken,
                                 'X-Requested-With': 'XMLHttpRequest'
                             },
                             credentials: 'same-origin',
-                            signal: routeAbort.signal,
+                            signal: ctrl.signal,
+                            body: JSON.stringify({
+                                from_lat: pLat,
+                                from_lng: pLng,
+                                to_lat: dLat,
+                                to_lng: dLng,
+                            }),
                         });
                         const data = await res.json();
                         const distKm = Number(data.distance_km || data.distance || 0);
                         const etaMin = Number(data.duration_min || data.eta_minutes || 0);
                         if (distKm > 0) {
-                            v2DistanceIn.value = distKm.toFixed(2);
-                            v2EtaIn.value = Math.round(etaMin);
-                            recompute();
+                            panel.querySelector('.ev-dist').value = distKm.toFixed(2);
+                            panel.querySelector('.ev-eta').value = Math.round(etaMin);
+                            if (vehicleState[slot]) {
+                                vehicleState[slot].distKm = distKm;
+                                vehicleState[slot].etaMin = etaMin;
+                            }
+                            recomputeVehicle(panel, slot);
                         }
                     } catch (e) {
                         /* aborted/silent */
                     }
                 }
 
-                // ── Recompute pricing/eta display ──────────────────────
-                function recompute() {
-                    if (panel.style.display === 'none') return;
-                    const truckId = truckInput.value;
+                // ── Recompute pricing for a specific extra vehicle ──────
+                function recomputeVehicle(panel, slot) {
+                    const truckId = panel.querySelector('.ev-truck-id')?.value;
+                    const overrideVal = panel.querySelector('.ev-override-val')?.value;
                     const rate = (truckId && truckRates[truckId]) ? truckRates[truckId] : null;
                     if (!rate) {
-                        v2DistLabel.textContent = '— km';
-                        v2EtaLabel.textContent = '— min';
-                        v2PriceLabel.textContent = pesos(0);
-                        v2PriceIn.value = '';
+                        panel.querySelector('.ev-price').value = '';
+                        if (vehicleState[slot]) vehicleState[slot].price = 0;
                         return;
                     }
-
                     let distKm, etaMin;
-                    if (overrideInput.value === '1') {
-                        distKm = parseFloat(v2DistanceIn.value || '0') || 0;
-                        etaMin = parseFloat(v2EtaIn.value || '0') || 0;
+                    if (overrideVal === '1') {
+                        distKm = parseFloat(panel.querySelector('.ev-dist')?.value || '0') || 0;
+                        etaMin = parseFloat(panel.querySelector('.ev-eta')?.value || '0') || 0;
                     } else {
-                        distKm = parseFloat(document.getElementById('distance_input').value || '0') || 0;
-                        etaMin = parseFloat(document.getElementById('eta_minutes').value || '0') || 0;
-                        v2DistanceIn.value = distKm ? distKm.toFixed(2) : '';
-                        v2EtaIn.value = etaMin ? Math.round(etaMin) : '';
+                        distKm = parseFloat(document.getElementById('distance_input')?.value || '0') || 0;
+                        etaMin = parseFloat(document.getElementById('eta_minutes')?.value || '0') || 0;
+                        panel.querySelector('.ev-dist').value = distKm ? distKm.toFixed(2) : '';
+                        panel.querySelector('.ev-eta').value = etaMin ? Math.round(etaMin) : '';
                     }
-
                     const kmIncrements = Math.floor(distKm / 4);
-                    const distanceFee = kmIncrements * 200;
-                    const total = Number(rate.base) + distanceFee;
-
-                    v2DistLabel.textContent = (distKm ? distKm.toFixed(2) : '—') + ' km';
-                    v2EtaLabel.textContent = (etaMin ? Math.round(etaMin) : '—') + ' min';
-                    v2PriceLabel.textContent = pesos(total);
-                    v2PriceIn.value = total.toFixed(2);
+                    const total = Number(rate.base) + kmIncrements * 200;
+                    panel.querySelector('.ev-price').value = total.toFixed(2);
+                    if (vehicleState[slot]) {
+                        vehicleState[slot].distKm = distKm;
+                        vehicleState[slot].etaMin = etaMin;
+                        vehicleState[slot].price = total;
+                    }
                 }
 
-                // ── Availability notice (1 unit → 2nd auto-scheduled) ─
-                function evaluateAvailabilityNotice() {
-                    if (panel.style.display === 'none' || !truckInput.value) {
-                        v2Notice.style.display = 'none';
-                        return;
-                    }
-                    const svc = document.getElementById('service_type')?.value || 'book_now';
-                    if (svc !== 'book_now') {
-                        v2Notice.style.display = 'none';
-                        return;
-                    }
-
-                    let totalAvail = 0;
-                    document.querySelectorAll('.lf-class-card').forEach(c => {
-                        const n = parseInt(c.querySelector('.lf-avail-row')?.textContent?.match(/\d+/)?.[0] || '0',
-                            10);
-                        if (c.dataset.available === '1') totalAvail += n;
+                function recomputeAll() {
+                    activeSlots.forEach(s => {
+                        const p = container.querySelector('.extra-vehicle-panel[data-slot="' + s + '"]');
+                        if (p) recomputeVehicle(p, s);
                     });
-
-                    if (totalAvail < 2) {
-                        v2Notice.textContent = totalAvail === 1 ?
-                            'Heads up: only 1 unit is online right now. Your 2nd vehicle will be auto-scheduled for the next hour.' :
-                            'No units online right now — both vehicles will be scheduled.';
-                        v2Notice.style.display = 'block';
-                    } else {
-                        v2Notice.style.display = 'none';
-                    }
                 }
 
-                // Recompute when the main route updates
+                // ── Sync when main route or service type changes ────────
                 ['distance_input', 'eta_minutes'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) {
-                        new MutationObserver(recompute).observe(el, {
+                        new MutationObserver(recomputeAll).observe(el, {
                             attributes: true,
                             attributeFilter: ['value']
                         });
-                        el.addEventListener('change', recompute);
+                        el.addEventListener('change', recomputeAll);
                     }
                 });
-                document.getElementById('service_type')?.addEventListener('change', evaluateAvailabilityNotice);
 
-                // Initial paint
-                syncOverride();
-                recompute();
-                evaluateAvailabilityNotice();
+                document.getElementById('service_type')?.addEventListener('change', () => {
+                    const isSchedule = document.getElementById('service_type').value === 'schedule';
+                    activeSlots.forEach(s => {
+                        const p = container.querySelector('.extra-vehicle-panel[data-slot="' + s + '"]');
+                        if (!p) return;
+                        p.querySelectorAll('.ev-class-card').forEach(card => {
+                            if (card.getAttribute('aria-disabled') === 'true' && card.dataset.class)
+                                return;
+                            const origAvail = card.dataset.available === '1';
+                            const avail = isSchedule || origAvail;
+                            card.style.opacity = avail ? '1' : '.45';
+                            card.style.cursor = avail ? 'pointer' : 'not-allowed';
+                            card.style.pointerEvents = avail ? '' : 'none';
+                            card.style.filter = avail ? '' : 'grayscale(70%)';
+                            card.setAttribute('aria-disabled', avail ? 'false' : 'true');
+                            card.setAttribute('tabindex', avail ? '0' : '-1');
+                        });
+                    });
+                    syncAllClassLocks();
+                    recomputeAll();
+                });
 
-                // Also recompute when any v2 hidden distance changes externally
-                setInterval(recompute, 1500);
+                document.addEventListener('v1ClassSelected', () => syncAllClassLocks());
+
+                // ── Expose vehicle data for the summary modal ───────────
+                window.getExtraVehiclesData = function() {
+                    return activeSlots.map(s => {
+                        const p = container.querySelector('.extra-vehicle-panel[data-slot="' + s + '"]');
+                        if (!p) return null;
+                        const truckId = p.querySelector('.ev-truck-id')?.value || '';
+                        const truckCard = truckId ? p.querySelector('.ev-class-card[data-truck-id="' + truckId +
+                            '"]') : null;
+                        const truckName = truckCard ?
+                            (truckCard.querySelectorAll('div')[0]?.textContent?.trim() || null) :
+                            null;
+                        const vn = vNum(s);
+                        const vtype = p.querySelector('input[name="vehicle_' + vn + '_customer_vehicle_type"]')
+                            ?.value || '';
+                        const override = p.querySelector('.ev-override-val')?.value === '1';
+                        const pickup = override ?
+                            p.querySelector('.ev-pickup-addr')?.value :
+                            document.getElementById('pickup_address')?.value;
+                        const dropoff = override ?
+                            p.querySelector('.ev-dropoff-addr')?.value :
+                            document.getElementById('dropoff_address')?.value;
+                        const distKm = parseFloat(p.querySelector('.ev-dist')?.value || '0') || 0;
+                        const etaMin = parseFloat(p.querySelector('.ev-eta')?.value || '0') || 0;
+                        const price = parseFloat(p.querySelector('.ev-price')?.value || '0') || 0;
+                        return {
+                            vNum: vn,
+                            truckId,
+                            truckName: truckName || 'Not selected',
+                            vtype,
+                            pickup,
+                            dropoff,
+                            distKm,
+                            etaMin,
+                            price,
+                            routeOverridden: override
+                        };
+                    }).filter(Boolean);
+                };
+
+                addBtn.addEventListener('click', addVehicle);
+                updateAddBtnState();
+                setInterval(recomputeAll, 1500);
             })();
         </script>
     @endpush
