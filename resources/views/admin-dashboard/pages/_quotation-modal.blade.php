@@ -22,15 +22,14 @@
     style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(15, 23, 42, 0.55); align-items: center; justify-content: center; padding: 20px;"
     aria-hidden="true" role="dialog" aria-modal="true">
     <div class="modal-card"
-        style="width: min(1100px, 100%); max-height: 92vh; overflow-y: auto; background: #fff; display: flex; flex-direction: column;">
+        style="width: min(1600px, 96vw); max-width: 600px; max-height: 92vh; overflow-y: auto; background: #fff; display: flex; flex-direction: column;">
 
-        <!-- Modal -->
         <div
             style="padding: 20px 24px 16px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: #fff; border-radius: 16px 16px 0 0; z-index: 10;">
             <div>
-                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;" id="quotationModalTitle">
+                <h3 style="margin: 0; font-size: 2.1rem; color: #0f172a;" id="quotationModalTitle">
                     Quotation Details</h3>
-                <p style="margin: 4px 0 0; font-size: 0.8rem; color: #94a3b8;" id="quotationModalSubtitle">Review and
+                <p style="margin: 4px 0 0; font-size: 1.1rem; color: #94a3b8;" id="quotationModalSubtitle">Review and
                     manage this quotation</p>
             </div>
             <button type="button" onclick="closeQuotationModal()"
@@ -42,139 +41,128 @@
         <!-- modal body -->
         <div style="padding: 20px 24px; flex: 1; overflow-y: auto;">
 
-            <!-- quotation badge and customer info-->
             <div style="margin-bottom: 20px;">
 
                 <div
                     style="display: inline-flex; align-items: center; gap: 8px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 7px 14px; margin-bottom: 12px;">
                     <span
-                        style="font-size: 0.72rem; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.07em;">Quotation
+                        style="font-size: 0.72rem; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.07em;">Quotation
                         #</span>
-                    <span
-                        style="font-size: 0.95rem; font-weight: 800; color: #1d4ed8; font-family: monospace; letter-spacing: 0.03em;"
+                    <span style="font-size: 0.95rem; color: #1d4ed8; font-family: monospace; letter-spacing: 0.03em;"
                         id="qmQuotationNumber">—</span>
                 </div>
-                <!-- Customer card with phone stacked below name -->
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 13px 18px;">
                     <div
-                        style="font-size: 0.7rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">
+                        style="font-size: 1.1rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">
                         Customer</div>
-                    <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a; margin-bottom: 3px;"
-                        id="qmCustomerName">—</div>
-                    <div style="font-size: 0.82rem; color: #64748b; font-weight: 500;" id="qmCustomerPhone">—</div>
-                    <div style="font-size: 0.82rem; color: #64748b; font-weight: 500;" id="qmCustomerEmail">—</div>
+                    <div style="font-size: 1.1rem; color: #0f172a; margin-bottom: 3px;" id="qmCustomerName">—</div>
+                    <div style="font-size: 1.1rem; color: #64748b;" id="qmCustomerPhone">—</div>
+                    <div style="font-size: 1.1rem; color: #64748b;" id="qmCustomerEmail">—</div>
                 </div>
             </div>
 
-            <!-- Route -->
             <div
                 style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 20px;">
                 <div
-                    style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
+                    style="font-size: 1.1rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
                     Route</div>
                 <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px;">
                     <div
-                        style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.72rem; color: #fff; margin-top: 1px;">
+                        style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; color: #fff; margin-top: 1px;">
                         A</div>
                     <div>
-                        <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 2px;">Pickup</div>
-                        <div style="font-size: 0.88rem; font-weight: 600; color: #0f172a;" id="qmPickupAddress">—</div>
+                        <div style="font-size: 1.1rem; color: #94a3b8; margin-bottom: 2px;">Pickup</div>
+                        <div style="font-size: 1.1rem; color: #0f172a;" id="qmPickupAddress">—</div>
                     </div>
                 </div>
                 <div style="margin-left: 12px; width: 1px; height: 10px; background: #e2e8f0; margin-bottom: 10px;">
                 </div>
                 <div style="display: flex; align-items: flex-start; gap: 10px;">
                     <div
-                        style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #ef4444; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.72rem; color: #fff; margin-top: 1px;">
+                        style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; color: #fff; margin-top: 1px;">
                         B</div>
                     <div>
-                        <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 2px;">Drop-off</div>
-                        <div style="font-size: 0.88rem; font-weight: 600; color: #0f172a;" id="qmDropoffAddress">—</div>
+                        <div style="font-size: 1.1rem; color: #94a3b8; margin-bottom: 2px;">Drop-off</div>
+                        <div style="font-size: 1.1rem; color: #0f172a;" id="qmDropoffAddress">—</div>
                     </div>
                 </div>
                 <div
                     style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #e2e8f0;">
                     <div>
-                        <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 3px;">Distance</div>
-                        <div style="font-size: 0.88rem; font-weight: 600; color: #0f172a;" id="qmDistance">—</div>
+                        <div style="font-size: 1.1rem; color: #94a3b8; margin-bottom: 3px;">Distance</div>
+                        <div style="font-size: 1.1rem; font-weight: 600; color: #0f172a;" id="qmDistance">—</div>
                     </div>
                     <div>
-                        <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 3px;">Truck Type</div>
-                        <div style="font-size: 0.88rem; font-weight: 600; color: #0f172a;" id="qmTruckType">—</div>
+                        <div style="font-size: 1.1rem; color: #94a3b8; margin-bottom: 3px;">Truck Type</div>
+                        <div style="font-size: 1.1rem; font-weight: 600; color: #0f172a;" id="qmTruckType">—</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Vehicle Photos -->
             <div id="qmImageGallery"
                 style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 20px; display: none;">
                 <div
-                    style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
+                    style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
                     Vehicle Photos</div>
                 <div id="qmImageGrid" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
                 <p id="qmNoImages" style="color: #94a3b8; font-size: 0.85rem; margin: 0; display: none;">No photos
                     uploaded.</p>
             </div>
 
-            <!-- Extra Vehicles (shown when quotation has multiple vehicles) -->
             <div id="qmExtraVehiclesSection"
                 style="display:none; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
                 <div style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                     <span
-                        style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Additional
+                        style="font-size: 1.1rem; color: #000000; text-transform: uppercase; letter-spacing: 0.05em;">Additional
                         Vehicles</span>
                     <span id="qmVehicleCount" style="margin-left:8px;font-size:0.72rem;color:#94a3b8;"></span>
                 </div>
                 <div id="qmExtraVehiclesList" style="padding: 14px 16px; display: grid; gap: 10px;"></div>
             </div>
 
-            <!-- Price Breakdown -->
-            <div style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+            <div style="border: 1px solid #e2e8f0;  overflow: hidden; margin-bottom: 20px;">
                 <div style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                     <span
-                        style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Price
+                        style="font-size: 1.1rem; color: #000000; text-transform: uppercase; letter-spacing: 0.05em;">Price
                         Breakdown</span>
                 </div>
                 <div style="padding: 16px; display: grid; gap: 10px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 0.88rem; color: #475569;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.88rem; color: #000000;">
                         <span>Base Rate (Unit)</span>
-                        <span style="font-weight: 600;" id="qmBasePrice">TBD</span>
+                        <span id="qmBasePrice">TBD</span>
                     </div>
                     <div id="qmDistanceFeeRow"
-                        style="display: flex; justify-content: space-between; font-size: 0.88rem; color: #475569;">
-                        <span id="qmDistanceFeeLabel">Per-4km Charge</span>
-                        <span style="font-weight: 600;" id="qmDistanceFee">₱0.00</span>
+                        style="display: flex; justify-content: space-between; font-size: 1.1rem; color: #000000;">
+                        <span id="qmDistanceFeeLabel">Per 4km Charge</span>
+                        <span id="qmDistanceFee">₱0.00</span>
                     </div>
                     <div id="qmOtherFeesRow"
-                        style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.88rem; color: #475569;">
+                        style="display: none; flex-direction: row; justify-content: space-between; font-size: 1.1rem; color: #000000;">
                         <span>Additional Fees</span>
-                        <span style="font-weight: 600;" id="qmOtherFees">₱0.00</span>
+                        <span id="qmOtherFees">₱0.00</span>
                     </div>
                     <div id="qmExtraVehiclesTotalRow"
-                        style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.88rem; color: #475569;">
+                        style="display: none; flex-direction: row; justify-content: space-between; font-size: 1.1rem; color: #000000;">
                         <span id="qmExtraVehiclesLabel">Additional Vehicles</span>
                         <span id="qmExtraVehiclesTotal">₱0.00</span>
                     </div>
                     <div
                         style="border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; justify-content: space-between; align-items: baseline;">
-                        <span style="font-size: 0.95rem; font-weight: 700; color: #0f172a;">Total</span>
-                        <span style="font-size: 1.2rem; font-weight: 800; color: #0f172a;"
-                            id="qmTotalAmount">₱0.00</span>
+                        <span style="font-size: 0.95rem; color: #0f172a;">Total</span>
+                        <span style="font-size: 1.2rem; color: #0f172a;" id="qmTotalAmount">₱0.00</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Unit Assignment (shown for pending quotations) -->
             <div id="qmUnitSection"
                 style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px; display: none;">
                 <div style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                     <span
-                        style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Assign
+                        style="font-size: 1.1rem; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.05em;">Assign
                         Unit</span>
                 </div>
                 <div style="padding: 16px;">
-                    <label
-                        style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 6px;">Available
+                    <label style="display: block; font-size: 1.1rem; color: #000000; margin-bottom: 6px;">Available
                         Unit <span style="color: #dc2626;">*</span></label>
                     <select id="qmUnitSelect"
                         style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.9rem; color: #0f172a; outline: none; box-sizing: border-box; background: #fff;">
@@ -194,12 +182,11 @@
                 </div>
             </div>
 
-            <!-- Edit Price -->
             <div style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
                 <div
                     style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
                     <span
-                        style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Adjust
+                        style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Adjust
                         Price</span>
                     {{-- <span style="font-size: 0.72rem; color: #94a3b8;">Optional — enter 0 to keep base price</span> --}}
                 </div>
@@ -217,9 +204,8 @@
                     </div>
                     <div
                         style="background: #f1f5f9; border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 0.85rem; color: #475569; font-weight: 500;">New Total</span>
-                        <span style="font-size: 1.15rem; font-weight: 800; color: #0f172a;"
-                            id="qmCalculatedPrice">₱0.00</span>
+                        <span style="font-size: 1.85rem; color: #475569;">New Total</span>
+                        <span style="font-size: 1.15rem; color: #0f172a;" id="qmCalculatedPrice">₱0.00</span>
                     </div>
                     <div>
                         <label
@@ -232,7 +218,6 @@
                 </div>
             </div>
 
-            <!-- Counter Offer (shown when customer negotiated) -->
             <div id="qmCounterOfferSection"
                 style="display: none; border: 1px solid #fde68a; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
                 <div style="padding: 12px 16px; background: #fffbeb; border-bottom: 1px solid #fde68a;">
@@ -251,7 +236,6 @@
 
         </div>
 
-        <!-- Modal Footer / Actions -->
         <div
             style="padding: 16px 24px; border-top: 1px solid #f1f5f9; display: flex; gap: 8px; justify-content: flex-end; background: #fff; border-radius: 0 0 16px 16px;">
             <button type="button" onclick="closeQuotationModal()"
