@@ -176,15 +176,19 @@ class LoginRequest extends FormRequest
         // Increment the hard-lock failure counter.
         RateLimiter::hit($this->throttleKey(), $this->decaySeconds());
 
-        // Log failed login attempt to audit log.
-        AuditLog::create([
-            'user_id'     => null,
-            'action'      => 'failed_login',
-            'entity_type' => 'User',
-            'entity_id'   => null,
-            'reference'   => (string) $this->input('email'),
-            'description' => 'Failed login attempt from IP ' . $this->ip(),
-        ]);
+        // Log failed login attempt to audit log (best-effort — never crash the login flow).
+        try {
+            AuditLog::create([
+                'user_id'     => null,
+                'action'      => 'failed_login',
+                'entity_type' => 'User',
+                'entity_id'   => null,
+                'reference'   => (string) $this->input('email'),
+                'description' => 'Failed login attempt from IP ' . $this->ip(),
+            ]);
+        } catch (\Throwable) {
+            // Non-fatal — proceed to return the validation error.
+        }
 
         throw ValidationException::withMessages([
             'auth' => 'Invalid credentials',

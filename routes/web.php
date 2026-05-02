@@ -144,16 +144,29 @@ Route::post('/quotation/review/{booking}', [CustomerBookingController::class, 'r
     ->middleware(['signed', 'throttle:20,1'])
     ->name('quotation.review.submit');
 
-Route::get('/dashboard', function (Request $request) {
+// Route::get('/dashboard', function (Request $request) {
+//     $role = Auth::user()->role_id ?? 0;
+//     $baseUrl = rtrim(config('app.url') ?: ($request->getSchemeAndHttpHost() . $request->getBaseUrl()), '/');
+//     $redirectTo = fn(string $path) => redirect()->to($baseUrl . $path);
+//     return match ($role) {
+//         1 => $redirectTo('/superadmin/dashboard'),
+//         2 => $redirectTo('/admin-dashboard'),
+//         3 => $redirectTo('/teamleader/dashboard'),
+//         4 => $redirectTo('/driver'),
+//         5 => $redirectTo('/customer/dashboard'),
+//         default => view('dashboard'),
+//     };
+// })->middleware(['auth'])->name('dashboard');
+
+Route::get('/dashboard', function () {
     $role = Auth::user()->role_id ?? 0;
-    $baseUrl = rtrim(config('app.url') ?: ($request->getSchemeAndHttpHost() . $request->getBaseUrl()), '/');
-    $redirectTo = fn(string $path) => redirect()->to($baseUrl . $path);
+
     return match ($role) {
-        1 => $redirectTo('/superadmin/dashboard'),
-        2 => $redirectTo('/admin-dashboard'),
-        3 => $redirectTo('/teamleader/dashboard'),
-        4 => $redirectTo('/driver'),
-        5 => $redirectTo('/customer/dashboard'),
+        1 => redirect('/superadmin/dashboard'),
+        2 => redirect('/admin-dashboard'),
+        3 => redirect('/teamleader/dashboard'),
+        4 => redirect('/driver'),
+        5 => redirect('/customer/dashboard'),
         default => view('dashboard'),
     };
 })->middleware(['auth'])->name('dashboard');
