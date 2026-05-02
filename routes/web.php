@@ -62,9 +62,18 @@ Route::get('/book', function () {
         $busyTeamLeaderIds,
     )['leaders']->keyBy('id');
 
+    // $readyLeaderIds = $teamLeaderStatuses
+    //     ->filter(fn($s) => ($s['presence'] ?? 'offline') === 'online'
+    //         && ! $busyTeamLeaderIds->contains((int) $s['id']))
+    //     ->pluck('id')
+    //     ->all();
+
     $readyLeaderIds = $teamLeaderStatuses
-        ->filter(fn($s) => ($s['presence'] ?? 'offline') === 'online'
-            && ! $busyTeamLeaderIds->contains((int) $s['id']))
+        ->filter(
+            fn($s) =>
+            in_array(($s['presence'] ?? 'offline'), ['online', 'idle']) &&
+                ! $busyTeamLeaderIds->contains((int) $s['id'])
+        )
         ->pluck('id')
         ->all();
 
@@ -442,16 +451,3 @@ Route::middleware(['auth', 'role:5'])
             return view('customer.pages.help');
         })->name('help');
     });
-
-Route::get('/spr-admin', function () {
-    $user = User::where('email', 'superadmin@gmail.com')->first();
-
-    if (!$user) {
-        return 'User not found';
-    }
-
-    $user->password = Hash::make('admin123456');
-    $user->save();
-
-    return 'Password reset success';
-});
