@@ -26,8 +26,8 @@
                                             style="height:40px;width:auto;display:block;margin-bottom:10px;">
                                         <p style="margin:0;font-size:20px;color:#ffffff;">Booking Confirmed</p>
                                         <p
-                                            style="margin:4px 0 0;font-size:11px;color:#22c55e;letter-spacing:0.08em;text-transform:uppercase;">
-                                            &#10003; Accredited Towing Service</p>
+                                            style="margin:4px 0 0;font-size:11px;color:#ffffff;letter-spacing:0.08em;text-transform:uppercase;">
+                                            Accredited Towing Service</p>
                                     </td>
                                     <td align="right" valign="top">
                                         <p
@@ -54,7 +54,7 @@
                                     </td>
                                     <td align="right">
                                         <span
-                                            style="display:inline-block;background:#16a34a;color:#ffffff;font-size:11px;padding:3px 10px;text-transform:uppercase;letter-spacing:0.08em;">CONFIRMED
+                                            style="display:inline-block;background:#ffffff;color:#000000;font-size:11px;padding:3px 10px;text-transform:uppercase;letter-spacing:0.08em;">CONFIRMED
                                             &amp; LOCKED</span>
                                     </td>
                                 </tr>
@@ -207,7 +207,7 @@
                     {{-- Confirmation Notice --}}
                     <tr>
                         <td style="padding:20px 32px;">
-                            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
                                 <tr>
                                     <td style="padding:14px 16px;">
                                         <p

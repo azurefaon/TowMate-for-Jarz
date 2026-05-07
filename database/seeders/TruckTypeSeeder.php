@@ -2,61 +2,52 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\TruckType;
 
 class TruckTypeSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        $truckTypes = [
+        $types = [
             [
-                'name' => 'Motorcycle',
-                'class' => 'light',
-                'base_rate' => 100.00,
-                'per_km_rate' => 200.00,
-                'max_tonnage' => 0.50,
-                'description' => 'Motorcycle towing service',
-                'status' => 'active',
-            ],
-            [
-                'name' => 'Sedan',
-                'class' => 'medium',
-                'base_rate' => 500.00,
-                'per_km_rate' => 200.00,
+                'name'        => 'Light Duty',
+                'class'       => 'light',
+                'base_rate'   => 500.00,
+                'per_km_rate' => 0.00,
                 'max_tonnage' => 2.00,
-                'description' => 'Standard sedan vehicle towing',
-                'status' => 'active',
+                'description' => 'Motorcycles, scooters, tricycles, and small to mid-size cars.',
+                'status'      => 'active',
             ],
             [
-                'name' => 'SUV',
-                'class' => 'medium',
-                'base_rate' => 700.00,
-                'per_km_rate' => 200.00,
-                'max_tonnage' => 3.00,
-                'description' => 'SUV and crossover vehicle towing',
-                'status' => 'active',
-            ],
-            [
-                'name' => 'Truck',
-                'class' => 'heavy',
-                'base_rate' => 1000.00,
-                'per_km_rate' => 200.00,
+                'name'        => 'Medium Duty',
+                'class'       => 'medium',
+                'base_rate'   => 800.00,
+                'per_km_rate' => 0.00,
                 'max_tonnage' => 5.00,
-                'description' => 'Commercial truck and heavy vehicle towing',
-                'status' => 'active',
+                'description' => 'SUVs, crossovers, vans, pick-up trucks, and AUVs.',
+                'status'      => 'active',
+            ],
+            [
+                'name'        => 'Heavy Duty',
+                'class'       => 'heavy',
+                'base_rate'   => 1500.00,
+                'per_km_rate' => 0.00,
+                'max_tonnage' => 20.00,
+                'description' => 'Buses, 6-wheeler and 10-wheeler trucks, and large cargo vehicles.',
+                'status'      => 'active',
             ],
         ];
 
-        foreach ($truckTypes as $truckType) {
-            TruckType::updateOrCreate(
-                ['name' => $truckType['name']],
-                $truckType
-            );
+        foreach ($types as $data) {
+            TruckType::updateOrCreate(['name' => $data['name']], $data);
         }
+
+        // Deactivate the old incorrectly-named entries if they have no bookings
+        TruckType::whereIn('name', ['Motorcycle', 'Sedan', 'SUV', 'Truck'])
+            ->whereDoesntHave('bookings')
+            ->update(['status' => 'inactive']);
+
+        $this->command->info('Truck types seeded.');
     }
 }

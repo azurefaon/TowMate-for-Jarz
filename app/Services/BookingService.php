@@ -2,8 +2,15 @@
 
 namespace App\Services;
 
+use App\Exceptions\Booking\ActiveQuotationException;
+use App\Exceptions\Booking\BlacklistedCustomerException;
+use App\Exceptions\Booking\DuplicateActiveRouteException;
+use App\Exceptions\Booking\NoTruckTypeAvailableException;
+use App\Exceptions\Booking\ScheduledCapacityException;
+use App\Exceptions\Booking\SpamCooldownException;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Quotation;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\TruckType;
@@ -11,16 +18,406 @@ use App\Models\Unit;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Http\File;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 class BookingService
 {
     protected TeamLeaderAvailabilityService $teamLeaderAvailability;
+    protected QuotationService $quotationService;
 
-    public function __construct(TeamLeaderAvailabilityService $teamLeaderAvailability)
-    {
+    public function __construct(
+        TeamLeaderAvailabilityService $teamLeaderAvailability,
+        QuotationService $quotationService,
+    ) {
         $this->teamLeaderAvailability = $teamLeaderAvailability;
+        $this->quotationService = $quotationService;
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // Main orchestration methods (reusable by web + API controllers)
+    // ──────────────────────────────────────────────────────────────
+
+    public function createCustomerQuotation(array $data, ?Authenticatable $user, ?Customer $existingCustomer = null): Quotation
+    {
+        $data = $this->applyDispatchAvailabilityRules($data);
+
+        $customer = $this->findExistingCustomer($data, $existingCustomer);
+        $this->checkCustomerEligibility($customer);
+
+        $customer = $customer ?? $this->resolveCustomer($data, $user);
+        $pricing = $this->calculatePricing($data);
+
+        $submittedPrice = isset($data['price']) && is_numeric($data['price']) && (float) $data['price'] > 0
+            ? (float) $data['price']
+            : $pricing['final_total'];
+
+        return $this->quotationService->createQuotation([
+            'customer_id'          => $customer->id,
+            'truck_type_id'        => $data['truck_type_id'],
+            'pickup_address'       => $data['pickup_address'],
+            'dropoff_address'      => $data['dropoff_address'],
+            'pickup_notes'         => $data['pickup_notes'] ?? $data['pickup_landmark'] ?? null,
+            'distance_km'          => $data['distance_km'] ?? $pricing['distance_km'],
+            'vehicle_make'         => $data['vehicle_make'] ?? null,
+            'vehicle_model'        => $data['vehicle_model'] ?? null,
+            'vehicle_year'         => $data['vehicle_year'] ?? null,
+            'vehicle_color'        => $data['vehicle_color'] ?? null,
+            'vehicle_plate_number' => $data['vehicle_plate_number'] ?? null,
+            'vehicle_image_path'   => $data['vehicle_image_path'] ?? null,
+            'estimated_price'      => $submittedPrice,
+            'additional_fee'       => 0,
+            'eta_minutes'          => $data['eta_minutes'] ?? null,
+        ]);
+    }
+
+    public function createLandingQuotation(array $data): array
+    {
+        $data = $this->applyDispatchAvailabilityRules($data);
+
+        $existingCustomer = $this->findExistingCustomer($data);
+        $this->checkCustomerEligibility($existingCustomer, checkSpam: true);
+
+        $truckType = $this->resolveTruckTypeFromInput($data['truck_type_id']);
+        $data['truck_type_id'] = $truckType->id;
+
+        if (($data['service_type'] ?? 'book_now') === 'schedule' && ! empty($data['scheduled_date'])) {
+            $this->checkScheduledCapacity($data['scheduled_date']);
+        }
+
+        $data = $this->applySecondVehicleDispatchRules($data);
+
+        $customer = $existingCustomer ?? $this->resolveCustomer($data);
+        $pricing = $this->calculatePricing($data);
+
+        $submittedPrice = isset($data['price']) && is_numeric($data['price']) && (float) $data['price'] > 0
+            ? (float) $data['price']
+            : $pricing['final_total'];
+
+        $quotation = $this->quotationService->createQuotation([
+            'customer_id'          => $customer->id,
+            'truck_type_id'        => $data['truck_type_id'],
+            'pickup_address'       => $data['pickup_address'],
+            'dropoff_address'      => $data['dropoff_address'],
+            'pickup_notes'         => $data['pickup_notes'] ?? $data['pickup_landmark'] ?? null,
+            'distance_km'          => $data['distance_km'] ?? $pricing['distance_km'],
+            'vehicle_make'         => $data['vehicle_make'] ?? null,
+            'vehicle_model'        => $data['vehicle_model'] ?? null,
+            'vehicle_year'         => $data['vehicle_year'] ?? null,
+            'vehicle_color'        => $data['vehicle_color'] ?? null,
+            'vehicle_plate_number' => $data['vehicle_plate_number'] ?? null,
+            'vehicle_image_path'   => $data['vehicle_image_path'] ?? null,
+            'estimated_price'      => $submittedPrice,
+            'additional_fee'       => 0,
+            'eta_minutes'          => $data['eta_minutes'] ?? null,
+            'service_type'         => $data['service_type'] ?? 'book_now',
+            'scheduled_date'       => $data['scheduled_date'] ?? null,
+            'scheduled_time'       => $data['scheduled_time'] ?? null,
+        ]);
+
+        $quotation->load(['customer', 'truckType']);
+
+        $secondQuotation = $this->createSecondVehicleQuotation($data, $customer, $pricing);
+
+        return [
+            'quotation'        => $quotation,
+            'second_quotation' => $secondQuotation,
+            'submitted_price'  => $submittedPrice,
+            'data'             => $data,
+        ];
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Customer eligibility guards (throw domain exceptions)
+    // ──────────────────────────────────────────────────────────────
+
+    public function findExistingCustomer(array $data, ?Customer $preferredCustomer = null): ?Customer
+    {
+        if ($preferredCustomer) {
+            return $preferredCustomer;
+        }
+
+        return Customer::query()
+            ->where(function ($query) use ($data) {
+                $query->where('phone', $data['phone'] ?? null);
+
+                if (filled($data['email'] ?? null)) {
+                    $query->orWhere('email', $data['email']);
+                }
+            })
+            ->first();
+    }
+
+    public function checkCustomerEligibility(?Customer $customer, bool $checkSpam = false): void
+    {
+        if (! $customer) {
+            return;
+        }
+
+        if ($customer->is_blacklisted) {
+            throw new BlacklistedCustomerException(
+                'This customer account is currently restricted from booking. Please contact dispatch for assistance.'
+            );
+        }
+
+        if ($this->quotationService->hasActiveQuotation($customer->id)) {
+            $active = $this->quotationService->getActiveQuotation($customer->id);
+            $timeRemaining = $active->getTimeRemaining();
+
+            if (! $timeRemaining || ! $timeRemaining['expired']) {
+                throw new ActiveQuotationException(
+                    $active->quotation_number,
+                    $timeRemaining['message'] ?? 'expired'
+                );
+            }
+        }
+
+        if ($checkSpam) {
+            $recent = Booking::where('customer_id', $customer->id)
+                ->whereIn('status', ['cancelled', 'rejected'])
+                ->latest('created_at')
+                ->first();
+
+            if ($recent && $recent->created_at?->gt(now()->subMinutes(5))) {
+                throw new SpamCooldownException('Please wait a few minutes before requesting again.');
+            }
+        }
+    }
+
+    public function checkDuplicateActiveRoute(?Customer $customer, array $data, ?int $ignoreBookingId = null): void
+    {
+        if (! $customer) {
+            return;
+        }
+
+        $pickup = $this->normalizeAddress($data['pickup_address'] ?? null);
+        $dropoff = $this->normalizeAddress($data['dropoff_address'] ?? null);
+
+        if ($pickup === '' || $dropoff === '') {
+            return;
+        }
+
+        $activeStatuses = [
+            'requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed',
+            'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job',
+        ];
+
+        $duplicate = Booking::query()
+            ->where('customer_id', $customer->id)
+            ->when($ignoreBookingId, fn ($q) => $q->where('id', '!=', $ignoreBookingId))
+            ->whereIn('status', $activeStatuses)
+            ->get()
+            ->first(fn (Booking $b) =>
+                $this->normalizeAddress($b->pickup_address) === $pickup &&
+                $this->normalizeAddress($b->dropoff_address) === $dropoff
+            );
+
+        if ($duplicate) {
+            throw new DuplicateActiveRouteException(
+                'You already have an active booking for this same pickup and drop-off route.'
+            );
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Dispatch / availability helpers
+    // ──────────────────────────────────────────────────────────────
+
+    public function applyDispatchAvailabilityRules(array $data): array
+    {
+        if (($data['service_type'] ?? 'book_now') === 'schedule') {
+            return $data;
+        }
+
+        $availability = $this->dispatchAvailability();
+
+        if ($availability['book_now_enabled'] ?? false) {
+            return $data;
+        }
+
+        $scheduledFor = Carbon::now()->addHour()->second(0);
+        $data['service_type'] = 'schedule';
+        $data['scheduled_date'] = $data['scheduled_date'] ?? $scheduledFor->toDateString();
+        $data['scheduled_time'] = $data['scheduled_time'] ?? $scheduledFor->format('H:i');
+
+        return $data;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Truck type / capacity helpers
+    // ──────────────────────────────────────────────────────────────
+
+    public function resolveTruckTypeFromInput(mixed $input): TruckType
+    {
+        $truckType = is_numeric($input)
+            ? TruckType::find($input)
+            : TruckType::where('name', 'like', '%' . $input . '%')->first();
+
+        $truckType ??= TruckType::first();
+
+        if (! $truckType) {
+            throw new NoTruckTypeAvailableException('No vehicle types available. Please contact support.');
+        }
+
+        return $truckType;
+    }
+
+    public function checkScheduledCapacity(string $date): void
+    {
+        $cap = DB::table('booking_capacity')->where('booking_date', $date)->first();
+        $slotsUsed = $cap ? $cap->slots_used : 0;
+        $slotsMax = $cap ? $cap->slots_max : 2;
+
+        if ($slotsUsed >= $slotsMax) {
+            throw new ScheduledCapacityException(
+                "Sorry, this date is fully booked (max {$slotsMax} scheduled tows per day). Please choose another date."
+            );
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // File handling
+    // ──────────────────────────────────────────────────────────────
+
+    public function storeVehicleImages(array $files): string
+    {
+        $paths = array_map(fn ($file) => $this->storeVehicleImage($file), $files);
+
+        return json_encode(array_values($paths));
+    }
+
+    protected function storeVehicleImage(UploadedFile $file): string
+    {
+        // Magic-bytes check — reads actual file headers, not just extension/MIME
+        $imageInfo = @getimagesize($file->getRealPath());
+        abort_unless($imageInfo !== false, 422, 'Uploaded file is not a valid image.');
+
+        // Strict allow-list: IMAGETYPE_JPEG (2) and IMAGETYPE_PNG (3) only
+        abort_unless(in_array($imageInfo[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true), 422, 'Only JPG and PNG images are accepted.');
+
+        // Re-encode via GD to strip polyglot payloads and EXIF metadata
+        $source = imagecreatefromstring(file_get_contents($file->getRealPath()));
+        abort_unless($source !== false, 422, 'Could not process the uploaded image.');
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'towmate_img_') . '.jpg';
+        imagejpeg($source, $tmpPath, 85);
+        imagedestroy($source);
+
+        $storedPath = Storage::disk('public')->putFile('vehicle_images', new File($tmpPath));
+
+        @unlink($tmpPath);
+
+        return $storedPath;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Address helpers
+    // ──────────────────────────────────────────────────────────────
+
+    public function normalizeAddress(?string $value): string
+    {
+        return strtolower(trim((string) preg_replace('/\s+/', ' ', (string) $value)));
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Private helpers for createLandingQuotation
+    // ──────────────────────────────────────────────────────────────
+
+    protected function applySecondVehicleDispatchRules(array $data): array
+    {
+        $wantSecond = (string) ($data['add_second_vehicle'] ?? '0') === '1'
+            && filled($data['vehicle_2_truck_type_id'] ?? null);
+
+        if (! $wantSecond) {
+            $data['_want_second_vehicle'] = false;
+            return $data;
+        }
+
+        $availability = $this->dispatchAvailability();
+        $readyUnits = (int) ($availability['ready_units_count'] ?? 0);
+
+        if (($data['service_type'] ?? 'book_now') === 'book_now' && $readyUnits < 2) {
+            $at = Carbon::now()->addHour()->second(0);
+            $data['vehicle_2_service_type'] = 'schedule';
+            $data['vehicle_2_scheduled_date'] = $at->toDateString();
+            $data['vehicle_2_scheduled_time'] = $at->format('H:i');
+            $data['vehicle_2_schedule_reason'] = $readyUnits === 1
+                ? 'Only 1 unit is available right now — your second vehicle is auto-scheduled for ' . $at->format('g:i A') . '.'
+                : 'No units online right now — your second vehicle is auto-scheduled for ' . $at->format('g:i A') . '.';
+        } else {
+            $data['vehicle_2_service_type'] = $data['service_type'] ?? 'book_now';
+            $data['vehicle_2_scheduled_date'] = $data['scheduled_date'] ?? null;
+            $data['vehicle_2_scheduled_time'] = $data['scheduled_time'] ?? null;
+            $data['vehicle_2_schedule_reason'] = null;
+        }
+
+        $data['_want_second_vehicle'] = true;
+
+        return $data;
+    }
+
+    protected function createSecondVehicleQuotation(array $data, Customer $customer, array $primaryPricing): ?Quotation
+    {
+        if (! ($data['_want_second_vehicle'] ?? false)) {
+            return null;
+        }
+
+        $v2TruckType = is_numeric($data['vehicle_2_truck_type_id'])
+            ? TruckType::find($data['vehicle_2_truck_type_id'])
+            : TruckType::where('name', 'like', '%' . $data['vehicle_2_truck_type_id'] . '%')->first();
+
+        if (! $v2TruckType) {
+            return null;
+        }
+
+        $useOverride = (string) ($data['vehicle_2_route_override'] ?? '0') === '1'
+            && filled($data['vehicle_2_pickup_address'] ?? null)
+            && filled($data['vehicle_2_dropoff_address'] ?? null);
+
+        $v2Pickup = $useOverride ? $data['vehicle_2_pickup_address'] : $data['pickup_address'];
+        $v2Dropoff = $useOverride ? $data['vehicle_2_dropoff_address'] : $data['dropoff_address'];
+        $v2Distance = $useOverride
+            ? ($data['vehicle_2_distance_km'] ?? $data['distance_km'] ?? 0)
+            : ($data['distance_km'] ?? 0);
+        $v2Eta = $useOverride ? ($data['vehicle_2_eta_minutes'] ?? null) : ($data['eta_minutes'] ?? null);
+
+        $v2Pricing = $this->calculatePricing([
+            'truck_type_id' => $v2TruckType->id,
+            'distance_km'   => $v2Distance,
+            'customer_type' => $data['customer_type'] ?? 'regular',
+        ]);
+
+        $v2Price = isset($data['vehicle_2_price']) && is_numeric($data['vehicle_2_price']) && (float) $data['vehicle_2_price'] > 0
+            ? (float) $data['vehicle_2_price']
+            : $v2Pricing['final_total'];
+
+        $quotation = $this->quotationService->createQuotation([
+            'customer_id'        => $customer->id,
+            'truck_type_id'      => $v2TruckType->id,
+            'pickup_address'     => $v2Pickup,
+            'dropoff_address'    => $v2Dropoff,
+            'pickup_notes'       => $data['pickup_notes'] ?? null,
+            'distance_km'        => $v2Distance,
+            'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
+            'estimated_price'    => $v2Price,
+            'additional_fee'     => 0,
+            'eta_minutes'        => $v2Eta,
+            'service_type'       => $data['vehicle_2_service_type'] ?? 'book_now',
+            'scheduled_date'     => $data['vehicle_2_scheduled_date'] ?? null,
+            'scheduled_time'     => $data['vehicle_2_scheduled_time'] ?? null,
+        ]);
+
+        $quotation->load(['customer', 'truckType']);
+
+        return $quotation;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Existing public methods (unchanged)
+    // ──────────────────────────────────────────────────────────────
 
     public function createBooking(array $data, ?Authenticatable $user = null): Booking
     {
@@ -311,32 +708,6 @@ class BookingService
         return sprintf('%s-%s-%04d', $prefix, now()->format('Ymd'), $booking->id);
     }
 
-    protected function resolveNameParts(array $data): array
-    {
-        if (filled($data['first_name'] ?? null) && filled($data['last_name'] ?? null)) {
-            return [
-                'first_name' => trim((string) $data['first_name']),
-                'middle_name' => filled($data['middle_name'] ?? null) ? trim((string) $data['middle_name']) : null,
-                'last_name' => trim((string) $data['last_name']),
-            ];
-        }
-
-        return split_full_name($data['full_name'] ?? '');
-    }
-
-    protected function resolveCustomerType(array $data): string
-    {
-        if (($data['customer_type'] ?? null) === 'pwd' || ! empty($data['is_pwd'])) {
-            return 'pwd';
-        }
-
-        if (($data['customer_type'] ?? null) === 'senior' || ! empty($data['is_senior'])) {
-            return 'senior';
-        }
-
-        return 'regular';
-    }
-
     public function dispatchAvailability(): array
     {
         $busyTeamLeaderIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
@@ -378,8 +749,80 @@ class BookingService
             'recommended_service_type' => $bookNowEnabled ? 'book_now' : 'schedule',
             'message' => $bookNowEnabled
                 ? 'A dispatch-ready unit is available right now.'
-                : 'Immediate dispatch is currently unavailable. You can still proceed with your booking, and we’ll assign your service as soon as possible.',
+                : 'Immediate dispatch is currently unavailable. You can still proceed with your booking, and we\'ll assign your service as soon as possible.',
         ];
+    }
+
+    public function estimateDirectDistanceKm(?float $pickupLat, ?float $pickupLng, ?float $dropLat, ?float $dropLng): float
+    {
+        if (! is_numeric($pickupLat) || ! is_numeric($pickupLng) || ! is_numeric($dropLat) || ! is_numeric($dropLng)) {
+            return 0.0;
+        }
+
+        return round($this->haversineDistanceKm((float) $pickupLat, (float) $pickupLng, (float) $dropLat, (float) $dropLng), 2);
+    }
+
+    public function estimateFallbackDurationMinutes(?float $distanceKm, float $averageSpeedKph = 30.0): float
+    {
+        if (! is_numeric($distanceKm) || (float) $distanceKm <= 0) {
+            return 0.0;
+        }
+
+        $safeSpeedKph = max($averageSpeedKph, 10.0);
+
+        return max(round((((float) $distanceKm) / $safeSpeedKph) * 60, 1), 1.0);
+    }
+
+    public function parsePrice(?string $price): float
+    {
+        $normalized = preg_replace('/[^\d.]/', '', (string) $price);
+
+        return $normalized === '' ? 0.0 : (float) $normalized;
+    }
+
+    public function filterPayloadForTable(string $table, array $payload): array
+    {
+        if (! Schema::hasTable($table)) {
+            return $payload;
+        }
+
+        $columns = array_flip(Schema::getColumnListing($table));
+
+        return array_filter(
+            $payload,
+            fn ($value, $key) => array_key_exists($key, $columns),
+            ARRAY_FILTER_USE_BOTH,
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Protected helpers
+    // ──────────────────────────────────────────────────────────────
+
+    protected function resolveNameParts(array $data): array
+    {
+        if (filled($data['first_name'] ?? null) && filled($data['last_name'] ?? null)) {
+            return [
+                'first_name' => trim((string) $data['first_name']),
+                'middle_name' => filled($data['middle_name'] ?? null) ? trim((string) $data['middle_name']) : null,
+                'last_name' => trim((string) $data['last_name']),
+            ];
+        }
+
+        return split_full_name($data['full_name'] ?? '');
+    }
+
+    protected function resolveCustomerType(array $data): string
+    {
+        if (($data['customer_type'] ?? null) === 'pwd' || ! empty($data['is_pwd'])) {
+            return 'pwd';
+        }
+
+        if (($data['customer_type'] ?? null) === 'senior' || ! empty($data['is_senior'])) {
+            return 'senior';
+        }
+
+        return 'regular';
     }
 
     protected function resolveServiceType(array $data): string
@@ -436,26 +879,6 @@ class BookingService
             + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($deltaLng / 2) ** 2;
 
         return $earthRadius * (2 * atan2(sqrt($a), sqrt(1 - $a)));
-    }
-
-    public function estimateDirectDistanceKm(?float $pickupLat, ?float $pickupLng, ?float $dropLat, ?float $dropLng): float
-    {
-        if (! is_numeric($pickupLat) || ! is_numeric($pickupLng) || ! is_numeric($dropLat) || ! is_numeric($dropLng)) {
-            return 0.0;
-        }
-
-        return round($this->haversineDistanceKm((float) $pickupLat, (float) $pickupLng, (float) $dropLat, (float) $dropLng), 2);
-    }
-
-    public function estimateFallbackDurationMinutes(?float $distanceKm, float $averageSpeedKph = 30.0): float
-    {
-        if (! is_numeric($distanceKm) || (float) $distanceKm <= 0) {
-            return 0.0;
-        }
-
-        $safeSpeedKph = max($averageSpeedKph, 10.0);
-
-        return max(round((((float) $distanceKm) / $safeSpeedKph) * 60, 1), 1.0);
     }
 
     protected function resolveBaseRate(TruckType $truckType): float
@@ -636,27 +1059,5 @@ class BookingService
         $normalized = preg_replace('/[^\d.]/', '', (string) $distance);
 
         return $normalized === '' ? 0.0 : (float) $normalized;
-    }
-
-    public function parsePrice(?string $price): float
-    {
-        $normalized = preg_replace('/[^\d.]/', '', (string) $price);
-
-        return $normalized === '' ? 0.0 : (float) $normalized;
-    }
-
-    public function filterPayloadForTable(string $table, array $payload): array
-    {
-        if (! Schema::hasTable($table)) {
-            return $payload;
-        }
-
-        $columns = array_flip(Schema::getColumnListing($table));
-
-        return array_filter(
-            $payload,
-            fn($value, $key) => array_key_exists($key, $columns),
-            ARRAY_FILTER_USE_BOTH,
-        );
     }
 }

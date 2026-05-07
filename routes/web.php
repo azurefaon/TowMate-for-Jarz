@@ -9,6 +9,9 @@ use App\Models\User;
 
 use App\Models\TruckType;
 
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BookingController;
+
 use App\Http\Controllers\GeoController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\ControlCenterController;
@@ -347,6 +350,9 @@ Route::prefix('superadmin')
         Route::get('/truck-type-config/{name}',  [TruckTypeController::class, 'getConfig'])->name('truck-type-config.get');
         Route::post('/truck-type-config/{name}', [TruckTypeController::class, 'saveConfig'])->name('truck-type-config.save');
 
+        Route::post('truck-types/{truckType}/vehicle-types/{vehicleType}/attach', [TruckTypeController::class, 'attachVehicleType'])->name('truck-types.vehicle-types.attach');
+        Route::delete('truck-types/{truckType}/vehicle-types/{vehicleType}/detach', [TruckTypeController::class, 'detachVehicleType'])->name('truck-types.vehicle-types.detach');
+
         Route::get('truck-types-data',              [TruckTypeController::class, 'index'])->name('truck-types.data');
         Route::post('truck-types-data',             [TruckTypeController::class, 'store'])->name('truck-types.data.store');
         Route::put('truck-types-data/{truckType}',  [TruckTypeController::class, 'update'])->name('truck-types.data.update');
@@ -451,3 +457,20 @@ Route::middleware(['auth', 'role:5'])
             return view('customer.pages.help');
         })->name('help');
     });
+
+// Route::prefix('v1')->group(function () {
+
+//     Route::post('/login', [AuthController::class, 'login']);
+//     Route::post('/register', [AuthController::class, 'register']);
+
+//     Route::middleware('auth:sanctum')->group(function () {
+
+//         Route::get('/user', [AuthController::class, 'user']);
+
+//         Route::apiResource('bookings', BookingController::class);
+//     });
+// });
+
+Route::post('/api/login', [AuthController::class, 'login'])->withoutMiddleware([
+    \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class,
+]);

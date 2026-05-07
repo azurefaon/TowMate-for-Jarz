@@ -76,7 +76,6 @@
             align-items: center;
             justify-content: center;
             font-size: 13px;
-            font-weight: 700;
             color: #000000;
             transition: all .2s;
         }
@@ -106,7 +105,7 @@
         .tf-step__label small {
             display: block;
             font-size: 10px;
-            color: #a1a1aa;
+            color: #000000;
         }
 
         .tf-step.is-active .tf-step__label strong {
@@ -151,15 +150,14 @@
 
         .tf-banner__code {
             font-size: 11px;
-            font-weight: 700;
-            color: #a1a1aa;
+            color: #010106;
             text-transform: uppercase;
             letter-spacing: .06em;
         }
 
         .tf-banner__note {
             font-size: 13px;
-            color: #52525b;
+            color: #000000;
         }
 
         .tf-status-pill {
@@ -169,7 +167,6 @@
             padding: 6px 14px;
             border-radius: 999px;
             font-size: 12px;
-            font-weight: 700;
             white-space: nowrap;
             border: 1px solid transparent;
         }
@@ -243,8 +240,7 @@
 
         .tf-card__head {
             font-size: 11px;
-            font-weight: 700;
-            color: #71717a;
+            color: #000000;
             text-transform: uppercase;
             letter-spacing: .07em;
             margin: 0 0 14px;
@@ -276,14 +272,12 @@
 
         .tf-card__label {
             font-size: 11px;
-            color: #a1a1aa;
-            font-weight: 600;
+            color: #000000;
         }
 
         .tf-card__value {
             font-size: 13px;
             color: #18181b;
-            font-weight: 500;
             word-break: break-word;
         }
 
@@ -292,25 +286,22 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            background: #f9fafb;
-            border-radius: 10px;
+            background: #ffffff;
+            /* border-radius: 10px; */
             padding: 10px 12px;
             margin-bottom: 12px;
         }
 
         .tf-unit-badge__name {
             font-size: 14px;
-            font-weight: 700;
             color: #09090b;
         }
 
         .tf-unit-type {
             font-size: 11px;
-            font-weight: 700;
             padding: 3px 8px;
-            border-radius: 6px;
-            background: #e4e4e7;
-            color: #3f3f46;
+            /* background: #e4e4e7; */
+            color: #000000;
             margin-left: auto;
         }
 
@@ -336,33 +327,28 @@
 
         .tf-price-row--total {
             font-size: 15px;
-            font-weight: 800;
             color: #09090b;
         }
 
         .tf-price-note {
             font-size: 11px;
-            color: #a1a1aa;
+            color: #000000;
             margin: 6px 0 0;
             text-align: right;
         }
 
-        /* Service badge */
         .tf-svc-badge {
             display: inline-block;
             padding: 3px 10px;
             border-radius: 6px;
             font-size: 11px;
-            font-weight: 700;
         }
 
         .tf-svc-badge--now {
-            /* background: #eff6ff; */
             color: #000000;
         }
 
         .tf-svc-badge--sched {
-            /* background: #faf5ff; */
             color: #000000;
         }
 
@@ -371,7 +357,6 @@
             font-size: 13px;
         }
 
-        /* ── Action area ── */
         .tf-action-area {
             background: #fff;
             /* border-radius: 16px; */
@@ -395,7 +380,6 @@
             gap: 6px;
             /* border-radius: 12px; */
             font-size: 14px;
-            font-weight: 700;
             padding: 13px 20px;
             border: none;
             cursor: pointer;
@@ -484,7 +468,7 @@
         .tf-payment-section p {
             margin: 0;
             font-size: 13px;
-            color: #52525b;
+            color: #000000;
         }
 
         .tf-pm-grid {
@@ -510,7 +494,6 @@
             border-radius: 12px;
             padding: 14px 8px;
             font-size: 13px;
-            font-weight: 600;
             color: #3f3f46;
             transition: border-color .15s, background .15s;
         }
@@ -544,13 +527,12 @@
         .tf-file-drop p {
             margin: 0;
             font-size: 14px;
-            font-weight: 600;
             color: #18181b;
         }
 
         .tf-file-drop small {
             font-size: 12px;
-            color: #a1a1aa;
+            color: #000000;
         }
 
         #proofPreview {
@@ -626,10 +608,9 @@
         .tf-paymongo-amount {
             text-align: center;
             font-size: 28px;
-            font-weight: 800;
             color: #09090b;
-            background: #f4f4f5;
-            border-radius: 12px;
+            background: #ffffff;
+            /* border-radius: 12px; */
             padding: 14px;
         }
 
@@ -645,7 +626,6 @@
             border-radius: 10px;
             background: #f4f4f5;
             font-size: 14px;
-            font-weight: 700;
             color: #71717a;
             cursor: pointer;
             transition: all .15s;
@@ -679,7 +659,7 @@
         .tf-pm-field label {
             font-size: 11px;
             font-weight: 700;
-            color: #52525b;
+            color: #000000;
             text-transform: uppercase;
             letter-spacing: .4px;
         }
@@ -722,7 +702,7 @@
             gap: 8px;
             justify-content: center;
             font-size: 13px;
-            color: #52525b;
+            color: #000000;
             font-weight: 600;
         }
 
@@ -998,7 +978,7 @@
                     @endif
                     <hr class="tf-price-divider">
                     @if (abs($computedTotal - $finalTotal) > 0.01)
-                        <div class="tf-price-row" style="color:#a1a1aa; font-size:12px;">
+                        <div class="tf-price-row" style="color:#000000; font-size:12px;">
                             <span>Computed (Base + Distance + Fees)</span>
                             <span>₱{{ number_format($computedTotal, 2) }}</span>
                         </div>
@@ -1111,13 +1091,13 @@
                                 <div
                                     style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#ffffff;margin-bottom:6px;">
                                     Send Payment to GCash</div>
-                                <div style="font-size:28px;font-weight:800;color:#ffffff;letter-spacing:3px;"
-                                    id="gcashNumberDisplay">{{ $gcashNumber ?? '12345678910' }}</div>
+                                <div style="font-size:28px;color:#ffffff;letter-spacing:3px;" id="gcashNumberDisplay">
+                                    {{ $gcashNumber ?? '12345678910' }}</div>
                                 <div style="font-size:12px;color:#ffffff;margin-top:4px;">Ask the customer to send the
                                     exact amount to this number</div>
                             </div>
                             <div
-                                style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">
+                                style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#000000;margin-bottom:8px;">
                                 Upload GCash Screenshot</div>
                             <label
                                 style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
@@ -1125,8 +1105,8 @@
                                     multiple style="display:none;">
                                 <div id="gcashProofPlaceholder">
                                     {{-- <div style="font-size:24px;margin-bottom:6px;">📷</div> --}}
-                                    <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG or PNG only · max 5
+                                    <div style="font-size:13px;color:#000000;">Take or choose a photo</div>
+                                    <div style="font-size:11px;color:#000000;margin-top:2px;">JPG or PNG only · max 5
                                         images · 5 MB each
                                     </div>
                                 </div>
@@ -1145,29 +1125,28 @@
                             <div
                                 style="background:#ffffff;border:1.5px solid #000000;border-radius:14px;padding:16px 18px;margin-bottom:14px;text-align:center;">
                                 <div
-                                    style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8;margin-bottom:10px;">
+                                    style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8;margin-bottom:10px;">
                                     Transfer to Bank Account</div>
-                                <div style="font-size:14px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">
+                                <div style="font-size:14px;color:#1e3a8a;margin-bottom:4px;">
                                     {{ $bankName ?? 'BDO Unibank' }}</div>
                                 <div style="font-size:12px;color:#3730a3;margin-bottom:6px;">
                                     {{ $bankAccountName ?? 'Jarz Towing Services' }}</div>
-                                <div style="font-size:26px;font-weight:800;color:#09090b;letter-spacing:2px;">
+                                <div style="font-size:26px;color:#09090b;letter-spacing:2px;">
                                     {{ $bankAccountNumber ?? '0012-3456-7890' }}</div>
-                                <div style="font-size:12px;color:#52525b;margin-top:6px;">Ask the customer to transfer the
+                                <div style="font-size:12px;color:#000000;margin-top:6px;">Ask the customer to transfer the
                                     exact amount to this account</div>
                             </div>
                             <div
-                                style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">
+                                style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#000000;margin-bottom:8px;">
                                 Upload Bank Transfer Receipt</div>
                             <label
                                 style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
                                 <input type="file" id="bankProofInput" accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                                     multiple style="display:none;">
                                 <div id="bankProofPlaceholder">
-                                    {{-- <div style="font-size:24px;margin-bottom:6px;">🏦</div> --}}
-                                    <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo of
+                                    <div style="font-size:13px;color:#18181b;">Take or choose a photo of
                                         the receipt</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG or PNG only · max 5
+                                    <div style="font-size:11px;color:#000000;margin-top:2px;">JPG or PNG only · max 5
                                         images · 5 MB each
                                     </div>
                                 </div>
@@ -1186,15 +1165,15 @@
                             <div
                                 style="background:#faf5ff;border:1.5px solid #c4b5fd;border-radius:14px;padding:18px;margin-bottom:14px;text-align:center;">
                                 <div
-                                    style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#7c3aed;margin-bottom:8px;">
+                                    style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#7c3aed;margin-bottom:8px;">
                                     Collect Cash Payment</div>
-                                <div style="font-size:30px;font-weight:900;color:#09090b;margin-bottom:6px;">
+                                <div style="font-size:30px;color:#09090b;margin-bottom:6px;">
                                     ₱{{ number_format($finalTotal, 2) }}</div>
-                                <div style="font-size:12px;color:#52525b;">Count the bills and confirm the customer paid
+                                <div style="font-size:12px;color:#000000;">Count the bills and confirm the customer paid
                                     the exact amount.</div>
                             </div>
                             <div
-                                style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">
+                                style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#000000;margin-bottom:8px;">
                                 Upload Receipt</div>
                             <label
                                 style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;margin-bottom:12px;">
@@ -1202,9 +1181,9 @@
                                     multiple style="display:none;">
                                 <div id="cashProofPlaceholder">
                                     {{-- <div style="font-size:24px;margin-bottom:6px;">💵</div> --}}
-                                    <div style="font-size:13px;font-weight:600;color:#18181b;">Optional: take a photo as
+                                    <div style="font-size:13px;color:#18181b;">Optional: take a photo as
                                         record</div>
-                                    <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG or PNG only · max 5
+                                    <div style="font-size:11px;color:#000000;margin-top:2px;">JPG or PNG only · max 5
                                         images · 5 MB each
                                     </div>
                                 </div>
@@ -1221,7 +1200,7 @@
                                 <div
                                     style="background:#fefce8;border:1.5px solid #fde047;border-radius:14px;padding:16px 18px;margin-bottom:14px;text-align:center;">
                                     <div
-                                        style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#854d0e;margin-bottom:6px;">
+                                        style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#854d0e;margin-bottom:6px;">
                                         Cheque Payment</div>
                                     <div style="font-size:13px;color:#713f12;">Verify the cheque is made out to
                                         <strong>{{ $bankAccountName ?? 'Jarz Towing Services' }}</strong> for the correct
@@ -1229,7 +1208,7 @@
                                     </div>
                                 </div>
                                 <div
-                                    style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#52525b;margin-bottom:8px;">
+                                    style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#000000;margin-bottom:8px;">
                                     Upload Cheque Photo</div>
                                 <label
                                     style="display:block;border:2px dashed #e4e4e7;border-radius:12px;padding:20px;text-align:center;cursor:pointer;">
@@ -1237,9 +1216,9 @@
                                         accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple style="display:none;">
                                     <div id="chequeProofPlaceholder">
                                         <div style="font-size:24px;margin-bottom:6px;">🗒️</div>
-                                        <div style="font-size:13px;font-weight:600;color:#18181b;">Take or choose a photo
+                                        <div style="font-size:13px;color:#18181b;">Take or choose a photo
                                             of the cheque</div>
-                                        <div style="font-size:11px;color:#a1a1aa;margin-top:2px;">JPG or PNG only · max 5
+                                        <div style="font-size:11px;color:#000000;margin-top:2px;">JPG or PNG only · max 5
                                             images · 5 MB each</div>
                                     </div>
                                     <img id="chequeProofPreview" src="" alt=""

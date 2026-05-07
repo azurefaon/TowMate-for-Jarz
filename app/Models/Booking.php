@@ -86,6 +86,7 @@ class Booking extends Model
         'paymongo_client_key',
 
         'scheduled_expires_at',
+        'extra_vehicles',
 
         'status',
     ];
@@ -133,6 +134,7 @@ class Booking extends Model
             'returned_at' => 'datetime',
             'payment_submitted_at' => 'datetime',
             'scheduled_expires_at' => 'datetime',
+            'extra_vehicles' => 'array',
             'base_rate' => 'decimal:2',
             'per_km_rate' => 'decimal:2',
             'computed_total' => 'decimal:2',

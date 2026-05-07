@@ -91,6 +91,7 @@
                             <th>Truck Type</th>
                             <th>Pricing</th>
                             <th>Capacity</th>
+                            <th>Vehicle Types</th>
                             <th>Linked Units</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -120,6 +121,31 @@
                                 </td>
                                 <td data-label="Capacity">
                                     {{ $type->max_tonnage ? number_format((float) $type->max_tonnage, 1) . ' tons' : 'Not set' }}
+                                </td>
+                                <td data-label="Vehicle Types">
+                                    <div class="vt-cell" data-truck-id="{{ $type->id }}">
+                                        @foreach ($type->vehicleTypes as $vt)
+                                            <span class="vt-pill" id="vt-pill-{{ $type->id }}-{{ $vt->id }}">
+                                                {{ $vt->name }}
+                                                <button type="button" class="vt-remove"
+                                                    data-truck="{{ $type->id }}"
+                                                    data-vehicle="{{ $vt->id }}"
+                                                    title="Remove">×</button>
+                                            </span>
+                                        @endforeach
+                                        @php
+                                            $linkedIds = $type->vehicleTypes->pluck('id')->all();
+                                            $available = $allVehicleTypes->reject(fn($v) => in_array($v->id, $linkedIds));
+                                        @endphp
+                                        @if ($available->isNotEmpty())
+                                            <select class="vt-add-select" data-truck="{{ $type->id }}">
+                                                <option value="">+ Add</option>
+                                                @foreach ($available as $av)
+                                                    <option value="{{ $av->id }}">{{ $av->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td data-label="Linked Units">
                                     <span class="count-pill">{{ $type->units_count ?? 0 }} units</span>
@@ -171,7 +197,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="empty-state">
                                         <i data-lucide="truck"></i>
                                         <h3>No tow truck types yet</h3>
@@ -339,4 +365,63 @@
 
 @push('scripts')
     <script src="{{ asset('admin/js/truck-types.js') }}" defer></script>
+    <script>
+        const _csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+        document.addEventListener('click', async function (e) {
+            const btn = e.target.closest('.vt-remove');
+            if (!btn) return;
+            const truckId   = btn.dataset.truck;
+            const vehicleId = btn.dataset.vehicle;
+            const pill      = document.getElementById(`vt-pill-${truckId}-${vehicleId}`);
+            btn.disabled = true;
+            const resp = await fetch(`/superadmin/truck-types/${truckId}/vehicle-types/${vehicleId}/detach`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': _csrf, 'Accept': 'application/json' },
+            });
+            if ((await resp.json()).success) {
+                pill?.remove();
+            } else {
+                btn.disabled = false;
+            }
+        });
+
+        document.addEventListener('change', async function (e) {
+            const sel = e.target.closest('.vt-add-select');
+            if (!sel || !sel.value) return;
+            const truckId   = sel.dataset.truck;
+            const vehicleId = sel.value;
+            sel.disabled = true;
+            const resp = await fetch(`/superadmin/truck-types/${truckId}/vehicle-types/${vehicleId}/attach`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': _csrf, 'Accept': 'application/json' },
+            });
+            if ((await resp.json()).success) {
+                location.reload();
+            } else {
+                sel.value    = '';
+                sel.disabled = false;
+            }
+        });
+    </script>
+@endpush
+
+@push('styles')
+    <style>
+        .vt-cell { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .vt-pill {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #f3f4f6; border: 1px solid #e5e7eb;
+            border-radius: 6px; padding: 2px 8px; font-size: 12px; color: #374151;
+        }
+        .vt-remove {
+            background: none; border: none; cursor: pointer;
+            color: #9ca3af; font-size: 14px; line-height: 1; padding: 0 2px;
+        }
+        .vt-remove:hover { color: #ef4444; }
+        .vt-add-select {
+            font-size: 12px; border: 1px solid #e5e7eb; border-radius: 6px;
+            padding: 2px 6px; background: #fff; color: #374151; cursor: pointer;
+        }
+    </style>
 @endpush

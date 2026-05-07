@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\TruckType;
 use App\Models\Unit;
+use App\Models\VehicleType;
 use Illuminate\Http\Request;
 
 class TruckTypeController extends Controller
@@ -16,12 +17,15 @@ class TruckTypeController extends Controller
         }
 
         $truckTypes = TruckType::withCount('units')
+            ->with(['vehicleTypes' => fn($q) => $q->select('vehicle_types.id', 'vehicle_types.name', 'vehicle_types.category')->orderBy('name')])
             ->withCount([
                 'bookings as active_bookings_count' => fn($query) => $query->whereIn('status', $this->busyBookingStatuses()),
             ])
             ->orderBy('name')
             ->paginate(5)
             ->withQueryString();
+
+        $allVehicleTypes = VehicleType::where('status', 'active')->orderBy('name')->get(['id', 'name', 'category']);
 
         $stats = [
             'total' => TruckType::count(),
@@ -30,7 +34,7 @@ class TruckTypeController extends Controller
             'units' => Unit::count(),
         ];
 
-        return view('superadmin.truck-types.index', compact('truckTypes', 'stats'));
+        return view('superadmin.truck-types.index', compact('truckTypes', 'stats', 'allVehicleTypes'));
     }
 
     public function store(Request $request)
@@ -125,6 +129,18 @@ class TruckTypeController extends Controller
         }
 
         return back()->with('success', 'Truck type deleted successfully.');
+    }
+
+    public function attachVehicleType(TruckType $truckType, VehicleType $vehicleType): \Illuminate\Http\JsonResponse
+    {
+        $truckType->vehicleTypes()->syncWithoutDetaching([$vehicleType->id]);
+        return response()->json(['success' => true]);
+    }
+
+    public function detachVehicleType(TruckType $truckType, VehicleType $vehicleType): \Illuminate\Http\JsonResponse
+    {
+        $truckType->vehicleTypes()->detach($vehicleType->id);
+        return response()->json(['success' => true]);
     }
 
     public function getConfig(string $name)

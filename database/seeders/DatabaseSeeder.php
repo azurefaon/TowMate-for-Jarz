@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             DispatcherSeeder::class,
             TeamLeaderSeeder::class,
             TruckTypeSeeder::class,
+            VehicleTypeSeeder::class,
         ]);
     }
 }

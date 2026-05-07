@@ -1,0 +1,193 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Booking;
+use App\Models\Customer;
+use App\Models\TruckType;
+use App\Services\BookingService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+
+class CustomerBookingController extends Controller
+{
+    private const INACTIVE_STATUSES = ['completed', 'cancelled', 'rejected'];
+
+    public function __construct(private readonly BookingService $bookingService) {}
+
+    public function truckTypes(): JsonResponse
+    {
+        $types = TruckType::with(['vehicleTypes' => fn($q) => $q->where('status', 'active')->orderBy('display_order')])
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get()
+            ->map(fn($t) => [
+                'id'           => $t->id,
+                'name'         => $t->name,
+                'class'        => $t->class,
+                'base_rate'    => (float) $t->base_rate,
+                'per_km_rate'  => (float) $t->per_km_rate,
+                'description'  => $t->description,
+                'vehicle_types' => $t->vehicleTypes->map(fn($v) => [
+                    'id'       => $v->id,
+                    'name'     => $v->name,
+                    'category' => $v->category,
+                ])->values(),
+            ]);
+
+        return response()->json($types);
+    }
+
+    public function currentBooking(Request $request): JsonResponse
+    {
+        $customer = Customer::where('user_id', $request->user()->id)->first();
+
+        if (!$customer) {
+            return response()->json(['data' => null]);
+        }
+
+        $booking = Booking::where('customer_id', $customer->id)
+            ->whereNotIn('status', self::INACTIVE_STATUSES)
+            ->with('truckType')
+            ->latest()
+            ->first();
+
+        if (!$booking) {
+            return response()->json(['data' => null]);
+        }
+
+        return response()->json(['data' => [
+            'id'              => $booking->id,
+            'booking_code'    => $booking->booking_code,
+            'status'          => $booking->status,
+            'pickup_address'  => $booking->pickup_address,
+            'dropoff_address' => $booking->dropoff_address,
+            'distance_km'     => (float) $booking->distance_km,
+            'computed_total'  => (float) $booking->computed_total,
+            'truck_type'      => [
+                'name'  => $booking->truckType?->name ?? '',
+                'class' => $booking->truckType?->class ?? '',
+            ],
+        ]]);
+    }
+
+    public function bookingHistory(Request $request): JsonResponse
+    {
+        $customer = Customer::where('user_id', $request->user()->id)->first();
+
+        if (!$customer) {
+            return response()->json(['data' => [], 'meta' => []]);
+        }
+
+        $bookings = Booking::where('customer_id', $customer->id)
+            ->with('truckType')
+            ->orderByDesc('created_at')
+            ->paginate(10)
+            ->through(fn($b) => [
+                'id'              => $b->id,
+                'booking_code'    => $b->booking_code,
+                'status'          => $b->status,
+                'pickup_address'  => $b->pickup_address,
+                'dropoff_address' => $b->dropoff_address,
+                'distance_km'     => (float) $b->distance_km,
+                'computed_total'  => (float) $b->computed_total,
+                'truck_type_name' => $b->truckType?->name ?? '',
+                'created_at'      => $b->created_at?->toDateTimeString(),
+            ]);
+
+        return response()->json($bookings);
+    }
+
+    public function createBooking(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'truck_type_id'                    => 'required|integer|exists:truck_types,id',
+            'vehicle_type_id'                  => 'nullable|integer|exists:vehicle_types,id',
+            'pickup_address'                   => 'required|string|max:255',
+            'pickup_lat'                       => 'required|numeric|between:-90,90',
+            'pickup_lng'                       => 'required|numeric|between:-180,180',
+            'dropoff_address'                  => 'required|string|max:255|different:pickup_address',
+            'dropoff_lat'                      => 'required|numeric|between:-90,90',
+            'dropoff_lng'                      => 'required|numeric|between:-180,180',
+            'distance_km'                      => 'required|numeric|min:0.1|max:1000',
+            'service_type'                     => 'nullable|in:book_now,schedule',
+            'notes'                            => 'nullable|string|max:1000',
+            'scheduled_date'                   => 'nullable|date|after_or_equal:today',
+            'scheduled_time'                   => 'nullable|string|max:10',
+            'vehicle_images'                   => 'nullable|array|max:5',
+            'vehicle_images.*'                 => 'file|mimes:jpg,jpeg,png|max:5120',
+            'extra_vehicles'                   => 'nullable|string',
+        ]);
+
+        $customer = Customer::where('user_id', $request->user()->id)->first();
+
+        if (!$customer) {
+            return response()->json(['message' => 'Customer profile not found.'], 422);
+        }
+
+        $hasActive = Booking::where('customer_id', $customer->id)
+            ->whereNotIn('status', self::INACTIVE_STATUSES)
+            ->exists();
+
+        if ($hasActive) {
+            return response()->json(['message' => 'You already have an active booking. Please wait for it to complete.'], 422);
+        }
+
+        $truckType   = TruckType::findOrFail($validated['truck_type_id']);
+        $distanceKm  = (float) $validated['distance_km'];
+        $kmIncrements = (int) floor($distanceKm / 4);
+        $distanceFee  = $kmIncrements * 200;
+        $computedTotal = (float) $truckType->base_rate + $distanceFee;
+
+        // Decode extra vehicles sent as JSON string from multipart
+        $extraVehicles = null;
+        if (!empty($validated['extra_vehicles'])) {
+            $decoded = json_decode($validated['extra_vehicles'], true);
+            if (is_array($decoded) && count($decoded) > 0) {
+                $extraVehicles = array_slice($decoded, 0, 3);
+            }
+        }
+
+        $booking = Booking::create([
+            'booking_code'     => 'TMP-' . Str::uuid(),
+            'customer_id'      => $customer->id,
+            'truck_type_id'    => $validated['truck_type_id'],
+            'vehicle_type_id'  => $validated['vehicle_type_id'] ?? null,
+            'pickup_address'   => $validated['pickup_address'],
+            'pickup_lat'       => $validated['pickup_lat'],
+            'pickup_lng'       => $validated['pickup_lng'],
+            'dropoff_address'  => $validated['dropoff_address'],
+            'dropoff_lat'      => $validated['dropoff_lat'],
+            'dropoff_lng'      => $validated['dropoff_lng'],
+            'distance_km'      => $distanceKm,
+            'base_rate'        => $truckType->base_rate,
+            'per_km_rate'      => $truckType->per_km_rate,
+            'computed_total'   => $computedTotal,
+            'additional_fee'   => 0,
+            'status'           => 'requested',
+            'service_type'     => $validated['service_type'] ?? 'book_now',
+            'customer_type'    => $customer->customer_type ?? 'regular',
+            'confirmation_type' => 'mobile',
+            'notes'            => $validated['notes'] ?? null,
+            'scheduled_date'   => $validated['scheduled_date'] ?? null,
+            'scheduled_time'   => $validated['scheduled_time'] ?? null,
+            'extra_vehicles'   => $extraVehicles,
+        ]);
+
+        $booking->update(['booking_code' => 'TM-' . str_pad($booking->id, 5, '0', STR_PAD_LEFT)]);
+
+        // Store vehicle images if provided
+        if ($request->hasFile('vehicle_images')) {
+            $imagePath = $this->bookingService->storeVehicleImages($request->file('vehicle_images'));
+            $booking->update(['vehicle_image_path' => $imagePath]);
+        }
+
+        return response()->json([
+            'success'      => true,
+            'booking_code' => $booking->booking_code,
+            'message'      => 'Booking submitted successfully.',
+        ], 201);
+    }
+}
