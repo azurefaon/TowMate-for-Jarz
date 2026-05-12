@@ -95,11 +95,12 @@ class AuthController extends Controller
             'data'    => [
                 'token' => $token,
                 'user'  => [
-                    'id'    => $user->id,
-                    'name'  => $user->name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'role'  => $user->role?->name ?? 'Customer',
+                    'id'                   => $user->id,
+                    'name'                 => $user->name,
+                    'email'                => $user->email,
+                    'phone'                => $user->phone,
+                    'role'                 => $user->role?->name ?? 'Customer',
+                    'must_change_password' => (bool) $user->must_change_password,
                 ],
             ],
         ]);

@@ -14,6 +14,7 @@ class Quotation extends Model
 
     protected $fillable = [
         'quotation_number',
+        'source_booking_id',
         'customer_id',
         'truck_type_id',
         'pickup_address',
@@ -86,6 +87,11 @@ class Quotation extends Model
     public function booking(): HasOne
     {
         return $this->hasOne(Booking::class);
+    }
+
+    public function sourceBooking(): BelongsTo
+    {
+        return $this->belongsTo(Booking::class, 'source_booking_id');
     }
 
     // Helper methods

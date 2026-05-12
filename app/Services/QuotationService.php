@@ -33,6 +33,7 @@ class QuotationService
     {
         return Quotation::create([
             'quotation_number' => $this->generateQuotationNumber(),
+            'source_booking_id' => $data['source_booking_id'] ?? null,
             'customer_id' => $data['customer_id'],
             'truck_type_id' => $data['truck_type_id'],
             'pickup_address' => $data['pickup_address'],
@@ -87,7 +88,8 @@ class QuotationService
             'expiry_hours' => $expiryHours,
         ]);
 
-        if ($quotation->customer && $quotation->customer->email) {
+        // Mobile bookings (source_booking_id set) get in-app notification; skip email.
+        if (!$quotation->source_booking_id && $quotation->customer && $quotation->customer->email) {
             try {
                 \Illuminate\Support\Facades\Mail::to($quotation->customer->email)
                     ->send(new \App\Mail\QuotationSentMail($quotation));
@@ -121,26 +123,39 @@ class QuotationService
             $groupCode = $quotation->quotation_number;
             $isScheduled = $quotation->service_type === 'schedule';
 
-            $primaryBooking = Booking::create([
-                'quotation_id' => $quotation->id,
-                'group_code' => $groupCode,
-                'customer_id' => $quotation->customer_id,
-                'truck_type_id' => $quotation->truck_type_id,
-                'pickup_address' => $quotation->pickup_address,
-                'dropoff_address' => $quotation->dropoff_address,
-                'pickup_notes' => $quotation->pickup_notes,
-                'distance_km' => $quotation->distance_km,
-                'eta_minutes' => $quotation->eta_minutes,
-                'vehicle_image_path' => $quotation->vehicle_image_path,
-                'final_total' => $quotation->estimated_price,
-                'service_type' => $quotation->service_type,
-                'scheduled_date' => $quotation->scheduled_date?->toDateString(),
-                'scheduled_time' => $quotation->scheduled_time,
-                'scheduled_expires_at' => $isScheduled ? now()->addDays(7) : null,
-                'status' => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
-                'customer_approved_at' => now(),
-                'price_locked_at' => now(),
-            ]);
+            // If this quotation originated from a mobile booking, update that booking
+            // rather than creating a duplicate.
+            if ($quotation->source_booking_id) {
+                $primaryBooking = Booking::findOrFail($quotation->source_booking_id);
+                $primaryBooking->update([
+                    'quotation_id'        => $quotation->id,
+                    'final_total'         => $quotation->estimated_price,
+                    'status'              => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
+                    'customer_approved_at' => now(),
+                    'price_locked_at'     => now(),
+                ]);
+            } else {
+                $primaryBooking = Booking::create([
+                    'quotation_id' => $quotation->id,
+                    'group_code' => $groupCode,
+                    'customer_id' => $quotation->customer_id,
+                    'truck_type_id' => $quotation->truck_type_id,
+                    'pickup_address' => $quotation->pickup_address,
+                    'dropoff_address' => $quotation->dropoff_address,
+                    'pickup_notes' => $quotation->pickup_notes,
+                    'distance_km' => $quotation->distance_km,
+                    'eta_minutes' => $quotation->eta_minutes,
+                    'vehicle_image_path' => $quotation->vehicle_image_path,
+                    'final_total' => $quotation->estimated_price,
+                    'service_type' => $quotation->service_type,
+                    'scheduled_date' => $quotation->scheduled_date?->toDateString(),
+                    'scheduled_time' => $quotation->scheduled_time,
+                    'scheduled_expires_at' => $isScheduled ? now()->addDays(7) : null,
+                    'status' => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
+                    'customer_approved_at' => now(),
+                    'price_locked_at' => now(),
+                ]);
+            }
 
             if ($isScheduled && $quotation->scheduled_date) {
                 $date = $quotation->scheduled_date->toDateString();

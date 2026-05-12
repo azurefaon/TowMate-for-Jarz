@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Cache;
 
 class TeamLeaderAvailabilityService
 {
-    protected int $presenceWindowSeconds = 120;
+    protected int $presenceWindowSeconds = 300;
 
     protected array $busyStatuses = ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
 

@@ -26,7 +26,7 @@ class UserManagementController extends Controller
     {
         return User::with('role')
             ->whereHas('role', function ($q) {
-                $q->where('name', '!=', 'Super Admin');
+                $q->whereNotIn('name', ['Super Admin', 'Customer']);
             })
             ->when(
                 $archived,
@@ -58,7 +58,7 @@ class UserManagementController extends Controller
     protected function getUserStats(): array
     {
         $baseQuery = User::whereHas('role', function ($q) {
-            $q->where('name', '!=', 'Super Admin');
+            $q->whereNotIn('name', ['Super Admin', 'Customer']);
         });
 
         return [

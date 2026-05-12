@@ -77,6 +77,12 @@ class Booking extends Model
         'return_reason',
         'returned_by_team_leader_id',
 
+        'completion_otp',
+        'completion_otp_expires_at',
+        'arrival_photo_path',
+        'dropoff_photo_path',
+        'customer_signature_path',
+
         'payment_method',
         'payment_proof_path',
         'payment_submitted_at',

@@ -268,6 +268,9 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
     initializeRealtimeUpdates();
+    startLocationPolling();
+    initWaitTimeBadges();
+    updateReturnBanner();
     initializePriceInput();
     initializeUnitSelector();
     initializeComputationInputs();
@@ -383,6 +386,7 @@ document.addEventListener("DOMContentLoaded", function () {
         updateFilteredCount();
         updateTabBadges();
         updateEmptyState();
+        if (typeof updateReturnBanner === "function") updateReturnBanner();
     }
 
     function updateTabBadges() {
@@ -431,8 +435,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
         try {
             var pusher = new Pusher(window.PusherConfig.key, {
-                cluster: window.PusherConfig.cluster,
-                encrypted: true,
+                wsHost: window.PusherConfig.wsHost,
+                wsPort: window.PusherConfig.wsPort,
+                wssPort: window.PusherConfig.wssPort,
+                forceTLS: window.PusherConfig.forceTLS,
+                enabledTransports: ["ws", "wss"],
+                disableStats: true,
             });
 
             var channel = pusher.subscribe("dispatch");
@@ -865,6 +873,9 @@ document.addEventListener("DOMContentLoaded", function () {
             updateEmptyState();
         }
 
+        if (typeof updateAllWaitTimes === "function") updateAllWaitTimes();
+        if (typeof updateReturnBanner === "function") updateReturnBanner();
+
         playNotificationSound();
         showNotification("New booking request received!", "success");
 
@@ -898,6 +909,63 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    function startLocationPolling() {
+        var unitMarkers = {};
+
+        function truckIcon() {
+            return L.divIcon({
+                className: "",
+                html: '<div style="background:#FFCC14;border:2px solid #000;border-radius:50%;width:16px;height:16px;"></div>',
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+            });
+        }
+
+        window.setInterval(function () {
+            var quotationModal = document.getElementById("quotationModal");
+            if (quotationModal && quotationModal.style.display === "flex") return;
+
+            fetch("/admin-dashboard/units/locations", {
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (units) {
+                    units.forEach(function (u) {
+                        if (!u.lat || !u.lng) return;
+                        if (unitMarkers[u.unit_id]) {
+                            unitMarkers[u.unit_id].setLatLng([u.lat, u.lng]);
+                            unitMarkers[u.unit_id]
+                                .getTooltip()
+                                .setContent(u.team_leader_name + " · " + u.status);
+                        } else {
+                            if (typeof map === "undefined") return;
+                            unitMarkers[u.unit_id] = L.marker([u.lat, u.lng], {
+                                icon: truckIcon(),
+                                zIndexOffset: 500,
+                            })
+                                .addTo(map)
+                                .bindTooltip(u.team_leader_name + " · " + u.status, {
+                                    permanent: false,
+                                    direction: "top",
+                                });
+                        }
+                    });
+
+                    // Remove markers for units no longer in the response
+                    var activeIds = units.map(function (u) { return u.unit_id; });
+                    Object.keys(unitMarkers).forEach(function (id) {
+                        if (!activeIds.includes(Number(id))) {
+                            if (typeof map !== "undefined") {
+                                map.removeLayer(unitMarkers[id]);
+                            }
+                            delete unitMarkers[id];
+                        }
+                    });
+                })
+                .catch(function () {});
+        }, 10000);
+    }
+
     function startPolling() {
         if (state.pollingInterval) {
             window.clearInterval(state.pollingInterval);
@@ -916,7 +984,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 "Customer accepted quotation. Booking is now in active queue.",
                 "success",
             );
-            if (!actionModal || !actionModal.classList.contains("is-open")) {
+            var quotationModalEl = document.getElementById("quotationModal");
+            var quotationOpen = quotationModalEl && quotationModalEl.style.display === "flex";
+            if ((!actionModal || !actionModal.classList.contains("is-open")) && !quotationOpen) {
                 window.location.reload();
             }
             return;
@@ -1025,6 +1095,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     ) {
                         console.log(
                             "New booking detected, but modal is open — skipping reload",
+                        );
+                        return;
+                    }
+
+                    var quotationModal = document.getElementById("quotationModal");
+                    if (quotationModal && quotationModal.style.display === "flex") {
+                        console.log(
+                            "New booking detected, but quotation modal is open — skipping reload",
                         );
                         return;
                     }
@@ -2150,4 +2228,53 @@ document.addEventListener("DOMContentLoaded", function () {
 
     window.handleReturnReject = handleReturnReject;
     window.handleReturnReassign = handleReturnReassign;
+
+    // ── Wait time badges ──────────────────────────────────────────────────────
+    function initWaitTimeBadges() {
+        updateAllWaitTimes();
+        window.setInterval(updateAllWaitTimes, 60000);
+    }
+
+    function updateAllWaitTimes() {
+        document.querySelectorAll("[data-created-at]").forEach(function (card) {
+            var badge = card.querySelector("[data-wait]");
+            if (!badge) return;
+            var created = new Date(card.dataset.createdAt);
+            if (isNaN(created.getTime())) return;
+            var mins = Math.floor((Date.now() - created.getTime()) / 60000);
+            badge.textContent =
+                mins < 1 ? "just now" :
+                mins < 60 ? mins + " min" :
+                Math.floor(mins / 60) + "h " + (mins % 60) + "min";
+            badge.className =
+                "wait-badge " +
+                (mins > 30 ? "wait-urgent" : mins > 10 ? "wait-warn" : "wait-ok");
+        });
+    }
+
+    // ── Return task alert banner ──────────────────────────────────────────────
+    function updateReturnBanner() {
+        var count = document.querySelectorAll("[data-queue=\"returned\"]").length;
+        var banner = document.getElementById("returnAlertBanner");
+        var text   = document.getElementById("returnAlertText");
+        if (!banner || !text) return;
+        if (count > 0) {
+            text.textContent = count === 1
+                ? "1 task was returned and needs reassignment."
+                : count + " tasks were returned and need reassignment.";
+            banner.style.display = "flex";
+        } else {
+            banner.style.display = "none";
+        }
+    }
+
+    window.showReturnedQueue = function () {
+        var tab = document.querySelector("[data-filter=\"returned\"]");
+        if (tab) tab.click();
+        var banner = document.getElementById("returnAlertBanner");
+        if (banner) banner.style.display = "none";
+    };
+
+    window.updateReturnBanner = updateReturnBanner;
+    window.updateAllWaitTimes = updateAllWaitTimes;
 });

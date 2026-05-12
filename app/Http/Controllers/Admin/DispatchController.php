@@ -9,8 +9,10 @@ use App\Mail\BookingRejectedMail;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Quotation;
+use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\VehicleType;
 use App\Services\BookingService;
 use App\Services\DocumentGenerationService;
 use App\Services\QuotationService;
@@ -107,11 +109,18 @@ class DispatchController extends Controller
         $negotiationRequests = collect();
 
         // ── Book-Now queue: requested/reviewed/quoted/quotation_sent, NOT scheduled ──
+        // Exclude 'requested' bookings that already have a linked quotation — those are
+        // mobile app bookings and are surfaced in the Floating Quotations panel instead.
         $bookNowRequests = Booking::with(['customer', 'truckType'])
             ->whereIn('status', $this->reviewableStatuses)
             ->where(function ($q) {
                 $q->whereNull('service_type')
                     ->orWhere('service_type', 'book_now');
+            })
+            ->where(function ($q) {
+                // Keep non-requested statuses always; exclude 'requested' only when a quotation exists
+                $q->where('status', '!=', 'requested')
+                    ->orWhereNull('quotation_id');
             })
             ->oldest('created_at')  // FIFO
             ->get()
@@ -243,7 +252,7 @@ class DispatchController extends Controller
         $returnReasonHandler = $this->returnReasonHandler;
 
 
-        $allQuotations = Quotation::with(['customer', 'truckType'])
+        $allQuotations = Quotation::with(['customer', 'truckType', 'sourceBooking'])
             ->whereIn('status', ['pending', 'sent', 'negotiating'])
             ->orderByRaw("CASE WHEN status = 'pending' THEN 0 WHEN status = 'negotiating' THEN 1 ELSE 2 END")
             ->orderBy('created_at', 'asc')
@@ -263,7 +272,16 @@ class DispatchController extends Controller
             'expired' => Quotation::where('status', 'expired')->count(),
         ];
 
-        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaders', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats', 'bookNowRequests', 'scheduledRequests', 'groupedIncoming', 'groupedBookNow', 'groupedScheduled'));
+        $unitGpsData = Unit::whereNotNull('team_leader_id')
+            ->get(['team_leader_id', 'location_updated_at'])
+            ->keyBy('team_leader_id');
+
+        $activeTasksByTL = Booking::whereNotNull('assigned_team_leader_id')
+            ->whereNotIn('status', ['completed', 'cancelled', 'returned', 'rejected'])
+            ->get(['booking_code', 'status', 'assigned_team_leader_id'])
+            ->keyBy('assigned_team_leader_id');
+
+        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaders', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats', 'bookNowRequests', 'scheduledRequests', 'groupedIncoming', 'groupedBookNow', 'groupedScheduled', 'unitGpsData', 'activeTasksByTL'));
     }
 
     protected function syncCustomerRiskFlag(?Customer $customer, ?string $reason): void
@@ -825,14 +843,14 @@ class DispatchController extends Controller
 
     public function getQuotationDetails(Quotation $quotation)
     {
-        $quotation->load(['customer', 'truckType']);
+        $quotation->load(['customer', 'truckType', 'sourceBooking']);
 
         $distanceKm    = (float) ($quotation->distance_km ?? 0);
         $finalTotal    = (float) ($quotation->estimated_price ?? 0);
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
         $discount      = (float) ($quotation->discount ?? 0);
-        $basePrice     = 0.0;
-        $perKmRate     = 0.0;
+        $basePrice     = (float) ($quotation->truckType?->base_rate ?? 0);
+        $perKmRate     = (float) ($quotation->truckType?->per_km_rate ?? 0);
         $kmIncrements  = (int) floor($distanceKm / 4);
         $distanceFee   = round($kmIncrements * 200.0, 2);
 
@@ -854,6 +872,7 @@ class DispatchController extends Controller
                 'distance_km_formatted' => number_format($distanceKm, 2),
                 'truck_type'            => $quotation->truckType->name ?? 'N/A',
                 'truck_type_id'         => $quotation->truck_type_id,
+                'truck_class'           => $quotation->truckType?->class ?? null,
                 'base_price'            => $basePrice,
                 'per_km_rate'           => $perKmRate,
                 'km_increments'         => $kmIncrements,
@@ -871,11 +890,44 @@ class DispatchController extends Controller
                 'service_type'          => $quotation->service_type,
                 'link_version'          => $quotation->link_version ?? 1,
                 'vehicle_image_paths'   => $quotation->vehicle_image_paths ?? [],
-                'extra_vehicles'        => $quotation->extra_vehicles ?? [],
+                'extra_vehicles'        => $this->enrichExtraVehicles($quotation->extra_vehicles ?? []),
                 'total_vehicles'        => 1 + count($quotation->extra_vehicles ?? []),
                 'created_at'            => $quotation->created_at->format('M d, Y h:i A'),
+                'vehicle_make'          => $quotation->vehicle_make,
+                'vehicle_model'         => $quotation->vehicle_model,
+                'vehicle_year'          => $quotation->vehicle_year,
+                'vehicle_color'         => $quotation->vehicle_color,
+                'vehicle_plate_number'  => $quotation->vehicle_plate_number,
+                'notes'                 => $quotation->pickup_notes,
+                'source_booking_id'     => $quotation->source_booking_id,
+                'source_booking_code'   => $quotation->sourceBooking?->booking_code,
+                'is_mobile_booking'     => $quotation->source_booking_id !== null,
             ],
         ]);
+    }
+
+    private function enrichExtraVehicles(array $vehicles): array
+    {
+        if (empty($vehicles)) return [];
+
+        $truckTypeIds   = array_unique(array_filter(array_column($vehicles, 'truck_type_id')));
+        $vehicleTypeIds = array_unique(array_filter(array_column($vehicles, 'vehicle_type_id')));
+
+        $truckTypes   = TruckType::whereIn('id', $truckTypeIds)
+                                 ->get(['id', 'name', 'class', 'base_rate'])->keyBy('id');
+        $vehicleTypes = VehicleType::whereIn('id', $vehicleTypeIds)
+                                   ->get(['id', 'name'])->keyBy('id');
+
+        return array_map(function (array $ev) use ($truckTypes, $vehicleTypes): array {
+            $tt = isset($ev['truck_type_id']) ? $truckTypes->get($ev['truck_type_id']) : null;
+            $vt = isset($ev['vehicle_type_id']) ? $vehicleTypes->get($ev['vehicle_type_id']) : null;
+            return array_merge($ev, [
+                'truck_type_name' => $tt?->name  ?? 'Unknown Truck',
+                'truck_class'     => $tt?->class  ?? null,
+                'base_rate'       => (float) ($tt?->base_rate ?? 0),
+                'vehicle_name'    => $vt?->name  ?? null,
+            ]);
+        }, $vehicles);
     }
 
     public function sendQuotation(Request $request, Quotation $quotation)
@@ -963,11 +1015,16 @@ class DispatchController extends Controller
     public function updateQuotationPrice(Request $request, Quotation $quotation)
     {
         $validated = $request->validate([
-            'new_price' => 'required|numeric|min:0',
-            'additional_fee' => 'nullable|numeric|min:0',
+            'new_price' => 'required|numeric|min:0.01',
+            'additional_fee' => 'nullable|numeric',
             'note' => 'nullable|string|max:1000',
             'assigned_unit_id' => 'nullable|integer|exists:units,id',
         ]);
+
+        // Keep the quotation in its current stage unless it was pending (pending resets back to pending).
+        // Revising a sent/negotiating quotation keeps it at 'sent' and clears the counter offer.
+        $previousStatus = $quotation->status;
+        $newStatus = in_array($previousStatus, ['sent', 'negotiating']) ? 'sent' : 'pending';
 
         $updateData = [
             'estimated_price'      => $validated['new_price'],
@@ -975,7 +1032,7 @@ class DispatchController extends Controller
             'discount'             => 0,
             'counter_offer_amount' => null,
             'response_note'        => null,
-            'status'               => 'pending',
+            'status'               => $newStatus,
         ];
 
         $quotation->update($updateData);
@@ -1046,5 +1103,29 @@ class DispatchController extends Controller
                 'status' => $quotation->status,
             ],
         ]);
+    }
+
+    public function unitLocations(): \Illuminate\Http\JsonResponse
+    {
+        $units = Unit::with('teamLeader')
+            ->whereNotNull('current_lat')
+            ->whereNotNull('current_lng')
+            ->where('status', '!=', 'maintenance')
+            ->get();
+
+        $data = $units->map(function (Unit $unit) {
+            return [
+                'unit_id'          => $unit->id,
+                'lat'              => $unit->current_lat,
+                'lng'              => $unit->current_lng,
+                'status'           => $unit->status,
+                'team_leader_name' => $unit->teamLeader?->name ?? 'Unknown',
+                'updated_seconds_ago' => $unit->location_updated_at
+                    ? (int) $unit->location_updated_at->diffInSeconds(now())
+                    : null,
+            ];
+        });
+
+        return response()->json($data);
     }
 }

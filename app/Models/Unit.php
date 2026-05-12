@@ -26,6 +26,15 @@ class Unit extends Model
         'dispatcher_note',
         'last_updated_by',
         'last_updated_at',
+        'current_lat',
+        'current_lng',
+        'location_updated_at',
+    ];
+
+    protected $casts = [
+        'location_updated_at' => 'datetime',
+        'current_lat'         => 'float',
+        'current_lng'         => 'float',
     ];
     public function zone()
     {

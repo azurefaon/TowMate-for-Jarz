@@ -794,6 +794,67 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
+
+        /* ── Wait time badge ─────────────────────────────────────── */
+        .wait-badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 2px 7px;
+            border-radius: 10px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .wait-ok     { background: #f5f5f5; color: #737373; }
+        .wait-warn   { background: #fff7ed; color: #f97316; }
+        .wait-urgent { background: #fef2f2; color: #dc2626; }
+
+        /* ── Return task alert banner ────────────────────────────── */
+        .return-alert-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+            border-left: 4px solid #dc2626;
+            padding: 10px 16px;
+            border-radius: 0;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: #dc2626;
+        }
+        .return-alert-icon { font-size: 15px; flex-shrink: 0; }
+        .return-alert-text { flex: 1; }
+        .return-alert-btn {
+            background: #dc2626; color: #fff; border: none;
+            padding: 5px 13px; border-radius: 4px; cursor: pointer;
+            font-size: 12px; white-space: nowrap; flex-shrink: 0;
+        }
+        .return-alert-btn:hover { background: #b91c1c; }
+        .return-alert-dismiss {
+            background: none; border: none; color: #dc2626;
+            cursor: pointer; font-size: 17px; padding: 0 2px; flex-shrink: 0;
+        }
+
+        /* ── GPS dot (TL status table) ───────────────────────────── */
+        .gps-dot {
+            display: inline-block; width: 8px; height: 8px;
+            border-radius: 50%; margin-right: 5px; vertical-align: middle;
+        }
+        .gps-live    { background: #16a34a; }
+        .gps-recent  { background: #f97316; }
+        .gps-offline { background: #d4d4d4; }
+        .gps-label-live    { color: #16a34a; }
+        .gps-label-recent  { color: #f97316; }
+        .gps-label-offline { color: #9ca3af; }
+
+        /* ── Task chip in TL table ───────────────────────────────── */
+        .tl-task-chip {
+            display: inline-block; padding: 2px 8px; border-radius: 4px;
+            font-size: 11px; white-space: nowrap;
+        }
+        .tl-task-chip--active { background: #eff6ff; color: #1d4ed8; }
+        .tl-task-chip--verify { background: #f0fdf4; color: #15803d; }
+        .tl-task-chip--other  { background: #f8fafc; color: #64748b; }
     </style>
 @endpush
 
@@ -816,6 +877,14 @@
                 <div class="view-controls">
                     <span class="count" id="requestCount">{{ $queueCounts['book-now'] ?? $incomingRequests->count() }}</span>
                 </div>
+            </div>
+
+            {{-- Return task alert banner --}}
+            <div id="returnAlertBanner" class="return-alert-banner" style="display:none;">
+                <span class="return-alert-icon">&#9888;</span>
+                <span class="return-alert-text" id="returnAlertText"></span>
+                <button onclick="window.showReturnedQueue()" class="return-alert-btn">View Returns</button>
+                <button onclick="document.getElementById('returnAlertBanner').style.display='none'" class="return-alert-dismiss">&#10005;</button>
             </div>
 
             <div class="queue-tabs" id="dispatchQueueTabs">
@@ -1026,6 +1095,7 @@
                                     <span class="status-badge {{ $statusBadgeClass }}">
                                         {{ $statusBadgeLabel }}
                                     </span>
+                                    <span class="wait-badge" data-wait></span>
                                 </div>
 
                                 <div class="incoming-details" style="margin-top: 10px;">
@@ -1110,7 +1180,7 @@
                                         data-confirm-url="{{ route('admin.jobs.confirm-payment', $booking) }}">
                                         Complete Job
                                     </button>
-                                @elseif ($booking->needs_reassignment || $booking->needs_assignment)
+                                @elseif ($booking->needs_reassignment || $booking->needs_assignment || ($booking->status === 'confirmed' && !is_null($booking->assigned_unit_id)))
                                     <button type="button" class="btn-accept" data-id="{{ $booking->job_code }}"
                                         data-action="accept">
                                         {{ $booking->needs_reassignment ? 'Reassign Task' : 'Start Job' }}
@@ -1190,7 +1260,8 @@
                         $bnTotal = $bnGroupBookings->sum('final_total');
                     @endphp
                     <div class="incoming-card" data-queue="book-now"
-                        data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}" data-status="{{ $bnPrimary->status }}">
+                        data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}" data-status="{{ $bnPrimary->status }}"
+                        data-created-at="{{ $bnPrimary->created_at->toIso8601String() }}">
                         <div class="incoming-left">
                             <div class="incoming-header">
                                 <span class="queue-chip book-now">Book
@@ -1199,6 +1270,7 @@
                                     class="status-badge {{ $bnPrimary->status }}">{{ ucfirst(str_replace('_', ' ', $bnPrimary->status)) }}</span>
                                 <span
                                     style="font-size:0.78rem;color:#64748b;">{{ $bnPrimary->created_at->diffForHumans() }}</span>
+                                <span class="wait-badge" data-wait></span>
                             </div>
                             <div class="incoming-route">
                                 <strong>{{ $bnPrimary->pickup_address }}</strong>
@@ -1252,13 +1324,15 @@
                     @endphp
                     <div class="incoming-card {{ $isConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }}"
                         data-queue="scheduled" data-id="{{ $schPrimary->job_code ?? $schPrimary->id }}"
-                        data-status="{{ $schPrimary->status }}">
+                        data-status="{{ $schPrimary->status }}"
+                        data-created-at="{{ $schPrimary->created_at->toIso8601String() }}">
                         <div class="incoming-left">
                             <div class="incoming-header">
                                 <span
                                     class="queue-chip scheduled">{{ $isConfirmed ? 'Confirmed Schedule' : 'Scheduled' }}{{ $schCount > 1 ? ' · ' . $schCount . ' vehicles' : '' }}</span>
                                 <span
                                     class="status-badge {{ $schPrimary->status }}">{{ ucfirst(str_replace('_', ' ', $schPrimary->status)) }}</span>
+                                <span class="wait-badge" data-wait></span>
                             </div>
                             <div class="incoming-route">
                                 <strong>{{ $schPrimary->pickup_address }}</strong>
@@ -1768,7 +1842,7 @@
             </div>
         </div>
 
-        {{-- <div class="dp-tl-section">
+        <div class="dp-tl-section">
             <div class="dp-tl-header">
                 <div>
                     <h3 class="dp-tl-title">Team Leaders</h3>
@@ -1778,15 +1852,13 @@
 
             @php
                 $dpStatuses = $teamLeaderStatuses ?? collect();
-                $dpTLs = \App\Models\User::visibleToOperations()
-                    ->where('role_id', 3)
-                    ->with(['unit'])
-                    ->get()
-                    ->filter(fn($tl) => $tl->unit !== null && $tl->unit->status === 'available');
+                $dpGps      = $unitGpsData ?? collect();
+                $dpTasks    = $activeTasksByTL ?? collect();
+                $dpTLs      = $teamLeaders ?? collect();
             @endphp
 
             @if ($dpTLs->isEmpty())
-                <div class="dp-tl-empty">No team leaders with assigned units found.</div>
+                <div class="dp-tl-empty">No team leaders found.</div>
             @else
                 <div class="dp-tl-table-wrap">
                     <table class="dp-tl-table">
@@ -1794,65 +1866,86 @@
                             <tr>
                                 <th>Team Leader</th>
                                 <th>Unit</th>
-                                <th>Zone</th>
+                                <th>GPS Signal</th>
+                                <th>Current Task</th>
                                 <th>Status</th>
-                                <th>Override Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($dpTLs as $dtl)
                                 @php
-                                    $ds = $dpStatuses->get($dtl->id) ?? [];
-                                    $dOnline = ($ds['presence'] ?? 'offline') === 'online';
+                                    $ds       = $dpStatuses->get($dtl->id) ?? [];
+                                    $dOnline  = ($ds['presence'] ?? 'offline') === 'online';
                                     $dHasUnit = !empty($ds['unit_name']) && $ds['unit_name'] !== 'No assigned unit';
                                     $dWorkload = $ds['workload'] ?? 'unavailable';
-                                    $dUnitSt = $ds['unit_status'] ?? null;
-                                    $dZone = $ds['zone_name'] ?? ($dtl->unit?->zone?->name ?? null);
+                                    $dUnitSt   = $ds['unit_status'] ?? null;
 
-                                    // Offline forces Not Available
+                                    // GPS signal from the TL's phone (updated by Flutter LocationTracker)
+                                    $gpsUnit = $dpGps->get($dtl->id);
+                                    $gpsAt   = $gpsUnit ? $gpsUnit->location_updated_at : null;
+                                    if (!$gpsAt) {
+                                        $gpsClass = 'offline';
+                                    } elseif ($gpsAt->diffInMinutes(now()) < 2) {
+                                        $gpsClass = 'live';
+                                    } elseif ($gpsAt->diffInMinutes(now()) < 30) {
+                                        $gpsClass = 'recent';
+                                    } else {
+                                        $gpsClass = 'offline';
+                                    }
+                                    $gpsLabel = ['live' => 'Live', 'recent' => 'Recent', 'offline' => 'Offline'][$gpsClass];
+
+                                    // Active task assigned to this TL
+                                    $dTask = $dpTasks->get($dtl->id);
+
+                                    // Status badge
                                     if (!$dOnline) {
                                         $dBadgeLabel = 'Not Available';
-                                        $dBadgeCls = 'dp-badge--off';
-                                        $dForced = true;
-                                        $dSelVal = 'unavailable';
-                                        $dUnitLocked = true;
+                                        $dBadgeCls   = 'dp-badge--off';
+                                        $dForced     = true;
+                                        $dSelVal     = 'unavailable';
                                     } elseif ($dUnitSt === 'on_tow') {
                                         $dBadgeLabel = 'On Tow';
-                                        $dBadgeCls = 'dp-badge--tow';
-                                        $dForced = false;
-                                        $dSelVal = 'on_tow';
-                                        $dUnitLocked = true;
+                                        $dBadgeCls   = 'dp-badge--tow';
+                                        $dForced     = false;
+                                        $dSelVal     = 'on_tow';
                                     } elseif ($dWorkload === 'busy') {
                                         $dBadgeLabel = 'Deployed';
-                                        $dBadgeCls = 'dp-badge--busy';
-                                        $dForced = false;
-                                        $dSelVal = 'on_job';
-                                        $dUnitLocked = true;
+                                        $dBadgeCls   = 'dp-badge--busy';
+                                        $dForced     = false;
+                                        $dSelVal     = 'on_job';
                                     } elseif ($dUnitSt === 'unavailable') {
                                         $dBadgeLabel = 'Not Available';
-                                        $dBadgeCls = 'dp-badge--off';
-                                        $dForced = false;
-                                        $dSelVal = 'unavailable';
-                                        $dUnitLocked = true;
+                                        $dBadgeCls   = 'dp-badge--off';
+                                        $dForced     = false;
+                                        $dSelVal     = 'unavailable';
                                     } elseif ($dWorkload === 'idle') {
                                         $dBadgeLabel = 'Idle';
-                                        $dBadgeCls = 'dp-badge--idle';
-                                        $dForced = true;
-                                        $dSelVal = '';
-                                        $dUnitLocked = false;
+                                        $dBadgeCls   = 'dp-badge--idle';
+                                        $dForced     = true;
+                                        $dSelVal     = '';
                                     } else {
                                         $dBadgeLabel = 'Available';
-                                        $dBadgeCls = 'dp-badge--avail';
-                                        $dForced = false;
-                                        $dSelVal = 'available';
-                                        $dUnitLocked = false;
+                                        $dBadgeCls   = 'dp-badge--avail';
+                                        $dForced     = false;
+                                        $dSelVal     = 'available';
                                     }
 
-                                    $dParts = explode(' ', trim($dtl->name));
+                                    $dParts    = explode(' ', trim($dtl->name));
                                     $dInitials = strtoupper(
                                         substr($dParts[0], 0, 1) .
-                                            (count($dParts) > 1 ? substr(end($dParts), 0, 1) : ''),
+                                        (count($dParts) > 1 ? substr(end($dParts), 0, 1) : ''),
                                     );
+
+                                    $dTaskStatusChip = '';
+                                    if ($dTask) {
+                                        $chipCls = match(true) {
+                                            in_array($dTask->status, ['waiting_verification', 'arrived_dropoff']) => 'tl-task-chip--verify',
+                                            in_array($dTask->status, ['on_the_way', 'on_job', 'loading_vehicle']) => 'tl-task-chip--active',
+                                            default => 'tl-task-chip--other',
+                                        };
+                                        $dTaskLabel = ucfirst(str_replace('_', ' ', $dTask->status));
+                                        $dTaskStatusChip = "<span class=\"tl-task-chip {$chipCls}\">{$dTaskLabel}</span>";
+                                    }
                                 @endphp
                                 <tr class="dp-tl-row" data-tlid="{{ $dtl->id }}">
                                     <td>
@@ -1860,43 +1953,32 @@
                                             <div class="dp-avatar">{{ $dInitials }}</div>
                                             <div>
                                                 <div class="dp-name">{{ $dtl->name }}</div>
-                                                <div
-                                                    class="dp-presence dp-presence--{{ $dOnline ? 'online' : 'offline' }}">
-                                                    {{ $dOnline ? 'Online' : 'Offline' }}</div>
+                                                <div class="dp-presence dp-presence--{{ $dOnline ? 'online' : 'offline' }}">
+                                                    {{ $dOnline ? 'Online' : 'Offline' }}
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
                                     <td class="dp-unit-cell" id="dpUnit-{{ $dtl->id }}">
-                                        {{ $dHasUnit ? $ds['unit_name'] ?? ($dtl->unit?->name ?? '—') : $dtl->unit?->name ?? '—' }}
+                                        {{ $dHasUnit ? ($ds['unit_name'] ?? '—') : '—' }}
                                     </td>
                                     <td>
-                                        @if ($dZone)
-                                            <span class="dp-zone-badge">{{ $dZone }}</span>
+                                        <span class="gps-dot gps-{{ $gpsClass }}"></span>
+                                        <span class="gps-label-{{ $gpsClass }}" style="font-size:.82rem;">{{ $gpsLabel }}</span>
+                                        @if ($gpsAt)
+                                            <span style="font-size:.72rem;color:#9ca3af;margin-left:4px;">{{ $gpsAt->diffForHumans() }}</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if ($dTask)
+                                            <div style="font-size:.82rem;color:#0f172a;margin-bottom:3px;">{{ $dTask->booking_code }}</div>
+                                            {!! $dTaskStatusChip !!}
                                         @else
-                                            <span class="dp-zone-none">No zone</span>
+                                            <span style="color:#9ca3af;font-size:.82rem;">—</span>
                                         @endif
                                     </td>
                                     <td>
                                         <span class="dp-status-badge {{ $dBadgeCls }}">{{ $dBadgeLabel }}</span>
-                                    </td>
-                                    <td>
-                                        <div class="dp-ctrl-cell">
-                                            <select class="dp-select dp-status-sel" data-tlid="{{ $dtl->id }}"
-                                                data-current="{{ $dSelVal }}"
-                                                data-online="{{ $dOnline ? '1' : '0' }}"
-                                                {{ $dForced ? 'disabled' : '' }}>
-                                                <option value="available"
-                                                    {{ $dSelVal === 'available' ? 'selected' : '' }}>Available</option>
-                                                <option value="unavailable"
-                                                    {{ $dSelVal === 'unavailable' ? 'selected' : '' }}>Not Available
-                                                </option>
-                                                <option value="on_tow" {{ $dSelVal === 'on_tow' ? 'selected' : '' }}>On
-                                                    Tow</option>
-                                                <option value="on_job" {{ $dSelVal === 'on_job' ? 'selected' : '' }}>On
-                                                    Job</option>
-                                            </select>
-                                            <span class="dp-saving" id="dpStSaving-{{ $dtl->id }}"></span>
-                                        </div>
                                     </td>
                                 </tr>
                             @endforeach
@@ -1904,7 +1986,7 @@
                     </table>
                 </div>
             @endif
-        </div> --}}
+        </div>
 
     </div>{{-- /.dashboard-container --}}
 
@@ -1955,6 +2037,7 @@
 @endsection
 
 @push('scripts')
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script src="{{ asset('dispatcher/js/dispatch.js') }}?v={{ filemtime(public_path('dispatcher/js/dispatch.js')) }}">
     </script>
     <script>

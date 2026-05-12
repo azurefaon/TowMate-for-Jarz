@@ -198,8 +198,11 @@
 
     <script>
         window.PusherConfig = {
-            key: '{{ config('broadcasting.connections.pusher.key', 'local') }}',
-            cluster: '{{ config('broadcasting.connections.pusher.options.cluster', 'mt1') }}'
+            key: '{{ config("reverb.apps.apps.0.key") }}',
+            wsHost: '{{ config("reverb.apps.apps.0.options.host", "localhost") }}',
+            wsPort: {{ (int) config("reverb.apps.apps.0.options.port", 8080) }},
+            wssPort: {{ (int) config("reverb.apps.apps.0.options.port", 8080) }},
+            forceTLS: {{ config("reverb.apps.apps.0.options.scheme", "https") === "https" ? "true" : "false" }},
         };
 
         window.dispatcherNotifications = {

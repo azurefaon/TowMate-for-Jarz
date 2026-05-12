@@ -7,15 +7,18 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\TruckType;
 use App\Services\BookingService;
+use App\Services\QuotationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class CustomerBookingController extends Controller
 {
     private const INACTIVE_STATUSES = ['completed', 'cancelled', 'rejected'];
 
-    public function __construct(private readonly BookingService $bookingService) {}
+    public function __construct(
+        private readonly BookingService $bookingService,
+        private readonly QuotationService $quotationService,
+    ) {}
 
     public function truckTypes(): JsonResponse
     {
@@ -151,7 +154,6 @@ class CustomerBookingController extends Controller
         }
 
         $booking = Booking::create([
-            'booking_code'     => 'TMP-' . Str::uuid(),
             'customer_id'      => $customer->id,
             'truck_type_id'    => $validated['truck_type_id'],
             'vehicle_type_id'  => $validated['vehicle_type_id'] ?? null,
@@ -182,6 +184,31 @@ class CustomerBookingController extends Controller
         if ($request->hasFile('vehicle_images')) {
             $imagePath = $this->bookingService->storeVehicleImages($request->file('vehicle_images'));
             $booking->update(['vehicle_image_path' => $imagePath]);
+        }
+
+        // Auto-create a pending quotation so the dispatcher sees it in the Floating Quotations area
+        try {
+            $quotation = $this->quotationService->createQuotation([
+                'source_booking_id'  => $booking->id,
+                'customer_id'        => $customer->id,
+                'truck_type_id'      => $validated['truck_type_id'],
+                'pickup_address'     => $validated['pickup_address'],
+                'dropoff_address'    => $validated['dropoff_address'],
+                'distance_km'        => $distanceKm,
+                'estimated_price'    => $computedTotal,
+                'service_type'       => $validated['service_type'] ?? 'book_now',
+                'scheduled_date'     => $validated['scheduled_date'] ?? null,
+                'scheduled_time'     => $validated['scheduled_time'] ?? null,
+                'vehicle_image_path' => $booking->vehicle_image_path,
+                'extra_vehicles'     => $extraVehicles,
+                'pickup_notes'       => $validated['notes'] ?? null,
+            ]);
+            $booking->update(['quotation_id' => $quotation->id]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to auto-create quotation for mobile booking', [
+                'booking_id' => $booking->id,
+                'error'      => $e->getMessage(),
+            ]);
         }
 
         return response()->json([

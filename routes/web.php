@@ -275,6 +275,7 @@ Route::prefix('admin-dashboard')
         Route::get('/live-overview', [AdminController::class, 'liveOverview'])->name('live-overview');
         Route::get('/dispatch', [DispatchController::class, 'index'])->name('dispatch');
         Route::get('/pending-bookings-count', [DispatchController::class, 'pendingBookingsCount'])->name('pending-bookings-count');
+        Route::get('/units/locations', [DispatchController::class, 'unitLocations'])->name('units.locations');
 
         Route::get('/drivers', [DriversController::class, 'index'])->name('drivers');
         Route::post('/drivers/{teamLeader}/assign-unit', [DriversController::class, 'assignUnit'])->name('drivers.assign-unit');
