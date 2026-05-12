@@ -9,15 +9,28 @@ return new class extends Migration
     public function up()
     {
         Schema::table('quotations', function (Blueprint $table) {
-            $table->decimal('additional_fee', 10, 2)->default(0);
-            $table->decimal('discount', 10, 2)->default(0);
+
+            if (!Schema::hasColumn('quotations', 'additional_fee')) {
+                $table->decimal('additional_fee', 10, 2)->default(0);
+            }
+
+            if (!Schema::hasColumn('quotations', 'discount')) {
+                $table->decimal('discount', 10, 2)->default(0);
+            }
         });
     }
 
     public function down()
     {
         Schema::table('quotations', function (Blueprint $table) {
-            $table->dropColumn(['additional_fee', 'discount']);
+
+            if (Schema::hasColumn('quotations', 'additional_fee')) {
+                $table->dropColumn('additional_fee');
+            }
+
+            if (Schema::hasColumn('quotations', 'discount')) {
+                $table->dropColumn('discount');
+            }
         });
     }
 };
