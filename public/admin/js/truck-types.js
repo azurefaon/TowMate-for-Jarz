@@ -57,6 +57,9 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("editDescription").value =
                 button.dataset.description || "";
 
+            const editClassEl = document.getElementById('editClass');
+            if (editClassEl) editClassEl.value = button.dataset.class || '';
+
             if (editForm) {
                 editForm.action = `${baseUrl}/${button.dataset.id}`;
             }
@@ -119,17 +122,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const search = (searchInput?.value || "").trim().toLowerCase();
         const status = statusFilter?.value || "all";
 
-        document
-            .querySelectorAll("#truckTypesTable tr[data-status]")
-            .forEach((row) => {
-                const matchesSearch = row.textContent
-                    .toLowerCase()
-                    .includes(search);
-                const matchesStatus =
-                    status === "all" || row.dataset.status === status;
-                row.style.display =
-                    matchesSearch && matchesStatus ? "" : "none";
-            });
+        document.querySelectorAll("[data-card][data-status]").forEach((card) => {
+            const searchable = (card.dataset.search || card.textContent).toLowerCase();
+            const matchesSearch = searchable.includes(search);
+            const matchesStatus = status === "all" || card.dataset.status === status;
+            card.style.display = matchesSearch && matchesStatus ? "" : "none";
+        });
     };
 
     searchInput?.addEventListener("input", filterRows);

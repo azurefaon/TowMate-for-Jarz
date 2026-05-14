@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Tow Truck Types')
+@section('title', 'Truck Classes')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/truck-types.css') }}">
@@ -18,42 +18,13 @@
 
         <div class="page-top">
             <div>
-                <h1>Tow Truck Types</h1>
-                <p>Manage only the truck classes used for towing operations, not customer vehicle categories.</p>
+                <h1>Truck Classes</h1>
+                <p>{{ $stats['active'] }} active · {{ $stats['inactive'] }} inactive · {{ $stats['units'] }} unit(s) linked</p>
             </div>
 
-            <div class="header-actions">
-                <a href="{{ route('superadmin.unit-truck.index') }}" class="btn-back">
-                    <i data-lucide="arrow-left"></i>
-                    <span>Back to Units</span>
-                </a>
-            </div>
-        </div>
-
-        <div class="overview-grid">
-            <div class="overview-card">
-                <span>Total Types</span>
-                <strong>{{ $stats['total'] }}</strong>
-                <small>Configured towing categories</small>
-            </div>
-
-            <div class="overview-card accent-card">
-                <span>Active Types</span>
-                <strong>{{ $stats['active'] }}</strong>
-                <small>Available for dispatch</small>
-            </div>
-
-            <div class="overview-card muted-card">
-                <span>Inactive Types</span>
-                <strong>{{ $stats['inactive'] }}</strong>
-                <small>Hidden from new assignments</small>
-            </div>
-
-            <div class="overview-card dark-card">
-                <span>Fleet Units</span>
-                <strong>{{ $stats['units'] }}</strong>
-                <small>Units linked to tow classes</small>
-            </div>
+            <button type="button" class="btn-primary-add" data-open-modal="addModal">
+                Add Truck Class
+            </button>
         </div>
 
         <div class="table-card">
@@ -66,7 +37,6 @@
                 <div class="table-controls">
                     <div class="table-toolbar">
                         <label class="search-box">
-                            <i data-lucide="search"></i>
                             <input type="text" id="truckTypeSearch" placeholder="Search towing classes...">
                         </label>
 
@@ -75,139 +45,113 @@
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
-
-                        <button type="button" class="btn-primary-add" data-open-modal="addModal">
-                            {{-- <i data-lucide="plus-circle"></i> --}}
-                            <span>Add Tow Truck Type</span>
-                        </button>
                     </div>
                 </div>
             </div>
 
-            <div class="table-scroll">
-                <table class="modern-table">
-                    <thead>
-                        <tr>
-                            <th>Truck Type</th>
-                            <th>Pricing</th>
-                            <th>Capacity</th>
-                            <th>Vehicle Types</th>
-                            <th>Linked Units</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
+            <div class="class-cards">
+                @forelse ($truckTypes as $type)
+                    <div class="class-card"
+                         data-card
+                         data-status="{{ $type->status }}"
+                         data-search="{{ strtolower($type->name . ' ' . ($type->description ?? '')) }}">
 
-                    <tbody id="truckTypesTable">
-                        @forelse ($truckTypes as $type)
-                            <tr data-status="{{ $type->status }}">
-                                <td data-label="Truck Type">
-                                    <div class="type-name-wrap">
-                                        <strong>{{ $type->name }}</strong>
-                                        <small>{{ $type->description ?: 'Dedicated towing class for fleet dispatch.' }}</small>
-                                    </div>
-                                </td>
-                                <td data-label="Pricing">
-                                    <div class="price-stack">
-                                        <div class="price-line">
-                                            <small>Base Rate</small>
-                                            <strong>₱{{ number_format($type->base_rate, 2) }}</strong>
-                                        </div>
-                                        <div class="price-line">
-                                            <small>Per KM</small>
-                                            <span>₱{{ number_format($type->per_km_rate, 2) }}/km</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td data-label="Capacity">
-                                    {{ $type->max_tonnage ? number_format((float) $type->max_tonnage, 1) . ' tons' : 'Not set' }}
-                                </td>
-                                <td data-label="Vehicle Types">
-                                    <div class="vt-cell" data-truck-id="{{ $type->id }}">
-                                        @foreach ($type->vehicleTypes as $vt)
-                                            <span class="vt-pill" id="vt-pill-{{ $type->id }}-{{ $vt->id }}">
-                                                {{ $vt->name }}
-                                                <button type="button" class="vt-remove"
-                                                    data-truck="{{ $type->id }}"
-                                                    data-vehicle="{{ $vt->id }}"
-                                                    title="Remove">×</button>
-                                            </span>
+                        <div class="class-card-header">
+                            <div class="class-card-info">
+                                <span class="class-card-name">{{ $type->name }}</span>
+                                <span class="class-card-meta">
+                                    ₱{{ number_format($type->base_rate, 0) }} base
+                                    · ₱{{ number_format($type->per_km_rate, 0) }}/km
+                                    @if ($type->max_tonnage)· {{ number_format((float) $type->max_tonnage, 1) }} ton cap.@endif
+                                    · {{ $type->units_count ?? 0 }} unit(s)
+                                </span>
+                                @if ($type->description)
+                                    <span class="class-card-desc">{{ $type->description }}</span>
+                                @endif
+                            </div>
+
+                            <div class="class-card-right">
+                                <span class="status-pill {{ $type->status }}">{{ ucfirst($type->status) }}</span>
+                                <div class="class-card-actions">
+                                    <button type="button" class="card-action js-edit-type"
+                                        data-id="{{ $type->id }}"
+                                        data-name="{{ $type->name }}"
+                                        data-class="{{ $type->class }}"
+                                        data-base="{{ $type->base_rate }}"
+                                        data-km="{{ $type->per_km_rate }}"
+                                        data-tonnage="{{ $type->max_tonnage }}"
+                                        data-description="{{ $type->description }}">edit</button>
+
+                                    <span class="action-sep">·</span>
+
+                                    @if ($type->status === 'active')
+                                        <button type="button" class="card-action js-disable-type"
+                                            data-id="{{ $type->id }}"
+                                            data-name="{{ $type->name }}"
+                                            data-busy="{{ ($type->units_count ?? 0) > 0 || ($type->active_bookings_count ?? 0) > 0 ? '1' : '0' }}"
+                                            data-unit-count="{{ $type->units_count ?? 0 }}"
+                                            data-booking-count="{{ $type->active_bookings_count ?? 0 }}">
+                                            {{ ($type->units_count ?? 0) > 0 || ($type->active_bookings_count ?? 0) > 0 ? 'busy' : 'disable' }}
+                                        </button>
+                                    @else
+                                        <form method="POST"
+                                            action="{{ route('superadmin.truck-types.toggle', $type->id) }}"
+                                            style="display:inline">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" class="card-action card-action--enable">enable</button>
+                                        </form>
+                                    @endif
+
+                                    <span class="action-sep">·</span>
+
+                                    <button type="button" class="card-action card-action--danger js-delete-type"
+                                        data-id="{{ $type->id }}"
+                                        data-name="{{ $type->name }}"
+                                        data-units="{{ $type->units_count ?? 0 }}"
+                                        data-bookings="{{ $type->active_bookings_count ?? 0 }}">delete</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="class-card-chips">
+                            <div class="vt-cell" data-truck-id="{{ $type->id }}">
+                                @foreach ($type->vehicleTypes as $vt)
+                                    <span class="vt-pill" id="vt-pill-{{ $type->id }}-{{ $vt->id }}">
+                                        {{ $vt->name }}
+                                        <button type="button" class="vt-remove"
+                                            data-truck="{{ $type->id }}"
+                                            data-vehicle="{{ $vt->id }}"
+                                            title="Remove">×</button>
+                                    </span>
+                                @endforeach
+
+                                @php
+                                    $linkedIds = $type->vehicleTypes->pluck('id')->all();
+                                    $available = $allVehicleTypes->reject(fn($v) => in_array($v->id, $linkedIds));
+                                @endphp
+
+                                @if ($available->isNotEmpty())
+                                    <select class="vt-add-select" data-truck="{{ $type->id }}">
+                                        <option value="">+ add vehicle type</option>
+                                        @foreach ($available as $av)
+                                            <option value="{{ $av->id }}">{{ $av->name }}</option>
                                         @endforeach
-                                        @php
-                                            $linkedIds = $type->vehicleTypes->pluck('id')->all();
-                                            $available = $allVehicleTypes->reject(fn($v) => in_array($v->id, $linkedIds));
-                                        @endphp
-                                        @if ($available->isNotEmpty())
-                                            <select class="vt-add-select" data-truck="{{ $type->id }}">
-                                                <option value="">+ Add</option>
-                                                @foreach ($available as $av)
-                                                    <option value="{{ $av->id }}">{{ $av->name }}</option>
-                                                @endforeach
-                                            </select>
-                                        @endif
-                                    </div>
-                                </td>
-                                <td data-label="Linked Units">
-                                    <span class="count-pill">{{ $type->units_count ?? 0 }} units</span>
-                                </td>
-                                <td data-label="Status">
-                                    <span class="status-pill {{ $type->status }}">{{ ucfirst($type->status) }}</span>
-                                </td>
-                                <td data-label="Actions" class="table-actions">
-                                    <div class="action-buttons">
-                                        <button type="button" class="action-btn edit-btn js-edit-type"
-                                            data-id="{{ $type->id }}" data-name="{{ $type->name }}"
-                                            data-base="{{ $type->base_rate }}" data-km="{{ $type->per_km_rate }}"
-                                            data-tonnage="{{ $type->max_tonnage }}"
-                                            data-description="{{ $type->description }}">
-                                            <i data-lucide="pencil"></i>
-                                            <span>Edit</span>
-                                        </button>
+                                    </select>
+                                @endif
 
-                                        @if ($type->status === 'active')
-                                            <button type="button" class="action-btn btn-danger js-disable-type"
-                                                data-id="{{ $type->id }}" data-name="{{ $type->name }}"
-                                                data-busy="{{ ($type->units_count ?? 0) > 0 || ($type->active_bookings_count ?? 0) > 0 ? '1' : '0' }}"
-                                                data-unit-count="{{ $type->units_count ?? 0 }}"
-                                                data-booking-count="{{ $type->active_bookings_count ?? 0 }}">
-                                                <i data-lucide="ban"></i>
-                                                <span>{{ ($type->units_count ?? 0) > 0 || ($type->active_bookings_count ?? 0) > 0 ? 'Busy' : 'Disable' }}</span>
-                                            </button>
-                                        @else
-                                            <form method="POST"
-                                                action="{{ route('superadmin.truck-types.toggle', $type->id) }}">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="action-btn btn-success">
-                                                    <i data-lucide="check-circle"></i>
-                                                    <span>Enable</span>
-                                                </button>
-                                            </form>
-                                        @endif
-
-                                        <button type="button" class="action-btn btn-danger js-delete-type"
-                                            data-id="{{ $type->id }}" data-name="{{ $type->name }}"
-                                            data-units="{{ $type->units_count ?? 0 }}"
-                                            data-bookings="{{ $type->active_bookings_count ?? 0 }}">
-                                            <i data-lucide="trash-2"></i>
-                                            <span>Delete</span>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7">
-                                    <div class="empty-state">
-                                        <i data-lucide="truck"></i>
-                                        <h3>No tow truck types yet</h3>
-                                        <p>Add your first towing class to organize the fleet better.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                                @if ($type->vehicleTypes->isEmpty() && $available->isEmpty())
+                                    <span class="vt-empty">no vehicle types configured</span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <div class="empty-state" style="padding:40px 20px;">
+                        <h3>No tow truck classes yet</h3>
+                        <p>Add your first towing class to organize the fleet.</p>
+                    </div>
+                @endforelse
             </div>
 
             <div class="pagination-wrapper">
@@ -219,8 +163,8 @@
             <div class="modal-card">
                 <div class="modal-header">
                     <div>
-                        <h2>Add Tow Truck Type</h2>
-                        <p>Create a towing-only truck class with pricing and load range.</p>
+                        <h2>Add Truck Class</h2>
+                        <p>Set a name, duty class, and pricing for this towing truck.</p>
                     </div>
                     <button type="button" class="modal-close" data-close-modal="addModal">✕</button>
                 </div>
@@ -229,23 +173,31 @@
                     @csrf
 
                     <div class="form-group">
-                        <label for="newTruckTypeName">Truck Type Name</label>
-                        <small class="input-hint">Example: Flatbed, Wheel-Lift, Medium Duty, or Heavy Duty</small>
+                        <label for="newTruckTypeName">Name</label>
                         <input id="newTruckTypeName" type="text" name="name"
-                            placeholder="Enter towing class like Flatbed" required>
+                            placeholder="e.g. Flatbed, Wheel-Lift" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="newTruckTypeClass">Duty Class</label>
+                        <small class="input-hint">Determines which units the mobile app shows as available</small>
+                        <select id="newTruckTypeClass" name="class">
+                            <option value="">— not set —</option>
+                            <option value="light">Light Duty</option>
+                            <option value="medium">Medium Duty</option>
+                            <option value="heavy">Heavy Duty</option>
+                        </select>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="newTruckTypeBase">Base Rate</label>
-                            <small class="input-hint">Starting rate for the initial distance</small>
                             <input id="newTruckTypeBase" type="number" step="0.01" name="base_rate"
                                 placeholder="1500" required>
                         </div>
 
                         <div class="form-group">
                             <label for="newTruckTypeKm">Per KM Rate</label>
-                            <small class="input-hint">Additional cost per kilometer after base distance</small>
                             <input id="newTruckTypeKm" type="number" step="0.01" name="per_km_rate"
                                 placeholder="200" required>
                         </div>
@@ -253,16 +205,14 @@
 
                     <div class="form-group">
                         <label for="newTruckTypeTonnage">Max Tonnage</label>
-                        <small class="input-hint">Load capacity for this towing truck type</small>
                         <input id="newTruckTypeTonnage" type="number" step="0.01" name="max_tonnage"
                             placeholder="4.5">
                     </div>
 
                     <div class="form-group">
-                        <label for="newTruckTypeDescription">Description</label>
-                        <small class="input-hint">Short note about what recovery jobs this truck fits best</small>
+                        <label for="newTruckTypeDescription">Notes</label>
                         <textarea id="newTruckTypeDescription" name="description"
-                            placeholder="Suitable for compact recovery and city towing"></textarea>
+                            placeholder="Optional notes about this class"></textarea>
                     </div>
 
                     <div class="modal-footer">
@@ -277,8 +227,8 @@
             <div class="modal-card">
                 <div class="modal-header">
                     <div>
-                        <h2>Edit Tow Truck Type</h2>
-                        <p>Adjust towing price, capacity, or operational notes.</p>
+                        <h2>Edit Truck Class</h2>
+                        <p>Update pricing, capacity, or duty class.</p>
                     </div>
                     <button type="button" class="modal-close" data-close-modal="editModal">✕</button>
                 </div>
@@ -288,8 +238,19 @@
                     @method('PUT')
 
                     <div class="form-group">
-                        <label for="editName">Truck Type Name</label>
+                        <label for="editName">Name</label>
                         <input type="text" name="name" id="editName" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editClass">Duty Class</label>
+                        <small class="input-hint">Determines which units the mobile app shows as available</small>
+                        <select name="class" id="editClass">
+                            <option value="">— not set —</option>
+                            <option value="light">Light Duty</option>
+                            <option value="medium">Medium Duty</option>
+                            <option value="heavy">Heavy Duty</option>
+                        </select>
                     </div>
 
                     <div class="form-row">
@@ -324,10 +285,7 @@
 
         <div id="disableModal" class="modal">
             <div class="modal-content">
-                <div class="danger-icon">
-                    <i data-lucide="alert-triangle"></i>
-                </div>
-                <h3 id="disableTitle">Disable Tow Truck Type?</h3>
+                <h3 id="disableTitle">Disable Truck Class?</h3>
                 <p id="disableText">This type will no longer appear for new towing unit setups.</p>
 
                 <form method="POST" id="disableForm">
@@ -345,8 +303,7 @@
         <!-- Delete Confirmation Modal -->
         <div id="deleteModal" class="modal">
             <div class="modal-content delete-modal-content">
-                <div class="icon-warning">⚠️</div>
-                <h3 id="deleteTitle">Delete Truck Type?</h3>
+                <h3 id="deleteTitle">Delete Truck Class?</h3>
                 <p id="deleteText">Are you sure you want to delete this truck type?</p>
 
                 <form method="POST" id="deleteForm">

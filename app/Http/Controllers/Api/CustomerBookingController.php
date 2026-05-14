@@ -43,6 +43,18 @@ class CustomerBookingController extends Controller
         return response()->json($types);
     }
 
+    public function availability(): JsonResponse
+    {
+        $data = $this->bookingService->dispatchAvailability();
+        return response()->json([
+            'book_now_enabled'         => $data['book_now_enabled'],
+            'ready_units_count'        => $data['ready_units_count'],
+            'recommended_service_type' => $data['recommended_service_type'],
+            'message'                  => $data['message'],
+            'ready_by_class'           => $data['ready_by_class'] ?? (object) [],
+        ]);
+    }
+
     public function currentBooking(Request $request): JsonResponse
     {
         $customer = Customer::where('user_id', $request->user()->id)->first();

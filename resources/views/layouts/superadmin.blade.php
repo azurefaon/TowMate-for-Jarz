@@ -359,32 +359,22 @@
                 </a>
             </li> --}}
 
-            {{-- <div class="sidebar-divider"></div>
+            <div class="sidebar-divider"></div>
             <div class="sidebar-section">FLEET MANAGEMENT</div>
 
             <li>
-                <a href="{{ route('superadmin.unit-truck.index') }}"
-                    class="{{ request()->routeIs('superadmin.unit-truck.*') ? 'active' : '' }}">
-                    <i data-lucide="truck"></i>
-                    <span>Units Overview</span>
-                </a>
-            </li> --}}
-
-            {{-- <li>
                 <a href="{{ route('superadmin.truck-types.index') }}"
                     class="{{ request()->routeIs('superadmin.truck-types.*') ? 'active' : '' }}">
-                    <i data-lucide="package"></i>
-                    <span>Truck Types</span>
+                    <span>Truck Classes</span>
                 </a>
             </li>
 
             <li>
                 <a href="{{ route('superadmin.vehicle-types.index') }}"
                     class="{{ request()->routeIs('superadmin.vehicle-types.*') ? 'active' : '' }}">
-                    <i data-lucide="car"></i>
-                    <span>Vehicle Types</span>
+                    <span>Vehicle Catalog</span>
                 </a>
-            </li> --}}
+            </li>
 
             {{-- <div class="sidebar-divider"></div>
             <div class="sidebar-section">USER MANAGEMENT</div> --}}

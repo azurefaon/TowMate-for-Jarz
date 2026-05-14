@@ -33,7 +33,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('v1')->group(function () {
         // Customer-specific routes — must be defined before apiResource to avoid wildcard collisions
-        Route::get('truck-types', [CustomerBookingController::class, 'truckTypes']);
+        Route::get('truck-types',  [CustomerBookingController::class, 'truckTypes']);
+        Route::get('availability', [CustomerBookingController::class, 'availability']);
         Route::get('bookings/current', [CustomerBookingController::class, 'currentBooking']);
         Route::get('bookings/history', [CustomerBookingController::class, 'bookingHistory']);
         Route::post('bookings', [CustomerBookingController::class, 'createBooking']);

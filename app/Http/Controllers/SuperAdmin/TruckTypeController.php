@@ -41,6 +41,7 @@ class TruckTypeController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:truck_types,name',
+            'class' => 'nullable|in:light,medium,heavy',
             'base_rate' => 'required|numeric|min:0',
             'per_km_rate' => 'required|numeric|min:0',
             'max_tonnage' => 'nullable|numeric|min:0',
@@ -63,6 +64,7 @@ class TruckTypeController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:truck_types,name,' . $truckType->id,
+            'class' => 'nullable|in:light,medium,heavy',
             'base_rate' => 'required|numeric|min:0',
             'per_km_rate' => 'required|numeric|min:0',
             'max_tonnage' => 'nullable|numeric|min:0',

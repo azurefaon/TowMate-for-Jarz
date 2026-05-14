@@ -12,6 +12,7 @@ class VehicleTypeController extends Controller
     public function index()
     {
         $vehicleTypes = VehicleType::withCount(['truckTypes', 'bookings'])
+            ->with(['truckTypes:id,name'])
             ->orderBy('display_order')
             ->orderBy('name')
             ->paginate(10)

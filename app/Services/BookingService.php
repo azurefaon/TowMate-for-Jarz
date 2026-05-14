@@ -728,9 +728,10 @@ class BookingService
             )['leaders']
             ->keyBy('id');
 
-        $readyUnitsCount = Unit::query()
+        $readyUnits = Unit::query()
             ->where('status', 'available')
             ->whereNotNull('team_leader_id')
+            ->with('truckType')
             ->get()
             ->filter(function (Unit $unit) use ($busyTeamLeaderIds, $teamLeaderStatuses) {
                 $teamLeaderId = (int) ($unit->team_leader_id ?? 0);
@@ -738,18 +739,25 @@ class BookingService
                 $isOnline = ($leaderStatus['presence'] ?? 'offline') === 'online';
 
                 return $teamLeaderId > 0 && $isOnline && ! $busyTeamLeaderIds->contains($teamLeaderId);
-            })
-            ->count();
+            });
+
+        $readyUnitsCount = $readyUnits->count();
+
+        $readyByClass = $readyUnits
+            ->groupBy(fn(Unit $unit) => strtolower($unit->truckType?->class ?? 'unknown'))
+            ->map->count()
+            ->toArray();
 
         $bookNowEnabled = $readyUnitsCount > 0;
 
         return [
-            'book_now_enabled' => $bookNowEnabled,
-            'ready_units_count' => $readyUnitsCount,
+            'book_now_enabled'         => $bookNowEnabled,
+            'ready_units_count'        => $readyUnitsCount,
             'recommended_service_type' => $bookNowEnabled ? 'book_now' : 'schedule',
-            'message' => $bookNowEnabled
+            'message'                  => $bookNowEnabled
                 ? 'A dispatch-ready unit is available right now.'
                 : 'Immediate dispatch is currently unavailable. You can still proceed with your booking, and we\'ll assign your service as soon as possible.',
+            'ready_by_class'           => $readyByClass,
         ];
     }
 
