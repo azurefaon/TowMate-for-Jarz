@@ -15,9 +15,17 @@ class TeamLeaderAvailabilityService
 
     protected array $busyStatuses = ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
 
+    protected function isTeamLeader(?User $user): bool
+    {
+        if (! $user) return false;
+        // Check by role name (robust) with role_id=3 as fast fallback
+        if ((int) $user->role_id === 3) return true;
+        return strtolower($user->role?->name ?? '') === 'team leader';
+    }
+
     public function markOnline(?User $user): void
     {
-        if (! $user || (int) $user->role_id !== 3 || $user->archived_at) {
+        if (! $user || ! $this->isTeamLeader($user) || $user->archived_at) {
             return;
         }
 
@@ -33,7 +41,7 @@ class TeamLeaderAvailabilityService
 
     public function markOffline(?User $user): void
     {
-        if (! $user || (int) $user->role_id !== 3) {
+        if (! $user || ! $this->isTeamLeader($user)) {
             return;
         }
 

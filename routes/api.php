@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\TeamLeader\TLPresenceController;
 use App\Http\Controllers\Api\TeamLeader\TLTaskController;
 use App\Http\Controllers\Api\TeamLeader\TLLocationController;
 use App\Http\Controllers\Api\CustomerQuotationController;
+use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\GeoController;
 
 Route::get('/test', function () {
@@ -19,6 +20,11 @@ Route::get('/test', function () {
 // Public auth routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
+
+// Password reset (public)
+Route::post('/password/forgot',     [PasswordResetController::class, 'sendOtp']);
+Route::post('/password/verify-otp', [PasswordResetController::class, 'verifyOtp']);
+Route::post('/password/reset',      [PasswordResetController::class, 'resetPassword']);
 
 // Authenticated routes
 Route::middleware('auth:sanctum')->group(function () {

@@ -770,7 +770,15 @@ class BookingService
             ->map->count()
             ->toArray();
 
-        $bookNowEnabled = $readyUnitsCount > 0;
+        // Also count online, non-busy TLs who may not yet have a unit assigned.
+        // This covers TLs created after the last deploy (unit auto-creation race)
+        // so the customer sees availability as long as any TL is ready.
+        $onlineFreeTlCount = $teamLeaderStatuses->filter(function ($leader) use ($busyTeamLeaderIds) {
+            return ($leader['presence'] ?? 'offline') === 'online'
+                && ! $busyTeamLeaderIds->contains((int) ($leader['id'] ?? 0));
+        })->count();
+
+        $bookNowEnabled = $readyUnitsCount > 0 || $onlineFreeTlCount > 0;
 
         return [
             'book_now_enabled'         => $bookNowEnabled,

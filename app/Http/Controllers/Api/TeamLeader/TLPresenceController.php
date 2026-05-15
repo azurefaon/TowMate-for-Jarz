@@ -15,7 +15,7 @@ class TLPresenceController extends Controller
 
     public function ping(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $request->user()->load('role');
         $this->teamLeaderAvailability->markOnline($user);
 
         // Auto-assign a unit if TL has none so dispatchAvailability() can find them
