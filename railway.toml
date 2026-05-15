@@ -4,7 +4,7 @@ builder = "nixpacks"
 [deploy]
 # Runs before the new version goes live.
 # Ensures the DB schema is up to date and the Super Admin account exists.
-releaseCommand = "php artisan migrate --force && php artisan db:seed --class=SuperAdminSeeder --force"
+releaseCommand = "php artisan migrate --force && php artisan db:seed --class=SuperAdminSeeder --force && php artisan db:seed --class=TruckTypeSeeder --force && php artisan db:seed --class=UnitSeeder --force"
 
 # PHP built-in server bound to the Railway-assigned PORT.
-startCommand = "php artisan serve --host=0.0.0.0 --port=$PORT"
+startCommand = "php -d upload_max_filesize=20M -d post_max_size=25M artisan serve --host=0.0.0.0 --port=$PORT"
