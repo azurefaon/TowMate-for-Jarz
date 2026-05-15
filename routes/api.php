@@ -18,11 +18,13 @@ Route::get('/test', function () {
 });
 
 Route::get('/debug-availability', function () {
-    $roles = \App\Models\Role::all(['id', 'name']);
-    $tls   = \App\Models\User::whereNull('archived_at')
+    $bookingService = app(\App\Services\BookingService::class);
+    $availability   = $bookingService->dispatchAvailability();
+
+    $tls = \App\Models\User::whereNull('archived_at')
         ->with('role')
         ->get()
-        ->filter(fn($u) => str_contains(strtolower($u->role?->name ?? ''), 'team') || (int) $u->role_id === 3)
+        ->filter(fn($u) => (int) $u->role_id === 3 || str_contains(strtolower($u->role?->name ?? ''), 'team'))
         ->map(fn($u) => [
             'id'         => $u->id,
             'name'       => $u->name,
@@ -41,10 +43,10 @@ Route::get('/debug-availability', function () {
     ]);
 
     return response()->json([
-        'roles' => $roles,
-        'team_leaders' => $tls->values(),
-        'units' => $units->values(),
-        'cache_driver' => config('cache.default'),
+        'dispatch_availability' => $availability,
+        'team_leaders'          => $tls->values(),
+        'units'                 => $units->values(),
+        'cache_driver'          => config('cache.default'),
     ]);
 });
 
