@@ -72,7 +72,6 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('task/{booking}/return',   [TLTaskController::class, 'returnTask']);
             Route::post('task/{booking}/photo',    [TLTaskController::class, 'uploadPhoto']);
             Route::post('task/{booking}/complete', [TLTaskController::class, 'complete']);
-            Route::post('task/{booking}/resend-otp', [TLTaskController::class, 'resendOtp']);
             Route::put('location',                [TLLocationController::class, 'update']);
         });
 });

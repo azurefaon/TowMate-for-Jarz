@@ -17,7 +17,7 @@
         <div class="jobs-grid">
             @forelse ($jobs as $job)
                 <article class="job-card" data-job-id="{{ $job->job_code }}" data-booking-id="{{ $job->id }}"
-                    data-confirm-url="{{ route('jobs.confirm-payment', $job) }}"
+                    data-confirm-url="{{ route('admin.jobs.confirm-payment', $job) }}"
                     data-customer="{{ optional($job->customer)->full_name ?? (optional($job->customer)->name ?? 'Customer unavailable') }}"
                     data-service="{{ optional($job->truckType)->name ?? 'General Tow' }}" data-status="{{ $job->status }}"
                     data-unit="{{ optional($job->unit)->name ?? 'Unassigned' }}"

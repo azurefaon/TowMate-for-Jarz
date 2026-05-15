@@ -922,6 +922,29 @@
                             </div>
                         </div>
 
+                        <div id="sectionDutyClass" class="role-section-box"
+                            @if (!$showTLSections) hidden @endif>
+                            <div class="role-section-header"><span>Duty Class</span></div>
+                            <div class="role-section-body">
+                                <div class="form-group">
+                                    <label>Duty Class <span class="required-mark">*</span></label>
+                                    @php
+                                        $currentDutyClass = old('duty_class', $isEdit ? ($user->duty_class ?? '') : '');
+                                    @endphp
+                                    <select name="duty_class" id="dutyClassSelect"
+                                        @if ($showTLSections) required @endif>
+                                        <option value="" disabled @if ($currentDutyClass === '') selected @endif>Select duty class</option>
+                                        <option value="light" @if ($currentDutyClass === 'light') selected @endif>Light Duty</option>
+                                        <option value="medium" @if ($currentDutyClass === 'medium') selected @endif>Medium Duty</option>
+                                        <option value="heavy" @if ($currentDutyClass === 'heavy') selected @endif>Heavy Duty</option>
+                                    </select>
+                                    @error('duty_class')
+                                        <small class="error-text">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="sectionUnitDetails" class="role-section-box"
                             @if (!$showTLSections) hidden @endif>
                             <div class="role-section-header"><span>Unit Details</span></div>
@@ -1131,7 +1154,9 @@
             const createUserSubmit = document.getElementById('createUserSubmit');
 
             const sectionDriverDetails = document.getElementById('sectionDriverDetails');
+            const sectionDutyClass = document.getElementById('sectionDutyClass');
             const sectionUnitDetails = document.getElementById('sectionUnitDetails');
+            const dutyClassSelect = document.getElementById('dutyClassSelect');
 
             const phoneInput = document.getElementById('phoneInput');
             const phoneRequiredMark = document.getElementById('phoneRequiredMark');
@@ -1182,7 +1207,12 @@
                 if (formSection) formSection.hidden = false;
 
                 if (sectionDriverDetails) sectionDriverDetails.hidden = !isTL;
+                if (sectionDutyClass) sectionDutyClass.hidden = !isTL;
                 if (sectionUnitDetails) sectionUnitDetails.hidden = !isTL;
+
+                if (dutyClassSelect) {
+                    isTL ? dutyClassSelect.setAttribute('required', '') : dutyClassSelect.removeAttribute('required');
+                }
 
                 ['driver_first_name', 'driver_last_name', 'unit_name', 'unit_plate_number'].forEach(n => {
                     const el = form?.querySelector(`[name="${n}"]`);

@@ -456,6 +456,8 @@ class BookingService
             'discount_reason' => $pricing['discount_reason'],
             'additional_fee' => $pricing['additional_fee'],
             'final_total' => $pricing['final_total'],
+            'vat_amount' => $pricing['vat_amount'],
+            'vat_exclusive_total' => $pricing['vat_exclusive_total'],
             'customer_type' => $pricing['customer_type'],
             'service_type' => $serviceType,
             'scheduled_date' => $scheduledFor?->toDateString(),
@@ -562,34 +564,54 @@ class BookingService
 
     public function calculatePricing(array $data): array
     {
-        TruckType::query()->findOrFail($data['truck_type_id']);
+        $truckType  = TruckType::query()->findOrFail($data['truck_type_id']);
         $distanceKm = $this->resolveDistanceKm($data);
+        $baseRate   = (float) $truckType->base_rate;
 
-        $kmIncrements = (int) floor($distanceKm / 4);
-        $kmCharge = round($kmIncrements * 200.0, 2);
+        // Sum base rates of any extra vehicles
+        $extraBaseRates = 0.0;
+        $extraVehicles  = is_array($data['extra_vehicles'] ?? null)
+            ? $data['extra_vehicles']
+            : (is_string($data['extra_vehicles'] ?? null) ? json_decode($data['extra_vehicles'], true) ?? [] : []);
+        foreach ($extraVehicles as $ev) {
+            $evTruck = TruckType::find($ev['truck_type_id'] ?? null);
+            if ($evTruck) {
+                $extraBaseRates += (float) $evTruck->base_rate;
+            }
+        }
 
-        $customerType = $this->resolveCustomerType($data);
-        $discount = $this->resolveBookingDiscount($data, $kmCharge, $customerType);
+        $kmIncrements  = (int) floor($distanceKm / 4);
+        $kmCharge      = round($kmIncrements * 200.0, 2);
+        $customerType  = $this->resolveCustomerType($data);
+        $discount      = $this->resolveBookingDiscount($data, $kmCharge, $customerType);
         $additionalFee = $this->parsePrice($data['additional_fee'] ?? null);
-        $finalTotal = max(round($kmCharge + $additionalFee - $discount['discount_amount'], 2), 0);
+
+        $subtotal   = round($baseRate + $extraBaseRates + $kmCharge + $additionalFee, 2);
+        $finalTotal = max(round($subtotal - $discount['discount_amount'], 2), 0);
+
+        // VAT extraction — final_total is VAT-inclusive at 12%
+        $vatExclusive = round($finalTotal / 1.12, 2);
+        $vatAmount    = round($finalTotal - $vatExclusive, 2);
 
         return [
-            'distance_km' => $distanceKm,
-            'base_rate' => 0.0,
-            'per_km_rate' => 0.0,
-            'distance_fee' => $kmCharge,
-            'km_increments' => $kmIncrements,
+            'distance_km'         => $distanceKm,
+            'base_rate'           => $baseRate,
+            'per_km_rate'         => (float) $truckType->per_km_rate,
+            'distance_fee'        => $kmCharge,
+            'km_increments'       => $kmIncrements,
             'excess_km_threshold' => 0.0,
-            'excess_km_rate' => 200.0,
-            'excess_km' => 0.0,
-            'excess_fee' => 0.0,
-            'computed_total' => $kmCharge,
+            'excess_km_rate'      => 200.0,
+            'excess_km'           => 0.0,
+            'excess_fee'          => 0.0,
+            'computed_total'      => round($baseRate + $extraBaseRates + $kmCharge, 2),
             'discount_percentage' => $discount['discount_percentage'],
-            'discount_reason' => $discount['discount_reason'],
-            'discount_amount' => $discount['discount_amount'],
-            'additional_fee' => $additionalFee,
-            'final_total' => $finalTotal,
-            'customer_type' => $customerType,
+            'discount_reason'     => $discount['discount_reason'],
+            'discount_amount'     => $discount['discount_amount'],
+            'additional_fee'      => $additionalFee,
+            'final_total'         => $finalTotal,
+            'vat_amount'          => $vatAmount,
+            'vat_exclusive_total' => $vatExclusive,
+            'customer_type'       => $customerType,
         ];
     }
 

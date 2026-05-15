@@ -28,6 +28,7 @@ class User extends Authenticatable
         'phone',
         'password',
         'role_id',
+        'duty_class',
         'status',
         'password_request_status',
         'password_requested_at',

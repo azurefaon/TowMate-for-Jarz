@@ -4,13 +4,10 @@ namespace App\Http\Controllers\Api\TeamLeader;
 
 use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
-use App\Mail\CompletionOtpMail;
 use App\Models\Booking;
 use App\Models\Unit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class TLTaskController extends Controller
@@ -109,31 +106,6 @@ class TLTaskController extends Controller
             $updates['completed_at'] = now();
         }
 
-        if ($newStatus === 'arrived_dropoff') {
-            $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-            $updates['completion_otp']            = $otp;
-            $updates['completion_otp_expires_at'] = now()->addMinutes(30);
-
-            $booking->update($updates);
-            $booking->load(['customer', 'truckType', 'unit']);
-
-            if ($booking->customer?->email) {
-                try {
-                    Mail::to($booking->customer->email)->send(new CompletionOtpMail($booking, $otp));
-                } catch (\Throwable $e) {
-                    Log::error('CompletionOtpMail failed', ['booking' => $booking->id, 'error' => $e->getMessage()]);
-                }
-            }
-
-            try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
-
-            return response()->json([
-                'success' => true,
-                'data'    => $this->formatTask($booking),
-                'message' => 'OTP sent to customer email.',
-            ]);
-        }
-
         $booking->update($updates);
         $booking->load(['customer', 'truckType', 'unit']);
 
@@ -170,10 +142,16 @@ class TLTaskController extends Controller
                 : ($validated['notes'] ?? null),
         ]);
 
-        // Free up the unit
-        Unit::where('team_leader_id', $request->user()->id)
-            ->where('status', 'on_job')
-            ->update(['status' => 'available']);
+        // Free up the unit scoped to the assigned unit
+        if ($booking->assigned_unit_id) {
+            Unit::where('id', $booking->assigned_unit_id)
+                ->where('status', 'on_job')
+                ->update(['status' => 'available']);
+        } else {
+            Unit::where('team_leader_id', $request->user()->id)
+                ->where('status', 'on_job')
+                ->update(['status' => 'available']);
+        }
 
         $booking->load(['customer', 'truckType', 'unit']);
 
@@ -212,7 +190,6 @@ class TLTaskController extends Controller
     public function complete(Booking $booking, Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'otp'            => 'required|string|size:6',
             'signature'      => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
             'payment_method' => 'required|string|in:cash,gcash,bank_transfer',
         ]);
@@ -225,21 +202,11 @@ class TLTaskController extends Controller
             return response()->json(['success' => false, 'message' => 'Task is not awaiting verification.'], 422);
         }
 
-        if ($validated['otp'] !== $booking->completion_otp) {
-            return response()->json(['success' => false, 'message' => 'Invalid OTP. Please try again.'], 422);
-        }
-
-        if ($booking->completion_otp_expires_at && now()->isAfter($booking->completion_otp_expires_at)) {
-            return response()->json(['success' => false, 'message' => 'OTP has expired. Please request a new one.'], 422);
-        }
-
         $updates = [
             'status'                       => 'completed',
             'completed_at'                 => now(),
             'customer_verified_at'         => now(),
             'customer_verification_status' => 'verified',
-            'completion_otp'               => null,
-            'completion_otp_expires_at'    => null,
             'payment_method'               => $validated['payment_method'],
         ];
 
@@ -249,9 +216,14 @@ class TLTaskController extends Controller
 
         $booking->update($updates);
 
-        // Free up the unit
-        Unit::where('team_leader_id', $request->user()->id)
-            ->update(['status' => 'available']);
+        // Free up the unit scoped to the assigned unit
+        if ($booking->assigned_unit_id) {
+            Unit::where('id', $booking->assigned_unit_id)
+                ->update(['status' => 'available']);
+        } else {
+            Unit::where('team_leader_id', $request->user()->id)
+                ->update(['status' => 'available']);
+        }
 
         $booking->load(['customer', 'truckType', 'unit']);
 
@@ -262,29 +234,6 @@ class TLTaskController extends Controller
             'message' => 'Task completed successfully.',
             'data'    => $this->formatTask($booking),
         ]);
-    }
-
-    public function resendOtp(Booking $booking, Request $request): JsonResponse
-    {
-        if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
-            return response()->json(['success' => false, 'message' => 'This task is not assigned to you.'], 403);
-        }
-
-        $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $booking->update([
-            'completion_otp'            => $otp,
-            'completion_otp_expires_at' => now()->addMinutes(30),
-        ]);
-
-        if ($booking->customer?->email) {
-            try {
-                Mail::to($booking->customer->email)->send(new CompletionOtpMail($booking, $otp));
-            } catch (\Throwable $e) {
-                Log::error('CompletionOtpMail resend failed', ['booking' => $booking->id, 'error' => $e->getMessage()]);
-            }
-        }
-
-        return response()->json(['success' => true, 'message' => 'OTP resent to customer email.']);
     }
 
     private function formatTask(Booking $booking): array

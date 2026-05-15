@@ -125,35 +125,43 @@ class QuotationService
 
             // If this quotation originated from a mobile booking, update that booking
             // rather than creating a duplicate.
+            $finalTotal   = (float) $quotation->estimated_price;
+            $vatExclusive = round($finalTotal / 1.12, 2);
+            $vatAmount    = round($finalTotal - $vatExclusive, 2);
+
             if ($quotation->source_booking_id) {
                 $primaryBooking = Booking::findOrFail($quotation->source_booking_id);
                 $primaryBooking->update([
-                    'quotation_id'        => $quotation->id,
-                    'final_total'         => $quotation->estimated_price,
-                    'status'              => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
+                    'quotation_id'         => $quotation->id,
+                    'final_total'          => $finalTotal,
+                    'vat_amount'           => $vatAmount,
+                    'vat_exclusive_total'  => $vatExclusive,
+                    'status'               => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
                     'customer_approved_at' => now(),
-                    'price_locked_at'     => now(),
+                    'price_locked_at'      => now(),
                 ]);
             } else {
                 $primaryBooking = Booking::create([
-                    'quotation_id' => $quotation->id,
-                    'group_code' => $groupCode,
-                    'customer_id' => $quotation->customer_id,
-                    'truck_type_id' => $quotation->truck_type_id,
-                    'pickup_address' => $quotation->pickup_address,
-                    'dropoff_address' => $quotation->dropoff_address,
-                    'pickup_notes' => $quotation->pickup_notes,
-                    'distance_km' => $quotation->distance_km,
-                    'eta_minutes' => $quotation->eta_minutes,
-                    'vehicle_image_path' => $quotation->vehicle_image_path,
-                    'final_total' => $quotation->estimated_price,
-                    'service_type' => $quotation->service_type,
-                    'scheduled_date' => $quotation->scheduled_date?->toDateString(),
-                    'scheduled_time' => $quotation->scheduled_time,
+                    'quotation_id'        => $quotation->id,
+                    'group_code'          => $groupCode,
+                    'customer_id'         => $quotation->customer_id,
+                    'truck_type_id'       => $quotation->truck_type_id,
+                    'pickup_address'      => $quotation->pickup_address,
+                    'dropoff_address'     => $quotation->dropoff_address,
+                    'pickup_notes'        => $quotation->pickup_notes,
+                    'distance_km'         => $quotation->distance_km,
+                    'eta_minutes'         => $quotation->eta_minutes,
+                    'vehicle_image_path'  => $quotation->vehicle_image_path,
+                    'final_total'         => $finalTotal,
+                    'vat_amount'          => $vatAmount,
+                    'vat_exclusive_total' => $vatExclusive,
+                    'service_type'        => $quotation->service_type,
+                    'scheduled_date'      => $quotation->scheduled_date?->toDateString(),
+                    'scheduled_time'      => $quotation->scheduled_time,
                     'scheduled_expires_at' => $isScheduled ? now()->addDays(7) : null,
-                    'status' => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
+                    'status'              => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
                     'customer_approved_at' => now(),
-                    'price_locked_at' => now(),
+                    'price_locked_at'     => now(),
                 ]);
             }
 

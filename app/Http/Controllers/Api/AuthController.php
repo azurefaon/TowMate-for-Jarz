@@ -100,6 +100,7 @@ class AuthController extends Controller
                     'email'                => $user->email,
                     'phone'                => $user->phone,
                     'role'                 => $user->role?->name ?? 'Customer',
+                    'duty_class'           => $user->duty_class,
                     'must_change_password' => (bool) $user->must_change_password,
                 ],
             ],
@@ -113,11 +114,12 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'data'    => [
-                'id'    => $user->id,
-                'name'  => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'role'  => $user->role?->name ?? 'Customer',
+                'id'         => $user->id,
+                'name'       => $user->name,
+                'email'      => $user->email,
+                'phone'      => $user->phone,
+                'role'       => $user->role?->name ?? 'Customer',
+                'duty_class' => $user->duty_class,
             ],
         ]);
     }

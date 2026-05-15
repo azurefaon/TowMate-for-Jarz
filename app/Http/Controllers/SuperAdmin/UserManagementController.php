@@ -206,6 +206,7 @@ class UserManagementController extends Controller
             'phone' => $isTeamLeaderEdit
                 ? ['required', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)]
                 : ['nullable', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)],
+            'duty_class' => 'nullable|in:light,medium,heavy',
             'status' => 'required|in:active,inactive',
             'unit_plate_number' => [
                 'nullable',
@@ -253,7 +254,7 @@ class UserManagementController extends Controller
 
         $requiresRelogin = $statusChanged;
 
-        $user->update([
+        $userUpdates = [
             'name' => build_full_name(
                 $validated['first_name'],
                 $validated['middle_name'] ?? null,
@@ -265,7 +266,13 @@ class UserManagementController extends Controller
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? $user->phone,
             'status' => $validated['status'],
-        ]);
+        ];
+
+        if ($isTeamLeaderEdit && $request->filled('duty_class')) {
+            $userUpdates['duty_class'] = $request->input('duty_class');
+        }
+
+        $user->update($userUpdates);
 
         if ($user->role->name === 'Team Leader') {
 
@@ -394,6 +401,7 @@ class UserManagementController extends Controller
                     'integer',
                     Rule::exists('truck_types', 'id')->where('status', 'active'),
                 ],
+                'duty_class'         => 'required|in:light,medium,heavy',
             ]);
         }
 
@@ -424,6 +432,7 @@ class UserManagementController extends Controller
                     'phone'                => $validated['phone'] ?? null,
                     'password'             => Hash::make($validated['password']),
                     'role_id'              => $validated['role_id'],
+                    'duty_class'           => $validated['duty_class'] ?? null,
                     'status'               => $validated['status'],
                     'must_change_password' => true,
                 ]);

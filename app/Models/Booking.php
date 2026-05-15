@@ -40,6 +40,8 @@ class Booking extends Model
         'discount_reason',
         'additional_fee',
         'final_total',
+        'vat_amount',
+        'vat_exclusive_total',
         'customer_type',
         'service_type',
         'scheduled_date',
