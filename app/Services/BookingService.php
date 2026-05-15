@@ -766,7 +766,8 @@ class BookingService
         $readyUnitsCount = $readyUnits->count();
 
         $readyByClass = $readyUnits
-            ->groupBy(fn(Unit $unit) => strtolower($unit->truckType?->class ?? 'unknown'))
+            ->filter(fn(Unit $unit) => filled($unit->truckType?->class))
+            ->groupBy(fn(Unit $unit) => strtolower($unit->truckType->class))
             ->map->count()
             ->toArray();
 
