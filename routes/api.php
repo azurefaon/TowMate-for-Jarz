@@ -17,6 +17,37 @@ Route::get('/test', function () {
     return response()->json(['message' => 'API working']);
 });
 
+Route::get('/debug-availability', function () {
+    $roles = \App\Models\Role::all(['id', 'name']);
+    $tls   = \App\Models\User::whereNull('archived_at')
+        ->with('role')
+        ->get()
+        ->filter(fn($u) => str_contains(strtolower($u->role?->name ?? ''), 'team') || (int) $u->role_id === 3)
+        ->map(fn($u) => [
+            'id'         => $u->id,
+            'name'       => $u->name,
+            'role_id'    => $u->role_id,
+            'role_name'  => $u->role?->name,
+            'duty_class' => $u->duty_class,
+            'online'     => \Illuminate\Support\Facades\Cache::has("teamleader:presence:{$u->id}"),
+        ]);
+
+    $units = \App\Models\Unit::with('truckType')->get()->map(fn($u) => [
+        'id'             => $u->id,
+        'name'           => $u->name,
+        'status'         => $u->status,
+        'team_leader_id' => $u->team_leader_id,
+        'truck_class'    => $u->truckType?->class,
+    ]);
+
+    return response()->json([
+        'roles' => $roles,
+        'team_leaders' => $tls->values(),
+        'units' => $units->values(),
+        'cache_driver' => config('cache.default'),
+    ]);
+});
+
 // Public auth routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
