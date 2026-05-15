@@ -31,7 +31,8 @@ Route::get('/debug-availability', function () {
             'role_id'    => $u->role_id,
             'role_name'  => $u->role?->name,
             'duty_class' => $u->duty_class,
-            'online'     => \Illuminate\Support\Facades\Cache::has("teamleader:presence:{$u->id}"),
+            'last_ping_at' => $u->last_ping_at,
+        'online'     => $u->last_ping_at && \Illuminate\Support\Carbon::parse($u->last_ping_at)->gte(now()->subSeconds(300)),
         ]);
 
     $units = \App\Models\Unit::with('truckType')->get()->map(fn($u) => [

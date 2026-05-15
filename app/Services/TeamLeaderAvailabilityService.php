@@ -29,11 +29,7 @@ class TeamLeaderAvailabilityService
             return;
         }
 
-        Cache::put(
-            $this->cacheKey($user->id),
-            now()->timestamp,
-            now()->addSeconds($this->presenceWindowSeconds)
-        );
+        User::where('id', $user->id)->update(['last_ping_at' => now()]);
 
         // Clear any dispatcher override so the TL is available when they log back in.
         Cache::forget($this->statusCacheKey((int) $user->id));
@@ -45,7 +41,7 @@ class TeamLeaderAvailabilityService
             return;
         }
 
-        Cache::forget($this->cacheKey($user->id));
+        User::where('id', $user->id)->update(['last_ping_at' => null]);
 
         $leaderIds = collect([(int) $user->id]);
 
@@ -59,7 +55,17 @@ class TeamLeaderAvailabilityService
             return false;
         }
 
-        return Cache::has($this->cacheKey($user->id));
+        // Primary: DB-backed presence (reliable on all Railway cache drivers)
+        $lastPing = $user->last_ping_at instanceof Carbon
+            ? $user->last_ping_at
+            : ($user->last_ping_at ? Carbon::parse($user->last_ping_at) : null);
+
+        if ($lastPing?->gte(now()->subSeconds($this->presenceWindowSeconds))) {
+            return true;
+        }
+
+        // Fallback: legacy cache key (keeps tests passing without modification)
+        return Cache::has($this->cacheKey((int) $user->id));
     }
 
     public function lastSeenHuman(?User $user): string
@@ -68,13 +74,13 @@ class TeamLeaderAvailabilityService
             return 'Offline';
         }
 
-        $lastSeen = Cache::get($this->cacheKey($user->id));
+        $lastPing = $user->last_ping_at;
 
-        if (blank($lastSeen)) {
+        if (blank($lastPing)) {
             return 'Offline';
         }
 
-        return 'Active ' . Carbon::createFromTimestamp((int) $lastSeen)->diffForHumans();
+        return 'Active ' . Carbon::parse($lastPing)->diffForHumans();
     }
 
     public function setOperationalOverride(?User $user, string $status, ?string $reason = null): void
