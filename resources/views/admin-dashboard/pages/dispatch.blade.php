@@ -3,7 +3,96 @@
 @section('title', 'Dispatch')
 
 @push('styles')
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+        /* ── Live Tracking Panel ─────────────────────────────── */
+        .tracking-panel {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .tracking-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 18px;
+            cursor: pointer;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: .85rem;
+            color: #374151;
+            user-select: none;
+        }
+        .tracking-meta {
+            color: #9ca3af;
+            font-size: .8rem;
+            flex: 1;
+        }
+        .tracking-toggle-label {
+            color: #9ca3af;
+            font-size: .78rem;
+        }
+        .tracking-body {
+            display: flex;
+            height: 320px;
+        }
+        .tracking-body.is-collapsed {
+            display: none;
+        }
+        .tracking-map-wrap {
+            flex: 0 0 62%;
+            border-right: 1px solid #e5e7eb;
+        }
+        #dispatchLiveMap {
+            width: 100%;
+            height: 100%;
+        }
+        .tracking-roster-wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .tracking-roster-header {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f3f4f6;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        #rosterSortLabel {
+            font-size: .8rem;
+            color: #111;
+        }
+        .tracking-roster-hint {
+            font-size: .72rem;
+            color: #9ca3af;
+        }
+        .tracking-roster {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .unit-roster-card {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            transition: background .1s;
+        }
+        .unit-roster-card:hover { background: #f9fafb; }
+        .urc-name { font-size: .83rem; color: #111; }
+        .urc-tl { font-size: .76rem; color: #6b7280; margin-top: 2px; }
+        .urc-row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+        .urc-status { font-size: .73rem; }
+        .urc-status--available { color: #16a34a; }
+        .urc-status--on_job    { color: #d97706; }
+        .urc-status--other     { color: #9ca3af; }
+        .urc-gps { font-size: .72rem; }
+        .urc-gps--live   { color: #111; }
+        .urc-gps--recent { color: #9ca3af; }
+        .urc-gps--old    { color: #d1d5db; }
+        .urc-distance { font-size: .76rem; color: #374151; margin-top: 3px; }
+
         .quotation-review-grid {
             display: grid;
             grid-template-columns: minmax(0, 1.25fr) minmax(240px, 0.75fr);
@@ -868,6 +957,27 @@
         {{-- Quotation View/Edit Modal --}}
         @include('admin-dashboard.pages._quotation-modal')
 
+        {{-- ── Live Unit Tracking ──────────────────────────────────────────── --}}
+        <div class="tracking-panel" id="trackingPanel">
+            <div class="tracking-panel-header" id="trackingToggleBtn">
+                <span>units — live tracking</span>
+                <span class="tracking-meta" id="trackingMeta">loading...</span>
+                <span class="tracking-toggle-label" id="trackingToggleLabel">hide</span>
+            </div>
+            <div class="tracking-body" id="trackingBody">
+                <div class="tracking-map-wrap">
+                    <div id="dispatchLiveMap"></div>
+                </div>
+                <div class="tracking-roster-wrap">
+                    <div class="tracking-roster-header">
+                        <span id="rosterSortLabel">all units</span>
+                        <span class="tracking-roster-hint" id="rosterHint">click a booking to sort by proximity</span>
+                    </div>
+                    <div class="tracking-roster" id="trackingRoster"></div>
+                </div>
+            </div>
+        </div>
+
         <div class="incoming-section">
 
             <div class="section-header">
@@ -1050,7 +1160,9 @@
                             data-computed-total="{{ $booking->computed_total ?? 0 }}"
                             data-distance-fee-amount="{{ $booking->distance_fee_amount ?? 0 }}"
                             data-vehicle-image-url="{{ e($cj_vehicleImgUrl) }}"
-                            data-truck-type-base-rate="{{ $booking->unit->truckType->base_rate ?? ($booking->base_rate ?? 0) }}">
+                            data-truck-type-base-rate="{{ $booking->unit->truckType->base_rate ?? ($booking->base_rate ?? 0) }}"
+                            data-pickup-lat="{{ $booking->pickup_lat ?? '' }}"
+                            data-pickup-lng="{{ $booking->pickup_lng ?? '' }}">
 
                             <div class="incoming-left">
 
@@ -1261,7 +1373,9 @@
                     @endphp
                     <div class="incoming-card" data-queue="book-now"
                         data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}" data-status="{{ $bnPrimary->status }}"
-                        data-created-at="{{ $bnPrimary->created_at->toIso8601String() }}">
+                        data-created-at="{{ $bnPrimary->created_at->toIso8601String() }}"
+                        data-pickup-lat="{{ $bnPrimary->pickup_lat ?? '' }}"
+                        data-pickup-lng="{{ $bnPrimary->pickup_lng ?? '' }}">
                         <div class="incoming-left">
                             <div class="incoming-header">
                                 <span class="queue-chip book-now">Book
@@ -1325,7 +1439,9 @@
                     <div class="incoming-card {{ $isConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }}"
                         data-queue="scheduled" data-id="{{ $schPrimary->job_code ?? $schPrimary->id }}"
                         data-status="{{ $schPrimary->status }}"
-                        data-created-at="{{ $schPrimary->created_at->toIso8601String() }}">
+                        data-created-at="{{ $schPrimary->created_at->toIso8601String() }}"
+                        data-pickup-lat="{{ $schPrimary->pickup_lat ?? '' }}"
+                        data-pickup-lng="{{ $schPrimary->pickup_lng ?? '' }}">
                         <div class="incoming-left">
                             <div class="incoming-header">
                                 <span
@@ -2037,6 +2153,7 @@
 @endsection
 
 @push('scripts')
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script src="{{ asset('dispatcher/js/dispatch.js') }}?v={{ filemtime(public_path('dispatcher/js/dispatch.js')) }}">
     </script>

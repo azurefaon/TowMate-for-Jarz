@@ -216,7 +216,7 @@ class QuotationService
             DB::commit();
 
             $primaryBooking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
-            event(new BookingStatusUpdated($primaryBooking));
+            BookingStatusUpdated::safeFire($primaryBooking);
 
             if ($primaryBooking->customer && $primaryBooking->customer->email) {
                 try {
@@ -245,6 +245,14 @@ class QuotationService
             'responded_at' => now(),
             'response_note' => $reason,
         ]);
+
+        if ($quotation->source_booking_id) {
+            $booking = Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
+                ->find($quotation->source_booking_id);
+            if ($booking) {
+                BookingStatusUpdated::safeFire($booking);
+            }
+        }
     }
 
     public function negotiateQuotation(Quotation $quotation, ?float $counterOffer, string $note): void

@@ -1,4 +1,4 @@
-﻿@extends('landing.layouts.app')
+@extends('landing.layouts.app')
 
 @section('content')
     {{-- All zone selection and related JS removed for clean customer form --}}

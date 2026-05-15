@@ -65,7 +65,7 @@ class JobsController extends Controller
             }
         }
 
-        event(new BookingStatusUpdated($booking));
+        BookingStatusUpdated::safeFire($booking);
 
         // Generate final quotation PDF and receipt, then email customer
         $documentService = app(DocumentGenerationService::class);
@@ -76,10 +76,17 @@ class JobsController extends Controller
         $receipt = $documentService->generateReceipt($booking);
 
         if (filled($booking->customer?->email)) {
-            Mail::to($booking->customer->email)->send(
-                new BookingReceiptMail($booking->fresh(['customer', 'truckType', 'receipt']))
-            );
-            $receipt->update(['email_sent' => true]);
+            try {
+                Mail::to($booking->customer->email)->send(
+                    new BookingReceiptMail($booking->fresh(['customer', 'truckType', 'receipt']))
+                );
+                $receipt->update(['email_sent' => true]);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to send receipt email on complete', [
+                    'booking_id' => $booking->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
         }
 
         return response()->json([

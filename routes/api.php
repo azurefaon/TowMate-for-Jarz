@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('bookings/current', [CustomerBookingController::class, 'currentBooking']);
         Route::get('bookings/history', [CustomerBookingController::class, 'bookingHistory']);
         Route::post('bookings', [CustomerBookingController::class, 'createBooking']);
+        Route::get('bookings/{code}/detail', [CustomerBookingController::class, 'detail']);
 
         // Geo — reuse existing controller, exposed over sanctum-authenticated API
         Route::get('geo/search', [GeoController::class, 'search']);

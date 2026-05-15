@@ -17,7 +17,7 @@ class TLTaskController extends Controller
 {
     private const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected', 'returned'];
 
-    // Statuses that belong to the TL workflow — excludes pre-dispatch states
+    // Statuses that belong to the TL workflow â€” excludes pre-dispatch states
     // like 'confirmed' (awaiting dispatcher "Start Job") or 'quotation_sent'.
     private const TL_TASK_STATUSES = [
         'assigned', 'accepted', 'on_the_way', 'arrived_pickup',
@@ -73,7 +73,7 @@ class TLTaskController extends Controller
         $booking->load(['customer', 'truckType', 'unit']);
 
         try {
-            event(new BookingStatusUpdated($booking));
+            BookingStatusUpdated::safeFire($booking);
         } catch (\Throwable) {}
 
         return response()->json([
@@ -125,7 +125,7 @@ class TLTaskController extends Controller
                 }
             }
 
-            try { event(new BookingStatusUpdated($booking)); } catch (\Throwable) {}
+            try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
 
             return response()->json([
                 'success' => true,
@@ -137,7 +137,7 @@ class TLTaskController extends Controller
         $booking->update($updates);
         $booking->load(['customer', 'truckType', 'unit']);
 
-        try { event(new BookingStatusUpdated($booking)); } catch (\Throwable) {}
+        try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
 
         return response()->json([
             'success' => true,
@@ -177,7 +177,7 @@ class TLTaskController extends Controller
 
         $booking->load(['customer', 'truckType', 'unit']);
 
-        try { event(new BookingStatusUpdated($booking)); } catch (\Throwable) {}
+        try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
 
         return response()->json(['success' => true, 'message' => 'Task returned successfully.']);
     }
@@ -186,7 +186,7 @@ class TLTaskController extends Controller
     {
         $validated = $request->validate([
             'photo' => 'required|file|mimes:jpg,jpeg,png|max:5120',
-            'type'  => 'required|in:arrival,dropoff',
+            'type'  => 'required|in:arrival,dropoff,payment_proof',
         ]);
 
         if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
@@ -195,7 +195,11 @@ class TLTaskController extends Controller
 
         $path = $request->file('photo')->store('task-photos', 'public');
 
-        $column = $validated['type'] === 'arrival' ? 'arrival_photo_path' : 'dropoff_photo_path';
+        $column = match ($validated['type']) {
+            'arrival'       => 'arrival_photo_path',
+            'dropoff'       => 'dropoff_photo_path',
+            'payment_proof' => 'payment_proof_path',
+        };
         $booking->update([$column => $path]);
 
         return response()->json([
@@ -251,7 +255,7 @@ class TLTaskController extends Controller
 
         $booking->load(['customer', 'truckType', 'unit']);
 
-        try { event(new BookingStatusUpdated($booking)); } catch (\Throwable) {}
+        try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
 
         return response()->json([
             'success' => true,
@@ -319,7 +323,7 @@ class TLTaskController extends Controller
         $parts = array_filter([
             $booking->vehicle_make,
             $booking->vehicle_model,
-            $booking->vehicle_plate_number ? '· ' . $booking->vehicle_plate_number : null,
+            $booking->vehicle_plate_number ? 'Â· ' . $booking->vehicle_plate_number : null,
         ]);
 
         return $parts ? implode(' ', $parts) : null;

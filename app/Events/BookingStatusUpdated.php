@@ -8,10 +8,27 @@ use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class BookingStatusUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    /**
+     * Fire the event without letting a Pusher/network failure bubble up as a 500.
+     * Use this everywhere instead of event(new static(...)).
+     */
+    public static function safeFire(Booking $booking): void
+    {
+        try {
+            event(new static($booking));
+        } catch (\Exception $e) {
+            Log::warning('BookingStatusUpdated broadcast failed', [
+                'booking_id' => $booking->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+    }
 
     public function __construct(public Booking $booking)
     {

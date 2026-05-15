@@ -148,7 +148,7 @@ class Booking extends Model
             'additional_fee' => 'decimal:2',
             'final_total' => 'decimal:2',
             'eta_minutes' => 'decimal:2',
-            'payment_proof_path' => 'array',
+            'payment_proof_path' => 'string',
         ];
     }
 

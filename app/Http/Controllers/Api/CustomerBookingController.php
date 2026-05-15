@@ -229,4 +229,53 @@ class CustomerBookingController extends Controller
             'message'      => 'Booking submitted successfully.',
         ], 201);
     }
+
+    public function detail(string $code): JsonResponse
+    {
+        $booking = Booking::where('booking_code', $code)
+            ->where('customer_id', auth()->id())
+            ->with(['truckType', 'assignedTeamLeader', 'unit.driver', 'unit.teamLeader'])
+            ->firstOrFail();
+
+        $teamLeaderName = $booking->assignedTeamLeader?->name
+            ?? optional(optional($booking->unit)->teamLeader)->name;
+
+        $driverName = $booking->driver_name
+            ?? optional(optional($booking->unit)->driver)->name;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'booking_code'      => $booking->booking_code,
+                'status'            => $booking->status,
+                'service_type'      => $booking->service_type,
+                'pickup_address'    => $booking->pickup_address,
+                'pickup_lat'        => $booking->pickup_lat,
+                'pickup_lng'        => $booking->pickup_lng,
+                'dropoff_address'   => $booking->dropoff_address,
+                'dropoff_lat'       => $booking->dropoff_lat,
+                'dropoff_lng'       => $booking->dropoff_lng,
+                'distance_km'       => $booking->distance_km,
+                'pickup_notes'      => $booking->pickup_notes,
+                'truck_type_id'     => $booking->truck_type_id,
+                'truck_type_name'   => $booking->truckType?->name,
+                'base_rate'         => $booking->base_rate,
+                'per_km_rate'       => $booking->per_km_rate,
+                'computed_total'    => $booking->computed_total,
+                'additional_fee'    => $booking->additional_fee,
+                'final_total'       => $booking->final_total,
+                'payment_method'    => $booking->payment_method,
+                'scheduled_date'    => $booking->scheduled_date?->toDateString(),
+                'scheduled_time'    => $booking->scheduled_time,
+                'team_leader_name'  => $teamLeaderName,
+                'driver_name'       => $driverName,
+                'arrival_photo_url' => $booking->arrival_photo_path
+                    ? \Illuminate\Support\Facades\Storage::url($booking->arrival_photo_path) : null,
+                'dropoff_photo_url' => $booking->dropoff_photo_path
+                    ? \Illuminate\Support\Facades\Storage::url($booking->dropoff_photo_path) : null,
+                'created_at'        => $booking->created_at?->toDateTimeString(),
+                'completed_at'      => $booking->completed_at?->toDateTimeString(),
+            ],
+        ]);
+    }
 }

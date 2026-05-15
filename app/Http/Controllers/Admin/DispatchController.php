@@ -108,8 +108,8 @@ class DispatchController extends Controller
         $delayedRequests = collect();
         $negotiationRequests = collect();
 
-        // ── Book-Now queue: requested/reviewed/quoted/quotation_sent, NOT scheduled ──
-        // Exclude 'requested' bookings that already have a linked quotation — those are
+        // â”€â”€ Book-Now queue: requested/reviewed/quoted/quotation_sent, NOT scheduled â”€â”€
+        // Exclude 'requested' bookings that already have a linked quotation â€” those are
         // mobile app bookings and are surfaced in the Floating Quotations panel instead.
         $bookNowRequests = Booking::with(['customer', 'truckType'])
             ->whereIn('status', $this->reviewableStatuses)
@@ -126,7 +126,7 @@ class DispatchController extends Controller
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'book-now'));
 
-        // ── Scheduled queue: scheduled_confirmed first (FIFO), then scheduled (FIFO) ──
+        // â”€â”€ Scheduled queue: scheduled_confirmed first (FIFO), then scheduled (FIFO) â”€â”€
         $scheduledRequests = Booking::with(['customer', 'truckType'])
             ->whereIn('status', ['scheduled_confirmed', 'scheduled'])
             ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", ['scheduled_confirmed'])
@@ -203,7 +203,7 @@ class DispatchController extends Controller
 
                 return [
                     'id' => $unit->id,
-                    'label' => trim(($unit->name ?? 'Unit') . ' · ' . ($unit->plate_number ?? 'No plate')),
+                    'label' => trim(($unit->name ?? 'Unit') . ' Â· ' . ($unit->plate_number ?? 'No plate')),
                     'truck_type_id' => (int) ($unit->truck_type_id ?? 0),
                     'truck_type' => $unit->truckType->name ?? 'Unknown truck type',
                     'truck_class' => $unit->truckType->class ?? '',
@@ -390,8 +390,8 @@ class DispatchController extends Controller
 
         $zones = array_slice(array_keys($scores), 0, 2);
         $summary = $zones !== []
-            ? 'Online and ready for dispatch · Familiar with ' . implode(', ', $zones)
-            : 'Online and ready for dispatch · No saved zone history yet';
+            ? 'Online and ready for dispatch Â· Familiar with ' . implode(', ', $zones)
+            : 'Online and ready for dispatch Â· No saved zone history yet';
 
         return [
             'zones' => $zones,
@@ -417,7 +417,7 @@ class DispatchController extends Controller
             'Pasay Zone' => ['pasay', 'moa', 'mall of asia', 'edsa taft'],
             'Manila Zone' => ['manila', 'ermita', 'malate', 'sampaloc', 'quiapo'],
             'Muntinlupa Zone' => ['muntinlupa', 'alabang'],
-            'Parañaque Zone' => ['paranaque', 'sucat', 'baclaran'],
+            'ParaÃ±aque Zone' => ['paranaque', 'sucat', 'baclaran'],
         ];
 
         foreach ($zoneMap as $label => $keywords) {
@@ -583,7 +583,7 @@ class DispatchController extends Controller
                 ]));
 
                 $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
-                event(new BookingStatusUpdated($booking));
+                BookingStatusUpdated::safeFire($booking);
 
                 return response()->json([
                     'success' => true,
@@ -606,7 +606,7 @@ class DispatchController extends Controller
                 ]));
 
                 $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
-                event(new BookingStatusUpdated($booking));
+                BookingStatusUpdated::safeFire($booking);
 
                 return response()->json([
                     'success' => true,
@@ -687,7 +687,7 @@ class DispatchController extends Controller
 
 
 
-            event(new BookingStatusUpdated($booking));
+            BookingStatusUpdated::safeFire($booking);
 
             return response()->json([
                 'success' => true,
@@ -750,7 +750,7 @@ class DispatchController extends Controller
         $booking->refresh()->loadMissing(['customer', 'truckType']);
 
         event(new \App\Events\BookingCancelled($booking));
-        event(new BookingStatusUpdated($booking));
+        BookingStatusUpdated::safeFire($booking);
 
         $quotation = $this->quotationService->createQuotation([
             'customer_id' => $booking->customer_id,
@@ -798,7 +798,7 @@ class DispatchController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Service fee of ₱' . number_format($validated['service_fee_amount'], 2) . ' applied successfully.',
+            'message' => 'Service fee of â‚±' . number_format($validated['service_fee_amount'], 2) . ' applied successfully.',
         ]);
     }
 
@@ -1107,22 +1107,28 @@ class DispatchController extends Controller
 
     public function unitLocations(): \Illuminate\Http\JsonResponse
     {
-        $units = Unit::with('teamLeader')
+        $units = Unit::with(['teamLeader', 'truckType'])
             ->whereNotNull('current_lat')
             ->whereNotNull('current_lng')
             ->where('status', '!=', 'maintenance')
             ->get();
 
         $data = $units->map(function (Unit $unit) {
+            $secsAgo = $unit->location_updated_at
+                ? (int) $unit->location_updated_at->diffInSeconds(now())
+                : null;
+
             return [
-                'unit_id'          => $unit->id,
-                'lat'              => $unit->current_lat,
-                'lng'              => $unit->current_lng,
-                'status'           => $unit->status,
-                'team_leader_name' => $unit->teamLeader?->name ?? 'Unknown',
-                'updated_seconds_ago' => $unit->location_updated_at
-                    ? (int) $unit->location_updated_at->diffInSeconds(now())
-                    : null,
+                'unit_id'             => $unit->id,
+                'unit_name'           => $unit->name ?? 'Unit',
+                'plate_number'        => $unit->plate_number ?? '',
+                'truck_type_name'     => $unit->truckType?->name ?? '',
+                'lat'                 => $unit->current_lat,
+                'lng'                 => $unit->current_lng,
+                'status'              => $unit->status,
+                'team_leader_name'    => $unit->teamLeader?->name ?? 'Unknown',
+                'is_online'           => $secsAgo !== null && $secsAgo < 300,
+                'updated_seconds_ago' => $secsAgo,
             ];
         });
 

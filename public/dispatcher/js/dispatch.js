@@ -71,6 +71,13 @@ function openActionModalHandler(button, actionType) {
     if (typeof populateModalFromCard === "function") {
         populateModalFromCard(card);
     }
+
+    // Sort unit roster by proximity to this booking's pickup
+    var pickupLat = parseFloat(card.dataset.pickupLat);
+    var pickupLng = parseFloat(card.dataset.pickupLng);
+    if (!isNaN(pickupLat) && !isNaN(pickupLng) && typeof window.sortRosterByPickup === "function") {
+        window.sortRosterByPickup(pickupLat, pickupLng);
+    }
 }
 
 // ===============================
@@ -268,6 +275,32 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
     initializeRealtimeUpdates();
+
+    // Initialize live tracking map
+    var liveMap = null;
+    var liveMapContainer = document.getElementById("dispatchLiveMap");
+    if (liveMapContainer && typeof L !== "undefined") {
+        liveMap = L.map("dispatchLiveMap", { zoomControl: true }).setView([14.5995, 120.9842], 11);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "© OpenStreetMap",
+            maxZoom: 18,
+        }).addTo(liveMap);
+    }
+
+    // Collapsible tracking panel toggle
+    var trackingToggleBtn = document.getElementById("trackingToggleBtn");
+    var trackingBody = document.getElementById("trackingBody");
+    var trackingToggleLabel = document.getElementById("trackingToggleLabel");
+    if (trackingToggleBtn && trackingBody) {
+        trackingToggleBtn.addEventListener("click", function () {
+            var collapsed = trackingBody.classList.toggle("is-collapsed");
+            trackingToggleLabel.textContent = collapsed ? "show" : "hide";
+            if (!collapsed && liveMap) {
+                setTimeout(function () { liveMap.invalidateSize(); }, 50);
+            }
+        });
+    }
+
     startLocationPolling();
     initWaitTimeBadges();
     updateReturnBanner();
@@ -911,59 +944,143 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function startLocationPolling() {
         var unitMarkers = {};
+        var lastUnits = [];
+        var activeSortLat = null, activeSortLng = null;
 
-        function truckIcon() {
-            return L.divIcon({
-                className: "",
-                html: '<div style="background:#FFCC14;border:2px solid #000;border-radius:50%;width:16px;height:16px;"></div>',
-                iconSize: [16, 16],
-                iconAnchor: [8, 8],
-            });
+        function gpsAgeLabel(secsAgo) {
+            if (secsAgo === null || secsAgo === undefined) return { text: "no gps", cls: "urc-gps--old" };
+            if (secsAgo < 30)  return { text: "updated " + secsAgo + "s ago", cls: "urc-gps--live" };
+            if (secsAgo < 300) return { text: "updated " + Math.round(secsAgo / 60) + "m ago", cls: "urc-gps--recent" };
+            return { text: "gps offline", cls: "urc-gps--old" };
         }
 
-        window.setInterval(function () {
-            var quotationModal = document.getElementById("quotationModal");
-            if (quotationModal && quotationModal.style.display === "flex") return;
+        function haversineKm(lat1, lng1, lat2, lng2) {
+            var R = 6371;
+            var dLat = (lat2 - lat1) * Math.PI / 180;
+            var dLng = (lng2 - lng1) * Math.PI / 180;
+            var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
 
+        function renderRoster(units, sortLat, sortLng) {
+            var roster = document.getElementById("trackingRoster");
+            if (!roster) return;
+
+            var withDist = units.map(function (u) {
+                var dist = (sortLat && sortLng && u.lat && u.lng)
+                    ? haversineKm(sortLat, sortLng, u.lat, u.lng)
+                    : null;
+                return Object.assign({}, u, { _dist: dist });
+            });
+
+            if (sortLat && sortLng) {
+                withDist.sort(function (a, b) {
+                    if (a._dist === null && b._dist === null) return 0;
+                    if (a._dist === null) return 1;
+                    if (b._dist === null) return -1;
+                    return a._dist - b._dist;
+                });
+            }
+
+            roster.innerHTML = withDist.map(function (u) {
+                var gps = gpsAgeLabel(u.updated_seconds_ago);
+                var statusCls = u.status === "available" ? "urc-status--available"
+                              : u.status === "on_job"    ? "urc-status--on_job"
+                              : "urc-status--other";
+                var statusText = u.status ? u.status.replace(/_/g, " ") : "unknown";
+                var distHtml = u._dist !== null
+                    ? '<div class="urc-distance">' + u._dist.toFixed(1) + " km from pickup</div>"
+                    : "";
+                var plateLine = u.plate_number ? " · " + u.plate_number : "";
+                var typeLine  = u.truck_type_name || "";
+
+                return '<div class="unit-roster-card" data-unit-id="' + u.unit_id + '" data-lat="' + (u.lat || "") + '" data-lng="' + (u.lng || "") + '">' +
+                    '<div class="urc-name">' + (u.unit_name || "Unit") + plateLine + "</div>" +
+                    '<div class="urc-tl">' + (u.team_leader_name || "") + (typeLine ? " — " + typeLine : "") + "</div>" +
+                    '<div class="urc-row">' +
+                      '<span class="urc-status ' + statusCls + '">' + statusText + "</span>" +
+                      '<span class="urc-gps ' + gps.cls + '">' + gps.text + "</span>" +
+                    "</div>" +
+                    distHtml +
+                "</div>";
+            }).join("");
+
+            // Click a unit card → pan map to that unit
+            roster.querySelectorAll(".unit-roster-card").forEach(function (card) {
+                card.addEventListener("click", function () {
+                    var lat = parseFloat(card.dataset.lat);
+                    var lng = parseFloat(card.dataset.lng);
+                    if (liveMap && !isNaN(lat) && !isNaN(lng)) {
+                        liveMap.setView([lat, lng], 14);
+                    }
+                });
+            });
+
+            // Update meta summary
+            var onlineCount = units.filter(function (u) { return u.is_online; }).length;
+            var meta = document.getElementById("trackingMeta");
+            if (meta) {
+                meta.textContent = units.length + " unit" + (units.length !== 1 ? "s" : "") + " · " + onlineCount + " online";
+            }
+            var label = document.getElementById("rosterSortLabel");
+            if (label) {
+                label.textContent = (sortLat && sortLng) ? "nearest to pickup" : "all units";
+            }
+        }
+
+        // Exposed for booking card click handler
+        window.sortRosterByPickup = function (lat, lng) {
+            activeSortLat = lat;
+            activeSortLng = lng;
+            renderRoster(lastUnits, lat, lng);
+        };
+
+        function poll() {
             fetch("/admin-dashboard/units/locations", {
                 headers: { "X-Requested-With": "XMLHttpRequest" },
             })
-                .then(function (r) { return r.json(); })
-                .then(function (units) {
-                    units.forEach(function (u) {
-                        if (!u.lat || !u.lng) return;
+            .then(function (r) { return r.json(); })
+            .then(function (units) {
+                lastUnits = units;
+
+                // Update map markers
+                units.forEach(function (u) {
+                    if (!u.lat || !u.lng) return;
+                    var tooltipText = (u.unit_name || "Unit") + " · " + u.team_leader_name;
+                    if (liveMap) {
                         if (unitMarkers[u.unit_id]) {
                             unitMarkers[u.unit_id].setLatLng([u.lat, u.lng]);
-                            unitMarkers[u.unit_id]
-                                .getTooltip()
-                                .setContent(u.team_leader_name + " · " + u.status);
+                            unitMarkers[u.unit_id].getTooltip().setContent(tooltipText);
                         } else {
-                            if (typeof map === "undefined") return;
-                            unitMarkers[u.unit_id] = L.marker([u.lat, u.lng], {
-                                icon: truckIcon(),
-                                zIndexOffset: 500,
-                            })
-                                .addTo(map)
-                                .bindTooltip(u.team_leader_name + " · " + u.status, {
-                                    permanent: false,
-                                    direction: "top",
-                                });
+                            unitMarkers[u.unit_id] = L.circleMarker([u.lat, u.lng], {
+                                radius: 7,
+                                fillColor: "#FFCC14",
+                                color: "#111",
+                                weight: 1.5,
+                                fillOpacity: 1,
+                            }).addTo(liveMap).bindTooltip(tooltipText, { permanent: false, direction: "top" });
                         }
-                    });
+                    }
+                });
 
-                    // Remove markers for units no longer in the response
-                    var activeIds = units.map(function (u) { return u.unit_id; });
-                    Object.keys(unitMarkers).forEach(function (id) {
-                        if (!activeIds.includes(Number(id))) {
-                            if (typeof map !== "undefined") {
-                                map.removeLayer(unitMarkers[id]);
-                            }
-                            delete unitMarkers[id];
-                        }
-                    });
-                })
-                .catch(function () {});
-        }, 10000);
+                // Remove stale markers
+                var activeIds = units.map(function (u) { return u.unit_id; });
+                Object.keys(unitMarkers).forEach(function (id) {
+                    if (!activeIds.includes(Number(id))) {
+                        if (liveMap) liveMap.removeLayer(unitMarkers[id]);
+                        delete unitMarkers[id];
+                    }
+                });
+
+                renderRoster(units, activeSortLat, activeSortLng);
+            })
+            .catch(function () {});
+        }
+
+        poll(); // run immediately on load
+        window.setInterval(poll, 10000);
     }
 
     function startPolling() {

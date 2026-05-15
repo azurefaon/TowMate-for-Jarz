@@ -154,7 +154,7 @@ class BookingController extends Controller
             }
         }
 
-        event(new BookingStatusUpdated($updatedBooking));
+        BookingStatusUpdated::safeFire($updatedBooking);
 
         return redirect()->route('customer.track', $updatedBooking)
             ->with('success', 'Booking details updated and the quotation record was refreshed automatically.');
@@ -243,7 +243,7 @@ class BookingController extends Controller
             $finalQuotePath = $this->documentGenerationService->generateQuotation($booking, true);
             $booking->update(['final_quote_path' => $finalQuotePath]);
             $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
-            event(new BookingStatusUpdated($booking));
+            BookingStatusUpdated::safeFire($booking);
 
             if (filled($booking->customer?->email)) {
                 Mail::to($booking->customer->email)->send(new FinalQuotationConfirmedMail($booking));

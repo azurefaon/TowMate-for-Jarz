@@ -1,4 +1,4 @@
-﻿@extends('layouts.superadmin')
+@extends('layouts.superadmin')
 
 @section('title', isset($user) ? 'Edit User' : 'Add User')
 

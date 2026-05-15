@@ -207,7 +207,7 @@ class TeamLeaderController extends Controller
         $assignedUnitId = $task->assigned_unit_id ?: optional(Auth::user()->unit)->id;
 
         // Allow accepting a booking that is unclaimed OR pre-assigned to this TL (e.g., dispatcher
-        // already linked the TL when sending the quotation — TL still needs to formally accept).
+        // already linked the TL when sending the quotation â€” TL still needs to formally accept).
         $updated = Booking::query()
             ->whereKey($task->id)
             ->where(function (Builder $q) use ($teamLeaderId) {
@@ -255,7 +255,7 @@ class TeamLeaderController extends Controller
 
         $task = $this->resolveOwnedTask($booking->fresh(), true);
         $this->syncAssignedUnitStatus($task, 'on_job');
-        event(new BookingStatusUpdated($task));
+        BookingStatusUpdated::safeFire($task);
 
         return response()->json([
             'success' => true,
@@ -290,7 +290,7 @@ class TeamLeaderController extends Controller
         ]);
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
-        event(new BookingStatusUpdated($task));
+        BookingStatusUpdated::safeFire($task);
 
         return response()->json([
             'success' => true,
@@ -323,7 +323,7 @@ class TeamLeaderController extends Controller
         ]);
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
-        event(new BookingStatusUpdated($task));
+        BookingStatusUpdated::safeFire($task);
 
         return response()->json([
             'success' => true,
@@ -351,7 +351,7 @@ class TeamLeaderController extends Controller
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
         $this->syncAssignedUnitStatus($task, 'on_job');
-        event(new BookingStatusUpdated($task));
+        BookingStatusUpdated::safeFire($task);
 
         return response()->json([
             'success' => true,
@@ -383,7 +383,7 @@ class TeamLeaderController extends Controller
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
         $this->syncAssignedUnitStatus($task, 'on_job');
-        event(new BookingStatusUpdated($task));
+        BookingStatusUpdated::safeFire($task);
 
         return response()->json([
             'success' => true,
@@ -419,7 +419,7 @@ class TeamLeaderController extends Controller
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
         $this->syncAssignedUnitStatus($task, 'available');
         $this->teamLeaderAvailability->setOperationalOverride(Auth::user(), 'available');
-        event(new BookingStatusUpdated($task));
+        BookingStatusUpdated::safeFire($task);
 
         return response()->json([
             'success' => true,
@@ -455,7 +455,7 @@ class TeamLeaderController extends Controller
             $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
             $this->syncAssignedUnitStatus($task, 'available');
             $this->teamLeaderAvailability->setOperationalOverride(Auth::user(), 'available');
-            event(new BookingStatusUpdated($task));
+            BookingStatusUpdated::safeFire($task);
 
             return response()->json([
                 'success'      => true,
@@ -516,7 +516,7 @@ class TeamLeaderController extends Controller
         ]);
 
         $task->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
-        event(new BookingStatusUpdated($task));
+        BookingStatusUpdated::safeFire($task);
 
         return response()->json([
             'success' => true,
@@ -588,7 +588,7 @@ class TeamLeaderController extends Controller
 
         $this->processReturnReasonActions($task, $reasonEnum, $note);
 
-        event(new BookingStatusUpdated($task));
+        BookingStatusUpdated::safeFire($task);
 
         return response()->json([
             'success' => true,
@@ -689,10 +689,10 @@ class TeamLeaderController extends Controller
             ]);
 
             $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
-            event(new BookingStatusUpdated($booking));
+            BookingStatusUpdated::safeFire($booking);
 
             return response($this->verificationResponseHtml(
-                'Service confirmed — thank you!',
+                'Service confirmed â€” thank you!',
                 'Your confirmation has been received. The team leader will now process your payment and submit proof to the dispatcher to finalize the job.'
             ))->header('Content-Type', 'text/html; charset=UTF-8');
         }
@@ -705,7 +705,7 @@ class TeamLeaderController extends Controller
 
         $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
         $this->syncAssignedUnitStatus($booking, 'on_job');
-        event(new BookingStatusUpdated($booking));
+        BookingStatusUpdated::safeFire($booking);
 
         return response($this->verificationResponseHtml(
             'Verification requires retry',
@@ -801,7 +801,7 @@ class TeamLeaderController extends Controller
 
             if ($confirmedTask) {
                 $this->syncAssignedUnitStatus($confirmedTask, 'on_job');
-                event(new BookingStatusUpdated($confirmedTask));
+                BookingStatusUpdated::safeFire($confirmedTask);
 
                 return $confirmedTask;
             }
@@ -872,11 +872,11 @@ class TeamLeaderController extends Controller
         $unitDriver  = $booking->unit?->driver?->full_name
             ?? $booking->unit?->driver?->name
             ?? $booking->unit?->driver_name
-            ?? '—';
+            ?? 'â€”';
         $tlName = $booking->assignedTeamLeader?->full_name
             ?? $booking->assignedTeamLeader?->name
             ?? $booking->unit?->teamLeader?->full_name
-            ?? '—';
+            ?? 'â€”';
 
         $serviceLabel = match ($booking->service_type) {
             'book_now'  => 'Book Now',
@@ -926,11 +926,11 @@ class TeamLeaderController extends Controller
             // Customer
             'customer_name'  => $booking->customer?->full_name ?? $booking->customer?->name ?? 'Guest',
             'customer_phone' => $booking->customer?->phone ?? 'N/A',
-            'customer_email' => $booking->customer?->email ?? '—',
+            'customer_email' => $booking->customer?->email ?? 'â€”',
 
             // Service
-            'pickup_address'  => $booking->pickup_address ?? '—',
-            'dropoff_address' => $booking->dropoff_address ?? '—',
+            'pickup_address'  => $booking->pickup_address ?? 'â€”',
+            'dropoff_address' => $booking->dropoff_address ?? 'â€”',
             'distance_km'     => $distanceKm,
 
             // Pricing
@@ -949,7 +949,7 @@ class TeamLeaderController extends Controller
             // Assigned truck
             'truck_type'  => $booking->truckType?->name ?? 'General Towing',
             'unit_name'   => $booking->unit?->name ?? 'Dispatch-assigned unit',
-            'unit_plate'  => $booking->unit?->plate_number ?? '—',
+            'unit_plate'  => $booking->unit?->plate_number ?? 'â€”',
             'unit_driver' => $unitDriver,
             'tl_name'     => $tlName,
 
