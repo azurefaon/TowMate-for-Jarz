@@ -78,6 +78,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
   String? _prefillPickupAddress;
   String? _prefillDropoffAddress;
 
+  // Wizard step: 0 = Location, 1 = Vehicle, 2 = Review
+  int _step = 0;
+
   @override
   void initState() {
     super.initState();
@@ -256,28 +259,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
     return (bases + distanceFee) * 1.12;
   }
 
-  List<String> get _missingFields {
-    final items = <String>[];
-    if (_selectedTruckType == null || _selectedVehicleType == null) {
-      items.add('Select a vehicle type to tow');
-    }
-    if (_pickupLatLng == null || _dropoffLatLng == null) {
-      items.add('Set both pickup and drop-off on the map');
-    } else if (_distanceKm == null && !_loadingRoute) {
-      items.add('Waiting for route calculation...');
-    }
-    if (_vehicleImages.isEmpty) {
-      items.add('Upload at least 1 vehicle photo');
-    }
-    if (_serviceType == 'schedule' && (_scheduledDate == null || _scheduledTime == null)) {
-      items.add('Choose a scheduled date and time');
-    }
-    if (_extraVehicles.any((v) => v.truck == null || v.vehicle == null)) {
-      items.add('Complete vehicle selection for all added vehicles');
-    }
-    return items;
-  }
-
   static const _allowedExts = {'jpg', 'jpeg', 'png'};
 
   Future<void> _pickImage(ImageSource source) async {
@@ -447,6 +428,338 @@ class _BookNowScreenState extends State<BookNowScreen> {
     );
   }
 
+  // ── Wizard helpers ────────────────────────────────────────────────────────
+
+  bool get _canProceedStep1 =>
+      _pickupLatLng != null &&
+      _dropoffLatLng != null &&
+      _distanceKm != null &&
+      !_loadingRoute;
+
+  bool get _canProceedStep2 {
+    if (_selectedTruckType == null || _selectedVehicleType == null) return false;
+    if (_vehicleImages.isEmpty) return false;
+    if (_serviceType == 'schedule' && (_scheduledDate == null || _scheduledTime == null)) return false;
+    if (_extraVehicles.any((v) => v.truck == null || v.vehicle == null)) return false;
+    return true;
+  }
+
+  Widget _buildTopBar(BuildContext ctx) {
+    const titles = ['Where to?', 'Your Vehicle', 'Review'];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: TmColors.grey300, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          if (_step == 0)
+            IconButton(
+              icon: const Icon(Icons.menu_rounded, color: TmColors.grey700),
+              onPressed: () => Scaffold.of(ctx).openDrawer(),
+              tooltip: 'Menu',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: TmColors.grey700, size: 20),
+              onPressed: () => setState(() => _step--),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          Expanded(
+            child: Center(
+              child: Text(
+                titles[_step],
+                style: GoogleFonts.inter(color: TmColors.black, fontSize: 16, letterSpacing: -0.3),
+              ),
+            ),
+          ),
+          const SizedBox(width: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepBody() {
+    return switch (_step) {
+      0 => _buildStep0(),
+      1 => _buildStep1(),
+      _ => _buildStep2(),
+    };
+  }
+
+  Widget _buildStep0() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _BookingModeSection(
+          serviceType: _serviceType,
+          scheduledDate: _scheduledDate,
+          scheduledTime: _scheduledTime,
+          onServiceTypeChanged: (v) => setState(() => _serviceType = v),
+          onDateChanged: (d) => setState(() => _scheduledDate = d),
+          onTimeChanged: (t) => setState(() => _scheduledTime = t),
+        ),
+        _LocationSection(
+          pickupLatLng: _pickupLatLng,
+          dropoffLatLng: _dropoffLatLng,
+          routePoints: _routePoints,
+          loadingRoute: _loadingRoute,
+          onPickupSelected: _onPickupSelected,
+          onDropoffSelected: _onDropoffSelected,
+          onReset: _resetLocations,
+          initialPickupAddress: _prefillPickupAddress,
+          initialDropoffAddress: _prefillDropoffAddress,
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildStep1() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _VehicleSection(
+          truckTypes: _truckTypes,
+          loading: _loadingTypes,
+          selectedTruck: _selectedTruckType,
+          selectedVehicle: _selectedVehicleType,
+          readyByClass: _readyByClass,
+          onSelect: _selectVehicle,
+          onRetry: _loadData,
+          onReset: _resetVehicle,
+        ),
+        const SizedBox(height: 20),
+        _VehicleImageSection(
+          images: _vehicleImages,
+          hasError: _imageError,
+          onAddTap: _showImageSourceSheet,
+          onRemove: _removeImage,
+        ),
+        if (_truckTypes.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _ExtraVehiclesSection(
+            extraVehicles: _extraVehicles,
+            truckTypes: _truckTypes,
+            canAdd: _extraVehicles.length < 5,
+            onAdd: _addExtraVehicle,
+            onRemove: _removeExtraVehicle,
+            onVehicleSet: _setExtraVehicle,
+          ),
+        ],
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildStep2() {
+    final bool hasSchedule = _serviceType == 'schedule' && _scheduledDate != null;
+    String? dateStr;
+    String? timeStr;
+    if (hasSchedule) {
+      dateStr =
+          '${_scheduledDate!.month.toString().padLeft(2, '0')}/'
+          '${_scheduledDate!.day.toString().padLeft(2, '0')}/'
+          '${_scheduledDate!.year}';
+    }
+    if (_scheduledTime != null) {
+      final h = _scheduledTime!.hourOfPeriod == 0 ? 12 : _scheduledTime!.hourOfPeriod;
+      final m = _scheduledTime!.minute.toString().padLeft(2, '0');
+      final period = _scheduledTime!.period == DayPeriod.am ? 'AM' : 'PM';
+      timeStr = '$h:$m $period';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('TRIP', style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 11, letterSpacing: 0.8)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: TmColors.grey100, borderRadius: BorderRadius.circular(8)),
+                child: Column(
+                  children: [
+                    _ReviewRow(label: 'Pickup', value: _pickupAddress),
+                    const SizedBox(height: 8),
+                    _ReviewRow(label: 'Drop-off', value: _dropoffAddress),
+                    if (_distanceKm != null) ...[
+                      const SizedBox(height: 8),
+                      _ReviewRow(
+                        label: 'Distance',
+                        value: '${_distanceKm!.toStringAsFixed(2)} km'
+                            '${_durationMin != null ? ' · ${_durationMin!.toInt()} min' : ''}',
+                      ),
+                    ],
+                    if (hasSchedule && dateStr != null) ...[
+                      const SizedBox(height: 8),
+                      _ReviewRow(
+                        label: 'Scheduled',
+                        value: '$dateStr${timeStr != null ? ' at $timeStr' : ''}',
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text('VEHICLE', style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 11, letterSpacing: 0.8)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: TmColors.grey100, borderRadius: BorderRadius.circular(8)),
+                child: Column(
+                  children: [
+                    _ReviewRow(label: 'Tow class', value: _selectedTruckType!.name),
+                    const SizedBox(height: 8),
+                    _ReviewRow(label: 'Vehicle', value: _selectedVehicleType!.name),
+                    const SizedBox(height: 8),
+                    _ReviewRow(label: 'Photos', value: '${_vehicleImages.length} uploaded'),
+                    if (_extraVehicles.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _ReviewRow(
+                        label: 'Extra',
+                        value: '+${_extraVehicles.length} vehicle${_extraVehicles.length > 1 ? 's' : ''}',
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(color: TmColors.black, borderRadius: BorderRadius.circular(8)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Estimated fare (incl. VAT)',
+                      style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13, letterSpacing: 0.1),
+                    ),
+                    Text(
+                      '₱${_priceFmt.format(_liveTotal)}',
+                      style: GoogleFonts.inter(color: TmColors.yellow, fontSize: 20, letterSpacing: -0.4),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        _NotesSection(controller: _notesCtrl),
+        if (_submitError != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: TmColors.error.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: const Border(left: BorderSide(color: TmColors.error, width: 3)),
+              ),
+              child: Text(
+                _submitError!,
+                style: GoogleFonts.inter(color: TmColors.error, fontSize: 13, letterSpacing: 0.1),
+              ),
+            ),
+          ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildBottomBar() {
+    final bool loading = _step == 0 && _loadingRoute;
+    final bool isConfirm = _step == 2;
+    final String label = isConfirm ? 'Confirm Booking' : 'Continue';
+
+    String? hint;
+    VoidCallback? onTap;
+
+    if (_step == 0) {
+      if (_pickupLatLng == null) {
+        hint = 'Set a pickup location to continue';
+      } else if (_dropoffLatLng == null) {
+        hint = 'Set a drop-off location to continue';
+      } else if (_loadingRoute) {
+        hint = 'Calculating route...';
+      }
+      onTap = _canProceedStep1 ? () => setState(() => _step = 1) : null;
+    } else if (_step == 1) {
+      if (_selectedTruckType == null || _selectedVehicleType == null) {
+        hint = 'Select a vehicle type to continue';
+      } else if (_vehicleImages.isEmpty) {
+        hint = 'Add at least 1 vehicle photo to continue';
+      } else if (_serviceType == 'schedule' && (_scheduledDate == null || _scheduledTime == null)) {
+        hint = 'Choose a scheduled date and time';
+      }
+      onTap = () {
+        if (_vehicleImages.isEmpty) setState(() => _imageError = true);
+        if (!_canProceedStep2) return;
+        setState(() => _step = 2);
+      };
+    } else {
+      onTap = _navigateToReview;
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: TmColors.grey300, width: 0.5)),
+        color: TmColors.white,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hint != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                hint,
+                style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 12, letterSpacing: 0.1),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: loading ? null : onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isConfirm ? TmColors.yellow : TmColors.black,
+                foregroundColor: isConfirm ? TmColors.black : TmColors.white,
+                disabledBackgroundColor: TmColors.grey300,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+              ),
+              child: loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: TmColors.white, strokeWidth: 2),
+                    )
+                  : Text(
+                      label,
+                      style: GoogleFonts.inter(
+                        color: loading ? TmColors.grey500 : (isConfirm ? TmColors.black : TmColors.white),
+                        fontSize: 15,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showImageSourceSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -523,224 +836,30 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: TmColors.white,
-      drawer: const TmDrawer(currentRoute: '/book-now', isLoggedIn: true),
-      body: Builder(
-        builder: (ctx) => SafeArea(
-          child: Column(
-            children: [
-              _TopBar(onMenuTap: () => Scaffold.of(ctx).openDrawer()),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ── Section 1: Booking mode ────────────────────────────
-                      _BookingModeSection(
-                        serviceType: _serviceType,
-                        scheduledDate: _scheduledDate,
-                        scheduledTime: _scheduledTime,
-                        onServiceTypeChanged: (v) => setState(() => _serviceType = v),
-                        onDateChanged: (d) => setState(() => _scheduledDate = d),
-                        onTimeChanged: (t) => setState(() => _scheduledTime = t),
-                      ),
-                      // ── Section 2: Location ────────────────────────────────
-                      _LocationSection(
-                        pickupLatLng: _pickupLatLng,
-                        dropoffLatLng: _dropoffLatLng,
-                        routePoints: _routePoints,
-                        loadingRoute: _loadingRoute,
-                        onPickupSelected: _onPickupSelected,
-                        onDropoffSelected: _onDropoffSelected,
-                        onReset: _resetLocations,
-                        initialPickupAddress: _prefillPickupAddress,
-                        initialDropoffAddress: _prefillDropoffAddress,
-                      ),
-                      // ── Section 3: Vehicle Details ─────────────────────────
-                      _VehicleSection(
-                        truckTypes: _truckTypes,
-                        loading: _loadingTypes,
-                        selectedTruck: _selectedTruckType,
-                        selectedVehicle: _selectedVehicleType,
-                        readyByClass: _readyByClass,
-                        onSelect: _selectVehicle,
-                        onRetry: _loadData,
-                        onReset: _resetVehicle,
-                      ),
-                      // ── Section 3b: Vehicle Images ─────────────────────────
-                      const SizedBox(height: 20),
-                      _VehicleImageSection(
-                        images: _vehicleImages,
-                        hasError: _imageError,
-                        onAddTap: _showImageSourceSheet,
-                        onRemove: _removeImage,
-                      ),
-                      // ── Section 3c: Extra Vehicles ─────────────────────────
-                      if (_truckTypes.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        _ExtraVehiclesSection(
-                          extraVehicles: _extraVehicles,
-                          truckTypes: _truckTypes,
-                          canAdd: _extraVehicles.length < 5,
-                          onAdd: _addExtraVehicle,
-                          onRemove: _removeExtraVehicle,
-                          onVehicleSet: _setExtraVehicle,
-                        ),
-                      ],
-                      // ── Section 4: Notes ───────────────────────────────────
-                      _NotesSection(controller: _notesCtrl),
-                      // ── Review button ──────────────────────────────────────
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (_submitError != null) ...[
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: TmColors.error.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: const Border(
-                                    left: BorderSide(color: TmColors.error, width: 3),
-                                  ),
-                                ),
-                                child: Text(
-                                  _submitError!,
-                                  style: GoogleFonts.inter(
-                                    color: TmColors.error,
-                                    fontSize: 13,
-                                    letterSpacing: 0.1,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-                            if (_selectedTruckType != null && _distanceKm != null) ...[
-                              const SizedBox(height: 16),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: TmColors.grey100,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Estimated fare',
-                                      style: GoogleFonts.inter(
-                                        color: TmColors.grey500,
-                                        fontSize: 13,
-                                        letterSpacing: 0.1,
-                                      ),
-                                    ),
-                                    Text(
-                                      '₱${_priceFmt.format(_liveTotal)}',
-                                      style: GoogleFonts.inter(
-                                        color: TmColors.black,
-                                        fontSize: 18,
-                                        letterSpacing: -0.4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: _canReview ? _navigateToReview : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: TmColors.black,
-                                  foregroundColor: TmColors.white,
-                                  disabledBackgroundColor: TmColors.grey300,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: Text(
-                                  'Review Booking',
-                                  style: GoogleFonts.inter(
-                                    color: TmColors.white,
-                                    fontSize: 15,
-                                    letterSpacing: 0.2,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            if (!_canReview) ...[
-                              const SizedBox(height: 12),
-                              ..._missingFields.map((msg) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Text(
-                                      '· $msg',
-                                      style: GoogleFonts.inter(
-                                        color: TmColors.grey500,
-                                        fontSize: 12,
-                                        letterSpacing: 0.1,
-                                      ),
-                                    ),
-                                  )),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 48),
-                    ],
+    return PopScope(
+      canPop: _step == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _step > 0) setState(() => _step--);
+      },
+      child: Scaffold(
+        backgroundColor: TmColors.white,
+        drawer: _step == 0 ? const TmDrawer(currentRoute: '/book-now', isLoggedIn: true) : null,
+        body: Builder(
+          builder: (ctx) => SafeArea(
+            child: Column(
+              children: [
+                _buildTopBar(ctx),
+                _StepIndicator(step: _step),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: _buildStepBody(),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Top bar ───────────────────────────────────────────────────────────────
-
-class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onMenuTap});
-  final VoidCallback onMenuTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: TmColors.grey300, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.menu_rounded, color: TmColors.grey700),
-            onPressed: onMenuTap,
-            tooltip: 'Menu',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Center(
-              child: Text(
-                'TowMate',
-                style: GoogleFonts.inter(
-                  color: TmColors.yellow,
-                  fontSize: 22,
-                  letterSpacing: -0.8,
-                ),
-              ),
+                _buildBottomBar(),
+              ],
             ),
           ),
-          const SizedBox(width: 40),
-        ],
+        ),
       ),
     );
   }
@@ -2477,6 +2596,123 @@ class _NotesSection extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Wizard step indicator ──────────────────────────────────────────────────
+
+class _StepIndicator extends StatelessWidget {
+  const _StepIndicator({required this.step});
+  final int step;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 12, 32, 4),
+      child: Row(
+        children: [
+          _StepDot(index: 0, currentStep: step, label: 'Location'),
+          _StepLine(done: step > 0),
+          _StepDot(index: 1, currentStep: step, label: 'Vehicle'),
+          _StepLine(done: step > 1),
+          _StepDot(index: 2, currentStep: step, label: 'Review'),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepDot extends StatelessWidget {
+  const _StepDot({required this.index, required this.currentStep, required this.label});
+  final int index;
+  final int currentStep;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool active = index == currentStep;
+    final bool done = index < currentStep;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: active || done ? TmColors.black : TmColors.grey300,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: done
+                ? const Icon(Icons.check_rounded, color: TmColors.white, size: 14)
+                : Text(
+                    '${index + 1}',
+                    style: GoogleFonts.inter(
+                      color: active ? TmColors.yellow : TmColors.grey500,
+                      fontSize: 12,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: active ? TmColors.black : TmColors.grey500,
+            fontSize: 10,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StepLine extends StatelessWidget {
+  const _StepLine({required this.done});
+  final bool done;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        height: 1.5,
+        margin: const EdgeInsets.only(bottom: 20, left: 4, right: 4),
+        color: done ? TmColors.black : TmColors.grey300,
+      ),
+    );
+  }
+}
+
+// ─── Review summary row ─────────────────────────────────────────────────────
+
+class _ReviewRow extends StatelessWidget {
+  const _ReviewRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 72,
+          child: Text(
+            label,
+            style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 12, letterSpacing: 0.1),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: GoogleFonts.inter(color: TmColors.black, fontSize: 13, letterSpacing: 0.1, height: 1.4),
+          ),
+        ),
+      ],
     );
   }
 }
