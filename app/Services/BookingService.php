@@ -628,7 +628,9 @@ class BookingService
         $kmIncrements = (int) floor($resolvedDistanceKm / 4);
         $kmCharge = round($kmIncrements * 200.0, 2);
 
-        $resolvedBaseRate = round((float) ($baseRate ?? 0), 2);
+        // Use the booking's stored base_rate as fallback so quotation re-calculations
+        // stay consistent with what was shown to the customer at booking time.
+        $resolvedBaseRate = round((float) ($baseRate ?? $booking->base_rate ?? 0), 2);
         $computedTotal = round($resolvedBaseRate + $kmCharge, 2);
 
         $customerType = strtolower((string) ($booking->customer_type ?: $booking->customer?->customer_type ?: 'regular'));
@@ -644,20 +646,26 @@ class BookingService
             $resolvedAdditionalFee = max(round($quotedAmount - ($computedTotal - $discountAmount), 2), 0);
         }
 
+        $finalTotal    = max(round($computedTotal + $resolvedAdditionalFee - $discountAmount, 2), 0);
+        $vatExclusive  = round($finalTotal / 1.12, 2);
+        $vatAmount     = round($finalTotal - $vatExclusive, 2);
+
         return [
-            'distance_km' => $resolvedDistanceKm,
-            'base_rate' => $resolvedBaseRate,
-            'km_increments' => $kmIncrements,
-            'distance_fee' => $kmCharge,
+            'distance_km'         => $resolvedDistanceKm,
+            'base_rate'           => $resolvedBaseRate,
+            'km_increments'       => $kmIncrements,
+            'distance_fee'        => $kmCharge,
             'excess_km_threshold' => 0.0,
-            'excess_km_rate' => 200.0,
-            'excess_km' => 0.0,
-            'excess_fee' => 0.0,
-            'computed_total' => $computedTotal,
+            'excess_km_rate'      => 200.0,
+            'excess_km'           => 0.0,
+            'excess_fee'          => 0.0,
+            'computed_total'      => $computedTotal,
             'discount_percentage' => $resolvedDiscountPercentage,
-            'additional_fee' => $resolvedAdditionalFee,
-            'discount_amount' => $discountAmount,
-            'final_total' => max(round($computedTotal + $resolvedAdditionalFee - $discountAmount, 2), 0),
+            'additional_fee'      => $resolvedAdditionalFee,
+            'discount_amount'     => $discountAmount,
+            'final_total'         => $finalTotal,
+            'vat_amount'          => $vatAmount,
+            'vat_exclusive_total' => $vatExclusive,
         ];
     }
 
