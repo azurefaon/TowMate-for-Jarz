@@ -192,6 +192,10 @@
                         <span style="font-size: 0.95rem; color: #0f172a;">Total</span>
                         <span style="font-size: 1.2rem; color: #0f172a;" id="qmTotalAmount">₱0.00</span>
                     </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #64748b; margin-top: 4px;">
+                        <span>VAT (12%, included)</span>
+                        <span id="qmVatAmount">₱0.00</span>
+                    </div>
                 </div>
             </div>
 
@@ -648,15 +652,18 @@
     }
 
     function recalcQuotationTotal() {
+        const vatEl = document.getElementById('qmVatAmount');
         if (window.qmCurrentStatus === 'pending') {
             const typed = parseFloat(document.getElementById('qmFinalPriceInput')?.value || 0);
             document.getElementById('qmCalculatedPrice').textContent = fmt(typed);
             if (document.getElementById('qmTotalAmount'))
                 document.getElementById('qmTotalAmount').textContent = fmt(typed);
+            if (vatEl) vatEl.textContent = fmt(typed - typed / 1.12);
         } else {
             const fees     = parseFloat(document.getElementById('qmOtherFeesInput')?.value || 0);
             const newTotal = Math.max(0, (window.qmEstimatedPrice || 0) + fees);
             document.getElementById('qmCalculatedPrice').textContent = fmt(newTotal);
+            if (vatEl) vatEl.textContent = fmt(newTotal - newTotal / 1.12);
         }
     }
 
