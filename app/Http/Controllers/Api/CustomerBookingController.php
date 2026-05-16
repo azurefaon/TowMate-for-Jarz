@@ -132,7 +132,7 @@ class CustomerBookingController extends Controller
             'scheduled_date'                   => 'nullable|date|after_or_equal:today',
             'scheduled_time'                   => 'nullable|string|max:10',
             'vehicle_images'                   => 'nullable|array|max:5',
-            'vehicle_images.*'                 => 'file|mimes:jpg,jpeg,png|max:5120',
+            'vehicle_images.*'                 => 'file|mimetypes:image/jpeg,image/png,image/jpg|max:5120',
             'extra_vehicles'                   => 'nullable|string',
         ]);
 

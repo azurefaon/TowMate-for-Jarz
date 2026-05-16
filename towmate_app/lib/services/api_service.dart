@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/booking_model.dart';
@@ -492,17 +494,27 @@ class ApiService {
         req.fields['extra_vehicles'] = jsonEncode(extraVehicles);
       }
 
-      for (final path in vehicleImagePaths) {
-        final xfile = XFile(path);
-        final bytes = await xfile.readAsBytes();
-        final filename = kIsWeb
-            ? 'photo_${vehicleImagePaths.indexOf(path)}.jpg'
-            : path.split(Platform.pathSeparator).last;
+      for (int i = 0; i < vehicleImagePaths.length; i++) {
+        final path = vehicleImagePaths[i];
+        List<int> bytes;
+        if (kIsWeb) {
+          bytes = await XFile(path).readAsBytes();
+        } else {
+          final compressed = await FlutterImageCompress.compressWithFile(
+            path,
+            quality: 70,
+            minWidth: 1280,
+            minHeight: 1280,
+            keepExif: false,
+          );
+          bytes = compressed ?? await XFile(path).readAsBytes();
+        }
         req.files.add(
           http.MultipartFile.fromBytes(
             'vehicle_images[]',
             bytes,
-            filename: filename,
+            filename: 'vehicle_$i.jpg',
+            contentType: MediaType('image', 'jpeg'),
           ),
         );
       }
