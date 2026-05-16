@@ -182,7 +182,7 @@ class Booking extends Model
             return 'cancelled';
         }
 
-        if (in_array($bookingStatus, ['confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'payment_pending', 'payment_submitted', 'completed', 'on_job'], true)) {
+        if (in_array($bookingStatus, ['confirmed', 'scheduled_confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'payment_pending', 'payment_submitted', 'completed', 'on_job'], true)) {
             return 'accepted';
         }
 

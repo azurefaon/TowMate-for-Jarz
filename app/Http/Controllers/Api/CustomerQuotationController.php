@@ -79,8 +79,11 @@ class CustomerQuotationController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Mobile quotation accept failed', [
-                'quotation_id' => $quotation->id,
-                'error'        => $e->getMessage(),
+                'quotation_id'     => $quotation->id,
+                'source_booking_id' => $quotation->source_booking_id,
+                'service_type'     => $quotation->service_type,
+                'error'            => $e->getMessage(),
+                'trace'            => $e->getTraceAsString(),
             ]);
             return response()->json(['success' => false, 'message' => 'Failed to accept quotation.'], 500);
         }

@@ -657,6 +657,7 @@ class DispatchController extends Controller
             $booking->refresh()->loadMissing(['customer', 'truckType']);
 
             $quotation = $this->quotationService->createQuotation([
+                'source_booking_id' => $booking->id,
                 'customer_id' => $booking->customer_id,
                 'truck_type_id' => $booking->truck_type_id,
                 'pickup_address' => $booking->pickup_address,
@@ -672,6 +673,10 @@ class DispatchController extends Controller
                 'estimated_price' => $totals['final_total'],
                 'additional_fee' => $totals['additional_fee'],
                 'service_type' => $booking->service_type ?? null,
+                'scheduled_date' => $booking->scheduled_date?->toDateString(),
+                'scheduled_time' => $booking->scheduled_time,
+                'pickup_notes' => $booking->notes,
+                'extra_vehicles' => $booking->extra_vehicles,
             ]);
 
             $this->quotationService->sendQuotation($quotation);
