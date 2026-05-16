@@ -220,7 +220,7 @@ class CustomerBookingController extends Controller
                 'pickup_address'     => $validated['pickup_address'],
                 'dropoff_address'    => $validated['dropoff_address'],
                 'distance_km'        => $distanceKm,
-                'estimated_price'    => $computedTotal,
+                'estimated_price'    => $finalTotal,
                 'service_type'       => $validated['service_type'] ?? 'book_now',
                 'scheduled_date'     => $validated['scheduled_date'] ?? null,
                 'scheduled_time'     => $validated['scheduled_time'] ?? null,

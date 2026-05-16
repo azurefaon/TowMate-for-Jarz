@@ -1004,6 +1004,19 @@ class DispatchController extends Controller
             'response_note' => 'Cancelled by dispatcher at customer request',
         ]);
 
+        // Cancel the source booking so the mobile customer sees it removed
+        if ($quotation->source_booking_id) {
+            $sourceBooking = Booking::find($quotation->source_booking_id);
+            if ($sourceBooking && in_array($sourceBooking->status, ['requested', 'reviewed', 'quoted', 'quotation_sent'])) {
+                $sourceBooking->update([
+                    'status'           => 'cancelled',
+                    'quotation_status' => 'cancelled',
+                    'rejection_reason' => 'Booking cancelled by dispatcher.',
+                ]);
+                BookingStatusUpdated::safeFire($sourceBooking);
+            }
+        }
+
         Log::info('Quotation cancelled by dispatcher', [
             'quotation_id' => $quotation->id,
             'quotation_number' => $quotation->quotation_number,

@@ -187,14 +187,18 @@
                         <span id="qmExtraVehiclesLabel">Additional Vehicles</span>
                         <span id="qmExtraVehiclesTotal">₱0.00</span>
                     </div>
-                    <div
-                        style="border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; justify-content: space-between; align-items: baseline;">
-                        <span style="font-size: 0.95rem; color: #0f172a;">Total</span>
-                        <span style="font-size: 1.2rem; color: #0f172a;" id="qmTotalAmount">₱0.00</span>
+                    <div style="border-top: 1px solid #e2e8f0; padding-top: 10px; display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b;">
+                        <span>Subtotal (before VAT)</span>
+                        <span id="qmSubtotalAmount">₱0.00</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #64748b; margin-top: 4px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #64748b;">
                         <span>VAT (12%)</span>
                         <span id="qmVatAmount">₱0.00</span>
+                    </div>
+                    <div
+                        style="border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; justify-content: space-between; align-items: baseline;">
+                        <span style="font-size: 0.95rem; font-weight: 600; color: #0f172a;">Total</span>
+                        <span style="font-size: 1.2rem; font-weight: 700; color: #0f172a;" id="qmTotalAmount">₱0.00</span>
                     </div>
                 </div>
             </div>
@@ -590,7 +594,21 @@
                         evTotalRow.style.display = 'none';
                     }
                 }
-                document.getElementById('qmTotalAmount').textContent = fmt(distanceFee + evTotal);
+                // Initial Price Breakdown display
+                if (q.status === 'sent' || q.status === 'negotiating') {
+                    const sentTotal    = parseFloat(q.estimated_price || 0);
+                    const sentSubtotal = Math.round(sentTotal / 1.12 * 100) / 100;
+                    const sentVat      = Math.round((sentTotal - sentSubtotal) * 100) / 100;
+                    document.getElementById('qmSubtotalAmount').textContent = fmt(sentSubtotal);
+                    document.getElementById('qmVatAmount').textContent      = fmt(sentVat);
+                    document.getElementById('qmTotalAmount').textContent    = fmt(sentTotal);
+                } else {
+                    const tempSubtotal = (window.qmBasePrice || 0) + distanceFee + evTotal;
+                    const tempVat      = Math.round(tempSubtotal * 0.12 * 100) / 100;
+                    document.getElementById('qmSubtotalAmount').textContent = fmt(tempSubtotal);
+                    document.getElementById('qmVatAmount').textContent      = fmt(tempVat);
+                    document.getElementById('qmTotalAmount').textContent    = fmt(tempSubtotal + tempVat);
+                }
 
                 // Show unit section for draft/pending quotations
                 const unitSection = document.getElementById('qmUnitSection');
@@ -603,10 +621,15 @@
                             const newBase = this.value ? parseFloat(selOpt.getAttribute('data-base-rate') || 0) : 0;
                             if (newBase > 0) {
                                 window.qmBasePrice = newBase;
-                                const newSuggested = newBase + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
-                                document.getElementById('qmBasePrice').textContent     = fmt(newBase);
-                                document.getElementById('qmFinalPriceInput').value     = newSuggested.toFixed(2);
+                                const subtotalCalc = newBase + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
+                                const vatCalc      = Math.round(subtotalCalc * 0.12 * 100) / 100;
+                                const newSuggested = Math.round(subtotalCalc * 1.12 * 100) / 100;
+                                document.getElementById('qmBasePrice').textContent          = fmt(newBase);
+                                document.getElementById('qmFinalPriceInput').value          = newSuggested.toFixed(2);
                                 document.getElementById('qmSuggestedPriceHint').textContent = '(suggested: ' + fmt(newSuggested) + ')';
+                                document.getElementById('qmSubtotalAmount').textContent     = fmt(subtotalCalc);
+                                document.getElementById('qmVatAmount').textContent          = fmt(vatCalc);
+                                document.getElementById('qmTotalAmount').textContent        = fmt(newSuggested);
                             }
                             recalcQuotationTotal();
                         };
@@ -628,7 +651,8 @@
                 if (q.status === 'draft' || q.status === 'pending') {
                     directBlock.style.display = 'block';
                     deltaBlock.style.display  = 'none';
-                    const suggested = (window.qmBasePrice || 0) + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
+                    const subtotalInit = (window.qmBasePrice || 0) + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
+                    const suggested    = Math.round(subtotalInit * 1.12 * 100) / 100;
                     if (finalInput) finalInput.value = suggested.toFixed(2);
                     if (suggestedHint) suggestedHint.textContent = '(suggested: ' + fmt(suggested) + ')';
                     if (finalInput) finalInput.oninput = recalcQuotationTotal;
@@ -696,19 +720,24 @@
     }
 
     function recalcQuotationTotal() {
-        const vatEl = document.getElementById('qmVatAmount');
+        const vatEl      = document.getElementById('qmVatAmount');
+        const subtotalEl = document.getElementById('qmSubtotalAmount');
         if (window.qmCurrentStatus === 'draft' || window.qmCurrentStatus === 'pending') {
-            const typed = parseFloat(document.getElementById('qmFinalPriceInput')?.value || 0);
+            const typed    = parseFloat(document.getElementById('qmFinalPriceInput')?.value || 0);
+            const vatAmt   = Math.round(typed * 0.12 / 1.12 * 100) / 100;
+            const subtotal = Math.round((typed - vatAmt) * 100) / 100;
             document.getElementById('qmCalculatedPrice').textContent = fmt(typed);
             if (document.getElementById('qmTotalAmount'))
                 document.getElementById('qmTotalAmount').textContent = fmt(typed);
-            // VAT is additive — if typed is already VAT-inclusive, extract it; otherwise show 0
-            if (vatEl) vatEl.textContent = fmt(typed * 0.12 / 1.12);
+            if (vatEl) vatEl.textContent = fmt(vatAmt);
+            if (subtotalEl) subtotalEl.textContent = fmt(subtotal);
         } else {
             const fees     = parseFloat(document.getElementById('qmOtherFeesInput')?.value || 0);
             const newTotal = Math.max(0, (window.qmEstimatedPrice || 0) + fees);
+            const vatAmt   = Math.round(newTotal * 0.12 / 1.12 * 100) / 100;
             document.getElementById('qmCalculatedPrice').textContent = fmt(newTotal);
-            if (vatEl) vatEl.textContent = fmt(newTotal * 0.12 / 1.12);
+            if (vatEl) vatEl.textContent = fmt(vatAmt);
+            if (subtotalEl) subtotalEl.textContent = fmt(Math.round((newTotal - vatAmt) * 100) / 100);
         }
     }
 
