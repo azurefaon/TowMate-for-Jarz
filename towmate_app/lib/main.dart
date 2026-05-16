@@ -105,5 +105,6 @@ class _AuthGateState extends State<_AuthGate> {
   }
 
   @override
-  Widget build(BuildContext context) => const PublicHomeScreen();
+  Widget build(BuildContext context) =>
+      const Scaffold(backgroundColor: Colors.white);
 }
