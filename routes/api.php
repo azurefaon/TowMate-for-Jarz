@@ -71,7 +71,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    Route::get('v1/profile', [AuthController::class, 'profile']);
+    Route::get('v1/profile',                        [AuthController::class, 'profile']);
+    Route::post('v1/profile/update',               [AuthController::class, 'updateProfile']);
+    Route::post('v1/profile/change-password',      [AuthController::class, 'changePassword']);
 
     Route::prefix('v1')->group(function () {
         // Customer-specific routes — must be defined before apiResource to avoid wildcard collisions
