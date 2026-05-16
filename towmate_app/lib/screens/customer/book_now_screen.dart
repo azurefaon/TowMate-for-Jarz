@@ -15,7 +15,6 @@ import '../../models/truck_type_model.dart';
 import '../../models/vehicle_type_model.dart';
 import '../../services/api_service.dart';
 import '../../widgets/tm_drawer.dart';
-import 'booking_review_screen.dart';
 
 class _ExtraVehicleData {
   TruckTypeModel? truck;
@@ -70,8 +69,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
   // Notes
   final _notesCtrl = TextEditingController();
 
-  // Route error display
-  String? _submitError;
+  // Booking submission
+  bool _submitting = false;
+  String? _bookingError;
 
   // Pre-fill state from "Book same trip" args
   bool _prefillApplied = false;
@@ -184,7 +184,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _pickupAddress = address;
       _routePoints = [];
       _distanceKm = null;
-      _submitError = null;
     });
     if (_dropoffLatLng != null) _calculateRoute();
   }
@@ -195,7 +194,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _dropoffAddress = address;
       _routePoints = [];
       _distanceKm = null;
-      _submitError = null;
     });
     if (_pickupLatLng != null) _calculateRoute();
   }
@@ -208,16 +206,12 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _dropoffAddress = '';
       _routePoints = [];
       _distanceKm = null;
-      _submitError = null;
     });
   }
 
   Future<void> _calculateRoute() async {
     if (_pickupLatLng == null || _dropoffLatLng == null) return;
-    setState(() {
-      _loadingRoute = true;
-      _submitError = null;
-    });
+    setState(() => _loadingRoute = true);
 
     final result = await ApiService.calculateRoute(
       _pickupLatLng!.latitude,
@@ -243,7 +237,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
     } else {
       setState(() {
         _loadingRoute = false;
-        _submitError = result['message'] as String? ?? 'Could not calculate route.';
+        _loadingRoute = false;
       });
     }
   }
@@ -301,16 +295,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
     });
   }
 
-  bool get _canReview {
-    if (_selectedTruckType == null || _selectedVehicleType == null) return false;
-    if (_pickupLatLng == null || _dropoffLatLng == null) return false;
-    if (_distanceKm == null || _loadingRoute) return false;
-    if (_vehicleImages.isEmpty) return false;
-    if (_serviceType == 'schedule' && (_scheduledDate == null || _scheduledTime == null)) return false;
-    if (_extraVehicles.any((v) => v.truck == null || v.vehicle == null)) return false;
-    return true;
-  }
-
   Future<void> _showNoUnitsModal() async {
     await showDialog<void>(
       context: context,
@@ -358,14 +342,16 @@ class _BookNowScreenState extends State<BookNowScreen> {
     );
   }
 
-  void _navigateToReview() {
-    if (_vehicleImages.isEmpty) setState(() => _imageError = true);
-    if (!_canReview) return;
-
+  Future<void> _submitBooking() async {
     if (!_bookNowEnabled && _serviceType == 'book_now') {
-      _showNoUnitsModal();
+      await _showNoUnitsModal();
       return;
     }
+
+    setState(() {
+      _submitting = true;
+      _bookingError = null;
+    });
 
     String? scheduledDateStr;
     String? scheduledTimeStr;
@@ -379,42 +365,53 @@ class _BookNowScreenState extends State<BookNowScreen> {
           '${_scheduledTime!.minute.toString().padLeft(2, '0')}';
     }
 
-    final extraData = _extraVehicles
+    final extraList = _extraVehicles
         .where((v) => v.truck != null && v.vehicle != null)
         .map((v) => <String, dynamic>{
               'truck_type_id': v.truck!.id,
               'vehicle_type_id': v.vehicle!.id,
-              'truck_name': v.truck!.name,
-              'vehicle_name': v.vehicle!.name,
-              'base_rate': v.truck!.baseRate,
             })
         .toList();
 
-    Navigator.push<void>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BookingReviewScreen(
-          serviceType: _serviceType,
-          scheduledDate: _scheduledDate,
-          scheduledTime: _scheduledTime,
-          pickupAddress: _pickupAddress,
-          pickupLat: _pickupLatLng!.latitude,
-          pickupLng: _pickupLatLng!.longitude,
-          dropoffAddress: _dropoffAddress,
-          dropoffLat: _dropoffLatLng!.latitude,
-          dropoffLng: _dropoffLatLng!.longitude,
-          distanceKm: _distanceKm!,
-          durationMin: _durationMin,
-          primaryTruck: _selectedTruckType!,
-          primaryVehicle: _selectedVehicleType!,
-          extraVehicles: extraData,
-          vehicleImagePaths: _vehicleImages.map((x) => x.path).toList(),
-          notes: _notesCtrl.text.trim(),
-          scheduledDateStr: scheduledDateStr,
-          scheduledTimeStr: scheduledTimeStr,
-        ),
-      ),
+    final result = await ApiService.createBooking(
+      truckTypeId: _selectedTruckType!.id,
+      vehicleTypeId: _selectedVehicleType!.id,
+      pickupAddress: _pickupAddress,
+      pickupLat: _pickupLatLng!.latitude,
+      pickupLng: _pickupLatLng!.longitude,
+      dropoffAddress: _dropoffAddress,
+      dropoffLat: _dropoffLatLng!.latitude,
+      dropoffLng: _dropoffLatLng!.longitude,
+      distanceKm: _distanceKm!,
+      serviceType: _serviceType,
+      notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      scheduledDate: scheduledDateStr,
+      scheduledTime: scheduledTimeStr,
+      vehicleImagePaths: _vehicleImages.map((x) => x.path).toList(),
+      extraVehicles: extraList,
     );
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final code = result['booking_code'] as String? ?? '';
+      Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          'Booking $code submitted.',
+          style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+        ),
+        backgroundColor: TmColors.black,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
+      ));
+    } else {
+      setState(() {
+        _submitting = false;
+        _bookingError = result['message'] as String? ?? 'Booking failed. Please try again.';
+      });
+    }
   }
 
   // ── Wizard helpers ────────────────────────────────────────────────────────
@@ -633,7 +630,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
           ),
         ),
         _NotesSection(controller: _notesCtrl),
-        if (_submitError != null)
+        if (_bookingError != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
             child: Container(
@@ -645,7 +642,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 border: const Border(left: BorderSide(color: TmColors.error, width: 3)),
               ),
               child: Text(
-                _submitError!,
+                _bookingError!,
                 style: GoogleFonts.inter(color: TmColors.error, fontSize: 13, letterSpacing: 0.1),
               ),
             ),
@@ -686,8 +683,10 @@ class _BookNowScreenState extends State<BookNowScreen> {
         setState(() => _step = 2);
       };
     } else {
-      onTap = _navigateToReview;
+      onTap = _submitting ? null : _submitBooking;
     }
+
+    final bool busy = loading || (_step == 2 && _submitting);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
@@ -711,7 +710,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: loading ? null : onTap,
+              onPressed: busy ? null : onTap,
               style: ElevatedButton.styleFrom(
                 backgroundColor: isConfirm ? TmColors.yellow : TmColors.black,
                 foregroundColor: isConfirm ? TmColors.black : TmColors.white,
@@ -719,7 +718,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
-              child: loading
+              child: busy
                   ? const SizedBox(
                       width: 20,
                       height: 20,
@@ -728,7 +727,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                   : Text(
                       label,
                       style: GoogleFonts.inter(
-                        color: loading ? TmColors.grey500 : (isConfirm ? TmColors.black : TmColors.white),
+                        color: isConfirm ? TmColors.black : TmColors.white,
                         fontSize: 15,
                         letterSpacing: 0.2,
                       ),
@@ -1981,15 +1980,6 @@ class _VehicleSectionState extends State<_VehicleSection> {
                 ),
               ),
               const SizedBox(height: 10),
-              Text(
-                '${_focusedTruck!.name.toUpperCase()} VEHICLES',
-                style: GoogleFonts.inter(
-                  color: TmColors.grey500,
-                  fontSize: 11,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              const SizedBox(height: 10),
               if (_focusedTruck!.vehicleTypes.isNotEmpty) ...[
                 Builder(builder: (context) {
                   final isAvailable = widget.readyByClass.isEmpty ||
@@ -2350,16 +2340,6 @@ class _ExtraVehiclesSection extends StatelessWidget {
               color: TmColors.grey500,
               fontSize: 11,
               letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Towing multiple vehicles on the same trip? Add each vehicle below with its tow class and vehicle type.',
-            style: GoogleFonts.inter(
-              color: TmColors.grey700,
-              fontSize: 13,
-              letterSpacing: 0.1,
-              height: 1.5,
             ),
           ),
           ...List.generate(extraVehicles.length, (i) => _ExtraVehicleSlot(
