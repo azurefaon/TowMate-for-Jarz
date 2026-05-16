@@ -521,10 +521,10 @@ class DispatchController extends Controller
                     }
 
                     $distanceKm = (float) $request->input('distance_km', $booking->distance_km ?? 0);
-                    $expectedDistanceFee = round(floor($distanceKm / 4) * 200, 2);
+                    $expectedDistanceFee = round(max(0.0, $distanceKm - 1.0) * 300.0, 2);
 
                     if (abs($expectedDistanceFee - (float) $value) > 0.11) {
-                        $fail('Distance fee must match the per-4km rate.');
+                        $fail('Distance fee must match the MMDA per-km rate (₱300/km after 1st km).');
                     }
                 },
             ],
@@ -855,9 +855,9 @@ class DispatchController extends Controller
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
         $discount      = (float) ($quotation->discount ?? 0);
         $basePrice     = (float) ($quotation->truckType?->base_rate ?? 0);
-        $perKmRate     = (float) ($quotation->truckType?->per_km_rate ?? 0);
-        $kmIncrements  = (int) floor($distanceKm / 4);
-        $distanceFee   = round($kmIncrements * 200.0, 2);
+        $perKmRate     = 300.0;
+        $extraDistance = max(0.0, $distanceKm - 1.0);
+        $distanceFee   = round($extraDistance * 300.0, 2);
 
         $customerName = $quotation->customer->full_name
             ?? $quotation->customer->name
@@ -880,11 +880,9 @@ class DispatchController extends Controller
                 'truck_class'           => $quotation->truckType?->class ?? null,
                 'base_price'            => $basePrice,
                 'per_km_rate'           => $perKmRate,
-                'km_increments'         => $kmIncrements,
-                'km_charge_per_increment' => 200,
+                'extra_distance'        => round($extraDistance, 2),
                 'distance_fee'          => $distanceFee,
-                'excess_km'             => 0,
-                'has_excess'            => false,
+                'price_change_log'      => $quotation->price_change_log ?? [],
                 'additional_fee'        => $additionalFee,
                 'discount'              => $discount,
                 'estimated_price'       => $finalTotal,
@@ -937,7 +935,7 @@ class DispatchController extends Controller
 
     public function sendQuotation(Request $request, Quotation $quotation)
     {
-        if ($quotation->status !== 'pending') {
+        if (!in_array($quotation->status, ['draft', 'pending'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'This quotation has already been sent or is no longer pending.',
@@ -960,11 +958,12 @@ class DispatchController extends Controller
         $unitBaseRate = (float) ($selectedUnit?->truckType?->base_rate ?? 0);
 
 
-        $distanceKm   = (float) ($quotation->distance_km ?? 0);
-        $kmIncrements = (int) floor($distanceKm / 4);
-        $kmCharge     = round($kmIncrements * 200.0, 2);
+        $distanceKm    = (float) ($quotation->distance_km ?? 0);
+        $extraDistance = max(0.0, $distanceKm - 1.0);
+        $distanceFee   = round($extraDistance * 300.0, 2);
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
-        $newEstimatedPrice = round($unitBaseRate + $kmCharge + $additionalFee, 2);
+        $subtotal      = round($unitBaseRate + $distanceFee + $additionalFee, 2);
+        $newEstimatedPrice = round($subtotal * 1.12, 2);
 
         $quotation->update(['estimated_price' => $newEstimatedPrice]);
 
@@ -992,7 +991,7 @@ class DispatchController extends Controller
 
     public function cancelQuotation(Request $request, Quotation $quotation)
     {
-        if (!in_array($quotation->status, ['pending', 'sent'])) {
+        if (!in_array($quotation->status, ['draft', 'pending', 'sent'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'This quotation cannot be cancelled.',
@@ -1029,15 +1028,31 @@ class DispatchController extends Controller
         // Keep the quotation in its current stage unless it was pending (pending resets back to pending).
         // Revising a sent/negotiating quotation keeps it at 'sent' and clears the counter offer.
         $previousStatus = $quotation->status;
-        $newStatus = in_array($previousStatus, ['sent', 'negotiating']) ? 'sent' : 'pending';
+        $newStatus = in_array($previousStatus, ['sent', 'negotiating']) ? 'sent'
+            : ($previousStatus === 'draft' ? 'draft' : 'pending');
+
+        // Append price change to log
+        $oldPrice = (float) $quotation->estimated_price;
+        $newPrice = (float) $validated['new_price'];
+        $changeLog = $quotation->price_change_log ?? [];
+        if ($oldPrice !== $newPrice) {
+            $changeLog[] = [
+                'at'     => now()->toISOString(),
+                'old'    => $oldPrice,
+                'new'    => $newPrice,
+                'reason' => $validated['note'] ?? null,
+                'by'     => auth()->user()?->name ?? 'Dispatcher',
+            ];
+        }
 
         $updateData = [
-            'estimated_price'      => $validated['new_price'],
+            'estimated_price'      => $newPrice,
             'additional_fee'       => $validated['additional_fee'] ?? 0,
             'discount'             => 0,
             'counter_offer_amount' => null,
             'response_note'        => null,
             'status'               => $newStatus,
+            'price_change_log'     => $changeLog,
         ];
 
         $quotation->update($updateData);
@@ -1075,6 +1090,96 @@ class DispatchController extends Controller
             'success' => true,
             'message' => 'Quotation price updated and email sent to customer successfully.',
             'new_price' => number_format($validated['new_price'], 2),
+        ]);
+    }
+
+    public function saveQuotationDraft(Request $request, Booking $booking)
+    {
+        $validated = $request->validate([
+            'price'            => 'required|numeric|min:0',
+            'additional_fee'   => 'nullable|numeric|min:0',
+            'assigned_unit_id' => 'nullable|integer|exists:units,id',
+            'dispatcher_note'  => 'nullable|string|max:1000',
+            'distance_km'      => 'nullable|numeric|min:0.01|max:10000',
+        ]);
+
+        $distanceKm    = round((float) ($validated['distance_km'] ?? ($booking->distance_km ?? 0)), 2);
+        $selectedUnit  = null;
+        $unitBaseRate  = (float) ($booking->truckType?->base_rate ?? 0);
+
+        if (!empty($validated['assigned_unit_id'])) {
+            $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
+            $unitBaseRate = (float) ($selectedUnit?->truckType?->base_rate ?? $unitBaseRate);
+        }
+
+        $quotationNumber = $booking->quotation_number ?: $this->bookingService->generateQuotationNumber($booking);
+
+        // Save or update draft quotation linked to source booking
+        $existing = Quotation::where('source_booking_id', $booking->id)
+            ->whereIn('status', ['draft', 'pending'])
+            ->latest()
+            ->first();
+
+        $draftData = [
+            'source_booking_id'   => $booking->id,
+            'customer_id'         => $booking->customer_id,
+            'truck_type_id'       => $selectedUnit?->truckType?->id ?? $booking->truck_type_id,
+            'pickup_address'      => $booking->pickup_address,
+            'dropoff_address'     => $booking->dropoff_address,
+            'distance_km'         => $distanceKm,
+            'eta_minutes'         => $booking->eta_minutes,
+            'vehicle_make'        => $booking->vehicle_make,
+            'vehicle_model'       => $booking->vehicle_model,
+            'vehicle_year'        => $booking->vehicle_year,
+            'vehicle_color'       => $booking->vehicle_color,
+            'vehicle_plate_number'=> $booking->vehicle_plate_number,
+            'vehicle_image_path'  => $booking->vehicle_image_path,
+            'estimated_price'     => (float) $validated['price'],
+            'additional_fee'      => (float) ($validated['additional_fee'] ?? 0),
+            'service_type'        => $booking->service_type ?? null,
+            'scheduled_date'      => $booking->scheduled_date?->toDateString(),
+            'scheduled_time'      => $booking->scheduled_time,
+            'pickup_notes'        => $booking->notes,
+            'extra_vehicles'      => $booking->extra_vehicles,
+            'quotation_number'    => $quotationNumber,
+            'status'              => 'draft',
+        ];
+
+        if ($existing) {
+            // Log price change if price changed
+            $changeLog = $existing->price_change_log ?? [];
+            if ((float) $existing->estimated_price !== (float) $validated['price']) {
+                $changeLog[] = [
+                    'at'     => now()->toISOString(),
+                    'old'    => (float) $existing->estimated_price,
+                    'new'    => (float) $validated['price'],
+                    'reason' => $validated['dispatcher_note'] ?? null,
+                    'by'     => auth()->user()?->name ?? 'Dispatcher',
+                ];
+            }
+            $draftData['price_change_log'] = $changeLog;
+            $existing->update($draftData);
+            $quotation = $existing->fresh();
+        } else {
+            $draftData['price_change_log'] = [];
+            $quotation = Quotation::create($draftData);
+        }
+
+        $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+            'quotation_number'   => $quotationNumber,
+            'quotation_generated'=> true,
+            'reviewed_at'        => $booking->reviewed_at ?? now(),
+            'assigned_unit_id'   => $selectedUnit?->id ?? $booking->assigned_unit_id,
+            'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,
+            'dispatcher_note'    => filled($validated['dispatcher_note'] ?? null)
+                ? trim(strip_tags((string) $validated['dispatcher_note'])) : null,
+        ]));
+
+        return response()->json([
+            'success'          => true,
+            'message'          => 'Quotation saved as draft. Send it when ready.',
+            'quotation_id'     => $quotation->id,
+            'quotation_number' => $quotationNumber,
         ]);
     }
 

@@ -174,7 +174,7 @@
                     </div>
                     <div id="qmDistanceFeeRow"
                         style="display: flex; justify-content: space-between; font-size: 1.1rem; color: #000000;">
-                        <span id="qmDistanceFeeLabel">Per 4km Charge</span>
+                        <span id="qmDistanceFeeLabel">Distance Fee</span>
                         <span id="qmDistanceFee">₱0.00</span>
                     </div>
                     <div id="qmOtherFeesRow"
@@ -193,7 +193,7 @@
                         <span style="font-size: 1.2rem; color: #0f172a;" id="qmTotalAmount">₱0.00</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #64748b; margin-top: 4px;">
-                        <span>VAT (12%, included)</span>
+                        <span>VAT (12%)</span>
                         <span id="qmVatAmount">₱0.00</span>
                     </div>
                 </div>
@@ -327,6 +327,16 @@
                     <span style="color: #78350f; font-weight: 600;">Message:</span>
                     <span style="color: #374151;" id="qmCounterOfferNote">—</span>
                 </div>
+            </div>
+
+            <!-- Price Change History -->
+            <div id="qmPriceHistorySection" style="display:none;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:20px;">
+                <div style="padding:10px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;cursor:pointer;"
+                     onclick="qmTogglePriceHistory()">
+                    <span style="font-size:0.72rem;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;">Price Change History</span>
+                    <span id="qmPriceHistoryChevron" style="font-size:0.9rem;color:#94a3b8;">▼</span>
+                </div>
+                <div id="qmPriceHistoryBody" style="padding:12px 16px;display:grid;gap:8px;"></div>
             </div>
 
         </div>
@@ -525,17 +535,42 @@
                 document.getElementById('qmPriceNote').value = '';
 
                 const distanceKm    = parseFloat(q.distance_km || 0);
-                const kmIncrements  = Math.floor(distanceKm / 4);
-                const distanceFee   = kmIncrements * 200;
+                const extraDist     = Math.max(0, distanceKm - 1);
+                const distanceFee   = Math.round(extraDist * 300 * 100) / 100;
 
                 document.getElementById('qmBasePrice').textContent =
                     window.qmBasePrice > 0 ? fmt(window.qmBasePrice) : 'TBD';
                 document.getElementById('qmDistanceFee').textContent = fmt(distanceFee);
                 document.getElementById('qmDistanceFeeLabel').textContent =
-                    `Per-4km (${kmIncrements} × ₱200)`;
+                    `Distance (${extraDist.toFixed(2)} km extra × ₱300)`;
 
                 document.getElementById('qmOtherFeesRow').style.display = 'none';
                 window.qmDistanceFee = distanceFee;
+
+                // Price change history
+                const histSection = document.getElementById('qmPriceHistorySection');
+                const histBody    = document.getElementById('qmPriceHistoryBody');
+                const priceLog    = q.price_change_log || [];
+                if (histSection && histBody) {
+                    histBody.innerHTML = '';
+                    if (priceLog.length > 0) {
+                        histSection.style.display = 'block';
+                        priceLog.forEach(function(entry) {
+                            const row = document.createElement('div');
+                            row.style.cssText = 'padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:0.82rem;';
+                            const dt = entry.at ? new Date(entry.at).toLocaleString('en-PH', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+                            row.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                                <span style="color:#64748b;">${dt}</span>
+                                <span style="color:#0f172a;font-weight:700;">${fmt(entry.old || 0)} → ${fmt(entry.new || 0)}</span>
+                            </div>
+                            ${entry.reason ? `<div style="color:#78350f;font-size:0.78rem;">${entry.reason}</div>` : ''}
+                            <div style="color:#94a3b8;font-size:0.75rem;">by ${entry.by || 'Dispatcher'}</div>`;
+                            histBody.appendChild(row);
+                        });
+                    } else {
+                        histSection.style.display = 'none';
+                    }
+                }
 
                 // Extra vehicles total (non-scheduled only)
                 const evTotal = (q.extra_vehicles || []).reduce(function(s, ev) {
@@ -557,10 +592,10 @@
                 }
                 document.getElementById('qmTotalAmount').textContent = fmt(distanceFee + evTotal);
 
-                // Show unit section for pending quotations
+                // Show unit section for draft/pending quotations
                 const unitSection = document.getElementById('qmUnitSection');
                 const unitSelect  = document.getElementById('qmUnitSelect');
-                if (q.status === 'pending') {
+                if (q.status === 'draft' || q.status === 'pending') {
                     if (unitSection) unitSection.style.display = 'block';
                     if (unitSelect) {
                         unitSelect.onchange = function() {
@@ -590,14 +625,14 @@
                 const suggestedHint = document.getElementById('qmSuggestedPriceHint');
                 const otherFeesInput = document.getElementById('qmOtherFeesInput');
 
-                if (q.status === 'pending') {
+                if (q.status === 'draft' || q.status === 'pending') {
                     directBlock.style.display = 'block';
                     deltaBlock.style.display  = 'none';
                     const suggested = (window.qmBasePrice || 0) + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
                     if (finalInput) finalInput.value = suggested.toFixed(2);
                     if (suggestedHint) suggestedHint.textContent = '(suggested: ' + fmt(suggested) + ')';
                     if (finalInput) finalInput.oninput = recalcQuotationTotal;
-                } else {
+                } else if (q.status !== 'draft') {
                     directBlock.style.display = 'none';
                     deltaBlock.style.display  = 'block';
                     if (otherFeesInput) otherFeesInput.value = '0.00';
@@ -619,7 +654,7 @@
                 recalcQuotationTotal();
 
                 // Auto-filter units by customer's requested truck class
-                if (q.status === 'pending' && q.truck_class) {
+                if ((q.status === 'draft' || q.status === 'pending') && q.truck_class) {
                     filterUnitsByClass(q.truck_class.toLowerCase());
                 } else {
                     filterUnitsByClass('all');
@@ -638,12 +673,21 @@
                 // Button visibility
                 const sendBtn   = document.getElementById('qmSendBtn');
                 const updateBtn = document.getElementById('qmUpdatePriceBtn');
-                if (q.status === 'pending') {
+                const cancelBtn = document.getElementById('qmCancelQuotationBtn');
+                if (q.status === 'draft') {
                     sendBtn.style.display = 'inline-block';
+                    sendBtn.textContent = 'Send to Customer';
+                    updateBtn.textContent = 'Save Changes';
+                    if (cancelBtn) cancelBtn.style.display = 'inline-block';
+                } else if (q.status === 'pending') {
+                    sendBtn.style.display = 'inline-block';
+                    sendBtn.textContent = 'Send to Customer';
                     updateBtn.textContent = 'Update & Send';
+                    if (cancelBtn) cancelBtn.style.display = 'inline-block';
                 } else {
                     sendBtn.style.display = 'none';
                     updateBtn.textContent = 'Revise & Resend';
+                    if (cancelBtn) cancelBtn.style.display = q.status === 'sent' ? 'inline-block' : 'none';
                 }
             })
             .catch(err => {
@@ -653,18 +697,28 @@
 
     function recalcQuotationTotal() {
         const vatEl = document.getElementById('qmVatAmount');
-        if (window.qmCurrentStatus === 'pending') {
+        if (window.qmCurrentStatus === 'draft' || window.qmCurrentStatus === 'pending') {
             const typed = parseFloat(document.getElementById('qmFinalPriceInput')?.value || 0);
             document.getElementById('qmCalculatedPrice').textContent = fmt(typed);
             if (document.getElementById('qmTotalAmount'))
                 document.getElementById('qmTotalAmount').textContent = fmt(typed);
-            if (vatEl) vatEl.textContent = fmt(typed - typed / 1.12);
+            // VAT is additive — if typed is already VAT-inclusive, extract it; otherwise show 0
+            if (vatEl) vatEl.textContent = fmt(typed * 0.12 / 1.12);
         } else {
             const fees     = parseFloat(document.getElementById('qmOtherFeesInput')?.value || 0);
             const newTotal = Math.max(0, (window.qmEstimatedPrice || 0) + fees);
             document.getElementById('qmCalculatedPrice').textContent = fmt(newTotal);
-            if (vatEl) vatEl.textContent = fmt(newTotal - newTotal / 1.12);
+            if (vatEl) vatEl.textContent = fmt(newTotal * 0.12 / 1.12);
         }
+    }
+
+    function qmTogglePriceHistory() {
+        const body = document.getElementById('qmPriceHistoryBody');
+        const chevron = document.getElementById('qmPriceHistoryChevron');
+        if (!body) return;
+        const hidden = body.style.display === 'none';
+        body.style.display = hidden ? 'grid' : 'none';
+        if (chevron) chevron.textContent = hidden ? '▲' : '▼';
     }
 
     window.filterUnitsByClass = function(cls) {

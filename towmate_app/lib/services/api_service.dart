@@ -7,7 +7,6 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/booking_model.dart';
 import '../models/quotation_model.dart';
@@ -26,7 +25,10 @@ class ApiService {
   static const String baseUrl = 'https://jarztowing.up.railway.app/api';
 
   static const _secure = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+      resetOnError: true,
+    ),
   );
 
   static const _headers = {
@@ -128,6 +130,62 @@ class ApiService {
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
     return token != null && token.isNotEmpty;
+  }
+
+  static Future<Map<String, dynamic>> updateProfile({
+    required String name,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/v1/profile/update'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({'name': name}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 200 && body['success'] == true) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_name', name);
+        return {'success': true};
+      }
+      return {
+        'success': false,
+        'message': body['message'] ?? 'Failed to update name.',
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/v1/profile/change-password'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({
+              'current_password': currentPassword,
+              'new_password': newPassword,
+              'new_password_confirmation': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': response.statusCode == 200 && body['success'] == true,
+        'message': body['message'],
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
   }
 
   static Map<String, dynamic> _networkError(Object e) {
@@ -694,6 +752,53 @@ class ApiService {
     }
   }
 
+  // ── Registration OTP ───────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> sendRegistrationOtp(String email) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/register/send-otp'),
+            headers: _headers,
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 15));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return {
+        'success': body['success'] == true,
+        'message': body['message'] as String? ?? '',
+      };
+    } on TimeoutException {
+      return {'success': false, 'message': 'Request timed out.'};
+    } catch (_) {
+      return {'success': false, 'message': 'Network error. Please try again.'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> verifyRegistrationOtp(
+    String email,
+    String otp,
+  ) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/register/verify-otp'),
+            headers: _headers,
+            body: jsonEncode({'email': email, 'otp': otp}),
+          )
+          .timeout(const Duration(seconds: 15));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return {
+        'success': body['success'] == true,
+        'message': body['message'] as String? ?? '',
+      };
+    } on TimeoutException {
+      return {'success': false, 'message': 'Request timed out.'};
+    } catch (_) {
+      return {'success': false, 'message': 'Network error. Please try again.'};
+    }
+  }
+
   // ── Password Reset ─────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> sendResetOtp(String email) async {
@@ -717,7 +822,10 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> verifyResetOtp(String email, String otp) async {
+  static Future<Map<String, dynamic>> verifyResetOtp(
+    String email,
+    String otp,
+  ) async {
     try {
       final res = await http
           .post(

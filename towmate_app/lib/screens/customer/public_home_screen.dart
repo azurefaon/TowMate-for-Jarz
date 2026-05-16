@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
-import '../../models/service.dart';
 import '../../services/api_service.dart';
 import '../../widgets/tm_drawer.dart';
 import '../../widgets/tm_button.dart';
-import '../../widgets/service_card.dart';
 
 class PublicHomeScreen extends StatefulWidget {
   const PublicHomeScreen({super.key});
@@ -27,14 +25,11 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
     if (!loggedIn) return;
     final role = await ApiService.getUserRole();
     if (!mounted) return;
-    Navigator.pushReplacementNamed(
-      context,
-      role == 'Team Leader' ? '/tl-home' : '/home',
-    );
-  }
-
-  void _onBookTap(BuildContext context) {
-    Navigator.pushNamed(context, '/login');
+    if (role == 'Team Leader') {
+      Navigator.pushReplacementNamed(context, '/tl-home');
+    } else if (role != null) {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
   }
 
   @override
@@ -60,16 +55,9 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
                         onExplore: () =>
                             Navigator.pushNamed(context, '/services'),
                       ),
-                      const _StatsBar(),
-                      _ServicesPreview(
-                        onBookTap: () => _onBookTap(context),
-                        onSeeAll: () =>
-                            Navigator.pushNamed(context, '/services'),
-                      ),
+                      const _ServicesGrid(),
                       const _FeaturedCard(),
-                      _VehicleAssistanceSection(
-                        onBookTap: () => _onBookTap(context),
-                      ),
+                      const _VehicleChips(),
                       const _PromoSection(),
                       const _Footer(),
                     ],
@@ -153,7 +141,7 @@ class _HeroSection extends StatelessWidget {
       child: Container(
         width: double.infinity,
         color: TmColors.black,
-        padding: const EdgeInsets.fromLTRB(24, 48, 24, 48),
+        padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -185,7 +173,7 @@ class _HeroSection extends StatelessWidget {
                 height: 1.6,
               ),
             ),
-            const SizedBox(height: 36),
+            const SizedBox(height: 32),
             Row(
               children: [
                 Expanded(
@@ -204,63 +192,60 @@ class _HeroSection extends StatelessWidget {
   }
 }
 
-// ─── Stats bar ─────────────────────────────────────────────────────────────
+// ─── Services grid ─────────────────────────────────────────────────────────
 
-class _StatsBar extends StatelessWidget {
-  const _StatsBar();
+class _ServicesGrid extends StatelessWidget {
+  const _ServicesGrid();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: TmColors.black,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: const BoxDecoration(
-          border: Border(
-            top: BorderSide(color: Color(0xFF1A1A1A)),
-          ),
-        ),
-        child: Row(
-          children: [
-            _StatItem(value: '5,000+', label: 'Customers'),
-            _StatDivider(),
-            _StatItem(value: '24 / 7', label: 'Availability'),
-            _StatDivider(),
-            _StatItem(value: '<15 min', label: 'Response'),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  const _StatItem({required this.value, required this.label});
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
+      color: TmColors.white,
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            value,
+            'Our Services',
             style: GoogleFonts.inter(
-              color: TmColors.yellow,
-              fontSize: 16,
-              letterSpacing: -0.4,
+              color: TmColors.black,
+              fontSize: 24,
+              letterSpacing: -0.8,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
           Text(
-            label,
+            'Solutions for every situation',
             style: GoogleFonts.inter(
               color: TmColors.grey500,
-              fontSize: 11,
-              letterSpacing: 0.4,
+              fontSize: 13,
+              letterSpacing: 0.1,
             ),
+          ),
+          const SizedBox(height: 24),
+          const Row(
+            children: [
+              Expanded(
+                child: _ServiceChip(
+                  icon: Icons.local_shipping_rounded,
+                  label: 'Towing',
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: _ServiceChip(
+                  icon: Icons.build_rounded,
+                  label: 'Roadside Help',
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: _ServiceChip(
+                  icon: Icons.car_repair_rounded,
+                  label: 'Recovery',
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -268,84 +253,30 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _StatDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 32,
-      color: const Color(0xFF2A2A2A),
-    );
-  }
-}
-
-// ─── Services preview ──────────────────────────────────────────────────────
-
-class _ServicesPreview extends StatelessWidget {
-  const _ServicesPreview({
-    required this.onBookTap,
-    required this.onSeeAll,
-  });
-
-  final VoidCallback onBookTap;
-  final VoidCallback onSeeAll;
+class _ServiceChip extends StatelessWidget {
+  const _ServiceChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    final preview = allServices.take(3).toList();
-
     return Container(
-      color: TmColors.white,
-      padding: const EdgeInsets.fromLTRB(24, 48, 24, 40),
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        color: TmColors.grey100,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Our Services',
-                    style: GoogleFonts.inter(
-                      color: TmColors.black,
-                      fontSize: 24,
-                      letterSpacing: -0.8,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Solutions for every situation',
-                    style: GoogleFonts.inter(
-                      color: TmColors.grey500,
-                      fontSize: 13,
-                      letterSpacing: 0.1,
-                    ),
-                  ),
-                ],
-              ),
-              GestureDetector(
-                onTap: onSeeAll,
-                child: Text(
-                  'See all',
-                  style: GoogleFonts.inter(
-                    color: TmColors.grey700,
-                    fontSize: 13,
-                    letterSpacing: 0.1,
-                    decoration: TextDecoration.underline,
-                    decorationColor: TmColors.grey700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-          ...preview.map(
-            (s) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: ServiceCard(service: s, onBookTap: onBookTap),
+          Icon(icon, color: TmColors.yellow, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              color: TmColors.black,
+              fontSize: 12,
+              letterSpacing: 0.1,
             ),
           ),
         ],
@@ -375,8 +306,7 @@ class _FeaturedCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: TmColors.yellow,
                 borderRadius: BorderRadius.circular(4),
@@ -422,21 +352,16 @@ class _FeaturedCard extends StatelessWidget {
   }
 }
 
-// ─── Vehicle assistance section ────────────────────────────────────────────
+// ─── Vehicle chips ─────────────────────────────────────────────────────────
 
-class _VehicleAssistanceSection extends StatelessWidget {
-  const _VehicleAssistanceSection({required this.onBookTap});
-  final VoidCallback onBookTap;
+class _VehicleChips extends StatelessWidget {
+  const _VehicleChips();
 
   @override
   Widget build(BuildContext context) {
-    final assistanceServices = allServices
-        .where((s) => s.category == 'Assistance' || s.category == 'Emergency')
-        .toList();
-
     return Container(
       color: TmColors.grey100,
-      padding: const EdgeInsets.fromLTRB(24, 48, 24, 48),
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -450,31 +375,51 @@ class _VehicleAssistanceSection extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Quick help for common road problems',
+            'We tow any type of vehicle',
             style: GoogleFonts.inter(
               color: TmColors.grey500,
               fontSize: 13,
               letterSpacing: 0.1,
             ),
           ),
-          const SizedBox(height: 24),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final cardWidth = (constraints.maxWidth - 12) / 2;
-              return Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: assistanceServices.map((s) {
-                  return SizedBox(
-                    width: cardWidth,
-                    child: _AssistanceCard(
-                      service: s,
-                      onBookTap: onBookTap,
-                    ),
-                  );
-                }).toList(),
-              );
-            },
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: const [
+              _VehicleChip(
+                icon: Icons.directions_car_rounded,
+                label: 'Sedan / Hatchback',
+              ),
+              _VehicleChip(
+                icon: Icons.directions_car_filled_rounded,
+                label: 'SUV / Crossover',
+              ),
+              _VehicleChip(
+                icon: Icons.local_shipping_outlined,
+                label: 'Pickup Truck',
+              ),
+              _VehicleChip(
+                icon: Icons.airport_shuttle_rounded,
+                label: 'Van / MPV',
+              ),
+              _VehicleChip(
+                icon: Icons.two_wheeler_rounded,
+                label: 'Motorcycle',
+              ),
+              _VehicleChip(
+                icon: Icons.directions_bus_rounded,
+                label: 'Bus',
+              ),
+              _VehicleChip(
+                icon: Icons.local_shipping_rounded,
+                label: 'Cargo Truck',
+              ),
+              _VehicleChip(
+                icon: Icons.directions_bus_filled_rounded,
+                label: 'Jeepney',
+              ),
+            ],
           ),
         ],
       ),
@@ -482,76 +427,34 @@ class _VehicleAssistanceSection extends StatelessWidget {
   }
 }
 
-class _AssistanceCard extends StatefulWidget {
-  const _AssistanceCard({required this.service, required this.onBookTap});
-  final Service service;
-  final VoidCallback onBookTap;
-
-  @override
-  State<_AssistanceCard> createState() => _AssistanceCardState();
-}
-
-class _AssistanceCardState extends State<_AssistanceCard> {
-  bool _pressed = false;
+class _VehicleChip extends StatelessWidget {
+  const _VehicleChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onBookTap,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _pressed ? TmColors.grey300 : TmColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: TmColors.grey300),
-          boxShadow: _pressed
-              ? []
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.service.title,
-              style: GoogleFonts.inter(
-                color: TmColors.black,
-                fontSize: 14,
-                letterSpacing: -0.2,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: TmColors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: TmColors.grey300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: TmColors.grey700, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              color: TmColors.grey700,
+              fontSize: 12,
+              letterSpacing: 0.1,
             ),
-            const SizedBox(height: 6),
-            Text(
-              widget.service.availability,
-              style: GoogleFonts.inter(
-                color: TmColors.grey500,
-                fontSize: 11,
-                letterSpacing: 0.3,
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (widget.service.priceRange != null)
-              Text(
-                widget.service.priceRange!,
-                style: GoogleFonts.inter(
-                  color: TmColors.yellow,
-                  fontSize: 12,
-                  letterSpacing: 0.1,
-                ),
-              ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -655,8 +558,7 @@ class _Footer extends StatelessWidget {
                 children: [
                   _FooterLink(
                     label: 'Services',
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/services'),
+                    onTap: () => Navigator.pushNamed(context, '/services'),
                   ),
                   const SizedBox(width: 16),
                   _FooterLink(

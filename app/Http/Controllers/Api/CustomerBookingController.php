@@ -149,18 +149,19 @@ class CustomerBookingController extends Controller
             return response()->json(['message' => 'You already have an active booking. Please wait for it to complete.'], 422);
         }
 
-        $truckType   = TruckType::findOrFail($validated['truck_type_id']);
-        $distanceKm  = (float) $validated['distance_km'];
-        $kmIncrements = (int) floor($distanceKm / 4);
-        $distanceFee  = $kmIncrements * 200;
-        $computedTotal = (float) $truckType->base_rate + $distanceFee;
+        $truckType     = TruckType::findOrFail($validated['truck_type_id']);
+        $distanceKm    = (float) $validated['distance_km'];
+        $extraDistance = max(0.0, $distanceKm - 1.0);
+        $distanceFee   = round($extraDistance * 300.0, 2);
+        $computedTotal = round((float) $truckType->base_rate + $distanceFee, 2);
+        $finalTotal    = round($computedTotal * 1.12, 2);
 
         // Decode extra vehicles sent as JSON string from multipart
         $extraVehicles = null;
         if (!empty($validated['extra_vehicles'])) {
             $decoded = json_decode($validated['extra_vehicles'], true);
             if (is_array($decoded) && count($decoded) > 0) {
-                $extraVehicles = array_slice($decoded, 0, 3);
+                $extraVehicles = array_slice($decoded, 0, 5);
             }
         }
 
@@ -178,6 +179,7 @@ class CustomerBookingController extends Controller
             'base_rate'        => $truckType->base_rate,
             'per_km_rate'      => $truckType->per_km_rate,
             'computed_total'   => $computedTotal,
+            'final_total'      => $finalTotal,
             'additional_fee'   => 0,
             'status'           => 'requested',
             'service_type'     => $validated['service_type'] ?? 'book_now',

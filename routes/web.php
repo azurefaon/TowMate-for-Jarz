@@ -300,6 +300,7 @@ Route::prefix('admin-dashboard')
         });
 
         Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])->name('booking.assign');
+        Route::post('/booking/{booking}/save-draft', [DispatchController::class, 'saveQuotationDraft'])->name('booking.save-draft');
         Route::post('/booking/{booking}/service-fee', [DispatchController::class, 'applyServiceFee'])->name('booking.service-fee');
         Route::post('/booking/{booking}/mark-risk', [DispatchController::class, 'markCustomerRisk'])->name('booking.mark-risk');
         Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');

@@ -326,6 +326,11 @@ document.addEventListener("DOMContentLoaded", function () {
         confirmActionBtn.addEventListener("click", handleModalConfirm);
     }
 
+    var saveDraftBtn = document.getElementById("saveDraftBtn");
+    if (saveDraftBtn) {
+        saveDraftBtn.addEventListener("click", handleSaveAsDraft);
+    }
+
     if (cancelModalBtn) {
         cancelModalBtn.addEventListener("click", closeActionModal);
     }
@@ -650,7 +655,7 @@ document.addEventListener("DOMContentLoaded", function () {
             distanceFeeInput ? distanceFeeInput.value : 0,
         );
         var expectedDistanceFee = roundValue(
-            Math.floor(distanceValue / 4) * 200,
+            Math.max(0, distanceValue - 1) * 300,
         );
 
         if (unitSelect) {
@@ -701,7 +706,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (Math.abs(distanceFeeValue - expectedDistanceFee) > 0.11) {
                 rememberError(
                     distanceFeeInput,
-                    "Distance fee must match the distance and per KM rate.",
+                    "Distance fee must match MMDA rate (₱300/km after first 1km).",
                 );
             }
         }
@@ -1879,6 +1884,10 @@ document.addEventListener("DOMContentLoaded", function () {
                         ? "Update Quote"
                         : "Send Quote";
             }
+            var saveDraftBtn = document.getElementById("saveDraftBtn");
+            if (saveDraftBtn) {
+                saveDraftBtn.style.display = (!isReturnedTask && currentStatus !== "confirmed") ? "inline-block" : "none";
+            }
             updateQuotationPreview(priceInput ? priceInput.value : "");
             updateConfirmButtonState();
         } else {
@@ -1899,6 +1908,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 confirmActionBtn.textContent = "Reject Booking";
                 confirmActionBtn.disabled = false;
             }
+            var saveDraftBtn2 = document.getElementById("saveDraftBtn");
+            if (saveDraftBtn2) saveDraftBtn2.style.display = "none";
             if (rejectReasonInput) {
                 window.setTimeout(function () {
                     rejectReasonInput.focus();
@@ -1978,6 +1989,67 @@ document.addEventListener("DOMContentLoaded", function () {
         state.selectedAction = null;
         state.selectedButton = null;
         state.selectedCard = null;
+    }
+
+    function handleSaveAsDraft() {
+        if (state.selectedAction !== "accept") return;
+        if (!state.selectedBookingId) {
+            showNotification("Please select a booking first.", "error");
+            return;
+        }
+
+        var quotedPrice = priceInput ? priceInput.value.trim() : "";
+        var dispatcherNote = dispatcherNoteInput ? dispatcherNoteInput.value.trim() : "";
+        var selectedUnitId = unitSelect ? unitSelect.value : "";
+        var distanceKm = distanceInput ? distanceInput.value.trim() : "";
+
+        if (!distanceKm || parseFloat(distanceKm) <= 0) {
+            showNotification("Distance is required before saving as draft.", "error");
+            if (distanceInput) distanceInput.focus();
+            return;
+        }
+
+        var bookingId = state.selectedBookingId;
+        var btn = document.getElementById("saveDraftBtn");
+        if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
+
+        var csrfNode = document.querySelector('meta[name="csrf-token"]');
+        var headers = { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" };
+        if (csrfNode) headers["X-CSRF-TOKEN"] = csrfNode.getAttribute("content") || "";
+
+        var distanceFeeVal = parseFloat(distanceFeeInput ? distanceFeeInput.value : 0);
+        var baseRate = getSelectedUnitBaseRate();
+        var extraDist = Math.max(0, parseFloat(distanceKm) - 1);
+        var dFee = roundValue(extraDist * 300);
+        var computedPrice = roundValue((baseRate + dFee) * 1.12);
+        var price = parseNumericPrice(quotedPrice) > 0 ? parseNumericPrice(quotedPrice) : computedPrice;
+
+        fetch("/admin-dashboard/booking/" + bookingId + "/save-draft", {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify({
+                price: price,
+                additional_fee: 0,
+                assigned_unit_id: selectedUnitId || null,
+                dispatcher_note: dispatcherNote || null,
+                distance_km: parseFloat(distanceKm),
+            }),
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message || "Quotation saved as draft.", "success");
+                    closeActionModal();
+                    setTimeout(function() { location.reload(); }, 1500);
+                } else {
+                    showNotification(data.message || "Failed to save draft.", "error");
+                    if (btn) { btn.disabled = false; btn.textContent = "Save as Draft"; }
+                }
+            })
+            .catch(function() {
+                showNotification("Error saving draft.", "error");
+                if (btn) { btn.disabled = false; btn.textContent = "Save as Draft"; }
+            });
     }
 
     function handleModalConfirm() {
@@ -2211,15 +2283,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 ? discountRate
                 : 0;
 
-        var kmIncrements = Math.floor(distanceKm / 4);
-        var distanceFee = roundValue(kmIncrements * 200);
+        var extraDistance = Math.max(0, distanceKm - 1);
+        var distanceFee = roundValue(extraDistance * 300);
         var selectedUnitBaseRate = getSelectedUnitBaseRate();
         var computedTotal = roundValue(selectedUnitBaseRate + distanceFee);
         var discountAmount = roundValue(computedTotal * (discountRate / 100));
-        var finalTotal = Math.max(
-            roundValue(computedTotal - discountAmount + additionalFee),
-            0,
-        );
+        var subtotal = Math.max(roundValue(computedTotal - discountAmount + additionalFee), 0);
+        var finalTotal = roundValue(subtotal * 1.12);
 
         state.reviewData.distanceKm = distanceKm;
         state.reviewData.distanceFee = distanceFee;
@@ -2241,7 +2311,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 ? "₱" + formatCurrencyValue(selectedUnitBaseRate)
                 : "TBD (assign unit first)",
         );
-        setText("summaryPerKmRate", kmIncrements + " × ₱200.00");
+        setText("summaryPerKmRate", formatNumberValue(extraDistance) + " km extra × ₱300");
         setText(
             "summaryCustomerType",
             state.reviewData.customerType || "Regular",

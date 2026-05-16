@@ -42,6 +42,7 @@ class Quotation extends Model
         'responded_at',
         'follow_up_sent_at',
         'response_note',
+        'price_change_log',
         'link_version',
         'scheduled_date',
         'scheduled_time',
@@ -63,6 +64,7 @@ class Quotation extends Model
         'responded_at' => 'datetime',
         'follow_up_sent_at' => 'datetime',
         'extra_vehicles' => 'array',
+        'price_change_log' => 'array',
     ];
 
     public function getVehicleImagePathsAttribute(): array
@@ -97,7 +99,7 @@ class Quotation extends Model
     // Helper methods
     public function isActive(): bool
     {
-        return in_array($this->status, ['pending', 'sent']) &&
+        return in_array($this->status, ['draft', 'pending', 'sent']) &&
             ($this->expires_at === null || $this->expires_at->isFuture());
     }
 

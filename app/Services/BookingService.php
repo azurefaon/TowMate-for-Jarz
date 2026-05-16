@@ -580,37 +580,33 @@ class BookingService
             }
         }
 
-        $kmIncrements  = (int) floor($distanceKm / 4);
-        $kmCharge      = round($kmIncrements * 200.0, 2);
+        // MMDA formula: first 1 km is included in base fee; ₱300/km after that
+        $extraDistance = max(0.0, $distanceKm - 1.0);
+        $distanceFee   = round($extraDistance * 300.0, 2);
+
+        $grossPrice    = round($baseRate + $extraBaseRates + $distanceFee, 2);
         $customerType  = $this->resolveCustomerType($data);
-        $discount      = $this->resolveBookingDiscount($data, $kmCharge, $customerType);
+        $discount      = $this->resolveBookingDiscount($data, $grossPrice, $customerType);
         $additionalFee = $this->parsePrice($data['additional_fee'] ?? null);
 
-        $subtotal   = round($baseRate + $extraBaseRates + $kmCharge + $additionalFee, 2);
-        $finalTotal = max(round($subtotal - $discount['discount_amount'], 2), 0);
-
-        // VAT extraction — final_total is VAT-inclusive at 12%
-        $vatExclusive = round($finalTotal / 1.12, 2);
-        $vatAmount    = round($finalTotal - $vatExclusive, 2);
+        $discounted  = max(round($grossPrice - $discount['discount_amount'] + $additionalFee, 2), 0);
+        $actualPrice = round($discounted * 1.12, 2);   // VAT added on top (12%)
+        $vatAmount   = round($actualPrice - $discounted, 2);
 
         return [
             'distance_km'         => $distanceKm,
+            'extra_distance'      => $extraDistance,
             'base_rate'           => $baseRate,
-            'per_km_rate'         => (float) $truckType->per_km_rate,
-            'distance_fee'        => $kmCharge,
-            'km_increments'       => $kmIncrements,
-            'excess_km_threshold' => 0.0,
-            'excess_km_rate'      => 200.0,
-            'excess_km'           => 0.0,
-            'excess_fee'          => 0.0,
-            'computed_total'      => round($baseRate + $extraBaseRates + $kmCharge, 2),
+            'per_km_rate'         => 300.0,
+            'distance_fee'        => $distanceFee,
+            'computed_total'      => $grossPrice,
             'discount_percentage' => $discount['discount_percentage'],
             'discount_reason'     => $discount['discount_reason'],
             'discount_amount'     => $discount['discount_amount'],
             'additional_fee'      => $additionalFee,
-            'final_total'         => $finalTotal,
+            'discounted_total'    => $discounted,
             'vat_amount'          => $vatAmount,
-            'vat_exclusive_total' => $vatExclusive,
+            'final_total'         => $actualPrice,
             'customer_type'       => $customerType,
         ];
     }
@@ -625,47 +621,43 @@ class BookingService
     ): array {
         $resolvedDistanceKm = max(round((float) ($distanceKm ?? ($booking->distance_km ?? 0)), 2), 0);
 
-        $kmIncrements = (int) floor($resolvedDistanceKm / 4);
-        $kmCharge = round($kmIncrements * 200.0, 2);
+        // MMDA formula: first 1 km included in base fee; ₱300/km after that
+        $extraDistance = max(0.0, $resolvedDistanceKm - 1.0);
+        $distanceFee   = round($extraDistance * 300.0, 2);
 
-        // Use the booking's stored base_rate as fallback so quotation re-calculations
-        // stay consistent with what was shown to the customer at booking time.
         $resolvedBaseRate = round((float) ($baseRate ?? $booking->base_rate ?? 0), 2);
-        $computedTotal = round($resolvedBaseRate + $kmCharge, 2);
+        $grossTotal       = round($resolvedBaseRate + $distanceFee, 2);
 
         $customerType = strtolower((string) ($booking->customer_type ?: $booking->customer?->customer_type ?: 'regular'));
         $resolvedDiscountPercentage = in_array($customerType, ['pwd', 'senior'], true)
             ? max(round((float) ($discountPercentage ?? ($booking->discount_percentage ?? 0)), 2), 0)
             : 0.0;
 
-        $discountAmount = round($computedTotal * ($resolvedDiscountPercentage / 100), 2);
+        $discountAmount        = round($grossTotal * ($resolvedDiscountPercentage / 100), 2);
         $resolvedAdditionalFee = $this->parsePrice($additionalFee);
 
         if ($resolvedAdditionalFee <= 0 && filled($quotedTotal)) {
-            $quotedAmount = $this->parsePrice($quotedTotal);
-            $resolvedAdditionalFee = max(round($quotedAmount - ($computedTotal - $discountAmount), 2), 0);
+            $quotedAmount          = $this->parsePrice($quotedTotal);
+            $resolvedAdditionalFee = max(round($quotedAmount - ($grossTotal - $discountAmount), 2), 0);
         }
 
-        $finalTotal    = max(round($computedTotal + $resolvedAdditionalFee - $discountAmount, 2), 0);
-        $vatExclusive  = round($finalTotal / 1.12, 2);
-        $vatAmount     = round($finalTotal - $vatExclusive, 2);
+        $discounted  = max(round($grossTotal - $discountAmount + $resolvedAdditionalFee, 2), 0);
+        $finalTotal  = round($discounted * 1.12, 2);   // VAT added on top
+        $vatAmount   = round($finalTotal - $discounted, 2);
 
         return [
             'distance_km'         => $resolvedDistanceKm,
+            'extra_distance'      => $extraDistance,
             'base_rate'           => $resolvedBaseRate,
-            'km_increments'       => $kmIncrements,
-            'distance_fee'        => $kmCharge,
-            'excess_km_threshold' => 0.0,
-            'excess_km_rate'      => 200.0,
-            'excess_km'           => 0.0,
-            'excess_fee'          => 0.0,
-            'computed_total'      => $computedTotal,
+            'per_km_rate'         => 300.0,
+            'distance_fee'        => $distanceFee,
+            'computed_total'      => $grossTotal,
             'discount_percentage' => $resolvedDiscountPercentage,
             'additional_fee'      => $resolvedAdditionalFee,
             'discount_amount'     => $discountAmount,
+            'discounted_total'    => $discounted,
             'final_total'         => $finalTotal,
             'vat_amount'          => $vatAmount,
-            'vat_exclusive_total' => $vatExclusive,
         ];
     }
 

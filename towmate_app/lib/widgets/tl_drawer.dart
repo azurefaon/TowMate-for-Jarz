@@ -2,30 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
+import '../services/team_leader_service.dart';
 
-class TmDrawer extends StatelessWidget {
-  const TmDrawer({
-    super.key,
-    required this.currentRoute,
-    this.isLoggedIn = false,
-    this.name,
-  });
+class TlDrawer extends StatelessWidget {
+  const TlDrawer({super.key, required this.currentRoute, this.name});
 
   final String currentRoute;
-  final bool isLoggedIn;
   final String? name;
 
   void _navigate(BuildContext context, String route) {
     final nav = Navigator.of(context);
-    nav.pop();
+    nav.pop(); // close drawer
     if (route == currentRoute) return;
-    // These routes sit on top of the current screen; back returns to where you came from
-    const pushRoutes = {'/login', '/signup', '/profile'};
-    if (pushRoutes.contains(route)) {
-      nav.pushNamed(route);
-    } else {
-      nav.pushReplacementNamed(route);
-    }
+    nav.pushReplacementNamed(route);
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -71,9 +60,10 @@ class TmDrawer extends StatelessWidget {
 
     if (confirmed != true) return;
 
+    await TeamLeaderService.goOffline();
     await ApiService.clearSession();
     if (!context.mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
   }
 
   @override
@@ -91,25 +81,37 @@ class TmDrawer extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ────────────────────────────────────────────────────
+            // ── Header ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'TowMate',
-                    style: GoogleFonts.inter(
-                      color: TmColors.yellow,
-                      fontSize: 22,
-                      letterSpacing: -0.8,
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Tow',
+                          style: GoogleFonts.inter(
+                            color: TmColors.black,
+                            fontSize: 22,
+                            letterSpacing: -0.8,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'Mate',
+                          style: GoogleFonts.inter(
+                            color: TmColors.yellow,
+                            fontSize: 22,
+                            letterSpacing: -0.8,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    isLoggedIn
-                        ? (name ?? 'Customer')
-                        : 'Professional towing services',
+                    name ?? 'Team Leader',
                     style: GoogleFonts.inter(
                       color: TmColors.grey500,
                       fontSize: 12,
@@ -120,99 +122,44 @@ class TmDrawer extends StatelessWidget {
               ),
             ),
 
-            // ── Divider ───────────────────────────────────────────────────
+            // ── Divider ────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(height: 1, color: TmColors.grey300),
             ),
             const SizedBox(height: 8),
 
-            if (isLoggedIn) ...[
-              _TmDrawerItem(
-                icon: Icons.home_outlined,
-                label: 'Dashboard',
-                route: '/home',
-                currentRoute: currentRoute,
-                onTap: () => _navigate(context, '/home'),
-              ),
-              _TmDrawerItem(
-                icon: Icons.receipt_long_outlined,
-                label: 'My Bookings',
-                route: '/my-bookings',
-                currentRoute: currentRoute,
-                onTap: () => _navigate(context, '/my-bookings'),
-              ),
-              _TmDrawerItem(
-                icon: Icons.add_circle_outline_rounded,
-                label: 'Book Now',
-                route: '/book-now',
-                currentRoute: currentRoute,
-                onTap: () => _navigate(context, '/book-now'),
-              ),
-              _TmDrawerItem(
-                icon: Icons.person_outline_rounded,
-                label: 'Profile',
-                route: '/profile',
-                currentRoute: currentRoute,
-                onTap: () => _navigate(context, '/profile'),
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(height: 1, color: TmColors.grey300),
-              ),
-              const SizedBox(height: 8),
-              _TmDrawerItem(
-                icon: Icons.logout_rounded,
-                label: 'Logout',
-                route: '',
-                currentRoute: currentRoute,
-                onTap: () => _logout(context),
-                isDestructive: true,
-              ),
-            ] else ...[
-              _TmDrawerItem(
-                icon: Icons.home_outlined,
-                label: 'Home',
-                route: '/',
-                currentRoute: currentRoute,
-                onTap: () => _navigate(context, '/'),
-              ),
-              _TmDrawerItem(
-                icon: Icons.build_outlined,
-                label: 'Services',
-                route: '/services',
-                currentRoute: currentRoute,
-                onTap: () => _navigate(context, '/services'),
-              ),
-              _TmDrawerItem(
-                icon: Icons.info_outline_rounded,
-                label: 'About',
-                route: '/about',
-                currentRoute: currentRoute,
-                onTap: () => _navigate(context, '/about'),
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(height: 1, color: TmColors.grey300),
-              ),
-              const SizedBox(height: 8),
-              _TmDrawerItem(
-                icon: Icons.login_rounded,
-                label: 'Login',
-                route: '/login',
-                currentRoute: currentRoute,
-                onTap: () => _navigate(context, '/login'),
-              ),
-              _TmDrawerItem(
-                icon: Icons.person_add_outlined,
-                label: 'Sign up',
-                route: '/signup',
-                currentRoute: currentRoute,
-                onTap: () => _navigate(context, '/signup'),
-              ),
-            ],
+            // ── Nav items ──────────────────────────────────────────────
+            _TlDrawerItem(
+              icon: Icons.dashboard_outlined,
+              label: 'Dashboard',
+              route: '/tl-home',
+              currentRoute: currentRoute,
+              onTap: () => _navigate(context, '/tl-home'),
+            ),
+            _TlDrawerItem(
+              icon: Icons.task_alt_outlined,
+              label: 'My Task',
+              route: '/tl-active-task',
+              currentRoute: currentRoute,
+              onTap: () => _navigate(context, '/tl-active-task'),
+            ),
+
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Container(height: 1, color: TmColors.grey300),
+            ),
+            const SizedBox(height: 8),
+
+            _TlDrawerItem(
+              icon: Icons.logout_rounded,
+              label: 'Logout',
+              route: '',
+              currentRoute: currentRoute,
+              onTap: () => _logout(context),
+              isDestructive: true,
+            ),
 
             const Spacer(),
             Padding(
@@ -233,8 +180,8 @@ class TmDrawer extends StatelessWidget {
   }
 }
 
-class _TmDrawerItem extends StatefulWidget {
-  const _TmDrawerItem({
+class _TlDrawerItem extends StatefulWidget {
+  const _TlDrawerItem({
     required this.icon,
     required this.label,
     required this.route,
@@ -251,10 +198,10 @@ class _TmDrawerItem extends StatefulWidget {
   final bool isDestructive;
 
   @override
-  State<_TmDrawerItem> createState() => _TmDrawerItemState();
+  State<_TlDrawerItem> createState() => _TlDrawerItemState();
 }
 
-class _TmDrawerItemState extends State<_TmDrawerItem> {
+class _TlDrawerItemState extends State<_TlDrawerItem> {
   bool _hovered = false;
 
   @override
@@ -302,8 +249,7 @@ class _TmDrawerItemState extends State<_TmDrawerItem> {
                       : TmColors.grey700,
                   fontSize: 15,
                   letterSpacing: 0.1,
-                  fontWeight:
-                      isActive ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ],

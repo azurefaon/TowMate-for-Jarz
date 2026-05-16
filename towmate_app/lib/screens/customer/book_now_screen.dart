@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show max;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_ti
 import 'package:google_fonts/google_fonts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/theme.dart';
 import '../../models/truck_type_model.dart';
@@ -61,8 +63,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
   bool _imageError = false;
   final _picker = ImagePicker();
 
-  // Extra vehicles (up to 3 additional)
+  // Extra vehicles (up to 5 additional = 6 total)
   final List<_ExtraVehicleData> _extraVehicles = [];
+  static final _priceFmt = NumberFormat('#,##0.00', 'en_PH');
 
   // Notes
   final _notesCtrl = TextEditingController();
@@ -244,12 +247,13 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
   double get _liveTotal {
     if (_selectedTruckType == null || _distanceKm == null) return 0;
-    final distanceFee = (_distanceKm! / 4).floor() * 200.0;
+    final extraDist = max(0.0, _distanceKm! - 1.0);
+    final distanceFee = extraDist * 300.0;
     double bases = _selectedTruckType!.baseRate;
     for (final ev in _extraVehicles) {
       if (ev.truck != null) bases += ev.truck!.baseRate;
     }
-    return bases + distanceFee;
+    return (bases + distanceFee) * 1.12;
   }
 
   List<String> get _missingFields {
@@ -312,7 +316,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
   }
 
   void _addExtraVehicle() {
-    if (_extraVehicles.length >= 3) return;
+    if (_extraVehicles.length >= 5) return;
     setState(() => _extraVehicles.add(_ExtraVehicleData()));
   }
 
@@ -578,7 +582,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                         _ExtraVehiclesSection(
                           extraVehicles: _extraVehicles,
                           truckTypes: _truckTypes,
-                          canAdd: _extraVehicles.length < 3,
+                          canAdd: _extraVehicles.length < 5,
                           onAdd: _addExtraVehicle,
                           onRemove: _removeExtraVehicle,
                           onVehicleSet: _setExtraVehicle,
@@ -634,7 +638,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                                       ),
                                     ),
                                     Text(
-                                      '₱${_liveTotal.toStringAsFixed(2)}',
+                                      '₱${_priceFmt.format(_liveTotal)}',
                                       style: GoogleFonts.inter(
                                         color: TmColors.black,
                                         fontSize: 18,
@@ -1964,6 +1968,22 @@ class _ClassPickerCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: TmColors.yellow.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                truck.truckClass.toUpperCase(),
+                style: GoogleFonts.inter(
+                  color: isSelected ? TmColors.yellow : TmColors.yellow,
+                  fontSize: 9,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
             Text(
               truck.name,
               style: GoogleFonts.inter(
@@ -1974,7 +1994,7 @@ class _ClassPickerCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '₱${truck.baseRate.toStringAsFixed(0)} base rate',
+              '₱${NumberFormat('#,##0', 'en_PH').format(truck.baseRate)} base',
               style: GoogleFonts.inter(
                 color: metaColor,
                 fontSize: 12,

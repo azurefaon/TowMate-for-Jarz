@@ -11,6 +11,7 @@ import 'screens/customer/book_now_screen.dart';
 import 'screens/customer/my_bookings_screen.dart';
 import 'screens/customer/customer_quotation_screen.dart';
 import 'screens/customer/booking_detail_screen.dart';
+import 'screens/customer/profile_screen.dart';
 import 'screens/team_leader/tl_force_password_screen.dart';
 import 'screens/team_leader/tl_home_screen.dart';
 import 'screens/team_leader/tl_active_task_shell.dart';
@@ -40,6 +41,7 @@ class MyApp extends StatelessWidget {
               bookingCode: settings.arguments as String);
         } else {
           page = switch (settings.name) {
+            '/public-home'        => const PublicHomeScreen(),
             '/login'              => const LoginScreen(),
             '/signup'             => const SignupScreen(),
             '/home'               => const HomeScreen(),
@@ -51,6 +53,7 @@ class MyApp extends StatelessWidget {
             '/tl-force-password'  => const TlForcePasswordScreen(),
             '/tl-home'            => const TlHomeScreen(),
             '/tl-active-task'     => const TlActiveTaskShell(),
+            '/profile'            => const ProfileScreen(),
             _                     => const PublicHomeScreen(),
           };
         }
@@ -90,7 +93,10 @@ class _AuthGateState extends State<_AuthGate> {
   Future<void> _checkSession() async {
     final loggedIn = await ApiService.isLoggedIn();
     if (!mounted) return;
-    if (!loggedIn) return;
+    if (!loggedIn) {
+      Navigator.pushReplacementNamed(context, '/public-home');
+      return;
+    }
 
     final role = await ApiService.getUserRole();
     final mustChange = await ApiService.getMustChangePassword();
@@ -99,8 +105,11 @@ class _AuthGateState extends State<_AuthGate> {
     if (role == 'Team Leader') {
       Navigator.pushReplacementNamed(
           context, mustChange ? '/tl-force-password' : '/tl-home');
-    } else {
+    } else if (role != null) {
       Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      await ApiService.clearSession();
+      Navigator.pushReplacementNamed(context, '/public-home');
     }
   }
 

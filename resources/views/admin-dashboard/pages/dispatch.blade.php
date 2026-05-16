@@ -1628,7 +1628,7 @@
                             <div class="review-summary-row"><span>Base Rate (Unit)</span><strong
                                     id="summaryBase">TBD</strong>
                             </div>
-                            <div class="review-summary-row"><span>Distance Fee (per-4km)</span><strong
+                            <div class="review-summary-row"><span>Distance Fee (MMDA: ₱300/km after 1st)</span><strong
                                     id="summaryDistanceFee">₱0.00</strong></div>
                             <div class="review-summary-row"><span>Additional Fee</span><strong
                                     id="summaryAdditional">₱0.00</strong></div>
@@ -1685,6 +1685,11 @@
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" id="cancelModalBtn">
                         Cancel
+                    </button>
+
+                    <button type="button" class="btn-secondary" id="saveDraftBtn"
+                        style="display:none;border:1px solid #d97706;color:#d97706;background:#fffbeb;">
+                        Save as Draft
                     </button>
 
                     <button type="button" class="btn-primary" id="confirmActionBtn" disabled>
