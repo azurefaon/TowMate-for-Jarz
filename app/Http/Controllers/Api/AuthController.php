@@ -3,14 +3,56 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\RegistrationOtpMail;
 use App\Models\Customer;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 class AuthController extends Controller
 {
+    public function sendRegistrationOtp(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['email' => 'required|email|max:255|unique:users,email']);
+        $email = strtolower(trim($validated['email']));
+
+        $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        Cache::put('reg_otp_' . $email, $otp, now()->addMinutes(10));
+
+        try {
+            Mail::to($email)->send(new RegistrationOtpMail($otp));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Registration OTP mail failed: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to send OTP. Check your email address.'], 500);
+        }
+
+        return response()->json(['success' => true, 'message' => 'OTP sent to your email. It expires in 10 minutes.']);
+    }
+
+    public function verifyRegistrationOtp(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => 'required|email',
+            'otp'   => 'required|string|size:6',
+        ]);
+
+        $email  = strtolower(trim($validated['email']));
+        $cached = Cache::get('reg_otp_' . $email);
+
+        if (! $cached || $cached !== $validated['otp']) {
+            return response()->json(['success' => false, 'message' => 'Invalid or expired OTP.'], 422);
+        }
+
+        Cache::forget('reg_otp_' . $email);
+        Cache::put('reg_verified_' . $email, true, now()->addMinutes(15));
+
+        return response()->json(['success' => true, 'message' => 'Email verified.']);
+    }
+
     public function register(Request $request)
     {
         $data = $request->validate([
@@ -21,6 +63,13 @@ class AuthController extends Controller
             'password'              => 'required|string|min:8|confirmed',
             'password_confirmation' => 'required|string',
         ]);
+
+        // Require email verification via OTP before creating account
+        $email = strtolower(trim($data['email']));
+        if (! Cache::get('reg_verified_' . $email)) {
+            return response()->json(['success' => false, 'message' => 'Email not verified. Please complete OTP verification first.'], 422);
+        }
+        Cache::forget('reg_verified_' . $email);
 
         $customerRoleId = DB::table('roles')->where('name', 'Customer')->value('id') ?? 5;
 

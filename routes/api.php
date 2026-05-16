@@ -52,8 +52,10 @@ Route::get('/debug-availability', function () {
 });
 
 // Public auth routes
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login',    [AuthController::class, 'login']);
+Route::post('/register',                [AuthController::class, 'register']);
+Route::post('/register/send-otp',       [AuthController::class, 'sendRegistrationOtp']);
+Route::post('/register/verify-otp',     [AuthController::class, 'verifyRegistrationOtp']);
+Route::post('/login',                   [AuthController::class, 'login']);
 
 // Password reset (public)
 Route::post('/password/forgot',     [PasswordResetController::class, 'sendOtp']);
