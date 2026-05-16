@@ -245,8 +245,14 @@ class CustomerBookingController extends Controller
 
     public function detail(string $code): JsonResponse
     {
+        $customer = Customer::where('user_id', auth()->id())->first();
+
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Customer not found.'], 404);
+        }
+
         $booking = Booking::where('booking_code', $code)
-            ->where('customer_id', auth()->id())
+            ->where('customer_id', $customer->id)
             ->with(['truckType', 'assignedTeamLeader', 'unit.driver', 'unit.teamLeader'])
             ->firstOrFail();
 
