@@ -131,8 +131,7 @@ class CustomerBookingController extends Controller
             'notes'                            => 'nullable|string|max:1000',
             'scheduled_date'                   => 'nullable|date|after_or_equal:today',
             'scheduled_time'                   => 'nullable|string|max:10',
-            'vehicle_images'                   => 'nullable|array|max:5',
-            'vehicle_images.*'                 => 'file|mimetypes:image/jpeg,image/png,image/jpg|max:5120',
+            // vehicle_images validated separately to avoid blocking booking on upload errors
             'extra_vehicles'                   => 'nullable|string',
         ]);
 
@@ -192,10 +191,22 @@ class CustomerBookingController extends Controller
 
         $booking->update(['booking_code' => 'TM-' . str_pad($booking->id, 5, '0', STR_PAD_LEFT)]);
 
-        // Store vehicle images if provided
-        if ($request->hasFile('vehicle_images')) {
-            $imagePath = $this->bookingService->storeVehicleImages($request->file('vehicle_images'));
-            $booking->update(['vehicle_image_path' => $imagePath]);
+        // Store vehicle images — best-effort, never blocks booking creation
+        try {
+            $validFiles = collect($request->files->get('vehicle_images') ?? [])
+                ->filter(fn($f) => $f instanceof \Symfony\Component\HttpFoundation\File\UploadedFile && $f->isValid())
+                ->values()
+                ->all();
+
+            if (count($validFiles) > 0) {
+                $imagePath = $this->bookingService->storeVehicleImages($validFiles);
+                $booking->update(['vehicle_image_path' => $imagePath]);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Vehicle image upload failed for booking', [
+                'booking_id' => $booking->id,
+                'error'      => $e->getMessage(),
+            ]);
         }
 
         // Auto-create a pending quotation so the dispatcher sees it in the Floating Quotations area
