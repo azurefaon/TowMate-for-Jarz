@@ -361,6 +361,8 @@ Route::prefix('superadmin')
         Route::patch('truck-types-data/{truckType}/toggle', [TruckTypeController::class, 'toggleStatus'])->name('truck-types.data.toggle');
         Route::delete('truck-types-data/{truckType}',       [TruckTypeController::class, 'destroy'])->name('truck-types.data.destroy');
 
+        Route::get('/csrf-token', fn() => response()->json(['token' => csrf_token()]))->name('csrf-token');
+
         Route::get('/vehicle-types', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'index'])->name('vehicle-types.index');
         Route::post('/vehicle-types', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'store'])->name('vehicle-types.store');
         Route::put('/vehicle-types/{vehicleType}', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'update'])->name('vehicle-types.update');

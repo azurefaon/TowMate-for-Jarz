@@ -598,6 +598,34 @@
 document.addEventListener('DOMContentLoaded', () => {
     const baseUrl = document.querySelector('.vc-page')?.dataset.baseUrl ?? '';
 
+    // Refresh CSRF token before any modal form submission to prevent 419
+    async function refreshCsrf() {
+        try {
+            const res = await fetch('/superadmin/csrf-token', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            });
+            if (res.ok) {
+                const { token } = await res.json();
+                // Update all _token inputs and the meta tag
+                document.querySelectorAll('input[name="_token"]').forEach(el => el.value = token);
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta) meta.content = token;
+            }
+        } catch (_) { /* proceed with existing token */ }
+    }
+
+    // Intercept modal form submits with a token refresh
+    ['addModal', 'editModal', 'deleteModal'].forEach(modalId => {
+        const form = document.getElementById(modalId)?.querySelector('form');
+        if (!form) return;
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            await refreshCsrf();
+            // Use HTMLFormElement.submit() to bypass this listener
+            HTMLFormElement.prototype.submit.call(this);
+        });
+    });
+
     // Modal helpers
     const openModal  = id => document.getElementById(id)?.classList.add('is-open');
     const closeModal = id => document.getElementById(id)?.classList.remove('is-open');
@@ -642,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Filter
-    const search   = document.getElementById('vcSearch');
+    const search    = document.getElementById('vcSearch');
     const catFilter = document.getElementById('vcCategoryFilter');
     const stFilter  = document.getElementById('vcStatusFilter');
 
