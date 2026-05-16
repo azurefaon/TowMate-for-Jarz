@@ -248,17 +248,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
     }
   }
 
-  double get _liveTotal {
-    if (_selectedTruckType == null || _distanceKm == null) return 0;
-    final extraDist = max(0.0, _distanceKm! - 1.0);
-    final distanceFee = extraDist * 300.0;
-    double bases = _selectedTruckType!.baseRate;
-    for (final ev in _extraVehicles) {
-      if (ev.truck != null) bases += ev.truck!.baseRate;
-    }
-    return (bases + distanceFee) * 1.12;
-  }
-
   static const _allowedExts = {'jpg', 'jpeg', 'png'};
 
   Future<void> _pickImage(ImageSource source) async {
@@ -632,22 +621,13 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(color: TmColors.black, borderRadius: BorderRadius.circular(8)),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Estimated fare (incl. VAT)',
-                      style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13, letterSpacing: 0.1),
-                    ),
-                    Text(
-                      '₱${_priceFmt.format(_liveTotal)}',
-                      style: GoogleFonts.inter(color: TmColors.yellow, fontSize: 20, letterSpacing: -0.4),
-                    ),
-                  ],
-                ),
+              Text('PRICING', style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 11, letterSpacing: 0.8)),
+              const SizedBox(height: 12),
+              _PriceBreakdown(
+                truckType: _selectedTruckType!,
+                distanceKm: _distanceKm ?? 0,
+                extraVehicles: _extraVehicles,
+                priceFmt: _priceFmt,
               ),
             ],
           ),
@@ -2682,6 +2662,113 @@ class _StepLine extends StatelessWidget {
         height: 1.5,
         margin: const EdgeInsets.only(bottom: 20, left: 4, right: 4),
         color: done ? TmColors.black : TmColors.grey300,
+      ),
+    );
+  }
+}
+
+// ─── Price breakdown card ────────────────────────────────────────────────────
+
+class _PriceBreakdown extends StatelessWidget {
+  const _PriceBreakdown({
+    required this.truckType,
+    required this.distanceKm,
+    required this.extraVehicles,
+    required this.priceFmt,
+  });
+
+  final TruckTypeModel truckType;
+  final double distanceKm;
+  final List<_ExtraVehicleData> extraVehicles;
+  final NumberFormat priceFmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final double extraDist = max(0.0, distanceKm - 1.0);
+    final double distanceFee = extraDist * 300.0;
+    double bases = truckType.baseRate;
+    final filledExtras = extraVehicles.where((ev) => ev.truck != null).toList();
+    for (final ev in filledExtras) {
+      bases += ev.truck!.baseRate;
+    }
+    final double subtotal = bases + distanceFee;
+    final double vatAmount = subtotal * 0.12;
+    final double total = subtotal + vatAmount;
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: TmColors.grey300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          _BRow(label: 'Base rate — ${truckType.name}', value: '₱${priceFmt.format(truckType.baseRate)}'),
+          for (final ev in filledExtras)
+            _BRow(label: 'Extra vehicle — ${ev.truck!.name}', value: '₱${priceFmt.format(ev.truck!.baseRate)}'),
+          if (extraDist > 0)
+            _BRow(
+              label: '${extraDist.toStringAsFixed(2)} km × ₱300 (after 1st km)',
+              value: '₱${priceFmt.format(distanceFee)}',
+            )
+          else
+            _BRow(label: 'Distance fee (first 1 km free)', value: '—'),
+          Container(height: 0.5, color: TmColors.grey300),
+          _BRow(label: 'Subtotal', value: '₱${priceFmt.format(subtotal)}', bold: true),
+          _BRow(label: 'VAT (12%)', value: '₱${priceFmt.format(vatAmount)}'),
+          Container(height: 1, color: TmColors.black),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total',
+                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 15, letterSpacing: -0.1),
+                ),
+                Text(
+                  '₱${priceFmt.format(total)}',
+                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 18, letterSpacing: -0.4),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BRow extends StatelessWidget {
+  const _BRow({required this.label, required this.value, this.bold = false});
+  final String label;
+  final String value;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                color: bold ? TmColors.grey700 : TmColors.grey500,
+                fontSize: 13,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              color: TmColors.black,
+              fontSize: 13,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
       ),
     );
   }
