@@ -9,8 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Change status column from enum to varchar so 'draft' can be added without DB-level enum changes
-        DB::statement("ALTER TABLE quotations MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'pending'");
+        // PostgreSQL: alter column type to varchar so 'draft' can be stored
+        DB::statement("ALTER TABLE quotations ALTER COLUMN status TYPE VARCHAR(30)");
+        DB::statement("ALTER TABLE quotations ALTER COLUMN status SET DEFAULT 'pending'");
 
         Schema::table('quotations', function (Blueprint $table) {
             $table->json('price_change_log')->nullable()->after('response_note');
@@ -23,7 +24,7 @@ return new class extends Migration
             $table->dropColumn('price_change_log');
         });
 
-        // Restore enum (without draft)
-        DB::statement("ALTER TABLE quotations MODIFY COLUMN status ENUM('pending','sent','accepted','rejected','expired','disregarded') NOT NULL DEFAULT 'pending'");
+        DB::statement("ALTER TABLE quotations ALTER COLUMN status TYPE VARCHAR(30)");
+        DB::statement("ALTER TABLE quotations ALTER COLUMN status SET DEFAULT 'pending'");
     }
 };
