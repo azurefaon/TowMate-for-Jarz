@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/app_prefs.dart';
 import '../../core/theme.dart';
+import '../../main.dart' show themeModeNotifier;
 import '../../services/api_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -48,44 +50,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: TmColors.white,
+        backgroundColor: ctx.card,
         title: Text(
           'Edit Name',
-          style: GoogleFonts.inter(
-            color: TmColors.black,
-            fontSize: 16,
-            letterSpacing: -0.2,
-          ),
+          style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16, letterSpacing: -0.2),
         ),
         content: TextField(
           controller: controller,
           autofocus: true,
-          style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
+          style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
           decoration: InputDecoration(
             hintText: 'Your full name',
-            hintStyle: GoogleFonts.inter(color: TmColors.grey500, fontSize: 15),
-            enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: TmColors.grey300),
-            ),
-            focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: TmColors.yellow, width: 1.5),
-            ),
+            hintStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 15),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.inter(color: TmColors.grey700, fontSize: 14),
-            ),
+            child: Text('Cancel', style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: Text(
-              'Save',
-              style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
-            ),
+            child: Text('Save', style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14)),
           ),
         ],
       ),
@@ -98,8 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => _name = result);
       ScaffoldMessenger.of(context).showSnackBar(_snack('Name updated.'));
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(_snack(res['message'] ?? 'Failed to update name.'));
+      ScaffoldMessenger.of(context).showSnackBar(_snack(res['message'] ?? 'Failed to update name.'));
     }
   }
 
@@ -114,14 +101,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          backgroundColor: TmColors.white,
+          backgroundColor: ctx.card,
           title: Text(
             'Change Password',
-            style: GoogleFonts.inter(
-              color: TmColors.black,
-              fontSize: 16,
-              letterSpacing: -0.2,
-            ),
+            style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16, letterSpacing: -0.2),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -135,13 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: TmColors.error.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(
-                      error!,
-                      style: GoogleFonts.inter(
-                        color: TmColors.error,
-                        fontSize: 12,
-                      ),
-                    ),
+                    child: Text(error!, style: GoogleFonts.inter(color: TmColors.error, fontSize: 12)),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -156,10 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.inter(color: TmColors.grey700, fontSize: 14),
-              ),
+              child: Text('Cancel', style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14)),
             ),
             TextButton(
               onPressed: saving
@@ -168,7 +142,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       final cur  = currentCtrl.text;
                       final nw   = newCtrl.text;
                       final conf = confirmCtrl.text;
-
                       if (cur.isEmpty || nw.isEmpty || conf.isEmpty) {
                         setS(() => error = 'All fields are required.');
                         return;
@@ -181,31 +154,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         setS(() => error = 'New passwords do not match.');
                         return;
                       }
-
                       setS(() { saving = true; error = null; });
                       final res = await ApiService.changePassword(
                         currentPassword: cur,
                         newPassword: nw,
                       );
                       if (!ctx.mounted) return;
-
                       if (res['success'] == true) {
                         Navigator.pop(ctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(_snack('Password changed.'));
-                        }
+                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(_snack('Password changed.'));
                       } else {
-                        setS(() {
-                          saving = false;
-                          error = res['message'] ?? 'Failed to change password.';
-                        });
+                        setS(() { saving = false; error = res['message'] ?? 'Failed to change password.'; });
                       }
                     },
-              child: Text(
-                saving ? 'Saving…' : 'Save',
-                style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
-              ),
+              child: Text(saving ? 'Saving…' : 'Save',
+                  style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14)),
             ),
           ],
         ),
@@ -214,8 +177,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   SnackBar _snack(String msg) => SnackBar(
-        content: Text(msg, style: GoogleFonts.inter(color: TmColors.white, fontSize: 14)),
-        backgroundColor: TmColors.black,
+        content: Text(msg, style: GoogleFonts.inter(color: TmColors.black, fontSize: 14)),
+        backgroundColor: TmColors.yellow,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         margin: const EdgeInsets.all(16),
@@ -223,21 +186,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDark;
+
     return Scaffold(
-      backgroundColor: TmColors.white,
+      backgroundColor: context.bg,
       body: SafeArea(
         child: Column(
           children: [
             // Top bar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: TmColors.grey300, width: 0.5)),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
               ),
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: TmColors.grey700),
+                    icon: Icon(Icons.arrow_back_rounded, color: context.textTertiary),
                     onPressed: () => Navigator.pop(context),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -247,11 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Center(
                       child: Text(
                         'TowMate',
-                        style: GoogleFonts.inter(
-                          color: TmColors.yellow,
-                          fontSize: 22,
-                          letterSpacing: -0.8,
-                        ),
+                        style: GoogleFonts.inter(color: TmColors.yellow, fontSize: 22, letterSpacing: -0.8),
                       ),
                     ),
                   ),
@@ -262,24 +223,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             Expanded(
               child: _loading
-                  ? const Center(
+                  ? Center(
                       child: SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
-                          color: TmColors.yellow,
-                          strokeWidth: 2,
-                        ),
+                        child: CircularProgressIndicator(color: TmColors.yellow, strokeWidth: 2),
                       ),
                     )
                   : SingleChildScrollView(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // ── Avatar + name ───────────────────────────────
+                          // ── Avatar + name header ────────────────────────
                           Container(
                             width: double.infinity,
-                            color: TmColors.black,
+                            color: isDark ? TmColors.dark800 : TmColors.black,
                             padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,72 +252,86 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: Center(
                                     child: Text(
                                       _initials,
-                                      style: GoogleFonts.inter(
-                                        color: TmColors.black,
-                                        fontSize: 24,
-                                        letterSpacing: -0.5,
-                                      ),
+                                      style: GoogleFonts.inter(color: TmColors.black, fontSize: 24, letterSpacing: -0.5),
                                     ),
                                   ),
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
                                   _name ?? '—',
-                                  style: GoogleFonts.inter(
-                                    color: TmColors.white,
-                                    fontSize: 22,
-                                    letterSpacing: -0.6,
-                                  ),
+                                  style: GoogleFonts.inter(color: TmColors.white, fontSize: 22, letterSpacing: -0.6),
                                 ),
                                 if (_email != null && _email!.isNotEmpty) ...[
                                   const SizedBox(height: 4),
-                                  Text(
-                                    _email!,
-                                    style: GoogleFonts.inter(
-                                      color: TmColors.grey500,
-                                      fontSize: 13,
-                                      letterSpacing: 0.1,
-                                    ),
-                                  ),
+                                  Text(_email!, style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13, letterSpacing: 0.1)),
                                 ],
                                 if (_phone != null && _phone!.isNotEmpty) ...[
                                   const SizedBox(height: 2),
-                                  Text(
-                                    _phone!,
-                                    style: GoogleFonts.inter(
-                                      color: TmColors.grey500,
-                                      fontSize: 13,
-                                      letterSpacing: 0.1,
-                                    ),
-                                  ),
+                                  Text(_phone!, style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13, letterSpacing: 0.1)),
                                 ],
                               ],
                             ),
                           ),
 
-                          // ── Settings ────────────────────────────────────
+                          // ── Account Settings ────────────────────────────
                           Padding(
                             padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
                             child: Text(
                               'ACCOUNT SETTINGS',
-                              style: GoogleFonts.inter(
-                                color: TmColors.grey500,
-                                fontSize: 11,
-                                letterSpacing: 0.8,
-                              ),
+                              style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11, letterSpacing: 0.8),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          _SettingsRow(
-                            label: 'Name',
-                            value: _name ?? '—',
-                            onTap: _editName,
+                          _SettingsRow(label: 'Name', value: _name ?? '—', onTap: _editName),
+                          _SettingsRow(label: 'Password', value: '••••••••', onTap: _changePassword),
+
+                          // ── Appearance ──────────────────────────────────
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+                            child: Text(
+                              'APPEARANCE',
+                              style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11, letterSpacing: 0.8),
+                            ),
                           ),
-                          _SettingsRow(
-                            label: 'Password',
-                            value: '••••••••',
-                            onTap: _changePassword,
+                          const SizedBox(height: 12),
+                          ValueListenableBuilder<ThemeMode>(
+                            valueListenable: themeModeNotifier,
+                            builder: (ctx, mode, _) {
+                              final dark = mode == ThemeMode.dark;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                decoration: BoxDecoration(
+                                  border: Border(bottom: BorderSide(color: ctx.divider, width: 0.5)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 88,
+                                      child: Text(
+                                        'Dark Mode',
+                                        style: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 13, letterSpacing: 0.1),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        dark ? 'On' : 'Off',
+                                        style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14, letterSpacing: 0.1),
+                                      ),
+                                    ),
+                                    Switch(
+                                      value: dark,
+                                      onChanged: (val) async {
+                                        themeModeNotifier.value = val ? ThemeMode.dark : ThemeMode.light;
+                                        await AppPrefs.setDarkMode(val);
+                                      },
+                                      activeThumbColor: TmColors.yellow,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
+
                           const SizedBox(height: 40),
                         ],
                       ),
@@ -373,12 +345,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
-
+  const _SettingsRow({required this.label, required this.value, required this.onTap});
   final String label;
   final String value;
   final VoidCallback onTap;
@@ -389,33 +356,21 @@ class _SettingsRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: TmColors.grey300, width: 0.5)),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
         ),
         child: Row(
           children: [
             SizedBox(
               width: 88,
-              child: Text(
-                label,
-                style: GoogleFonts.inter(
-                  color: TmColors.grey500,
-                  fontSize: 13,
-                  letterSpacing: 0.1,
-                ),
-              ),
+              child: Text(label,
+                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 13, letterSpacing: 0.1)),
             ),
             Expanded(
-              child: Text(
-                value,
-                style: GoogleFonts.inter(
-                  color: TmColors.black,
-                  fontSize: 14,
-                  letterSpacing: 0.1,
-                ),
-              ),
+              child: Text(value,
+                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14, letterSpacing: 0.1)),
             ),
-            const Icon(Icons.chevron_right_rounded, color: TmColors.grey500, size: 20),
+            Icon(Icons.chevron_right_rounded, color: context.textSecondary, size: 20),
           ],
         ),
       ),
@@ -440,21 +395,17 @@ class _PwFieldState extends State<_PwField> {
     return TextField(
       controller: widget.controller,
       obscureText: _obscure,
-      style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
+      style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14),
       decoration: InputDecoration(
         labelText: widget.label,
-        labelStyle: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13),
-        enabledBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: TmColors.grey300),
-        ),
-        focusedBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: TmColors.yellow, width: 1.5),
-        ),
+        labelStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 13),
+        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: context.divider)),
+        focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
         suffixIcon: GestureDetector(
           onTap: () => setState(() => _obscure = !_obscure),
           child: Icon(
             _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            color: TmColors.grey500,
+            color: context.textSecondary,
             size: 18,
           ),
         ),

@@ -107,7 +107,7 @@ class _SignupScreenState extends State<SignupScreen> {
     if (_success) return _SuccessView(onGoToLogin: _goToLogin);
 
     return Scaffold(
-      backgroundColor: TmColors.white,
+      backgroundColor: context.bg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 48),
@@ -119,7 +119,7 @@ class _SignupScreenState extends State<SignupScreen> {
               Text(
                 'Create account',
                 style: GoogleFonts.inter(
-                  color: TmColors.black,
+                  color: context.textPrimary,
                   fontSize: 28,
                   letterSpacing: -0.8,
                 ),
@@ -128,7 +128,7 @@ class _SignupScreenState extends State<SignupScreen> {
               Text(
                 'Fill in your details below',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey500,
+                  color: context.textSecondary,
                   fontSize: 15,
                   letterSpacing: 0.1,
                 ),
@@ -263,7 +263,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   Text(
                     'Already have an account?',
                     style: GoogleFonts.inter(
-                      color: TmColors.grey700,
+                      color: context.textTertiary,
                       fontSize: 14,
                     ),
                   ),
@@ -330,7 +330,7 @@ class _FieldState extends State<_Field> {
         Text(
           widget.label,
           style: GoogleFonts.inter(
-            color: TmColors.black,
+            color: context.textPrimary,
             fontSize: 14,
             letterSpacing: 0.1,
           ),
@@ -358,19 +358,19 @@ class _FieldState extends State<_Field> {
             autocorrect: !widget.obscureText,
             enableSuggestions: !widget.obscureText,
             autofillHints: widget.obscureText ? const [] : null,
-            style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14),
             decoration: InputDecoration(
               hintText: widget.hintText ?? widget.label,
               hintStyle: GoogleFonts.inter(
-                color: TmColors.grey500,
+                color: context.textSecondary,
                 fontSize: 14,
               ),
               filled: true,
-              fillColor: TmColors.grey100,
+              fillColor: context.surface,
               prefixIcon: Icon(widget.icon, color: TmColors.yellow, size: 20),
               prefixText: widget.prefixText,
               prefixStyle: GoogleFonts.inter(
-                color: TmColors.black,
+                color: context.textPrimary,
                 fontSize: 14,
               ),
               suffixIcon: widget.obscureText
@@ -380,7 +380,7 @@ class _FieldState extends State<_Field> {
                         _obscure
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
-                        color: TmColors.grey500,
+                        color: context.textSecondary,
                         size: 20,
                       ),
                     )
@@ -425,7 +425,7 @@ class _SuccessView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: TmColors.white,
+      backgroundColor: context.bg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -441,7 +441,7 @@ class _SuccessView extends StatelessWidget {
               Text(
                 'Account created!',
                 style: GoogleFonts.inter(
-                  color: TmColors.black,
+                  color: context.textPrimary,
                   fontSize: 26,
                   letterSpacing: -0.6,
                 ),
@@ -451,7 +451,7 @@ class _SuccessView extends StatelessWidget {
               Text(
                 'You can now sign in with your credentials.',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey700,
+                  color: context.textTertiary,
                   fontSize: 15,
                   letterSpacing: 0.1,
                 ),

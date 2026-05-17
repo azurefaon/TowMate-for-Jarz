@@ -72,19 +72,19 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     });
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(String status, BuildContext context) {
     const completed = {'completed'};
     const muted = {'cancelled', 'rejected'};
-    if (completed.contains(status)) return TmColors.grey500;
-    if (muted.contains(status)) return TmColors.grey300;
-    return TmColors.black;
+    if (completed.contains(status)) return context.textSecondary;
+    if (muted.contains(status)) return context.divider;
+    return context.textPrimary;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: TmColors.white,
+      backgroundColor: context.bg,
       drawer: TmDrawer(currentRoute: '/my-bookings', isLoggedIn: true, name: _name),
       body: SafeArea(
         child: Column(
@@ -92,13 +92,13 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
             // ── Top bar ──────────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: TmColors.grey300, width: 0.5)),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
               ),
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.menu_rounded, color: TmColors.grey700),
+                    icon: Icon(Icons.menu_rounded, color: context.textTertiary),
                     onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                     tooltip: 'Menu',
                     padding: EdgeInsets.zero,
@@ -108,7 +108,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                   Text(
                     'My Bookings',
                     style: GoogleFonts.inter(
-                      color: TmColors.black,
+                      color: context.textPrimary,
                       fontSize: 16,
                       letterSpacing: -0.3,
                     ),
@@ -126,14 +126,14 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                       child: Text(
                         'Loading bookings...',
                         style: GoogleFonts.inter(
-                          color: TmColors.grey500,
+                          color: context.textSecondary,
                           fontSize: 14,
                           letterSpacing: 0.1,
                         ),
                       ),
                     )
                   : RefreshIndicator(
-                      color: TmColors.black,
+                      color: context.textPrimary,
                       onRefresh: () => _load(refresh: true),
                       child: _bookings.isEmpty
                           ? _EmptyState()
@@ -155,7 +155,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                     ),
                                     child: _BookingRow(
                                       booking: b,
-                                      statusColor: _statusColor(b.status),
+                                      statusColor: _statusColor(b.status, context),
                                     ),
                                   );
                                 }
@@ -164,11 +164,11 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                   padding: const EdgeInsets.symmetric(vertical: 20),
                                   child: Center(
                                     child: _loadingMore
-                                        ? const SizedBox(
+                                        ? SizedBox(
                                             width: 20,
                                             height: 20,
                                             child: CircularProgressIndicator(
-                                              color: TmColors.black,
+                                              color: context.textPrimary,
                                               strokeWidth: 2,
                                             ),
                                           )
@@ -177,7 +177,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                             child: Text(
                                               'Load more',
                                               style: GoogleFonts.inter(
-                                                color: TmColors.grey700,
+                                                color: context.textTertiary,
                                                 fontSize: 13,
                                                 letterSpacing: 0.1,
                                               ),
@@ -220,7 +220,7 @@ class _BookingRow extends StatelessWidget {
                     child: Text(
                       booking.bookingCode,
                       style: GoogleFonts.inter(
-                        color: TmColors.black,
+                        color: context.textPrimary,
                         fontSize: 15,
                         letterSpacing: -0.2,
                       ),
@@ -246,7 +246,7 @@ class _BookingRow extends StatelessWidget {
                     child: Text(
                       booking.truckTypeName,
                       style: GoogleFonts.inter(
-                        color: TmColors.grey500,
+                        color: context.textSecondary,
                         fontSize: 12,
                         letterSpacing: 0.1,
                       ),
@@ -256,7 +256,7 @@ class _BookingRow extends StatelessWidget {
                     Text(
                       booking.formattedDate,
                       style: GoogleFonts.inter(
-                        color: TmColors.grey500,
+                        color: context.textSecondary,
                         fontSize: 12,
                         letterSpacing: 0.1,
                       ),
@@ -271,24 +271,24 @@ class _BookingRow extends StatelessWidget {
               _AddressRow(label: 'Drop-off', address: booking.dropoffAddress),
 
               // Price + distance
-              if (booking.computedTotal != null || booking.distanceKm != null) ...[
+              if ((booking.finalTotal ?? booking.computedTotal) != null || booking.distanceKm != null) ...[
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    if (booking.computedTotal != null)
+                    if ((booking.finalTotal ?? booking.computedTotal) != null)
                       Text(
-                        '₱${booking.computedTotal!.toStringAsFixed(2)}',
+                        '₱${(booking.finalTotal ?? booking.computedTotal)!.toStringAsFixed(2)}',
                         style: GoogleFonts.inter(
-                          color: TmColors.black,
+                          color: context.textPrimary,
                           fontSize: 14,
                           letterSpacing: -0.2,
                         ),
                       ),
-                    if (booking.computedTotal != null && booking.distanceKm != null)
+                    if ((booking.finalTotal ?? booking.computedTotal) != null && booking.distanceKm != null)
                       Text(
                         '   ·   ',
                         style: GoogleFonts.inter(
-                          color: TmColors.grey300,
+                          color: context.divider,
                           fontSize: 14,
                         ),
                       ),
@@ -296,7 +296,7 @@ class _BookingRow extends StatelessWidget {
                       Text(
                         '${booking.distanceKm!.toStringAsFixed(2)} km',
                         style: GoogleFonts.inter(
-                          color: TmColors.grey500,
+                          color: context.textSecondary,
                           fontSize: 13,
                           letterSpacing: 0.1,
                         ),
@@ -307,7 +307,7 @@ class _BookingRow extends StatelessWidget {
             ],
           ),
         ),
-        Container(height: 0.5, color: TmColors.grey300),
+        Container(height: 0.5, color: context.divider),
       ],
     );
   }
@@ -328,7 +328,7 @@ class _AddressRow extends StatelessWidget {
           child: Text(
             label,
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 12,
               letterSpacing: 0.1,
             ),
@@ -338,7 +338,7 @@ class _AddressRow extends StatelessWidget {
           child: Text(
             address,
             style: GoogleFonts.inter(
-              color: TmColors.grey700,
+              color: context.textTertiary,
               fontSize: 12,
               letterSpacing: 0.1,
               height: 1.4,
@@ -364,7 +364,7 @@ class _EmptyState extends StatelessWidget {
               Text(
                 'No bookings yet.',
                 style: GoogleFonts.inter(
-                  color: TmColors.black,
+                  color: context.textPrimary,
                   fontSize: 16,
                   letterSpacing: -0.2,
                 ),
@@ -373,7 +373,7 @@ class _EmptyState extends StatelessWidget {
               Text(
                 'Tap Book Now to request a tow.',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey500,
+                  color: context.textSecondary,
                   fontSize: 13,
                   letterSpacing: 0.1,
                 ),
@@ -384,7 +384,7 @@ class _EmptyState extends StatelessWidget {
                 child: Text(
                   'Book Now →',
                   style: GoogleFonts.inter(
-                    color: TmColors.black,
+                    color: context.textPrimary,
                     fontSize: 14,
                     letterSpacing: 0.1,
                   ),
@@ -409,7 +409,7 @@ class _ErrorBanner extends StatelessWidget {
       child: Text(
         message,
         style: GoogleFonts.inter(
-          color: TmColors.grey500,
+          color: context.textSecondary,
           fontSize: 13,
           letterSpacing: 0.1,
         ),

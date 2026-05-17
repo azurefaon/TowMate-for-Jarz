@@ -300,12 +300,12 @@ class _BookNowScreenState extends State<BookNowScreen> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        backgroundColor: TmColors.white,
+        backgroundColor: ctx.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'No Units Available',
           style: GoogleFonts.inter(
-            color: TmColors.black,
+            color: ctx.textPrimary,
             fontSize: 17,
             letterSpacing: -0.3,
           ),
@@ -314,7 +314,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
           _availabilityMessage ??
               'No tow trucks are currently available for immediate dispatch.',
           style: GoogleFonts.inter(
-            color: TmColors.grey700,
+            color: ctx.textTertiary,
             fontSize: 14,
             height: 1.5,
           ),
@@ -324,7 +324,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 14),
+              style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14),
             ),
           ),
           TextButton(
@@ -334,7 +334,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             },
             child: Text(
               'Schedule Instead',
-              style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
+              style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14),
             ),
           ),
         ],
@@ -434,14 +434,14 @@ class _BookNowScreenState extends State<BookNowScreen> {
     const titles = ['Where to?', 'Your Vehicle', 'Review'];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: TmColors.grey300, width: 0.5)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: ctx.divider, width: 0.5)),
       ),
       child: Row(
         children: [
           if (_step == 0)
             IconButton(
-              icon: const Icon(Icons.menu_rounded, color: TmColors.grey700),
+              icon: Icon(Icons.menu_rounded, color: ctx.textTertiary),
               onPressed: () => Scaffold.of(ctx).openDrawer(),
               tooltip: 'Menu',
               padding: EdgeInsets.zero,
@@ -449,7 +449,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             )
           else
             IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: TmColors.grey700, size: 20),
+              icon: Icon(Icons.arrow_back_ios_new_rounded, color: ctx.textTertiary, size: 20),
               onPressed: () => setState(() => _step--),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -458,7 +458,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             child: Center(
               child: Text(
                 titles[_step],
-                style: GoogleFonts.inter(color: TmColors.black, fontSize: 16, letterSpacing: -0.3),
+                style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16, letterSpacing: -0.3),
               ),
             ),
           ),
@@ -566,11 +566,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('TRIP', style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 11, letterSpacing: 0.8)),
+              Text('TRIP', style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11, letterSpacing: 0.8)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: TmColors.grey100, borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: context.surface, borderRadius: BorderRadius.circular(8)),
                 child: Column(
                   children: [
                     _ReviewRow(label: 'Pickup', value: _pickupAddress),
@@ -595,11 +595,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('VEHICLE', style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 11, letterSpacing: 0.8)),
+              Text('VEHICLE', style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11, letterSpacing: 0.8)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: TmColors.grey100, borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: context.surface, borderRadius: BorderRadius.circular(8)),
                 child: Column(
                   children: [
                     _ReviewRow(label: 'Tow class', value: _selectedTruckType!.name),
@@ -618,7 +618,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('PRICING', style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 11, letterSpacing: 0.8)),
+              Text('PRICING', style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11, letterSpacing: 0.8)),
               const SizedBox(height: 12),
               _PriceBreakdown(
                 truckType: _selectedTruckType!,
@@ -690,9 +690,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: TmColors.grey300, width: 0.5)),
-        color: TmColors.white,
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: context.divider, width: 0.5)),
+        color: context.bg,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -702,7 +702,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
               padding: const EdgeInsets.only(bottom: 10),
               child: Text(
                 hint,
-                style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 12, letterSpacing: 0.1),
+                style: GoogleFonts.inter(color: context.textSecondary, fontSize: 12, letterSpacing: 0.1),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -742,7 +742,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
   void _showImageSourceSheet() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: TmColors.white,
+      backgroundColor: context.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -757,7 +757,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: TmColors.grey300,
+                  color: ctx.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -766,7 +766,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             Text(
               'Add Vehicle Photo',
               style: GoogleFonts.inter(
-                color: TmColors.black,
+                color: ctx.textPrimary,
                 fontSize: 15,
                 letterSpacing: -0.2,
               ),
@@ -782,14 +782,14 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 child: Text(
                   'Take Photo',
                   style: GoogleFonts.inter(
-                    color: TmColors.grey700,
+                    color: ctx.textTertiary,
                     fontSize: 15,
                     letterSpacing: 0.1,
                   ),
                 ),
               ),
             ),
-            Container(height: 0.5, color: TmColors.grey300),
+            Container(height: 0.5, color: ctx.divider),
             GestureDetector(
               onTap: () {
                 Navigator.pop(ctx);
@@ -800,7 +800,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 child: Text(
                   'Choose from Gallery',
                   style: GoogleFonts.inter(
-                    color: TmColors.grey700,
+                    color: ctx.textTertiary,
                     fontSize: 15,
                     letterSpacing: 0.1,
                   ),
@@ -821,7 +821,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
         if (!didPop && _step > 0) setState(() => _step--);
       },
       child: Scaffold(
-        backgroundColor: TmColors.white,
+        backgroundColor: context.bg,
         drawer: _step == 0 ? const TmDrawer(currentRoute: '/book-now', isLoggedIn: true) : null,
         body: Builder(
           builder: (ctx) => SafeArea(
@@ -883,7 +883,7 @@ class _BookingModeSection extends StatelessWidget {
           Text(
             'Book Your Towing Service',
             style: GoogleFonts.inter(
-              color: TmColors.black,
+              color: context.textPrimary,
               fontSize: 20,
               letterSpacing: -0.4,
             ),
@@ -892,7 +892,7 @@ class _BookingModeSection extends StatelessWidget {
           Text(
             'Choose a booking mode, set your locations, and confirm.',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 13,
               letterSpacing: 0.1,
               height: 1.5,
@@ -902,7 +902,7 @@ class _BookingModeSection extends StatelessWidget {
           Text(
             'BOOKING MODE',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 11,
               letterSpacing: 0.8,
             ),
@@ -998,14 +998,14 @@ class _ModeChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? TmColors.black : TmColors.grey100,
+          color: selected ? context.textPrimary : context.surface,
           borderRadius: BorderRadius.circular(6),
-          border: selected ? null : Border.all(color: TmColors.grey300),
+          border: selected ? null : Border.all(color: context.divider),
         ),
         child: Text(
           label,
           style: GoogleFonts.inter(
-            color: selected ? TmColors.white : TmColors.grey700,
+            color: selected ? context.bg : context.textTertiary,
             fontSize: 13,
             letterSpacing: 0.1,
           ),
@@ -1035,7 +1035,7 @@ class _DateTimeField extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: TmColors.grey500,
+            color: context.textSecondary,
             fontSize: 11,
             letterSpacing: 0.4,
           ),
@@ -1046,13 +1046,13 @@ class _DateTimeField extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
             decoration: BoxDecoration(
-              border: Border.all(color: value != null ? TmColors.black : TmColors.grey300),
+              border: Border.all(color: value != null ? context.textPrimary : context.divider),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
               value ?? placeholder,
               style: GoogleFonts.inter(
-                color: value != null ? TmColors.black : TmColors.grey500,
+                color: value != null ? context.textPrimary : context.textSecondary,
                 fontSize: 13,
                 letterSpacing: 0.1,
               ),
@@ -1364,7 +1364,7 @@ class _LocationSectionState extends State<_LocationSection> {
               Text(
                 'PICKUP & DROP-OFF',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey500,
+                  color: context.textSecondary,
                   fontSize: 11,
                   letterSpacing: 0.8,
                 ),
@@ -1375,7 +1375,7 @@ class _LocationSectionState extends State<_LocationSection> {
                   child: Text(
                     'Reset',
                     style: GoogleFonts.inter(
-                      color: TmColors.grey500,
+                      color: context.textSecondary,
                       fontSize: 13,
                       letterSpacing: 0.1,
                     ),
@@ -1415,19 +1415,19 @@ class _LocationSectionState extends State<_LocationSection> {
                       ? Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(
+                            SizedBox(
                               width: 12,
                               height: 12,
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
-                                color: TmColors.grey500,
+                                color: context.textSecondary,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Text(
                               'Getting location...',
                               style: GoogleFonts.inter(
-                                color: TmColors.grey500,
+                                color: context.textSecondary,
                                 fontSize: 12,
                                 letterSpacing: 0.1,
                               ),
@@ -1437,7 +1437,7 @@ class _LocationSectionState extends State<_LocationSection> {
                       : Text(
                           'Use current location',
                           style: GoogleFonts.inter(
-                            color: TmColors.grey700,
+                            color: context.textSecondary,
                             fontSize: 12,
                             letterSpacing: 0.1,
                             decoration: TextDecoration.underline,
@@ -1485,7 +1485,7 @@ class _LocationSectionState extends State<_LocationSection> {
               Text(
                 'Quick search',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey500,
+                  color: context.textSecondary,
                   fontSize: 11,
                   letterSpacing: 0.4,
                 ),
@@ -1500,14 +1500,14 @@ class _LocationSectionState extends State<_LocationSection> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: TmColors.grey100,
+                        color: context.surface,
                         borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: TmColors.grey300),
+                        border: Border.all(color: context.divider),
                       ),
                       child: Text(
                         s,
                         style: GoogleFonts.inter(
-                          color: TmColors.grey700,
+                          color: context.textTertiary,
                           fontSize: 12,
                           letterSpacing: 0.1,
                         ),
@@ -1527,7 +1527,7 @@ class _LocationSectionState extends State<_LocationSection> {
           child: Text(
             'Live Route Preview',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 11,
               letterSpacing: 0.4,
             ),
@@ -1541,10 +1541,10 @@ class _LocationSectionState extends State<_LocationSection> {
               // FlutterMap is always in the tree so MapController is always ready
               Positioned.fill(
                 child: Container(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     border: Border(
-                      top: BorderSide(color: TmColors.grey300, width: 0.5),
-                      bottom: BorderSide(color: TmColors.grey300, width: 0.5),
+                      top: BorderSide(color: context.divider, width: 0.5),
+                      bottom: BorderSide(color: context.divider, width: 0.5),
                     ),
                   ),
                   child: FlutterMap(
@@ -1595,12 +1595,12 @@ class _LocationSectionState extends State<_LocationSection> {
               if (!anyPin)
                 Positioned.fill(
                   child: Container(
-                    color: TmColors.grey100,
+                    color: context.surface,
                     alignment: Alignment.center,
                     child: Text(
                       'Set pickup location to see map',
                       style: GoogleFonts.inter(
-                        color: TmColors.grey500,
+                        color: context.textSecondary,
                         fontSize: 13,
                         letterSpacing: 0.1,
                       ),
@@ -1617,7 +1617,7 @@ class _LocationSectionState extends State<_LocationSection> {
             child: Text(
               'Calculating route...',
               style: GoogleFonts.inter(
-                color: TmColors.grey500,
+                color: context.textSecondary,
                 fontSize: 13,
                 letterSpacing: 0.1,
               ),
@@ -1639,7 +1639,7 @@ class _FieldLabel extends StatelessWidget {
     return Text(
       text,
       style: GoogleFonts.inter(
-        color: TmColors.grey700,
+        color: context.textSecondary,
         fontSize: 13,
         letterSpacing: 0.1,
       ),
@@ -1669,39 +1669,39 @@ class _SearchField extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(
-          color: confirmed ? TmColors.black : TmColors.grey300,
+          color: confirmed ? context.textPrimary : context.divider,
           width: confirmed ? 1.5 : 1.0,
         ),
         borderRadius: BorderRadius.circular(6),
-        color: TmColors.white,
+        color: context.surface,
       ),
       child: TextField(
         controller: controller,
         focusNode: focusNode,
         onChanged: onChanged,
         style: GoogleFonts.inter(
-          color: TmColors.black,
+          color: context.textPrimary,
           fontSize: 14,
           letterSpacing: 0.1,
         ),
         decoration: InputDecoration(
           hintText: placeholder,
           hintStyle: GoogleFonts.inter(
-            color: TmColors.grey500,
+            color: context.textSecondary,
             fontSize: 14,
             letterSpacing: 0.1,
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           border: InputBorder.none,
           suffixIcon: searching
-              ? const Padding(
-                  padding: EdgeInsets.all(14),
+              ? Padding(
+                  padding: const EdgeInsets.all(14),
                   child: SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(
                       strokeWidth: 1.5,
-                      color: TmColors.grey500,
+                      color: context.textSecondary,
                     ),
                   ),
                 )
@@ -1724,9 +1724,9 @@ class _SuggestionList extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(top: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: TmColors.grey300),
+        border: Border.all(color: context.divider),
         borderRadius: BorderRadius.circular(6),
-        color: TmColors.white,
+        color: context.surface,
       ),
       child: Column(
         children: List.generate(suggestions.length, (i) {
@@ -1743,7 +1743,7 @@ class _SuggestionList extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
               decoration: BoxDecoration(
                 border: i > 0
-                    ? const Border(top: BorderSide(color: TmColors.grey300, width: 0.5))
+                    ? Border(top: BorderSide(color: context.divider, width: 0.5))
                     : null,
               ),
               child: Column(
@@ -1752,7 +1752,7 @@ class _SuggestionList extends StatelessWidget {
                   Text(
                     main,
                     style: GoogleFonts.inter(
-                      color: TmColors.grey700,
+                      color: context.textSecondary,
                       fontSize: 13,
                       letterSpacing: 0.1,
                     ),
@@ -1762,7 +1762,7 @@ class _SuggestionList extends StatelessWidget {
                     Text(
                       detail,
                       style: GoogleFonts.inter(
-                        color: TmColors.grey500,
+                        color: context.textTertiary,
                         fontSize: 11,
                         letterSpacing: 0.1,
                       ),
@@ -1868,7 +1868,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
               Text(
                 'VEHICLE TO TOW',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey500,
+                  color: context.textSecondary,
                   fontSize: 11,
                   letterSpacing: 0.8,
                 ),
@@ -1879,7 +1879,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
                   child: Text(
                     'Clear',
                     style: GoogleFonts.inter(
-                      color: TmColors.grey500,
+                      color: context.textSecondary,
                       fontSize: 13,
                       letterSpacing: 0.1,
                     ),
@@ -1891,7 +1891,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
           Text(
             'What type of vehicle needs to be towed?',
             style: GoogleFonts.inter(
-              color: TmColors.black,
+              color: context.textPrimary,
               fontSize: 16,
               letterSpacing: -0.2,
             ),
@@ -1901,19 +1901,19 @@ class _VehicleSectionState extends State<_VehicleSection> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: TmColors.grey100,
+                color: context.surface,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 'Loading vehicle types...',
-                style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 14),
+                style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
               ),
             )
           else if (trucks.isEmpty)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                border: Border.all(color: TmColors.grey300),
+                border: Border.all(color: context.divider),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -1921,7 +1921,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
                 children: [
                   Text(
                     'Could not load vehicle types.',
-                    style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 14),
+                    style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
                   ),
                   if (widget.onRetry != null) ...[
                     const SizedBox(height: 10),
@@ -1946,7 +1946,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
             Text(
               '1. Select Tow Class',
               style: GoogleFonts.inter(
-                color: TmColors.grey700,
+                color: context.textSecondary,
                 fontSize: 13,
                 letterSpacing: 0.1,
               ),
@@ -1974,7 +1974,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
               Text(
                 '2. Select Vehicle Type',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey700,
+                  color: context.textSecondary,
                   fontSize: 13,
                   letterSpacing: 0.1,
                 ),
@@ -2001,7 +2001,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
               ] else
                 Text(
                   'No vehicle types configured for this class.',
-                  style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13),
+                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 13),
                 ),
             ],
           ],
@@ -2029,17 +2029,17 @@ class _ClassPickerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color bg = isSelected
-        ? TmColors.black
-        : isAvailable ? TmColors.white : TmColors.grey100;
-    final Color borderColor = (isSelected || isFocused) ? TmColors.black : TmColors.grey300;
+        ? context.textPrimary
+        : isAvailable ? context.surface : context.bg;
+    final Color borderColor = (isSelected || isFocused) ? context.textPrimary : context.divider;
     final double borderWidth = (isSelected || isFocused) ? 1.5 : 1.0;
     final Color nameColor = isSelected
-        ? TmColors.white
-        : isAvailable ? TmColors.black : TmColors.grey300;
-    final Color metaColor = isSelected ? TmColors.grey300 : TmColors.grey500;
+        ? context.bg
+        : isAvailable ? context.textPrimary : context.divider;
+    final Color metaColor = isSelected ? context.divider : context.textSecondary;
     final Color availColor = isSelected
-        ? TmColors.grey300
-        : isAvailable ? TmColors.grey500 : TmColors.grey300;
+        ? context.divider
+        : isAvailable ? context.textSecondary : context.divider;
     final String availText = isAvailable ? 'available' : 'unavailable';
 
     return GestureDetector(
@@ -2122,20 +2122,18 @@ class _VehicleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color bg = selected
-        ? TmColors.black
+        ? context.textPrimary
         : muted
-            ? TmColors.grey100
-            : TmColors.white;
+            ? context.surface
+            : context.bg;
     final Color borderColor = selected
-        ? TmColors.black
-        : muted
-            ? TmColors.grey300
-            : TmColors.grey300;
+        ? context.textPrimary
+        : context.divider;
     final Color textColor = selected
-        ? TmColors.white
+        ? context.bg
         : muted
-            ? TmColors.grey500
-            : TmColors.grey700;
+            ? context.textSecondary
+            : context.textSecondary;
 
     return GestureDetector(
       onTap: onTap,
@@ -2188,7 +2186,7 @@ class _VehicleImageSection extends StatelessWidget {
           Text(
             'VEHICLE PHOTOS  (1–5 required)',
             style: GoogleFonts.inter(
-              color: hasError && images.isEmpty ? TmColors.error : TmColors.grey500,
+              color: hasError && images.isEmpty ? TmColors.error : context.textSecondary,
               fontSize: 11,
               letterSpacing: 0.8,
             ),
@@ -2209,11 +2207,11 @@ class _VehicleImageSection extends StatelessWidget {
                     width: 88,
                     height: 88,
                     decoration: BoxDecoration(
-                      color: TmColors.grey100,
+                      color: context.surface,
                       border: Border.all(
                         color: hasError && images.isEmpty
                             ? TmColors.error
-                            : TmColors.grey300,
+                            : context.divider,
                       ),
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -2223,7 +2221,7 @@ class _VehicleImageSection extends StatelessWidget {
                         style: GoogleFonts.inter(
                           color: hasError && images.isEmpty
                               ? TmColors.error
-                              : TmColors.grey500,
+                              : context.textSecondary,
                           fontSize: 12,
                           letterSpacing: 0.2,
                         ),
@@ -2337,7 +2335,7 @@ class _ExtraVehiclesSection extends StatelessWidget {
           Text(
             'ADDITIONAL VEHICLES',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 11,
               letterSpacing: 0.8,
             ),
@@ -2357,13 +2355,13 @@ class _ExtraVehiclesSection extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  border: Border.all(color: TmColors.grey300),
+                  border: Border.all(color: context.divider),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '+ Add another vehicle',
                   style: GoogleFonts.inter(
-                    color: TmColors.grey700,
+                    color: context.textSecondary,
                     fontSize: 13,
                     letterSpacing: 0.1,
                   ),
@@ -2400,7 +2398,7 @@ class _ExtraVehicleSlot extends StatelessWidget {
       margin: const EdgeInsets.only(top: 14),
       decoration: BoxDecoration(
         border: Border.all(
-          color: hasSelection ? TmColors.black : TmColors.grey300,
+          color: hasSelection ? context.textPrimary : context.divider,
           width: hasSelection ? 1.5 : 1.0,
         ),
         borderRadius: BorderRadius.circular(8),
@@ -2417,7 +2415,7 @@ class _ExtraVehicleSlot extends StatelessWidget {
                 Text(
                   'Vehicle ${index + 2}',
                   style: GoogleFonts.inter(
-                    color: TmColors.grey700,
+                    color: context.textSecondary,
                     fontSize: 13,
                     letterSpacing: 0.2,
                   ),
@@ -2427,7 +2425,7 @@ class _ExtraVehicleSlot extends StatelessWidget {
                   child: Text(
                     'Remove',
                     style: GoogleFonts.inter(
-                      color: TmColors.grey500,
+                      color: context.textTertiary,
                       fontSize: 12,
                       letterSpacing: 0.1,
                     ),
@@ -2442,7 +2440,7 @@ class _ExtraVehicleSlot extends StatelessWidget {
               child: Text(
                 '${data.truck!.name}  ·  ${data.vehicle!.name}',
                 style: GoogleFonts.inter(
-                  color: TmColors.black,
+                  color: context.textPrimary,
                   fontSize: 12,
                   letterSpacing: 0.1,
                 ),
@@ -2452,7 +2450,7 @@ class _ExtraVehicleSlot extends StatelessWidget {
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Container(height: 0.5, color: TmColors.grey300),
+            child: Container(height: 0.5, color: context.divider),
           ),
           const SizedBox(height: 12),
           Padding(
@@ -2460,7 +2458,7 @@ class _ExtraVehicleSlot extends StatelessWidget {
             child: Text(
               'SELECT TOW CLASS & VEHICLE TYPE',
               style: GoogleFonts.inter(
-                color: TmColors.grey500,
+                color: context.textSecondary,
                 fontSize: 10,
                 letterSpacing: 0.6,
               ),
@@ -2477,7 +2475,7 @@ class _ExtraVehicleSlot extends StatelessWidget {
                   Text(
                     truck.name,
                     style: GoogleFonts.inter(
-                      color: TmColors.grey500,
+                      color: context.textTertiary,
                       fontSize: 11,
                       letterSpacing: 0.4,
                     ),
@@ -2522,7 +2520,7 @@ class _NotesSection extends StatelessWidget {
           Text(
             'SPECIAL NOTES',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 11,
               letterSpacing: 0.8,
             ),
@@ -2530,7 +2528,7 @@ class _NotesSection extends StatelessWidget {
           const SizedBox(height: 10),
           Container(
             decoration: BoxDecoration(
-              border: Border.all(color: TmColors.grey300),
+              border: Border.all(color: context.divider),
               borderRadius: BorderRadius.circular(6),
             ),
             child: TextField(
@@ -2538,14 +2536,14 @@ class _NotesSection extends StatelessWidget {
               minLines: 3,
               maxLines: 6,
               style: GoogleFonts.inter(
-                color: TmColors.black,
+                color: context.textPrimary,
                 fontSize: 14,
                 letterSpacing: 0.1,
               ),
               decoration: InputDecoration(
                 hintText: 'Any special instructions or notes...',
                 hintStyle: GoogleFonts.inter(
-                  color: TmColors.grey500,
+                  color: context.textSecondary,
                   fontSize: 14,
                   letterSpacing: 0.1,
                 ),
@@ -2601,16 +2599,16 @@ class _StepDot extends StatelessWidget {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: active || done ? TmColors.black : TmColors.grey300,
+            color: active || done ? context.textPrimary : context.divider,
             shape: BoxShape.circle,
           ),
           child: Center(
             child: done
-                ? const Icon(Icons.check_rounded, color: TmColors.white, size: 14)
+                ? Icon(Icons.check_rounded, color: context.bg, size: 14)
                 : Text(
                     '${index + 1}',
                     style: GoogleFonts.inter(
-                      color: active ? TmColors.yellow : TmColors.grey500,
+                      color: active ? TmColors.yellow : context.textTertiary,
                       fontSize: 12,
                       letterSpacing: -0.1,
                     ),
@@ -2621,7 +2619,7 @@ class _StepDot extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: active ? TmColors.black : TmColors.grey500,
+            color: active ? context.textPrimary : context.textTertiary,
             fontSize: 10,
             letterSpacing: 0.3,
           ),
@@ -2641,7 +2639,7 @@ class _StepLine extends StatelessWidget {
       child: Container(
         height: 1.5,
         margin: const EdgeInsets.only(bottom: 20, left: 4, right: 4),
-        color: done ? TmColors.black : TmColors.grey300,
+        color: done ? context.textPrimary : context.divider,
       ),
     );
   }
@@ -2677,7 +2675,7 @@ class _PriceBreakdown extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: TmColors.grey300),
+        border: Border.all(color: context.divider),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -2692,10 +2690,10 @@ class _PriceBreakdown extends StatelessWidget {
             )
           else
             _BRow(label: 'Distance fee (first 1 km free)', value: '—'),
-          Container(height: 0.5, color: TmColors.grey300),
+          Container(height: 0.5, color: context.divider),
           _BRow(label: 'Subtotal', value: '₱${priceFmt.format(subtotal)}', bold: true),
           _BRow(label: 'VAT (12%)', value: '₱${priceFmt.format(vatAmount)}'),
-          Container(height: 1, color: TmColors.black),
+          Container(height: 1, color: context.textPrimary),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -2703,11 +2701,11 @@ class _PriceBreakdown extends StatelessWidget {
               children: [
                 Text(
                   'Total',
-                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 15, letterSpacing: -0.1),
+                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15, letterSpacing: -0.1),
                 ),
                 Text(
                   '₱${priceFmt.format(total)}',
-                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 18, letterSpacing: -0.4),
+                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 18, letterSpacing: -0.4),
                 ),
               ],
             ),
@@ -2734,7 +2732,7 @@ class _BRow extends StatelessWidget {
             child: Text(
               label,
               style: GoogleFonts.inter(
-                color: bold ? TmColors.grey700 : TmColors.grey500,
+                color: bold ? context.textSecondary : context.textTertiary,
                 fontSize: 13,
                 letterSpacing: 0.1,
               ),
@@ -2743,7 +2741,7 @@ class _BRow extends StatelessWidget {
           Text(
             value,
             style: GoogleFonts.inter(
-              color: TmColors.black,
+              color: context.textPrimary,
               fontSize: 13,
               letterSpacing: 0.1,
             ),
@@ -2770,13 +2768,13 @@ class _ReviewRow extends StatelessWidget {
           width: 72,
           child: Text(
             label,
-            style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 12, letterSpacing: 0.1),
+            style: GoogleFonts.inter(color: context.textSecondary, fontSize: 12, letterSpacing: 0.1),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: GoogleFonts.inter(color: TmColors.black, fontSize: 13, letterSpacing: 0.1, height: 1.4),
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13, letterSpacing: 0.1, height: 1.4),
           ),
         ),
       ],

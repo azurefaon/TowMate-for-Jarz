@@ -50,7 +50,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: TmColors.white,
+      backgroundColor: context.bg,
       drawer: TmDrawer(currentRoute: '/services', isLoggedIn: _isLoggedIn, name: _name),
       body: Builder(
         builder: (context) => SafeArea(
@@ -89,13 +89,13 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: TmColors.grey300, width: 0.5)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.menu_rounded, color: TmColors.grey700),
+            icon: Icon(Icons.menu_rounded, color: context.textTertiary),
             onPressed: onMenuTap,
             tooltip: 'Menu',
             padding: EdgeInsets.zero,
@@ -208,7 +208,7 @@ class _CategorySection extends StatelessWidget {
               Text(
                 category,
                 style: GoogleFonts.inter(
-                  color: TmColors.black,
+                  color: context.textPrimary,
                   fontSize: 20,
                   letterSpacing: -0.5,
                 ),

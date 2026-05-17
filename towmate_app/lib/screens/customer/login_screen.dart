@@ -122,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: TmColors.white,
+      backgroundColor: context.bg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextSpan(
                         text: 'Tow',
                         style: GoogleFonts.inter(
-                          color: TmColors.black,
+                          color: context.textPrimary,
                           fontSize: 34,
                           letterSpacing: -0.8,
                         ),
@@ -160,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text(
                   'Your Tow, Our Mission.',
                   style: GoogleFonts.inter(
-                    color: TmColors.grey500,
+                    color: context.textSecondary,
                     fontSize: 14,
                     letterSpacing: 0.2,
                   ),
@@ -229,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 32),
 
                 // ── Or divider ────────────────────────────
-                const _OrDivider(),
+                _OrDivider(),
                 const SizedBox(height: 28),
 
                 // ── Sign up link ──────────────────────────
@@ -239,7 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       "Don't have an account?  ",
                       style: GoogleFonts.inter(
-                        color: TmColors.grey700,
+                        color: context.textTertiary,
                         fontSize: 14,
                       ),
                     ),
@@ -316,7 +316,7 @@ class _LabeledFieldState extends State<_LabeledField> {
         Text(
           widget.label,
           style: GoogleFonts.inter(
-            color: TmColors.black,
+            color: context.textPrimary,
             fontSize: 14,
             letterSpacing: 0.1,
           ),
@@ -346,17 +346,17 @@ class _LabeledFieldState extends State<_LabeledField> {
                 ? const [AutofillHints.email]
                 : const [],
             style: GoogleFonts.inter(
-              color: TmColors.black,
+              color: context.textPrimary,
               fontSize: 14,
             ),
             decoration: InputDecoration(
               hintText: widget.hint,
               hintStyle: GoogleFonts.inter(
-                color: TmColors.grey500,
+                color: context.textSecondary,
                 fontSize: 14,
               ),
               filled: true,
-              fillColor: TmColors.grey100,
+              fillColor: context.surface,
               prefixIcon: Icon(
                 widget.prefixIconData,
                 color: TmColors.yellow,
@@ -369,7 +369,7 @@ class _LabeledFieldState extends State<_LabeledField> {
                         _obscure
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
-                        color: TmColors.grey500,
+                        color: context.textSecondary,
                         size: 20,
                       ),
                     )
@@ -471,25 +471,23 @@ class _LoginButton extends StatelessWidget {
 // ─── Or divider ────────────────────────────────────────────────────────────
 
 class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(child: Divider(color: TmColors.grey300)),
+        Expanded(child: Divider(color: context.divider)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'or',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 13,
               letterSpacing: 0.2,
             ),
           ),
         ),
-        const Expanded(child: Divider(color: TmColors.grey300)),
+        Expanded(child: Divider(color: context.divider)),
       ],
     );
   }
@@ -535,14 +533,14 @@ class _RateLockBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: TmColors.grey100,
+        color: context.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: TmColors.grey300),
+        border: Border.all(color: context.divider),
       ),
       child: Text(
         'Too many attempts. Try again in ${remaining.inSeconds}s.',
         style: GoogleFonts.inter(
-          color: TmColors.grey700,
+          color: context.textTertiary,
           fontSize: 13,
           letterSpacing: 0.1,
         ),

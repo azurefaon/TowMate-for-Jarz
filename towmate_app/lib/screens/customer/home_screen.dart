@@ -129,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: TmColors.white,
+      backgroundColor: context.bg,
       drawer: TmDrawer(
         currentRoute: '/home',
         isLoggedIn: true,
@@ -157,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 TextSpan(
                                   text: _greeting,
                                   style: GoogleFonts.inter(
-                                    color: TmColors.grey500,
+                                    color: context.textSecondary,
                                     fontSize: 14,
                                   ),
                                 ),
@@ -165,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   TextSpan(
                                     text: ', ${_name!.split(' ').first}',
                                     style: GoogleFonts.inter(
-                                      color: TmColors.black,
+                                      color: context.textPrimary,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -202,7 +202,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Text(
                               'No active bookings',
                               style: GoogleFonts.inter(
-                                color: TmColors.grey500,
+                                color: context.textSecondary,
                                 fontSize: 13,
                                 letterSpacing: 0.1,
                               ),
@@ -210,12 +210,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                           // ── Services section ──────────────────────────
                           const SizedBox(height: 32),
-                          Container(height: 0.5, color: TmColors.grey300),
+                          Container(height: 0.5, color: context.divider),
                           const SizedBox(height: 28),
                           Text(
                             'Our Services',
                             style: GoogleFonts.inter(
-                              color: TmColors.black,
+                              color: context.textPrimary,
                               fontSize: 20,
                               letterSpacing: -0.6,
                             ),
@@ -224,18 +224,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Text(
                             'Solutions for every situation',
                             style: GoogleFonts.inter(
-                              color: TmColors.grey500,
+                              color: context.textSecondary,
                               fontSize: 12,
                               letterSpacing: 0.1,
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const Row(
+                          Row(
                             children: [
                               Expanded(child: _HomeServiceChip(icon: Icons.local_shipping_rounded, label: 'Towing')),
-                              SizedBox(width: 10),
+                              const SizedBox(width: 10),
                               Expanded(child: _HomeServiceChip(icon: Icons.build_rounded, label: 'Roadside Help')),
-                              SizedBox(width: 10),
+                              const SizedBox(width: 10),
                               Expanded(child: _HomeServiceChip(icon: Icons.car_repair_rounded, label: 'Recovery')),
                             ],
                           ),
@@ -245,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Text(
                             'Vehicle Types',
                             style: GoogleFonts.inter(
-                              color: TmColors.black,
+                              color: context.textPrimary,
                               fontSize: 20,
                               letterSpacing: -0.6,
                             ),
@@ -254,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Text(
                             'We tow any type of vehicle',
                             style: GoogleFonts.inter(
-                              color: TmColors.grey500,
+                              color: context.textSecondary,
                               fontSize: 12,
                               letterSpacing: 0.1,
                             ),
@@ -302,13 +302,13 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: TmColors.grey300, width: 0.5)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.menu_rounded, color: TmColors.grey700),
+            icon: Icon(Icons.menu_rounded, color: context.textTertiary),
             onPressed: onMenuTap,
             tooltip: 'Menu',
             padding: EdgeInsets.zero,
@@ -338,7 +338,7 @@ class _TopBar extends StatelessWidget {
                     hasUnread
                         ? Icons.notifications_rounded
                         : Icons.notifications_outlined,
-                    color: TmColors.grey700,
+                    color: context.textTertiary,
                     size: 22,
                   ),
                   if (hasUnread)
@@ -374,7 +374,7 @@ class _LoadingState extends StatelessWidget {
       child: Text(
         'Loading...',
         style: GoogleFonts.inter(
-          color: TmColors.grey500,
+          color: context.textSecondary,
           fontSize: 14,
           letterSpacing: 0.1,
         ),
@@ -398,7 +398,7 @@ class _QuotationReadyCard extends StatelessWidget {
         Text(
           'Quotation Ready',
           style: GoogleFonts.inter(
-            color: TmColors.grey500,
+            color: context.textSecondary,
             fontSize: 12,
             letterSpacing: 0.6,
           ),
@@ -408,7 +408,7 @@ class _QuotationReadyCard extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            border: Border.all(color: TmColors.grey300),
+            border: Border.all(color: context.divider),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -420,7 +420,7 @@ class _QuotationReadyCard extends StatelessWidget {
                   Text(
                     quotation.quotationNumber,
                     style: GoogleFonts.inter(
-                      color: TmColors.grey500,
+                      color: context.textSecondary,
                       fontSize: 12,
                       letterSpacing: 0.4,
                     ),
@@ -446,7 +446,7 @@ class _QuotationReadyCard extends StatelessWidget {
               Text(
                 '₱${quotation.estimatedPrice.toStringAsFixed(0)}',
                 style: GoogleFonts.inter(
-                  color: TmColors.black,
+                  color: context.textPrimary,
                   fontSize: 28,
                   letterSpacing: -0.6,
                 ),
@@ -455,7 +455,7 @@ class _QuotationReadyCard extends StatelessWidget {
               Text(
                 '${quotation.truckTypeName}  ·  ${quotation.distanceKm.toStringAsFixed(1)} km',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey500,
+                  color: context.textSecondary,
                   fontSize: 12,
                   letterSpacing: 0.1,
                 ),
@@ -499,7 +499,7 @@ class _ActiveBookingCard extends StatelessWidget {
         Text(
           'Current Booking',
           style: GoogleFonts.inter(
-            color: TmColors.grey500,
+            color: context.textSecondary,
             fontSize: 12,
             letterSpacing: 0.6,
           ),
@@ -509,7 +509,7 @@ class _ActiveBookingCard extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            border: Border.all(color: TmColors.grey300),
+            border: Border.all(color: context.divider),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -521,7 +521,7 @@ class _ActiveBookingCard extends StatelessWidget {
                   Text(
                     booking.bookingCode,
                     style: GoogleFonts.inter(
-                      color: TmColors.grey500,
+                      color: context.textSecondary,
                       fontSize: 12,
                       letterSpacing: 0.4,
                     ),
@@ -529,7 +529,7 @@ class _ActiveBookingCard extends StatelessWidget {
                   Text(
                     booking.humanStatus,
                     style: GoogleFonts.inter(
-                      color: TmColors.black,
+                      color: context.textPrimary,
                       fontSize: 12,
                       letterSpacing: 0.3,
                     ),
@@ -541,11 +541,11 @@ class _ActiveBookingCard extends StatelessWidget {
               const SizedBox(height: 8),
               _AddressLine(label: 'Dropoff', address: booking.dropoffAddress),
               const SizedBox(height: 16),
-              if (booking.distanceKm != null && booking.computedTotal != null)
+              if (booking.distanceKm != null && (booking.finalTotal ?? booking.computedTotal) != null)
                 Text(
-                  '${booking.distanceKm!.toStringAsFixed(1)} km  —  ₱${booking.computedTotal!.toStringAsFixed(0)}',
+                  '${booking.distanceKm!.toStringAsFixed(1)} km  —  ₱${(booking.finalTotal ?? booking.computedTotal)!.toStringAsFixed(0)}',
                   style: GoogleFonts.inter(
-                    color: TmColors.grey700,
+                    color: context.textTertiary,
                     fontSize: 13,
                     letterSpacing: 0.1,
                   ),
@@ -583,7 +583,7 @@ class _ActiveBookingCard extends StatelessWidget {
           child: Text(
             'Refresh',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 13,
               letterSpacing: 0.2,
             ),
@@ -606,7 +606,7 @@ class _HomeServiceChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: TmColors.grey100,
+        color: context.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -617,7 +617,7 @@ class _HomeServiceChip extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
-              color: TmColors.black,
+              color: context.textPrimary,
               fontSize: 11,
               letterSpacing: 0.1,
             ),
@@ -640,19 +640,19 @@ class _HomeVehicleChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: TmColors.white,
+        color: context.bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: TmColors.grey300),
+        border: Border.all(color: context.divider),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: TmColors.grey700, size: 14),
+          Icon(icon, color: context.textTertiary, size: 14),
           const SizedBox(width: 5),
           Text(
             label,
             style: GoogleFonts.inter(
-              color: TmColors.grey700,
+              color: context.textTertiary,
               fontSize: 11,
               letterSpacing: 0.1,
             ),
@@ -680,7 +680,7 @@ class _AddressLine extends StatelessWidget {
           child: Text(
             label,
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 12,
               letterSpacing: 0.3,
             ),
@@ -690,7 +690,7 @@ class _AddressLine extends StatelessWidget {
           child: Text(
             address,
             style: GoogleFonts.inter(
-              color: TmColors.grey700,
+              color: context.textTertiary,
               fontSize: 13,
               letterSpacing: 0.1,
               height: 1.4,

@@ -35,7 +35,7 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: TmColors.white,
+      backgroundColor: context.bg,
       drawer: const TmDrawer(currentRoute: '/'),
       body: Builder(
         builder: (context) => SafeArea(
@@ -55,11 +55,11 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
                         onExplore: () =>
                             Navigator.pushNamed(context, '/services'),
                       ),
-                      const _ServicesGrid(),
+                      _ServicesGrid(),
                       const _FeaturedCard(),
-                      const _VehicleChips(),
+                      _VehicleChips(),
                       const _PromoSection(),
-                      const _Footer(),
+                      _Footer(),
                     ],
                   ),
                 ),
@@ -82,13 +82,13 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: TmColors.grey300, width: 0.5)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.menu_rounded, color: TmColors.grey700),
+            icon: Icon(Icons.menu_rounded, color: context.textTertiary),
             onPressed: onMenuTap,
             tooltip: 'Menu',
             padding: EdgeInsets.zero,
@@ -195,12 +195,10 @@ class _HeroSection extends StatelessWidget {
 // ─── Services grid ─────────────────────────────────────────────────────────
 
 class _ServicesGrid extends StatelessWidget {
-  const _ServicesGrid();
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: TmColors.white,
+      color: context.bg,
       padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,7 +206,7 @@ class _ServicesGrid extends StatelessWidget {
           Text(
             'Our Services',
             style: GoogleFonts.inter(
-              color: TmColors.black,
+              color: context.textPrimary,
               fontSize: 24,
               letterSpacing: -0.8,
             ),
@@ -217,13 +215,13 @@ class _ServicesGrid extends StatelessWidget {
           Text(
             'Solutions for every situation',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 13,
               letterSpacing: 0.1,
             ),
           ),
           const SizedBox(height: 24),
-          const Row(
+          Row(
             children: [
               Expanded(
                 child: _ServiceChip(
@@ -231,14 +229,14 @@ class _ServicesGrid extends StatelessWidget {
                   label: 'Towing',
                 ),
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: _ServiceChip(
                   icon: Icons.build_rounded,
                   label: 'Roadside Help',
                 ),
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: _ServiceChip(
                   icon: Icons.car_repair_rounded,
@@ -263,7 +261,7 @@ class _ServiceChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 18),
       decoration: BoxDecoration(
-        color: TmColors.grey100,
+        color: context.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -274,7 +272,7 @@ class _ServiceChip extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
-              color: TmColors.black,
+              color: context.textPrimary,
               fontSize: 12,
               letterSpacing: 0.1,
             ),
@@ -293,7 +291,7 @@ class _FeaturedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: TmColors.grey100,
+      color: context.surface,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Container(
         width: double.infinity,
@@ -355,12 +353,10 @@ class _FeaturedCard extends StatelessWidget {
 // ─── Vehicle chips ─────────────────────────────────────────────────────────
 
 class _VehicleChips extends StatelessWidget {
-  const _VehicleChips();
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: TmColors.grey100,
+      color: context.surface,
       padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -368,7 +364,7 @@ class _VehicleChips extends StatelessWidget {
           Text(
             'Vehicle Assistance',
             style: GoogleFonts.inter(
-              color: TmColors.black,
+              color: context.textPrimary,
               fontSize: 24,
               letterSpacing: -0.8,
             ),
@@ -377,7 +373,7 @@ class _VehicleChips extends StatelessWidget {
           Text(
             'We tow any type of vehicle',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 13,
               letterSpacing: 0.1,
             ),
@@ -387,38 +383,14 @@ class _VehicleChips extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: const [
-              _VehicleChip(
-                icon: Icons.directions_car_rounded,
-                label: 'Sedan / Hatchback',
-              ),
-              _VehicleChip(
-                icon: Icons.directions_car_filled_rounded,
-                label: 'SUV / Crossover',
-              ),
-              _VehicleChip(
-                icon: Icons.local_shipping_outlined,
-                label: 'Pickup Truck',
-              ),
-              _VehicleChip(
-                icon: Icons.airport_shuttle_rounded,
-                label: 'Van / MPV',
-              ),
-              _VehicleChip(
-                icon: Icons.two_wheeler_rounded,
-                label: 'Motorcycle',
-              ),
-              _VehicleChip(
-                icon: Icons.directions_bus_rounded,
-                label: 'Bus',
-              ),
-              _VehicleChip(
-                icon: Icons.local_shipping_rounded,
-                label: 'Cargo Truck',
-              ),
-              _VehicleChip(
-                icon: Icons.directions_bus_filled_rounded,
-                label: 'Jeepney',
-              ),
+              _VehicleChip(icon: Icons.directions_car_rounded, label: 'Sedan / Hatchback'),
+              _VehicleChip(icon: Icons.directions_car_filled_rounded, label: 'SUV / Crossover'),
+              _VehicleChip(icon: Icons.local_shipping_outlined, label: 'Pickup Truck'),
+              _VehicleChip(icon: Icons.airport_shuttle_rounded, label: 'Van / MPV'),
+              _VehicleChip(icon: Icons.two_wheeler_rounded, label: 'Motorcycle'),
+              _VehicleChip(icon: Icons.directions_bus_rounded, label: 'Bus'),
+              _VehicleChip(icon: Icons.local_shipping_rounded, label: 'Cargo Truck'),
+              _VehicleChip(icon: Icons.directions_bus_filled_rounded, label: 'Jeepney'),
             ],
           ),
         ],
@@ -437,19 +409,19 @@ class _VehicleChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: TmColors.white,
+        color: context.bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: TmColors.grey300),
+        border: Border.all(color: context.divider),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: TmColors.grey700, size: 16),
+          Icon(icon, color: context.textTertiary, size: 16),
           const SizedBox(width: 6),
           Text(
             label,
             style: GoogleFonts.inter(
-              color: TmColors.grey700,
+              color: context.textTertiary,
               fontSize: 12,
               letterSpacing: 0.1,
             ),
@@ -512,12 +484,10 @@ class _PromoSection extends StatelessWidget {
 // ─── Footer ────────────────────────────────────────────────────────────────
 
 class _Footer extends StatelessWidget {
-  const _Footer();
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: TmColors.grey100,
+      color: context.surface,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -525,7 +495,7 @@ class _Footer extends StatelessWidget {
           Text(
             'TowMate',
             style: GoogleFonts.inter(
-              color: TmColors.black,
+              color: context.textPrimary,
               fontSize: 18,
               letterSpacing: -0.6,
             ),
@@ -534,14 +504,14 @@ class _Footer extends StatelessWidget {
           Text(
             'Fast, reliable towing and roadside assistance\nacross Metro Manila and surrounding areas.',
             style: GoogleFonts.inter(
-              color: TmColors.grey500,
+              color: context.textSecondary,
               fontSize: 12,
               letterSpacing: 0.1,
               height: 1.6,
             ),
           ),
           const SizedBox(height: 24),
-          Container(height: 1, color: TmColors.grey300),
+          Container(height: 1, color: context.divider),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -549,7 +519,7 @@ class _Footer extends StatelessWidget {
               Text(
                 '© 2025 TowMate',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey500,
+                  color: context.textSecondary,
                   fontSize: 11,
                   letterSpacing: 0.3,
                 ),
@@ -587,11 +557,11 @@ class _FooterLink extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.inter(
-          color: TmColors.grey700,
+          color: context.textTertiary,
           fontSize: 12,
           letterSpacing: 0.2,
           decoration: TextDecoration.underline,
-          decorationColor: TmColors.grey700,
+          decorationColor: context.textTertiary,
         ),
       ),
     );

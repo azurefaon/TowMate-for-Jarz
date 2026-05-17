@@ -32,12 +32,12 @@ class TmDrawer extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: TmColors.white,
+        backgroundColor: ctx.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Text(
           'Log out?',
           style: GoogleFonts.inter(
-            color: TmColors.black,
+            color: ctx.textPrimary,
             fontSize: 17,
             letterSpacing: -0.3,
           ),
@@ -45,7 +45,7 @@ class TmDrawer extends StatelessWidget {
         content: Text(
           'You will need to sign in again to access your account.',
           style: GoogleFonts.inter(
-            color: TmColors.grey700,
+            color: ctx.textTertiary,
             fontSize: 14,
             height: 1.5,
           ),
@@ -55,7 +55,7 @@ class TmDrawer extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(color: TmColors.grey700, fontSize: 14),
+              style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14),
             ),
           ),
           TextButton(
@@ -80,7 +80,7 @@ class TmDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Drawer(
       width: 288,
-      backgroundColor: TmColors.white,
+      backgroundColor: context.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
           topRight: Radius.circular(20),
@@ -111,7 +111,7 @@ class TmDrawer extends StatelessWidget {
                         ? (name ?? 'Customer')
                         : 'Professional towing services',
                     style: GoogleFonts.inter(
-                      color: TmColors.grey500,
+                      color: context.textSecondary,
                       fontSize: 12,
                       letterSpacing: 0.2,
                     ),
@@ -123,7 +123,7 @@ class TmDrawer extends StatelessWidget {
             // ── Divider ───────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(height: 1, color: TmColors.grey300),
+              child: Container(height: 1, color: context.divider),
             ),
             const SizedBox(height: 8),
 
@@ -159,7 +159,9 @@ class TmDrawer extends StatelessWidget {
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(height: 1, color: TmColors.grey300),
+                child: Builder(
+                  builder: (ctx) => Container(height: 1, color: ctx.divider),
+                ),
               ),
               const SizedBox(height: 8),
               _TmDrawerItem(
@@ -195,7 +197,9 @@ class TmDrawer extends StatelessWidget {
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(height: 1, color: TmColors.grey300),
+                child: Builder(
+                  builder: (ctx) => Container(height: 1, color: ctx.divider),
+                ),
               ),
               const SizedBox(height: 8),
               _TmDrawerItem(
@@ -220,7 +224,7 @@ class TmDrawer extends StatelessWidget {
               child: Text(
                 '© 2025 TowMate',
                 style: GoogleFonts.inter(
-                  color: TmColors.grey500,
+                  color: context.textSecondary,
                   fontSize: 11,
                   letterSpacing: 0.3,
                 ),
@@ -276,7 +280,7 @@ class _TmDrawerItemState extends State<_TmDrawerItem> {
             color: isActive
                 ? TmColors.yellow.withValues(alpha: 0.12)
                 : _hovered
-                ? TmColors.grey100
+                ? context.surface
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
@@ -288,8 +292,8 @@ class _TmDrawerItemState extends State<_TmDrawerItem> {
                 color: widget.isDestructive
                     ? TmColors.error
                     : isActive
-                    ? TmColors.black
-                    : TmColors.grey700,
+                    ? context.textPrimary
+                    : context.textTertiary,
               ),
               const SizedBox(width: 14),
               Text(
@@ -298,8 +302,8 @@ class _TmDrawerItemState extends State<_TmDrawerItem> {
                   color: widget.isDestructive
                       ? TmColors.error
                       : isActive
-                      ? TmColors.black
-                      : TmColors.grey700,
+                      ? context.textPrimary
+                      : context.textTertiary,
                   fontSize: 15,
                   letterSpacing: 0.1,
                   fontWeight:
