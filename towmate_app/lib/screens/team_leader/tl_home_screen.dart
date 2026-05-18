@@ -59,6 +59,10 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   Future<void> _fetchTask() async {
     if (!mounted) return;
     setState(() => _loadingTask = true);
+    // Piggyback a presence ping on every poll so the 15s task poll also
+    // keeps the TL online, even when background-tab timer throttling delays
+    // the dedicated presence timer.
+    TeamLeaderService.pingPresence();
     final task = await TeamLeaderService.getCurrentTask();
     if (!mounted) return;
     setState(() {

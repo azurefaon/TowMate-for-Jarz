@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Cache;
 
 class TeamLeaderAvailabilityService
 {
-    protected int $presenceWindowSeconds = 300;
+    protected int $presenceWindowSeconds = 600;
 
     protected array $busyStatuses = ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
 
@@ -140,13 +140,6 @@ class TeamLeaderAvailabilityService
             ->values();
 
         $teamLeaderIds = $teamLeaders
-            ->pluck('id')
-            ->filter()
-            ->map(fn($id) => (int) $id)
-            ->values();
-
-        $offlineLeaderIds = $teamLeaders
-            ->filter(fn(User $teamLeader) => ! $this->isOnline($teamLeader))
             ->pluck('id')
             ->filter()
             ->map(fn($id) => (int) $id)

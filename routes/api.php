@@ -32,7 +32,7 @@ Route::get('/debug-availability', function () {
             'role_name'  => $u->role?->name,
             'duty_class' => $u->duty_class,
             'last_ping_at' => $u->last_ping_at,
-        'online'     => $u->last_ping_at && \Illuminate\Support\Carbon::parse($u->last_ping_at)->gte(now()->subSeconds(300)),
+        'online'     => $u->last_ping_at && \Illuminate\Support\Carbon::parse($u->last_ping_at)->gte(now()->subSeconds(600)),
         ]);
 
     $units = \App\Models\Unit::with('truckType')->get()->map(fn($u) => [
