@@ -750,3 +750,145 @@
 .btn-secondary:hover {
     background: #e5e7eb;
 }
+
+/* ── Dispatch Dashboard Restructure ─────────────────────────────────── */
+
+/* Stats Bar */
+.dp-stats-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.dp-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 18px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    min-width: 80px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.dp-stat-n {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1;
+}
+.dp-stat-l {
+    font-size: 0.72rem;
+    color: #9ca3af;
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.dp-stat--warn .dp-stat-n { color: #dc2626; }
+.dp-stat--green .dp-stat-n { color: #16a34a; }
+
+/* 2-Column Layout */
+.dp-dispatch-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+.dp-queue-col {
+    flex: 1;
+    min-width: 0;
+}
+.dp-sidebar-col {
+    width: 300px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+}
+
+/* Tracking Panel inside Sidebar */
+.dp-sidebar-col .tracking-panel {
+    margin-bottom: 0;
+}
+.dp-sidebar-col .tracking-body {
+    height: auto;
+    flex-direction: column;
+}
+.dp-sidebar-col .tracking-map-wrap {
+    flex: none;
+    height: 200px;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+}
+.dp-sidebar-col .tracking-roster-wrap {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Queue Tabs — Pill Style */
+.queue-tabs { gap: 6px; margin: 12px 0; }
+.queue-filter-btn {
+    border: 1.5px solid #e5e7eb;
+    border-radius: 999px;
+    background: #f9fafb;
+    padding: 7px 14px;
+    font-size: .82rem;
+    color: #374151;
+    gap: 6px;
+    transition: all .15s;
+}
+.queue-filter-btn:hover {
+    background: #fff;
+    border-color: #facc15;
+    color: #111;
+}
+.queue-filter-btn.is-active {
+    background: #facc15;
+    border-color: #facc15;
+    color: #111;
+    font-weight: 600;
+}
+.queue-tab-count {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 999px;
+}
+
+/* Booking Cards — Remove Black Border, Add Status Accent */
+.incoming-card {
+    border: 1px solid #e5e7eb !important;
+    border-left: 4px solid #e5e7eb !important;
+    box-shadow: 0 2px 8px rgba(17,24,39,.05) !important;
+}
+.incoming-card:hover {
+    box-shadow: 0 4px 16px rgba(17,24,39,.1) !important;
+    border-left-color: #facc15 !important;
+}
+.incoming-card[data-status="pending"]               { border-left-color: #facc15 !important; }
+.incoming-card[data-status="accepted"]              { border-left-color: #facc15 !important; }
+.incoming-card[data-status="dispatched"]            { border-left-color: #3b82f6 !important; }
+.incoming-card[data-status="on_the_way"]            { border-left-color: #3b82f6 !important; }
+.incoming-card[data-status="arrived"]               { border-left-color: #8b5cf6 !important; }
+.incoming-card[data-status="in_progress"]           { border-left-color: #f97316 !important; }
+.incoming-card[data-status="waiting_verification"]  { border-left-color: #16a34a !important; }
+.incoming-card[data-queue="returned"]               { border-left-color: #ef4444 !important; }
+.incoming-card--scheduled                           { border-left-color: #3b82f6 !important; }
+.incoming-card--scheduled-confirmed                 { border-left-color: #facc15 !important; }
+
+/* Team Leaders Sidebar — Compact */
+.dp-sidebar-col .dp-tl-section {
+    margin-top: 0;
+    padding-bottom: 8px;
+}
+.dp-sidebar-col .dp-tl-table th,
+.dp-sidebar-col .dp-tl-table td {
+    padding: 7px 8px;
+    font-size: .76rem;
+}
+.dp-sidebar-col .dp-tl-table th:nth-child(3),
+.dp-sidebar-col .dp-tl-table td:nth-child(3) { display: none; }
+.dp-sidebar-col .dp-remove-btn,
+.dp-sidebar-col .dp-unit-sel { display: none; }

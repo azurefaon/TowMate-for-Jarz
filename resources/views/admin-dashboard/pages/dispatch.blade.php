@@ -957,26 +957,33 @@
         {{-- Quotation View/Edit Modal --}}
         @include('admin-dashboard.pages._quotation-modal')
 
-        {{-- ── Live Unit Tracking ──────────────────────────────────────────── --}}
-        <div class="tracking-panel" id="trackingPanel">
-            <div class="tracking-panel-header" id="trackingToggleBtn">
-                <span>units — live tracking</span>
-                <span class="tracking-meta" id="trackingMeta">loading...</span>
-                <span class="tracking-toggle-label" id="trackingToggleLabel">hide</span>
+        {{-- ── Stats Bar ───────────────────────────────────────────────────── --}}
+        <div class="dp-stats-bar">
+            <div class="dp-stat">
+                <span class="dp-stat-n">{{ $queueCounts['active'] ?? 0 }}</span>
+                <span class="dp-stat-l">Active</span>
             </div>
-            <div class="tracking-body" id="trackingBody">
-                <div class="tracking-map-wrap">
-                    <div id="dispatchLiveMap"></div>
-                </div>
-                <div class="tracking-roster-wrap">
-                    <div class="tracking-roster-header">
-                        <span id="rosterSortLabel">all units</span>
-                        <span class="tracking-roster-hint" id="rosterHint">click a booking to sort by proximity</span>
-                    </div>
-                    <div class="tracking-roster" id="trackingRoster"></div>
-                </div>
+            <div class="dp-stat dp-stat--warn">
+                <span class="dp-stat-n">{{ $queueCounts['returned'] ?? 0 }}</span>
+                <span class="dp-stat-l">Returned</span>
+            </div>
+            <div class="dp-stat dp-stat--green">
+                <span class="dp-stat-n">{{ $queueCounts['ready_completion'] ?? 0 }}</span>
+                <span class="dp-stat-l">Ready</span>
+            </div>
+            <div class="dp-stat">
+                <span class="dp-stat-n">{{ $queueCounts['book-now'] ?? 0 }}</span>
+                <span class="dp-stat-l">Book Now</span>
+            </div>
+            <div class="dp-stat">
+                <span class="dp-stat-n">{{ $queueCounts['scheduled'] ?? 0 }}</span>
+                <span class="dp-stat-l">Scheduled</span>
             </div>
         </div>
+
+        {{-- ── 2-Column Dispatch Layout ────────────────────────────────────── --}}
+        <div class="dp-dispatch-layout">
+            <div class="dp-queue-col">
 
         <div class="incoming-section">
 
@@ -999,6 +1006,30 @@
 
             <div class="queue-tabs" id="dispatchQueueTabs">
 
+                <button type="button" class="queue-filter-btn is-active" data-filter="active">
+                    <span>Active</span>
+                    <span class="queue-tab-count {{ ($queueCounts['active'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="active">
+                        {{ $queueCounts['active'] ?? 0 }}
+                    </span>
+                </button>
+
+                <button type="button" class="queue-filter-btn" data-filter="book-now">
+                    <span>Book Now</span>
+                    <span class="queue-tab-count {{ ($queueCounts['book-now'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="book-now">
+                        {{ $queueCounts['book-now'] ?? 0 }}
+                    </span>
+                </button>
+
+                <button type="button" class="queue-filter-btn" data-filter="scheduled">
+                    <span>Scheduled</span>
+                    <span class="queue-tab-count {{ ($queueCounts['scheduled'] ?? 0) > 0 ? 'has-count' : '' }}"
+                        data-count-for="scheduled">
+                        {{ $queueCounts['scheduled'] ?? 0 }}
+                    </span>
+                </button>
+
                 <button type="button" class="queue-filter-btn" data-filter="returned">
                     <span>Returned</span>
                     <span class="queue-tab-count {{ ($queueCounts['returned'] ?? 0) > 0 ? 'has-count' : '' }}"
@@ -1007,39 +1038,19 @@
                     </span>
                 </button>
 
-                <button type="button" class="queue-filter-btn is-active" data-filter="active">
-                    <span>Active Bookings</span>
-                    <span class="queue-tab-count {{ ($queueCounts['active'] ?? 0) > 0 ? 'has-count' : '' }}"
-                        data-count-for="active">
-                        {{ $queueCounts['active'] ?? 0 }}
-                    </span>
-                </button>
                 <button type="button" class="queue-filter-btn" data-filter="ready_completion">
-                    <span>Ready for Completion</span>
+                    <span>Ready</span>
                     <span class="queue-tab-count {{ ($queueCounts['ready_completion'] ?? 0) > 0 ? 'has-count' : '' }}"
                         data-count-for="ready_completion">
                         {{ $queueCounts['ready_completion'] ?? 0 }}
                     </span>
                 </button>
+
                 <button type="button" class="queue-filter-btn" data-filter="all">
                     <span>All</span>
                     <span class="queue-tab-count {{ ($queueCounts['all'] ?? 0) > 0 ? 'has-count' : '' }}"
                         data-count-for="all">
                         {{ $queueCounts['all'] ?? 0 }}
-                    </span>
-                </button>
-                <button type="button" class="queue-filter-btn" data-filter="book-now">
-                    <span>Book Now</span>
-                    <span class="queue-tab-count {{ ($queueCounts['book-now'] ?? 0) > 0 ? 'has-count' : '' }}"
-                        data-count-for="book-now">
-                        {{ $queueCounts['book-now'] ?? 0 }}
-                    </span>
-                </button>
-                <button type="button" class="queue-filter-btn" data-filter="scheduled">
-                    <span>Scheduled</span>
-                    <span class="queue-tab-count {{ ($queueCounts['scheduled'] ?? 0) > 0 ? 'has-count' : '' }}"
-                        data-count-for="scheduled">
-                        {{ $queueCounts['scheduled'] ?? 0 }}
                     </span>
                 </button>
             </div>
@@ -1963,6 +1974,30 @@
             </div>
         </div>
 
+            </div>{{-- /.dp-queue-col --}}
+            <div class="dp-sidebar-col">
+
+        {{-- ── Live Unit Tracking ──────────────────────────────────────────── --}}
+        <div class="tracking-panel" id="trackingPanel">
+            <div class="tracking-panel-header" id="trackingToggleBtn">
+                <span>units — live tracking</span>
+                <span class="tracking-meta" id="trackingMeta">loading...</span>
+                <span class="tracking-toggle-label" id="trackingToggleLabel">hide</span>
+            </div>
+            <div class="tracking-body" id="trackingBody">
+                <div class="tracking-map-wrap">
+                    <div id="dispatchLiveMap"></div>
+                </div>
+                <div class="tracking-roster-wrap">
+                    <div class="tracking-roster-header">
+                        <span id="rosterSortLabel">all units</span>
+                        <span class="tracking-roster-hint" id="rosterHint">click a booking to sort by proximity</span>
+                    </div>
+                    <div class="tracking-roster" id="trackingRoster"></div>
+                </div>
+            </div>
+        </div>
+
         <div class="dp-tl-section">
             <div class="dp-tl-header">
                 <div>
@@ -2108,6 +2143,9 @@
                 </div>
             @endif
         </div>
+
+            </div>{{-- /.dp-sidebar-col --}}
+        </div>{{-- /.dp-dispatch-layout --}}
 
     </div>{{-- /.dashboard-container --}}
 
