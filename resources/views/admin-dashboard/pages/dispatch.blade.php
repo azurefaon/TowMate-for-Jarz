@@ -1452,7 +1452,15 @@
                         data-status="{{ $schPrimary->status }}"
                         data-created-at="{{ $schPrimary->created_at->toIso8601String() }}"
                         data-pickup-lat="{{ $schPrimary->pickup_lat ?? '' }}"
-                        data-pickup-lng="{{ $schPrimary->pickup_lng ?? '' }}">
+                        data-pickup-lng="{{ $schPrimary->pickup_lng ?? '' }}"
+                        data-booking-id="{{ $schPrimary->id }}"
+                        data-customer="{{ e($schPrimary->customer->full_name ?? 'Guest') }}"
+                        data-phone="{{ e($schPrimary->customer->phone ?? 'N/A') }}"
+                        data-pickup="{{ e($schPrimary->pickup_address ?? '') }}"
+                        data-dropoff="{{ e($schPrimary->dropoff_address ?? '') }}"
+                        data-distance="{{ $schPrimary->distance_km ?? 0 }}"
+                        data-truck="{{ e($schPrimary->truckType->name ?? '—') }}"
+                        data-ref="{{ e($schPrimary->job_code ?? '') }}">
                         <div class="incoming-left">
                             <div class="incoming-header">
                                 <span
@@ -1501,6 +1509,14 @@
                                         data-id="{{ $schPrimary->job_code ?? $schPrimary->id }}" data-action="accept"
                                         title="Assign a unit to this scheduled booking">
                                         Dispatch Now
+                                    </button>
+                                </div>
+                            @else
+                                <div style="margin-top:8px;">
+                                    <button type="button" class="btn-accept"
+                                        onclick="openNewScheduleQuote(this.closest('.incoming-card'))"
+                                        title="Create a quotation for this scheduled booking">
+                                        Create Quote
                                     </button>
                                 </div>
                             @endif

@@ -413,6 +413,77 @@
         qmState.activeTab = tab;
     }
 
+    // ── Open modal for a brand-new Schedule booking (no quotation yet) ──────────
+    function openNewScheduleQuote(card) {
+        const d = card.dataset;
+
+        // Reset global state
+        currentQuotationId        = null;
+        window.qmCurrentStatus    = 'pending';
+        window.qmDistanceKm       = parseFloat(d.distance || 0);
+        qmState.bookingId         = d.bookingId;
+        qmState.serviceType       = 'scheduled';
+        qmState.isMobile          = true;
+        qmState.draftSaved        = false;
+        qmState.historyCount      = 0;
+
+        // Modal header
+        const title = document.getElementById('quotationModalTitle');
+        const sub   = document.getElementById('quotationModalSubtitle');
+        if (title) title.textContent = 'New Quotation — Schedule Booking';
+        if (sub)   sub.textContent   = (d.customer || 'Customer') + ' · ' + parseFloat(d.distance || 0).toFixed(2) + ' km';
+
+        // Populate Details tab
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || '—'; };
+        set('qmQuotationNumber', 'Draft — not yet assigned');
+        set('qmCustomerName',    d.customer);
+        set('qmCustomerPhone',   d.phone);
+        set('qmCustomerEmail',   '');
+        set('qmPickupAddress',   d.pickup);
+        set('qmDropoffAddress',  d.dropoff);
+        set('qmDistance',        parseFloat(d.distance || 0).toFixed(2) + ' km');
+        set('qmTruckType',       d.truck);
+
+        // Show mobile banner with booking ref
+        const banner  = document.getElementById('qmMobileBanner');
+        const srcCode = document.getElementById('qmSourceBookingCode');
+        if (banner)  banner.style.display = 'flex';
+        if (srcCode) srcCode.textContent  = d.ref || '—';
+
+        // Hide vehicle section (no data yet), notes section
+        const vs = document.getElementById('qmCustomerVehicleSection');
+        const ns = document.getElementById('qmNotesSection');
+        if (vs) vs.style.display = 'none';
+        if (ns) ns.style.display = 'none';
+
+        // Clear quote form
+        const priceInput = document.getElementById('qmFinalPriceInput');
+        const noteInput  = document.getElementById('qmPriceNote');
+        if (priceInput) priceInput.value = '';
+        if (noteInput)  noteInput.value  = '';
+
+        // Hide draft-saved indicator + history badge
+        const indicator = document.getElementById('qmDraftSavedIndicator');
+        if (indicator) indicator.style.display = 'none';
+        const badge = document.getElementById('qmHistoryBadge');
+        if (badge) badge.style.display = 'none';
+
+        // Clear history pane
+        const historyBody = document.getElementById('qmPriceHistoryBody');
+        if (historyBody) historyBody.innerHTML = '';
+        const historyEmpty = document.getElementById('qmHistoryEmpty');
+        if (historyEmpty) historyEmpty.style.display = 'block';
+
+        // Show modal
+        const modal = document.getElementById('quotationModal');
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+
+        // Land on Quote tab, update footer buttons
+        qmSetTab('quote');
+        qmUpdateFooterButtons({ status: 'pending', service_type: 'scheduled' });
+    }
+
     // ── Save as Draft (Schedule mobile bookings) ────────────────────────────────
     async function qmSaveAsDraft() {
         if (!qmState.bookingId) {
