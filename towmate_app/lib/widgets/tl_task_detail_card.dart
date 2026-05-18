@@ -53,6 +53,25 @@ class TlTaskDetailCard extends StatelessWidget {
                     letterSpacing: 0.3,
                   ),
                 ),
+                if (task.isGroupBooking) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: TmColors.yellow,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Vehicle ${task.groupPosition} of ${task.groupVehicleCount}  ·  Group Booking',
+                      style: GoogleFonts.inter(
+                        color: TmColors.black,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 if (task.finalTotal > 0)
                   Text(

@@ -240,30 +240,43 @@ class TLTaskController extends Controller
     {
         $customer = $booking->customer;
 
+        $groupCode         = $booking->group_code;
+        $groupVehicleCount = 1;
+        $groupPosition     = 1;
+        if ($groupCode) {
+            $siblingIds        = Booking::where('group_code', $groupCode)->orderBy('id')->pluck('id')->values();
+            $groupVehicleCount = $siblingIds->count();
+            $pos               = $siblingIds->search($booking->id);
+            $groupPosition     = $pos !== false ? $pos + 1 : 1;
+        }
+
         return [
-            'id'               => $booking->id,
-            'booking_code'     => $booking->booking_code,
-            'status'           => $booking->status,
-            'pickup_address'   => $booking->pickup_address,
-            'pickup_lat'       => (float) $booking->pickup_lat,
-            'pickup_lng'       => (float) $booking->pickup_lng,
-            'dropoff_address'  => $booking->dropoff_address,
-            'dropoff_lat'      => (float) $booking->dropoff_lat,
-            'dropoff_lng'      => (float) $booking->dropoff_lng,
-            'distance_km'      => (float) $booking->distance_km,
-            'service_type'     => $booking->service_type,
-            'truck_type_name'  => $booking->truckType?->name ?? 'Tow Truck',
-            'customer_name'    => $customer?->full_name ?? $customer?->name ?? 'Customer',
-            'customer_phone'   => $customer?->phone ?? '',
-            'customer_email'   => $customer?->email ?? '',
-            'final_total'      => (float) ($booking->final_total ?? $booking->computed_total ?? 0),
-            'vehicle_info'     => $this->vehicleInfo($booking),
-            'vehicle_image_url' => $booking->vehicle_image_path ? Storage::url($booking->vehicle_image_path) : null,
-            'notes'            => $booking->notes,
-            'scheduled_date'   => $booking->scheduled_date?->toDateString(),
-            'scheduled_time'   => $booking->scheduled_time,
-            'arrival_photo'    => $booking->arrival_photo_path ? Storage::url($booking->arrival_photo_path) : null,
-            'dropoff_photo'    => $booking->dropoff_photo_path ? Storage::url($booking->dropoff_photo_path) : null,
+            'id'                  => $booking->id,
+            'booking_code'        => $booking->booking_code,
+            'status'              => $booking->status,
+            'pickup_address'      => $booking->pickup_address,
+            'pickup_lat'          => (float) $booking->pickup_lat,
+            'pickup_lng'          => (float) $booking->pickup_lng,
+            'dropoff_address'     => $booking->dropoff_address,
+            'dropoff_lat'         => (float) $booking->dropoff_lat,
+            'dropoff_lng'         => (float) $booking->dropoff_lng,
+            'distance_km'         => (float) $booking->distance_km,
+            'service_type'        => $booking->service_type,
+            'truck_type_name'     => $booking->truckType?->name ?? 'Tow Truck',
+            'customer_name'       => $customer?->full_name ?? $customer?->name ?? 'Customer',
+            'customer_phone'      => $customer?->phone ?? '',
+            'customer_email'      => $customer?->email ?? '',
+            'final_total'         => (float) ($booking->final_total ?? $booking->computed_total ?? 0),
+            'vehicle_info'        => $this->vehicleInfo($booking),
+            'vehicle_image_url'   => $booking->vehicle_image_path ? Storage::url($booking->vehicle_image_path) : null,
+            'notes'               => $booking->notes,
+            'scheduled_date'      => $booking->scheduled_date?->toDateString(),
+            'scheduled_time'      => $booking->scheduled_time,
+            'arrival_photo'       => $booking->arrival_photo_path ? Storage::url($booking->arrival_photo_path) : null,
+            'dropoff_photo'       => $booking->dropoff_photo_path ? Storage::url($booking->dropoff_photo_path) : null,
+            'group_code'          => $groupCode,
+            'group_vehicle_count' => $groupVehicleCount,
+            'group_position'      => $groupPosition,
         ];
     }
 

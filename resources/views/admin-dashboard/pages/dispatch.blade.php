@@ -1402,89 +1402,99 @@
             @else
                 @foreach ($groupedScheduled as $schGroupCode => $schGroupBookings)
                     @php
-                        $schPrimary = $schGroupBookings->first();
-                        $schCount = $schGroupBookings->count();
-                        $schTotal = $schGroupBookings->sum('final_total');
-                        $isConfirmed = $schPrimary->status === 'scheduled_confirmed';
-                        $expiresAt = $schPrimary->scheduled_expires_at;
-                        $expiresLabel = $expiresAt ? $expiresAt->diffForHumans() : '—';
-                        $scheduledFor = $schPrimary->scheduled_for;
+                        $schCount   = $schGroupBookings->count();
+                        $isMultiSch = $schCount > 1;
+                        $schFirst   = $schGroupBookings->first();
                     @endphp
-                    <div class="incoming-card {{ $isConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }}"
-                        data-queue="scheduled" data-id="{{ $schPrimary->job_code ?? $schPrimary->id }}"
-                        data-status="{{ $schPrimary->status }}"
-                        data-created-at="{{ $schPrimary->created_at->toIso8601String() }}"
-                        data-pickup-lat="{{ $schPrimary->pickup_lat ?? '' }}"
-                        data-pickup-lng="{{ $schPrimary->pickup_lng ?? '' }}"
-                        data-booking-id="{{ $schPrimary->id }}"
-                        data-customer="{{ e($schPrimary->customer->full_name ?? 'Guest') }}"
-                        data-phone="{{ e($schPrimary->customer->phone ?? 'N/A') }}"
-                        data-pickup="{{ e($schPrimary->pickup_address ?? '') }}"
-                        data-dropoff="{{ e($schPrimary->dropoff_address ?? '') }}"
-                        data-distance="{{ $schPrimary->distance_km ?? 0 }}"
-                        data-truck="{{ e($schPrimary->truckType->name ?? '—') }}"
-                        data-ref="{{ e($schPrimary->job_code ?? '') }}">
-                        <div class="incoming-left">
-                            <div class="incoming-header">
-                                <span
-                                    class="queue-chip scheduled">{{ $isConfirmed ? 'Confirmed Schedule' : 'Scheduled' }}{{ $schCount > 1 ? ' · ' . $schCount . ' vehicles' : '' }}</span>
-                                <span
-                                    class="status-badge {{ $schPrimary->status }}">{{ ucfirst(str_replace('_', ' ', $schPrimary->status)) }}</span>
-                                <span class="wait-badge" data-wait></span>
-                            </div>
-                            <div class="incoming-route">
-                                <strong>{{ $schPrimary->pickup_address }}</strong>
-                                <span class="arrow">→</span>
-                                <span>{{ $schPrimary->dropoff_address }}</span>
-                            </div>
-                            <div class="incoming-details">
-                                <span><strong>Customer:</strong> {{ $schPrimary->customer->full_name ?? 'Guest' }}</span>
-                                <span><strong>Phone:</strong> {{ $schPrimary->customer->phone ?? 'N/A' }}</span>
-                                <span><strong>Ref:</strong> {{ $schGroupCode }}</span>
-                            </div>
-                            @if ($schCount > 1)
-                                <div class="incoming-details"
-                                    style="margin-top:6px;border-left:3px solid #e0f2fe;padding-left:8px;">
-                                    @foreach ($schGroupBookings as $schIdx => $schVehicle)
-                                        <span>Vehicle {{ $schIdx + 1 }}:
-                                            {{ $schVehicle->truckType->name ?? 'Tow Truck' }}</span>
-                                    @endforeach
+                    @if ($isMultiSch)
+                        <div class="group-booking-header">
+                            <strong>Multi-vehicle booking · {{ $schCount }} vehicles</strong>
+                            <span>{{ $schFirst->customer->full_name ?? 'Guest' }} &middot; Ref: {{ $schGroupCode }}</span>
+                        </div>
+                    @endif
+                    @foreach ($schGroupBookings as $schVIdx => $schVehicle)
+                        @php
+                            $schVIsConfirmed  = $schVehicle->status === 'scheduled_confirmed';
+                            $schVScheduledFor = $schVehicle->scheduled_for;
+                            $schVExpiresLabel = $schVehicle->scheduled_expires_at
+                                ? $schVehicle->scheduled_expires_at->diffForHumans() : '—';
+                        @endphp
+                        <div class="incoming-card {{ $schVIsConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }} {{ $isMultiSch ? 'incoming-card--group-child' : '' }}"
+                            data-queue="scheduled"
+                            data-id="{{ $schVehicle->job_code ?? $schVehicle->id }}"
+                            data-status="{{ $schVehicle->status }}"
+                            data-booking-id="{{ $schVehicle->id }}"
+                            data-created-at="{{ $schVehicle->created_at->toIso8601String() }}"
+                            data-pickup-lat="{{ $schVehicle->pickup_lat ?? '' }}"
+                            data-pickup-lng="{{ $schVehicle->pickup_lng ?? '' }}"
+                            data-customer="{{ e($schVehicle->customer->full_name ?? 'Guest') }}"
+                            data-phone="{{ e($schVehicle->customer->phone ?? 'N/A') }}"
+                            data-pickup="{{ e($schVehicle->pickup_address ?? '') }}"
+                            data-dropoff="{{ e($schVehicle->dropoff_address ?? '') }}"
+                            data-distance="{{ $schVehicle->distance_km ?? 0 }}"
+                            data-truck="{{ e($schVehicle->truckType->name ?? '—') }}"
+                            data-ref="{{ e($schVehicle->job_code ?? '') }}"
+                            data-final-total="{{ $schVehicle->final_total ?? 0 }}">
+                            <div class="incoming-left">
+                                @if ($isMultiSch)
+                                    <div class="group-vehicle-indicator">
+                                        Vehicle {{ $schVIdx + 1 }} of {{ $schCount }} &mdash;
+                                        {{ $schVehicle->truckType->name ?? 'Tow Truck' }}
+                                    </div>
+                                @endif
+                                <div class="incoming-header">
+                                    <span class="queue-chip scheduled">
+                                        {{ $schVIsConfirmed ? 'Confirmed Schedule' : 'Scheduled' }}
+                                    </span>
+                                    <span class="status-badge {{ $schVehicle->status }}">
+                                        {{ ucfirst(str_replace('_', ' ', $schVehicle->status)) }}
+                                    </span>
+                                    <span class="wait-badge" data-wait></span>
                                 </div>
-                            @else
+                                <div class="incoming-route">
+                                    <strong>{{ $schVehicle->pickup_address }}</strong>
+                                    <span class="arrow">→</span>
+                                    <span>{{ $schVehicle->dropoff_address }}</span>
+                                </div>
                                 <div class="incoming-details">
-                                    <span><strong>Truck:</strong> {{ $schPrimary->truckType->name ?? '—' }}</span>
+                                    @if (!$isMultiSch)
+                                        <span><strong>Customer:</strong> {{ $schVehicle->customer->full_name ?? 'Guest' }}</span>
+                                        <span><strong>Phone:</strong> {{ $schVehicle->customer->phone ?? 'N/A' }}</span>
+                                    @endif
+                                    <span><strong>Truck:</strong> {{ $schVehicle->truckType->name ?? '—' }}</span>
+                                    <span><strong>Ref:</strong> {{ $schGroupCode }}</span>
                                 </div>
-                            @endif
-                            @if ($scheduledFor)
-                                <div class="incoming-details"
-                                    style="margin-top:6px;background:#facc1511;padding:6px 8px;border-left:3px solid #facc15;">
-                                    <span><strong>Scheduled:</strong> {{ $scheduledFor->format('D, M j, Y') }} at
-                                        {{ $scheduledFor->format('g:i A') }}</span>
-                                    <span><strong>Expires:</strong> {{ $expiresLabel }}</span>
-                                </div>
-                            @endif
+                                @if ($schVScheduledFor)
+                                    <div class="incoming-details"
+                                        style="margin-top:6px;background:#facc1511;padding:6px 8px;border-left:3px solid #facc15;">
+                                        <span><strong>Scheduled:</strong> {{ $schVScheduledFor->format('D, M j, Y') }}
+                                            at {{ $schVScheduledFor->format('g:i A') }}</span>
+                                        <span><strong>Expires:</strong> {{ $schVExpiresLabel }}</span>
+                                    </div>
+                                @endif
+                            </div>
+                            <div class="incoming-right">
+                                <div class="incoming-price">&#8369;{{ number_format((float) $schVehicle->final_total, 2) }}</div>
+                                @if ($schVIsConfirmed)
+                                    <div style="margin-top:8px;">
+                                        <button type="button" class="btn-accept"
+                                            data-id="{{ $schVehicle->job_code ?? $schVehicle->id }}" data-action="accept"
+                                            title="Assign a unit to this scheduled booking">
+                                            Dispatch Now
+                                        </button>
+                                    </div>
+                                @else
+                                    <div style="margin-top:8px;">
+                                        <button type="button" class="btn-accept"
+                                            onclick="openNewScheduleQuote(this.closest('.incoming-card'))"
+                                            title="Create a quotation for this scheduled booking">
+                                            Create Quote
+                                        </button>
+                                    </div>
+                                @endif
+                            </div>
                         </div>
-                        <div class="incoming-right">
-                            <div class="incoming-price">&#8369;{{ number_format((float) $schTotal, 2) }}</div>
-                            @if ($isConfirmed)
-                                <div style="margin-top:8px;">
-                                    <button type="button" class="btn-accept"
-                                        data-id="{{ $schPrimary->job_code ?? $schPrimary->id }}" data-action="accept"
-                                        title="Assign a unit to this scheduled booking">
-                                        Dispatch Now
-                                    </button>
-                                </div>
-                            @else
-                                <div style="margin-top:8px;">
-                                    <button type="button" class="btn-accept"
-                                        onclick="openNewScheduleQuote(this.closest('.incoming-card'))"
-                                        title="Create a quotation for this scheduled booking">
-                                        Create Quote
-                                    </button>
-                                </div>
-                            @endif
-                        </div>
-                    </div>
+                    @endforeach
                 @endforeach
             @endif
         </div>
