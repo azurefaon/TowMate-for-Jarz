@@ -261,6 +261,7 @@ Route::prefix('superadmin')
         Route::get('/settings', [SystemSettingsController::class, 'index'])->name('settings.index');
         Route::post('/settings/update', [SystemSettingsController::class, 'update'])->name('settings.update');
         Route::post('/settings/landing', [SystemSettingsController::class, 'updateLanding'])->name('settings.landing.update');
+        Route::post('/settings/upload-apk', [SystemSettingsController::class, 'uploadApk'])->name('settings.upload-apk');
 
         Route::get('/dashboard-stats', function () {
             $todayBookings  = \App\Models\Booking::whereDate('created_at', today())->count();

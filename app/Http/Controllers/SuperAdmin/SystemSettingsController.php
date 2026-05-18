@@ -51,6 +51,22 @@ class SystemSettingsController extends Controller
         return back()->with('success');
     }
 
+    public function uploadApk(Request $request)
+    {
+        $request->validate([
+            'apk_file' => ['required', 'file', 'mimes:apk', 'max:102400'], // 100 MB max
+        ]);
+
+        $dest = public_path('downloads');
+        if (! is_dir($dest)) {
+            mkdir($dest, 0755, true);
+        }
+
+        $request->file('apk_file')->move($dest, 'towmate.apk');
+
+        return back()->with('apk_success', 'APK uploaded successfully. Download link is now active.');
+    }
+
     public function updateLanding(Request $request)
     {
 
