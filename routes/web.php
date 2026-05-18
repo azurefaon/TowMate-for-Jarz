@@ -13,11 +13,10 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 
 use App\Http\Controllers\GeoController;
-use App\Http\Controllers\LandingController;
 use App\Http\Controllers\ControlCenterController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdminController;
-use App\Http\Controllers\TeamLeaderController;
+// use App\Http\Controllers\TeamLeaderController; // archived
 
 use App\Http\Controllers\Admin\AvailableUnitsController;
 use App\Http\Controllers\Admin\DashboardController as AdminController;
@@ -43,78 +42,13 @@ use App\Http\Controllers\SuperAdmin\UnitController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\VehicleTypeController;
 
-Route::get('/', [LandingController::class, 'index'])->name('landing');
+Route::redirect('/', '/login')->name('landing');
 
-Route::get('/book', function () {
-    $classes    = ['light', 'medium', 'heavy'];
-
-    $tlAvailability   = app(\App\Services\TeamLeaderAvailabilityService::class);
-    $busyTeamLeaderIds = $tlAvailability->busyTeamLeaderIds();
-
-    $teamLeaderRoleIds = \App\Models\Role::query()
-        ->whereIn('name', ['Team Leader', 'team leader'])
-        ->pluck('id');
-
-    $teamLeadersQuery = \App\Models\User::visibleToOperations()->with(['unit']);
-    if ($teamLeaderRoleIds->isNotEmpty()) {
-        $teamLeadersQuery->whereIn('role_id', $teamLeaderRoleIds);
-    }
-
-    $teamLeaderStatuses = $tlAvailability->summarize(
-        $teamLeadersQuery->get(),
-        $busyTeamLeaderIds,
-    )['leaders']->keyBy('id');
-
-    // $readyLeaderIds = $teamLeaderStatuses
-    //     ->filter(fn($s) => ($s['presence'] ?? 'offline') === 'online'
-    //         && ! $busyTeamLeaderIds->contains((int) $s['id']))
-    //     ->pluck('id')
-    //     ->all();
-
-    $readyLeaderIds = $teamLeaderStatuses
-        ->filter(
-            fn($s) =>
-            in_array(($s['presence'] ?? 'offline'), ['online', 'idle']) &&
-                ! $busyTeamLeaderIds->contains((int) $s['id'])
-        )
-        ->pluck('id')
-        ->all();
-
-    $truckTypes = TruckType::withCount([
-        'units as available_units_count' => function ($q) use ($readyLeaderIds) {
-            $q->where('status', 'available')
-                ->whereNotNull('team_leader_id')
-                ->whereIn('team_leader_id', $readyLeaderIds ?: [-1]);
-        },
-    ])->where('status', 'active')->orderBy('base_rate')->get();
-
-    $classData = collect($classes)->mapWithKeys(function ($cls) use ($truckTypes) {
-        $group          = $truckTypes->where('class', $cls)->values();
-        $availableUnits = (int) $group->sum('available_units_count');
-        $rep            = $group->sortBy('base_rate')->first();
-        return [$cls => [
-            'available_units' => $availableUnits,
-            'base_rate'       => (float) ($rep?->base_rate   ?? 0),
-            'per_km_rate'     => (float) ($rep?->per_km_rate ?? 0),
-            'truck_type_id'   => $rep?->id,
-        ]];
-    });
-
-    return view('landing.form', compact('truckTypes', 'classData'));
-})->name('landing.book');
-
-Route::post('/book', [CustomerBookingController::class, 'landingStore'])
-    ->middleware('throttle:10,1')
-    ->name('landing.book.store');
-
-Route::get('/booking-confirmed', function () {
-    $data = session('booking_confirmation');
-    if (!$data) {
-        return redirect()->route('landing');
-    }
-    session()->forget('booking_confirmation');
-    return view('landing.confirmation', compact('data'));
-})->name('booking.confirmed');
+// ── Landing page routes (archived) ───────────────────────────────────────────
+// Route::get('/book', function () { ... })->name('landing.book');
+// Route::post('/book', [CustomerBookingController::class, 'landingStore'])->name('landing.book.store');
+// Route::get('/booking-confirmed', function () { ... })->name('booking.confirmed');
+// ─────────────────────────────────────────────────────────────────────────────
 
 Route::prefix('geo')
     ->name('geo.')
@@ -176,7 +110,7 @@ Route::get('/dashboard', function () {
     return match ($role) {
         1 => redirect('/superadmin/dashboard'),
         2 => redirect('/admin-dashboard'),
-        3 => redirect('/teamleader/dashboard'),
+        3 => redirect('/login'), // teamleader UI archived
         4 => redirect('/driver'),
         5 => redirect('/customer/dashboard'),
         default => view('dashboard'),
@@ -191,69 +125,10 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__ . '/auth.php';
 
-Route::prefix('teamleader')
-    ->name('teamleader.')
-    ->middleware(['auth', 'role:3', 'force.password.change'])
-    ->group(function () {
-        Route::redirect('/', '/teamleader/dashboard');
-        Route::get('/dashboard', [TeamLeaderController::class, 'dashboard'])->name('dashboard');
-        Route::get('/tasks', [TeamLeaderController::class, 'tasks'])->name('tasks');
-        Route::get('/bookings', [TeamLeaderController::class, 'tasks'])->name('bookings');
-        Route::get('/task/{booking}', [TeamLeaderController::class, 'showTask'])->name('task.show');
-
-        Route::post('/task/{booking}/accept', [TeamLeaderController::class, 'acceptTask'])
-            ->middleware('throttle:20,1')->name('task.accept');
-
-        Route::post('/task/{booking}/driver', [TeamLeaderController::class, 'saveDriver'])
-            ->middleware('throttle:20,1')->name('task.driver');
-
-        Route::post('/task/{booking}/note', [TeamLeaderController::class, 'autosaveNote'])
-            ->middleware('throttle:30,1')->name('task.note');
-
-        Route::post('/task/{booking}/proceed', [TeamLeaderController::class, 'proceedToLocation'])
-            ->middleware('throttle:20,1')->name('task.proceed');
-
-        Route::post('/task/{booking}/start', [TeamLeaderController::class, 'startTask'])
-            ->middleware('throttle:20,1')->name('task.start');
-
-        Route::post('/task/{booking}/complete', [TeamLeaderController::class, 'completeTask'])
-            ->middleware('throttle:10,1')->name('task.complete');
-
-        Route::post('/task/{booking}/return', [TeamLeaderController::class, 'returnTask'])
-            ->middleware('throttle:10,1')->name('task.return');
-
-        Route::post('/task/{booking}/payment', [TeamLeaderController::class, 'submitPayment'])
-            ->middleware('throttle:10,1')->name('task.payment');
-
-        Route::get('/task/{booking}/payment-status', [TeamLeaderController::class, 'checkPaymentStatus'])
-            ->middleware('throttle:30,1')->name('task.payment-status');
-
-        Route::get('/return-reasons', function () {
-            return response()->json(\App\Enums\ReturnReason::toArray());
-        })->name('return-reasons');
-
-        Route::get('/task/{booking}/status', [TeamLeaderController::class, 'taskStatus'])
-            ->middleware('throttle:30,1')->name('task.status');
-
-        Route::post('/presence/ping', [TeamLeaderController::class, 'heartbeat'])
-            ->middleware('throttle:60,1')->name('presence.ping');
-
-        Route::post('/presence/offline', [TeamLeaderController::class, 'goOffline'])
-            ->middleware('throttle:60,1')->name('presence.offline');
-
-        Route::post('/tasks/{booking}/start', [TeamLeaderController::class, 'startTask'])
-            ->middleware('throttle:20,1')->name('tasks.start');
-
-        Route::post('/tasks/{booking}/confirm-completion', [TeamLeaderController::class, 'confirmCompletion'])
-            ->middleware('throttle:10,1')->name('tasks.confirm');
-
-        Route::get('/tasks/{booking}/status', [TeamLeaderController::class, 'taskStatus'])
-            ->middleware('throttle:30,1')->name('tasks.status');
-    });
-
-Route::get('/teamleader/verification/{booking}/{decision}', [TeamLeaderController::class, 'respondToVerification'])
-    ->middleware(['signed', 'throttle:20,1'])
-    ->name('teamleader.verification.respond');
+// ── Team Leader web UI routes (archived) ─────────────────────────────────────
+// Route::prefix('teamleader')->name('teamleader.')->middleware(['auth','role:3','force.password.change'])->group(function () { ... });
+// Route::get('/teamleader/verification/{booking}/{decision}', ...)->name('teamleader.verification.respond');
+// ─────────────────────────────────────────────────────────────────────────────
 
 Route::view('/driver', 'dashboard')
     ->middleware(['auth', 'role:4'])
