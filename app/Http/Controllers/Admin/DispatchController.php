@@ -254,6 +254,10 @@ class DispatchController extends Controller
 
         $allQuotations = Quotation::with(['customer', 'truckType', 'sourceBooking'])
             ->whereIn('status', ['pending', 'sent', 'negotiating'])
+            ->where(function ($q) {
+                $q->where('service_type', '!=', 'schedule')
+                  ->orWhereNull('service_type');
+            })
             ->orderByRaw("CASE WHEN status = 'pending' THEN 0 WHEN status = 'negotiating' THEN 1 ELSE 2 END")
             ->orderBy('created_at', 'asc')
             ->get()

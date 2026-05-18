@@ -774,10 +774,22 @@ class BookingService
         // Also count online, non-busy TLs who may not yet have a unit assigned.
         // This covers TLs created after the last deploy (unit auto-creation race)
         // so the customer sees availability as long as any TL is ready.
-        $onlineFreeTlCount = $teamLeaderStatuses->filter(function ($leader) use ($busyTeamLeaderIds) {
+        $onlineFreeTlLeaders = $teamLeaderStatuses->filter(function ($leader) use ($busyTeamLeaderIds) {
             return ($leader['presence'] ?? 'offline') === 'online'
                 && ! $busyTeamLeaderIds->contains((int) ($leader['id'] ?? 0));
-        })->count();
+        });
+
+        $onlineFreeTlCount = $onlineFreeTlLeaders->count();
+
+        // Merge TL duty_class into readyByClass so customers see graying by class
+        // even when a TL has no unit assigned yet.
+        foreach ($onlineFreeTlLeaders as $leader) {
+            $tl    = User::find($leader['id']);
+            $class = strtolower((string) ($tl?->duty_class ?? ''));
+            if (filled($class)) {
+                $readyByClass[$class] = ($readyByClass[$class] ?? 0) + 1;
+            }
+        }
 
         $bookNowEnabled = $readyUnitsCount > 0 || $onlineFreeTlCount > 0;
 

@@ -296,6 +296,19 @@ class _BookNowScreenState extends State<BookNowScreen> {
   }
 
   Future<void> _showNoUnitsModal() async {
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    // Skip to Monday if tomorrow is Sunday
+    final suggested = tomorrow.weekday == DateTime.sunday
+        ? tomorrow.add(const Duration(days: 1))
+        : tomorrow;
+    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final hour = suggested.hour % 12 == 0 ? 12 : suggested.hour % 12;
+    final ampm = suggested.hour < 12 ? 'AM' : 'PM';
+    final suggestedLabel =
+        '${weekdays[suggested.weekday - 1]}, ${months[suggested.month - 1]} ${suggested.day}'
+        ' at $hour:${suggested.minute.toString().padLeft(2, '0')} $ampm';
+
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -310,14 +323,29 @@ class _BookNowScreenState extends State<BookNowScreen> {
             letterSpacing: -0.3,
           ),
         ),
-        content: Text(
-          _availabilityMessage ??
-              'No tow trucks are currently available for immediate dispatch.',
-          style: GoogleFonts.inter(
-            color: ctx.textTertiary,
-            fontSize: 14,
-            height: 1.5,
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _availabilityMessage ??
+                  'No tow trucks are currently available for immediate dispatch.',
+              style: GoogleFonts.inter(
+                color: ctx.textTertiary,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Suggested schedule: $suggestedLabel',
+              style: GoogleFonts.inter(
+                color: ctx.textSecondary,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -534,6 +562,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
             onAdd: _addExtraVehicle,
             onRemove: _removeExtraVehicle,
             onVehicleSet: _setExtraVehicle,
+            readyByClass: _readyByClass,
+            serviceType: _serviceType,
           ),
         ],
         const SizedBox(height: 24),
@@ -2316,6 +2346,8 @@ class _ExtraVehiclesSection extends StatelessWidget {
     required this.onAdd,
     required this.onRemove,
     required this.onVehicleSet,
+    required this.readyByClass,
+    required this.serviceType,
   });
 
   final List<_ExtraVehicleData> extraVehicles;
@@ -2324,6 +2356,8 @@ class _ExtraVehiclesSection extends StatelessWidget {
   final VoidCallback onAdd;
   final void Function(int) onRemove;
   final void Function(int, TruckTypeModel, VehicleTypeModel) onVehicleSet;
+  final Map<String, int> readyByClass;
+  final String serviceType;
 
   @override
   Widget build(BuildContext context) {
@@ -2346,6 +2380,8 @@ class _ExtraVehiclesSection extends StatelessWidget {
             truckTypes: truckTypes,
             onRemove: () => onRemove(i),
             onVehicleSet: (truck, vehicle) => onVehicleSet(i, truck, vehicle),
+            readyByClass: readyByClass,
+            serviceType: serviceType,
           )),
           if (canAdd) ...[
             const SizedBox(height: 14),
@@ -2382,6 +2418,8 @@ class _ExtraVehicleSlot extends StatelessWidget {
     required this.truckTypes,
     required this.onRemove,
     required this.onVehicleSet,
+    required this.readyByClass,
+    required this.serviceType,
   });
 
   final int index;
@@ -2389,6 +2427,8 @@ class _ExtraVehicleSlot extends StatelessWidget {
   final List<TruckTypeModel> truckTypes;
   final VoidCallback onRemove;
   final void Function(TruckTypeModel, VehicleTypeModel) onVehicleSet;
+  final Map<String, int> readyByClass;
+  final String serviceType;
 
   @override
   Widget build(BuildContext context) {
@@ -2467,34 +2507,41 @@ class _ExtraVehicleSlot extends StatelessWidget {
           const SizedBox(height: 10),
           // Each truck class as a sub-section
           ...truckTypes.where((t) => t.vehicleTypes.isNotEmpty).map((truck) {
+            final bool isBookNow = serviceType == 'book_now';
+            final bool classAvailable = !isBookNow ||
+                readyByClass.isEmpty ||
+                (readyByClass[truck.truckClass.toLowerCase()] ?? 0) > 0;
             return Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    truck.name,
-                    style: GoogleFonts.inter(
-                      color: context.textTertiary,
-                      fontSize: 11,
-                      letterSpacing: 0.4,
+              child: Opacity(
+                opacity: classAvailable ? 1.0 : 0.35,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      truck.name,
+                      style: GoogleFonts.inter(
+                        color: context.textTertiary,
+                        fontSize: 11,
+                        letterSpacing: 0.4,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: truck.vehicleTypes.map((v) {
-                      final selected =
-                          data.vehicle?.id == v.id && data.truck?.id == truck.id;
-                      return _VehicleChip(
-                        label: v.name,
-                        selected: selected,
-                        onTap: () => onVehicleSet(truck, v),
-                      );
-                    }).toList(),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: truck.vehicleTypes.map((v) {
+                        final selected =
+                            data.vehicle?.id == v.id && data.truck?.id == truck.id;
+                        return _VehicleChip(
+                          label: v.name,
+                          selected: selected,
+                          onTap: classAvailable ? () => onVehicleSet(truck, v) : () {},
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
               ),
             );
           }),

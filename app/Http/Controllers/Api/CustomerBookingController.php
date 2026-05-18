@@ -81,6 +81,7 @@ class CustomerBookingController extends Controller
             'dropoff_address' => $booking->dropoff_address,
             'distance_km'     => (float) $booking->distance_km,
             'computed_total'  => (float) $booking->computed_total,
+            'final_total'     => (float) $booking->final_total,
             'truck_type'      => [
                 'name'  => $booking->truckType?->name ?? '',
                 'class' => $booking->truckType?->class ?? '',
@@ -108,6 +109,7 @@ class CustomerBookingController extends Controller
                 'dropoff_address' => $b->dropoff_address,
                 'distance_km'     => (float) $b->distance_km,
                 'computed_total'  => (float) $b->computed_total,
+                'final_total'     => (float) $b->final_total,
                 'truck_type_name' => $b->truckType?->name ?? '',
                 'created_at'      => $b->created_at?->toDateTimeString(),
             ]);
@@ -153,8 +155,6 @@ class CustomerBookingController extends Controller
         $distanceKm    = (float) $validated['distance_km'];
         $extraDistance = max(0.0, $distanceKm - 1.0);
         $distanceFee   = round($extraDistance * 300.0, 2);
-        $computedTotal = round((float) $truckType->base_rate + $distanceFee, 2);
-        $finalTotal    = round($computedTotal * 1.12, 2);
 
         // Decode extra vehicles sent as JSON string from multipart
         $extraVehicles = null;
@@ -164,6 +164,28 @@ class CustomerBookingController extends Controller
                 $extraVehicles = array_slice($decoded, 0, 5);
             }
         }
+
+        // Price each extra vehicle and accumulate their base rates
+        $extraVehiclesTotalBase = 0.0;
+        if ($extraVehicles) {
+            $extraTruckTypeIds = array_column($extraVehicles, 'truck_type_id');
+            $extraTruckTypes   = TruckType::whereIn('id', $extraTruckTypeIds)
+                ->get(['id', 'base_rate'])
+                ->keyBy('id');
+
+            $extraVehicles = array_map(function ($ev) use ($extraTruckTypes, &$extraVehiclesTotalBase) {
+                $evTruck = $extraTruckTypes->get($ev['truck_type_id'] ?? 0);
+                $evBase  = (float) ($evTruck?->base_rate ?? 0);
+                $evTotal = round($evBase * 1.12, 2);
+                $extraVehiclesTotalBase += $evBase;
+                return array_merge($ev, ['estimated_price' => $evTotal]);
+            }, $extraVehicles);
+        }
+
+        // Total = all vehicle base rates + shared distance fee, then + 12% VAT
+        $allVehiclesBase = (float) $truckType->base_rate + $extraVehiclesTotalBase;
+        $computedTotal   = round($allVehiclesBase + $distanceFee, 2);
+        $finalTotal      = round($computedTotal * 1.12, 2);
 
         $booking = Booking::create([
             'customer_id'      => $customer->id,
@@ -181,7 +203,7 @@ class CustomerBookingController extends Controller
             'computed_total'   => $computedTotal,
             'final_total'      => $finalTotal,
             'additional_fee'   => 0,
-            'status'           => 'requested',
+            'status'           => ($validated['service_type'] ?? 'book_now') === 'schedule' ? 'scheduled' : 'requested',
             'service_type'     => $validated['service_type'] ?? 'book_now',
             'customer_type'    => $customer->customer_type ?? 'regular',
             'confirmation_type' => 'mobile',
@@ -211,29 +233,32 @@ class CustomerBookingController extends Controller
             ]);
         }
 
-        // Auto-create a pending quotation so the dispatcher sees it in the Floating Quotations area
-        try {
-            $quotation = $this->quotationService->createQuotation([
-                'source_booking_id'  => $booking->id,
-                'customer_id'        => $customer->id,
-                'truck_type_id'      => $validated['truck_type_id'],
-                'pickup_address'     => $validated['pickup_address'],
-                'dropoff_address'    => $validated['dropoff_address'],
-                'distance_km'        => $distanceKm,
-                'estimated_price'    => $finalTotal,
-                'service_type'       => $validated['service_type'] ?? 'book_now',
-                'scheduled_date'     => $validated['scheduled_date'] ?? null,
-                'scheduled_time'     => $validated['scheduled_time'] ?? null,
-                'vehicle_image_path' => $booking->vehicle_image_path,
-                'extra_vehicles'     => $extraVehicles,
-                'pickup_notes'       => $validated['notes'] ?? null,
-            ]);
-            $booking->update(['quotation_id' => $quotation->id]);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to auto-create quotation for mobile booking', [
-                'booking_id' => $booking->id,
-                'error'      => $e->getMessage(),
-            ]);
+        // Auto-create a pending quotation for Book Now bookings only.
+        // Schedule bookings land in the Booking Queue (status='scheduled') directly.
+        if (($validated['service_type'] ?? 'book_now') !== 'schedule') {
+            try {
+                $quotation = $this->quotationService->createQuotation([
+                    'source_booking_id'  => $booking->id,
+                    'customer_id'        => $customer->id,
+                    'truck_type_id'      => $validated['truck_type_id'],
+                    'pickup_address'     => $validated['pickup_address'],
+                    'dropoff_address'    => $validated['dropoff_address'],
+                    'distance_km'        => $distanceKm,
+                    'estimated_price'    => $finalTotal,
+                    'service_type'       => $validated['service_type'] ?? 'book_now',
+                    'scheduled_date'     => $validated['scheduled_date'] ?? null,
+                    'scheduled_time'     => $validated['scheduled_time'] ?? null,
+                    'vehicle_image_path' => $booking->vehicle_image_path,
+                    'extra_vehicles'     => $extraVehicles,
+                    'pickup_notes'       => $validated['notes'] ?? null,
+                ]);
+                $booking->update(['quotation_id' => $quotation->id]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to auto-create quotation for mobile booking', [
+                    'booking_id' => $booking->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
         }
 
         return response()->json([

@@ -65,11 +65,6 @@
         <div style="display: flex; border-bottom: 1px solid #e2e8f0; background: #f8fafc; flex-shrink: 0;">
             <button class="qm-tab-btn" id="qmTab-details" onclick="qmSetTab('details')" data-active="false">Details</button>
             <button class="qm-tab-btn" id="qmTab-quote"   onclick="qmSetTab('quote')"   data-active="true">Quote</button>
-            <button class="qm-tab-btn" id="qmTab-history" onclick="qmSetTab('history')" data-active="false">
-                History
-                <span id="qmHistoryBadge"
-                    style="display:none; background:#64748b; color:#fff; font-size:0.62rem; font-weight:700; padding:1px 6px; margin-left:4px; vertical-align:middle; border-radius:10px;">0</span>
-            </button>
         </div>
 
         <!-- BODY: TAB PANES -->
@@ -276,6 +271,7 @@
                                 <span id="qmSuggestedPriceHint" style="font-weight:400; color:#94a3b8;"></span>
                             </label>
                             <input type="number" id="qmFinalPriceInput" step="0.01" min="0.01"
+                                placeholder="Enter new total price (₱)"
                                 style="width:100%; padding:8px 10px; border:1px solid #d1d5db; font-size:0.95rem; color:#0f172a; box-sizing:border-box;"
                                 onfocusin="this.style.borderColor='#6366f1'"
                                 onfocusout="this.style.borderColor='#d1d5db'">
@@ -289,9 +285,10 @@
                                 <span id="qmCurrentPriceDisplay" style="font-size:0.82rem; font-weight:700; color:#1d4ed8;">₱0.00</span>
                             </div>
                             <label style="font-size:0.78rem; font-weight:600; color:#374151; display:block; margin-bottom:4px;">
-                                Price Adjustment (₱) — negative to reduce
+                                Adjust Price (₱) — positive to add, negative to reduce
                             </label>
-                            <input type="number" id="qmOtherFeesInput" step="0.01" value="0.00"
+                            <input type="number" id="qmOtherFeesInput" step="0.01" value="0"
+                                placeholder="e.g. +500 to add, -200 to reduce"
                                 style="width:100%; padding:8px 10px; border:1px solid #d1d5db; font-size:0.88rem; color:#0f172a; box-sizing:border-box;"
                                 onfocusin="this.style.borderColor='#6366f1'"
                                 onfocusout="this.style.borderColor='#d1d5db'">
@@ -344,21 +341,6 @@
 
             </div>
 
-            <!-- ── PANE: History ───────────────────────────────────────────── -->
-            <div id="qmPane-history" style="display: none; padding: 18px 24px;">
-
-                <!-- Empty state -->
-                <div id="qmHistoryEmpty"
-                    style="text-align:center; padding: 36px 20px; color: #94a3b8;">
-                    <div style="font-size: 1.8rem; margin-bottom: 8px;">📋</div>
-                    <div style="font-size: 0.85rem;">No price changes recorded yet.</div>
-                    <div style="font-size: 0.78rem; margin-top: 4px; color: #cbd5e1;">Changes will appear here when the price is updated.</div>
-                </div>
-
-                <!-- History entries -->
-                <div id="qmPriceHistoryBody" style="display: grid; gap: 10px;"></div>
-
-            </div>
 
         </div>
 
@@ -400,12 +382,11 @@
         serviceType:  null,   // 'book_now' | 'scheduled'
         isMobile:     false,
         draftSaved:   false,
-        historyCount: 0,
     };
 
     // ── Tab switching ──────────────────────────────────────────────────────────
     function qmSetTab(tab) {
-        ['details', 'quote', 'history'].forEach(function(t) {
+        ['details', 'quote'].forEach(function(t) {
             document.getElementById('qmPane-' + t).style.display = t === tab ? 'block' : 'none';
             const btn = document.getElementById('qmTab-' + t);
             if (btn) btn.setAttribute('data-active', t === tab ? 'true' : 'false');
@@ -425,7 +406,6 @@
         qmState.serviceType       = 'scheduled';
         qmState.isMobile          = true;
         qmState.draftSaved        = false;
-        qmState.historyCount      = 0;
 
         // Modal header
         const title = document.getElementById('quotationModalTitle');
@@ -462,17 +442,9 @@
         if (priceInput) priceInput.value = '';
         if (noteInput)  noteInput.value  = '';
 
-        // Hide draft-saved indicator + history badge
+        // Hide draft-saved indicator
         const indicator = document.getElementById('qmDraftSavedIndicator');
         if (indicator) indicator.style.display = 'none';
-        const badge = document.getElementById('qmHistoryBadge');
-        if (badge) badge.style.display = 'none';
-
-        // Clear history pane
-        const historyBody = document.getElementById('qmPriceHistoryBody');
-        if (historyBody) historyBody.innerHTML = '';
-        const historyEmpty = document.getElementById('qmHistoryEmpty');
-        if (historyEmpty) historyEmpty.style.display = 'block';
 
         // Show modal
         const modal = document.getElementById('quotationModal');
@@ -563,7 +535,6 @@
         qmState.serviceType = null;
         qmState.isMobile    = false;
         qmState.draftSaved  = false;
-        qmState.historyCount = 0;
 
         const modal = document.getElementById('quotationModal');
         modal.style.display = 'flex';
@@ -861,39 +832,6 @@
                     document.getElementById('qmCounterOfferNote').textContent = q.response_note || 'No message';
                 } else {
                     counterSection.style.display = 'none';
-                }
-
-                // ── History tab content ──────────────────────────────────────
-                const histBody    = document.getElementById('qmPriceHistoryBody');
-                const histEmpty   = document.getElementById('qmHistoryEmpty');
-                const histBadge   = document.getElementById('qmHistoryBadge');
-                const priceLog    = q.price_change_log || [];
-                histBody.innerHTML = '';
-
-                if (priceLog.length > 0) {
-                    qmState.historyCount = priceLog.length;
-                    histEmpty.style.display = 'none';
-                    histBadge.textContent   = priceLog.length;
-                    histBadge.style.display = 'inline';
-
-                    priceLog.forEach(function(entry) {
-                        const row = document.createElement('div');
-                        row.style.cssText = 'padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.82rem;';
-                        const dt = entry.at
-                            ? new Date(entry.at).toLocaleString('en-PH', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})
-                            : '—';
-                        row.innerHTML = `
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                                <span style="font-size:0.72rem; color:#64748b;">${dt}</span>
-                                <span style="color:#0f172a; font-weight:700;">${fmt(entry.old || 0)} → ${fmt(entry.new || 0)}</span>
-                            </div>
-                            ${entry.reason ? `<div style="color:#78350f; font-size:0.78rem; margin-bottom:2px;">"${entry.reason}"</div>` : ''}
-                            <div style="color:#94a3b8; font-size:0.72rem;">by ${entry.by || 'Dispatcher'}</div>`;
-                        histBody.appendChild(row);
-                    });
-                } else {
-                    histEmpty.style.display = 'block';
-                    histBadge.style.display = 'none';
                 }
 
                 // ── Button visibility ────────────────────────────────────────
