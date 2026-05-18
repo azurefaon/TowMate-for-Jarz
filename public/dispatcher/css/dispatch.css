@@ -798,7 +798,7 @@
     min-width: 0;
 }
 .dp-sidebar-col {
-    width: 300px;
+    width: 420px;
     flex-shrink: 0;
     position: sticky;
     top: 16px;
@@ -819,12 +819,12 @@
 }
 .dp-sidebar-col .tracking-map-wrap {
     flex: none;
-    height: 200px;
+    height: 380px;
     border-right: none;
     border-bottom: 1px solid #e5e7eb;
 }
 .dp-sidebar-col .tracking-roster-wrap {
-    max-height: 200px;
+    max-height: 280px;
     overflow-y: auto;
 }
 
