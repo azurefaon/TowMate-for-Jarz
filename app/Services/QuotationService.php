@@ -258,6 +258,7 @@ class QuotationService
             $booking = Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
                 ->find($quotation->source_booking_id);
             if ($booking) {
+                $booking->update(['status' => 'cancelled']);
                 BookingStatusUpdated::safeFire($booking);
             }
         }
