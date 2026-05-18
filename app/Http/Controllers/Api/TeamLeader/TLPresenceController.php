@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\TeamLeader;
 
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use App\Models\TruckType;
 use App\Models\Unit;
 use App\Services\TeamLeaderAvailabilityService;
@@ -18,8 +19,23 @@ class TLPresenceController extends Controller
         $user = $request->user()->load('role');
         $this->teamLeaderAvailability->markOnline($user);
 
-        // Auto-assign a unit if TL has none so dispatchAvailability() can find them
-        if (! Unit::where('team_leader_id', $user->id)->exists()) {
+        $existingUnit = Unit::where('team_leader_id', $user->id)->first();
+
+        if ($existingUnit) {
+            // If the unit got stuck in a non-available state (e.g. app crash without offline call),
+            // reset it to available as long as there is no active job still running.
+            $activeJobStatuses = ['on_the_way', 'in_progress', 'waiting_verification', 'payment_pending', 'payment_submitted'];
+            $hasActiveJob = Booking::whereIn('status', $activeJobStatuses)
+                ->where(function ($q) use ($user, $existingUnit) {
+                    $q->where('assigned_team_leader_id', $user->id)
+                      ->orWhere('assigned_unit_id', $existingUnit->id);
+                })->exists();
+
+            if (! $hasActiveJob && $existingUnit->status !== 'available') {
+                $existingUnit->update(['status' => 'available']);
+            }
+        } else {
+            // Auto-assign a unit if TL has none so dispatchAvailability() can find them
             $unit = Unit::where('status', 'available')->whereNull('team_leader_id')->first();
 
             if (! $unit) {

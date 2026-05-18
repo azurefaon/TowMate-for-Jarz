@@ -1327,43 +1327,6 @@
                     </div>
                 @endforelse
 
-                @foreach ($allQuotations->where('status', 'pending') as $pq)
-                    <div class="incoming-card" data-queue="pending-quotations" data-quotation-id="{{ $pq->id }}">
-                        <div class="incoming-left">
-                            <div class="incoming-route">
-                                <strong>{{ $pq->pickup_address ?? 'Unknown Pickup' }}</strong>
-                                <span class="arrow">→</span>
-                                <span>{{ $pq->dropoff_address ?? 'Unknown Dropoff' }}</span>
-                            </div>
-                            <div class="incoming-details">
-                                <span><strong>Customer:</strong> {{ $pq->customer->full_name ?? 'Guest' }}</span>
-                                <span><strong>Phone:</strong> {{ $pq->customer->phone ?? 'N/A' }}</span>
-                                <span><strong>Reference:</strong> {{ $pq->quotation_number ?? 'N/A' }}</span>
-                            </div>
-                            <div class="incoming-details">
-                                <span><strong>Distance:</strong> {{ number_format((float) $pq->distance_km, 2) }}
-                                    km</span>
-                                <span><strong>Estimated Price:</strong>
-                                    ₱{{ number_format((float) $pq->estimated_price, 2) }}</span>
-                            </div>
-                            <div class="incoming-meta">
-                                <span class="time">{{ $pq->created_at->diffForHumans() }}</span>
-                                <span class="queue-chip pending-quotations">Pending Quotation</span>
-                                <span class="status-badge quoted">Not Sent</span>
-                            </div>
-                        </div>
-                        <div class="incoming-actions">
-                            <button type="button" class="btn-accept pq-send-btn"
-                                data-quotation-id="{{ $pq->id }}">
-                                Update &amp; Send
-                            </button>
-                            <button type="button" class="btn-reject pq-cancel-btn"
-                                data-quotation-id="{{ $pq->id }}">
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                @endforeach
 
             </div>
 
