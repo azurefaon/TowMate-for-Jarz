@@ -268,6 +268,31 @@ class CustomerBookingController extends Controller
         ], 201);
     }
 
+    public function cancelBooking(string $code): JsonResponse
+    {
+        $customer = Customer::where('user_id', auth()->id())->first();
+
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Customer not found.'], 404);
+        }
+
+        $booking = Booking::where('booking_code', $code)
+            ->where('customer_id', $customer->id)
+            ->first();
+
+        if (!$booking) {
+            return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
+        }
+
+        if ($booking->status !== 'scheduled') {
+            return response()->json(['success' => false, 'message' => 'Only scheduled bookings can be cancelled.'], 422);
+        }
+
+        $booking->update(['status' => 'cancelled']);
+
+        return response()->json(['success' => true, 'message' => 'Booking cancelled successfully.']);
+    }
+
     public function detail(string $code): JsonResponse
     {
         $customer = Customer::where('user_id', auth()->id())->first();

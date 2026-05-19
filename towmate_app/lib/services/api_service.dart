@@ -468,6 +468,21 @@ class ApiService {
     }
   }
 
+  static Future<bool> cancelBooking(String code) async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/v1/bookings/$code/cancel'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<BookingModel?> fetchBookingDetail(String code) async {
     try {
       final token = await getToken();

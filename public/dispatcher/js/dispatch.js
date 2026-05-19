@@ -1220,7 +1220,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     : 0;
                 var serverCount = Number(payload.count) || 0;
 
-                if (serverCount > currentCount) {
+                var scheduledEl = document.querySelector('[data-count-for="scheduled"]');
+                var currentScheduled = scheduledEl
+                    ? parseInt(scheduledEl.textContent, 10) || 0
+                    : 0;
+                var serverScheduled = Number(payload.scheduled_count) || 0;
+
+                if (serverCount > currentCount || serverScheduled > currentScheduled) {
                     if (
                         actionModal &&
                         actionModal.classList.contains("is-open")

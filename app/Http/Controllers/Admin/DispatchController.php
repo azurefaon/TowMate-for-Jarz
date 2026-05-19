@@ -449,6 +449,7 @@ class DispatchController extends Controller
                             ->whereNotNull('returned_at');
                     });
             })->count(),
+            'scheduled_count' => Booking::where('status', 'scheduled')->count(),
         ]);
     }
 
