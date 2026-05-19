@@ -38,13 +38,14 @@
                     Access TowMate’s control panel designed for authorized staff. Manage towing operations,
                     assign tasks, and monitor real-time activities from a centralized platform.
                 </p>
-                @php $apkExists = file_exists(public_path(‘downloads/towmate.apk’)); @endphp
                 @if($apkExists)
-                <a href="{{ asset(‘downloads/towmate.apk’) }}" download="TowMate.apk"
+                <a href="{{ $apkUrl }}" download="TowMate.apk"
                     style="display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:11px 22px;background:#f59e0b;color:#0f172a;font-size:0.875rem;font-weight:700;text-decoration:none;border-radius:999px;">
                     <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px;flex-shrink:0;"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                     Download APK
                 </a>
+                @else
+                <p style="margin-top:14px;font-size:0.8rem;color:#94a3b8;">No APK available yet.</p>
                 @endif
             </div>
 

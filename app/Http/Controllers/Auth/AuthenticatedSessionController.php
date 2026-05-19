@@ -59,7 +59,11 @@ class AuthenticatedSessionController extends Controller
             ],
         };
 
-        return view('auth.login', compact('loginConfig'));
+        $apkPath   = public_path('downloads/towmate.apk');
+        $apkExists = file_exists($apkPath);
+        $apkUrl    = $apkExists ? asset('downloads/towmate.apk') : null;
+
+        return view('auth.login', compact('loginConfig', 'apkExists', 'apkUrl'));
     }
 
     public function store(LoginRequest $request): RedirectResponse
