@@ -2677,32 +2677,6 @@ class _ExtraVehicleSlot extends StatelessWidget {
     final hasSelection = data.truck != null && data.vehicle != null;
 
     void showScheduleDialog(TruckTypeModel truck, VehicleTypeModel v) async {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogCtx) => AlertDialog(
-          title: Text('Schedule This Vehicle?',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 16)),
-          content: Text(
-            'All available ${truck.name} units are already reserved for the primary vehicle. '
-            'You can schedule this additional vehicle for a later date instead.',
-            style: GoogleFonts.inter(fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              child: Text('Cancel', style: GoogleFonts.inter(color: TmColors.grey500)),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogCtx, true),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: TmColors.yellow, foregroundColor: TmColors.black),
-              child: Text('Schedule', style: GoogleFonts.inter()),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !context.mounted) return;
-
       final now = DateTime.now();
       final tomorrow = DateTime(now.year, now.month, now.day + 1);
       final date = await showDatePicker(
