@@ -966,7 +966,18 @@ class DispatchController extends Controller
         $extraDistance = max(0.0, $distanceKm - 1.0);
         $distanceFee   = round($extraDistance * 300.0, 2);
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
-        $subtotal      = round($unitBaseRate + $distanceFee + $additionalFee, 2);
+
+        // Sum extra vehicle base rates (estimated_price is VAT-inclusive, so extract pre-VAT)
+        $extraVehiclesBaseTotal = 0.0;
+        $extraVehicles = is_array($quotation->extra_vehicles)
+            ? $quotation->extra_vehicles
+            : json_decode($quotation->extra_vehicles ?? '[]', true);
+        foreach ((array) $extraVehicles as $ev) {
+            $extraVehiclesBaseTotal += round(floatval($ev['estimated_price'] ?? 0) / 1.12, 6);
+        }
+        $extraVehiclesBaseTotal = round($extraVehiclesBaseTotal, 2);
+
+        $subtotal          = round($unitBaseRate + $distanceFee + $additionalFee + $extraVehiclesBaseTotal, 2);
         $newEstimatedPrice = round($subtotal * 1.12, 2);
 
         $quotation->update(['estimated_price' => $newEstimatedPrice]);

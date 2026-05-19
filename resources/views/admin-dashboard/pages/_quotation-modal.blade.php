@@ -718,9 +718,10 @@
                 document.getElementById('qmOtherFeesRow').style.display = 'none';
                 window.qmDistanceFee = distanceFee;
 
-                // Extra vehicles total (non-scheduled only)
+                // Extra vehicles total — use pre-VAT base (estimated_price is VAT-inclusive, divide by 1.12)
                 const evTotal = (q.extra_vehicles || []).reduce(function(s, ev) {
-                    return ev.service_type !== 'schedule' ? s + parseFloat(ev.estimated_price || 0) : s;
+                    if (ev.service_type === 'schedule') return s;
+                    return s + Math.round(parseFloat(ev.estimated_price || 0) / 1.12 * 100) / 100;
                 }, 0);
                 window.qmExtraVehiclesTotal = evTotal;
                 const evTotalRow = document.getElementById('qmExtraVehiclesTotalRow');
