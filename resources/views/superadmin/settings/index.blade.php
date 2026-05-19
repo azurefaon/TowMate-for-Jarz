@@ -152,10 +152,6 @@
         <form method="POST" action="{{ route('superadmin.settings.update') }}" enctype="multipart/form-data">
             @csrf
 
-    </div>
-
-
-
     <!-- CUSTOMIZE QUOTATIONS -->
 
     <div class="settings-content" id="customize-quotation">
@@ -310,7 +306,7 @@
 
     <!-- SAVE BUTTON -->
 
-    <div class="settings-actions">
+    <div class="settings-actions" id="main-settings-actions">
 
         <button type="submit" class="settings-save">
             Save Changes
@@ -325,23 +321,22 @@
 
     </form>
 
-    </div>
-
 
 
     {{-- ── Mobile App Tab ──────────────────────────────────────────────────── --}}
     <div class="settings-content" id="mobile-app">
 
         @php
-            $apkPath    = public_path('downloads/towmate.apk');
-            $apkExists  = file_exists($apkPath);
-            $apkSize    = $apkExists ? round(filesize($apkPath) / 1048576, 1) . ' MB' : null;
+            $apkPath = public_path('downloads/towmate.apk');
+            $apkExists = file_exists($apkPath);
+            $apkSize = $apkExists ? round(filesize($apkPath) / 1048576, 1) . ' MB' : null;
             $apkUpdated = $apkExists ? date('M d, Y  H:i', filemtime($apkPath)) : null;
-            $apkUrl     = url('downloads/towmate.apk');
+            $apkUrl = url('downloads/towmate.apk');
         @endphp
 
-        @if(session('apk_success'))
-            <div style="background:#f0fdf4; border:1px solid #86efac; color:#166534; padding:12px 16px; margin-bottom:18px; font-size:0.88rem; font-weight:600;">
+        @if (session('apk_success'))
+            <div
+                style="background:#f0fdf4; border:1px solid #86efac; color:#166534; padding:12px 16px; margin-bottom:18px; font-size:0.88rem; font-weight:600;">
                 ✓ {{ session('apk_success') }}
             </div>
         @endif
@@ -353,13 +348,13 @@
                 <p>Scan the QR code or tap the button below to download the Android APK directly to your phone.</p>
             </div>
 
-            @if($apkExists)
+            @if ($apkExists)
                 <div style="display:flex; align-items:center; gap:32px; flex-wrap:wrap; padding:4px 0 16px;">
 
                     {{-- QR Code (generated via Google Charts API — no external JS needed) --}}
                     <div style="text-align:center;">
                         <img src="https://chart.googleapis.com/chart?chs=180x180&cht=qr&chl={{ urlencode($apkUrl) }}&choe=UTF-8"
-                             alt="QR Code" style="width:180px; height:180px; border:1px solid #e2e8f0;">
+                            alt="QR Code" style="width:180px; height:180px; border:1px solid #e2e8f0;">
                         <p style="font-size:0.72rem; color:#94a3b8; margin-top:6px;">Scan with phone camera</p>
                     </div>
 
@@ -380,18 +375,18 @@
                             </div>
                         </div>
                         <a href="{{ $apkUrl }}" download="TowMate.apk"
-                           style="display:inline-flex; align-items:center; gap:8px; padding:11px 22px; background:#0f172a; color:#fff; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:4px;">
+                            style="display:inline-flex; align-items:center; gap:8px; padding:11px 22px; background:#0f172a; color:#fff; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:4px;">
                             ⬇ Download TowMate APK
                         </a>
                         <p style="font-size:0.72rem; color:#94a3b8; margin-top:8px;">
                             After downloading, open the file on your Android phone.<br>
-                            Allow "Install from unknown sources" when prompted.
                         </p>
                     </div>
 
                 </div>
             @else
-                <div style="background:#fef9c3; border:1px solid #fde047; padding:14px 16px; color:#713f12; font-size:0.85rem; margin-bottom:8px;">
+                <div
+                    style="background:#fef9c3; border:1px solid #fde047; padding:14px 16px; color:#713f12; font-size:0.85rem; margin-bottom:8px;">
                     No APK uploaded yet. Use the upload form below to add the app file.
                 </div>
             @endif
@@ -410,7 +405,7 @@
                     <div class="settings-field">
                         <label>APK File <span style="color:#dc2626;">*</span></label>
                         <input type="file" name="apk_file" accept=".apk" required
-                               style="padding:8px; border:1px solid #d1d5db; font-size:0.85rem; width:100%; box-sizing:border-box; background:#fff;">
+                            style="padding:8px; border:1px solid #d1d5db; font-size:0.85rem; width:100%; box-sizing:border-box; background:#fff;">
                         <p class="field-help">Max 100 MB. Must be a valid .apk file.</p>
                         @error('apk_file')
                             <p style="color:#dc2626; font-size:0.78rem; margin-top:4px;">{{ $message }}</p>
@@ -422,15 +417,21 @@
                 </div>
             </form>
 
-            <div style="margin-top:20px; padding:12px 14px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569; line-height:1.7;">
+            <div
+                style="margin-top:20px; padding:12px 14px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569; line-height:1.7;">
                 <strong style="display:block; margin-bottom:4px; color:#0f172a;">How to build the APK:</strong>
-                <code style="background:#e2e8f0; padding:2px 6px; border-radius:3px; font-size:0.8rem;">cd towmate_app</code><br>
-                <code style="background:#e2e8f0; padding:2px 6px; border-radius:3px; font-size:0.8rem;">flutter build apk --release</code><br>
-                Output: <code style="background:#e2e8f0; padding:2px 6px; border-radius:3px; font-size:0.8rem;">build/app/outputs/flutter-apk/app-release.apk</code>
+                <code style="background:#e2e8f0; padding:2px 6px; border-radius:3px; font-size:0.8rem;">cd
+                    towmate_app</code><br>
+                <code style="background:#e2e8f0; padding:2px 6px; border-radius:3px; font-size:0.8rem;">flutter build apk
+                    --release</code><br>
+                Output: <code
+                    style="background:#e2e8f0; padding:2px 6px; border-radius:3px; font-size:0.8rem;">build/app/outputs/flutter-apk/app-release.apk</code>
             </div>
         </div>
 
-    </div>
+    </div>{{-- closes mobile-app --}}
+
+    </div>{{-- closes settings-page --}}
 
     <script>
         const tabs = document.querySelectorAll(".settings-tab");
@@ -457,6 +458,8 @@
             }
         });
 
+        const mainActions = document.getElementById("main-settings-actions");
+
         tabs.forEach(tab => {
 
             tab.addEventListener("click", () => {
@@ -467,6 +470,8 @@
                 contents.forEach(c => c.classList.remove("active"));
 
                 document.getElementById(tab.dataset.tab).classList.add("active");
+
+                mainActions.style.display = tab.dataset.tab === "mobile-app" ? "none" : "";
 
             });
 
