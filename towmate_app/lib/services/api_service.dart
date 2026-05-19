@@ -859,7 +859,7 @@ class ApiService {
             headers: _headers,
             body: jsonEncode({'email': email}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 45));
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': body['success'] == true,
