@@ -31,11 +31,7 @@ class PasswordResetController extends Controller
             'password_reset_token'          => null,
         ]);
 
-        try {
-            Mail::to($user->email)->send(new PasswordResetOtpMail($user, $otp));
-        } catch (\Throwable $e) {
-            return response()->json(['success' => false, 'message' => 'Failed to send OTP email. Please try again.'], 500);
-        }
+        Mail::to($user->email)->queue(new PasswordResetOtpMail($user, $otp));
 
         return response()->json(['success' => true, 'message' => 'OTP sent to your email.']);
     }
