@@ -140,7 +140,7 @@ class DispatchController extends Controller
             $scheduledSiblingsByGroup = Booking::whereIn('group_code', $scheduledGroupCodes)
                 ->whereNotIn('id', $scheduledRequests->pluck('id'))
                 ->with('truckType')
-                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'scheduled_date', 'scheduled_time', 'group_code'])
+                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'scheduled_date', 'scheduled_time', 'group_code', 'final_total'])
                 ->groupBy('group_code');
             $scheduledRequests = $scheduledRequests->map(function ($b) use ($scheduledSiblingsByGroup) {
                 $b->group_siblings = $b->group_code
@@ -299,7 +299,7 @@ class DispatchController extends Controller
             $quotationSiblingsByGroup = Booking::whereIn('group_code', $quotationGroupCodes)
                 ->when($quotationSourceIds->isNotEmpty(), fn($q) => $q->whereNotIn('id', $quotationSourceIds))
                 ->with('truckType')
-                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'scheduled_date', 'scheduled_time', 'group_code'])
+                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'scheduled_date', 'scheduled_time', 'group_code', 'final_total'])
                 ->groupBy('group_code');
         }
 
@@ -962,7 +962,7 @@ class DispatchController extends Controller
                 'status'                => $quotation->status,
                 'service_type'          => $quotation->service_type,
                 'link_version'          => $quotation->link_version ?? 1,
-                'vehicle_image_paths'   => $quotation->vehicle_image_paths ?? [],
+                'vehicle_image_paths'   => $quotation->vehicle_image_paths    ?: ($quotation->sourceBooking?->vehicle_image_paths ?? []),
                 'extra_vehicles'        => $this->enrichExtraVehicles($quotation->extra_vehicles ?? []),
                 'total_vehicles'        => 1 + count($quotation->extra_vehicles ?? []),
                 'created_at'            => $quotation->created_at->format('M d, Y h:i A'),

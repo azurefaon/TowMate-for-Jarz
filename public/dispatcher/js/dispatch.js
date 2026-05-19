@@ -2481,3 +2481,93 @@ document.addEventListener("DOMContentLoaded", function () {
     window.updateReturnBanner = updateReturnBanner;
     window.updateAllWaitTimes = updateAllWaitTimes;
 });
+
+// ── Customer Booking Slide-out Panel ─────────────────────────────────────────
+function openCustomerBookingPanel(cardEl) {
+    if (!cardEl) return;
+
+    const siblings  = JSON.parse(cardEl.getAttribute('data-group-siblings') || '[]');
+    const groupCode = cardEl.getAttribute('data-group-code') || '';
+    const customer  = cardEl.getAttribute('data-customer') || '—';
+    const phone     = cardEl.getAttribute('data-phone') || '—';
+    const ref       = cardEl.getAttribute('data-ref') || cardEl.getAttribute('data-id') || '—';
+    const price     = cardEl.getAttribute('data-final-total') || '0';
+    const truck     = cardEl.getAttribute('data-truck') || '—';
+    const status    = cardEl.getAttribute('data-status') || '—';
+    const queue     = cardEl.getAttribute('data-queue') || 'book-now';
+
+    document.getElementById('cbpGroupCode').textContent = groupCode || ref;
+    document.getElementById('cbpCustomerInfo').innerHTML =
+        '<div style="font-size:0.88rem; font-weight:600; color:#0f172a;">' + customer + '</div>' +
+        '<div style="font-size:0.82rem; color:#64748b;">' + phone + '</div>';
+
+    const allBookings = [
+        { booking_code: ref, truck_type: truck, status: status,
+          service_type: queue === 'scheduled' ? 'schedule' : 'book_now',
+          final_total: price, scheduled_date: null, scheduled_time: null, is_primary: true },
+        ...siblings.map(function(s) { return Object.assign({}, s, { is_primary: false }); })
+    ];
+    allBookings.sort(function(a, b) { return a.service_type === 'book_now' ? -1 : 1; });
+
+    var statusColors = {
+        scheduled:      { bg:'#f1f5f9', c:'#475569', t:'Scheduled' },
+        scheduled_confirmed: { bg:'#dcfce7', c:'#15803d', t:'Confirmed Sched.' },
+        in_progress:    { bg:'#fef9c3', c:'#a16207', t:'In Progress' },
+        completed:      { bg:'#dcfce7', c:'#15803d', t:'Completed' },
+        cancelled:      { bg:'#fee2e2', c:'#dc2626', t:'Cancelled' },
+        requested:      { bg:'#eff6ff', c:'#1d4ed8', t:'Pending Quote' },
+        quoted:         { bg:'#eff6ff', c:'#1d4ed8', t:'Quoted' },
+        quotation_sent: { bg:'#fef3c7', c:'#92400e', t:'Sent to Customer' },
+        confirmed:      { bg:'#dcfce7', c:'#15803d', t:'Confirmed' },
+        pending:        { bg:'#f1f5f9', c:'#475569', t:'Pending' },
+        sent:           { bg:'#fef3c7', c:'#92400e', t:'Sent' },
+        negotiating:    { bg:'#f3e8ff', c:'#7e22ce', t:'Negotiating' },
+    };
+
+    document.getElementById('cbpBookingsList').innerHTML = allBookings.map(function(b) {
+        var sc = statusColors[b.status] || { bg:'#f1f5f9', c:'#475569', t: b.status };
+        var modeLabel = b.service_type === 'schedule' ? 'Scheduled' : 'Book Now';
+        var modeBg    = b.service_type === 'schedule' ? '#e0f2fe' : '#dcfce7';
+        var modeFg    = b.service_type === 'schedule' ? '#075985' : '#15803d';
+        var priceStr  = parseFloat(b.final_total || 0) > 0
+            ? '₱' + parseFloat(b.final_total).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 })
+            : '—';
+        var schedLine = b.scheduled_date
+            ? '<div style="font-size:0.75rem; color:#64748b; margin-top:3px;">' + fmtCbpDate(b.scheduled_date, b.scheduled_time) + '</div>'
+            : '';
+        return '<div style="border:1px solid #e2e8f0; padding:12px 14px;">' +
+            '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">' +
+                '<span style="font-family:monospace; font-weight:700; font-size:0.88rem; color:#0f172a;">' + b.booking_code + '</span>' +
+                '<span style="font-size:0.65rem; font-weight:700; padding:2px 7px; background:' + modeBg + '; color:' + modeFg + ';">' + modeLabel + '</span>' +
+                '<span style="margin-left:auto; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:999px; background:' + sc.bg + '; color:' + sc.c + ';">' + sc.t + '</span>' +
+            '</div>' +
+            '<div style="font-size:0.82rem; color:#374151;">' + (b.truck_type || '—') + '</div>' +
+            schedLine +
+            '<div style="margin-top:6px; font-size:0.88rem; font-weight:700; color:#0f172a;">' + priceStr + '</div>' +
+        '</div>';
+    }).join('');
+
+    document.getElementById('customerBookingPanel').style.right = '0';
+    document.getElementById('customerBookingOverlay').style.display = 'block';
+}
+
+function closeCustomerBookingPanel() {
+    document.getElementById('customerBookingPanel').style.right = '-420px';
+    document.getElementById('customerBookingOverlay').style.display = 'none';
+}
+
+function fmtCbpDate(date, time) {
+    if (!date) return '';
+    var parts = date.split('-').map(Number);
+    var y = parts[0], m = parts[1], d = parts[2];
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var s = months[m - 1] + ' ' + d + ', ' + y;
+    if (time) {
+        var tp = time.split(':').map(Number);
+        var h = tp[0], min = tp[1];
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        var hr = h % 12 || 12;
+        s += ' · ' + hr + ':' + String(min).padStart(2, '0') + ' ' + ampm;
+    }
+    return s;
+}

@@ -189,7 +189,7 @@
                     </div>
                     <div style="padding: 14px; display: grid; gap: 8px;">
                         <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #000000;">
-                            <span>Base Rate (Unit)</span>
+                            <span id="qmBaseRateLabel">Base Rate (Unit)</span>
                             <span id="qmBasePrice">TBD</span>
                         </div>
                         <div id="qmDistanceFeeRow"
@@ -270,34 +270,31 @@
                     </div>
                     <div style="padding: 14px; display: grid; gap: 12px;">
 
-                        <!-- Draft/pending mode: direct final-price input -->
-                        <div id="qmDirectPriceBlock">
-                            <label style="font-size:0.78rem; font-weight:600; color:#374151; display:block; margin-bottom:5px;">
-                                Quoted Price (₱)
-                                <span id="qmSuggestedPriceHint" style="font-weight:400; color:#94a3b8;"></span>
-                            </label>
-                            <input type="number" id="qmFinalPriceInput" step="0.01" min="0.01"
-                                placeholder="Enter new total price (₱)"
-                                style="width:100%; padding:8px 10px; border:1px solid #d1d5db; font-size:0.95rem; color:#0f172a; box-sizing:border-box;"
-                                onfocusin="this.style.borderColor='#6366f1'"
-                                onfocusout="this.style.borderColor='#d1d5db'">
+                        <!-- Current price (readonly display) -->
+                        <div style="display:flex; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0;">
+                            <span style="font-size:0.82rem; color:#374151;">Current Price</span>
+                            <span id="qmCurrentPriceDisplay" style="font-size:0.88rem; font-weight:700; color:#0f172a;">₱0.00</span>
                         </div>
 
-                        <!-- Sent/negotiating mode: delta adjustment -->
-                        <div id="qmDeltaBlock" style="display:none;">
-                            <div id="qmCurrentPriceRow"
-                                style="display:flex; justify-content:space-between; padding:7px 10px; background:#eff6ff; border:1px solid #bfdbfe; margin-bottom:7px;">
-                                <span style="font-size:0.78rem; color:#1d4ed8;">Current Sent Price</span>
-                                <span id="qmCurrentPriceDisplay" style="font-size:0.82rem; font-weight:700; color:#1d4ed8;">₱0.00</span>
-                            </div>
-                            <label style="font-size:0.78rem; font-weight:600; color:#374151; display:block; margin-bottom:4px;">
-                                Adjust Price (₱) — positive to add, negative to reduce
+                        <!-- Adjustment: +/- toggle + amount -->
+                        <div>
+                            <label style="font-size:0.78rem; font-weight:600; color:#374151; display:block; margin-bottom:6px;">
+                                Adjustment
+                                <span id="qmSuggestedPriceHint" style="font-weight:400; color:#94a3b8;"></span>
                             </label>
-                            <input type="number" id="qmOtherFeesInput" step="0.01" value="0"
-                                placeholder="e.g. +500 to add, -200 to reduce"
-                                style="width:100%; padding:8px 10px; border:1px solid #d1d5db; font-size:0.88rem; color:#0f172a; box-sizing:border-box;"
-                                onfocusin="this.style.borderColor='#6366f1'"
-                                onfocusout="this.style.borderColor='#d1d5db'">
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <button type="button" id="qmSignAdd" onclick="qmSetSign('+')"
+                                    style="padding:7px 12px; border:1px solid #16a34a; background:#16a34a; color:#fff; font-size:0.82rem; font-weight:700; cursor:pointer; flex-shrink:0;">
+                                    + Add
+                                </button>
+                                <button type="button" id="qmSignDeduct" onclick="qmSetSign('-')"
+                                    style="padding:7px 12px; border:1px solid #d1d5db; background:#fff; color:#64748b; font-size:0.82rem; font-weight:700; cursor:pointer; flex-shrink:0;">
+                                    − Deduct
+                                </button>
+                                <input type="number" id="qmAdjustAmount" step="0.01" min="0" placeholder="0.00"
+                                    style="flex:1; padding:7px 10px; border:1px solid #d1d5db; font-size:0.88rem; color:#0f172a; box-sizing:border-box;"
+                                    oninput="recalcQuotationTotal()">
+                            </div>
                         </div>
 
                         <!-- New total preview -->
@@ -390,6 +387,9 @@
 <script>
     let currentQuotationId = null;
 
+    window.qmAdjustSign = '+';
+    window.qmCurrentBase = 0;
+
     // Tracks per-modal-open state
     const qmState = {
         activeTab:    'quote',
@@ -479,7 +479,9 @@
         }
 
         const unitSelect = document.getElementById('qmUnitSelect');
-        const price      = parseFloat(document.getElementById('qmFinalPriceInput')?.value || 0);
+        const adjustAmt  = parseFloat(document.getElementById('qmAdjustAmount')?.value || 0) || 0;
+        const adjustSign = (window.qmAdjustSign === '+') ? 1 : -1;
+        const price      = Math.max(0, (window.qmCurrentBase || 0) + adjustSign * adjustAmt);
         const note       = document.getElementById('qmPriceNote')?.value?.trim() || '';
 
         if (price <= 0) {
@@ -604,6 +606,11 @@
                 document.getElementById('qmDropoffAddress').textContent = q.dropoff_address || '—';
                 document.getElementById('qmDistance').textContent = q.distance_km ? `${q.distance_km} km` : '—';
                 document.getElementById('qmTruckType').textContent = q.truck_type || '—';
+
+                // Dynamic base rate label (Change 3)
+                const modeLabel = q.service_type === 'schedule' ? 'Scheduled' : 'Book Now';
+                const baseLabel = document.getElementById('qmBaseRateLabel');
+                if (baseLabel) baseLabel.textContent = 'Base Rate · ' + (q.truck_type || 'Unit') + ' (' + modeLabel + ')';
 
                 // Mobile banner
                 const mobileBanner = document.getElementById('qmMobileBanner');
@@ -781,8 +788,9 @@
                                 const subtotalCalc  = newBase + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
                                 const vatCalc       = Math.round(subtotalCalc * 0.12 * 100) / 100;
                                 const newSuggested  = Math.round(subtotalCalc * 1.12 * 100) / 100;
+                                window.qmCurrentBase = newSuggested;
                                 document.getElementById('qmBasePrice').textContent          = fmt(newBase);
-                                document.getElementById('qmFinalPriceInput').value          = newSuggested.toFixed(2);
+                                document.getElementById('qmCurrentPriceDisplay').textContent = fmt(newSuggested);
                                 document.getElementById('qmSuggestedPriceHint').textContent = '(suggested: ' + fmt(newSuggested) + ')';
                                 document.getElementById('qmSubtotalAmount').textContent     = fmt(subtotalCalc);
                                 document.getElementById('qmVatAmount').textContent          = fmt(vatCalc);
@@ -798,37 +806,23 @@
                     if (unitSection) unitSection.style.display = 'none';
                 }
 
-                // Dual-mode pricing setup
-                const directBlock    = document.getElementById('qmDirectPriceBlock');
-                const deltaBlock     = document.getElementById('qmDeltaBlock');
-                const finalInput     = document.getElementById('qmFinalPriceInput');
+                // Pricing setup: reset adjustment, set current base
                 const suggestedHint  = document.getElementById('qmSuggestedPriceHint');
-                const otherFeesInput = document.getElementById('qmOtherFeesInput');
+                const adjustAmountEl = document.getElementById('qmAdjustAmount');
+                if (adjustAmountEl) adjustAmountEl.value = '';
+                window.qmAdjustSign = '+';
+                qmSetSign('+');
 
                 if (q.status === 'draft' || q.status === 'pending') {
-                    directBlock.style.display = 'block';
-                    deltaBlock.style.display  = 'none';
                     const subtotalInit = (window.qmBasePrice || 0) + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
                     const suggested    = Math.round(subtotalInit * 1.12 * 100) / 100;
-                    if (finalInput) finalInput.value = suggested.toFixed(2);
+                    window.qmCurrentBase = suggested;
+                    document.getElementById('qmCurrentPriceDisplay').textContent = fmt(suggested);
                     if (suggestedHint) suggestedHint.textContent = '(suggested: ' + fmt(suggested) + ')';
-                    if (finalInput) finalInput.oninput = recalcQuotationTotal;
                 } else {
-                    directBlock.style.display = 'none';
-                    deltaBlock.style.display  = 'block';
-                    if (otherFeesInput) otherFeesInput.value = '0.00';
-                    document.getElementById('qmCurrentPriceDisplay').textContent = fmt(window.qmEstimatedPrice || 0);
-                    if (otherFeesInput) otherFeesInput.oninput = function() {
-                        const fees    = parseFloat(this.value || 0);
-                        const otherRow = document.getElementById('qmOtherFeesRow');
-                        if (fees !== 0) {
-                            otherRow.style.display = 'flex';
-                            document.getElementById('qmOtherFees').textContent = fees >= 0 ? fmt(fees) : `- ${fmt(Math.abs(fees))}`;
-                        } else {
-                            otherRow.style.display = 'none';
-                        }
-                        recalcQuotationTotal();
-                    };
+                    window.qmCurrentBase = window.qmEstimatedPrice || 0;
+                    document.getElementById('qmCurrentPriceDisplay').textContent = fmt(window.qmCurrentBase);
+                    if (suggestedHint) suggestedHint.textContent = '';
                 }
 
                 recalcQuotationTotal();
@@ -867,9 +861,7 @@
                             const sc = statusColors[s.status] || statusColors.scheduled;
                             const clsMap = {Heavy:'#c2410c', Medium:'#15803d', Light:'#1d4ed8'};
                             const clsColor = clsMap[s.truck_class] || '#475569';
-                            const sched = s.scheduled_date
-                                ? `${s.scheduled_date}${s.scheduled_time ? ' ' + s.scheduled_time : ''}`
-                                : '—';
+                            const sched = fmtSchedDateTime(s.scheduled_date, s.scheduled_time);
                             const row = document.createElement('div');
                             row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #d1fae5; font-size:0.82rem; flex-wrap:wrap;';
                             row.innerHTML = `
@@ -996,25 +988,18 @@
 
     // ── Price recalculation ──────────────────────────────────────────────────
     function recalcQuotationTotal() {
+        const amt      = parseFloat(document.getElementById('qmAdjustAmount')?.value || 0) || 0;
+        const sign     = (window.qmAdjustSign === '+') ? 1 : -1;
+        const newTotal = Math.max(0, (window.qmCurrentBase || 0) + sign * amt);
         const vatEl      = document.getElementById('qmVatAmount');
         const subtotalEl = document.getElementById('qmSubtotalAmount');
-        if (window.qmCurrentStatus === 'draft' || window.qmCurrentStatus === 'pending') {
-            const typed    = parseFloat(document.getElementById('qmFinalPriceInput')?.value || 0);
-            const vatAmt   = Math.round(typed * 0.12 / 1.12 * 100) / 100;
-            const subtotal = Math.round((typed - vatAmt) * 100) / 100;
-            document.getElementById('qmCalculatedPrice').textContent = fmt(typed);
-            if (document.getElementById('qmTotalAmount'))
-                document.getElementById('qmTotalAmount').textContent = fmt(typed);
-            if (vatEl) vatEl.textContent = fmt(vatAmt);
-            if (subtotalEl) subtotalEl.textContent = fmt(subtotal);
-        } else {
-            const fees     = parseFloat(document.getElementById('qmOtherFeesInput')?.value || 0);
-            const newTotal = Math.max(0, (window.qmEstimatedPrice || 0) + fees);
-            const vatAmt   = Math.round(newTotal * 0.12 / 1.12 * 100) / 100;
-            document.getElementById('qmCalculatedPrice').textContent = fmt(newTotal);
-            if (vatEl) vatEl.textContent = fmt(vatAmt);
-            if (subtotalEl) subtotalEl.textContent = fmt(Math.round((newTotal - vatAmt) * 100) / 100);
-        }
+        const vatAmt   = Math.round(newTotal * 0.12 / 1.12 * 100) / 100;
+        const subtotal = Math.round((newTotal - vatAmt) * 100) / 100;
+        document.getElementById('qmCalculatedPrice').textContent = fmt(newTotal);
+        const totalEl = document.getElementById('qmTotalAmount');
+        if (totalEl) totalEl.textContent = fmt(newTotal);
+        if (vatEl) vatEl.textContent = fmt(vatAmt);
+        if (subtotalEl) subtotalEl.textContent = fmt(subtotal);
     }
 
     // ── Unit class filter ────────────────────────────────────────────────────
@@ -1078,6 +1063,32 @@
         return `₱${parseFloat(val).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     }
 
+    function fmtSchedDateTime(date, time) {
+        if (!date) return '—';
+        const [y, m, d] = date.split('-').map(Number);
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        let datePart = `${months[m-1]} ${d}, ${y}`;
+        if (!time) return datePart;
+        const [h, min] = time.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const hr12 = h % 12 || 12;
+        return `${datePart} · ${hr12}:${String(min).padStart(2,'0')} ${ampm}`;
+    }
+
+    function qmSetSign(sign) {
+        window.qmAdjustSign = sign;
+        const addBtn    = document.getElementById('qmSignAdd');
+        const deductBtn = document.getElementById('qmSignDeduct');
+        if (sign === '+') {
+            if (addBtn)    { addBtn.style.background = '#16a34a'; addBtn.style.color = '#fff'; addBtn.style.borderColor = '#16a34a'; }
+            if (deductBtn) { deductBtn.style.background = '#fff'; deductBtn.style.color = '#64748b'; deductBtn.style.borderColor = '#d1d5db'; }
+        } else {
+            if (addBtn)    { addBtn.style.background = '#fff'; addBtn.style.color = '#64748b'; addBtn.style.borderColor = '#d1d5db'; }
+            if (deductBtn) { deductBtn.style.background = '#dc2626'; deductBtn.style.color = '#fff'; deductBtn.style.borderColor = '#dc2626'; }
+        }
+        recalcQuotationTotal();
+    }
+
     function closeQuotationModal() {
         const modal = document.getElementById('quotationModal');
         modal.style.display = 'none';
@@ -1104,22 +1115,19 @@
         const note = document.getElementById('qmPriceNote').value.trim();
         const noteError = document.getElementById('qmNoteError');
 
-        // Require note when quotation is already sent/negotiating
-        const isSentState = window.qmCurrentStatus === 'sent' || window.qmCurrentStatus === 'negotiating';
-        if (isSentState && !note) {
+        const isSentState   = window.qmCurrentStatus === 'sent' || window.qmCurrentStatus === 'negotiating';
+        const adjustAmt     = parseFloat(document.getElementById('qmAdjustAmount')?.value || 0) || 0;
+        const adjustSign    = (window.qmAdjustSign === '+') ? 1 : -1;
+        const newPrice      = Math.max(0, (window.qmCurrentBase || 0) + adjustSign * adjustAmt);
+        const otherFees     = adjustSign * adjustAmt;
+
+        // Require note when sent/negotiating or when adjustment > 0
+        if ((isSentState || adjustAmt > 0) && !note) {
             if (noteError) noteError.style.display = 'block';
             document.getElementById('qmPriceNote').focus();
             return;
         }
         if (noteError) noteError.style.display = 'none';
-
-        let newPrice, otherFees = 0;
-        if (window.qmCurrentStatus === 'pending' || window.qmCurrentStatus === 'draft') {
-            newPrice = parseFloat(document.getElementById('qmFinalPriceInput')?.value || 0);
-        } else {
-            otherFees = parseFloat(document.getElementById('qmOtherFeesInput')?.value || 0);
-            newPrice  = Math.max(0, (window.qmEstimatedPrice || 0) + otherFees);
-        }
 
         const assignedUnitId = unitSelect ? (unitSelect.value || null) : null;
 

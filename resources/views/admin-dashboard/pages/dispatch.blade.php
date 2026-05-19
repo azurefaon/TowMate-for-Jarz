@@ -1424,9 +1424,13 @@
                             $schVExpiresLabel = $schVehicle->scheduled_expires_at
                                 ? $schVehicle->scheduled_expires_at->diffForHumans() : '—';
                             $schVSiblings = ($schVehicle->group_siblings ?? collect())->map(fn($s) => [
-                                'booking_code' => $s->booking_code ?? $s['booking_code'] ?? '',
-                                'status'       => $s->status ?? $s['status'] ?? '',
-                                'truck_type'   => $s->truckType?->name ?? $s['truck_type'] ?? '',
+                                'booking_code'   => $s->booking_code ?? $s['booking_code'] ?? '',
+                                'status'         => $s->status ?? $s['status'] ?? '',
+                                'truck_type'     => $s->truckType?->name ?? $s['truck_type'] ?? '',
+                                'service_type'   => $s->service_type ?? $s['service_type'] ?? 'book_now',
+                                'final_total'    => (float) ($s->final_total ?? $s['final_total'] ?? 0),
+                                'scheduled_date' => $s->scheduled_date ?? $s['scheduled_date'] ?? null,
+                                'scheduled_time' => $s->scheduled_time ?? $s['scheduled_time'] ?? null,
                             ])->values()->toArray();
                         @endphp
                         <div class="incoming-card {{ $schVIsConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }} {{ $isMultiSch ? 'incoming-card--group-child' : '' }}"
@@ -1445,6 +1449,7 @@
                             data-truck="{{ e($schVehicle->truckType->name ?? '—') }}"
                             data-ref="{{ e($schVehicle->job_code ?? '') }}"
                             data-final-total="{{ $schVehicle->final_total ?? 0 }}"
+                            data-group-code="{{ $schVehicle->group_code ?? '' }}"
                             data-group-siblings="{{ json_encode($schVSiblings) }}">
                             <div class="incoming-left">
                                 @if ($isMultiSch)
@@ -1485,7 +1490,14 @@
                                 @endif
                                 @if (!empty($schVSiblings))
                                     <div style="margin-top:8px; padding:7px 10px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.77rem;">
-                                        <div style="color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; font-size:0.68rem; margin-bottom:5px;">Part of group with:</div>
+                                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                                            <div style="color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; font-size:0.68rem;">Part of group with:</div>
+                                            <button type="button"
+                                                onclick="event.stopPropagation(); openCustomerBookingPanel(this.closest('[data-group-siblings]'))"
+                                                style="font-size:0.72rem; color:#15803d; background:none; border:none; cursor:pointer; padding:2px 4px; text-decoration:underline;">
+                                                View Full Booking
+                                            </button>
+                                        </div>
                                         @foreach ($schVSiblings as $sv)
                                             @php
                                                 $svStatusColor = match($sv['status'] ?? '') {
@@ -2226,6 +2238,25 @@
             </div>
         </div>
     </div>
+
+    <!-- Customer Booking Slide-out Panel -->
+    <div id="customerBookingPanel"
+         style="position:fixed; top:0; right:-420px; width:420px; height:100vh;
+                background:#fff; border-left:1px solid #e2e8f0; z-index:2000;
+                transition:right 0.3s ease; overflow-y:auto;
+                box-shadow:-4px 0 24px rgba(0,0,0,0.12);">
+        <div style="padding:16px 20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; background:#fff; z-index:1;">
+            <div>
+                <div style="font-size:0.95rem; font-weight:700; color:#0f172a;">Customer Booking</div>
+                <div id="cbpGroupCode" style="font-size:0.75rem; color:#94a3b8; font-family:monospace; margin-top:1px;"></div>
+            </div>
+            <button onclick="closeCustomerBookingPanel()" style="width:28px; height:28px; border:1px solid #e2e8f0; background:#f8fafc; cursor:pointer; font-size:1rem; color:#64748b; display:flex; align-items:center; justify-content:center;">×</button>
+        </div>
+        <div id="cbpCustomerInfo" style="padding:14px 20px; background:#f8fafc; border-bottom:1px solid #e2e8f0;"></div>
+        <div id="cbpBookingsList" style="padding:14px 20px; display:grid; gap:12px;"></div>
+    </div>
+    <div id="customerBookingOverlay" onclick="closeCustomerBookingPanel()"
+         style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.2); z-index:1999;"></div>
 
 @endsection
 

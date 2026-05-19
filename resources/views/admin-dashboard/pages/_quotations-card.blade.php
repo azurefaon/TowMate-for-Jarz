@@ -31,7 +31,7 @@
                 </div>
                 <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 1px;">
                     {{ $pendingQuotations->count() }} need{{ $pendingQuotations->count() === 1 ? 's' : '' }} sending
-                    &nbsp;·&nbsp; {{ $sentQuotations->count() }} awaiting response
+                    &nbsp;·&nbsp; {{ $sentQuotations->count() }} waiting for customer response
                     @if ($negotiatingQuotations->count() > 0)
                         &nbsp;·&nbsp; <span
                             style="color: #7e22ce; font-weight: 600;">{{ $negotiatingQuotations->count() }}
@@ -63,7 +63,7 @@
                 <!-- Sent / Waiting tab -->
                 <button type="button" id="fqTab-sent" onclick="switchFqTab('sent')"
                     style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.15s, border-color 0.15s; {{ $sentQuotations->count() === 0 ? 'opacity: 0.4;' : '' }}">
-                    Awaiting Reply
+                    Waiting for Customer
                     <span id="fqBadge-sent"
                         style="display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: #f1f5f9; color: #64748b;">
                         {{ $sentQuotations->count() }}
@@ -101,17 +101,28 @@
                                 $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
                                     'booking_code'    => $s->booking_code,
                                     'status'          => $s->status,
+                                    'truck_type'      => $s->truckType?->name ?? '',
                                     'truck_type_name' => $s->truckType?->name ?? '',
                                     'scheduled_date'  => optional($s->scheduled_date)->format('Y-m-d'),
                                     'scheduled_time'  => $s->scheduled_time,
                                     'service_type'    => $s->service_type,
+                                    'final_total'     => (float) ($s->final_total ?? 0),
                                 ])->values()->toArray();
+                    $qGroupCode = ($quotation->group_siblings ?? collect())->first()?->group_code ?? '';
                             @endphp
                             <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
                                 onclick="viewQuotationDetails({{ $quotation->id }})"
                                 onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
                                 onmouseout="this.style.boxShadow='none'"
-                                data-group-siblings="{{ json_encode($qSiblings) }}">
+                                data-group-siblings="{{ json_encode($qSiblings) }}"
+                                data-group-code="{{ $qGroupCode }}"
+                                data-queue="quotation"
+                                data-status="{{ $quotation->status }}"
+                                data-ref="{{ e($quotation->quotation_number) }}"
+                                data-customer="{{ e($quotation->customer->full_name ?? $quotation->customer->name ?? 'N/A') }}"
+                                data-phone="{{ e($quotation->customer->phone ?? 'N/A') }}"
+                                data-truck="{{ e($quotation->truckType?->name ?? '—') }}"
+                                data-final-total="{{ $quotation->estimated_price ?? 0 }}">
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                                     <div>
@@ -144,6 +155,13 @@
                                     style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
                                     <span
                                         style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
+                                    @if (($quotation->group_sibling_count ?? 0) > 0)
+                                        <button type="button"
+                                            onclick="event.stopPropagation(); openCustomerBookingPanel(this.closest('[data-group-siblings]'))"
+                                            style="font-size:0.72rem; color:#15803d; background:none; border:none; cursor:pointer; padding:2px 4px; text-decoration:underline;">
+                                            View Full Booking
+                                        </button>
+                                    @endif
                                 </div>
                             </div>
                         @endforeach
@@ -166,11 +184,14 @@
                                 $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
                                     'booking_code'    => $s->booking_code,
                                     'status'          => $s->status,
+                                    'truck_type'      => $s->truckType?->name ?? '',
                                     'truck_type_name' => $s->truckType?->name ?? '',
                                     'scheduled_date'  => optional($s->scheduled_date)->format('Y-m-d'),
                                     'scheduled_time'  => $s->scheduled_time,
                                     'service_type'    => $s->service_type,
+                                    'final_total'     => (float) ($s->final_total ?? 0),
                                 ])->values()->toArray();
+                    $qGroupCode = ($quotation->group_siblings ?? collect())->first()?->group_code ?? '';
                                 $accentColor = match ($urgency) {
                                     'urgent' => '#ef4444',
                                     'warning' => '#f59e0b',
@@ -196,7 +217,15 @@
                                 onclick="viewQuotationDetails({{ $quotation->id }})"
                                 onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
                                 onmouseout="this.style.boxShadow='none'"
-                                data-group-siblings="{{ json_encode($qSiblings) }}">
+                                data-group-siblings="{{ json_encode($qSiblings) }}"
+                                data-group-code="{{ $qGroupCode }}"
+                                data-queue="quotation"
+                                data-status="{{ $quotation->status }}"
+                                data-ref="{{ e($quotation->quotation_number) }}"
+                                data-customer="{{ e($quotation->customer->full_name ?? $quotation->customer->name ?? 'N/A') }}"
+                                data-phone="{{ e($quotation->customer->phone ?? 'N/A') }}"
+                                data-truck="{{ e($quotation->truckType?->name ?? '—') }}"
+                                data-final-total="{{ $quotation->estimated_price ?? 0 }}">
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                                     <div>
@@ -228,11 +257,20 @@
                                     </div>
                                 @endif
                                 <div
-                                    style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                    style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9; flex-wrap:wrap; gap:4px;">
                                     <span
                                         style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
-                                    <div style="font-size: 0.72rem; color: {{ $badgeColor }}; font-weight: 600;">
-                                        {{ $timeRemaining['message'] ?? '—' }}</div>
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <div style="font-size: 0.72rem; color: {{ $badgeColor }}; font-weight: 600;">
+                                            {{ $timeRemaining['message'] ?? '—' }}</div>
+                                        @if (($quotation->group_sibling_count ?? 0) > 0)
+                                            <button type="button"
+                                                onclick="event.stopPropagation(); openCustomerBookingPanel(this.closest('[data-group-siblings]'))"
+                                                style="font-size:0.72rem; color:#15803d; background:none; border:none; cursor:pointer; padding:2px 4px; text-decoration:underline;">
+                                                View Full Booking
+                                            </button>
+                                        @endif
+                                    </div>
                                 </div>
                             </div>
                         @endforeach
@@ -253,17 +291,28 @@
                                 $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
                                     'booking_code'    => $s->booking_code,
                                     'status'          => $s->status,
+                                    'truck_type'      => $s->truckType?->name ?? '',
                                     'truck_type_name' => $s->truckType?->name ?? '',
                                     'scheduled_date'  => optional($s->scheduled_date)->format('Y-m-d'),
                                     'scheduled_time'  => $s->scheduled_time,
                                     'service_type'    => $s->service_type,
+                                    'final_total'     => (float) ($s->final_total ?? 0),
                                 ])->values()->toArray();
+                    $qGroupCode = ($quotation->group_siblings ?? collect())->first()?->group_code ?? '';
                             @endphp
                             <div style="border: 1px solid #e9d5ff; border-left: 4px solid #a855f7; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
                                 onclick="viewQuotationDetails({{ $quotation->id }})"
                                 onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
                                 onmouseout="this.style.boxShadow='none'"
-                                data-group-siblings="{{ json_encode($qSiblings) }}">
+                                data-group-siblings="{{ json_encode($qSiblings) }}"
+                                data-group-code="{{ $qGroupCode }}"
+                                data-queue="quotation"
+                                data-status="{{ $quotation->status }}"
+                                data-ref="{{ e($quotation->quotation_number) }}"
+                                data-customer="{{ e($quotation->customer->full_name ?? $quotation->customer->name ?? 'N/A') }}"
+                                data-phone="{{ e($quotation->customer->phone ?? 'N/A') }}"
+                                data-truck="{{ e($quotation->truckType?->name ?? '—') }}"
+                                data-final-total="{{ $quotation->estimated_price ?? 0 }}">
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                                     <div>
@@ -298,14 +347,23 @@
                                     </div>
                                 @endif
                                 <div
-                                    style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                    style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9; flex-wrap:wrap; gap:4px;">
                                     <span
                                         style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
-                                    <button type="button"
-                                        onclick="event.stopPropagation(); viewQuotationDetails({{ $quotation->id }})"
-                                        style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; cursor: pointer;">
-                                        Review
-                                    </button>
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        @if (($quotation->group_sibling_count ?? 0) > 0)
+                                            <button type="button"
+                                                onclick="event.stopPropagation(); openCustomerBookingPanel(this.closest('[data-group-siblings]'))"
+                                                style="font-size:0.72rem; color:#15803d; background:none; border:none; cursor:pointer; padding:2px 4px; text-decoration:underline;">
+                                                View Full Booking
+                                            </button>
+                                        @endif
+                                        <button type="button"
+                                            onclick="event.stopPropagation(); viewQuotationDetails({{ $quotation->id }})"
+                                            style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; cursor: pointer;">
+                                            Review
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         @endforeach
