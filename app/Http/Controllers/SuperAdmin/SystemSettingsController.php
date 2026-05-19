@@ -54,8 +54,12 @@ class SystemSettingsController extends Controller
     public function uploadApk(Request $request)
     {
         $request->validate([
-            'apk_file' => ['required', 'file', 'mimes:apk', 'max:102400'], // 100 MB max
+            'apk_file' => ['required', 'file', 'max:102400'],
         ]);
+
+        if ($request->file('apk_file')->getClientOriginalExtension() !== 'apk') {
+            return back()->withErrors(['apk_file' => 'The file must be a .apk file.']);
+        }
 
         $dest = public_path('downloads');
         if (! is_dir($dest)) {
