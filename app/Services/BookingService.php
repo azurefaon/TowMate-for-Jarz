@@ -765,15 +765,36 @@ class BookingService
 
         $readyUnitsCount = $readyUnits->count();
 
+        // Build readyByClass from units whose TruckType has a class set.
         $readyByClass = $readyUnits
             ->filter(fn(Unit $unit) => filled($unit->truckType?->class))
             ->groupBy(fn(Unit $unit) => strtolower($unit->truckType->class))
             ->map->count()
             ->toArray();
 
-        // Also count online, non-busy TLs who may not yet have a unit assigned.
-        // This covers TLs created after the last deploy (unit auto-creation race)
-        // so the customer sees availability as long as any TL is ready.
+        // Track TL IDs already represented via their unit's truck class
+        // so we don't double-count them in the TL duty_class loops below.
+        $countedTlIds = $readyUnits
+            ->filter(fn(Unit $unit) => filled($unit->truckType?->class))
+            ->pluck('team_leader_id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->toArray();
+
+        // Ready units with no truck class set: fall back to the TL's duty_class.
+        foreach ($readyUnits->filter(fn(Unit $unit) => ! filled($unit->truckType?->class)) as $unit) {
+            $tlId = (int) ($unit->team_leader_id ?? 0);
+            if (in_array($tlId, $countedTlIds, true)) continue;
+            $tl    = User::find($tlId);
+            $class = strtolower((string) ($tl?->duty_class ?? ''));
+            if (filled($class)) {
+                $readyByClass[$class] = ($readyByClass[$class] ?? 0) + 1;
+                $countedTlIds[]       = $tlId;
+            }
+        }
+
+        // Online free TLs with no ready unit: contribute their duty_class.
         $onlineFreeTlLeaders = $teamLeaderStatuses->filter(function ($leader) use ($busyTeamLeaderIds) {
             return ($leader['presence'] ?? 'offline') === 'online'
                 && ! $busyTeamLeaderIds->contains((int) ($leader['id'] ?? 0));
@@ -781,13 +802,14 @@ class BookingService
 
         $onlineFreeTlCount = $onlineFreeTlLeaders->count();
 
-        // Merge TL duty_class into readyByClass so customers see graying by class
-        // even when a TL has no unit assigned yet.
         foreach ($onlineFreeTlLeaders as $leader) {
+            $tlId = (int) ($leader['id'] ?? 0);
+            if (in_array($tlId, $countedTlIds, true)) continue;
             $tl    = User::find($leader['id']);
             $class = strtolower((string) ($tl?->duty_class ?? ''));
             if (filled($class)) {
                 $readyByClass[$class] = ($readyByClass[$class] ?? 0) + 1;
+                $countedTlIds[]       = $tlId;
             }
         }
 
@@ -801,18 +823,6 @@ class BookingService
                 ? 'A dispatch-ready unit is available right now.'
                 : 'Immediate dispatch is currently unavailable. You can still proceed with your booking, and we\'ll assign your service as soon as possible.',
             'ready_by_class'           => $readyByClass,
-            '_debug'                   => [
-                'ready_units'       => $readyUnitsCount,
-                'online_free_tls'   => $onlineFreeTlCount,
-                'ready_by_class'    => $readyByClass,
-                'tl_statuses'       => $teamLeaderStatuses->map(fn($l) => [
-                    'id'        => $l['id'],
-                    'name'      => $l['name'],
-                    'presence'  => $l['presence'],
-                    'duty_class' => User::find($l['id'])?->duty_class,
-                    'last_ping_at' => User::find($l['id'])?->last_ping_at?->toDateTimeString(),
-                ])->values(),
-            ],
         ];
     }
 

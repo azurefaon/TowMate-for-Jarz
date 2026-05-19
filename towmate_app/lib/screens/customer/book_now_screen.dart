@@ -47,6 +47,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
   bool _bookNowEnabled = true;
   String? _availabilityMessage;
   Map<String, int> _readyByClass = {};
+  int _readyUnitsCount = 0;
 
   // Location (set by _LocationSection callbacks)
   LatLng? _pickupLatLng;
@@ -144,6 +145,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
     if (!mounted) return;
     setState(() {
       _bookNowEnabled = avail['book_now_enabled'] as bool? ?? true;
+      _readyUnitsCount = (avail['ready_units_count'] as num? ?? 0).toInt();
       _availabilityMessage = _bookNowEnabled
           ? null
           : (avail['message'] as String? ??
@@ -635,6 +637,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             onVehicleSet: _setExtraVehicle,
             onScheduleVehicleSet: _setExtraVehicleScheduled,
             readyByClass: _readyByClass,
+            readyUnitsCount: _readyUnitsCount,
             serviceType: _serviceType,
             usedClassCounts: {
               if (_selectedTruckType != null && _serviceType == 'book_now')
@@ -2577,6 +2580,7 @@ class _ExtraVehiclesSection extends StatelessWidget {
     required this.onVehicleSet,
     required this.onScheduleVehicleSet,
     required this.readyByClass,
+    required this.readyUnitsCount,
     required this.serviceType,
     required this.usedClassCounts,
   });
@@ -2589,6 +2593,7 @@ class _ExtraVehiclesSection extends StatelessWidget {
   final void Function(int, TruckTypeModel, VehicleTypeModel) onVehicleSet;
   final void Function(int, TruckTypeModel, VehicleTypeModel, DateTime, TimeOfDay) onScheduleVehicleSet;
   final Map<String, int> readyByClass;
+  final int readyUnitsCount;
   final String serviceType;
   final Map<String, int> usedClassCounts;
 
@@ -2618,6 +2623,7 @@ class _ExtraVehiclesSection extends StatelessWidget {
               onScheduleVehicleSet: onScheduleVehicleSet,
               usedClassCounts: usedClassCounts,
               readyByClass: readyByClass,
+              readyUnitsCount: readyUnitsCount,
               serviceType: serviceType,
             ),
           ),
@@ -2659,6 +2665,7 @@ class _ExtraVehicleSlot extends StatelessWidget {
     required this.onScheduleVehicleSet,
     required this.usedClassCounts,
     required this.readyByClass,
+    required this.readyUnitsCount,
     required this.serviceType,
   });
 
@@ -2670,6 +2677,7 @@ class _ExtraVehicleSlot extends StatelessWidget {
   final void Function(int, TruckTypeModel, VehicleTypeModel, DateTime, TimeOfDay) onScheduleVehicleSet;
   final Map<String, int> usedClassCounts;
   final Map<String, int> readyByClass;
+  final int readyUnitsCount;
   final String serviceType;
 
   @override
@@ -2789,10 +2797,15 @@ class _ExtraVehicleSlot extends StatelessWidget {
             final int othersUsed = (usedClassCounts[cls] ?? 0) - selfCount;
             final bool classGrayed =
                 isBookNow && readyByClass.isNotEmpty && available == 0;
+            final int totalBookNowUsed =
+                usedClassCounts.values.fold(0, (a, b) => a + b);
             final bool classFullForBookNow = isBookNow &&
-                readyByClass.isNotEmpty &&
-                available > 0 &&
-                othersUsed >= available;
+                ((readyByClass.isNotEmpty &&
+                        available > 0 &&
+                        othersUsed >= available) ||
+                    (readyByClass.isEmpty &&
+                        readyUnitsCount > 0 &&
+                        totalBookNowUsed >= readyUnitsCount));
             return Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
               child: Opacity(
