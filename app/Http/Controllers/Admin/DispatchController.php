@@ -108,8 +108,8 @@ class DispatchController extends Controller
         $delayedRequests = collect();
         $negotiationRequests = collect();
 
-        // â”€â”€ Book-Now queue: requested/reviewed/quoted/quotation_sent, NOT scheduled â”€â”€
-        // Exclude 'requested' bookings that already have a linked quotation â€” those are
+        // â"€â"€ Book-Now queue: requested/reviewed/quoted/quotation_sent, NOT scheduled â"€â"€
+        // Exclude 'requested' bookings that already have a linked quotation â€" those are
         // mobile app bookings and are surfaced in the Floating Quotations panel instead.
         $bookNowRequests = Booking::with(['customer', 'truckType'])
             ->whereIn('status', $this->reviewableStatuses)
@@ -129,7 +129,7 @@ class DispatchController extends Controller
         // ── Scheduled queue: scheduled_confirmed first (FIFO), then scheduled (FIFO) ──
         $scheduledRequests = Booking::with(['customer', 'truckType'])
             ->whereIn('status', ['scheduled_confirmed', 'scheduled'])
-            ->orderByRaw(“CASE WHEN status = ? THEN 0 ELSE 1 END”, ['scheduled_confirmed'])
+            ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", ['scheduled_confirmed'])
             ->oldest('created_at')  // FIFO within same status
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'scheduled'));
