@@ -1581,10 +1581,17 @@
                                 @elseif ($schVehicle->active_quotation_id ?? null)
                                     {{-- Active quotation exists — open it directly --}}
                                     <div style="margin-top:8px;">
+                                        @php
+                                            $schQBtn = match($schVehicle->active_quotation_status ?? '') {
+                                                'sent', 'negotiating' => 'View Quotation',
+                                                'draft'               => 'Open Draft',
+                                                default               => 'Set Price',  // pending — nothing recorded yet
+                                            };
+                                        @endphp
                                         <button type="button" class="btn-accept"
                                             onclick="viewQuotationDetails({{ $schVehicle->active_quotation_id }})"
-                                            title="Open existing quotation">
-                                            {{ in_array($schVehicle->active_quotation_status, ['sent','negotiating']) ? 'View Quotation' : 'Open Draft' }}
+                                            title="Open quotation for this booking">
+                                            {{ $schQBtn }}
                                         </button>
                                     </div>
                                 @else
