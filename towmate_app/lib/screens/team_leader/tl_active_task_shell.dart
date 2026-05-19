@@ -72,10 +72,23 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
     });
     _syncGps(task);
 
-    if (task == null ||
-        task.status == 'completed' ||
-        task.status == 'returned') {
+    // Keep polling on completed screen if this is a group booking with a
+    // remaining vehicle — dispatcher may assign Vehicle 2 at any time and
+    // we want the TL's screen to auto-transition without a manual tap.
+    final isGroupAwaitingNext = task != null &&
+        task.status == 'completed' &&
+        task.isGroupBooking &&
+        task.groupPosition < task.groupVehicleCount;
+
+    if (task == null || task.status == 'returned' ||
+        (task.status == 'completed' && !isGroupAwaitingNext)) {
       _pollTimer?.cancel();
+    } else if (isGroupAwaitingNext &&
+        (_pollTimer == null || !_pollTimer!.isActive)) {
+      _pollTimer = Timer.periodic(
+        const Duration(seconds: 20),
+        (_) => _fetchTask(),
+      );
     }
   }
 

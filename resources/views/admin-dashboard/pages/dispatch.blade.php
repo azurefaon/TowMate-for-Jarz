@@ -1455,6 +1455,8 @@
                                 'scheduled_date' => $s->scheduled_date ?? $s['scheduled_date'] ?? null,
                                 'scheduled_time' => $s->scheduled_time ?? $s['scheduled_time'] ?? null,
                             ])->values()->toArray();
+                            // If a sibling (Vehicle 1) is already completed, this vehicle is ready for immediate dispatch
+                            $schVSiblingCompleted = collect($schVSiblings)->contains(fn($s) => ($s['status'] ?? '') === 'completed');
                         @endphp
                         <div class="incoming-card {{ $schVIsConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }} {{ $isMultiSch ? 'incoming-card--group-child' : '' }}"
                             data-queue="scheduled"
@@ -1503,6 +1505,11 @@
                                     <span><strong>Truck:</strong> {{ $schVehicle->truckType->name ?? '—' }}</span>
                                     <span><strong>Ref:</strong> {{ $schGroupCode }}</span>
                                 </div>
+                                @if ($schVSiblingCompleted)
+                                    <div style="margin-top:8px; padding:7px 10px; background:#dcfce7; border-left:3px solid #16a34a; border-radius:4px; font-size:0.78rem; color:#15803d; font-weight:600;">
+                                        ✓ Vehicle 1 complete — dispatch this vehicle now regardless of scheduled time
+                                    </div>
+                                @endif
                                 @if ($schVScheduledFor)
                                     <div class="incoming-details"
                                         style="margin-top:6px;background:#facc1511;padding:6px 8px;border-left:3px solid #facc15;">
@@ -1555,11 +1562,11 @@
                             </div>
                             <div class="incoming-right">
                                 <div class="incoming-price">&#8369;{{ number_format((float) $schVehicle->final_total, 2) }}</div>
-                                @if ($schVIsConfirmed)
+                                @if ($schVIsConfirmed || $schVSiblingCompleted)
                                     <div style="margin-top:8px;">
                                         <button type="button" class="btn-accept"
                                             data-id="{{ $schVehicle->job_code ?? $schVehicle->id }}" data-action="accept"
-                                            title="Assign a unit to this scheduled booking">
+                                            title="Assign a unit and dispatch this vehicle now">
                                             Dispatch Now
                                         </button>
                                     </div>

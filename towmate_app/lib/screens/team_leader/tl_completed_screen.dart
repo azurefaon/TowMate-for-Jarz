@@ -30,12 +30,16 @@ class _TlCompletedScreenState extends State<TlCompletedScreen> {
     final next = await TeamLeaderService.getCurrentTask();
     if (!mounted) return;
     setState(() => _fetchingNext = false);
-    if (next != null && next.status != 'completed') {
+    if (next != null &&
+        next.status != 'completed' &&
+        next.status != 'returned') {
       widget.onUpdate?.call(next);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('No next vehicle task found. Check with dispatch.'),
-        duration: Duration(seconds: 3),
+        content: Text(
+          'Vehicle 2 not yet assigned. Screen will update automatically when dispatch assigns it.',
+        ),
+        duration: Duration(seconds: 5),
       ));
     }
   }
@@ -104,7 +108,7 @@ class _TlCompletedScreenState extends State<TlCompletedScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Return to the original pickup location to collect Vehicle ${widget.task.groupPosition + 1}.',
+                      'Return to the original pickup location to collect Vehicle ${widget.task.groupPosition + 1}. Screen updates automatically when assigned.',
                       style: GoogleFonts.inter(
                           color: TmColors.grey700, fontSize: 12),
                     ),
