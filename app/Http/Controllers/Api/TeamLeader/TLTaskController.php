@@ -36,9 +36,11 @@ class TLTaskController extends Controller
 
     public function current(Request $request): JsonResponse
     {
+        // Active tasks first; fall back to completed/returned only if nothing active
         $booking = Booking::where('assigned_team_leader_id', $request->user()->id)
             ->whereIn('status', self::TL_TASK_STATUSES)
             ->with(['customer', 'truckType', 'unit'])
+            ->orderByRaw("CASE WHEN status IN ('completed','returned') THEN 1 ELSE 0 END")
             ->latest()
             ->first();
 
@@ -223,7 +225,7 @@ class TLTaskController extends Controller
         if ($booking->group_code) {
             $sibling = Booking::where('group_code', $booking->group_code)
                 ->where('id', '!=', $booking->id)
-                ->whereIn('status', ['scheduled_confirmed', 'scheduled', 'confirmed'])
+                ->whereIn('status', ['requested', 'scheduled', 'scheduled_confirmed', 'confirmed'])
                 ->first();
             if ($sibling) {
                 $sibling->update([
