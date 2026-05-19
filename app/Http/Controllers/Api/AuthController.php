@@ -24,7 +24,7 @@ class AuthController extends Controller
         Cache::put('reg_otp_' . $email, $otp, now()->addMinutes(10));
 
         try {
-            Mail::to($email)->send(new RegistrationOtpMail($otp));
+            Mail::to($email)->queue(new RegistrationOtpMail($otp));
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('Registration OTP mail failed: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to send OTP. Check your email address.'], 500);

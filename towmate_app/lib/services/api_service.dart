@@ -812,14 +812,14 @@ class ApiService {
             headers: _headers,
             body: jsonEncode({'email': email}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 45));
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': body['success'] == true,
         'message': body['message'] as String? ?? '',
       };
     } on TimeoutException {
-      return {'success': false, 'message': 'Request timed out.'};
+      return {'success': false, 'message': 'Request timed out. Please check your connection and try again.'};
     } catch (_) {
       return {'success': false, 'message': 'Network error. Please try again.'};
     }
