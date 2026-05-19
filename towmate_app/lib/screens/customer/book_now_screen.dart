@@ -2785,77 +2785,76 @@ class _ExtraVehicleSlot extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           // Each truck class as a sub-section
-          ...truckTypes.where((t) => t.vehicleTypes.isNotEmpty).map((truck) {
+          Builder(builder: (context) {
             final bool isBookNow = serviceType == 'book_now';
-            final String cls = truck.truckClass.toLowerCase();
-            final int available = readyByClass[cls] ?? 0;
-            final int selfCount =
-                (data.truck?.truckClass.toLowerCase() == cls &&
-                        data.serviceType == 'book_now')
-                    ? 1
-                    : 0;
-            final int othersUsed = (usedClassCounts[cls] ?? 0) - selfCount;
-            final bool classGrayed =
-                isBookNow && readyByClass.isNotEmpty && available == 0;
             final int totalBookNowUsed =
                 usedClassCounts.values.fold(0, (a, b) => a + b);
-            final bool classFullForBookNow = isBookNow &&
-                ((readyByClass.isNotEmpty &&
-                        available > 0 &&
-                        othersUsed >= available) ||
-                    (readyByClass.isEmpty &&
-                        readyUnitsCount > 0 &&
-                        totalBookNowUsed >= readyUnitsCount));
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Opacity(
-                opacity: classGrayed ? 0.35 : 1.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      truck.name,
+            final int totalAvailable = readyByClass.isEmpty
+                ? readyUnitsCount
+                : readyByClass.values.fold(0, (a, b) => a + b);
+            final bool allUnitsTaken =
+                isBookNow && totalAvailable > 0 && totalBookNowUsed >= totalAvailable;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (allUnitsTaken)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                    child: Text(
+                      'No available units — tap any vehicle to schedule instead',
                       style: GoogleFonts.inter(
-                        color: context.textTertiary,
-                        fontSize: 11,
-                        letterSpacing: 0.4,
+                          color: TmColors.grey500, fontSize: 10),
+                    ),
+                  ),
+                ...truckTypes.where((t) => t.vehicleTypes.isNotEmpty).map((truck) {
+                  final String cls = truck.truckClass.toLowerCase();
+                  final int available = readyByClass[cls] ?? 0;
+                  final bool classGrayed =
+                      isBookNow && readyByClass.isNotEmpty && available == 0;
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                    child: Opacity(
+                      opacity: classGrayed ? 0.35 : 1.0,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            truck.name,
+                            style: GoogleFonts.inter(
+                              color: context.textTertiary,
+                              fontSize: 11,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: truck.vehicleTypes.map((v) {
+                              final selected =
+                                  data.vehicle?.id == v.id &&
+                                  data.truck?.id == truck.id;
+                              return _VehicleChip(
+                                label: v.name,
+                                selected: selected,
+                                onTap: classGrayed
+                                    ? () {}
+                                    : () {
+                                        if (allUnitsTaken) {
+                                          showScheduleDialog(truck, v);
+                                        } else {
+                                          onVehicleSet(truck, v);
+                                        }
+                                      },
+                              );
+                            }).toList(),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: truck.vehicleTypes.map((v) {
-                        final selected =
-                            data.vehicle?.id == v.id &&
-                            data.truck?.id == truck.id;
-                        return _VehicleChip(
-                          label: v.name,
-                          selected: selected,
-                          onTap: classGrayed
-                              ? () {}
-                              : () {
-                                  if (classFullForBookNow) {
-                                    showScheduleDialog(truck, v);
-                                  } else {
-                                    onVehicleSet(truck, v);
-                                  }
-                                },
-                        );
-                      }).toList(),
-                    ),
-                    if (classFullForBookNow)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          'All units reserved — tap to schedule instead',
-                          style: GoogleFonts.inter(
-                              color: TmColors.grey500, fontSize: 10),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+                  );
+                }),
+              ],
             );
           }),
         ],
