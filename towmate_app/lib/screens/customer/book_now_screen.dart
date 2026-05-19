@@ -261,6 +261,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
       // Route API failed — use straight-line distance so the user isn't stuck
       final fallback = _haversineKm(_pickupLatLng!, _dropoffLatLng!);
       setState(() {
+        _routePoints = [_pickupLatLng!, _dropoffLatLng!];
         _distanceKm = fallback;
         _durationMin = null;
         _loadingRoute = false;
@@ -1816,7 +1817,7 @@ class _LocationSectionState extends State<_LocationSection> {
                           polylines: [
                             Polyline(
                               points: widget.routePoints,
-                              color: TmColors.yellow,
+                              color: Colors.black,
                               strokeWidth: 3.0,
                             ),
                           ],
