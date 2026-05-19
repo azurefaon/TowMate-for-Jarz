@@ -25,7 +25,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int? _lastSeenQuotationId;
   String? _lastSeenStatus;
   bool _hasUnread = false;
+  int _unreadCount = 0;
   bool _initialLoad = true;
+  Timer? _notifTimer;
 
   @override
   void initState() {
@@ -36,12 +38,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     _loadData();
     _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _loadData());
+    _fetchUnreadCount();
+    _notifTimer = Timer.periodic(const Duration(seconds: 60), (_) => _fetchUnreadCount());
+  }
+
+  Future<void> _fetchUnreadCount() async {
+    final result = await ApiService.fetchNotifications();
+    if (!mounted) return;
+    final count = (result['unread_count'] as int?) ?? 0;
+    if (count != _unreadCount) {
+      setState(() {
+        _unreadCount = count;
+        _hasUnread = count > 0;
+      });
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
+    _notifTimer?.cancel();
     super.dispose();
   }
 
@@ -110,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _onBellTap() {
     ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-    setState(() => _hasUnread = false);
+    Navigator.pushNamed(context, '/notifications').then((_) => _fetchUnreadCount());
   }
 
   String get _greeting {
@@ -141,6 +158,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             _TopBar(
               onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
               hasUnread: _hasUnread,
+              unreadCount: _unreadCount,
               onBellTap: _onBellTap,
             ),
             Expanded(
@@ -292,10 +310,12 @@ class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.onMenuTap,
     required this.hasUnread,
+    required this.unreadCount,
     required this.onBellTap,
   });
   final VoidCallback onMenuTap;
   final bool hasUnread;
+  final int unreadCount;
   final VoidCallback onBellTap;
 
   @override
@@ -343,14 +363,24 @@ class _TopBar extends StatelessWidget {
                   ),
                   if (hasUnread)
                     Positioned(
-                      right: -2,
-                      top: -2,
+                      right: -4,
+                      top: -4,
                       child: Container(
-                        width: 8,
-                        height: 8,
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                         decoration: const BoxDecoration(
                           color: TmColors.error,
                           shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ),

@@ -9,6 +9,7 @@ import 'screens/customer/customer_quotation_screen.dart';
 import 'screens/customer/home_screen.dart';
 import 'screens/customer/login_screen.dart';
 import 'screens/customer/my_bookings_screen.dart';
+import 'screens/customer/notifications_screen.dart';
 import 'screens/customer/profile_screen.dart';
 import 'screens/customer/public_home_screen.dart';
 import 'screens/customer/services_screen.dart';
@@ -63,6 +64,7 @@ class MyApp extends StatelessWidget {
               '/tl-home'           => const TlHomeScreen(),
               '/tl-active-task'    => const TlActiveTaskShell(),
               '/profile'           => const ProfileScreen(),
+              '/notifications'     => const NotificationsScreen(),
               _                    => const PublicHomeScreen(),
             };
           }

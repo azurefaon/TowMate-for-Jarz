@@ -655,6 +655,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             extraVehicles: _extraVehicles,
             truckTypes: _truckTypes,
             canAdd: _extraVehicles.length < 5,
+            vehicleCount: _extraVehicles.length + 1,
             onAdd: _addExtraVehicle,
             onRemove: _removeExtraVehicle,
             onVehicleSet: _setExtraVehicle,
@@ -2600,6 +2601,7 @@ class _ExtraVehiclesSection extends StatelessWidget {
     required this.extraVehicles,
     required this.truckTypes,
     required this.canAdd,
+    required this.vehicleCount,
     required this.onAdd,
     required this.onRemove,
     required this.onVehicleSet,
@@ -2613,6 +2615,7 @@ class _ExtraVehiclesSection extends StatelessWidget {
   final List<_ExtraVehicleData> extraVehicles;
   final List<TruckTypeModel> truckTypes;
   final bool canAdd;
+  final int vehicleCount;
   final VoidCallback onAdd;
   final void Function(int) onRemove;
   final void Function(int, TruckTypeModel, VehicleTypeModel) onVehicleSet;
@@ -2629,13 +2632,26 @@ class _ExtraVehiclesSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'ADDITIONAL VEHICLES',
-            style: GoogleFonts.inter(
-              color: context.textSecondary,
-              fontSize: 11,
-              letterSpacing: 0.8,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'ADDITIONAL VEHICLES',
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 11,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              Text(
+                '$vehicleCount / 6 vehicles',
+                style: GoogleFonts.inter(
+                  color: vehicleCount >= 6 ? TmColors.error : context.textSecondary,
+                  fontSize: 11,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
           ),
           ...List.generate(
             extraVehicles.length,
@@ -2652,8 +2668,8 @@ class _ExtraVehiclesSection extends StatelessWidget {
               serviceType: serviceType,
             ),
           ),
-          if (canAdd) ...[
-            const SizedBox(height: 14),
+          const SizedBox(height: 14),
+          if (canAdd)
             GestureDetector(
               onTap: onAdd,
               child: Container(
@@ -2672,8 +2688,25 @@ class _ExtraVehiclesSection extends StatelessWidget {
                   ),
                 ),
               ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: context.surface,
+                border: Border.all(color: context.divider),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'Maximum 6 vehicles reached',
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 13,
+                  letterSpacing: 0.1,
+                ),
+              ),
             ),
-          ],
         ],
       ),
     );

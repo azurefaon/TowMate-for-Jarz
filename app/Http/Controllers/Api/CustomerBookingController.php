@@ -165,7 +165,10 @@ class CustomerBookingController extends Controller
         if (!empty($validated['extra_vehicles'])) {
             $decoded = json_decode($validated['extra_vehicles'], true);
             if (is_array($decoded) && count($decoded) > 0) {
-                $allExtraVehicles = array_slice($decoded, 0, 5);
+                if (count($decoded) > 5) {
+                    return response()->json(['success' => false, 'message' => 'Maximum 6 vehicles per booking.'], 422);
+                }
+                $allExtraVehicles = $decoded;
             }
         }
 

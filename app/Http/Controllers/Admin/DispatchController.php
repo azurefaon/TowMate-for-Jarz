@@ -134,6 +134,16 @@ class DispatchController extends Controller
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'scheduled'));
 
+        // Batch-load draft quotations for scheduled bookings (shows "Draft" pill on card)
+        $scheduledBookingIds = $scheduledRequests->pluck('id');
+        $draftQuotationMap = \App\Models\Quotation::whereIn('source_booking_id', $scheduledBookingIds)
+            ->where('status', 'draft')
+            ->pluck('status', 'source_booking_id');
+        $scheduledRequests = $scheduledRequests->map(function ($b) use ($draftQuotationMap) {
+            $b->has_draft_quotation = $draftQuotationMap->has($b->id);
+            return $b;
+        });
+
         // Batch-load group siblings for scheduled bookings (shows status of linked book_now vehicle)
         $scheduledGroupCodes = $scheduledRequests->pluck('group_code')->filter()->unique()->values();
         if ($scheduledGroupCodes->isNotEmpty()) {
@@ -1023,10 +1033,12 @@ class DispatchController extends Controller
 
     public function sendQuotation(Request $request, Quotation $quotation)
     {
-        if (!in_array($quotation->status, ['draft', 'pending'])) {
+        if ($quotation->status !== 'draft') {
             return response()->json([
                 'success' => false,
-                'message' => 'This quotation has already been sent or is no longer pending.',
+                'message' => $quotation->status === 'pending'
+                    ? 'Quotation must be recorded (drafted) before sending. Click "Record Quotation" first.'
+                    : 'This quotation has already been sent or cannot be resent.',
             ], 422);
         }
 
@@ -1217,6 +1229,18 @@ class DispatchController extends Controller
             }
         }
 
+        // In-app notification for mobile customers when price changes
+        if ($quotation->customer && $quotation->customer->user_id && $oldPrice !== $newPrice) {
+            $bookingCode = $quotation->sourceBooking?->booking_code ?? $sourceBooking?->booking_code;
+            \App\Services\CustomerNotificationService::send(
+                userId: $quotation->customer->user_id,
+                type: 'quotation_updated',
+                title: 'Your quotation price was updated',
+                body: 'The price for your booking has been revised. Tap to view the updated quotation.',
+                bookingCode: $bookingCode,
+            );
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Quotation price updated and email sent to customer successfully.',
@@ -1308,9 +1332,10 @@ class DispatchController extends Controller
 
         return response()->json([
             'success'          => true,
-            'message'          => 'Quotation saved as draft. Send it when ready.',
+            'message'          => 'Quotation recorded. Send it to the customer when ready.',
             'quotation_id'     => $quotation->id,
             'quotation_number' => $quotationNumber,
+            'quotation_status' => 'draft',
         ]);
     }
 

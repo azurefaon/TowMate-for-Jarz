@@ -366,10 +366,9 @@
                 style="padding: 8px 16px; border: 1px solid #fca5a5; background: #fff; color: #dc2626; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
                 Cancel Quotation
             </button>
-            <!-- Save as Draft (Schedule bookings only, shown when editable) -->
-            <button type="button" id="qmSaveDraftBtn" onclick="qmSaveAsDraft()" style="display:none;
+            <button type="button" id="qmRecordBtn" onclick="qmRecordQuotation()" style="display:none;
                 padding: 8px 16px; border: 1px solid #d1d5db; background: #f8fafc; color: #374151; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
-                Save as Draft
+                Record Quotation
             </button>
             <button type="button" id="qmUpdatePriceBtn" onclick="updateQuotationPrice()"
                 style="padding: 8px 16px; border: none; background: #334155; color: #fff; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
@@ -392,11 +391,12 @@
 
     // Tracks per-modal-open state
     const qmState = {
-        activeTab:    'quote',
-        bookingId:    null,   // source_booking_id for mobile bookings
-        serviceType:  null,   // 'book_now' | 'scheduled'
-        isMobile:     false,
-        draftSaved:   false,
+        activeTab:       'quote',
+        bookingId:       null,   // source_booking_id for mobile bookings
+        serviceType:     null,   // 'book_now' | 'scheduled'
+        isMobile:        false,
+        draftSaved:      false,
+        quotationStatus: '',     // '' | 'pending' | 'draft' | 'sent' | 'negotiating' | ...
     };
 
     // ── Tab switching ──────────────────────────────────────────────────────────
@@ -471,13 +471,14 @@
 
         // Land on Quote tab, update footer buttons
         qmSetTab('quote');
-        qmUpdateFooterButtons({ status: 'pending', service_type: 'scheduled' });
+        qmState.quotationStatus = 'pending';
+        qmRenderFooterButtons();
     }
 
-    // ── Save as Draft (Schedule mobile bookings) ────────────────────────────────
-    async function qmSaveAsDraft() {
+    // ── Record Quotation (draft-first flow) ────────────────────────────────────
+    async function qmRecordQuotation() {
         if (!qmState.bookingId) {
-            showModalMessage('No booking linked — cannot save draft.', 'error');
+            showModalMessage('No booking linked — cannot record quotation.', 'error');
             return;
         }
 
@@ -488,13 +489,13 @@
         const note       = document.getElementById('qmPriceNote')?.value?.trim() || '';
 
         if (price <= 0) {
-            showModalMessage('Please enter a valid price before saving.', 'error');
+            showModalMessage('Please enter a price before recording.', 'error');
             return;
         }
 
-        const btn = document.getElementById('qmSaveDraftBtn');
+        const btn = document.getElementById('qmRecordBtn');
         btn.disabled    = true;
-        btn.textContent = 'Saving…';
+        btn.textContent = 'Recording…';
 
         const payload = {
             price:            price,
@@ -517,32 +518,25 @@
             const data = await resp.json();
 
             if (data.success) {
-                // Update quotation ID for subsequent Send call
                 currentQuotationId = data.quotation_id;
-                qmState.draftSaved = true;
+                qmState.draftSaved      = true;
+                qmState.quotationStatus = 'draft';
 
                 // Show "Draft saved ✓" indicator
                 const indicator = document.getElementById('qmDraftSavedIndicator');
                 if (indicator) indicator.style.display = 'flex';
 
-                // Enable Send button
-                const sendBtn = document.getElementById('qmSendBtn');
-                if (sendBtn) {
-                    sendBtn.disabled = false;
-                    sendBtn.style.opacity = '1';
-                }
-
-                showModalMessage(data.message || 'Draft saved.', 'success');
-                btn.textContent = 'Update Draft';
+                showModalMessage(data.message || 'Quotation recorded. You can now send it to the customer.', 'success');
+                qmRenderFooterButtons();
             } else {
-                showModalMessage(data.message || 'Failed to save draft.', 'error');
-                btn.textContent = 'Save as Draft';
+                showModalMessage(data.message || 'Failed to record quotation.', 'error');
+                btn.disabled    = false;
+                btn.textContent = 'Record Quotation';
             }
         } catch (err) {
-            showModalMessage('Error saving draft: ' + err.message, 'error');
-            btn.textContent = 'Save as Draft';
-        } finally {
-            btn.disabled = false;
+            showModalMessage('Error recording quotation: ' + err.message, 'error');
+            btn.disabled    = false;
+            btn.textContent = 'Record Quotation';
         }
     }
 
@@ -915,76 +909,66 @@
                 }
 
                 // ── Button visibility ────────────────────────────────────────
-                qmUpdateFooterButtons(q);
+                qmState.quotationStatus = q.status;
+                qmRenderFooterButtons();
             })
             .catch(err => {
                 showModalMessage(`Error: ${err.message}`, 'error');
             });
     }
 
-    function qmUpdateFooterButtons(q) {
-        const sendBtn      = document.getElementById('qmSendBtn');
-        const updateBtn    = document.getElementById('qmUpdatePriceBtn');
-        const cancelBtn    = document.getElementById('qmCancelQuotationBtn');
-        const saveDraftBtn = document.getElementById('qmSaveDraftBtn');
+    function qmRenderFooterButtons() {
+        const status    = qmState.quotationStatus;
+        const recordBtn = document.getElementById('qmRecordBtn');
+        const sendBtn   = document.getElementById('qmSendBtn');
+        const updateBtn = document.getElementById('qmUpdatePriceBtn');
+        const cancelBtn = document.getElementById('qmCancelQuotationBtn');
         const noteRequired = document.getElementById('qmNoteRequiredBadge');
         const noteOptional = document.getElementById('qmNoteOptionalBadge');
 
-        const isScheduled = (q.service_type === 'scheduled' || q.service_type === 'schedule');
-        const status = q.status;
-
-        // Reset all
-        [sendBtn, updateBtn, cancelBtn, saveDraftBtn].forEach(function(b) {
-            if (b) { b.style.display = 'none'; b.disabled = false; }
+        // Reset all action buttons
+        [recordBtn, sendBtn, updateBtn, cancelBtn].forEach(function(b) {
+            if (b) { b.style.display = 'none'; b.disabled = false; b.style.opacity = '1'; }
         });
 
-        if (status === 'accepted' || status === 'rejected' || status === 'expired' || status === 'disregarded') {
-            // Terminal state — close only
+        // Terminal states — only Close button remains
+        if (['accepted', 'rejected', 'expired', 'disregarded'].includes(status)) {
             return;
         }
 
+        // Cancel shown for any non-terminal state that has a real quotation
+        if (currentQuotationId && cancelBtn) {
+            cancelBtn.style.display = 'inline-block';
+        }
+
         if (status === 'sent' || status === 'negotiating') {
-            // Already sent — allow revision and cancel
-            if (cancelBtn) cancelBtn.style.display = 'inline-block';
             if (updateBtn) {
                 updateBtn.style.display = 'inline-block';
                 updateBtn.textContent = 'Revise & Resend';
             }
-            // Note is REQUIRED when updating a sent quotation
             if (noteRequired) noteRequired.style.display = 'inline';
             if (noteOptional) noteOptional.style.display = 'none';
             return;
         }
 
-        // draft / pending — editable state
-        if (cancelBtn) cancelBtn.style.display = 'inline-block';
-        // Note is optional when saving draft or initial send
+        // pending / '' / draft — note is optional
         if (noteRequired) noteRequired.style.display = 'none';
         if (noteOptional) noteOptional.style.display = 'inline';
 
-        if (isScheduled && qmState.isMobile) {
-            // Schedule mobile: Save as Draft → then Send
-            if (saveDraftBtn) saveDraftBtn.style.display = 'inline-block';
+        if (status === 'draft') {
+            // Draft recorded — show Send + Edit Price
             if (sendBtn) {
                 sendBtn.style.display = 'inline-block';
                 sendBtn.textContent = 'Send to Customer';
-                // Disable Send until draft is explicitly saved
-                sendBtn.disabled = !qmState.draftSaved;
-                sendBtn.style.opacity = qmState.draftSaved ? '1' : '0.45';
-            }
-            // Hide Update Price (use Save as Draft instead)
-            if (updateBtn) updateBtn.style.display = 'none';
-        } else {
-            // Book Now or non-mobile Schedule: direct send
-            if (sendBtn) {
-                sendBtn.style.display = 'inline-block';
-                sendBtn.textContent = 'Send to Customer';
-                sendBtn.disabled = false;
-                sendBtn.style.opacity = '1';
             }
             if (updateBtn) {
                 updateBtn.style.display = 'inline-block';
-                updateBtn.textContent = status === 'pending' ? 'Update & Send' : 'Save Changes';
+                updateBtn.textContent = 'Edit Price';
+            }
+        } else {
+            // No quotation yet ('' or 'pending') — only Record
+            if (recordBtn) {
+                recordBtn.style.display = 'inline-block';
             }
         }
     }
@@ -1096,8 +1080,9 @@
         const modal = document.getElementById('quotationModal');
         modal.style.display = 'none';
         modal.setAttribute('aria-hidden', 'true');
+        qmState.quotationStatus = '';
+        qmState.draftSaved      = false;
         currentQuotationId = null;
-        // Reset draft saved indicator for next open
         const indicator = document.getElementById('qmDraftSavedIndicator');
         if (indicator) indicator.style.display = 'none';
     }

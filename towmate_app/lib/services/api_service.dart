@@ -927,4 +927,43 @@ class ApiService {
       return {'success': false, 'message': 'Network error. Please try again.'};
     }
   }
+
+  // ── Notifications ─────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> fetchNotifications() async {
+    try {
+      final token = await getToken();
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/v1/notifications'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200 && body['success'] == true) {
+        return {
+          'success': true,
+          'unread_count': (body['unread_count'] as num?)?.toInt() ?? 0,
+          'notifications': body['data'] as List<dynamic>? ?? [],
+        };
+      }
+      return {'success': false, 'unread_count': 0, 'notifications': []};
+    } on TimeoutException {
+      return {'success': false, 'unread_count': 0, 'notifications': []};
+    } catch (_) {
+      return {'success': false, 'unread_count': 0, 'notifications': []};
+    }
+  }
+
+  static Future<void> markAllNotificationsRead() async {
+    try {
+      final token = await getToken();
+      await http
+          .post(
+            Uri.parse('$baseUrl/v1/notifications/mark-read'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {}
+  }
 }

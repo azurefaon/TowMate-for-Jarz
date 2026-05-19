@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\TeamLeader\TLPresenceController;
 use App\Http\Controllers\Api\TeamLeader\TLTaskController;
 use App\Http\Controllers\Api\TeamLeader\TLLocationController;
 use App\Http\Controllers\Api\CustomerQuotationController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\GeoController;
 
@@ -89,6 +90,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('geo/search', [GeoController::class, 'search']);
         Route::post('geo/route', [GeoController::class, 'route']);
         Route::get('geo/reverse', [GeoController::class, 'reverse']);
+
+        // Customer notifications
+        Route::get('notifications',            [NotificationController::class, 'index']);
+        Route::post('notifications/mark-read', [NotificationController::class, 'markAllRead']);
+        Route::post('notifications/{id}/read', [NotificationController::class, 'markRead']);
 
         // Customer quotation routes (in-app flow)
         Route::prefix('quotations')->group(function () {

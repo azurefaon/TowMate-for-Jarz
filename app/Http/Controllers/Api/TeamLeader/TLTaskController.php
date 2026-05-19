@@ -6,6 +6,7 @@ use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Unit;
+use App\Services\CustomerNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -112,6 +113,23 @@ class TLTaskController extends Controller
         $booking->load(['customer', 'truckType', 'unit']);
 
         try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
+
+        // Notify customer on key status transitions
+        if ($booking->customer && $booking->customer->user_id) {
+            $notifMap = [
+                'on_the_way'     => 'Your tow truck is on the way',
+                'arrived_pickup' => 'Your tow truck has arrived at the pickup location',
+            ];
+            if (isset($notifMap[$newStatus])) {
+                CustomerNotificationService::send(
+                    userId: $booking->customer->user_id,
+                    type: 'booking_update',
+                    title: $notifMap[$newStatus],
+                    body: 'Booking ' . $booking->booking_code,
+                    bookingCode: $booking->booking_code,
+                );
+            }
+        }
 
         return response()->json([
             'success' => true,

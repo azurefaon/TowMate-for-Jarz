@@ -1490,6 +1490,9 @@
                                     <span class="status-badge {{ $schVehicle->status }}">
                                         {{ ucfirst(str_replace('_', ' ', $schVehicle->status)) }}
                                     </span>
+                                    @if ($schVehicle->has_draft_quotation ?? false)
+                                        <span style="background:#f59e0b;color:#0f172a;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;">Draft</span>
+                                    @endif
                                     <span class="wait-badge" data-wait></span>
                                 </div>
                                 <div class="incoming-route">

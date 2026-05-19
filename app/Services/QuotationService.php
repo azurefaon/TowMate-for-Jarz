@@ -6,6 +6,7 @@ use App\Events\BookingStatusUpdated;
 use App\Models\Booking;
 use App\Models\Quotation;
 use App\Models\TruckType;
+use App\Services\CustomerNotificationService;
 use Illuminate\Support\Facades\DB;
 
 class QuotationService
@@ -100,6 +101,18 @@ class QuotationService
                     'error' => $e->getMessage(),
                 ]);
             }
+        }
+
+        // In-app notification for mobile customers
+        if ($quotation->customer && $quotation->customer->user_id) {
+            $bookingCode = $quotation->sourceBooking?->booking_code;
+            CustomerNotificationService::send(
+                userId: $quotation->customer->user_id,
+                type: 'quotation_sent',
+                title: 'You have a new quotation to review',
+                body: 'A price has been prepared for your booking. Tap to review and accept.',
+                bookingCode: $bookingCode,
+            );
         }
 
         return $quotation->fresh();

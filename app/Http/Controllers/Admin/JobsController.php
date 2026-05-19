@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\BookingReceiptMail;
 use App\Models\Booking;
 use App\Models\User;
+use App\Services\CustomerNotificationService;
 use App\Services\DocumentGenerationService;
 use App\Services\TeamLeaderAvailabilityService;
 use Illuminate\Support\Facades\Mail;
@@ -66,6 +67,17 @@ class JobsController extends Controller
         }
 
         BookingStatusUpdated::safeFire($booking);
+
+        // Notify customer that their booking is complete
+        if ($booking->customer && $booking->customer->user_id) {
+            CustomerNotificationService::send(
+                userId: $booking->customer->user_id,
+                type: 'booking_update',
+                title: 'Your booking is complete',
+                body: 'Booking ' . $booking->booking_code . ' has been completed.',
+                bookingCode: $booking->booking_code,
+            );
+        }
 
         // PDF generation and email are deferred until after the HTTP response is sent
         // so the dispatcher sees the confirmation immediately instead of waiting 10-30s.

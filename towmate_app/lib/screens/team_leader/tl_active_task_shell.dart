@@ -287,6 +287,42 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
               ),
             ),
             TlStatusTimeline(currentStatus: task.status),
+            if (task.isGroupBooking) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: TmColors.yellow.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: TmColors.yellow.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.directions_car_rounded,
+                              size: 12, color: TmColors.black),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Vehicle ${task.groupPosition} of ${task.groupVehicleCount}',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: TmColors.black,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
           ],
         ),
