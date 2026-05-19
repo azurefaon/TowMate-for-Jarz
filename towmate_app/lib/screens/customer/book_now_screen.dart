@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' show max;
+import 'dart:math' show max, sin, cos, sqrt, atan2, pi;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -60,6 +60,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
   double? _distanceKm;
   double? _durationMin;
   bool _loadingRoute = false;
+  bool _routeFallback = false; // true when using straight-line fallback distance
 
   // Vehicle images
   final List<XFile> _vehicleImages = [];
@@ -209,12 +210,28 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _dropoffAddress = '';
       _routePoints = [];
       _distanceKm = null;
+      _routeFallback = false;
     });
+  }
+
+  static double _haversineKm(LatLng a, LatLng b) {
+    const r = 6371.0;
+    final dLat = (b.latitude - a.latitude) * pi / 180;
+    final dLng = (b.longitude - a.longitude) * pi / 180;
+    final h = sin(dLat / 2) * sin(dLat / 2) +
+        cos(a.latitude * pi / 180) *
+            cos(b.latitude * pi / 180) *
+            sin(dLng / 2) *
+            sin(dLng / 2);
+    return r * 2 * atan2(sqrt(h), sqrt(1 - h));
   }
 
   Future<void> _calculateRoute() async {
     if (_pickupLatLng == null || _dropoffLatLng == null) return;
-    setState(() => _loadingRoute = true);
+    setState(() {
+      _loadingRoute = true;
+      _routeFallback = false;
+    });
 
     final result = await ApiService.calculateRoute(
       _pickupLatLng!.latitude,
@@ -238,11 +255,16 @@ class _BookNowScreenState extends State<BookNowScreen> {
             ? (result['duration_min'] as num).toDouble()
             : null;
         _loadingRoute = false;
+        _routeFallback = false;
       });
     } else {
+      // Route API failed — use straight-line distance so the user isn't stuck
+      final fallback = _haversineKm(_pickupLatLng!, _dropoffLatLng!);
       setState(() {
+        _distanceKm = fallback;
+        _durationMin = null;
         _loadingRoute = false;
-        _loadingRoute = false;
+        _routeFallback = true;
       });
     }
   }
@@ -840,6 +862,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
         hint = 'Set a drop-off location to continue';
       } else if (_loadingRoute) {
         hint = 'Calculating route...';
+      } else if (_routeFallback) {
+        hint = 'Using estimated distance (route unavailable)';
       }
       onTap = _canProceedStep1 ? () => setState(() => _step = 1) : null;
     } else if (_step == 1) {
