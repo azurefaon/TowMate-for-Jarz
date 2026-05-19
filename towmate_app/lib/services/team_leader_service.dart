@@ -152,6 +152,22 @@ class TeamLeaderService {
     }
   }
 
+  static Future<Map<String, dynamic>> claimNextInGroup(String groupCode) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$_base/group/$groupCode/claim-next'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 15));
+      return _parseResult(response);
+    } on TimeoutException {
+      return {'success': false, 'message': 'Request timed out.'};
+    } catch (_) {
+      return {'success': false, 'message': 'Network error.'};
+    }
+  }
+
   static Future<Map<String, dynamic>> completeTask(
     String bookingCode,
     File? signature,

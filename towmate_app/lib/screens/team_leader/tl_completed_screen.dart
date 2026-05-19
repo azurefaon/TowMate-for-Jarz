@@ -27,19 +27,19 @@ class _TlCompletedScreenState extends State<TlCompletedScreen> {
 
   Future<void> _getNextVehicle() async {
     setState(() => _fetchingNext = true);
-    final next = await TeamLeaderService.getCurrentTask();
+    final result = await TeamLeaderService.claimNextInGroup(widget.task.groupCode!);
     if (!mounted) return;
     setState(() => _fetchingNext = false);
-    if (next != null &&
-        next.status != 'completed' &&
-        next.status != 'returned') {
-      widget.onUpdate?.call(next);
+    if (result['success'] == true && result['task'] != null) {
+      widget.onUpdate?.call(result['task'] as TaskModel);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
-          'Vehicle 2 not yet assigned. Screen will update automatically when dispatch assigns it.',
+          (result['message'] as String?)?.isNotEmpty == true
+              ? result['message'] as String
+              : 'Could not claim next vehicle. Please try again.',
         ),
-        duration: Duration(seconds: 5),
+        duration: const Duration(seconds: 5),
       ));
     }
   }

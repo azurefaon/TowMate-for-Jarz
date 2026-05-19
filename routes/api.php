@@ -117,6 +117,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('task/{booking}/return',   [TLTaskController::class, 'returnTask']);
             Route::post('task/{booking}/photo',    [TLTaskController::class, 'uploadPhoto']);
             Route::post('task/{booking}/complete', [TLTaskController::class, 'complete']);
+            Route::post('group/{groupCode}/claim-next', [TLTaskController::class, 'claimNext']);
             Route::put('location',                [TLLocationController::class, 'update']);
         });
 });

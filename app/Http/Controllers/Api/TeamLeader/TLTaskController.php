@@ -265,6 +265,54 @@ class TLTaskController extends Controller
         ]);
     }
 
+    public function claimNext(string $groupCode, Request $request): JsonResponse
+    {
+        $tl = $request->user();
+
+        // If auto-assign already ran (the common path), return the active sibling immediately
+        $alreadyAssigned = Booking::where('group_code', $groupCode)
+            ->where('assigned_team_leader_id', $tl->id)
+            ->whereIn('status', ['assigned', 'accepted', 'on_the_way', 'arrived_pickup',
+                'in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff', 'waiting_verification'])
+            ->first();
+
+        if ($alreadyAssigned) {
+            $alreadyAssigned->load(['customer', 'truckType', 'unit']);
+            return response()->json(['success' => true, 'data' => $this->formatTask($alreadyAssigned)]);
+        }
+
+        // Fallback: sibling still unassigned — TL self-assigns
+        $sibling = Booking::where('group_code', $groupCode)
+            ->whereNull('assigned_team_leader_id')
+            ->whereIn('status', ['requested', 'scheduled', 'scheduled_confirmed', 'confirmed'])
+            ->first();
+
+        if (! $sibling) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No available sibling booking found in this group.',
+            ], 404);
+        }
+
+        // Inherit unit from the TL's completed booking in the same group
+        $completedBooking = Booking::where('group_code', $groupCode)
+            ->where('assigned_team_leader_id', $tl->id)
+            ->where('status', 'completed')
+            ->first();
+
+        $sibling->update([
+            'assigned_team_leader_id' => $tl->id,
+            'assigned_unit_id'        => $completedBooking?->assigned_unit_id,
+            'status'                  => 'accepted',
+            'assigned_at'             => now(),
+        ]);
+        $sibling->load(['customer', 'truckType', 'unit']);
+
+        try { BookingStatusUpdated::safeFire($sibling); } catch (\Throwable) {}
+
+        return response()->json(['success' => true, 'data' => $this->formatTask($sibling)]);
+    }
+
     private function formatTask(Booking $booking): array
     {
         $customer = $booking->customer;
