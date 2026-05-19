@@ -67,27 +67,36 @@ class JobsController extends Controller
 
         BookingStatusUpdated::safeFire($booking);
 
-        // Generate final quotation PDF and receipt, then email customer
-        $documentService = app(DocumentGenerationService::class);
-
-        $finalQuotePath = $documentService->generateQuotation($booking, true);
-        $booking->update(['final_quote_path' => $finalQuotePath]);
-
-        $receipt = $documentService->generateReceipt($booking);
-
-        if (filled($booking->customer?->email)) {
+        // PDF generation and email are deferred until after the HTTP response is sent
+        // so the dispatcher sees the confirmation immediately instead of waiting 10-30s.
+        $bookingId = $booking->id;
+        app()->terminating(function () use ($bookingId) {
             try {
-                Mail::to($booking->customer->email)->send(
-                    new BookingReceiptMail($booking->fresh(['customer', 'truckType', 'receipt']))
-                );
-                $receipt->update(['email_sent' => true]);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Failed to send receipt email on complete', [
-                    'booking_id' => $booking->id,
+                $b = Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt'])
+                    ->find($bookingId);
+                if (! $b) {
+                    return;
+                }
+
+                $documentService = app(DocumentGenerationService::class);
+                $finalQuotePath  = $documentService->generateQuotation($b, true);
+                $b->update(['final_quote_path' => $finalQuotePath]);
+
+                $receipt = $documentService->generateReceipt($b);
+
+                if (filled($b->customer?->email)) {
+                    Mail::to($b->customer->email)->send(
+                        new BookingReceiptMail($b->fresh(['customer', 'truckType', 'receipt']))
+                    );
+                    $receipt->update(['email_sent' => true]);
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Background receipt generation failed', [
+                    'booking_id' => $bookingId,
                     'error'      => $e->getMessage(),
                 ]);
             }
-        }
+        });
 
         return response()->json([
             'success' => true,

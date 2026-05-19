@@ -1151,26 +1151,26 @@
                             data-created-at="{{ $booking->created_at->toISOString() }}"
                             data-customer-name="{{ e($booking->customer->full_name ?? 'Guest') }}"
                             data-customer-phone="{{ e($booking->customer->phone ?? 'N/A') }}"
-                            data-customer-email="{{ e($booking->customer->email ?? '—') }}"
-                            data-pickup="{{ e($booking->pickup_address ?? '') }}"
-                            data-dropoff="{{ e($booking->dropoff_address ?? '') }}"
-                            data-unit-name="{{ e($booking->unit->name ?? '—') }}"
-                            data-unit-plate="{{ e($booking->unit->plate_number ?? '—') }}"
-                            data-tl-name="{{ e($booking->unit->teamLeader->full_name ?? ($booking->unit->teamLeader->name ?? '—')) }}"
-                            data-tl-phone="{{ e($booking->unit->teamLeader->phone ?? '—') }}"
-                            data-driver-name="{{ e($booking->unit->driver->full_name ?? ($booking->unit->driver->name ?? ($booking->unit->driver_name ?? '—'))) }}"
+                            data-customer-email="{{ $booking->customer->email ?? '—' }}"
+                            data-pickup="{{ $booking->pickup_address ?? '' }}"
+                            data-dropoff="{{ $booking->dropoff_address ?? '' }}"
+                            data-unit-name="{{ $booking->unit->name ?? '—' }}"
+                            data-unit-plate="{{ $booking->unit->plate_number ?? '—' }}"
+                            data-tl-name="{{ $booking->unit->teamLeader->full_name ?? ($booking->unit->teamLeader->name ?? '—') }}"
+                            data-tl-phone="{{ $booking->unit->teamLeader->phone ?? '—' }}"
+                            data-driver-name="{{ $booking->unit->driver->full_name ?? ($booking->unit->driver->name ?? ($booking->unit->driver_name ?? '—')) }}"
                             data-final-total="{{ $booking->final_total ?? 0 }}"
-                            data-job-code="{{ e($booking->job_code ?? '—') }}"
-                            data-payment-method="{{ e($booking->payment_method ?? '') }}"
-                            data-payment-method-label="{{ e($cj_paymentMethodLabel) }}"
-                            data-payment-status-label="{{ e($cj_paymentStatusLabel) }}"
-                            data-payment-proof-url="{{ e(json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p), (array) $booking->payment_proof_path)) : [])) }}"
-                            data-paymongo-ref="{{ e($cj_paymongoRef) }}"
+                            data-job-code="{{ $booking->job_code ?? '—' }}"
+                            data-payment-method="{{ $booking->payment_method ?? '' }}"
+                            data-payment-method-label="{{ $cj_paymentMethodLabel }}"
+                            data-payment-status-label="{{ $cj_paymentStatusLabel }}"
+                            data-payment-proof-url="{{ json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p), (array) $booking->payment_proof_path)) : []) }}"
+                            data-paymongo-ref="{{ $cj_paymongoRef }}"
                             data-discount-percentage="{{ $booking->discount_percentage ?? 0 }}"
-                            data-discount-reason="{{ e($booking->discount_reason ?? '') }}"
+                            data-discount-reason="{{ $booking->discount_reason ?? '' }}"
                             data-computed-total="{{ $booking->computed_total ?? 0 }}"
                             data-distance-fee-amount="{{ $booking->distance_fee_amount ?? 0 }}"
-                            data-vehicle-image-url="{{ e($cj_vehicleImgUrl) }}"
+                            data-vehicle-image-url="{{ $cj_vehicleImgUrl }}"
                             data-truck-type-base-rate="{{ $booking->unit->truckType->base_rate ?? ($booking->base_rate ?? 0) }}"
                             data-pickup-lat="{{ $booking->pickup_lat ?? '' }}"
                             data-pickup-lng="{{ $booking->pickup_lng ?? '' }}">
@@ -1343,7 +1343,7 @@
                     @php
                         $bnPrimary = $bnGroupBookings->first();
                         $bnCount = $bnGroupBookings->count();
-                        $bnTotal = $bnGroupBookings->sum('final_total');
+                        $bnTotal = (float) ($bnPrimary->final_total ?? 0); // primary holds the full multi-vehicle total
                     @endphp
                     <div class="incoming-card" data-queue="book-now"
                         data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}" data-status="{{ $bnPrimary->status }}"
@@ -1375,8 +1375,13 @@
                                     style="margin-top:6px;border-left:3px solid #dcfce7;padding-left:8px;">
                                     @foreach ($bnGroupBookings as $bnIdx => $bnVehicle)
                                         <span>Vehicle {{ $bnIdx + 1 }}:
-                                            {{ $bnVehicle->truckType->name ?? 'Tow Truck' }} &middot;
-                                            &#8369;{{ number_format((float) ($bnVehicle->final_total ?? 0), 2) }}</span>
+                                            {{ $bnVehicle->truckType->name ?? 'Tow Truck' }}
+                                            @if ($bnIdx === 0)
+                                                &middot; <strong>Total: &#8369;{{ number_format((float) ($bnVehicle->final_total ?? 0), 2) }}</strong>
+                                            @else
+                                                &middot; &#8369;{{ number_format((float) ($bnVehicle->final_total ?? 0), 2) }} (incl. in total)
+                                            @endif
+                                        </span>
                                     @endforeach
                                 </div>
                             @else

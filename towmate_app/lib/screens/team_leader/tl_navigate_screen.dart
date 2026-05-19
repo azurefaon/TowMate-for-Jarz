@@ -32,6 +32,9 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
   LatLng get _dropoffPoint =>
       LatLng(widget.task.dropoffLat, widget.task.dropoffLng);
 
+  bool get _hasValidDropoff =>
+      widget.task.dropoffLat != 0.0 || widget.task.dropoffLng != 0.0;
+
   // Destination depends on what phase of the task we're in
   LatLng get _destinationPoint {
     return _isDropoffPhase ? _dropoffPoint : _pickupPoint;
@@ -197,12 +200,13 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
                         height: 28,
                         child: const _MapPin(label: 'P', dark: true),
                       ),
-                      Marker(
-                        point: _dropoffPoint,
-                        width: 28,
-                        height: 28,
-                        child: const _MapPin(label: 'D', dark: false),
-                      ),
+                      if (_hasValidDropoff)
+                        Marker(
+                          point: _dropoffPoint,
+                          width: 28,
+                          height: 28,
+                          child: const _MapPin(label: 'D', dark: false),
+                        ),
                       if (_currentPosition != null)
                         Marker(
                           point: _currentPosition!,

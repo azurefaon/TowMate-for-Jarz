@@ -193,7 +193,7 @@ class QuotationService
                     continue;
                 }
 
-                $evBooking = Booking::create([
+                Booking::create([
                     'quotation_id' => $quotation->id,
                     'group_code' => $groupCode,
                     'customer_id' => $quotation->customer_id,
@@ -226,18 +226,24 @@ class QuotationService
             $primaryBooking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
             BookingStatusUpdated::safeFire($primaryBooking);
 
-            if ($primaryBooking->customer && $primaryBooking->customer->email) {
+            DB::commit();
+
+            // Email deferred until after response to avoid Flutter 15s timeout
+            $bookingId = $primaryBooking->id;
+            app()->terminating(function () use ($bookingId) {
                 try {
-                    \Illuminate\Support\Facades\Mail::to($primaryBooking->customer->email)
-                        ->send(new \App\Mail\FinalQuotationConfirmedMail($primaryBooking));
-                } catch (\Exception $e) {
+                    $b = \App\Models\Booking::with(['customer', 'truckType'])->find($bookingId);
+                    if ($b && $b->customer && $b->customer->email) {
+                        \Illuminate\Support\Facades\Mail::to($b->customer->email)
+                            ->send(new \App\Mail\FinalQuotationConfirmedMail($b));
+                    }
+                } catch (\Throwable $e) {
                     \Illuminate\Support\Facades\Log::error('Failed to send booking confirmation email', [
-                        'booking_id' => $primaryBooking->id,
-                        'customer_email' => $primaryBooking->customer->email,
-                        'error' => $e->getMessage(),
+                        'booking_id' => $bookingId,
+                        'error'      => $e->getMessage(),
                     ]);
                 }
-            }
+            });
 
             return $primaryBooking;
         } catch (\Exception $e) {
