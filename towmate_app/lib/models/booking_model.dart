@@ -9,6 +9,7 @@ class BookingModel {
     this.distanceKm,
     this.computedTotal,
     this.createdAt,
+    this.groupCode,
     // Detail-only fields (nullable — not present in history list)
     this.teamLeaderName,
     this.driverName,
@@ -40,6 +41,7 @@ class BookingModel {
   final double? distanceKm;
   final double? computedTotal;
   final DateTime? createdAt;
+  final String? groupCode;
 
   // Detail-only fields
   final String? teamLeaderName;
@@ -106,6 +108,7 @@ class BookingModel {
       distanceKm: _d(j['distance_km']),
       computedTotal: _d(j['computed_total']),
       createdAt: j['created_at'] != null ? DateTime.tryParse(j['created_at'] as String) : null,
+      groupCode: j['group_code'] as String?,
       // Detail-only
       teamLeaderName: j['team_leader_name'] as String?,
       driverName: j['driver_name'] as String?,

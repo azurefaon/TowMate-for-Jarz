@@ -18,14 +18,11 @@ class TlLoadingScreen extends StatefulWidget {
 
 class _TlLoadingScreenState extends State<TlLoadingScreen> {
   final Map<String, bool> _checks = {
-    'Vehicle secured on flatbed': false,
-    'Safety straps / chains fastened': false,
-    'Lights and hazards verified': false,
     'Ready to transport': false,
   };
   bool _loading = false;
 
-  bool get _allChecked => _checks.values.every((v) => v);
+  bool get _allChecked => _checks['Ready to transport']!;
 
   Future<void> _proceed() async {
     setState(() => _loading = true);
@@ -66,7 +63,7 @@ class _TlLoadingScreenState extends State<TlLoadingScreen> {
                 style: GoogleFonts.inter(
                     color: TmColors.black, fontSize: 15, letterSpacing: -0.2)),
             const SizedBox(height: 4),
-            Text('Confirm all loading steps are complete.',
+            Text('Confirm vehicle is ready before starting transport.',
                 style: GoogleFonts.inter(
                     color: TmColors.grey500, fontSize: 12)),
             const SizedBox(height: 16),

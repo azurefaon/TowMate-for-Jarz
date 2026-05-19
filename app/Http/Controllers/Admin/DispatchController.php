@@ -179,6 +179,22 @@ class DispatchController extends Controller
             return $booking;
         });
 
+        // Batch-load group siblings for active/incoming bookings
+        $incomingGroupCodes = $incomingRequests->pluck('group_code')->filter()->unique()->values();
+        if ($incomingGroupCodes->isNotEmpty()) {
+            $incomingSiblingsByGroup = Booking::whereIn('group_code', $incomingGroupCodes)
+                ->whereNotIn('id', $incomingRequests->pluck('id'))
+                ->with('truckType')
+                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'scheduled_date', 'scheduled_time', 'group_code', 'final_total'])
+                ->groupBy('group_code');
+            $incomingRequests = $incomingRequests->map(function ($b) use ($incomingSiblingsByGroup) {
+                $b->group_siblings = $b->group_code
+                    ? $incomingSiblingsByGroup->get($b->group_code, collect())
+                    : collect();
+                return $b;
+            });
+        }
+
         $groupedIncoming = $incomingRequests->groupBy(fn($b) => $b->group_code ?: $b->booking_code);
         $groupedBookNow  = $bookNowRequests->groupBy(fn($b) => $b->group_code ?: $b->booking_code);
         $groupedScheduled = $scheduledRequests->groupBy(fn($b) => $b->group_code ?: $b->booking_code);

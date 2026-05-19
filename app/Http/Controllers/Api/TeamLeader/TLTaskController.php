@@ -164,7 +164,7 @@ class TLTaskController extends Controller
     {
         $validated = $request->validate([
             'photo' => 'required|file|mimes:jpg,jpeg,png|max:5120',
-            'type'  => 'required|in:arrival,dropoff,payment_proof',
+            'type'  => 'required|in:arrival,dropoff,payment_proof,inspection_damage',
         ]);
 
         if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
@@ -174,9 +174,10 @@ class TLTaskController extends Controller
         $path = $request->file('photo')->store('task-photos', 'public');
 
         $column = match ($validated['type']) {
-            'arrival'       => 'arrival_photo_path',
-            'dropoff'       => 'dropoff_photo_path',
-            'payment_proof' => 'payment_proof_path',
+            'arrival'            => 'arrival_photo_path',
+            'dropoff'            => 'dropoff_photo_path',
+            'payment_proof'      => 'payment_proof_path',
+            'inspection_damage'  => 'inspection_damage_photo_path',
         };
         $booking->update([$column => $path]);
 
@@ -216,23 +217,49 @@ class TLTaskController extends Controller
 
         $booking->update($updates);
 
-        // Free up the unit scoped to the assigned unit
-        if ($booking->assigned_unit_id) {
-            Unit::where('id', $booking->assigned_unit_id)
-                ->update(['status' => 'available']);
-        } else {
-            Unit::where('team_leader_id', $request->user()->id)
-                ->update(['status' => 'available']);
+        // Auto-assign TL to sibling scheduled booking (group booking support)
+        $nextTask = null;
+        $sibling  = null;
+        if ($booking->group_code) {
+            $sibling = Booking::where('group_code', $booking->group_code)
+                ->where('id', '!=', $booking->id)
+                ->whereIn('status', ['scheduled_confirmed', 'scheduled', 'confirmed'])
+                ->first();
+            if ($sibling) {
+                $sibling->update([
+                    'assigned_team_leader_id' => $booking->assigned_team_leader_id,
+                    'assigned_unit_id'        => $booking->assigned_unit_id,
+                    'status'                  => 'accepted',
+                    'assigned_at'             => now(),
+                ]);
+                $sibling->load(['customer', 'truckType', 'unit']);
+                $nextTask = $this->formatTask($sibling);
+            }
+        }
+
+        // Free the unit only when there is no sibling task for this TL
+        if (!$nextTask) {
+            if ($booking->assigned_unit_id) {
+                Unit::where('id', $booking->assigned_unit_id)
+                    ->update(['status' => 'available']);
+            } else {
+                Unit::where('team_leader_id', $request->user()->id)
+                    ->update(['status' => 'available']);
+            }
         }
 
         $booking->load(['customer', 'truckType', 'unit']);
 
         try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
+        if ($sibling) {
+            try { BookingStatusUpdated::safeFire($sibling); } catch (\Throwable) {}
+        }
 
         return response()->json([
-            'success' => true,
-            'message' => 'Task completed successfully.',
-            'data'    => $this->formatTask($booking),
+            'success'   => true,
+            'message'   => 'Task completed successfully.',
+            'data'      => $this->formatTask($booking),
+            'next_task' => $nextTask,
         ]);
     }
 

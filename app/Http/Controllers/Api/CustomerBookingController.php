@@ -112,6 +112,10 @@ class CustomerBookingController extends Controller
                 'final_total'     => (float) $b->final_total,
                 'truck_type_name' => $b->truckType?->name ?? '',
                 'created_at'      => $b->created_at?->toDateTimeString(),
+                'group_code'      => $b->group_code,
+                'service_type'    => $b->service_type,
+                'scheduled_date'  => $b->scheduled_date?->toDateString(),
+                'scheduled_time'  => $b->scheduled_time,
             ]);
 
         return response()->json($bookings);

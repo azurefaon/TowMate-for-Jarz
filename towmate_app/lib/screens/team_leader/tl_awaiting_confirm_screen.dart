@@ -37,6 +37,10 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
   bool _proofUploaded = false;
   bool _uploadingProof = false;
 
+  XFile? _cashProofFile;
+  bool _cashProofUploaded = false;
+  bool _uploadingCashProof = false;
+
   static const _paymentOptions = [
     (value: 'cash',          label: 'Cash',         icon: Icons.payments_rounded),
     (value: 'gcash',         label: 'GCash',        icon: Icons.account_balance_wallet_rounded),
@@ -77,6 +81,64 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
     final file = File('${dir.path}/sig_${DateTime.now().millisecondsSinceEpoch}.png');
     await file.writeAsBytes(bytes);
     return file;
+  }
+
+  void _showCashProofSource() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: TmColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              title: Text('Take Photo',
+                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 14)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndUploadCashProof(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              title: Text('Choose from Gallery',
+                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 14)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndUploadCashProof(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadCashProof(ImageSource source) async {
+    final file = await ImagePicker().pickImage(source: source, imageQuality: 85);
+    if (file == null || !mounted) return;
+    setState(() {
+      _cashProofFile = file;
+      _uploadingCashProof = true;
+    });
+    final res = await TeamLeaderService.uploadPhoto(
+        widget.task.bookingCode, file, 'payment_proof');
+    if (!mounted) return;
+    setState(() {
+      _uploadingCashProof = false;
+      _cashProofUploaded = res['success'] == true;
+      if (!_cashProofUploaded) _cashProofFile = null;
+    });
+    if (!_cashProofUploaded) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(res['message'] as String? ?? 'Upload failed.'),
+        backgroundColor: TmColors.error,
+      ));
+    }
   }
 
   void _showProofSource() {
@@ -265,6 +327,67 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
                 );
               }).toList(),
             ),
+
+            // ── Optional cash proof ─────────────────────────────────
+            if (_selectedPayment == 'cash') ...[
+              const SizedBox(height: 20),
+              Text('Proof of Payment (Optional)',
+                  style: GoogleFonts.inter(
+                      color: TmColors.black, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text('Take photo with customer or choose from gallery.',
+                  style: GoogleFonts.inter(
+                      color: TmColors.grey500, fontSize: 11)),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _uploadingCashProof ? null : _showCashProofSource,
+                child: Container(
+                  height: 120,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: TmColors.grey100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _cashProofUploaded
+                          ? TmColors.success
+                          : TmColors.grey300,
+                      width: _cashProofUploaded ? 1.5 : 1,
+                    ),
+                  ),
+                  child: _uploadingCashProof
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                              color: TmColors.yellow, strokeWidth: 2))
+                      : _cashProofFile != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: kIsWeb
+                                  ? Image.network(_cashProofFile!.path,
+                                      height: 120,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover)
+                                  : Image.file(File(_cashProofFile!.path),
+                                      height: 120,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover),
+                            )
+                          : Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.add_a_photo_outlined,
+                                      color: TmColors.grey500, size: 24),
+                                  const SizedBox(height: 4),
+                                  Text('Tap to add photo (optional)',
+                                      style: GoogleFonts.inter(
+                                          color: TmColors.grey500,
+                                          fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                ),
+              ),
+            ],
 
             // ── Payment proof (GCash / Bank Transfer only) ──────────
             if (_needsProof) ...[

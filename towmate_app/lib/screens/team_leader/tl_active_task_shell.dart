@@ -92,6 +92,13 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
     if (!mounted) return;
     setState(() => _task = updated);
     _syncGps(updated);
+    // Restart poll timer if transitioning back to an active task (e.g. next vehicle in group)
+    if (updated.isActive && (_pollTimer == null || !_pollTimer!.isActive)) {
+      _pollTimer = Timer.periodic(
+        const Duration(seconds: 20),
+        (_) => _fetchTask(),
+      );
+    }
   }
 
   @override
@@ -293,7 +300,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
         task: task,
         onUpdate: onTaskUpdated,
       ),
-      'completed' => TlCompletedScreen(task: task),
+      'completed' => TlCompletedScreen(task: task, onUpdate: onTaskUpdated),
       'returned' => TlReturnedScreen(task: task),
       _ => const Center(
         child: CircularProgressIndicator(color: TmColors.yellow),
@@ -399,7 +406,9 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
   }
 
   Widget _doneView(TaskModel task) {
-    if (task.status == 'completed') return TlCompletedScreen(task: task);
+    if (task.status == 'completed') {
+      return TlCompletedScreen(task: task, onUpdate: onTaskUpdated);
+    }
     return TlReturnedScreen(task: task);
   }
 

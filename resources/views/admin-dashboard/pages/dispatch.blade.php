@@ -1102,6 +1102,16 @@
                                     : ucfirst($booking->status));
 
                             // Extra data for Complete Job modal
+                            $incomingSiblings = ($booking->group_siblings ?? collect())->map(fn($s) => [
+                                'booking_code'   => $s->booking_code,
+                                'status'         => $s->status,
+                                'truck_type'     => $s->truckType?->name ?? '',
+                                'service_type'   => $s->service_type ?? 'schedule',
+                                'final_total'    => (float) ($s->final_total ?? 0),
+                                'scheduled_date' => optional($s->scheduled_date)->format('Y-m-d') ?? $s->scheduled_date,
+                                'scheduled_time' => $s->scheduled_time ?? null,
+                            ])->values()->toArray();
+
                             $cj_vehicleImgUrl = '';
                             if ($booking->vehicle_image_path) {
                                 $cj_paths = json_decode($booking->vehicle_image_path, true);
@@ -1129,6 +1139,12 @@
                         <div class="incoming-card {{ $booking->is_scheduled && !$booking->is_dispatch_delayed ? 'incoming-card--scheduled' : '' }} {{ $isMultiGroup ? 'incoming-card--group-child' : '' }}"
                             data-id="{{ $booking->job_code }}" data-status="{{ $booking->status }}"
                             data-queue="{{ $queueBucket }}" data-group-code="{{ $groupCode }}"
+                            data-group-siblings="{{ json_encode($incomingSiblings) }}"
+                            data-customer-name="{{ e($booking->customer->full_name ?? 'Guest') }}"
+                            data-customer-phone="{{ e($booking->customer->phone ?? 'N/A') }}"
+                            data-truck="{{ e($booking->truckType->name ?? 'Unknown') }}"
+                            data-final-total="{{ $booking->final_total ?? 0 }}"
+                            data-ref="{{ $booking->job_code }}"
                             data-service-mode="{{ $booking->service_mode }}"
                             data-scheduled-for="{{ optional($booking->scheduled_for)->toIso8601String() }}"
                             data-current-price="{{ $booking->final_total }}"
@@ -1316,6 +1332,13 @@
                                     <span style="font-size: 0.85rem; color: #64748b;">
                                         Booking is active and assigned to team leader
                                     </span>
+                                @endif
+                                @if (!empty($incomingSiblings))
+                                    <button type="button"
+                                        onclick="event.stopPropagation(); openCustomerBookingPanel(this.closest('[data-group-siblings]'))"
+                                        style="font-size:0.72rem; color:#15803d; background:none; border:none; cursor:pointer; padding:2px 4px; text-decoration:underline; margin-left:8px;">
+                                        View Full Booking
+                                    </button>
                                 @endif
                             </div>
 
