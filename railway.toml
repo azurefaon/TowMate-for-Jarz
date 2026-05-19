@@ -7,4 +7,4 @@ builder = "nixpacks"
 releaseCommand = "php artisan migrate --force && php artisan db:seed --class=SuperAdminSeeder --force && php artisan db:seed --class=TruckTypeSeeder --force && php artisan db:seed --class=UnitSeeder --force"
 
 # PHP built-in server + queue worker (background) for async email dispatch.
-startCommand = "php artisan queue:work --sleep=3 --tries=3 --timeout=60 & php -d upload_max_filesize=110M -d post_max_size=115M -S 0.0.0.0:$PORT -t public server.php"
+startCommand = "php artisan queue:work --sleep=3 --tries=3 --timeout=120 & php -d upload_max_filesize=110M -d post_max_size=115M -S 0.0.0.0:$PORT -t public server.php"
