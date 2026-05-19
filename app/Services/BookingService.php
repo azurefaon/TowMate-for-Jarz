@@ -801,6 +801,18 @@ class BookingService
                 ? 'A dispatch-ready unit is available right now.'
                 : 'Immediate dispatch is currently unavailable. You can still proceed with your booking, and we\'ll assign your service as soon as possible.',
             'ready_by_class'           => $readyByClass,
+            '_debug'                   => [
+                'ready_units'       => $readyUnitsCount,
+                'online_free_tls'   => $onlineFreeTlCount,
+                'ready_by_class'    => $readyByClass,
+                'tl_statuses'       => $teamLeaderStatuses->map(fn($l) => [
+                    'id'        => $l['id'],
+                    'name'      => $l['name'],
+                    'presence'  => $l['presence'],
+                    'duty_class' => User::find($l['id'])?->duty_class,
+                    'last_ping_at' => User::find($l['id'])?->last_ping_at?->toDateTimeString(),
+                ])->values(),
+            ],
         ];
     }
 

@@ -52,6 +52,7 @@ class CustomerBookingController extends Controller
             'recommended_service_type' => $data['recommended_service_type'],
             'message'                  => $data['message'],
             'ready_by_class'           => $data['ready_by_class'] ?? (object) [],
+            '_debug'                   => $data['_debug'] ?? null,
         ]);
     }
 
