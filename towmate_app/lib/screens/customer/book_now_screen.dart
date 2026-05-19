@@ -2686,12 +2686,12 @@ class _ExtraVehicleSlot extends StatelessWidget {
 
     void showScheduleDialog(TruckTypeModel truck, VehicleTypeModel v) async {
       final now = DateTime.now();
-      final tomorrow = DateTime(now.year, now.month, now.day + 1);
+      final today = DateTime(now.year, now.month, now.day);
       final date = await showDatePicker(
         context: context,
-        initialDate: tomorrow,
-        firstDate: tomorrow,
-        lastDate: tomorrow.add(const Duration(days: 30)),
+        initialDate: today,
+        firstDate: today,
+        lastDate: today.add(const Duration(days: 30)),
       );
       if (date == null || !context.mounted) return;
 

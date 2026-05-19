@@ -82,6 +82,12 @@
                     </span>
                 </div>
 
+                <!-- Linked Scheduled Vehicles section -->
+                <div id="qmLinkedVehicles" style="display:none; background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 16px; margin-bottom:14px;">
+                    <div style="font-size:0.7rem; font-weight:700; color:#15803d; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:8px;">Linked Scheduled Vehicles</div>
+                    <div id="qmLinkedVehiclesList"></div>
+                </div>
+
                 <!-- Quotation number + Customer info -->
                 <div style="margin-bottom: 18px;">
                     <div style="display: inline-flex; align-items: center; gap: 8px; background: #eff6ff; border: 1px solid #bfdbfe; padding: 6px 13px; margin-bottom: 10px;">
@@ -337,6 +343,15 @@
                         <span style="color: #78350f; font-weight: 600;">Message:</span>
                         <span style="color: #374151;" id="qmCounterOfferNote">—</span>
                     </div>
+                </div>
+
+                <!-- Price History (collapsible) -->
+                <div id="qmPriceHistorySection" style="display:none; margin-top:14px; border:1px solid #e2e8f0; overflow:hidden;">
+                    <button type="button" onclick="qmTogglePriceHistory()" style="width:100%; padding:10px 14px; background:#f8fafc; border:none; text-align:left; cursor:pointer; font-size:0.78rem; font-weight:600; color:#374151; display:flex; justify-content:space-between; align-items:center;">
+                        <span>Price History</span>
+                        <span id="qmPriceHistoryCount" style="font-size:0.72rem; background:#e2e8f0; color:#64748b; padding:1px 7px; border-radius:999px;"></span>
+                    </button>
+                    <div id="qmPriceHistoryBody" style="display:none; padding:12px 14px;"></div>
                 </div>
 
             </div>
@@ -835,6 +850,75 @@
                     counterSection.style.display = 'none';
                 }
 
+                // ── Linked scheduled vehicles ────────────────────────────────
+                const linkedSection = document.getElementById('qmLinkedVehicles');
+                const linkedList    = document.getElementById('qmLinkedVehiclesList');
+                if (linkedSection && linkedList) {
+                    const siblings = q.group_siblings || [];
+                    if (siblings.length > 0) {
+                        linkedList.innerHTML = '';
+                        siblings.forEach(function(s) {
+                            const statusColors = {
+                                scheduled:   {bg:'#f1f5f9', color:'#475569', label:'Scheduled'},
+                                in_progress: {bg:'#fef9c3', color:'#a16207', label:'In Progress'},
+                                completed:   {bg:'#dcfce7', color:'#15803d', label:'Completed'},
+                                cancelled:   {bg:'#fee2e2', color:'#dc2626', label:'Cancelled'},
+                            };
+                            const sc = statusColors[s.status] || statusColors.scheduled;
+                            const clsMap = {Heavy:'#c2410c', Medium:'#15803d', Light:'#1d4ed8'};
+                            const clsColor = clsMap[s.truck_class] || '#475569';
+                            const sched = s.scheduled_date
+                                ? `${s.scheduled_date}${s.scheduled_time ? ' ' + s.scheduled_time : ''}`
+                                : '—';
+                            const row = document.createElement('div');
+                            row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #d1fae5; font-size:0.82rem; flex-wrap:wrap;';
+                            row.innerHTML = `
+                                <span style="font-family:monospace; font-weight:700; color:#15803d;">${s.booking_code}</span>
+                                <span style="color:#374151; font-weight:600;">${s.truck_type || '—'}</span>
+                                ${s.truck_class ? `<span style="font-size:0.65rem; font-weight:700; color:${clsColor}; text-transform:uppercase;">${s.truck_class}</span>` : ''}
+                                <span style="color:#64748b;">· ${sched}</span>
+                                <span style="margin-left:auto; font-size:0.72rem; font-weight:700; padding:2px 8px; border-radius:999px; background:${sc.bg}; color:${sc.color};">${sc.label}</span>
+                            `;
+                            linkedList.appendChild(row);
+                        });
+                        linkedSection.style.display = 'block';
+                    } else {
+                        linkedSection.style.display = 'none';
+                    }
+                }
+
+                // ── Price history ────────────────────────────────────────────
+                const phSection = document.getElementById('qmPriceHistorySection');
+                const phBody    = document.getElementById('qmPriceHistoryBody');
+                const phCount   = document.getElementById('qmPriceHistoryCount');
+                if (phSection && phBody) {
+                    const log = q.price_change_log || [];
+                    if (log.length > 0) {
+                        if (phCount) phCount.textContent = log.length;
+                        phBody.innerHTML = '';
+                        log.forEach(function(entry) {
+                            const row = document.createElement('div');
+                            row.style.cssText = 'padding:6px 0; border-bottom:1px solid #f1f5f9; font-size:0.8rem; color:#374151;';
+                            const ts = entry.at ? new Date(entry.at).toLocaleString('en-PH', {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
+                            const oldP = `₱${parseFloat(entry.old||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+                            const newP = `₱${parseFloat(entry.new||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+                            row.innerHTML = `
+                                <span style="color:#94a3b8; font-size:0.72rem;">${ts}</span>
+                                &nbsp;
+                                <span style="color:#dc2626; text-decoration:line-through;">${oldP}</span>
+                                &nbsp;→&nbsp;
+                                <strong style="color:#16a34a;">${newP}</strong>
+                                ${entry.reason ? `&nbsp;·&nbsp;<em style="color:#64748b;">"${entry.reason}"</em>` : ''}
+                                ${entry.by ? `&nbsp;·&nbsp;<span style="color:#94a3b8;">by ${entry.by}</span>` : ''}
+                            `;
+                            phBody.appendChild(row);
+                        });
+                        phSection.style.display = 'block';
+                    } else {
+                        phSection.style.display = 'none';
+                    }
+                }
+
                 // ── Button visibility ────────────────────────────────────────
                 qmUpdateFooterButtons(q);
             })
@@ -983,6 +1067,11 @@
             hint.style.color = visibleCount > 0 ? '#94a3b8' : '#ef4444';
         }
     };
+
+    function qmTogglePriceHistory() {
+        const body = document.getElementById('qmPriceHistoryBody');
+        if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    }
 
     // ── Utility ──────────────────────────────────────────────────────────────
     function fmt(val) {

@@ -157,32 +157,37 @@ class CustomerBookingController extends Controller
         $distanceFee   = round($extraDistance * 300.0, 2);
 
         // Decode extra vehicles sent as JSON string from multipart
-        $extraVehicles = null;
+        $allExtraVehicles = null;
         if (!empty($validated['extra_vehicles'])) {
             $decoded = json_decode($validated['extra_vehicles'], true);
             if (is_array($decoded) && count($decoded) > 0) {
-                $extraVehicles = array_slice($decoded, 0, 5);
+                $allExtraVehicles = array_slice($decoded, 0, 5);
             }
         }
 
-        // Price each extra vehicle and accumulate their base rates
+        // Split extras: book_now stays on primary booking, schedule becomes sibling bookings
+        $scheduleExtras = array_values(array_filter($allExtraVehicles ?? [], fn($ev) => ($ev['service_type'] ?? 'book_now') === 'schedule'));
+        $bookNowExtras  = array_values(array_filter($allExtraVehicles ?? [], fn($ev) => ($ev['service_type'] ?? 'book_now') !== 'schedule'));
+
+        // Price each book_now extra and accumulate their base rates into the primary total
         $extraVehiclesTotalBase = 0.0;
-        if ($extraVehicles) {
-            $extraTruckTypeIds = array_column($extraVehicles, 'truck_type_id');
+        $pricedBookNowExtras    = [];
+        if (!empty($bookNowExtras)) {
+            $extraTruckTypeIds = array_column($bookNowExtras, 'truck_type_id');
             $extraTruckTypes   = TruckType::whereIn('id', $extraTruckTypeIds)
                 ->get(['id', 'base_rate'])
                 ->keyBy('id');
 
-            $extraVehicles = array_map(function ($ev) use ($extraTruckTypes, &$extraVehiclesTotalBase) {
+            $pricedBookNowExtras = array_map(function ($ev) use ($extraTruckTypes, &$extraVehiclesTotalBase) {
                 $evTruck = $extraTruckTypes->get($ev['truck_type_id'] ?? 0);
                 $evBase  = (float) ($evTruck?->base_rate ?? 0);
                 $evTotal = round($evBase * 1.12, 2);
                 $extraVehiclesTotalBase += $evBase;
                 return array_merge($ev, ['estimated_price' => $evTotal]);
-            }, $extraVehicles);
+            }, $bookNowExtras);
         }
 
-        // Total = all vehicle base rates + shared distance fee, then + 12% VAT
+        // Total = primary + book_now extras base rates + shared distance fee, then + 12% VAT
         $allVehiclesBase = (float) $truckType->base_rate + $extraVehiclesTotalBase;
         $computedTotal   = round($allVehiclesBase + $distanceFee, 2);
         $finalTotal      = round($computedTotal * 1.12, 2);
@@ -210,7 +215,7 @@ class CustomerBookingController extends Controller
             'notes'            => $validated['notes'] ?? null,
             'scheduled_date'   => $validated['scheduled_date'] ?? null,
             'scheduled_time'   => $validated['scheduled_time'] ?? null,
-            'extra_vehicles'   => $extraVehicles,
+            'extra_vehicles'   => !empty($pricedBookNowExtras) ? $pricedBookNowExtras : null,
         ]);
 
         $booking->update(['booking_code' => 'TM-' . str_pad($booking->id, 5, '0', STR_PAD_LEFT)]);
@@ -233,6 +238,52 @@ class CustomerBookingController extends Controller
             ]);
         }
 
+        // Create sibling bookings for each scheduled extra vehicle, linked by group_code
+        if (!empty($scheduleExtras)) {
+            $groupCode = 'GRP-' . str_pad($booking->id, 6, '0', STR_PAD_LEFT);
+            $booking->update(['group_code' => $groupCode]);
+
+            $scheduleExtraTruckIds   = array_column($scheduleExtras, 'truck_type_id');
+            $scheduleExtraTruckTypes = TruckType::whereIn('id', $scheduleExtraTruckIds)
+                ->get(['id', 'base_rate', 'per_km_rate'])
+                ->keyBy('id');
+
+            foreach ($scheduleExtras as $ev) {
+                $evTruckType = $scheduleExtraTruckTypes->get($ev['truck_type_id'] ?? 0);
+                if (!$evTruckType) continue;
+
+                $evBase  = (float) $evTruckType->base_rate;
+                $evTotal = round($evBase * 1.12, 2);
+
+                $sibling = Booking::create([
+                    'customer_id'       => $customer->id,
+                    'truck_type_id'     => $ev['truck_type_id'],
+                    'vehicle_type_id'   => $ev['vehicle_type_id'] ?? null,
+                    'pickup_address'    => $validated['pickup_address'],
+                    'pickup_lat'        => $validated['pickup_lat'],
+                    'pickup_lng'        => $validated['pickup_lng'],
+                    'dropoff_address'   => $validated['dropoff_address'],
+                    'dropoff_lat'       => $validated['dropoff_lat'],
+                    'dropoff_lng'       => $validated['dropoff_lng'],
+                    'distance_km'       => $distanceKm,
+                    'base_rate'         => $evTruckType->base_rate,
+                    'per_km_rate'       => $evTruckType->per_km_rate,
+                    'computed_total'    => $evBase,
+                    'final_total'       => $evTotal,
+                    'additional_fee'    => 0,
+                    'status'            => 'scheduled',
+                    'service_type'      => 'schedule',
+                    'customer_type'     => $customer->customer_type ?? 'regular',
+                    'confirmation_type' => 'mobile',
+                    'notes'             => $validated['notes'] ?? null,
+                    'scheduled_date'    => $ev['scheduled_date'] ?? null,
+                    'scheduled_time'    => $ev['scheduled_time'] ?? null,
+                    'group_code'        => $groupCode,
+                ]);
+                $sibling->update(['booking_code' => 'TM-' . str_pad($sibling->id, 5, '0', STR_PAD_LEFT)]);
+            }
+        }
+
         // Auto-create a pending quotation for Book Now bookings only.
         // Schedule bookings land in the Booking Queue (status='scheduled') directly.
         if (($validated['service_type'] ?? 'book_now') !== 'schedule') {
@@ -249,7 +300,7 @@ class CustomerBookingController extends Controller
                     'scheduled_date'     => $validated['scheduled_date'] ?? null,
                     'scheduled_time'     => $validated['scheduled_time'] ?? null,
                     'vehicle_image_path' => $booking->vehicle_image_path,
-                    'extra_vehicles'     => $extraVehicles,
+                    'extra_vehicles'     => !empty($pricedBookNowExtras) ? $pricedBookNowExtras : null,
                     'pickup_notes'       => $validated['notes'] ?? null,
                 ]);
                 $booking->update(['quotation_id' => $quotation->id]);
@@ -264,6 +315,7 @@ class CustomerBookingController extends Controller
         return response()->json([
             'success'      => true,
             'booking_code' => $booking->booking_code,
+            'group_code'   => $booking->group_code,
             'message'      => 'Booking submitted successfully.',
         ], 201);
     }

@@ -126,13 +126,29 @@ class DispatchController extends Controller
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'book-now'));
 
-        // â”€â”€ Scheduled queue: scheduled_confirmed first (FIFO), then scheduled (FIFO) â”€â”€
+        // ── Scheduled queue: scheduled_confirmed first (FIFO), then scheduled (FIFO) ──
         $scheduledRequests = Booking::with(['customer', 'truckType'])
             ->whereIn('status', ['scheduled_confirmed', 'scheduled'])
-            ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", ['scheduled_confirmed'])
+            ->orderByRaw(“CASE WHEN status = ? THEN 0 ELSE 1 END”, ['scheduled_confirmed'])
             ->oldest('created_at')  // FIFO within same status
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'scheduled'));
+
+        // Batch-load group siblings for scheduled bookings (shows status of linked book_now vehicle)
+        $scheduledGroupCodes = $scheduledRequests->pluck('group_code')->filter()->unique()->values();
+        if ($scheduledGroupCodes->isNotEmpty()) {
+            $scheduledSiblingsByGroup = Booking::whereIn('group_code', $scheduledGroupCodes)
+                ->whereNotIn('id', $scheduledRequests->pluck('id'))
+                ->with('truckType')
+                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'scheduled_date', 'scheduled_time', 'group_code'])
+                ->groupBy('group_code');
+            $scheduledRequests = $scheduledRequests->map(function ($b) use ($scheduledSiblingsByGroup) {
+                $b->group_siblings = $b->group_code
+                    ? $scheduledSiblingsByGroup->get($b->group_code, collect())
+                    : collect();
+                return $b;
+            });
+        }
 
         $readyCompletionBookings = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'unit.driver'])
             ->whereIn('status', ['waiting_verification', 'payment_pending', 'payment_submitted'])
@@ -267,6 +283,33 @@ class DispatchController extends Controller
                 $quotation->time_remaining_text = $timeRemaining['message'] ?? 'N/A';
                 return $quotation;
             });
+
+        // Batch-load group siblings for quotations (shows linked scheduled vehicle badge + modal section)
+        $quotationGroupCodes = $allQuotations
+            ->filter(fn($q) => $q->sourceBooking?->group_code)
+            ->map(fn($q) => $q->sourceBooking->group_code)
+            ->unique()->values();
+        $quotationSourceIds = $allQuotations
+            ->filter(fn($q) => $q->sourceBooking)
+            ->map(fn($q) => $q->sourceBooking->id)
+            ->filter()->values();
+
+        $quotationSiblingsByGroup = collect();
+        if ($quotationGroupCodes->isNotEmpty()) {
+            $quotationSiblingsByGroup = Booking::whereIn('group_code', $quotationGroupCodes)
+                ->when($quotationSourceIds->isNotEmpty(), fn($q) => $q->whereNotIn('id', $quotationSourceIds))
+                ->with('truckType')
+                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'scheduled_date', 'scheduled_time', 'group_code'])
+                ->groupBy('group_code');
+        }
+
+        $allQuotations = $allQuotations->map(function ($q) use ($quotationSiblingsByGroup) {
+            $groupCode = $q->sourceBooking?->group_code;
+            $siblings  = $groupCode ? $quotationSiblingsByGroup->get($groupCode, collect()) : collect();
+            $q->group_sibling_count = $siblings->count();
+            $q->group_siblings      = $siblings;
+            return $q;
+        });
 
 
         $quotationStats = [
@@ -855,6 +898,28 @@ class DispatchController extends Controller
     {
         $quotation->load(['customer', 'truckType', 'sourceBooking']);
 
+        // Load group siblings for linked-vehicle display
+        $groupSiblings = [];
+        $sourceBooking = $quotation->sourceBooking;
+        if ($sourceBooking && $sourceBooking->group_code) {
+            $groupSiblings = \App\Models\Booking::where('group_code', $sourceBooking->group_code)
+                ->where('id', '!=', $sourceBooking->id)
+                ->with('truckType')
+                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'scheduled_date', 'scheduled_time', 'group_code', 'final_total'])
+                ->map(fn($b) => [
+                    'booking_code'   => $b->booking_code,
+                    'status'         => $b->status,
+                    'service_type'   => $b->service_type,
+                    'truck_type'     => $b->truckType?->name ?? 'Unknown',
+                    'truck_class'    => $b->truckType?->class ?? null,
+                    'scheduled_date' => $b->scheduled_date,
+                    'scheduled_time' => $b->scheduled_time,
+                    'final_total'    => (float) $b->final_total,
+                ])
+                ->values()
+                ->toArray();
+        }
+
         $distanceKm    = (float) ($quotation->distance_km ?? 0);
         $finalTotal    = (float) ($quotation->estimated_price ?? 0);
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
@@ -910,6 +975,8 @@ class DispatchController extends Controller
                 'source_booking_id'     => $quotation->source_booking_id,
                 'source_booking_code'   => $quotation->sourceBooking?->booking_code,
                 'is_mobile_booking'     => $quotation->source_booking_id !== null,
+                'group_code'            => $sourceBooking?->group_code,
+                'group_siblings'        => $groupSiblings,
             ],
         ]);
     }
@@ -981,7 +1048,19 @@ class DispatchController extends Controller
         $subtotal          = round($unitBaseRate + $distanceFee + $additionalFee + $extraVehiclesBaseTotal, 2);
         $newEstimatedPrice = round($subtotal * 1.12, 2);
 
-        $quotation->update(['estimated_price' => $newEstimatedPrice]);
+        $oldSendPrice = (float) $quotation->estimated_price;
+        $sendLog = $quotation->price_change_log ?? [];
+        if ($oldSendPrice > 0 && abs($oldSendPrice - $newEstimatedPrice) > 0.01) {
+            $sendLog[] = [
+                'at'     => now()->toISOString(),
+                'old'    => $oldSendPrice,
+                'new'    => $newEstimatedPrice,
+                'reason' => 'Unit assigned: ' . ($selectedUnit?->truckType?->name ?? 'unit'),
+                'by'     => auth()->user()?->name ?? 'Dispatcher',
+            ];
+        }
+
+        $quotation->update(['estimated_price' => $newEstimatedPrice, 'price_change_log' => $sendLog]);
 
         $booking = Booking::where('quotation_id', $quotation->id)->first();
         if ($booking) {
@@ -1086,17 +1165,24 @@ class DispatchController extends Controller
 
         $quotation->update($updateData);
 
-        if (!empty($validated['assigned_unit_id'])) {
-            $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
-            $booking = Booking::where('quotation_id', $quotation->id)->first();
-            if ($booking && $selectedUnit) {
-                $booking->update($this->bookingService->filterPayloadForTable('bookings', [
-                    'assigned_unit_id' => $selectedUnit->id,
-                    'assigned_team_leader_id' => $selectedUnit->teamLeader?->id,
-                    'base_rate' => (float) ($selectedUnit->truckType?->base_rate ?? 0),
-                    'per_km_rate' => 0,
-                ]));
+        // Sync final_total on source booking so TL and customer see consistent price
+        $sourceBooking = $quotation->source_booking_id
+            ? Booking::find($quotation->source_booking_id)
+            : Booking::where('quotation_id', $quotation->id)->first();
+        if ($sourceBooking) {
+            $bookingUpdate = ['final_total' => $newPrice];
+            if (!empty($validated['assigned_unit_id'])) {
+                $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
+                if ($selectedUnit) {
+                    $bookingUpdate = array_merge($bookingUpdate, [
+                        'assigned_unit_id'        => $selectedUnit->id,
+                        'assigned_team_leader_id' => $selectedUnit->teamLeader?->id,
+                        'base_rate'               => (float) ($selectedUnit->truckType?->base_rate ?? 0),
+                        'per_km_rate'             => 0,
+                    ]);
+                }
             }
+            $sourceBooking->update($this->bookingService->filterPayloadForTable('bookings', $bookingUpdate));
         }
 
         $quotation->increment('link_version');

@@ -97,10 +97,21 @@
                     <div
                         style="max-height: 380px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
                         @foreach ($pendingQuotations as $quotation)
+                            @php
+                                $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
+                                    'booking_code'    => $s->booking_code,
+                                    'status'          => $s->status,
+                                    'truck_type_name' => $s->truckType?->name ?? '',
+                                    'scheduled_date'  => optional($s->scheduled_date)->format('Y-m-d'),
+                                    'scheduled_time'  => $s->scheduled_time,
+                                    'service_type'    => $s->service_type,
+                                ])->values()->toArray();
+                            @endphp
                             <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
                                 onclick="viewQuotationDetails({{ $quotation->id }})"
                                 onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
-                                onmouseout="this.style.boxShadow='none'">
+                                onmouseout="this.style.boxShadow='none'"
+                                data-group-siblings="{{ json_encode($qSiblings) }}">
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                                     <div>
@@ -117,6 +128,10 @@
                                         @if ($quotation->source_booking_id)
                                             <span
                                                 style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-weight: 700;">MOBILE</span>
+                                        @endif
+                                        @if (($quotation->group_sibling_count ?? 0) > 0)
+                                            <span
+                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dcfce7; color: #15803d; font-weight: 700;">+{{ $quotation->group_sibling_count }} scheduled</span>
                                         @endif
                                     </div>
                                 </div>
@@ -148,6 +163,14 @@
                             @php
                                 $timeRemaining = $quotation->getTimeRemaining();
                                 $urgency = $timeRemaining['urgency'] ?? 'normal';
+                                $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
+                                    'booking_code'    => $s->booking_code,
+                                    'status'          => $s->status,
+                                    'truck_type_name' => $s->truckType?->name ?? '',
+                                    'scheduled_date'  => optional($s->scheduled_date)->format('Y-m-d'),
+                                    'scheduled_time'  => $s->scheduled_time,
+                                    'service_type'    => $s->service_type,
+                                ])->values()->toArray();
                                 $accentColor = match ($urgency) {
                                     'urgent' => '#ef4444',
                                     'warning' => '#f59e0b',
@@ -172,7 +195,8 @@
                             <div style="border: 1px solid #e5e7eb; border-left: 4px solid {{ $accentColor }}; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
                                 onclick="viewQuotationDetails({{ $quotation->id }})"
                                 onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
-                                onmouseout="this.style.boxShadow='none'">
+                                onmouseout="this.style.boxShadow='none'"
+                                data-group-siblings="{{ json_encode($qSiblings) }}">
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                                     <div>
@@ -182,8 +206,14 @@
                                         <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 1px;">Sent
                                             {{ $quotation->sent_at?->diffForHumans() ?? '—' }}</div>
                                     </div>
-                                    <span
-                                        style="font-size: 0.68rem; padding: 2px 8px; background: {{ $badgeBg }}; color: {{ $badgeColor }}; border: 1px solid {{ $accentColor }}40; border-radius: 4px;">{{ $badgeText }}</span>
+                                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+                                        <span
+                                            style="font-size: 0.68rem; padding: 2px 8px; background: {{ $badgeBg }}; color: {{ $badgeColor }}; border: 1px solid {{ $accentColor }}40; border-radius: 4px;">{{ $badgeText }}</span>
+                                        @if (($quotation->group_sibling_count ?? 0) > 0)
+                                            <span
+                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dcfce7; color: #15803d; font-weight: 700;">+{{ $quotation->group_sibling_count }} scheduled</span>
+                                        @endif
+                                    </div>
                                 </div>
                                 <div style="font-size: 0.88rem; color: #0f172a; margin-bottom: 1px;">
                                     {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}
@@ -219,10 +249,21 @@
                     <div
                         style="max-height: 380px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
                         @foreach ($negotiatingQuotations as $quotation)
+                            @php
+                                $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
+                                    'booking_code'    => $s->booking_code,
+                                    'status'          => $s->status,
+                                    'truck_type_name' => $s->truckType?->name ?? '',
+                                    'scheduled_date'  => optional($s->scheduled_date)->format('Y-m-d'),
+                                    'scheduled_time'  => $s->scheduled_time,
+                                    'service_type'    => $s->service_type,
+                                ])->values()->toArray();
+                            @endphp
                             <div style="border: 1px solid #e9d5ff; border-left: 4px solid #a855f7; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
                                 onclick="viewQuotationDetails({{ $quotation->id }})"
                                 onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
-                                onmouseout="this.style.boxShadow='none'">
+                                onmouseout="this.style.boxShadow='none'"
+                                data-group-siblings="{{ json_encode($qSiblings) }}">
                                 <div
                                     style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                                     <div>
@@ -231,8 +272,14 @@
                                         <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 1px;">
                                             {{ $quotation->responded_at?->diffForHumans() ?? '—' }}</div>
                                     </div>
-                                    <span
-                                        style="font-size: 0.68rem; padding: 2px 8px; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; border-radius: 4px;">NEGOTIATING</span>
+                                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+                                        <span
+                                            style="font-size: 0.68rem; padding: 2px 8px; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; border-radius: 4px;">NEGOTIATING</span>
+                                        @if (($quotation->group_sibling_count ?? 0) > 0)
+                                            <span
+                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dcfce7; color: #15803d; font-weight: 700;">+{{ $quotation->group_sibling_count }} scheduled</span>
+                                        @endif
+                                    </div>
                                 </div>
                                 <div style="font-size: 0.88rem; font-weight: 600; color: #0f172a; margin-bottom: 1px;">
                                     {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}

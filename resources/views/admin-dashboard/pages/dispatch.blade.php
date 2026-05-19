@@ -1423,6 +1423,11 @@
                             $schVScheduledFor = $schVehicle->scheduled_for;
                             $schVExpiresLabel = $schVehicle->scheduled_expires_at
                                 ? $schVehicle->scheduled_expires_at->diffForHumans() : '—';
+                            $schVSiblings = ($schVehicle->group_siblings ?? collect())->map(fn($s) => [
+                                'booking_code' => $s->booking_code ?? $s['booking_code'] ?? '',
+                                'status'       => $s->status ?? $s['status'] ?? '',
+                                'truck_type'   => $s->truckType?->name ?? $s['truck_type'] ?? '',
+                            ])->values()->toArray();
                         @endphp
                         <div class="incoming-card {{ $schVIsConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }} {{ $isMultiSch ? 'incoming-card--group-child' : '' }}"
                             data-queue="scheduled"
@@ -1439,7 +1444,8 @@
                             data-distance="{{ $schVehicle->distance_km ?? 0 }}"
                             data-truck="{{ e($schVehicle->truckType->name ?? '—') }}"
                             data-ref="{{ e($schVehicle->job_code ?? '') }}"
-                            data-final-total="{{ $schVehicle->final_total ?? 0 }}">
+                            data-final-total="{{ $schVehicle->final_total ?? 0 }}"
+                            data-group-siblings="{{ json_encode($schVSiblings) }}">
                             <div class="incoming-left">
                                 @if ($isMultiSch)
                                     <div class="group-vehicle-indicator">
@@ -1475,6 +1481,40 @@
                                         <span><strong>Scheduled:</strong> {{ $schVScheduledFor->format('D, M j, Y') }}
                                             at {{ $schVScheduledFor->format('g:i A') }}</span>
                                         <span><strong>Expires:</strong> {{ $schVExpiresLabel }}</span>
+                                    </div>
+                                @endif
+                                @if (!empty($schVSiblings))
+                                    <div style="margin-top:8px; padding:7px 10px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.77rem;">
+                                        <div style="color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; font-size:0.68rem; margin-bottom:5px;">Part of group with:</div>
+                                        @foreach ($schVSiblings as $sv)
+                                            @php
+                                                $svStatusColor = match($sv['status'] ?? '') {
+                                                    'in_progress'  => '#a16207',
+                                                    'completed'    => '#15803d',
+                                                    'cancelled'    => '#dc2626',
+                                                    default        => '#475569',
+                                                };
+                                                $svStatusBg = match($sv['status'] ?? '') {
+                                                    'in_progress'  => '#fef9c3',
+                                                    'completed'    => '#dcfce7',
+                                                    'cancelled'    => '#fee2e2',
+                                                    default        => '#f1f5f9',
+                                                };
+                                                $svStatusLabel = match($sv['status'] ?? '') {
+                                                    'in_progress'       => 'In Progress',
+                                                    'completed'         => 'Completed',
+                                                    'cancelled'         => 'Cancelled',
+                                                    'scheduled'         => 'Scheduled',
+                                                    'scheduled_confirmed' => 'Confirmed',
+                                                    default             => ucfirst(str_replace('_', ' ', $sv['status'] ?? '')),
+                                                };
+                                            @endphp
+                                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
+                                                <span style="font-family:monospace; font-weight:700; color:#0f172a;">{{ $sv['booking_code'] }}</span>
+                                                <span style="color:#64748b;">{{ $sv['truck_type'] }}</span>
+                                                <span style="margin-left:auto; font-size:0.68rem; font-weight:700; padding:1px 7px; border-radius:999px; background:{{ $svStatusBg }}; color:{{ $svStatusColor }};">{{ $svStatusLabel }}</span>
+                                            </div>
+                                        @endforeach
                                     </div>
                                 @endif
                             </div>
