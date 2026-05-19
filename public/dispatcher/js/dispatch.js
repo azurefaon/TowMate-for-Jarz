@@ -736,6 +736,16 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
+        // Confirmed bookings already have an assigned unit — skip unit selection check
+        var isConfirmedBooking =
+            state.selectedCard &&
+            state.selectedCard.getAttribute("data-status") === "confirmed";
+        if (isConfirmedBooking) {
+            confirmActionBtn.disabled = false;
+            clearValidationSummary();
+            return;
+        }
+
         var hasUnit =
             unitSelect &&
             unitSelect.value &&

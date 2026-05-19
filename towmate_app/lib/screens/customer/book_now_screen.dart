@@ -19,6 +19,9 @@ import '../../widgets/tm_drawer.dart';
 class _ExtraVehicleData {
   TruckTypeModel? truck;
   VehicleTypeModel? vehicle;
+  String serviceType = 'book_now'; // 'book_now' | 'schedule'
+  DateTime? scheduledDate;
+  TimeOfDay? scheduledTime;
 }
 
 class BookNowScreen extends StatefulWidget {
@@ -144,14 +147,12 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _availabilityMessage = _bookNowEnabled
           ? null
           : (avail['message'] as String? ??
-              'No tow trucks are currently available for immediate dispatch.');
+                'No tow trucks are currently available for immediate dispatch.');
       final byClass = avail['ready_by_class'];
       if (byClass is Map && byClass.isNotEmpty) {
         _readyByClass = byClass.map(
-          (k, v) => MapEntry(
-            k.toString().toLowerCase(),
-            (v as num? ?? 0).toInt(),
-          ),
+          (k, v) =>
+              MapEntry(k.toString().toLowerCase(), (v as num? ?? 0).toInt()),
         );
       }
     });
@@ -224,7 +225,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
     if (result['success'] == true) {
       final coords = result['coordinates'] as List;
       final pts = coords
-          .map((c) => LatLng((c[0] as num).toDouble(), (c[1] as num).toDouble()))
+          .map(
+            (c) => LatLng((c[0] as num).toDouble(), (c[1] as num).toDouble()),
+          )
           .toList();
       setState(() {
         _routePoints = pts;
@@ -256,16 +259,18 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
     final ext = picked.name.split('.').last.toLowerCase();
     if (!_allowedExts.contains(ext)) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-          'Only JPG and PNG images are accepted.',
-          style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Only JPG and PNG images are accepted.',
+            style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+          ),
+          backgroundColor: TmColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          margin: const EdgeInsets.all(16),
         ),
-        backgroundColor: TmColors.error,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        margin: const EdgeInsets.all(16),
-      ));
+      );
       return;
     }
 
@@ -288,10 +293,33 @@ class _BookNowScreenState extends State<BookNowScreen> {
     setState(() => _extraVehicles.removeAt(index));
   }
 
-  void _setExtraVehicle(int index, TruckTypeModel truck, VehicleTypeModel vehicle) {
+  void _setExtraVehicle(
+    int index,
+    TruckTypeModel truck,
+    VehicleTypeModel vehicle,
+  ) {
     setState(() {
       _extraVehicles[index].truck = truck;
       _extraVehicles[index].vehicle = vehicle;
+      _extraVehicles[index].serviceType = 'book_now';
+      _extraVehicles[index].scheduledDate = null;
+      _extraVehicles[index].scheduledTime = null;
+    });
+  }
+
+  void _setExtraVehicleScheduled(
+    int index,
+    TruckTypeModel truck,
+    VehicleTypeModel vehicle,
+    DateTime date,
+    TimeOfDay time,
+  ) {
+    setState(() {
+      _extraVehicles[index].truck = truck;
+      _extraVehicles[index].vehicle = vehicle;
+      _extraVehicles[index].serviceType = 'schedule';
+      _extraVehicles[index].scheduledDate = date;
+      _extraVehicles[index].scheduledTime = time;
     });
   }
 
@@ -302,7 +330,20 @@ class _BookNowScreenState extends State<BookNowScreen> {
         ? tomorrow.add(const Duration(days: 1))
         : tomorrow;
     final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     final hour = suggested.hour % 12 == 0 ? 12 : suggested.hour % 12;
     final ampm = suggested.hour < 12 ? 'AM' : 'PM';
     final suggestedLabel =
@@ -383,7 +424,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
     String? scheduledDateStr;
     String? scheduledTimeStr;
-    if (_serviceType == 'schedule' && _scheduledDate != null && _scheduledTime != null) {
+    if (_serviceType == 'schedule' &&
+        _scheduledDate != null &&
+        _scheduledTime != null) {
       scheduledDateStr =
           '${_scheduledDate!.year.toString().padLeft(4, '0')}-'
           '${_scheduledDate!.month.toString().padLeft(2, '0')}-'
@@ -395,10 +438,23 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
     final extraList = _extraVehicles
         .where((v) => v.truck != null && v.vehicle != null)
-        .map((v) => <String, dynamic>{
-              'truck_type_id': v.truck!.id,
-              'vehicle_type_id': v.vehicle!.id,
-            })
+        .map((v) {
+          final m = <String, dynamic>{
+            'truck_type_id': v.truck!.id,
+            'vehicle_type_id': v.vehicle!.id,
+            'service_type': v.serviceType,
+          };
+          if (v.serviceType == 'schedule' &&
+              v.scheduledDate != null &&
+              v.scheduledTime != null) {
+            m['scheduled_date'] = DateFormat(
+              'yyyy-MM-dd',
+            ).format(v.scheduledDate!);
+            m['scheduled_time'] =
+                '${v.scheduledTime!.hour.toString().padLeft(2, '0')}:${v.scheduledTime!.minute.toString().padLeft(2, '0')}';
+          }
+          return m;
+        })
         .toList();
 
     final result = await ApiService.createBooking(
@@ -424,20 +480,23 @@ class _BookNowScreenState extends State<BookNowScreen> {
     if (result['success'] == true) {
       final code = result['booking_code'] as String? ?? '';
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-          'Booking $code submitted.',
-          style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Booking $code submitted.',
+            style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+          ),
+          backgroundColor: TmColors.black,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          margin: const EdgeInsets.all(16),
         ),
-        backgroundColor: TmColors.black,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        margin: const EdgeInsets.all(16),
-      ));
+      );
     } else {
       setState(() {
         _submitting = false;
-        _bookingError = result['message'] as String? ?? 'Booking failed. Please try again.';
+        _bookingError =
+            result['message'] as String? ?? 'Booking failed. Please try again.';
       });
     }
   }
@@ -451,10 +510,14 @@ class _BookNowScreenState extends State<BookNowScreen> {
       !_loadingRoute;
 
   bool get _canProceedStep2 {
-    if (_selectedTruckType == null || _selectedVehicleType == null) return false;
+    if (_selectedTruckType == null || _selectedVehicleType == null)
+      return false;
     if (_vehicleImages.isEmpty) return false;
-    if (_serviceType == 'schedule' && (_scheduledDate == null || _scheduledTime == null)) return false;
-    if (_extraVehicles.any((v) => v.truck == null || v.vehicle == null)) return false;
+    if (_serviceType == 'schedule' &&
+        (_scheduledDate == null || _scheduledTime == null))
+      return false;
+    if (_extraVehicles.any((v) => v.truck == null || v.vehicle == null))
+      return false;
     return true;
   }
 
@@ -477,7 +540,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
             )
           else
             IconButton(
-              icon: Icon(Icons.arrow_back_ios_new_rounded, color: ctx.textTertiary, size: 20),
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: ctx.textTertiary,
+                size: 20,
+              ),
               onPressed: () => setState(() => _step--),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -486,7 +553,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
             child: Center(
               child: Text(
                 titles[_step],
-                style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16, letterSpacing: -0.3),
+                style: GoogleFonts.inter(
+                  color: ctx.textPrimary,
+                  fontSize: 16,
+                  letterSpacing: -0.3,
+                ),
               ),
             ),
           ),
@@ -562,8 +633,29 @@ class _BookNowScreenState extends State<BookNowScreen> {
             onAdd: _addExtraVehicle,
             onRemove: _removeExtraVehicle,
             onVehicleSet: _setExtraVehicle,
+            onScheduleVehicleSet: _setExtraVehicleScheduled,
             readyByClass: _readyByClass,
             serviceType: _serviceType,
+            usedClassCounts: {
+              if (_selectedTruckType != null && _serviceType == 'book_now')
+                _selectedTruckType!.truckClass.toLowerCase(): 1,
+              for (final ev in _extraVehicles)
+                if (ev.truck != null && ev.serviceType == 'book_now')
+                  ev.truck!.truckClass.toLowerCase():
+                      (_extraVehicles
+                          .where(
+                            (e) =>
+                                e.truck != null &&
+                                e.serviceType == 'book_now' &&
+                                e.truck!.truckClass.toLowerCase() ==
+                                    ev.truck!.truckClass.toLowerCase(),
+                          )
+                          .length +
+                      (_selectedTruckType?.truckClass.toLowerCase() ==
+                              ev.truck!.truckClass.toLowerCase()
+                          ? 1
+                          : 0)),
+            },
           ),
         ],
         const SizedBox(height: 24),
@@ -572,7 +664,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
   }
 
   Widget _buildStep2() {
-    final bool hasSchedule = _serviceType == 'schedule' && _scheduledDate != null;
+    final bool hasSchedule =
+        _serviceType == 'schedule' && _scheduledDate != null;
     String? dateStr;
     String? timeStr;
     if (hasSchedule) {
@@ -582,7 +675,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
           '${_scheduledDate!.year}';
     }
     if (_scheduledTime != null) {
-      final h = _scheduledTime!.hourOfPeriod == 0 ? 12 : _scheduledTime!.hourOfPeriod;
+      final h = _scheduledTime!.hourOfPeriod == 0
+          ? 12
+          : _scheduledTime!.hourOfPeriod;
       final m = _scheduledTime!.minute.toString().padLeft(2, '0');
       final period = _scheduledTime!.period == DayPeriod.am ? 'AM' : 'PM';
       timeStr = '$h:$m $period';
@@ -596,11 +691,21 @@ class _BookNowScreenState extends State<BookNowScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('TRIP', style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11, letterSpacing: 0.8)),
+              Text(
+                'TRIP',
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 11,
+                  letterSpacing: 0.8,
+                ),
+              ),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: context.surface, borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                  color: context.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Column(
                   children: [
                     _ReviewRow(label: 'Pickup', value: _pickupAddress),
@@ -610,7 +715,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
                       const SizedBox(height: 8),
                       _ReviewRow(
                         label: 'Distance',
-                        value: '${_distanceKm!.toStringAsFixed(2)} km'
+                        value:
+                            '${_distanceKm!.toStringAsFixed(2)} km'
                             '${_durationMin != null ? ' · ${_durationMin!.toInt()} min' : ''}',
                       ),
                     ],
@@ -618,37 +724,65 @@ class _BookNowScreenState extends State<BookNowScreen> {
                       const SizedBox(height: 8),
                       _ReviewRow(
                         label: 'Scheduled',
-                        value: '$dateStr${timeStr != null ? ' at $timeStr' : ''}',
+                        value:
+                            '$dateStr${timeStr != null ? ' at $timeStr' : ''}',
                       ),
                     ],
                   ],
                 ),
               ),
               const SizedBox(height: 20),
-              Text('VEHICLE', style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11, letterSpacing: 0.8)),
+              Text(
+                'VEHICLE',
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 11,
+                  letterSpacing: 0.8,
+                ),
+              ),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: context.surface, borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                  color: context.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Column(
                   children: [
-                    _ReviewRow(label: 'Tow class', value: _selectedTruckType!.name),
+                    _ReviewRow(
+                      label: 'Tow class',
+                      value: _selectedTruckType!.name,
+                    ),
                     const SizedBox(height: 8),
-                    _ReviewRow(label: 'Vehicle', value: _selectedVehicleType!.name),
+                    _ReviewRow(
+                      label: 'Vehicle',
+                      value: _selectedVehicleType!.name,
+                    ),
                     const SizedBox(height: 8),
-                    _ReviewRow(label: 'Photos', value: '${_vehicleImages.length} uploaded'),
+                    _ReviewRow(
+                      label: 'Photos',
+                      value: '${_vehicleImages.length} uploaded',
+                    ),
                     if (_extraVehicles.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       _ReviewRow(
                         label: 'Extra',
-                        value: '+${_extraVehicles.length} vehicle${_extraVehicles.length > 1 ? 's' : ''}',
+                        value:
+                            '+${_extraVehicles.length} vehicle${_extraVehicles.length > 1 ? 's' : ''}',
                       ),
                     ],
                   ],
                 ),
               ),
               const SizedBox(height: 20),
-              Text('PRICING', style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11, letterSpacing: 0.8)),
+              Text(
+                'PRICING',
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 11,
+                  letterSpacing: 0.8,
+                ),
+              ),
               const SizedBox(height: 12),
               _PriceBreakdown(
                 truckType: _selectedTruckType!,
@@ -669,11 +803,17 @@ class _BookNowScreenState extends State<BookNowScreen> {
               decoration: BoxDecoration(
                 color: TmColors.error.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(6),
-                border: const Border(left: BorderSide(color: TmColors.error, width: 3)),
+                border: const Border(
+                  left: BorderSide(color: TmColors.error, width: 3),
+                ),
               ),
               child: Text(
                 _bookingError!,
-                style: GoogleFonts.inter(color: TmColors.error, fontSize: 13, letterSpacing: 0.1),
+                style: GoogleFonts.inter(
+                  color: TmColors.error,
+                  fontSize: 13,
+                  letterSpacing: 0.1,
+                ),
               ),
             ),
           ),
@@ -704,7 +844,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
         hint = 'Select a vehicle type to continue';
       } else if (_vehicleImages.isEmpty) {
         hint = 'Add at least 1 vehicle photo to continue';
-      } else if (_serviceType == 'schedule' && (_scheduledDate == null || _scheduledTime == null)) {
+      } else if (_serviceType == 'schedule' &&
+          (_scheduledDate == null || _scheduledTime == null)) {
         hint = 'Choose a scheduled date and time';
       }
       onTap = () {
@@ -732,7 +873,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
               padding: const EdgeInsets.only(bottom: 10),
               child: Text(
                 hint,
-                style: GoogleFonts.inter(color: context.textSecondary, fontSize: 12, letterSpacing: 0.1),
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 12,
+                  letterSpacing: 0.1,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -745,14 +890,19 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 backgroundColor: isConfirm ? TmColors.yellow : TmColors.black,
                 foregroundColor: isConfirm ? TmColors.black : TmColors.white,
                 disabledBackgroundColor: TmColors.grey300,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 elevation: 0,
               ),
               child: busy
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(color: TmColors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: TmColors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : Text(
                       label,
@@ -852,18 +1002,16 @@ class _BookNowScreenState extends State<BookNowScreen> {
       },
       child: Scaffold(
         backgroundColor: context.bg,
-        drawer: _step == 0 ? const TmDrawer(currentRoute: '/book-now', isLoggedIn: true) : null,
+        drawer: _step == 0
+            ? const TmDrawer(currentRoute: '/book-now', isLoggedIn: true)
+            : null,
         body: Builder(
           builder: (ctx) => SafeArea(
             child: Column(
               children: [
                 _buildTopBar(ctx),
                 _StepIndicator(step: _step),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: _buildStepBody(),
-                  ),
-                ),
+                Expanded(child: SingleChildScrollView(child: _buildStepBody())),
                 _buildBottomBar(),
               ],
             ),
@@ -960,12 +1108,16 @@ class _BookingModeSection extends StatelessWidget {
                 Expanded(
                   child: _DateTimeField(
                     label: 'Preferred Date',
-                    value: scheduledDate != null ? _formatDate(scheduledDate!) : null,
+                    value: scheduledDate != null
+                        ? _formatDate(scheduledDate!)
+                        : null,
                     placeholder: 'Select date',
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: context,
-                        initialDate: DateTime.now().add(const Duration(days: 1)),
+                        initialDate: DateTime.now().add(
+                          const Duration(days: 1),
+                        ),
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 90)),
                         builder: (ctx, child) => Theme(
@@ -986,7 +1138,9 @@ class _BookingModeSection extends StatelessWidget {
                 Expanded(
                   child: _DateTimeField(
                     label: 'Preferred Time',
-                    value: scheduledTime != null ? _formatTime(scheduledTime!) : null,
+                    value: scheduledTime != null
+                        ? _formatTime(scheduledTime!)
+                        : null,
                     placeholder: 'Select time',
                     onTap: () async {
                       final picked = await showTimePicker(
@@ -1016,7 +1170,11 @@ class _BookingModeSection extends StatelessWidget {
 }
 
 class _ModeChip extends StatelessWidget {
-  const _ModeChip({required this.label, required this.selected, required this.onTap});
+  const _ModeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -1076,13 +1234,17 @@ class _DateTimeField extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
             decoration: BoxDecoration(
-              border: Border.all(color: value != null ? context.textPrimary : context.divider),
+              border: Border.all(
+                color: value != null ? context.textPrimary : context.divider,
+              ),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
               value ?? placeholder,
               style: GoogleFonts.inter(
-                color: value != null ? context.textPrimary : context.textSecondary,
+                color: value != null
+                    ? context.textPrimary
+                    : context.textSecondary,
                 fontSize: 13,
                 letterSpacing: 0.1,
               ),
@@ -1150,9 +1312,11 @@ class _LocationSectionState extends State<_LocationSection> {
   void initState() {
     super.initState();
     _pickupCtrl = TextEditingController(
-        text: widget.initialPickupAddress ?? '');
+      text: widget.initialPickupAddress ?? '',
+    );
     _dropoffCtrl = TextEditingController(
-        text: widget.initialDropoffAddress ?? '');
+      text: widget.initialDropoffAddress ?? '',
+    );
   }
 
   @override
@@ -1202,10 +1366,7 @@ class _LocationSectionState extends State<_LocationSection> {
     try {
       final bounds = LatLngBounds.fromPoints(points);
       _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: bounds,
-          padding: const EdgeInsets.all(56),
-        ),
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(56)),
       );
     } catch (_) {}
   }
@@ -1213,10 +1374,14 @@ class _LocationSectionState extends State<_LocationSection> {
   void _search(String query, bool isPickup) {
     _debounce?.cancel();
     if (query.length < 2) {
-      setState(() => isPickup ? _pickupSuggestions = [] : _dropoffSuggestions = []);
+      setState(
+        () => isPickup ? _pickupSuggestions = [] : _dropoffSuggestions = [],
+      );
       return;
     }
-    setState(() => isPickup ? _pickupSearching = true : _dropoffSearching = true);
+    setState(
+      () => isPickup ? _pickupSearching = true : _dropoffSearching = true,
+    );
     _debounce = Timer(const Duration(milliseconds: 420), () async {
       final results = await ApiService.searchAddress(query);
       if (!mounted) return;
@@ -1292,16 +1457,20 @@ class _LocationSectionState extends State<_LocationSection> {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-              'Location services are disabled. Please enable GPS.',
-              style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Location services are disabled. Please enable GPS.',
+                style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+              ),
+              backgroundColor: TmColors.grey700,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              margin: const EdgeInsets.all(16),
             ),
-            backgroundColor: TmColors.grey700,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            margin: const EdgeInsets.all(16),
-          ));
+          );
         }
         return;
       }
@@ -1311,18 +1480,23 @@ class _LocationSectionState extends State<_LocationSection> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-              'Location permission denied. Please allow it in settings.',
-              style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Location permission denied. Please allow it in settings.',
+                style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+              ),
+              backgroundColor: TmColors.grey700,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              margin: const EdgeInsets.all(16),
             ),
-            backgroundColor: TmColors.grey700,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            margin: const EdgeInsets.all(16),
-          ));
+          );
         }
         return;
       }
@@ -1338,7 +1512,10 @@ class _LocationSectionState extends State<_LocationSection> {
       if (!mounted) return;
 
       final latlng = LatLng(position.latitude, position.longitude);
-      final address = await ApiService.reverseGeocode(position.latitude, position.longitude);
+      final address = await ApiService.reverseGeocode(
+        position.latitude,
+        position.longitude,
+      );
 
       if (!mounted) return;
 
@@ -1347,16 +1524,20 @@ class _LocationSectionState extends State<_LocationSection> {
       widget.onPickupSelected(latlng, address);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-            'Could not get your location. Try again.',
-            style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not get your location. Try again.',
+              style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+            ),
+            backgroundColor: TmColors.grey700,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
-          backgroundColor: TmColors.grey700,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          margin: const EdgeInsets.all(16),
-        ));
+        );
       }
     } finally {
       if (mounted) setState(() => _locating = false);
@@ -1365,12 +1546,18 @@ class _LocationSectionState extends State<_LocationSection> {
 
   Future<void> _onMapTap(LatLng point) async {
     if (widget.pickupLatLng == null) {
-      final address = await ApiService.reverseGeocode(point.latitude, point.longitude);
+      final address = await ApiService.reverseGeocode(
+        point.latitude,
+        point.longitude,
+      );
       if (!mounted) return;
       _pickupCtrl.text = address;
       widget.onPickupSelected(point, address);
     } else if (widget.dropoffLatLng == null) {
-      final address = await ApiService.reverseGeocode(point.latitude, point.longitude);
+      final address = await ApiService.reverseGeocode(
+        point.latitude,
+        point.longitude,
+      );
       if (!mounted) return;
       _dropoffCtrl.text = address;
       widget.onDropoffSelected(point, address);
@@ -1528,7 +1715,10 @@ class _LocationSectionState extends State<_LocationSection> {
                   return GestureDetector(
                     onTap: () => _applyShortcut(s),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: context.surface,
                         borderRadius: BorderRadius.circular(5),
@@ -1589,34 +1779,39 @@ class _LocationSectionState extends State<_LocationSection> {
                     ),
                     children: [
                       TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.towmate.app',
                         tileProvider: CancellableNetworkTileProvider(),
                       ),
                       if (widget.routePoints.isNotEmpty)
-                        PolylineLayer(polylines: [
-                          Polyline(
-                            points: widget.routePoints,
-                            color: TmColors.yellow,
-                            strokeWidth: 3.0,
-                          ),
-                        ]),
-                      MarkerLayer(markers: [
-                        if (widget.pickupLatLng != null)
-                          Marker(
-                            point: widget.pickupLatLng!,
-                            width: 28,
-                            height: 28,
-                            child: _MapPin(label: 'P', dark: true),
-                          ),
-                        if (widget.dropoffLatLng != null)
-                          Marker(
-                            point: widget.dropoffLatLng!,
-                            width: 28,
-                            height: 28,
-                            child: _MapPin(label: 'D', dark: false),
-                          ),
-                      ]),
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: widget.routePoints,
+                              color: TmColors.yellow,
+                              strokeWidth: 3.0,
+                            ),
+                          ],
+                        ),
+                      MarkerLayer(
+                        markers: [
+                          if (widget.pickupLatLng != null)
+                            Marker(
+                              point: widget.pickupLatLng!,
+                              width: 28,
+                              height: 28,
+                              child: _MapPin(label: 'P', dark: true),
+                            ),
+                          if (widget.dropoffLatLng != null)
+                            Marker(
+                              point: widget.dropoffLatLng!,
+                              width: 28,
+                              height: 28,
+                              child: _MapPin(label: 'D', dark: false),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -1721,7 +1916,10 @@ class _SearchField extends StatelessWidget {
             fontSize: 14,
             letterSpacing: 0.1,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 13,
+          ),
           border: InputBorder.none,
           suffixIcon: searching
               ? Padding(
@@ -1773,7 +1971,9 @@ class _SuggestionList extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
               decoration: BoxDecoration(
                 border: i > 0
-                    ? Border(top: BorderSide(color: context.divider, width: 0.5))
+                    ? Border(
+                        top: BorderSide(color: context.divider, width: 0.5),
+                      )
                     : null,
               ),
               child: Column(
@@ -1876,7 +2076,9 @@ class _VehicleSectionState extends State<_VehicleSection> {
   @override
   void didUpdateWidget(_VehicleSection old) {
     super.didUpdateWidget(old);
-    if (old.truckTypes.isEmpty && widget.truckTypes.isNotEmpty && _focusedTruck == null) {
+    if (old.truckTypes.isEmpty &&
+        widget.truckTypes.isNotEmpty &&
+        _focusedTruck == null) {
       setState(() {
         _focusedTruck = widget.selectedTruck ?? widget.truckTypes.first;
       });
@@ -1936,7 +2138,10 @@ class _VehicleSectionState extends State<_VehicleSection> {
               ),
               child: Text(
                 'Loading vehicle types...',
-                style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 14,
+                ),
               ),
             )
           else if (trucks.isEmpty)
@@ -1951,7 +2156,10 @@ class _VehicleSectionState extends State<_VehicleSection> {
                 children: [
                   Text(
                     'Could not load vehicle types.',
-                    style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+                    style: GoogleFonts.inter(
+                      color: context.textSecondary,
+                      fontSize: 14,
+                    ),
                   ),
                   if (widget.onRetry != null) ...[
                     const SizedBox(height: 10),
@@ -1986,8 +2194,11 @@ class _VehicleSectionState extends State<_VehicleSection> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: trucks.map((truck) {
-                  final isAvailable = widget.readyByClass.isEmpty ||
-                      (widget.readyByClass[truck.truckClass.toLowerCase()] ?? 0) > 0;
+                  final isAvailable =
+                      widget.readyByClass.isEmpty ||
+                      (widget.readyByClass[truck.truckClass.toLowerCase()] ??
+                              0) >
+                          0;
                   return _ClassPickerCard(
                     truck: truck,
                     isFocused: _focusedTruck?.id == truck.id,
@@ -2011,27 +2222,37 @@ class _VehicleSectionState extends State<_VehicleSection> {
               ),
               const SizedBox(height: 10),
               if (_focusedTruck!.vehicleTypes.isNotEmpty) ...[
-                Builder(builder: (context) {
-                  final isAvailable = widget.readyByClass.isEmpty ||
-                      (widget.readyByClass[_focusedTruck!.truckClass.toLowerCase()] ?? 0) > 0;
-                  return Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _focusedTruck!.vehicleTypes.map((v) {
-                      return _VehicleChip(
-                        label: v.name,
-                        selected: widget.selectedTruck?.id == _focusedTruck!.id &&
-                            widget.selectedVehicle?.id == v.id,
-                        muted: !isAvailable,
-                        onTap: () => widget.onSelect(_focusedTruck!, v),
-                      );
-                    }).toList(),
-                  );
-                }),
+                Builder(
+                  builder: (context) {
+                    final isAvailable =
+                        widget.readyByClass.isEmpty ||
+                        (widget.readyByClass[_focusedTruck!.truckClass
+                                    .toLowerCase()] ??
+                                0) >
+                            0;
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _focusedTruck!.vehicleTypes.map((v) {
+                        return _VehicleChip(
+                          label: v.name,
+                          selected:
+                              widget.selectedTruck?.id == _focusedTruck!.id &&
+                              widget.selectedVehicle?.id == v.id,
+                          muted: !isAvailable,
+                          onTap: () => widget.onSelect(_focusedTruck!, v),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
               ] else
                 Text(
                   'No vehicle types configured for this class.',
-                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 13),
+                  style: GoogleFonts.inter(
+                    color: context.textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
             ],
           ],
@@ -2060,16 +2281,26 @@ class _ClassPickerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color bg = isSelected
         ? context.textPrimary
-        : isAvailable ? context.surface : context.bg;
-    final Color borderColor = (isSelected || isFocused) ? context.textPrimary : context.divider;
+        : isAvailable
+        ? context.surface
+        : context.bg;
+    final Color borderColor = (isSelected || isFocused)
+        ? context.textPrimary
+        : context.divider;
     final double borderWidth = (isSelected || isFocused) ? 1.5 : 1.0;
     final Color nameColor = isSelected
         ? context.bg
-        : isAvailable ? context.textPrimary : context.divider;
-    final Color metaColor = isSelected ? context.divider : context.textSecondary;
+        : isAvailable
+        ? context.textPrimary
+        : context.divider;
+    final Color metaColor = isSelected
+        ? context.divider
+        : context.textSecondary;
     final Color availColor = isSelected
         ? context.divider
-        : isAvailable ? context.textSecondary : context.divider;
+        : isAvailable
+        ? context.textSecondary
+        : context.divider;
     final String availText = isAvailable ? 'available' : 'unavailable';
 
     return GestureDetector(
@@ -2154,16 +2385,14 @@ class _VehicleChip extends StatelessWidget {
     final Color bg = selected
         ? context.textPrimary
         : muted
-            ? context.surface
-            : context.bg;
-    final Color borderColor = selected
-        ? context.textPrimary
-        : context.divider;
+        ? context.surface
+        : context.bg;
+    final Color borderColor = selected ? context.textPrimary : context.divider;
     final Color textColor = selected
         ? context.bg
         : muted
-            ? context.textSecondary
-            : context.textSecondary;
+        ? context.textSecondary
+        : context.textSecondary;
 
     return GestureDetector(
       onTap: onTap,
@@ -2173,10 +2402,7 @@ class _VehicleChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: borderColor,
-            width: selected ? 1.5 : 1.0,
-          ),
+          border: Border.all(color: borderColor, width: selected ? 1.5 : 1.0),
         ),
         child: Text(
           label,
@@ -2216,7 +2442,9 @@ class _VehicleImageSection extends StatelessWidget {
           Text(
             'VEHICLE PHOTOS  (1–5 required)',
             style: GoogleFonts.inter(
-              color: hasError && images.isEmpty ? TmColors.error : context.textSecondary,
+              color: hasError && images.isEmpty
+                  ? TmColors.error
+                  : context.textSecondary,
               fontSize: 11,
               letterSpacing: 0.8,
             ),
@@ -2226,10 +2454,11 @@ class _VehicleImageSection extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              ...List.generate(images.length, (i) => _ImageThumb(
-                file: images[i],
-                onRemove: () => onRemove(i),
-              )),
+              ...List.generate(
+                images.length,
+                (i) =>
+                    _ImageThumb(file: images[i], onRemove: () => onRemove(i)),
+              ),
               if (images.length < 5)
                 GestureDetector(
                   onTap: onAddTap,
@@ -2346,8 +2575,10 @@ class _ExtraVehiclesSection extends StatelessWidget {
     required this.onAdd,
     required this.onRemove,
     required this.onVehicleSet,
+    required this.onScheduleVehicleSet,
     required this.readyByClass,
     required this.serviceType,
+    required this.usedClassCounts,
   });
 
   final List<_ExtraVehicleData> extraVehicles;
@@ -2356,8 +2587,10 @@ class _ExtraVehiclesSection extends StatelessWidget {
   final VoidCallback onAdd;
   final void Function(int) onRemove;
   final void Function(int, TruckTypeModel, VehicleTypeModel) onVehicleSet;
+  final void Function(int, TruckTypeModel, VehicleTypeModel, DateTime, TimeOfDay) onScheduleVehicleSet;
   final Map<String, int> readyByClass;
   final String serviceType;
+  final Map<String, int> usedClassCounts;
 
   @override
   Widget build(BuildContext context) {
@@ -2374,15 +2607,20 @@ class _ExtraVehiclesSection extends StatelessWidget {
               letterSpacing: 0.8,
             ),
           ),
-          ...List.generate(extraVehicles.length, (i) => _ExtraVehicleSlot(
-            index: i,
-            data: extraVehicles[i],
-            truckTypes: truckTypes,
-            onRemove: () => onRemove(i),
-            onVehicleSet: (truck, vehicle) => onVehicleSet(i, truck, vehicle),
-            readyByClass: readyByClass,
-            serviceType: serviceType,
-          )),
+          ...List.generate(
+            extraVehicles.length,
+            (i) => _ExtraVehicleSlot(
+              index: i,
+              data: extraVehicles[i],
+              truckTypes: truckTypes,
+              onRemove: () => onRemove(i),
+              onVehicleSet: (truck, vehicle) => onVehicleSet(i, truck, vehicle),
+              onScheduleVehicleSet: onScheduleVehicleSet,
+              usedClassCounts: usedClassCounts,
+              readyByClass: readyByClass,
+              serviceType: serviceType,
+            ),
+          ),
           if (canAdd) ...[
             const SizedBox(height: 14),
             GestureDetector(
@@ -2418,6 +2656,8 @@ class _ExtraVehicleSlot extends StatelessWidget {
     required this.truckTypes,
     required this.onRemove,
     required this.onVehicleSet,
+    required this.onScheduleVehicleSet,
+    required this.usedClassCounts,
     required this.readyByClass,
     required this.serviceType,
   });
@@ -2427,12 +2667,60 @@ class _ExtraVehicleSlot extends StatelessWidget {
   final List<TruckTypeModel> truckTypes;
   final VoidCallback onRemove;
   final void Function(TruckTypeModel, VehicleTypeModel) onVehicleSet;
+  final void Function(int, TruckTypeModel, VehicleTypeModel, DateTime, TimeOfDay) onScheduleVehicleSet;
+  final Map<String, int> usedClassCounts;
   final Map<String, int> readyByClass;
   final String serviceType;
 
   @override
   Widget build(BuildContext context) {
     final hasSelection = data.truck != null && data.vehicle != null;
+
+    void showScheduleDialog(TruckTypeModel truck, VehicleTypeModel v) async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: Text('Schedule This Vehicle?',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 16)),
+          content: Text(
+            'All available ${truck.name} units are already reserved for the primary vehicle. '
+            'You can schedule this additional vehicle for a later date instead.',
+            style: GoogleFonts.inter(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: Text('Cancel', style: GoogleFonts.inter(color: TmColors.grey500)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: TmColors.yellow, foregroundColor: TmColors.black),
+              child: Text('Schedule', style: GoogleFonts.inter()),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+
+      final now = DateTime.now();
+      final tomorrow = DateTime(now.year, now.month, now.day + 1);
+      final date = await showDatePicker(
+        context: context,
+        initialDate: tomorrow,
+        firstDate: tomorrow,
+        lastDate: tomorrow.add(const Duration(days: 30)),
+      );
+      if (date == null || !context.mounted) return;
+
+      final time = await showTimePicker(
+        context: context,
+        initialTime: const TimeOfDay(hour: 8, minute: 0),
+      );
+      if (time == null) return;
+
+      onScheduleVehicleSet(index, truck, v, date, time);
+    }
 
     return Container(
       margin: const EdgeInsets.only(top: 14),
@@ -2486,6 +2774,15 @@ class _ExtraVehicleSlot extends StatelessWidget {
                 ),
               ),
             ),
+            if (data.serviceType == 'schedule' && data.scheduledDate != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 3, 14, 0),
+                child: Text(
+                  'Scheduled: ${DateFormat('EEE, MMM d').format(data.scheduledDate!)}'
+                  ' at ${data.scheduledTime!.format(context)}',
+                  style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 11),
+                ),
+              ),
           ],
           const SizedBox(height: 12),
           Padding(
@@ -2508,13 +2805,24 @@ class _ExtraVehicleSlot extends StatelessWidget {
           // Each truck class as a sub-section
           ...truckTypes.where((t) => t.vehicleTypes.isNotEmpty).map((truck) {
             final bool isBookNow = serviceType == 'book_now';
-            final bool classAvailable = !isBookNow ||
-                readyByClass.isEmpty ||
-                (readyByClass[truck.truckClass.toLowerCase()] ?? 0) > 0;
+            final String cls = truck.truckClass.toLowerCase();
+            final int available = readyByClass[cls] ?? 0;
+            final int selfCount =
+                (data.truck?.truckClass.toLowerCase() == cls &&
+                        data.serviceType == 'book_now')
+                    ? 1
+                    : 0;
+            final int othersUsed = (usedClassCounts[cls] ?? 0) - selfCount;
+            final bool classGrayed =
+                isBookNow && readyByClass.isNotEmpty && available == 0;
+            final bool classFullForBookNow = isBookNow &&
+                readyByClass.isNotEmpty &&
+                available > 0 &&
+                othersUsed >= available;
             return Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
               child: Opacity(
-                opacity: classAvailable ? 1.0 : 0.35,
+                opacity: classGrayed ? 0.35 : 1.0,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2532,14 +2840,32 @@ class _ExtraVehicleSlot extends StatelessWidget {
                       runSpacing: 8,
                       children: truck.vehicleTypes.map((v) {
                         final selected =
-                            data.vehicle?.id == v.id && data.truck?.id == truck.id;
+                            data.vehicle?.id == v.id &&
+                            data.truck?.id == truck.id;
                         return _VehicleChip(
                           label: v.name,
                           selected: selected,
-                          onTap: classAvailable ? () => onVehicleSet(truck, v) : () {},
+                          onTap: classGrayed
+                              ? () {}
+                              : () {
+                                  if (classFullForBookNow) {
+                                    showScheduleDialog(truck, v);
+                                  } else {
+                                    onVehicleSet(truck, v);
+                                  }
+                                },
                         );
                       }).toList(),
                     ),
+                    if (classFullForBookNow)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          'All units reserved — tap to schedule instead',
+                          style: GoogleFonts.inter(
+                              color: TmColors.grey500, fontSize: 10),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -2629,7 +2955,11 @@ class _StepIndicator extends StatelessWidget {
 }
 
 class _StepDot extends StatelessWidget {
-  const _StepDot({required this.index, required this.currentStep, required this.label});
+  const _StepDot({
+    required this.index,
+    required this.currentStep,
+    required this.label,
+  });
   final int index;
   final int currentStep;
   final String label;
@@ -2727,9 +3057,15 @@ class _PriceBreakdown extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _BRow(label: 'Base rate — ${truckType.name}', value: '₱${priceFmt.format(truckType.baseRate)}'),
+          _BRow(
+            label: 'Base rate — ${truckType.name}',
+            value: '₱${priceFmt.format(truckType.baseRate)}',
+          ),
           for (final ev in filledExtras)
-            _BRow(label: 'Extra vehicle — ${ev.truck!.name}', value: '₱${priceFmt.format(ev.truck!.baseRate)}'),
+            _BRow(
+              label: 'Extra vehicle — ${ev.truck!.name}',
+              value: '₱${priceFmt.format(ev.truck!.baseRate)}',
+            ),
           if (extraDist > 0)
             _BRow(
               label: '${extraDist.toStringAsFixed(2)} km × ₱300 (after 1st km)',
@@ -2738,7 +3074,11 @@ class _PriceBreakdown extends StatelessWidget {
           else
             _BRow(label: 'Distance fee (first 1 km free)', value: '—'),
           Container(height: 0.5, color: context.divider),
-          _BRow(label: 'Subtotal', value: '₱${priceFmt.format(subtotal)}', bold: true),
+          _BRow(
+            label: 'Subtotal',
+            value: '₱${priceFmt.format(subtotal)}',
+            bold: true,
+          ),
           _BRow(label: 'VAT (12%)', value: '₱${priceFmt.format(vatAmount)}'),
           Container(height: 1, color: context.textPrimary),
           Padding(
@@ -2748,11 +3088,19 @@ class _PriceBreakdown extends StatelessWidget {
               children: [
                 Text(
                   'Total',
-                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15, letterSpacing: -0.1),
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 15,
+                    letterSpacing: -0.1,
+                  ),
                 ),
                 Text(
                   '₱${priceFmt.format(total)}',
-                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 18, letterSpacing: -0.4),
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 18,
+                    letterSpacing: -0.4,
+                  ),
                 ),
               ],
             ),
@@ -2815,13 +3163,22 @@ class _ReviewRow extends StatelessWidget {
           width: 72,
           child: Text(
             label,
-            style: GoogleFonts.inter(color: context.textSecondary, fontSize: 12, letterSpacing: 0.1),
+            style: GoogleFonts.inter(
+              color: context.textSecondary,
+              fontSize: 12,
+              letterSpacing: 0.1,
+            ),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13, letterSpacing: 0.1, height: 1.4),
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 13,
+              letterSpacing: 0.1,
+              height: 1.4,
+            ),
           ),
         ),
       ],

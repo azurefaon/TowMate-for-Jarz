@@ -133,8 +133,9 @@ class Quotation extends Model
         }
 
         $now = now();
-        $hoursRemaining = $now->diffInHours($this->expires_at);
-        $minutesRemaining = $now->copy()->addHours($hoursRemaining)->diffInMinutes($this->expires_at);
+        $totalSeconds = (int) $now->diffInSeconds($this->expires_at);
+        $hoursRemaining = (int) floor($totalSeconds / 3600);
+        $minutesRemaining = (int) floor(($totalSeconds % 3600) / 60);
 
         // Urgency levels
         $urgency = 'normal';

@@ -63,7 +63,7 @@
                 <!-- Sent / Waiting tab -->
                 <button type="button" id="fqTab-sent" onclick="switchFqTab('sent')"
                     style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.15s, border-color 0.15s; {{ $sentQuotations->count() === 0 ? 'opacity: 0.4;' : '' }}">
-                    Waiting for Customer
+                    Awaiting Reply
                     <span id="fqBadge-sent"
                         style="display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: #f1f5f9; color: #64748b;">
                         {{ $sentQuotations->count() }}
