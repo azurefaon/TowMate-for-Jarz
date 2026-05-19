@@ -134,13 +134,18 @@ class DispatchController extends Controller
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'scheduled'));
 
-        // Batch-load draft quotations for scheduled bookings (shows "Draft" pill on card)
+        // Batch-load active quotations for scheduled bookings (drives card button + pill)
         $scheduledBookingIds = $scheduledRequests->pluck('id');
-        $draftQuotationMap = \App\Models\Quotation::whereIn('source_booking_id', $scheduledBookingIds)
-            ->where('status', 'draft')
-            ->pluck('status', 'source_booking_id');
-        $scheduledRequests = $scheduledRequests->map(function ($b) use ($draftQuotationMap) {
-            $b->has_draft_quotation = $draftQuotationMap->has($b->id);
+        $activeQuotationMap = \App\Models\Quotation::whereIn('source_booking_id', $scheduledBookingIds)
+            ->whereIn('status', ['pending', 'draft', 'sent', 'negotiating'])
+            ->orderByDesc('id')
+            ->get(['id', 'status', 'source_booking_id'])
+            ->unique('source_booking_id')          // keep latest per booking
+            ->keyBy('source_booking_id');
+        $scheduledRequests = $scheduledRequests->map(function ($b) use ($activeQuotationMap) {
+            $q = $activeQuotationMap->get($b->id);
+            $b->active_quotation_id     = $q?->id;
+            $b->active_quotation_status = $q?->status;
             return $b;
         });
 
@@ -1257,6 +1262,17 @@ class DispatchController extends Controller
             'dispatcher_note'  => 'nullable|string|max:1000',
             'distance_km'      => 'nullable|numeric|min:0.01|max:10000',
         ]);
+
+        // Block re-drafting if a sent/negotiating quotation already exists for this booking
+        $alreadySent = Quotation::where('source_booking_id', $booking->id)
+            ->whereIn('status', ['sent', 'negotiating'])
+            ->exists();
+        if ($alreadySent) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A quotation has already been sent to the customer. Open it to revise the price instead.',
+            ], 422);
+        }
 
         $distanceKm    = round((float) ($validated['distance_km'] ?? ($booking->distance_km ?? 0)), 2);
         $selectedUnit  = null;

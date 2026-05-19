@@ -1490,8 +1490,13 @@
                                     <span class="status-badge {{ $schVehicle->status }}">
                                         {{ ucfirst(str_replace('_', ' ', $schVehicle->status)) }}
                                     </span>
-                                    @if ($schVehicle->has_draft_quotation ?? false)
+                                    @php $schQStatus = $schVehicle->active_quotation_status ?? null; @endphp
+                                    @if ($schQStatus === 'draft')
                                         <span style="background:#f59e0b;color:#0f172a;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;">Draft</span>
+                                    @elseif ($schQStatus === 'sent')
+                                        <span style="background:#3b82f6;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;">Sent</span>
+                                    @elseif ($schQStatus === 'negotiating')
+                                        <span style="background:#f97316;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;">Negotiating</span>
                                     @endif
                                     <span class="wait-badge" data-wait></span>
                                 </div>
@@ -1571,6 +1576,15 @@
                                             data-id="{{ $schVehicle->job_code ?? $schVehicle->id }}" data-action="accept"
                                             title="Assign a unit and dispatch this vehicle now">
                                             Dispatch Now
+                                        </button>
+                                    </div>
+                                @elseif ($schVehicle->active_quotation_id ?? null)
+                                    {{-- Active quotation exists — open it directly --}}
+                                    <div style="margin-top:8px;">
+                                        <button type="button" class="btn-accept"
+                                            onclick="viewQuotationDetails({{ $schVehicle->active_quotation_id }})"
+                                            title="Open existing quotation">
+                                            {{ in_array($schVehicle->active_quotation_status, ['sent','negotiating']) ? 'View Quotation' : 'Open Draft' }}
                                         </button>
                                     </div>
                                 @else
