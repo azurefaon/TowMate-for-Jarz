@@ -24,6 +24,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     setState(() => _loading = true);
     final result = await ApiService.fetchNotifications();
     if (!mounted) return;
+    if (result['success'] != true && _notifications.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not load notifications. Check your connection.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
     setState(() {
       _loading = false;
       _notifications = (result['notifications'] as List<dynamic>? ?? [])

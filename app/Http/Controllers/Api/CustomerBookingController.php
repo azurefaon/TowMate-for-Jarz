@@ -168,6 +168,16 @@ class CustomerBookingController extends Controller
                 if (count($decoded) > 5) {
                     return response()->json(['success' => false, 'message' => 'Maximum 6 vehicles per booking.'], 422);
                 }
+                // Validate every extra references a real truck type
+                $extraIds = array_filter(array_column($decoded, 'truck_type_id'));
+                if (count($extraIds) !== count($decoded)) {
+                    return response()->json(['success' => false, 'message' => 'Each additional vehicle must have a truck type selected.'], 422);
+                }
+                $foundIds = TruckType::whereIn('id', $extraIds)->pluck('id')->all();
+                $missing  = array_diff($extraIds, $foundIds);
+                if (!empty($missing)) {
+                    return response()->json(['success' => false, 'message' => 'One or more additional vehicles have an invalid truck type.'], 422);
+                }
                 $allExtraVehicles = $decoded;
             }
         }
