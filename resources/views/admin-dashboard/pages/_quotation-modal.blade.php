@@ -452,10 +452,13 @@
         if (ns) ns.style.display = 'none';
 
         // Clear quote form
-        const priceInput = document.getElementById('qmFinalPriceInput');
-        const noteInput  = document.getElementById('qmPriceNote');
-        if (priceInput) priceInput.value = '';
-        if (noteInput)  noteInput.value  = '';
+        const adjustEl = document.getElementById('qmAdjustAmount');
+        const noteInput = document.getElementById('qmPriceNote');
+        if (adjustEl)  adjustEl.value = '';
+        if (noteInput) noteInput.value = '';
+        window.qmCurrentBase = 0;
+        window.qmAdjustSign = '+';
+        qmSetSign('+');
 
         // Hide draft-saved indicator
         const indicator = document.getElementById('qmDraftSavedIndicator');
