@@ -623,12 +623,45 @@ class ApiService {
     }
   }
 
+  // Call OSRM directly from the device so Railway cloud IPs don't get rate-limited.
+  // Falls back to the backend proxy if OSRM is unreachable.
   static Future<Map<String, dynamic>> calculateRoute(
     double lat1,
     double lng1,
     double lat2,
     double lng2,
   ) async {
+    // 1) Try OSRM directly (device IP → no cloud rate-limit)
+    try {
+      final url =
+          'https://router.project-osrm.org/route/v1/driving/$lng1,$lat1;$lng2,$lat2'
+          '?overview=full&geometries=geojson';
+      final osrmResp = await http
+          .get(Uri.parse(url), headers: {'User-Agent': 'TowMate/1.0'})
+          .timeout(const Duration(seconds: 12));
+
+      if (osrmResp.statusCode == 200) {
+        final body = jsonDecode(osrmResp.body) as Map<String, dynamic>;
+        if (body['code'] == 'Ok') {
+          final route = (body['routes'] as List).first as Map;
+          final coords = (route['geometry']['coordinates'] as List)
+              .map((c) => [(c[1] as num).toDouble(), (c[0] as num).toDouble()])
+              .toList();
+          if (coords.length >= 2) {
+            return {
+              'success': true,
+              'distance_km': (route['distance'] as num).toDouble() / 1000.0,
+              'duration_min': (route['duration'] as num).toDouble() / 60.0,
+              'coordinates': coords,
+            };
+          }
+        }
+      }
+    } catch (_) {
+      // OSRM unreachable — fall through to backend
+    }
+
+    // 2) Fall back to backend proxy
     try {
       final token = await getToken();
       final response = await http
@@ -645,14 +678,16 @@ class ApiService {
           .timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
-        return {
-          ...jsonDecode(response.body) as Map<String, dynamic>,
-          'success': true,
-        };
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        // Treat backend straight-line fallback as failure so Flutter uses Haversine
+        if (body['is_fallback'] == true) {
+          return {'success': false};
+        }
+        return {...body, 'success': true};
       }
-      return {'success': false, 'message': 'Could not calculate route.'};
+      return {'success': false};
     } on TimeoutException {
-      return {'success': false, 'message': 'Route calculation timed out.'};
+      return {'success': false};
     } catch (e) {
       return _networkError(e);
     }
