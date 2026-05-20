@@ -36,6 +36,8 @@ class ApiService {
     'Content-Type': 'application/json',
   };
 
+  static String? _cachedToken;
+
   static Future<void> saveSession({
     required String token,
     required String role,
@@ -46,6 +48,8 @@ class ApiService {
     String? dutyClass,
     bool mustChangePassword = false,
   }) async {
+    _cachedToken = token;
+
     try {
       await _secure.write(key: 'auth_token', value: token);
       if (email != null) await _secure.write(key: 'user_email', value: email);
@@ -66,6 +70,8 @@ class ApiService {
   }
 
   static Future<void> clearSession() async {
+    _cachedToken = null;
+
     try {
       await _secure.delete(key: 'auth_token');
       await _secure.delete(key: 'user_email');
@@ -87,13 +93,20 @@ class ApiService {
   }
 
   static Future<String?> getToken() async {
+    if (_cachedToken != null) return _cachedToken;
+
     try {
       final token = await _secure.read(key: 'auth_token');
-      if (token != null) return token;
+      if (token != null) {
+        _cachedToken = token;
+        return token;
+      }
     } catch (_) {}
 
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token');
+    final token = prefs.getString('auth_token');
+    if (token != null) _cachedToken = token;
+    return token;
   }
 
   static Future<String?> getUserRole() async {
