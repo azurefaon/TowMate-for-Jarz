@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking Receipt – {{ $booking->booking_code }}</title>
+    <title>Job Completion Receipt – {{ $booking->booking_code }}</title>
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
 @php
@@ -15,7 +15,6 @@
     $custName     = $booking->customer->full_name ?? ($booking->customer->name ?? 'Customer');
     $custPhone    = $booking->customer->phone ?? '—';
     $custEmail    = $booking->customer->email ?? '—';
-    $custType     = ucfirst($booking->customer_type ?? ($booking->customer->customer_type ?? 'regular'));
     $pickup       = $booking->pickup_address ?? '—';
     $dropoff      = $booking->dropoff_address ?? '—';
     $payMethod    = match ($booking->payment_method ?? '') {
@@ -27,221 +26,227 @@
     $unitPlate    = $booking->unit->plate_number ?? '—';
     $truckType    = $booking->truckType->name ?? '—';
     $tlName       = $booking->unit->teamLeader->full_name ?? ($booking->unit->teamLeader->name ?? '—');
-    $driverName   = $booking->unit->driver->full_name ?? ($booking->unit->driver->name ?? '—');
     $receiptNum   = $booking->receipt->receipt_number ?? '—';
     $fmt = fn(float $v) => '&#8369;' . number_format($v, 2);
 @endphp
 
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;padding:32px 16px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;padding:20px 12px;">
   <tr>
     <td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;">
+      <table width="680" cellpadding="0" cellspacing="0" border="0" style="max-width:680px;width:100%;background:#ffffff;border:1px solid #d1d5db;">
 
-        {{-- ── HEADER ── --}}
+        {{-- ── HEADER: Two Logos + Company Name ── --}}
         <tr>
-          <td style="background:#0f172a;padding:24px 32px;">
+          <td style="padding:16px 20px 12px;border-bottom:4px solid #f59e0b;">
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td>
-                  <div style="font-size:22px;font-weight:700;color:#f59e0b;letter-spacing:2px;text-transform:uppercase;line-height:1;">TowMate</div>
-                  <div style="font-size:11px;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;margin-top:4px;">Jarz Towing Management System</div>
+                <td width="80" style="vertical-align:middle;">
+                  <img src="{{ asset('customer/image/TowingLogo.png') }}"
+                       alt="Jarz Towing" width="72" height="72"
+                       style="display:block;border:0;outline:none;">
                 </td>
-                <td align="right">
-                  <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Booking Receipt</div>
-                  <div style="font-size:15px;color:#f59e0b;font-weight:700;margin-top:4px;font-family:'Courier New',Courier,monospace;">{{ $booking->booking_code }}</div>
+                <td style="text-align:center;vertical-align:middle;padding:0 10px;">
+                  <div style="font-size:26px;font-weight:900;color:#0f172a;letter-spacing:2px;line-height:1;text-transform:uppercase;">JARZ TOWING</div>
+                  <div style="font-size:22px;font-weight:900;color:#f59e0b;letter-spacing:2px;line-height:1.1;text-transform:uppercase;">SERVICES</div>
+                </td>
+                <td width="80" style="vertical-align:middle;text-align:right;">
+                  <img src="{{ asset('customer/image/accridetedlogo.png') }}"
+                       alt="MMDA Accredited" width="72" height="72"
+                       style="display:block;margin-left:auto;border:0;outline:none;">
                 </td>
               </tr>
             </table>
           </td>
         </tr>
 
-        {{-- ── TOTAL BAND ── --}}
+        {{-- ── TITLE BAND ── --}}
         <tr>
-          <td style="background:#f59e0b;padding:24px 32px;">
+          <td style="padding:0;margin:0;">
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td>
-                  <div style="font-size:11px;font-weight:700;color:#78350f;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Total Amount Collected</div>
-                  <div style="font-size:36px;font-weight:700;color:#0f172a;line-height:1;">{{ $fmt($finalTotal) }}</div>
+                <td width="65%" style="background:#f59e0b;padding:10px 20px;vertical-align:middle;">
+                  <div style="font-size:13px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:1px;">Job Completion Receipt</div>
                 </td>
-                <td align="right" style="vertical-align:bottom;">
-                  <div style="font-size:12px;color:#78350f;font-weight:600;">{{ now()->format('M d, Y') }}</div>
-                  <div style="font-size:11px;color:#92400e;margin-top:3px;">Receipt #{{ $receiptNum }}</div>
+                <td style="background:#0f172a;padding:10px 20px;vertical-align:middle;text-align:right;">
+                  <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">
+                    DATE: {{ now()->format('F d, Y') }}
+                  </div>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
 
-        {{-- ── PRICE BREAKDOWN ── --}}
+        {{-- ── 3-COLUMN: BILLED TO / PICKUP / DROPOFF ── --}}
         <tr>
-          <td style="background:#fffbeb;padding:0 32px;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <td style="padding:0;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
               <tr>
-                <td style="padding:12px 0 8px;" colspan="2">
-                  <div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:1px;">Price Breakdown</div>
+                <td width="33%" style="padding:8px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-top:none;">
+                  <div style="font-size:10px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:1px;">Billed To</div>
+                </td>
+                <td width="33%" style="padding:8px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-left:none;">
+                  <div style="font-size:10px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:1px;">Pick-up Location</div>
+                </td>
+                <td width="34%" style="padding:8px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-left:none;">
+                  <div style="font-size:10px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:1px;">Drop-off Location</div>
                 </td>
               </tr>
               <tr>
-                <td style="padding:5px 0;font-size:13px;color:#44403c;">Base Rate</td>
-                <td align="right" style="padding:5px 0;font-size:13px;color:#0f172a;font-weight:600;">{!! $fmt($baseRate) !!}</td>
+                <td style="padding:12px 14px;border:1px solid #e2e8f0;border-top:none;vertical-align:top;">
+                  <div style="font-size:13px;color:#0f172a;font-weight:700;line-height:1.4;">{{ $custName }}</div>
+                  <div style="font-size:11px;color:#475569;margin-top:3px;">{{ $custPhone }}</div>
+                  <div style="font-size:11px;color:#475569;word-break:break-all;">{{ $custEmail }}</div>
+                </td>
+                <td style="padding:12px 14px;border:1px solid #e2e8f0;border-top:none;border-left:none;vertical-align:top;">
+                  <div style="font-size:11px;color:#0f172a;line-height:1.55;">{{ $pickup }}</div>
+                </td>
+                <td style="padding:12px 14px;border:1px solid #e2e8f0;border-top:none;border-left:none;vertical-align:top;">
+                  <div style="font-size:11px;color:#0f172a;line-height:1.55;">{{ $dropoff }}</div>
+                </td>
               </tr>
+            </table>
+          </td>
+        </tr>
+
+        {{-- ── BOOKING / RECEIPT REFERENCE ── --}}
+        <tr>
+          <td style="padding:8px 20px;background:#fffbeb;border-top:1px solid #fde68a;border-bottom:1px solid #fde68a;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td style="padding:5px 0;font-size:13px;color:#44403c;">
+                <td>
+                  <span style="font-size:11px;color:#92400e;">Booking #:&nbsp;</span>
+                  <span style="font-size:12px;font-weight:700;color:#0f172a;font-family:'Courier New',Courier,monospace;">{{ $booking->booking_code }}</span>
+                  &nbsp;&nbsp;&nbsp;
+                  <span style="font-size:11px;color:#92400e;">Receipt #:&nbsp;</span>
+                  <span style="font-size:12px;font-weight:700;color:#0f172a;font-family:'Courier New',Courier,monospace;">{{ $receiptNum }}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        {{-- ── BREAKDOWN TABLE ── --}}
+        <tr>
+          <td style="padding:0;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+              {{-- Dark header --}}
+              <tr>
+                <td style="background:#0f172a;padding:10px 16px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;" width="55%">Type of Vehicle / Service</td>
+                <td style="background:#0f172a;padding:10px 16px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;text-align:center;" width="15%">Unit</td>
+                <td style="background:#0f172a;padding:10px 16px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;text-align:right;" width="30%">Amount</td>
+              </tr>
+              {{-- Base rate --}}
+              <tr>
+                <td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#0f172a;">
+                  {{ $truckType }} — Base Rate
+                </td>
+                <td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#0f172a;text-align:center;">1</td>
+                <td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#0f172a;text-align:right;">{!! $fmt($baseRate) !!}</td>
+              </tr>
+              {{-- Distance fee --}}
+              <tr>
+                <td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#0f172a;">
                   Distance Fee
                   @if ($distanceKm > 0)
-                    <span style="font-size:11px;color:#92400e;">({{ number_format($distanceKm, 1) }} km)</span>
+                    <span style="font-size:11px;color:#64748b;">&nbsp;({{ number_format($distanceKm, 1) }} km)</span>
                   @endif
                 </td>
-                <td align="right" style="padding:5px 0;font-size:13px;font-weight:600;">
+                <td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#0f172a;text-align:center;">1</td>
+                <td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;text-align:right;">
                   @if ($distanceFee > 0)
                     <span style="color:#0f172a;">{!! $fmt($distanceFee) !!}</span>
                   @else
-                    <span style="color:#16a34a;">Free</span>
+                    <span style="color:#16a34a;font-size:12px;">Free</span>
                   @endif
                 </td>
               </tr>
+              {{-- VAT --}}
               @if ($vatAmount > 0)
               <tr>
-                <td style="padding:5px 0;font-size:13px;color:#44403c;">VAT (12%)</td>
-                <td align="right" style="padding:5px 0;font-size:13px;color:#0f172a;font-weight:600;">{!! $fmt($vatAmount) !!}</td>
+                <td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#0f172a;">VAT (12%)</td>
+                <td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#64748b;text-align:center;">—</td>
+                <td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#0f172a;text-align:right;">{!! $fmt($vatAmount) !!}</td>
               </tr>
               @endif
+              {{-- Total --}}
               <tr>
-                <td colspan="2" style="padding:6px 0;"><div style="height:1px;background:#fde68a;"></div></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 0 16px;font-size:14px;font-weight:700;color:#0f172a;">Total</td>
-                <td align="right" style="padding:6px 0 16px;font-size:14px;font-weight:700;color:#0f172a;">{!! $fmt($finalTotal) !!}</td>
+                <td colspan="2" style="padding:12px 16px;background:#f8fafc;border-top:2px solid #0f172a;font-size:13px;font-weight:700;color:#0f172a;text-align:right;text-transform:uppercase;letter-spacing:1px;">
+                  TOTAL
+                </td>
+                <td style="padding:12px 16px;background:#f8fafc;border-top:2px solid #0f172a;font-size:16px;font-weight:700;color:#0f172a;text-align:right;">{!! $fmt($finalTotal) !!}</td>
               </tr>
             </table>
           </td>
         </tr>
 
-        {{-- ── DIVIDER ── --}}
-        <tr><td style="height:8px;background:#f1f5f9;"></td></tr>
-
-        {{-- ── CUSTOMER INFORMATION ── --}}
+        {{-- ── PAYMENT + UNIT SIDE BY SIDE ── --}}
         <tr>
-          <td style="padding:24px 32px 0;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #f59e0b;">Customer Information</div>
+          <td style="padding:0;border-top:1px solid #e2e8f0;">
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td width="50%" style="padding-bottom:14px;vertical-align:top;padding-right:12px;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Full Name</div>
-                  <div style="font-size:14px;color:#0f172a;font-weight:600;">{{ $custName }}</div>
+                <td width="50%" style="padding:14px 20px;vertical-align:top;border-right:1px solid #e2e8f0;">
+                  <div style="font-size:11px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #fde68a;">Payment</div>
+                  <div style="font-size:12px;color:#475569;margin-bottom:4px;">Method:&nbsp;<span style="color:#0f172a;font-weight:600;">{{ $payMethod }}</span></div>
+                  <div style="font-size:12px;color:#475569;margin-bottom:4px;">Status:&nbsp;<span style="color:#16a34a;font-weight:700;">&#10003; Paid</span></div>
+                  @if ($payRef)
+                  <div style="font-size:11px;color:#475569;margin-top:4px;word-break:break-all;">Ref: {{ $payRef }}</div>
+                  @endif
                 </td>
-                <td width="50%" style="padding-bottom:14px;vertical-align:top;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Customer Type</div>
-                  <div style="font-size:14px;color:#0f172a;font-weight:600;">{{ $custType }}</div>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding-bottom:14px;vertical-align:top;padding-right:12px;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Phone</div>
-                  <div style="font-size:14px;color:#0f172a;font-weight:600;">{{ $custPhone }}</div>
-                </td>
-                <td style="padding-bottom:14px;vertical-align:top;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Email</div>
-                  <div style="font-size:13px;color:#0f172a;font-weight:600;word-break:break-all;">{{ $custEmail }}</div>
-                </td>
-              </tr>
-              <tr>
-                <td colspan="2" style="padding-bottom:14px;vertical-align:top;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Pickup Location</div>
-                  <div style="font-size:13px;color:#0f172a;line-height:1.55;">{{ $pickup }}</div>
-                </td>
-              </tr>
-              <tr>
-                <td colspan="2" style="padding-bottom:4px;vertical-align:top;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Drop-off Location</div>
-                  <div style="font-size:13px;color:#0f172a;line-height:1.55;">{{ $dropoff }}</div>
+                <td width="50%" style="padding:14px 20px;vertical-align:top;">
+                  <div style="font-size:11px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #fde68a;">Unit &amp; Team</div>
+                  <div style="font-size:12px;color:#475569;margin-bottom:4px;">Unit:&nbsp;<span style="color:#0f172a;font-weight:600;">{{ $unitName }}</span></div>
+                  <div style="font-size:12px;color:#475569;margin-bottom:4px;">Plate:&nbsp;<span style="color:#0f172a;font-weight:700;font-family:'Courier New',Courier,monospace;">{{ $unitPlate }}</span></div>
+                  <div style="font-size:12px;color:#475569;">Team Leader:&nbsp;<span style="color:#0f172a;font-weight:600;">{{ $tlName }}</span></div>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
 
-        {{-- ── DIVIDER ── --}}
-        <tr><td style="height:8px;background:#f1f5f9;"></td></tr>
-
-        {{-- ── PAYMENT INFORMATION ── --}}
+        {{-- ── BUSINESS PAYMENT DETAILS ── --}}
         <tr>
-          <td style="padding:24px 32px 0;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #f59e0b;">Payment Information</div>
+          <td style="padding:12px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;">
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td width="50%" style="padding-bottom:14px;vertical-align:top;padding-right:12px;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Payment Method</div>
-                  <div style="font-size:14px;color:#0f172a;font-weight:600;">{{ $payMethod }}</div>
+                <td style="vertical-align:top;" width="55%">
+                  <div style="font-size:11px;font-weight:700;color:#0f172a;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Please Make Payment To:</div>
+                  <div style="font-size:12px;color:#0f172a;font-weight:600;margin-bottom:3px;">SEARLE ANN BARTOLOME</div>
+                  <div style="font-size:11px;color:#475569;margin-bottom:2px;">BDO Bank Acc. #: <span style="font-family:'Courier New',Courier,monospace;color:#0f172a;">012150103970</span></div>
+                  <div style="font-size:11px;color:#475569;">GCash: <span style="font-family:'Courier New',Courier,monospace;color:#0f172a;">0942 638 6048</span></div>
                 </td>
-                <td width="50%" style="padding-bottom:14px;vertical-align:top;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Status</div>
-                  <div style="font-size:14px;color:#16a34a;font-weight:700;">&#10003; Completed</div>
-                </td>
-              </tr>
-              @if ($payRef)
-              <tr>
-                <td colspan="2" style="padding-bottom:4px;vertical-align:top;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Reference Number</div>
-                  <div style="font-size:13px;color:#0f172a;font-family:'Courier New',Courier,monospace;">{{ $payRef }}</div>
+                <td style="vertical-align:bottom;text-align:right;" width="45%">
+                  <div style="font-size:11px;color:#475569;font-style:italic;margin-bottom:2px;">Authorized by:</div>
+                  <div style="font-size:13px;font-weight:700;color:#0f172a;border-top:1px solid #0f172a;padding-top:4px;display:inline-block;">SHEANNE BARTOLOME</div>
+                  <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;">Franchisee</div>
                 </td>
               </tr>
-              @endif
-            </table>
-          </td>
-        </tr>
-
-        {{-- ── DIVIDER ── --}}
-        <tr><td style="height:8px;background:#f1f5f9;"></td></tr>
-
-        {{-- ── UNIT & TEAM DETAILS ── --}}
-        <tr>
-          <td style="padding:24px 32px 28px;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #f59e0b;">Unit &amp; Team Details</div>
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td width="50%" style="padding-bottom:14px;vertical-align:top;padding-right:12px;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Unit Name</div>
-                  <div style="font-size:14px;color:#0f172a;font-weight:600;">{{ $unitName }}</div>
-                </td>
-                <td width="50%" style="padding-bottom:14px;vertical-align:top;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Plate Number</div>
-                  <div style="font-size:14px;color:#0f172a;font-weight:700;font-family:'Courier New',Courier,monospace;">{{ $unitPlate }}</div>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding-bottom:14px;vertical-align:top;padding-right:12px;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Truck Type</div>
-                  <div style="font-size:14px;color:#0f172a;font-weight:600;">{{ $truckType }}</div>
-                </td>
-                <td style="padding-bottom:14px;vertical-align:top;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Team Leader</div>
-                  <div style="font-size:14px;color:#0f172a;font-weight:600;">{{ $tlName }}</div>
-                </td>
-              </tr>
-              @if ($driverName !== '—')
-              <tr>
-                <td colspan="2" style="padding-bottom:4px;vertical-align:top;">
-                  <div style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Driver</div>
-                  <div style="font-size:14px;color:#0f172a;font-weight:600;">{{ $driverName }}</div>
-                </td>
-              </tr>
-              @endif
             </table>
           </td>
         </tr>
 
         {{-- ── FOOTER ── --}}
         <tr>
-          <td style="background:#0f172a;padding:18px 32px;">
-            <p style="margin:0;font-size:11px;color:#64748b;line-height:1.8;text-align:center;">
-              Thank you for choosing Jarz Towing &bull; TowMate<br>
-              Generated {{ now()->format('M d, Y \a\t h:i A') }}
-              @if (!empty($receiptUrl))
-                &bull; <a href="{{ $receiptUrl }}" style="color:#f59e0b;text-decoration:none;font-weight:600;">Download PDF Receipt</a>
-              @endif
-            </p>
+          <td style="background:#0f172a;padding:12px 20px;border-top:3px solid #f59e0b;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="text-align:center;">
+                  <div style="font-size:11px;color:#94a3b8;line-height:2;">
+                    &#128222;&nbsp;+63 933 022 3679
+                    &nbsp;&nbsp;&#8226;&nbsp;&nbsp;
+                    &#128205;&nbsp;#3A 1st St. Carreon Village, San Bartolome, Q.C.
+                    &nbsp;&nbsp;&#8226;&nbsp;&nbsp;
+                    &#9993;&nbsp;jarztowingservices@gmail.com
+                  </div>
+                  <div style="font-size:10px;color:#475569;margin-top:4px;">
+                    Generated {{ now()->format('M d, Y \a\t h:i A') }}
+                    @if (!empty($receiptUrl))
+                      &nbsp;&bull;&nbsp;<a href="{{ $receiptUrl }}" style="color:#f59e0b;text-decoration:none;font-weight:600;">Download PDF</a>
+                    @endif
+                  </div>
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
 
