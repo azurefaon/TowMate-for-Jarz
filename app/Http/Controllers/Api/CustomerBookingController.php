@@ -158,7 +158,7 @@ class CustomerBookingController extends Controller
 
         $truckType     = TruckType::findOrFail($validated['truck_type_id']);
         $distanceKm    = (float) $validated['distance_km'];
-        $distanceFee   = round($distanceKm * 300.0, 2);
+        $distanceFee   = $distanceKm >= 4.0 ? round($distanceKm * 300.0, 2) : 0.0;
 
         // Decode extra vehicles sent as JSON string from multipart
         $allExtraVehicles = null;

@@ -507,8 +507,10 @@
         // Price Breakdown — distance fee row
         const distFeeEl   = document.getElementById('qmDistanceFee');
         const distLabelEl = document.getElementById('qmDistanceFeeLabel');
-        if (distFeeEl)   distFeeEl.textContent   = fmt(distanceFee);
-        if (distLabelEl) distLabelEl.textContent = `Distance (${kmIncrements} × ₱200 per 4 km)`;
+        if (distFeeEl)   distFeeEl.textContent   = distanceKm >= 4 ? fmt(distanceFee) : 'Free';
+        if (distLabelEl) distLabelEl.textContent = distanceKm >= 4
+            ? `Distance (${distanceKm.toFixed(2)} km × ₱300)`
+            : `Distance (${distanceKm.toFixed(2)} km — free under 4 km)`;
 
         // Subtotal / VAT / Total use final_total as the source of truth
         const displaySub = Math.round(finalTotal / 1.12 * 100) / 100;
@@ -803,11 +805,13 @@
 
                 const distanceKm  = parseFloat(q.distance_km || 0);
                 const extraDist   = distanceKm;
-                const distanceFee = Math.round(extraDist * 300 * 100) / 100;
+                const distanceFee = distanceKm >= 4 ? Math.round(extraDist * 300 * 100) / 100 : 0;
 
                 document.getElementById('qmBasePrice').textContent = window.qmBasePrice > 0 ? fmt(window.qmBasePrice) : 'TBD';
-                document.getElementById('qmDistanceFee').textContent = fmt(distanceFee);
-                document.getElementById('qmDistanceFeeLabel').textContent = `Distance (${extraDist.toFixed(2)} km × ₱300)`;
+                document.getElementById('qmDistanceFee').textContent = distanceKm >= 4 ? fmt(distanceFee) : 'Free';
+                document.getElementById('qmDistanceFeeLabel').textContent = distanceKm >= 4
+                    ? `Distance (${extraDist.toFixed(2)} km × ₱300)`
+                    : `Distance (${extraDist.toFixed(2)} km — free under 4 km)`;
                 document.getElementById('qmOtherFeesRow').style.display = 'none';
                 window.qmDistanceFee = distanceFee;
 

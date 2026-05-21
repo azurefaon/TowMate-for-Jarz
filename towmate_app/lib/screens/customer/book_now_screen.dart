@@ -3216,7 +3216,7 @@ class _PriceBreakdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double extraDist = distanceKm;
-    final double distanceFee = extraDist * 300.0;
+    final double distanceFee = distanceKm >= 4.0 ? extraDist * 300.0 : 0.0;
     double bases = truckType.baseRate;
     final filledExtras = extraVehicles.where((ev) => ev.truck != null).toList();
     for (final ev in filledExtras) {
@@ -3243,8 +3243,10 @@ class _PriceBreakdown extends StatelessWidget {
               value: '₱${priceFmt.format(ev.truck!.baseRate)}',
             ),
           _BRow(
-            label: '${extraDist.toStringAsFixed(2)} km × ₱300',
-            value: '₱${priceFmt.format(distanceFee)}',
+            label: distanceKm >= 4.0
+                ? '${extraDist.toStringAsFixed(2)} km × ₱300'
+                : '${extraDist.toStringAsFixed(2)} km (free under 4 km)',
+            value: distanceKm >= 4.0 ? '₱${priceFmt.format(distanceFee)}' : 'Free',
           ),
           Container(height: 0.5, color: context.divider),
           _BRow(
