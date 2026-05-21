@@ -111,18 +111,12 @@
 
         {{-- ── BOOKING / RECEIPT REFERENCE ── --}}
         <tr>
-          <td style="padding:8px 20px;background:#fffbeb;border-top:1px solid #fde68a;border-bottom:1px solid #fde68a;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td>
-                  <span style="font-size:11px;color:#92400e;">Booking #:&nbsp;</span>
-                  <span style="font-size:12px;font-weight:700;color:#0f172a;font-family:'Courier New',Courier,monospace;">{{ $booking->booking_code }}</span>
-                  &nbsp;&nbsp;&nbsp;
-                  <span style="font-size:11px;color:#92400e;">Receipt #:&nbsp;</span>
-                  <span style="font-size:12px;font-weight:700;color:#0f172a;font-family:'Courier New',Courier,monospace;">{{ $receiptNum }}</span>
-                </td>
-              </tr>
-            </table>
+          <td style="padding:8px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;">
+            <span style="font-size:11px;color:#64748b;">Booking #:&nbsp;</span>
+            <span style="font-size:12px;font-weight:700;color:#0f172a;font-family:'Courier New',Courier,monospace;">{{ $booking->booking_code }}</span>
+            &nbsp;&nbsp;&nbsp;
+            <span style="font-size:11px;color:#64748b;">Receipt #:&nbsp;</span>
+            <span style="font-size:12px;font-weight:700;color:#0f172a;font-family:'Courier New',Courier,monospace;">{{ $receiptNum }}</span>
           </td>
         </tr>
 
@@ -186,39 +180,18 @@
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td width="50%" style="padding:14px 20px;vertical-align:top;border-right:1px solid #e2e8f0;">
-                  <div style="font-size:11px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #fde68a;">Payment</div>
+                  <div style="font-size:10px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid #e2e8f0;">Payment</div>
                   <div style="font-size:12px;color:#475569;margin-bottom:4px;">Method:&nbsp;<span style="color:#0f172a;font-weight:600;">{{ $payMethod }}</span></div>
-                  <div style="font-size:12px;color:#475569;margin-bottom:4px;">Status:&nbsp;<span style="color:#16a34a;font-weight:700;">&#10003; Paid</span></div>
+                  <div style="font-size:12px;color:#475569;margin-bottom:4px;">Status:&nbsp;<span style="color:#0f172a;font-weight:600;">Paid</span></div>
                   @if ($payRef)
                   <div style="font-size:11px;color:#475569;margin-top:4px;word-break:break-all;">Ref: {{ $payRef }}</div>
                   @endif
                 </td>
                 <td width="50%" style="padding:14px 20px;vertical-align:top;">
-                  <div style="font-size:11px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #fde68a;">Unit &amp; Team</div>
+                  <div style="font-size:10px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid #e2e8f0;">Unit &amp; Team</div>
                   <div style="font-size:12px;color:#475569;margin-bottom:4px;">Unit:&nbsp;<span style="color:#0f172a;font-weight:600;">{{ $unitName }}</span></div>
-                  <div style="font-size:12px;color:#475569;margin-bottom:4px;">Plate:&nbsp;<span style="color:#0f172a;font-weight:700;font-family:'Courier New',Courier,monospace;">{{ $unitPlate }}</span></div>
+                  <div style="font-size:12px;color:#475569;margin-bottom:4px;">Plate:&nbsp;<span style="color:#0f172a;font-weight:600;font-family:'Courier New',Courier,monospace;">{{ $unitPlate }}</span></div>
                   <div style="font-size:12px;color:#475569;">Team Leader:&nbsp;<span style="color:#0f172a;font-weight:600;">{{ $tlName }}</span></div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        {{-- ── BUSINESS PAYMENT DETAILS ── --}}
-        <tr>
-          <td style="padding:12px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="vertical-align:top;" width="55%">
-                  <div style="font-size:11px;font-weight:700;color:#0f172a;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Please Make Payment To:</div>
-                  <div style="font-size:12px;color:#0f172a;font-weight:600;margin-bottom:3px;">SEARLE ANN BARTOLOME</div>
-                  <div style="font-size:11px;color:#475569;margin-bottom:2px;">BDO Bank Acc. #: <span style="font-family:'Courier New',Courier,monospace;color:#0f172a;">012150103970</span></div>
-                  <div style="font-size:11px;color:#475569;">GCash: <span style="font-family:'Courier New',Courier,monospace;color:#0f172a;">0942 638 6048</span></div>
-                </td>
-                <td style="vertical-align:bottom;text-align:right;" width="45%">
-                  <div style="font-size:11px;color:#475569;font-style:italic;margin-bottom:2px;">Authorized by:</div>
-                  <div style="font-size:13px;font-weight:700;color:#0f172a;border-top:1px solid #0f172a;padding-top:4px;display:inline-block;">SHEANNE BARTOLOME</div>
-                  <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;">Franchisee</div>
                 </td>
               </tr>
             </table>
@@ -227,26 +200,20 @@
 
         {{-- ── FOOTER ── --}}
         <tr>
-          <td style="background:#0f172a;padding:12px 20px;border-top:3px solid #f59e0b;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="text-align:center;">
-                  <div style="font-size:11px;color:#94a3b8;line-height:2;">
-                    &#128222;&nbsp;+63 933 022 3679
-                    &nbsp;&nbsp;&#8226;&nbsp;&nbsp;
-                    &#128205;&nbsp;#3A 1st St. Carreon Village, San Bartolome, Q.C.
-                    &nbsp;&nbsp;&#8226;&nbsp;&nbsp;
-                    &#9993;&nbsp;jarztowingservices@gmail.com
-                  </div>
-                  <div style="font-size:10px;color:#475569;margin-top:4px;">
-                    Generated {{ now()->format('M d, Y \a\t h:i A') }}
-                    @if (!empty($receiptUrl))
-                      &nbsp;&bull;&nbsp;<a href="{{ $receiptUrl }}" style="color:#f59e0b;text-decoration:none;font-weight:600;">Download PDF</a>
-                    @endif
-                  </div>
-                </td>
-              </tr>
-            </table>
+          <td style="background:#0f172a;padding:14px 20px;border-top:3px solid #f59e0b;">
+            <p style="margin:0;font-size:11px;color:#94a3b8;text-align:center;line-height:1.8;">
+              +63 933 022 3679
+              &nbsp;&bull;&nbsp;
+              #3A 1st St. Carreon Village, San Bartolome, Q.C.
+              &nbsp;&bull;&nbsp;
+              jarztowingservices@gmail.com
+            </p>
+            <p style="margin:6px 0 0;font-size:10px;color:#475569;text-align:center;">
+              Generated {{ now()->format('M d, Y \a\t h:i A') }}
+              @if (!empty($receiptUrl))
+                &nbsp;&bull;&nbsp;<a href="{{ $receiptUrl }}" style="color:#f59e0b;text-decoration:none;">Download PDF</a>
+              @endif
+            </p>
           </td>
         </tr>
 
