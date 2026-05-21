@@ -219,13 +219,14 @@ class TLTaskController extends Controller
             return response()->json(['success' => false, 'message' => 'This task is not assigned to you.'], 403);
         }
 
-        if ($booking->status !== 'waiting_verification') {
-            return response()->json(['success' => false, 'message' => 'Task is not awaiting verification.'], 422);
+        $terminalStatuses = ['completed', 'cancelled', 'rejected', 'returned'];
+        if (in_array($booking->status, $terminalStatuses)) {
+            return response()->json(['success' => false, 'message' => 'Task is already in a terminal state.'], 422);
         }
 
+        // Set to waiting_verification so the dispatcher can confirm payment and send the receipt email.
         $updates = [
-            'status'                       => 'completed',
-            'completed_at'                 => now(),
+            'status'                       => 'waiting_verification',
             'customer_verified_at'         => now(),
             'customer_verification_status' => 'verified',
             'payment_method'               => $validated['payment_method'],
@@ -257,15 +258,10 @@ class TLTaskController extends Controller
             }
         }
 
-        // Free the unit only when there is no sibling task for this TL
-        if (!$nextTask) {
-            if ($booking->assigned_unit_id) {
-                Unit::where('id', $booking->assigned_unit_id)
-                    ->update(['status' => 'available']);
-            } else {
-                Unit::where('team_leader_id', $request->user()->id)
-                    ->update(['status' => 'available']);
-            }
+        // Unit is freed by the dispatcher when they confirm payment (JobsController::confirmPayment).
+        // Only free early when a sibling group task takes over.
+        if ($nextTask) {
+            // Sibling task already assigned — unit stays on_job
         }
 
         $booking->load(['customer', 'truckType', 'unit']);
@@ -277,7 +273,7 @@ class TLTaskController extends Controller
 
         return response()->json([
             'success'   => true,
-            'message'   => 'Task completed successfully.',
+            'message'   => 'Task submitted for dispatcher confirmation.',
             'data'      => $this->formatTask($booking),
             'next_task' => $nextTask,
         ]);
