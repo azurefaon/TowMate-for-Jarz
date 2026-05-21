@@ -233,8 +233,7 @@ class Booking extends Model
     public function getDistanceFeeAmountAttribute(): float
     {
         $distanceKm = (float) ($this->distance_km ?? 0);
-        $kmIncrements = (int) floor($distanceKm / 4);
-        return round($kmIncrements * 200.0, 2);
+        return $distanceKm >= 4.0 ? round($distanceKm * 300.0, 2) : 0.0;
     }
 
     public function getExcessKmAttribute(): float

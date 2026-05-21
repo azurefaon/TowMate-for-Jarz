@@ -9,9 +9,11 @@
 @php
     $baseRate     = (float) ($booking->base_rate ?? 0);
     $distanceKm   = (float) ($booking->distance_km ?? 0);
-    $distanceFee  = (float) ($booking->distance_fee_amount ?? 0);
-    $vatAmount    = (float) ($booking->vat_amount ?? 0);
     $finalTotal   = (float) ($booking->final_total ?? 0);
+    // Calculate from distance_km using the current formula so display is always correct
+    $distanceFee  = $distanceKm >= 4.0 ? round($distanceKm * 300.0, 2) : 0.0;
+    // Back-calculate VAT from the actual charged total to keep rows consistent
+    $vatAmount    = $finalTotal > 0 ? round($finalTotal / 1.12 * 0.12, 2) : 0.0;
     $custName     = $booking->customer->full_name ?? ($booking->customer->name ?? 'Customer');
     $custPhone    = $booking->customer->phone ?? '—';
     $custEmail    = $booking->customer->email ?? '—';
