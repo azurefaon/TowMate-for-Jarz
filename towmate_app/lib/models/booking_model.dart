@@ -30,6 +30,7 @@ class BookingModel {
     this.arrivalPhotoUrl,
     this.dropoffPhotoUrl,
     this.completedAt,
+    this.priceChangeLog,
   });
 
   final int id;
@@ -63,6 +64,7 @@ class BookingModel {
   final String? arrivalPhotoUrl;
   final String? dropoffPhotoUrl;
   final DateTime? completedAt;
+  final List<Map<String, dynamic>>? priceChangeLog;
 
   String get formattedDate {
     if (createdAt == null) return '';
@@ -129,6 +131,9 @@ class BookingModel {
       arrivalPhotoUrl: j['arrival_photo_url'] as String?,
       dropoffPhotoUrl: j['dropoff_photo_url'] as String?,
       completedAt: j['completed_at'] != null ? DateTime.tryParse(j['completed_at'] as String) : null,
+      priceChangeLog: (j['price_change_log'] as List?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(),
     );
   }
 }

@@ -400,11 +400,11 @@ document.addEventListener("DOMContentLoaded", function () {
         var isScheduled = state.activeFilter === "scheduled";
 
         if (queueList) {
-            queueList.style.display = isBookNow || isScheduled ? "none" : "";
+            queueList.style.display = isBookNow || isScheduled ? "none" : "block";
         }
-        if (bookNowPanel) bookNowPanel.style.display = isBookNow ? "" : "none";
+        if (bookNowPanel) bookNowPanel.style.display = isBookNow ? "block" : "none";
         if (scheduledPanel)
-            scheduledPanel.style.display = isScheduled ? "" : "none";
+            scheduledPanel.style.display = isScheduled ? "block" : "none";
 
         Array.prototype.forEach.call(filterButtons, function (button) {
             var isActive =
@@ -429,11 +429,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function updateTabBadges() {
         var cards = queueList.querySelectorAll(".incoming-card");
+        var bookNowPanel = document.getElementById("bookNowPanel");
+        var scheduledPanel = document.getElementById("scheduledPanel");
+        var bookNowCards = bookNowPanel ? bookNowPanel.querySelectorAll(".incoming-card") : [];
+        var scheduledCards = scheduledPanel ? scheduledPanel.querySelectorAll(".incoming-card") : [];
         var counts = {
             returned: 0,
             active: 0,
-            "book-now": 0,
-            scheduled: 0,
+            "book-now": bookNowCards.length,
+            scheduled: scheduledCards.length,
             delayed: 0,
             ready_completion: 0,
             all: cards.length,
@@ -694,9 +698,8 @@ document.addEventListener("DOMContentLoaded", function () {
             );
         }
 
-        var isConfirmedStatus =
-            state.selectedCard &&
-            state.selectedCard.getAttribute("data-status") === "confirmed";
+        var _cs = state.selectedCard && state.selectedCard.getAttribute("data-status");
+        var isConfirmedStatus = _cs === "confirmed" || _cs === "scheduled_confirmed";
 
         if (!isConfirmedStatus) {
             if (!Number.isFinite(distanceValue) || distanceValue <= 0) {
@@ -736,10 +739,9 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // Confirmed bookings already have an assigned unit — skip unit selection check
-        var isConfirmedBooking =
-            state.selectedCard &&
-            state.selectedCard.getAttribute("data-status") === "confirmed";
+        // Confirmed bookings already have an agreed price — skip unit selection check
+        var _cbs = state.selectedCard && state.selectedCard.getAttribute("data-status");
+        var isConfirmedBooking = _cbs === "confirmed" || _cbs === "scheduled_confirmed";
         if (isConfirmedBooking) {
             confirmActionBtn.disabled = false;
             clearValidationSummary();
@@ -1295,9 +1297,8 @@ document.addEventListener("DOMContentLoaded", function () {
             state.selectedCard &&
             state.selectedCard.getAttribute("data-queue") === "returned";
 
-        var isConfirmedBooking =
-            state.selectedCard &&
-            state.selectedCard.getAttribute("data-status") === "confirmed";
+        var _cbStatus = state.selectedCard && state.selectedCard.getAttribute("data-status");
+        var isConfirmedBooking = _cbStatus === "confirmed" || _cbStatus === "scheduled_confirmed";
         button.textContent =
             action === "accept"
                 ? isReturnedTask
@@ -1671,17 +1672,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
             modalTitle.innerText = isReturnedTask
                 ? "Reassign Returned Task"
-                : currentStatus === "confirmed"
+                : (currentStatus === "confirmed" || currentStatus === "scheduled_confirmed")
                   ? "Start Job"
                   : currentStatus === "reviewed"
                     ? "Update Quotation"
                     : "Review & Send Quotation";
             modalText.innerText = isReturnedTask
                 ? "This booking was returned from the field. Choose a ready unit so dispatch can reassign it immediately."
-                : currentStatus === "confirmed"
+                : (currentStatus === "confirmed" || currentStatus === "scheduled_confirmed")
                   ? "The customer has already accepted the quotation. Select a unit to assign and start the job immediately."
                   : "Review the automatic pricing, add an optional dispatcher adjustment, and reserve a ready unit for the team leader.";
-            if (currentStatus === "confirmed" && !isReturnedTask) {
+            if ((currentStatus === "confirmed" || currentStatus === "scheduled_confirmed") && !isReturnedTask) {
                 if (confirmedBookingPanel) {
                     var cfCustomerName =
                         state.selectedCard.getAttribute("data-customer-name") ||
@@ -1836,7 +1837,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     counterOfferValue,
                     currentPriceValue,
                 );
-                if (currentStatus !== "confirmed") {
+                if (currentStatus !== "confirmed" && currentStatus !== "scheduled_confirmed") {
                     window.setTimeout(function () {
                         priceInput.focus();
                         priceInput.select();
@@ -1894,7 +1895,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (confirmActionBtn) {
                 confirmActionBtn.textContent = isReturnedTask
                     ? "Reassign Task"
-                    : currentStatus === "confirmed"
+                    : (currentStatus === "confirmed" || currentStatus === "scheduled_confirmed")
                       ? "Start Job"
                       : currentStatus === "reviewed"
                         ? "Update Quote"
@@ -1902,7 +1903,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             var saveDraftBtn = document.getElementById("saveDraftBtn");
             if (saveDraftBtn) {
-                saveDraftBtn.style.display = (!isReturnedTask && currentStatus !== "confirmed") ? "inline-block" : "none";
+                saveDraftBtn.style.display = (!isReturnedTask && currentStatus !== "confirmed" && currentStatus !== "scheduled_confirmed") ? "inline-block" : "none";
             }
             updateQuotationPreview(priceInput ? priceInput.value : "");
             updateConfirmButtonState();

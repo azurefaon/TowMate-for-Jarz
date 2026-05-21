@@ -184,18 +184,7 @@
 }
 
 .incoming-card::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 4px;
-    /* background: #facc15; */
-    transform: scaleY(0);
-    transition: transform 0.3s ease;
-    border-radius: 0 4px 4px 0;
-    pointer-events: none;
-    z-index: 0;
+    content: none;
 }
 
 .incoming-card > * {
@@ -209,7 +198,7 @@
 }
 
 .incoming-card:hover::before {
-    transform: scaleY(1);
+    content: none;
 }
 
 .incoming-left {
@@ -280,18 +269,16 @@
 
 .status-badge {
     font-size: 12px;
-    padding: 6px 12px;
-    border-radius: 20px;
-    /* font-weight: 700; */
     text-transform: uppercase;
-    /* letter-spacing: 0.5px; */
-    /* border: 1px solid #f5d565; */
+    font-weight: 600;
+    background: none;
+    border: none;
+    padding: 0;
+    border-radius: 0;
 }
 
 .status-badge.pending {
-    background: #fef3c7;
     color: #7c5a00;
-    border-color: #f5d565;
 }
 
 .incoming-actions {
@@ -769,7 +756,7 @@
     border: 1px solid #e5e7eb;
     border-radius: 10px;
     min-width: 80px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 .dp-stat-n {
     font-size: 1.4rem;
@@ -782,10 +769,14 @@
     color: #9ca3af;
     margin-top: 3px;
     text-transform: uppercase;
-    letter-spacing: .04em;
+    letter-spacing: 0.04em;
 }
-.dp-stat--warn .dp-stat-n { color: #dc2626; }
-.dp-stat--green .dp-stat-n { color: #16a34a; }
+.dp-stat--warn .dp-stat-n {
+    color: #dc2626;
+}
+.dp-stat--green .dp-stat-n {
+    color: #16a34a;
+}
 
 /* 2-Column Layout */
 .dp-dispatch-layout {
@@ -829,16 +820,19 @@
 }
 
 /* Queue Tabs — Pill Style */
-.queue-tabs { gap: 6px; margin: 12px 0; }
+.queue-tabs {
+    gap: 6px;
+    margin: 12px 0;
+}
 .queue-filter-btn {
     border: 1.5px solid #e5e7eb;
     border-radius: 999px;
     background: #f9fafb;
     padding: 7px 14px;
-    font-size: .82rem;
+    font-size: 0.82rem;
     color: #374151;
     gap: 6px;
-    transition: all .15s;
+    transition: all 0.15s;
 }
 .queue-filter-btn:hover {
     background: #fff;
@@ -861,22 +855,36 @@
 .incoming-card {
     border: 1px solid #e5e7eb !important;
     border-left: 4px solid #e5e7eb !important;
-    box-shadow: 0 2px 8px rgba(17,24,39,.05) !important;
+    box-shadow: 0 2px 8px rgba(17, 24, 39, 0.05) !important;
 }
 .incoming-card:hover {
-    box-shadow: 0 4px 16px rgba(17,24,39,.1) !important;
+    box-shadow: 0 4px 16px rgba(17, 24, 39, 0.1) !important;
     border-left-color: #facc15 !important;
 }
-.incoming-card[data-status="pending"]               { border-left-color: #facc15 !important; }
-.incoming-card[data-status="accepted"]              { border-left-color: #facc15 !important; }
-.incoming-card[data-status="dispatched"]            { border-left-color: #3b82f6 !important; }
-.incoming-card[data-status="on_the_way"]            { border-left-color: #3b82f6 !important; }
-.incoming-card[data-status="arrived"]               { border-left-color: #8b5cf6 !important; }
-.incoming-card[data-status="in_progress"]           { border-left-color: #f97316 !important; }
-.incoming-card[data-status="waiting_verification"]  { border-left-color: #16a34a !important; }
-.incoming-card[data-queue="returned"]               { border-left-color: #ef4444 !important; }
-.incoming-card--scheduled                           { border-left-color: #3b82f6 !important; }
-.incoming-card--scheduled-confirmed                 { border-left-color: #facc15 !important; }
+.incoming-card[data-status="pending"] {
+    border-left-color: #facc15 !important;
+}
+.incoming-card[data-status="accepted"] {
+    border-left-color: #facc15 !important;
+}
+.incoming-card[data-status="dispatched"] {
+    border-left-color: #3b82f6 !important;
+}
+.incoming-card[data-status="on_the_way"] {
+    border-left-color: #3b82f6 !important;
+}
+.incoming-card[data-status="arrived"] {
+    border-left-color: #8b5cf6 !important;
+}
+.incoming-card[data-status="in_progress"] {
+    border-left-color: #f97316 !important;
+}
+.incoming-card[data-status="waiting_verification"] {
+    border-left-color: #16a34a !important;
+}
+.incoming-card[data-queue="returned"] {
+    border-left-color: #ef4444 !important;
+}
 
 /* Team Leaders Sidebar — Compact */
 .dp-sidebar-col .dp-tl-section {
@@ -886,9 +894,13 @@
 .dp-sidebar-col .dp-tl-table th,
 .dp-sidebar-col .dp-tl-table td {
     padding: 7px 8px;
-    font-size: .76rem;
+    font-size: 0.76rem;
 }
 .dp-sidebar-col .dp-tl-table th:nth-child(3),
-.dp-sidebar-col .dp-tl-table td:nth-child(3) { display: none; }
+.dp-sidebar-col .dp-tl-table td:nth-child(3) {
+    display: none;
+}
 .dp-sidebar-col .dp-remove-btn,
-.dp-sidebar-col .dp-unit-sel { display: none; }
+.dp-sidebar-col .dp-unit-sel {
+    display: none;
+}

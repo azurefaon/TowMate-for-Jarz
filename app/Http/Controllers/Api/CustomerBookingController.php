@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Customer;
@@ -157,8 +158,7 @@ class CustomerBookingController extends Controller
 
         $truckType     = TruckType::findOrFail($validated['truck_type_id']);
         $distanceKm    = (float) $validated['distance_km'];
-        $extraDistance = max(0.0, $distanceKm - 1.0);
-        $distanceFee   = round($extraDistance * 300.0, 2);
+        $distanceFee   = round($distanceKm * 300.0, 2);
 
         // Decode extra vehicles sent as JSON string from multipart
         $allExtraVehicles = null;
@@ -353,11 +353,12 @@ class CustomerBookingController extends Controller
             return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
         }
 
-        if ($booking->status !== 'scheduled') {
+        if (!in_array($booking->status, ['scheduled', 'scheduled_confirmed'])) {
             return response()->json(['success' => false, 'message' => 'Only scheduled bookings can be cancelled.'], 422);
         }
 
         $booking->update(['status' => 'cancelled']);
+        BookingStatusUpdated::safeFire($booking);
 
         return response()->json(['success' => true, 'message' => 'Booking cancelled successfully.']);
     }
@@ -380,6 +381,12 @@ class CustomerBookingController extends Controller
 
         $driverName = $booking->driver_name
             ?? optional(optional($booking->unit)->driver)->name;
+
+        // Load price change history from the linked quotation (source_booking_id)
+        $quotation = \App\Models\Quotation::where('source_booking_id', $booking->id)
+            ->latest('id')
+            ->first();
+        $priceChangeLog = $quotation?->price_change_log ?? [];
 
         return response()->json([
             'success' => true,
@@ -413,6 +420,7 @@ class CustomerBookingController extends Controller
                     ? \Illuminate\Support\Facades\Storage::url($booking->dropoff_photo_path) : null,
                 'created_at'        => $booking->created_at?->toDateTimeString(),
                 'completed_at'      => $booking->completed_at?->toDateTimeString(),
+                'price_change_log'  => $priceChangeLog,
             ],
         ]);
     }

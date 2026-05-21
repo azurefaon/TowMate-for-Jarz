@@ -1,12 +1,15 @@
 @php
+    $draftQuotations = $allQuotations->where('status', 'draft');
     $pendingQuotations = $allQuotations->where('status', 'pending');
     $sentQuotations = $allQuotations->where('status', 'sent');
     $negotiatingQuotations = $allQuotations->where('status', 'negotiating');
-    $totalActive = $pendingQuotations->count() + $sentQuotations->count() + $negotiatingQuotations->count();
+    $totalActive = $draftQuotations->count() + $pendingQuotations->count() + $sentQuotations->count() + $negotiatingQuotations->count();
 
     // Auto-select the most urgent tab
     if ($negotiatingQuotations->count() > 0) {
         $defaultTab = 'negotiating';
+    } elseif ($draftQuotations->count() > 0) {
+        $defaultTab = 'draft';
     } elseif ($sentQuotations->count() > 0) {
         $defaultTab = 'sent';
     } else {
@@ -30,7 +33,7 @@
                     </span>
                 </div>
                 <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 1px;">
-                    {{ $pendingQuotations->count() }} need{{ $pendingQuotations->count() === 1 ? 's' : '' }} sending
+                    {{ $draftQuotations->count() + $pendingQuotations->count() }} need sending
                     &nbsp;·&nbsp; {{ $sentQuotations->count() }} waiting for customer response
                     @if ($negotiatingQuotations->count() > 0)
                         &nbsp;·&nbsp; <span
@@ -49,6 +52,21 @@
             <!-- Tab bar -->
             <div
                 style="display: flex; border-bottom: 1px solid #f1f5f9; padding: 0 20px; gap: 2px; background: #fafafa;">
+
+                <!-- Draft tab -->
+                <button type="button" id="fqTab-draft" onclick="switchFqTab('draft')"
+                    style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.15s, border-color 0.15s; {{ $draftQuotations->count() === 0 ? 'opacity: 0.4;' : '' }}">
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        @if ($draftQuotations->count() > 0)
+                            <span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
+                        @endif
+                        Draft
+                    </span>
+                    <span id="fqBadge-draft"
+                        style="display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: {{ $draftQuotations->count() > 0 ? '#fef3c7' : '#f1f5f9' }}; color: {{ $draftQuotations->count() > 0 ? '#b45309' : '#64748b' }};">
+                        {{ $draftQuotations->count() }}
+                    </span>
+                </button>
 
                 <!-- Pending tab -->
                 <button type="button" id="fqTab-pending" onclick="switchFqTab('pending')"
@@ -86,6 +104,69 @@
                     </span>
                 </button>
 
+            </div>
+
+            <!-- ─── Draft panel ─── -->
+            <div id="fqPanel-draft" data-fq-panel style="display: none; padding: 16px 20px;">
+                @if ($draftQuotations->count() === 0)
+                    <div style="padding: 32px 0; text-align: center; color: #94a3b8; font-size: 0.85rem;">No drafted quotations.</div>
+                @else
+                    <div style="max-height: 380px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+                        @foreach ($draftQuotations as $quotation)
+                            @php
+                                $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
+                                    'booking_code'    => $s->booking_code,
+                                    'status'          => $s->status,
+                                    'truck_type'      => $s->truckType?->name ?? '',
+                                    'truck_type_name' => $s->truckType?->name ?? '',
+                                    'scheduled_date'  => optional($s->scheduled_date)->format('Y-m-d'),
+                                    'scheduled_time'  => $s->scheduled_time,
+                                    'service_type'    => $s->service_type,
+                                    'final_total'     => (float) ($s->final_total ?? 0),
+                                ])->values()->toArray();
+                                $qGroupCode = ($quotation->group_siblings ?? collect())->first()?->group_code ?? '';
+                            @endphp
+                            <div style="border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
+                                onclick="viewQuotationDetails({{ $quotation->id }})"
+                                onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
+                                onmouseout="this.style.boxShadow='none'"
+                                data-group-siblings="{{ json_encode($qSiblings) }}"
+                                data-group-code="{{ $qGroupCode }}"
+                                data-queue="quotation"
+                                data-status="{{ $quotation->status }}"
+                                data-ref="{{ e($quotation->quotation_number) }}"
+                                data-customer="{{ e($quotation->customer->full_name ?? $quotation->customer->name ?? 'N/A') }}"
+                                data-phone="{{ e($quotation->customer->phone ?? 'N/A') }}"
+                                data-truck="{{ e($quotation->truckType?->name ?? '—') }}"
+                                data-final-total="{{ $quotation->estimated_price ?? 0 }}">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                    <div>
+                                        <div style="font-size: 0.78rem; font-weight: 700; color: #0f172a; font-family: monospace;">{{ $quotation->quotation_number }}</div>
+                                        <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 1px;">{{ $quotation->created_at->diffForHumans() }}</div>
+                                    </div>
+                                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+                                        <span style="font-size: 0.68rem; padding: 2px 8px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a; border-radius: 4px; font-weight: 700;">DRAFT</span>
+                                        @if ($quotation->source_booking_id)
+                                            <span style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-weight: 700;">MOBILE</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div style="font-size: 0.88rem; color: #0f172a; margin-bottom: 1px;">
+                                    {{ $quotation->customer->full_name ?? ($quotation->customer->name ?? 'N/A') }}
+                                </div>
+                                <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 10px;">{{ $quotation->customer->phone ?? '' }}</div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #f1f5f9; flex-wrap:wrap; gap:4px;">
+                                    <span style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
+                                    <button type="button"
+                                        onclick="event.stopPropagation(); viewQuotationDetails({{ $quotation->id }})"
+                                        style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #fef3c7; color: #b45309; border: 1px solid #fde68a; cursor: pointer;">
+                                        Send Now
+                                    </button>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
 
             <!-- ─── Pending panel ─── -->
@@ -403,6 +484,7 @@
     }
 
     /* Custom thin scrollbar for quotation panels */
+    #fqPanel-draft>div:first-child,
     #fqPanel-pending>div:first-child,
     #fqPanel-sent>div:first-child,
     #fqPanel-negotiating>div:first-child {
@@ -410,18 +492,21 @@
         scrollbar-color: #e2e8f0 transparent;
     }
 
+    #fqPanel-draft>div:first-child::-webkit-scrollbar,
     #fqPanel-pending>div:first-child::-webkit-scrollbar,
     #fqPanel-sent>div:first-child::-webkit-scrollbar,
     #fqPanel-negotiating>div:first-child::-webkit-scrollbar {
         width: 5px;
     }
 
+    #fqPanel-draft>div:first-child::-webkit-scrollbar-track,
     #fqPanel-pending>div:first-child::-webkit-scrollbar-track,
     #fqPanel-sent>div:first-child::-webkit-scrollbar-track,
     #fqPanel-negotiating>div:first-child::-webkit-scrollbar-track {
         background: transparent;
     }
 
+    #fqPanel-draft>div:first-child::-webkit-scrollbar-thumb,
     #fqPanel-pending>div:first-child::-webkit-scrollbar-thumb,
     #fqPanel-sent>div:first-child::-webkit-scrollbar-thumb,
     #fqPanel-negotiating>div:first-child::-webkit-scrollbar-thumb {
@@ -433,13 +518,14 @@
 <script>
     (function() {
         var TAB_ACTIVE_COLOR = {
+            draft: '#f59e0b',
             pending: '#f59e0b',
             sent: '#2563eb',
             negotiating: '#a855f7',
         };
 
         function switchFqTab(tab) {
-            ['pending', 'sent', 'negotiating'].forEach(function(t) {
+            ['draft', 'pending', 'sent', 'negotiating'].forEach(function(t) {
                 var btn = document.getElementById('fqTab-' + t);
                 var panel = document.getElementById('fqPanel-' + t);
                 if (!btn || !panel) return;

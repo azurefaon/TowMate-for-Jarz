@@ -310,11 +310,24 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          body['success'] == true) {
+        final data = body['data'] as Map<String, dynamic>?;
+        if (data != null) {
+          final user = data['user'] as Map<String, dynamic>;
+          await saveSession(
+            token: data['token'] as String,
+            role: user['role'] as String? ?? 'Customer',
+            name: user['name'] as String? ?? '',
+            userId: (user['id'] as num?)?.toInt() ?? 0,
+            email: user['email'] as String?,
+            phone: user['phone'] as String?,
+          );
+        }
         return {'success': true};
       }
-
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
 
       final errors = body['errors'] as Map<String, dynamic>?;
       if (errors != null && errors.isNotEmpty) {
@@ -832,7 +845,11 @@ class ApiService {
         'message': body['message'] as String? ?? '',
       };
     } on TimeoutException {
-      return {'success': false, 'message': 'Request timed out. Please check your connection and try again.'};
+      return {
+        'success': false,
+        'message':
+            'Request timed out. Please check your connection and try again.',
+      };
     } catch (_) {
       return {'success': false, 'message': 'Network error. Please try again.'};
     }

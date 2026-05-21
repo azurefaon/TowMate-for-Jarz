@@ -1,45 +1,75 @@
 <style>
-    /* Quotation modal — flat/plain overrides */
+    /* Quotation modal — high-contrast flat design */
     #quotationModal * {
         border-radius: 0 !important;
         box-shadow: none !important;
     }
 
-    #quotationModal [style*="font-weight"] {
-        font-weight: 400 !important;
-    }
-
     #quotationModal .modal-card {
-        border: 1px solid #000 !important;
-    }
-
-    #quotationModal *:not(button):not(select):not(input):not(textarea):not(option) {
-        color: #000000 !important;
+        border: 2px solid #000 !important;
     }
 
     /* Tab buttons */
     .qm-tab-btn {
         padding: 11px 20px;
         border: none;
-        border-bottom: 2px solid transparent;
-        background: transparent;
+        border-bottom: 3px solid transparent;
+        background: #fff;
         font-size: 0.78rem;
         font-weight: 700;
-        color: #94a3b8;
+        color: #6b7280;
         cursor: pointer;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
-        transition: color 0.15s, border-color 0.15s, background 0.15s;
+        letter-spacing: 0.07em;
+        transition: color 0.12s, border-color 0.12s;
         flex-shrink: 0;
     }
     .qm-tab-btn[data-active="true"] {
-        color: #0f172a !important;
-        border-bottom-color: #0f172a;
+        color: #000 !important;
+        border-bottom-color: #facc15;
         background: #fff;
     }
     .qm-tab-btn:hover:not([data-active="true"]) {
-        color: #374151 !important;
-        background: #f1f5f9;
+        color: #111 !important;
+        background: #f9fafb;
+    }
+
+    /* Section headers */
+    .qm-section-hdr {
+        padding: 9px 14px;
+        background: #0f172a;
+        border-bottom: none;
+        font-size: 0.7rem;
+        font-weight: 800;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    /* Section containers */
+    .qm-section {
+        border: 2px solid #0f172a;
+        overflow: hidden;
+        margin-bottom: 18px;
+    }
+
+    /* Current price highlight row */
+    .qm-current-price-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 14px;
+        background: #facc15;
+        border-bottom: 2px solid #0f172a;
+    }
+
+    /* New total row */
+    .qm-new-total-row {
+        background: #0f172a;
+        padding: 11px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 </style>
 
@@ -50,19 +80,19 @@
         style="width: min(1600px, 96vw); max-width: 620px; max-height: 92vh; background: #fff; display: flex; flex-direction: column;">
 
         <!-- HEADER -->
-        <div style="padding: 18px 24px 14px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; background: #fff; z-index: 10;">
+        <div style="padding: 16px 22px 14px; border-bottom: 2px solid #000; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; background: #fff; z-index: 10;">
             <div>
-                <h3 style="margin: 0; font-size: 1.1rem; color: #0f172a;" id="quotationModalTitle">Quotation Details</h3>
-                <p style="margin: 3px 0 0; font-size: 0.78rem; color: #94a3b8;" id="quotationModalSubtitle">Review and manage this quotation</p>
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #000; letter-spacing: -0.01em;" id="quotationModalTitle">Quotation Details</h3>
+                <p style="margin: 3px 0 0; font-size: 0.78rem; font-weight: 600; color: #6b7280;" id="quotationModalSubtitle">Review and manage this quotation</p>
             </div>
             <button type="button" onclick="closeQuotationModal()"
-                style="width: 30px; height: 30px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1;">
+                style="width: 30px; height: 30px; border: 2px solid #000; background: #fff; color: #000; font-size: 1.2rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1;">
                 ×
             </button>
         </div>
 
         <!-- TAB NAVIGATION -->
-        <div style="display: flex; border-bottom: 1px solid #e2e8f0; background: #f8fafc; flex-shrink: 0;">
+        <div style="display: flex; border-bottom: 2px solid #000; background: #fff; flex-shrink: 0;">
             <button class="qm-tab-btn" id="qmTab-details" onclick="qmSetTab('details')" data-active="false">Details</button>
             <button class="qm-tab-btn" id="qmTab-quote"   onclick="qmSetTab('quote')"   data-active="true">Quote</button>
         </div>
@@ -75,10 +105,10 @@
 
                 <!-- Mobile booking banner -->
                 <div id="qmMobileBanner"
-                    style="display:none; background:#fffbeb; border:1px solid #fde68a; padding:10px 16px; margin-bottom:14px; align-items:center; gap:10px;">
-                    <span style="font-size:0.7rem; font-weight:700; background:#f59e0b; color:#fff; padding:2px 7px; text-transform:uppercase; letter-spacing:0.07em;">Mobile</span>
-                    <span style="font-size:0.85rem; color:#92400e;">Booking ref:
-                        <span id="qmSourceBookingCode" style="font-family:monospace; font-weight:700;">—</span>
+                    style="display:none; background:#0f172a; border:2px solid #0f172a; padding:10px 16px; margin-bottom:14px; align-items:center; gap:10px;">
+                    <span style="font-size:0.7rem; font-weight:800; background:#facc15; color:#000; padding:2px 7px; text-transform:uppercase; letter-spacing:0.07em;">Mobile</span>
+                    <span style="font-size:0.85rem; color:#e2e8f0; font-weight:600;">Booking ref:
+                        <span id="qmSourceBookingCode" style="font-family:monospace; font-weight:800; color:#fff;">—</span>
                     </span>
                 </div>
 
@@ -90,21 +120,21 @@
 
                 <!-- Quotation number + Customer info -->
                 <div style="margin-bottom: 18px;">
-                    <div style="display: inline-flex; align-items: center; gap: 8px; background: #eff6ff; border: 1px solid #bfdbfe; padding: 6px 13px; margin-bottom: 10px;">
-                        <span style="font-size: 0.7rem; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.07em;">Quotation #</span>
-                        <span style="font-size: 0.9rem; color: #1d4ed8; font-family: monospace; letter-spacing: 0.03em;" id="qmQuotationNumber">—</span>
+                    <div style="display: inline-flex; align-items: center; gap: 8px; background: #000; border: 2px solid #000; padding: 6px 13px; margin-bottom: 10px;">
+                        <span style="font-size: 0.7rem; color: #facc15; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;">Quotation #</span>
+                        <span style="font-size: 0.9rem; color: #fff; font-family: monospace; font-weight: 700; letter-spacing: 0.03em;" id="qmQuotationNumber">—</span>
                     </div>
-                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 16px;">
-                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">Customer</div>
-                        <div style="font-size: 0.9rem; color: #0f172a; margin-bottom: 2px; font-weight: 600;" id="qmCustomerName">—</div>
-                        <div style="font-size: 0.82rem; color: #64748b;" id="qmCustomerPhone">—</div>
-                        <div style="font-size: 0.82rem; color: #64748b;" id="qmCustomerEmail">—</div>
+                    <div style="background: #fff; border: 2px solid #000; padding: 12px 16px;">
+                        <div style="font-size: 0.7rem; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">Customer</div>
+                        <div style="font-size: 0.9rem; color: #000; margin-bottom: 2px; font-weight: 700;" id="qmCustomerName">—</div>
+                        <div style="font-size: 0.82rem; color: #374151; font-weight: 600;" id="qmCustomerPhone">—</div>
+                        <div style="font-size: 0.82rem; color: #374151;" id="qmCustomerEmail">—</div>
                     </div>
                 </div>
 
                 <!-- Route section -->
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; margin-bottom: 18px;">
-                    <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;">Route</div>
+                <div style="background: #fff; border: 2px solid #000; padding: 14px; margin-bottom: 18px;">
+                    <div style="font-size: 0.7rem; color: #000; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px;">Route</div>
                     <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px;">
                         <div style="flex-shrink: 0; width: 22px; height: 22px; background: #22c55e; display: flex; align-items: center; justify-content: center; font-size: 0.68rem; color: #fff; margin-top: 1px;">A</div>
                         <div>
@@ -183,97 +213,52 @@
             <div id="qmPane-quote" style="display: block; padding: 18px 24px;">
 
                 <!-- Price Breakdown -->
-                <div style="border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 18px;">
-                    <div style="padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                        <span style="font-size: 0.72rem; color: #000000; text-transform: uppercase; letter-spacing: 0.05em;">Price Breakdown</span>
-                    </div>
-                    <div style="padding: 14px; display: grid; gap: 8px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #000000;">
+                <div class="qm-section">
+                    <div class="qm-section-hdr">Price Breakdown</div>
+                    <div style="padding: 14px; display: grid; gap: 8px; background: #fff;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: #000;">
                             <span id="qmBaseRateLabel">Base Rate (Unit)</span>
                             <span id="qmBasePrice">TBD</span>
                         </div>
                         <div id="qmDistanceFeeRow"
-                            style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #000000;">
+                            style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #374151;">
                             <span id="qmDistanceFeeLabel">Distance Fee</span>
                             <span id="qmDistanceFee">₱0.00</span>
                         </div>
                         <div id="qmOtherFeesRow"
-                            style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.85rem; color: #000000;">
+                            style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.85rem; color: #374151;">
                             <span>Additional Fees</span>
                             <span id="qmOtherFees">₱0.00</span>
                         </div>
                         <div id="qmExtraVehiclesTotalRow"
-                            style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.85rem; color: #000000;">
+                            style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.85rem; color: #374151;">
                             <span id="qmExtraVehiclesLabel">Additional Vehicles</span>
                             <span id="qmExtraVehiclesTotal">₱0.00</span>
                         </div>
-                        <div style="border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; font-size: 0.82rem; color: #64748b;">
+                        <div style="border-top: 2px solid #e5e7eb; padding-top: 8px; display: flex; justify-content: space-between; font-size: 0.82rem; color: #6b7280;">
                             <span>Subtotal (before VAT)</span>
                             <span id="qmSubtotalAmount">₱0.00</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: #64748b;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: #6b7280;">
                             <span>VAT (12%)</span>
                             <span id="qmVatAmount">₱0.00</span>
                         </div>
-                        <div style="border-top: 1px solid #e2e8f0; padding-top: 10px; display: flex; justify-content: space-between; align-items: baseline;">
-                            <span style="font-size: 0.9rem; font-weight: 600; color: #0f172a;">Total</span>
-                            <span style="font-size: 1.15rem; font-weight: 700; color: #0f172a;" id="qmTotalAmount">₱0.00</span>
+                        <div style="border-top: 2px solid #000; padding-top: 10px; display: flex; justify-content: space-between; align-items: baseline;">
+                            <span style="font-size: 0.9rem; font-weight: 800; color: #000;">Total</span>
+                            <span style="font-size: 1.2rem; font-weight: 800; color: #000;" id="qmTotalAmount">₱0.00</span>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Assign Unit section -->
-                <div id="qmUnitSection"
-                    style="border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 18px; display: none;">
-                    <div style="padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                        <span style="font-size: 0.72rem; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.05em;">Assign Unit</span>
-                    </div>
-                    <div style="padding: 14px;">
-                        <label style="display: block; font-size: 0.82rem; color: #000000; margin-bottom: 5px;">Available Unit <span style="color: #dc2626;">*</span></label>
-
-                        <div id="qmClassFilterRow" style="display:flex; gap:5px; margin-bottom:8px; flex-wrap:wrap;">
-                            <span style="font-size:0.72rem; color:#64748b; align-self:center; margin-right:3px;">Filter:</span>
-                            <button type="button" onclick="filterUnitsByClass('all')" id="qmClassBtn-all"
-                                style="padding:3px 10px; border:1px solid #d1d5db; background:#0f172a; color:#fff; font-size:0.72rem; font-weight:700; cursor:pointer;">All</button>
-                            <button type="button" onclick="filterUnitsByClass('light')" id="qmClassBtn-light"
-                                style="padding:3px 10px; border:1px solid #bfdbfe; background:#fff; color:#1d4ed8; font-size:0.72rem; font-weight:700; cursor:pointer;">Light</button>
-                            <button type="button" onclick="filterUnitsByClass('medium')" id="qmClassBtn-medium"
-                                style="padding:3px 10px; border:1px solid #bbf7d0; background:#fff; color:#15803d; font-size:0.72rem; font-weight:700; cursor:pointer;">Medium</button>
-                            <button type="button" onclick="filterUnitsByClass('heavy')" id="qmClassBtn-heavy"
-                                style="padding:3px 10px; border:1px solid #fed7aa; background:#fff; color:#c2410c; font-size:0.72rem; font-weight:700; cursor:pointer;">Heavy</button>
-                        </div>
-
-                        <div id="qmUnitCountHint" style="font-size:0.72rem; color:#94a3b8; margin-bottom:6px;"></div>
-
-                        <select id="qmUnitSelect"
-                            style="width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; font-size: 0.88rem; color: #0f172a; outline: none; box-sizing: border-box; background: #fff;">
-                            <option value="">Select a unit</option>
-                            @forelse($availableUnits as $unit)
-                                <option value="{{ $unit['id'] }}"
-                                        data-base-rate="{{ $unit['base_rate'] ?? 0 }}"
-                                        data-truck-class="{{ strtolower($unit['truck_class'] ?? '') }}"
-                                        data-truck-type="{{ $unit['truck_type'] ?? '' }}">
-                                    {{ $unit['label'] }} · {{ $unit['team_leader_name'] }}
-                                </option>
-                            @empty
-                                <option value="" disabled>No online ready units available</option>
-                            @endforelse
-                        </select>
-                        <small style="font-size: 0.72rem; color: #94a3b8; margin-top: 4px; display: block;">Unit must be assigned before sending.</small>
                     </div>
                 </div>
 
                 <!-- Adjust Price section -->
-                <div style="border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 18px;">
-                    <div style="padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                        <span style="font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Adjust Price</span>
-                    </div>
-                    <div style="padding: 14px; display: grid; gap: 12px;">
+                <div class="qm-section">
+                    <div class="qm-section-hdr">Adjust Price</div>
+                    <div style="padding: 14px; display: grid; gap: 12px; background: #fff;">
 
                         <!-- Current price (readonly display) -->
-                        <div style="display:flex; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0;">
-                            <span style="font-size:0.82rem; color:#374151;">Current Price</span>
-                            <span id="qmCurrentPriceDisplay" style="font-size:0.88rem; font-weight:700; color:#0f172a;">₱0.00</span>
+                        <div class="qm-current-price-row">
+                            <span style="font-size:0.82rem; font-weight:800; color:#000; text-transform:uppercase; letter-spacing:0.05em;">Current Price</span>
+                            <span id="qmCurrentPriceDisplay" style="font-size:1rem; font-weight:800; color:#000;">₱0.00</span>
                         </div>
 
                         <!-- Adjustment: +/- toggle + amount -->
@@ -298,9 +283,9 @@
                         </div>
 
                         <!-- New total preview -->
-                        <div style="background:#f1f5f9; padding:10px 12px; display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:0.85rem; color:#475569;">New Total</span>
-                            <span style="font-size:0.95rem; font-weight:700; color:#0f172a;" id="qmCalculatedPrice">₱0.00</span>
+                        <div class="qm-new-total-row">
+                            <span style="font-size:0.82rem; font-weight:800; color:#facc15; text-transform:uppercase; letter-spacing:0.05em;">New Total</span>
+                            <span style="font-size:1.05rem; font-weight:800; color:#fff;" id="qmCalculatedPrice">₱0.00</span>
                         </div>
 
                         <!-- Note / reason -->
@@ -321,10 +306,38 @@
 
                         <!-- Draft saved indicator (Schedule bookings only) -->
                         <div id="qmDraftSavedIndicator"
-                            style="display:none; background:#f0fdf4; border:1px solid #86efac; padding:9px 12px; align-items:center; gap:8px;">
-                            <span style="color:#166534; font-size:0.82rem; font-weight:600;">✓ Draft saved — ready to send to customer</span>
+                            style="display:none; background:#0f172a; border:2px solid #0f172a; padding:11px 14px; align-items:center; justify-content:space-between; gap:8px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="font-size:0.82rem; font-weight:800; background:#facc15; color:#000; padding:2px 8px; text-transform:uppercase; letter-spacing:0.05em;">Recorded</span>
+                                <span style="color:#e2e8f0; font-size:0.82rem; font-weight:600;">Ready to send to customer</span>
+                            </div>
+                            <span id="qmDraftRecordedPrice" style="color:#facc15; font-size:0.95rem; font-weight:800;"></span>
                         </div>
 
+                    </div>
+                </div>
+
+                <!-- Dispatch Unit section (accepted quotations only) -->
+                <div id="qmDispatchSection" style="display:none; border: 2px solid #0f172a; overflow: hidden; margin-bottom: 18px;">
+                    <div class="qm-section-hdr">Assign Unit to Dispatch</div>
+                    <div style="padding: 14px;">
+                        <div id="qmDispatchNoUnits" style="display:none; color:#dc2626; font-size:0.85rem; padding:4px 0 8px;">
+                            No online ready units available at the moment.
+                        </div>
+                        <select id="qmDispatchUnitSelect"
+                            style="width:100%; padding:8px 10px; border:1px solid #d1d5db; font-size:0.88rem; color:#0f172a; box-sizing:border-box; background:#fff;">
+                            <option value="">Select a unit</option>
+                            @forelse($availableUnits as $unit)
+                                <option value="{{ $unit['id'] }}">
+                                    {{ $unit['label'] }} · {{ $unit['team_leader_name'] }}
+                                </option>
+                            @empty
+                                <option value="" disabled>No online ready units available</option>
+                            @endforelse
+                        </select>
+                        <div id="qmDispatchUnitError" style="display:none; color:#dc2626; font-size:0.72rem; margin-top:4px;">
+                            Please select a unit before dispatching.
+                        </div>
                     </div>
                 </div>
 
@@ -357,25 +370,33 @@
         </div>
 
         <!-- FOOTER -->
-        <div style="padding: 14px 24px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; justify-content: flex-end; background: #fff; flex-shrink: 0; flex-wrap: wrap;">
+        <div style="padding: 14px 24px; border-top: 2px solid #000; display: flex; gap: 8px; justify-content: flex-end; background: #fff; flex-shrink: 0; flex-wrap: wrap;">
             <button type="button" onclick="closeQuotationModal()"
-                style="padding: 8px 16px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
+                style="padding: 8px 16px; border: 2px solid #d1d5db; background: #fff; color: #374151; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
                 Close
             </button>
             <button type="button" id="qmCancelQuotationBtn" onclick="cancelQuotation()"
-                style="padding: 8px 16px; border: 1px solid #fca5a5; background: #fff; color: #dc2626; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
-                Cancel Quotation
+                style="padding: 8px 16px; border: 2px solid #dc2626; background: #fff; color: #dc2626; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
+                Reject Booking
+            </button>
+            <button type="button" id="qmDispatchNowBtn" onclick="qmConfirmDispatch()" style="display:none;
+                padding: 8px 18px; border: 2px solid #000; background: #facc15; color: #000; font-size: 0.82rem; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.04em;">
+                Confirm Dispatch
+            </button>
+            <button type="button" id="qmOpenDispatchBtn" onclick="qmShowDispatchPanel()" style="display:none;
+                padding: 8px 18px; border: 2px solid #000; background: #0f172a; color: #fff; font-size: 0.82rem; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.04em;">
+                Dispatch Now
             </button>
             <button type="button" id="qmRecordBtn" onclick="qmRecordQuotation()" style="display:none;
-                padding: 8px 16px; border: 1px solid #d1d5db; background: #f8fafc; color: #374151; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
+                padding: 8px 18px; border: 2px solid #000; background: #fff; color: #000; font-size: 0.82rem; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.04em;">
                 Record Quotation
             </button>
             <button type="button" id="qmUpdatePriceBtn" onclick="updateQuotationPrice()"
-                style="padding: 8px 16px; border: none; background: #334155; color: #fff; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
+                style="padding: 8px 16px; border: 2px solid #000; background: #000; color: #fff; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
                 Update Price
             </button>
             <button type="button" id="qmSendBtn" onclick="sendQuotationFromModal()"
-                style="padding: 8px 18px; border: none; background: #2563eb; color: #fff; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
+                style="padding: 8px 18px; border: 2px solid #000; background: #facc15; color: #000; font-size: 0.82rem; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.04em;">
                 Send to Customer
             </button>
         </div>
@@ -391,12 +412,13 @@
 
     // Tracks per-modal-open state
     const qmState = {
-        activeTab:       'quote',
-        bookingId:       null,   // source_booking_id for mobile bookings
-        serviceType:     null,   // 'book_now' | 'scheduled'
-        isMobile:        false,
-        draftSaved:      false,
-        quotationStatus: '',     // '' | 'pending' | 'draft' | 'sent' | 'negotiating' | ...
+        activeTab:            'quote',
+        bookingId:            null,   // source_booking_id for mobile bookings
+        sourceBookingCode:    null,   // booking_code used to call the assign endpoint on dispatch
+        serviceType:          null,   // 'book_now' | 'scheduled'
+        isMobile:             false,
+        draftSaved:           false,
+        quotationStatus:      '',     // '' | 'pending' | 'draft' | 'sent' | 'negotiating' | ...
     };
 
     // ── Tab switching ──────────────────────────────────────────────────────────
@@ -417,7 +439,7 @@
         currentQuotationId        = null;
         window.qmCurrentStatus    = 'pending';
         window.qmDistanceKm       = parseFloat(d.distance || 0);
-        qmState.bookingId         = d.bookingId;
+        qmState.bookingId         = d.ref || d.id; // route uses booking_code, not numeric id
         qmState.serviceType       = 'scheduled';
         qmState.isMobile          = true;
         qmState.draftSaved        = false;
@@ -439,26 +461,67 @@
         set('qmDistance',        parseFloat(d.distance || 0).toFixed(2) + ' km');
         set('qmTruckType',       d.truck);
 
+        // Base rate label — shows truck type
+        const baseRateLabelEl = document.getElementById('qmBaseRateLabel');
+        if (baseRateLabelEl) baseRateLabelEl.textContent = 'Base Rate · ' + (d.truck || 'Unit') + ' (Scheduled)';
+
         // Show mobile banner with booking ref
         const banner  = document.getElementById('qmMobileBanner');
         const srcCode = document.getElementById('qmSourceBookingCode');
         if (banner)  banner.style.display = 'flex';
         if (srcCode) srcCode.textContent  = d.ref || '—';
 
-        // Hide vehicle section (no data yet), notes section
+        // Hide vehicle/notes sections (no vehicle data on scheduled bookings)
         const vs = document.getElementById('qmCustomerVehicleSection');
         const ns = document.getElementById('qmNotesSection');
         if (vs) vs.style.display = 'none';
         if (ns) ns.style.display = 'none';
 
-        // Clear quote form
+        // Clear quote form and re-enable inputs
         const adjustEl = document.getElementById('qmAdjustAmount');
         const noteInput = document.getElementById('qmPriceNote');
-        if (adjustEl)  adjustEl.value = '';
+        if (adjustEl)  { adjustEl.value = ''; adjustEl.disabled = false; }
         if (noteInput) noteInput.value = '';
-        window.qmCurrentBase = 0;
-        window.qmAdjustSign = '+';
+        document.getElementById('qmSignAdd')?.removeAttribute('disabled');
+        document.getElementById('qmSignDeduct')?.removeAttribute('disabled');
+
+        // Build price breakdown using the booking's stored values (authoritative)
+        const finalTotal  = parseFloat(d.finalTotal || 0);
+        const baseRate    = parseFloat(d.baseRate || 0);
+        const distanceFee = parseFloat(d.distanceFee || 0);
+        const distanceKm  = parseFloat(d.distance || 0);
+        const kmIncrements = Math.floor(distanceKm / 4);
+
+        // Store globals used by recalcQuotationTotal and unit-select handler
+        window.qmBasePrice          = baseRate;
+        window.qmDistanceFee        = distanceFee;
+        window.qmExtraVehiclesTotal = 0;
+        window.qmCurrentBase        = finalTotal;  // current price = what customer saw
+        window.qmAdjustSign         = '+';
         qmSetSign('+');
+
+        // Price Breakdown — base rate row
+        const basePriceEl = document.getElementById('qmBasePrice');
+        if (basePriceEl) basePriceEl.textContent = baseRate > 0 ? fmt(baseRate) : 'TBD';
+
+        // Price Breakdown — distance fee row
+        const distFeeEl   = document.getElementById('qmDistanceFee');
+        const distLabelEl = document.getElementById('qmDistanceFeeLabel');
+        if (distFeeEl)   distFeeEl.textContent   = fmt(distanceFee);
+        if (distLabelEl) distLabelEl.textContent = `Distance (${kmIncrements} × ₱200 per 4 km)`;
+
+        // Subtotal / VAT / Total use final_total as the source of truth
+        const displaySub = Math.round(finalTotal / 1.12 * 100) / 100;
+        const displayVat = Math.round((finalTotal - displaySub) * 100) / 100;
+        document.getElementById('qmSubtotalAmount').textContent = fmt(displaySub);
+        document.getElementById('qmVatAmount').textContent      = fmt(displayVat);
+        document.getElementById('qmTotalAmount').textContent    = fmt(finalTotal);
+
+        // Adjust Price section — current price & new total start at final_total
+        const priceDisplay = document.getElementById('qmCurrentPriceDisplay');
+        if (priceDisplay) priceDisplay.textContent = fmt(finalTotal);
+        const calcEl = document.getElementById('qmCalculatedPrice');
+        if (calcEl) calcEl.textContent = fmt(finalTotal);
 
         // Hide draft-saved indicator
         const indicator = document.getElementById('qmDraftSavedIndicator');
@@ -522,12 +585,21 @@
                 qmState.draftSaved      = true;
                 qmState.quotationStatus = 'draft';
 
-                // Show "Draft saved ✓" indicator
+                // Show "Recorded" indicator with the price
                 const indicator = document.getElementById('qmDraftSavedIndicator');
                 if (indicator) indicator.style.display = 'flex';
+                const recordedPriceEl = document.getElementById('qmDraftRecordedPrice');
+                if (recordedPriceEl) recordedPriceEl.textContent = fmt(price);
+
+                // Lock the adjust inputs — price is now recorded
+                const adjustInput = document.getElementById('qmAdjustAmount');
+                if (adjustInput) { adjustInput.value = ''; adjustInput.disabled = true; }
+                document.getElementById('qmSignAdd')?.setAttribute('disabled', 'true');
+                document.getElementById('qmSignDeduct')?.setAttribute('disabled', 'true');
 
                 showModalMessage(data.message || 'Quotation recorded. You can now send it to the customer.', 'success');
                 qmRenderFooterButtons();
+                setTimeout(() => { closeQuotationModal(); location.reload(); }, 1500);
             } else {
                 showModalMessage(data.message || 'Failed to record quotation.', 'error');
                 btn.disabled    = false;
@@ -545,10 +617,11 @@
         currentQuotationId = quotationId;
 
         // Reset state
-        qmState.bookingId   = null;
-        qmState.serviceType = null;
-        qmState.isMobile    = false;
-        qmState.draftSaved  = false;
+        qmState.bookingId          = null;
+        qmState.sourceBookingCode  = null;
+        qmState.serviceType        = null;
+        qmState.isMobile           = false;
+        qmState.draftSaved         = false;
 
         const modal = document.getElementById('quotationModal');
         modal.style.display = 'flex';
@@ -587,9 +660,10 @@
                 const q = data.quotation;
 
                 // Populate qmState
-                qmState.bookingId   = q.source_booking_id || null;
-                qmState.serviceType = q.service_type || 'book_now';
-                qmState.isMobile    = !!q.is_mobile_booking;
+                qmState.bookingId          = q.source_booking_code || q.source_booking_id || null;
+                qmState.sourceBookingCode  = q.source_booking_code || null;
+                qmState.serviceType        = q.service_type || 'book_now';
+                qmState.isMobile           = !!q.is_mobile_booking;
                 window.qmDistanceKm = parseFloat(q.distance_km || 0);
 
                 // ── Details tab content ──────────────────────────────────────
@@ -728,12 +802,12 @@
                 document.getElementById('qmPriceNote').value = '';
 
                 const distanceKm  = parseFloat(q.distance_km || 0);
-                const extraDist   = Math.max(0, distanceKm - 1);
+                const extraDist   = distanceKm;
                 const distanceFee = Math.round(extraDist * 300 * 100) / 100;
 
                 document.getElementById('qmBasePrice').textContent = window.qmBasePrice > 0 ? fmt(window.qmBasePrice) : 'TBD';
                 document.getElementById('qmDistanceFee').textContent = fmt(distanceFee);
-                document.getElementById('qmDistanceFeeLabel').textContent = `Distance (${extraDist.toFixed(2)} km extra × ₱300)`;
+                document.getElementById('qmDistanceFeeLabel').textContent = `Distance (${extraDist.toFixed(2)} km × ₱300)`;
                 document.getElementById('qmOtherFeesRow').style.display = 'none';
                 window.qmDistanceFee = distanceFee;
 
@@ -755,52 +829,36 @@
                     }
                 }
 
-                // Price breakdown display
-                if (q.status === 'sent' || q.status === 'negotiating') {
-                    const sentTotal    = parseFloat(q.estimated_price || 0);
-                    const sentSubtotal = Math.round(sentTotal / 1.12 * 100) / 100;
-                    const sentVat      = Math.round((sentTotal - sentSubtotal) * 100) / 100;
-                    document.getElementById('qmSubtotalAmount').textContent = fmt(sentSubtotal);
-                    document.getElementById('qmVatAmount').textContent      = fmt(sentVat);
-                    document.getElementById('qmTotalAmount').textContent    = fmt(sentTotal);
+                // Price breakdown — back-calculate from the stored total to avoid rounding
+                // drift caused by distance_km being stored at 2 dp instead of full precision.
+                if (q.status === 'sent' || q.status === 'negotiating' || q.status === 'draft' || q.status === 'accepted') {
+                    const savedTotal    = parseFloat(q.estimated_price || 0);
+                    const savedVat      = Math.round(savedTotal / 1.12 * 0.12 * 100) / 100;
+                    const savedSub      = Math.round((savedTotal - savedVat) * 100) / 100;
+                    const backDistFee   = Math.round((savedSub - (window.qmBasePrice || 0) - evTotal) * 100) / 100;
+                    document.getElementById('qmDistanceFee').textContent    = fmt(backDistFee);
+                    document.getElementById('qmSubtotalAmount').textContent = fmt(savedSub);
+                    document.getElementById('qmVatAmount').textContent      = fmt(savedVat);
+                    document.getElementById('qmTotalAmount').textContent    = fmt(savedTotal);
                 } else {
-                    const tempSubtotal = (window.qmBasePrice || 0) + distanceFee + evTotal;
-                    const tempVat      = Math.round(tempSubtotal * 0.12 * 100) / 100;
-                    document.getElementById('qmSubtotalAmount').textContent = fmt(tempSubtotal);
-                    document.getElementById('qmVatAmount').textContent      = fmt(tempVat);
-                    document.getElementById('qmTotalAmount').textContent    = fmt(tempSubtotal + tempVat);
-                }
-
-                // Unit section
-                const unitSection = document.getElementById('qmUnitSection');
-                const unitSelect  = document.getElementById('qmUnitSelect');
-                if (q.status === 'draft' || q.status === 'pending') {
-                    if (unitSection) unitSection.style.display = 'block';
-                    if (unitSelect) {
-                        unitSelect.onchange = function() {
-                            const selOpt  = this.options[this.selectedIndex];
-                            const newBase = this.value ? parseFloat(selOpt.getAttribute('data-base-rate') || 0) : 0;
-                            if (newBase > 0) {
-                                window.qmBasePrice = newBase;
-                                const subtotalCalc  = newBase + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
-                                const vatCalc       = Math.round(subtotalCalc * 0.12 * 100) / 100;
-                                const newSuggested  = Math.round(subtotalCalc * 1.12 * 100) / 100;
-                                window.qmCurrentBase = newSuggested;
-                                document.getElementById('qmBasePrice').textContent          = fmt(newBase);
-                                document.getElementById('qmCurrentPriceDisplay').textContent = fmt(newSuggested);
-                                document.getElementById('qmSuggestedPriceHint').textContent = '(suggested: ' + fmt(newSuggested) + ')';
-                                document.getElementById('qmSubtotalAmount').textContent     = fmt(subtotalCalc);
-                                document.getElementById('qmVatAmount').textContent          = fmt(vatCalc);
-                                document.getElementById('qmTotalAmount').textContent        = fmt(newSuggested);
-                            }
-                            recalcQuotationTotal();
-                        };
-                        const firstAvail = Array.from(unitSelect.options).find(o => o.value && !o.disabled && !o.hidden);
-                        unitSelect.value = firstAvail ? firstAvail.value : '';
-                        if (firstAvail) unitSelect.dispatchEvent(new Event('change'));
+                    // pending / no quotation yet — prefer stored booking total (avoids rounding drift)
+                    const bookingTotal = parseFloat(q.booking_final_total || 0);
+                    if (bookingTotal > 0) {
+                        const bVat  = Math.round(bookingTotal / 1.12 * 0.12 * 100) / 100;
+                        const bSub  = Math.round((bookingTotal - bVat) * 100) / 100;
+                        // back-calculate distance fee so all rows add up exactly
+                        const backDistFee = Math.round((bSub - (window.qmBasePrice || 0) - evTotal) * 100) / 100;
+                        document.getElementById('qmDistanceFee').textContent    = fmt(backDistFee);
+                        document.getElementById('qmSubtotalAmount').textContent = fmt(bSub);
+                        document.getElementById('qmVatAmount').textContent      = fmt(bVat);
+                        document.getElementById('qmTotalAmount').textContent    = fmt(bookingTotal);
+                    } else {
+                        const compSubtotal = Math.round(((window.qmBasePrice || 0) + distanceFee + evTotal) * 100) / 100;
+                        const tempVat = Math.round(compSubtotal * 0.12 * 100) / 100;
+                        document.getElementById('qmSubtotalAmount').textContent = fmt(compSubtotal);
+                        document.getElementById('qmVatAmount').textContent      = fmt(tempVat);
+                        document.getElementById('qmTotalAmount').textContent    = fmt(compSubtotal + tempVat);
                     }
-                } else {
-                    if (unitSection) unitSection.style.display = 'none';
                 }
 
                 // Pricing setup: reset adjustment, set current base
@@ -810,26 +868,23 @@
                 window.qmAdjustSign = '+';
                 qmSetSign('+');
 
-                if (q.status === 'draft' || q.status === 'pending') {
+                if (q.status === 'draft' || q.status === 'sent' || q.status === 'negotiating' || q.status === 'accepted') {
+                    // Always use the saved estimated_price as the base for further adjustments
+                    window.qmCurrentBase = parseFloat(q.estimated_price || 0);
+                    document.getElementById('qmCurrentPriceDisplay').textContent = fmt(window.qmCurrentBase);
+                    if (suggestedHint) suggestedHint.textContent = '';
+                } else {
+                    // pending — use stored booking total to avoid rounding drift from distance precision
+                    const bookingTotal = parseFloat(q.booking_final_total || 0);
                     const subtotalInit = (window.qmBasePrice || 0) + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
-                    const suggested    = Math.round(subtotalInit * 1.12 * 100) / 100;
+                    const computed     = Math.round(subtotalInit * 1.12 * 100) / 100;
+                    const suggested    = bookingTotal > 0 ? bookingTotal : computed;
                     window.qmCurrentBase = suggested;
                     document.getElementById('qmCurrentPriceDisplay').textContent = fmt(suggested);
                     if (suggestedHint) suggestedHint.textContent = '(suggested: ' + fmt(suggested) + ')';
-                } else {
-                    window.qmCurrentBase = window.qmEstimatedPrice || 0;
-                    document.getElementById('qmCurrentPriceDisplay').textContent = fmt(window.qmCurrentBase);
-                    if (suggestedHint) suggestedHint.textContent = '';
                 }
 
                 recalcQuotationTotal();
-
-                // Auto-filter units by customer's requested truck class
-                if ((q.status === 'draft' || q.status === 'pending') && q.truck_class) {
-                    filterUnitsByClass(q.truck_class.toLowerCase());
-                } else {
-                    filterUnitsByClass('all');
-                }
 
                 // Counter offer
                 const counterSection = document.getElementById('qmCounterOfferSection');
@@ -926,25 +981,41 @@
         const noteRequired = document.getElementById('qmNoteRequiredBadge');
         const noteOptional = document.getElementById('qmNoteOptionalBadge');
 
-        // Reset all action buttons
-        [recordBtn, sendBtn, updateBtn, cancelBtn].forEach(function(b) {
+        const openDispatchBtn    = document.getElementById('qmOpenDispatchBtn');
+        const confirmDispatchBtn = document.getElementById('qmDispatchNowBtn');
+
+        // Reset all action buttons and hide dispatch section
+        [recordBtn, sendBtn, updateBtn, cancelBtn, openDispatchBtn, confirmDispatchBtn].forEach(function(b) {
             if (b) { b.style.display = 'none'; b.disabled = false; b.style.opacity = '1'; }
         });
+        const dispSection = document.getElementById('qmDispatchSection');
+        if (dispSection) dispSection.style.display = 'none';
 
-        // Terminal states — only Close button remains
-        if (['accepted', 'rejected', 'expired', 'disregarded'].includes(status)) {
+        // Accepted: customer agreed to the quote — show Dispatch Now to assign a unit
+        if (status === 'accepted') {
+            if (openDispatchBtn) openDispatchBtn.style.display = 'inline-block';
             return;
         }
 
-        // Cancel shown for any non-terminal state that has a real quotation
+        // Other terminal states — only Close button
+        if (['rejected', 'expired', 'disregarded', 'cancelled'].includes(status)) {
+            return;
+        }
+
+        // Cancel / Reject shown for any non-terminal state that has a real quotation
         if (currentQuotationId && cancelBtn) {
             cancelBtn.style.display = 'inline-block';
+            const isScheduled = qmState.serviceType === 'scheduled' || qmState.serviceType === 'schedule';
+            cancelBtn.textContent = isScheduled ? 'Reject Booking' : 'Cancel Quotation';
         }
 
         if (status === 'sent' || status === 'negotiating') {
             if (updateBtn) {
-                updateBtn.style.display = 'inline-block';
-                updateBtn.textContent = 'Revise & Resend';
+                updateBtn.style.display  = 'inline-block';
+                updateBtn.textContent    = 'Revise & Resend';
+                updateBtn.disabled       = true;
+                updateBtn.style.opacity  = '0.4';
+                updateBtn.style.cursor   = 'not-allowed';
             }
             if (noteRequired) noteRequired.style.display = 'inline';
             if (noteOptional) noteOptional.style.display = 'none';
@@ -956,14 +1027,17 @@
         if (noteOptional) noteOptional.style.display = 'inline';
 
         if (status === 'draft') {
-            // Draft recorded — show Send + Edit Price
+            // Draft recorded — show Send + Edit Price (Edit Price starts disabled until adjustment entered)
             if (sendBtn) {
                 sendBtn.style.display = 'inline-block';
                 sendBtn.textContent = 'Send to Customer';
             }
             if (updateBtn) {
-                updateBtn.style.display = 'inline-block';
-                updateBtn.textContent = 'Edit Price';
+                updateBtn.style.display  = 'inline-block';
+                updateBtn.textContent    = 'Edit Price';
+                updateBtn.disabled       = true;
+                updateBtn.style.opacity  = '0.4';
+                updateBtn.style.cursor   = 'not-allowed';
             }
         } else {
             // No quotation yet ('' or 'pending') — only Record
@@ -987,6 +1061,15 @@
         if (totalEl) totalEl.textContent = fmt(newTotal);
         if (vatEl) vatEl.textContent = fmt(vatAmt);
         if (subtotalEl) subtotalEl.textContent = fmt(subtotal);
+
+        // Enable Update/Edit Price button only when there is an actual adjustment
+        const updateBtn = document.getElementById('qmUpdatePriceBtn');
+        if (updateBtn && updateBtn.style.display !== 'none') {
+            const hasChange = amt > 0;
+            updateBtn.disabled = !hasChange;
+            updateBtn.style.opacity  = hasChange ? '1' : '0.4';
+            updateBtn.style.cursor   = hasChange ? 'pointer' : 'not-allowed';
+        }
     }
 
     // ── Unit class filter ────────────────────────────────────────────────────
@@ -1076,12 +1159,88 @@
         recalcQuotationTotal();
     }
 
+    // ── Dispatch Now flow (accepted quotations — assign a unit and start the job) ──
+    function qmShowDispatchPanel() {
+        const section    = document.getElementById('qmDispatchSection');
+        const openBtn    = document.getElementById('qmOpenDispatchBtn');
+        const confirmBtn = document.getElementById('qmDispatchNowBtn');
+        const unitSelect = document.getElementById('qmDispatchUnitSelect');
+        const noUnitsMsg = document.getElementById('qmDispatchNoUnits');
+
+        if (!section) return;
+        section.style.display = 'block';
+        if (openBtn) openBtn.style.display = 'none';
+        if (confirmBtn) confirmBtn.style.display = 'inline-block';
+
+        const hasUnits = unitSelect && Array.from(unitSelect.options).some(o => o.value && !o.disabled);
+        if (noUnitsMsg) noUnitsMsg.style.display = hasUnits ? 'none' : 'block';
+        if (confirmBtn) {
+            confirmBtn.disabled       = !hasUnits;
+            confirmBtn.style.opacity  = hasUnits ? '1' : '0.4';
+            confirmBtn.style.cursor   = hasUnits ? 'pointer' : 'not-allowed';
+        }
+        if (unitSelect) {
+            unitSelect.onchange = function() {
+                const hasVal = !!this.value;
+                if (confirmBtn) {
+                    confirmBtn.disabled       = !hasVal;
+                    confirmBtn.style.opacity  = hasVal ? '1' : '0.4';
+                    confirmBtn.style.cursor   = hasVal ? 'pointer' : 'not-allowed';
+                }
+            };
+        }
+        section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function qmConfirmDispatch() {
+        const bookingCode = qmState.sourceBookingCode;
+        const unitSelect  = document.getElementById('qmDispatchUnitSelect');
+        const confirmBtn  = document.getElementById('qmDispatchNowBtn');
+        const errEl       = document.getElementById('qmDispatchUnitError');
+
+        if (!bookingCode) {
+            showModalMessage('No booking linked to this quotation.', 'error');
+            return;
+        }
+        if (!unitSelect || !unitSelect.value) {
+            if (errEl) errEl.style.display = 'block';
+            return;
+        }
+        if (errEl) errEl.style.display = 'none';
+        if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Dispatching…'; }
+
+        fetch('/admin-dashboard/booking/' + bookingCode + '/assign', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ action: 'accept', assigned_unit_id: unitSelect.value })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showModalMessage('Dispatched! The team leader can now accept the task.', 'success');
+                setTimeout(function() { closeQuotationModal(); location.reload(); }, 1500);
+            } else {
+                showModalMessage(data.message || 'Dispatch failed.', 'error');
+                if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Dispatch'; }
+            }
+        })
+        .catch(function() {
+            showModalMessage('Server error. Please try again.', 'error');
+            if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Dispatch'; }
+        });
+    }
+
     function closeQuotationModal() {
         const modal = document.getElementById('quotationModal');
         modal.style.display = 'none';
         modal.setAttribute('aria-hidden', 'true');
-        qmState.quotationStatus = '';
-        qmState.draftSaved      = false;
+        qmState.quotationStatus   = '';
+        qmState.draftSaved        = false;
+        qmState.sourceBookingCode = null;
         currentQuotationId = null;
         const indicator = document.getElementById('qmDraftSavedIndicator');
         if (indicator) indicator.style.display = 'none';
@@ -1090,15 +1249,6 @@
     // ── Update / Revise price ────────────────────────────────────────────────
     function updateQuotationPrice() {
         if (!currentQuotationId) return;
-
-        const unitSelect   = document.getElementById('qmUnitSelect');
-        const unitSection  = document.getElementById('qmUnitSection');
-        const unitRequired = unitSection && unitSection.style.display !== 'none';
-        if (unitRequired && unitSelect && !unitSelect.value) {
-            showModalMessage('Please assign a unit before updating the quotation.', 'error');
-            unitSelect.focus();
-            return;
-        }
 
         const note = document.getElementById('qmPriceNote').value.trim();
         const noteError = document.getElementById('qmNoteError');
@@ -1117,8 +1267,6 @@
         }
         if (noteError) noteError.style.display = 'none';
 
-        const assignedUnitId = unitSelect ? (unitSelect.value || null) : null;
-
         if (newPrice <= 0) {
             showModalMessage('New price must be greater than zero.', 'error');
             return;
@@ -1136,10 +1284,9 @@
                     'Accept': 'application/json',
                 },
                 body: JSON.stringify({
-                    new_price:        newPrice,
-                    additional_fee:   otherFees,
-                    assigned_unit_id: assignedUnitId,
-                    note:             note
+                    new_price:      newPrice,
+                    additional_fee: otherFees,
+                    note:           note
                 })
             })
             .then(r => r.json())
@@ -1173,23 +1320,12 @@
         const id = quotationId || currentQuotationId;
         if (!id) return;
 
-        const unitSelect   = document.getElementById('qmUnitSelect');
-        const unitSection  = document.getElementById('qmUnitSection');
-        const unitRequired = unitSection && unitSection.style.display !== 'none';
-        if (unitRequired && unitSelect && !unitSelect.value) {
-            showModalMessage('Please assign a unit before sending the quotation.', 'error');
-            unitSelect.focus();
-            return;
-        }
-
         const btn          = document.getElementById('qmSendBtn');
         const originalText = btn ? btn.textContent : '';
         if (btn) {
             btn.disabled    = true;
             btn.textContent = 'Sending...';
         }
-
-        const assignedUnitId = unitSelect ? (unitSelect.value || null) : null;
 
         fetch(`/admin-dashboard/quotations/${id}/send`, {
                 method: 'POST',
@@ -1198,7 +1334,7 @@
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({assigned_unit_id: assignedUnitId})
+                body: JSON.stringify({})
             })
             .then(r => r.json())
             .then(data => {
@@ -1228,13 +1364,15 @@
             });
     }
 
-    // ── Cancel quotation ─────────────────────────────────────────────────────
+    // ── Reject / Cancel booking or quotation ─────────────────────────────────
     function cancelQuotation() {
         if (!currentQuotationId) return;
 
-        const btn = document.getElementById('qmCancelQuotationBtn');
+        const isScheduled = qmState.serviceType === 'scheduled' || qmState.serviceType === 'schedule';
+        const btnLabel    = isScheduled ? 'Reject Booking' : 'Cancel Quotation';
+        const btn         = document.getElementById('qmCancelQuotationBtn');
         btn.disabled    = true;
-        btn.textContent = 'Cancelling...';
+        btn.textContent = isScheduled ? 'Rejecting...' : 'Cancelling...';
 
         fetch(`/admin-dashboard/quotations/${currentQuotationId}/cancel`, {
                 method: 'POST',
@@ -1247,21 +1385,21 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    showModalMessage(data.message || 'Quotation cancelled', 'success');
+                    showModalMessage(data.message || (isScheduled ? 'Booking rejected' : 'Quotation cancelled'), 'success');
                     setTimeout(() => {
                         closeQuotationModal();
                         location.reload();
                     }, 1500);
                 } else {
-                    showModalMessage(data.message || 'Failed to cancel', 'error');
+                    showModalMessage(data.message || 'Failed', 'error');
                     btn.disabled    = false;
-                    btn.textContent = 'Cancel Quotation';
+                    btn.textContent = btnLabel;
                 }
             })
             .catch(() => {
-                showModalMessage('Error cancelling quotation', 'error');
+                showModalMessage('Server error. Please try again.', 'error');
                 btn.disabled    = false;
-                btn.textContent = 'Cancel Quotation';
+                btn.textContent = btnLabel;
             });
     }
 

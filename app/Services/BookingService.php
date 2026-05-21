@@ -727,7 +727,23 @@ class BookingService
         $prefix = trim((string) SystemSetting::getValue('quote_prefix', 'Q'));
         $prefix = $prefix !== '' ? strtoupper($prefix) : 'Q';
 
-        return sprintf('%s-%s-%04d', $prefix, now()->format('Ymd'), $booking->id);
+        $base = sprintf('%s-%s-%04d', $prefix, now()->format('Ymd'), $booking->id);
+
+        // If the base number already exists (e.g. a prior quotation was cancelled),
+        // append a letter suffix (A, B, C…) until we find a unique one.
+        if (!\App\Models\Quotation::where('quotation_number', $base)->exists()) {
+            return $base;
+        }
+
+        foreach (range('A', 'Z') as $suffix) {
+            $candidate = $base . '-' . $suffix;
+            if (!\App\Models\Quotation::where('quotation_number', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        // Fallback: timestamp-based unique suffix (extremely unlikely to reach this)
+        return $base . '-' . now()->format('His');
     }
 
     public function dispatchAvailability(): array

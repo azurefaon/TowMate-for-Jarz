@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../core/theme.dart';
 import '../models/task_model.dart';
 
@@ -7,6 +8,8 @@ class TlTaskDetailCard extends StatelessWidget {
   const TlTaskDetailCard({super.key, required this.task});
 
   final TaskModel task;
+
+  static final _money = NumberFormat('#,##0.00', 'en_PH');
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +78,7 @@ class TlTaskDetailCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 if (task.finalTotal > 0)
                   Text(
-                    '₱${task.finalTotal.toStringAsFixed(0)}',
+                    '₱${_money.format(task.finalTotal)}',
                     style: GoogleFonts.inter(
                       color: TmColors.black,
                       fontSize: 26,

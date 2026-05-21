@@ -20,10 +20,10 @@ class TlInspectionScreen extends StatefulWidget {
 }
 
 class _TlInspectionScreenState extends State<TlInspectionScreen> {
-  final Map<String, bool> _checks = {
-    'Vehicle condition noted': false,
-    'Tow equipment attached': false,
-  };
+  // 'good' | 'damage' | null (not yet chosen)
+  String? _conditionChoice;
+
+  bool _equipmentAttached = false;
 
   static const _damageOptions = [
     'Body / Exterior',
@@ -36,14 +36,28 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
 
   final Set<String> _damageCategories = {};
   final List<XFile> _damagePhotos = [];
+  final TextEditingController _otherNoteCtrl = TextEditingController();
   bool _uploadingPhotos = false;
   bool _loading = false;
 
-  bool get _canProceed =>
-      _checks['Vehicle condition noted']! &&
-      _checks['Tow equipment attached']! &&
-      (_damageCategories.isEmpty || _damagePhotos.isNotEmpty) &&
-      !_uploadingPhotos;
+  @override
+  void dispose() {
+    _otherNoteCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get _canProceed {
+    if (_conditionChoice == null) return false;
+    if (!_equipmentAttached) return false;
+    if (_uploadingPhotos) return false;
+    if (_conditionChoice == 'damage') {
+      if (_damageCategories.isEmpty) return false;
+      if (_damagePhotos.isEmpty) return false;
+      if (_damageCategories.contains('Other') &&
+          _otherNoteCtrl.text.trim().isEmpty) return false;
+    }
+    return true;
+  }
 
   Future<void> _proceed() async {
     setState(() => _loading = true);
@@ -68,6 +82,18 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
     if (ok == true && mounted) {
       widget.onUpdate(widget.task.copyWith(status: 'returned'));
     }
+  }
+
+  void _selectCondition(String choice) {
+    setState(() {
+      _conditionChoice = choice;
+      // Switching to good condition clears any damage selections
+      if (choice == 'good') {
+        _damageCategories.clear();
+        _damagePhotos.clear();
+        _otherNoteCtrl.clear();
+      }
+    });
   }
 
   void _showPhotoSource() {
@@ -123,8 +149,7 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
       if (res['success'] != true) {
         _damagePhotos.removeLast();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:
-              Text(res['message'] as String? ?? 'Upload failed.'),
+          content: Text(res['message'] as String? ?? 'Upload failed.'),
           backgroundColor: TmColors.error,
         ));
       }
@@ -148,14 +173,46 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
             Text('Complete required items before loading the vehicle.',
                 style:
                     GoogleFonts.inter(color: TmColors.grey500, fontSize: 12)),
+            const SizedBox(height: 20),
+
+            // ── Vehicle condition (mutually exclusive) ─────────────────
+            Text('Vehicle Condition',
+                style: GoogleFonts.inter(
+                    color: TmColors.black,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            _conditionCard(
+              label: 'Good Condition',
+              sublabel: 'No visible damage — ready to tow.',
+              value: 'good',
+              icon: Icons.check_circle_outline_rounded,
+              activeColor: TmColors.yellow,
+            ),
+            _conditionCard(
+              label: 'Damage Noted',
+              sublabel: 'Vehicle has existing damage to document.',
+              value: 'damage',
+              icon: Icons.warning_amber_rounded,
+              activeColor: TmColors.error,
+            ),
+
             const SizedBox(height: 16),
-            ..._checks.keys.map((k) => TlChecklistItem(
-                  label: k,
-                  checked: _checks[k]!,
-                  onTap: () => setState(() => _checks[k] = !_checks[k]!),
-                )),
-            const SizedBox(height: 24),
-            _damageSection(),
+
+            // ── Equipment attached ─────────────────────────────────────
+            TlChecklistItem(
+              label: 'Tow equipment attached',
+              checked: _equipmentAttached,
+              onTap: () =>
+                  setState(() => _equipmentAttached = !_equipmentAttached),
+            ),
+
+            // ── Damage section (only when damage selected) ─────────────
+            if (_conditionChoice == 'damage') ...[
+              const SizedBox(height: 8),
+              _damageSection(),
+            ],
+
             const SizedBox(height: 24),
             _primaryBtn(
               'Proceed to Loading',
@@ -170,7 +227,61 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
     );
   }
 
+  Widget _conditionCard({
+    required String label,
+    required String sublabel,
+    required String value,
+    required IconData icon,
+    required Color activeColor,
+  }) {
+    final selected = _conditionChoice == value;
+    return GestureDetector(
+      onTap: () => _selectCondition(value),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected
+              ? activeColor.withValues(alpha: 0.08)
+              : TmColors.grey100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? activeColor : TmColors.grey300,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+              color: selected ? activeColor : TmColors.grey500,
+              size: 22,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: GoogleFonts.inter(
+                          color: TmColors.black,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 2),
+                  Text(sublabel,
+                      style: GoogleFonts.inter(
+                          color: TmColors.grey500, fontSize: 11)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _damageSection() {
+    final hasOther = _damageCategories.contains('Other');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -195,6 +306,7 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
               onTap: () => setState(() {
                 if (selected) {
                   _damageCategories.remove(opt);
+                  if (opt == 'Other') _otherNoteCtrl.clear();
                 } else {
                   _damageCategories.add(opt);
                 }
@@ -206,16 +318,14 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
                   color: selected ? TmColors.black : TmColors.white,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color:
-                        selected ? TmColors.black : TmColors.grey300,
+                    color: selected ? TmColors.black : TmColors.grey300,
                     width: selected ? 1.5 : 1,
                   ),
                 ),
                 child: Text(
                   opt,
                   style: GoogleFonts.inter(
-                    color:
-                        selected ? TmColors.white : TmColors.grey700,
+                    color: selected ? TmColors.white : TmColors.grey700,
                     fontSize: 12,
                   ),
                 ),
@@ -223,12 +333,48 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
             );
           }).toList(),
         ),
-        if (_damageCategories.isEmpty) ...[
-          const SizedBox(height: 10),
-          Text('No damage noted — photos not required.',
+
+        // Other notes field
+        if (hasOther) ...[
+          const SizedBox(height: 12),
+          Text('Describe the damage',
               style: GoogleFonts.inter(
-                  color: TmColors.grey500, fontSize: 11)),
-        ] else ...[
+                  color: TmColors.black,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500)),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _otherNoteCtrl,
+            maxLines: 3,
+            maxLength: 300,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: 'e.g. cracked windshield, bent bumper…',
+              hintStyle: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13),
+              filled: true,
+              fillColor: TmColors.grey100,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: TmColors.grey300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: TmColors.grey300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide:
+                    const BorderSide(color: TmColors.black, width: 1.5),
+              ),
+            ),
+            style: GoogleFonts.inter(color: TmColors.black, fontSize: 13),
+          ),
+        ],
+
+        // Photo requirement
+        if (_damageCategories.isNotEmpty) ...[
           const SizedBox(height: 16),
           Row(
             children: [
@@ -243,6 +389,11 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
           ),
           const SizedBox(height: 10),
           _photoGrid(),
+        ] else ...[
+          const SizedBox(height: 10),
+          Text('Select at least one damage type above.',
+              style: GoogleFonts.inter(
+                  color: TmColors.grey500, fontSize: 11)),
         ],
       ],
     );
@@ -257,17 +408,16 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        ..._damagePhotos.asMap().entries.map((entry) {
-          final i = entry.key;
-          final f = entry.value;
-          return Stack(
+        for (var i = 0; i < _damagePhotos.length; i++) ...[
+          Stack(
             fit: StackFit.expand,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: kIsWeb
-                    ? Image.network(f.path, fit: BoxFit.cover)
-                    : Image.file(File(f.path), fit: BoxFit.cover),
+                    ? Image.network(_damagePhotos[i].path, fit: BoxFit.cover)
+                    : Image.file(File(_damagePhotos[i].path),
+                        fit: BoxFit.cover),
               ),
               Positioned(
                 top: 4,
@@ -289,8 +439,8 @@ class _TlInspectionScreenState extends State<TlInspectionScreen> {
                 ),
               ),
             ],
-          );
-        }),
+          ),
+        ],
         if (canAdd)
           GestureDetector(
             onTap: _uploadingPhotos ? null : _showPhotoSource,

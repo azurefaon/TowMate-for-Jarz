@@ -180,11 +180,13 @@ class QuotationService
 
             if ($isScheduled && $quotation->scheduled_date) {
                 $date = $quotation->scheduled_date->toDateString();
-                DB::table('booking_capacity')
-                    ->updateOrInsert(
-                        ['booking_date' => $date],
-                        ['slots_used' => DB::raw('slots_used + 1'), 'updated_at' => now()]
-                    );
+                DB::statement(
+                    "INSERT INTO booking_capacity (booking_date, slots_used, updated_at)
+                     VALUES (?, 1, NOW())
+                     ON CONFLICT (booking_date) DO UPDATE
+                     SET slots_used = booking_capacity.slots_used + 1, updated_at = NOW()",
+                    [$date]
+                );
             }
 
             $extraVehicles = $quotation->extra_vehicles ?? [];
@@ -226,11 +228,13 @@ class QuotationService
                 ]);
 
                 if ($evScheduled && $evDate) {
-                    DB::table('booking_capacity')
-                        ->updateOrInsert(
-                            ['booking_date' => $evDate],
-                            ['slots_used' => DB::raw('slots_used + 1'), 'updated_at' => now()]
-                        );
+                    DB::statement(
+                        "INSERT INTO booking_capacity (booking_date, slots_used, updated_at)
+                         VALUES (?, 1, NOW())
+                         ON CONFLICT (booking_date) DO UPDATE
+                         SET slots_used = booking_capacity.slots_used + 1, updated_at = NOW()",
+                        [$evDate]
+                    );
                 }
             }
 

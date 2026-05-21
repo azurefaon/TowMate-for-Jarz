@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' show max, sin, cos, sqrt, atan2, pi;
+import 'dart:math' show sin, cos, sqrt, atan2, pi;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -557,7 +557,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
         children: [
           if (_step == 0)
             IconButton(
-              icon: Icon(Icons.menu_rounded, color: ctx.textTertiary),
+              icon: Icon(Icons.menu_rounded, color: ctx.textPrimary),
               onPressed: () => Scaffold.of(ctx).openDrawer(),
               tooltip: 'Menu',
               padding: EdgeInsets.zero,
@@ -567,7 +567,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             IconButton(
               icon: Icon(
                 Icons.arrow_back_ios_new_rounded,
-                color: ctx.textTertiary,
+                color: ctx.textPrimary,
                 size: 20,
               ),
               onPressed: () => setState(() => _step--),
@@ -581,7 +581,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 style: GoogleFonts.inter(
                   color: ctx.textPrimary,
                   fontSize: 16,
-                  letterSpacing: -0.3,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.4,
                 ),
               ),
             ),
@@ -903,8 +904,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
               child: Text(
                 hint,
                 style: GoogleFonts.inter(
-                  color: context.textSecondary,
+                  color: context.textPrimary,
                   fontSize: 12,
+                  fontWeight: FontWeight.w500,
                   letterSpacing: 0.1,
                 ),
                 textAlign: TextAlign.center,
@@ -1091,15 +1093,16 @@ class _BookingModeSection extends StatelessWidget {
             'Book Your Towing Service',
             style: GoogleFonts.inter(
               color: context.textPrimary,
-              fontSize: 20,
-              letterSpacing: -0.4,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Choose a booking mode, set your locations, and confirm.',
             style: GoogleFonts.inter(
-              color: context.textSecondary,
+              color: context.textTertiary,
               fontSize: 13,
               letterSpacing: 0.1,
               height: 1.5,
@@ -1109,9 +1112,10 @@ class _BookingModeSection extends StatelessWidget {
           Text(
             'BOOKING MODE',
             style: GoogleFonts.inter(
-              color: context.textSecondary,
-              fontSize: 11,
-              letterSpacing: 0.8,
+              color: context.textPrimary,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.0,
             ),
           ),
           const SizedBox(height: 10),
@@ -1212,18 +1216,23 @@ class _ModeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
         decoration: BoxDecoration(
-          color: selected ? context.textPrimary : context.surface,
+          color: selected ? TmColors.yellow : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
-          border: selected ? null : Border.all(color: context.divider),
+          border: Border.all(
+            color: selected ? TmColors.yellow : context.textPrimary,
+            width: 1.5,
+          ),
         ),
         child: Text(
           label,
           style: GoogleFonts.inter(
-            color: selected ? context.bg : context.textTertiary,
+            color: selected ? TmColors.black : context.textPrimary,
             fontSize: 13,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             letterSpacing: 0.1,
           ),
         ),
@@ -1250,11 +1259,12 @@ class _DateTimeField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          label.toUpperCase(),
           style: GoogleFonts.inter(
-            color: context.textSecondary,
-            fontSize: 11,
-            letterSpacing: 0.4,
+            color: context.textPrimary,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.0,
           ),
         ),
         const SizedBox(height: 6),
@@ -1264,19 +1274,32 @@ class _DateTimeField extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
             decoration: BoxDecoration(
               border: Border.all(
-                color: value != null ? context.textPrimary : context.divider,
+                color: value != null ? TmColors.yellow : context.textPrimary,
+                width: value != null ? 2.0 : 1.5,
               ),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(
-              value ?? placeholder,
-              style: GoogleFonts.inter(
-                color: value != null
-                    ? context.textPrimary
-                    : context.textSecondary,
-                fontSize: 13,
-                letterSpacing: 0.1,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    value ?? placeholder,
+                    style: GoogleFonts.inter(
+                      color: value != null
+                          ? context.textPrimary
+                          : context.textTertiary,
+                      fontSize: 13,
+                      fontWeight: value != null ? FontWeight.w600 : FontWeight.w400,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: 14,
+                  color: value != null ? TmColors.yellow : context.textTertiary,
+                ),
+              ],
             ),
           ),
         ),
@@ -1610,9 +1633,10 @@ class _LocationSectionState extends State<_LocationSection> {
               Text(
                 'PICKUP & DROP-OFF',
                 style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 11,
-                  letterSpacing: 0.8,
+                  color: context.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
                 ),
               ),
               if (widget.pickupLatLng != null)
@@ -1621,8 +1645,9 @@ class _LocationSectionState extends State<_LocationSection> {
                   child: Text(
                     'Reset',
                     style: GoogleFonts.inter(
-                      color: context.textSecondary,
+                      color: TmColors.yellow,
                       fontSize: 13,
+                      fontWeight: FontWeight.w600,
                       letterSpacing: 0.1,
                     ),
                   ),
@@ -1654,41 +1679,38 @@ class _LocationSectionState extends State<_LocationSection> {
                   onSelect: _selectPickup,
                 ),
               if (widget.pickupLatLng == null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 GestureDetector(
                   onTap: _locating ? null : _useCurrentLocation,
-                  child: _locating
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              width: 12,
-                              height: 12,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _locating
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
                               child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                color: context.textSecondary,
+                                strokeWidth: 2,
+                                color: TmColors.yellow,
                               ),
+                            )
+                          : const Icon(
+                              Icons.my_location_rounded,
+                              size: 14,
+                              color: TmColors.yellow,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Getting location...',
-                              style: GoogleFonts.inter(
-                                color: context.textSecondary,
-                                fontSize: 12,
-                                letterSpacing: 0.1,
-                              ),
-                            ),
-                          ],
-                        )
-                      : Text(
-                          'Use current location',
-                          style: GoogleFonts.inter(
-                            color: context.textSecondary,
-                            fontSize: 12,
-                            letterSpacing: 0.1,
-                            decoration: TextDecoration.underline,
-                          ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _locating ? 'Getting location...' : 'Use current location',
+                        style: GoogleFonts.inter(
+                          color: TmColors.yellow,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.1,
                         ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ],
@@ -1729,11 +1751,12 @@ class _LocationSectionState extends State<_LocationSection> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Quick search',
+                'QUICK SEARCH',
                 style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 11,
-                  letterSpacing: 0.4,
+                  color: context.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
                 ),
               ),
               const SizedBox(height: 8),
@@ -1746,18 +1769,18 @@ class _LocationSectionState extends State<_LocationSection> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
-                        vertical: 6,
+                        vertical: 7,
                       ),
                       decoration: BoxDecoration(
-                        color: context.surface,
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: context.divider),
+                        color: context.textPrimary,
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         s,
                         style: GoogleFonts.inter(
-                          color: context.textTertiary,
+                          color: context.bg,
                           fontSize: 12,
+                          fontWeight: FontWeight.w500,
                           letterSpacing: 0.1,
                         ),
                       ),
@@ -1774,11 +1797,12 @@ class _LocationSectionState extends State<_LocationSection> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(
-            'Live Route Preview',
+            'LIVE ROUTE PREVIEW',
             style: GoogleFonts.inter(
-              color: context.textSecondary,
-              fontSize: 11,
-              letterSpacing: 0.4,
+              color: context.textPrimary,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.0,
             ),
           ),
         ),
@@ -1845,19 +1869,31 @@ class _LocationSectionState extends State<_LocationSection> {
                   ),
                 ),
               ),
-              // Grey overlay hides map until first pin is placed
+              // Overlay hides map until first pin is placed
               if (!anyPin)
                 Positioned.fill(
                   child: Container(
-                    color: context.surface,
+                    color: context.textPrimary.withValues(alpha: 0.85),
                     alignment: Alignment.center,
-                    child: Text(
-                      'Set pickup location to see map',
-                      style: GoogleFonts.inter(
-                        color: context.textSecondary,
-                        fontSize: 13,
-                        letterSpacing: 0.1,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.location_on_rounded,
+                          color: TmColors.yellow,
+                          size: 28,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Set pickup location to see map',
+                          style: GoogleFonts.inter(
+                            color: TmColors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -1868,13 +1904,27 @@ class _LocationSectionState extends State<_LocationSection> {
         if (widget.loadingRoute)
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-            child: Text(
-              'Calculating route...',
-              style: GoogleFonts.inter(
-                color: context.textSecondary,
-                fontSize: 13,
-                letterSpacing: 0.1,
-              ),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: TmColors.yellow,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Calculating route...',
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
             ),
           ),
       ],
@@ -1891,11 +1941,12 @@ class _FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      text,
+      text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: context.textSecondary,
-        fontSize: 13,
-        letterSpacing: 0.1,
+        color: context.textPrimary,
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.0,
       ),
     );
   }
@@ -1923,11 +1974,11 @@ class _SearchField extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(
-          color: confirmed ? context.textPrimary : context.divider,
-          width: confirmed ? 1.5 : 1.0,
+          color: confirmed ? TmColors.yellow : context.textPrimary,
+          width: confirmed ? 2.0 : 1.5,
         ),
         borderRadius: BorderRadius.circular(6),
-        color: context.surface,
+        color: context.bg,
       ),
       child: TextField(
         controller: controller,
@@ -1936,12 +1987,13 @@ class _SearchField extends StatelessWidget {
         style: GoogleFonts.inter(
           color: context.textPrimary,
           fontSize: 14,
+          fontWeight: FontWeight.w500,
           letterSpacing: 0.1,
         ),
         decoration: InputDecoration(
           hintText: placeholder,
           hintStyle: GoogleFonts.inter(
-            color: context.textSecondary,
+            color: context.textTertiary,
             fontSize: 14,
             letterSpacing: 0.1,
           ),
@@ -1957,10 +2009,15 @@ class _SearchField extends StatelessWidget {
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: context.textSecondary,
+                      strokeWidth: 2,
+                      color: context.textPrimary,
                     ),
                   ),
+                )
+              : confirmed
+              ? const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Icon(Icons.check_circle_rounded, size: 18, color: TmColors.yellow),
                 )
               : null,
         ),
@@ -1981,9 +2038,9 @@ class _SuggestionList extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(top: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: context.divider),
+        border: Border.all(color: context.textPrimary, width: 1.5),
         borderRadius: BorderRadius.circular(6),
-        color: context.surface,
+        color: context.bg,
       ),
       child: Column(
         children: List.generate(suggestions.length, (i) {
@@ -1997,11 +2054,14 @@ class _SuggestionList extends StatelessWidget {
             onTap: () => onSelect(feature),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 border: i > 0
                     ? Border(
-                        top: BorderSide(color: context.divider, width: 0.5),
+                        top: BorderSide(
+                          color: context.textPrimary.withValues(alpha: 0.1),
+                          width: 1,
+                        ),
                       )
                     : null,
               ),
@@ -2011,8 +2071,9 @@ class _SuggestionList extends StatelessWidget {
                   Text(
                     main,
                     style: GoogleFonts.inter(
-                      color: context.textSecondary,
+                      color: context.textPrimary,
                       fontSize: 13,
+                      fontWeight: FontWeight.w500,
                       letterSpacing: 0.1,
                     ),
                   ),
@@ -2129,9 +2190,10 @@ class _VehicleSectionState extends State<_VehicleSection> {
               Text(
                 'VEHICLE TO TOW',
                 style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 11,
-                  letterSpacing: 0.8,
+                  color: context.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
                 ),
               ),
               if (widget.selectedTruck != null && widget.onReset != null)
@@ -2140,8 +2202,9 @@ class _VehicleSectionState extends State<_VehicleSection> {
                   child: Text(
                     'Clear',
                     style: GoogleFonts.inter(
-                      color: context.textSecondary,
+                      color: TmColors.yellow,
                       fontSize: 13,
+                      fontWeight: FontWeight.w600,
                       letterSpacing: 0.1,
                     ),
                   ),
@@ -2153,8 +2216,9 @@ class _VehicleSectionState extends State<_VehicleSection> {
             'What type of vehicle needs to be towed?',
             style: GoogleFonts.inter(
               color: context.textPrimary,
-              fontSize: 16,
-              letterSpacing: -0.2,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
             ),
           ),
           const SizedBox(height: 20),
@@ -2162,22 +2226,36 @@ class _VehicleSectionState extends State<_VehicleSection> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: context.surface,
+                border: Border.all(color: context.textPrimary.withValues(alpha: 0.15), width: 1.5),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                'Loading vehicle types...',
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 14,
-                ),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: TmColors.yellow,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Loading vehicle types...',
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             )
           else if (trucks.isEmpty)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                border: Border.all(color: context.divider),
+                border: Border.all(color: TmColors.error.withValues(alpha: 0.4), width: 1.5),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -2186,8 +2264,9 @@ class _VehicleSectionState extends State<_VehicleSection> {
                   Text(
                     'Could not load vehicle types.',
                     style: GoogleFonts.inter(
-                      color: context.textSecondary,
+                      color: context.textPrimary,
                       fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   if (widget.onRetry != null) ...[
@@ -2199,6 +2278,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
                         style: GoogleFonts.inter(
                           color: TmColors.yellow,
                           fontSize: 13,
+                          fontWeight: FontWeight.w600,
                           decoration: TextDecoration.underline,
                           decorationColor: TmColors.yellow,
                         ),
@@ -2211,11 +2291,12 @@ class _VehicleSectionState extends State<_VehicleSection> {
           else ...[
             // ── Step 1: Select Tow Class ──────────────────────────────────
             Text(
-              '1. Select Tow Class',
+              '1. SELECT TOW CLASS',
               style: GoogleFonts.inter(
-                color: context.textSecondary,
-                fontSize: 13,
-                letterSpacing: 0.1,
+                color: context.textPrimary,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
               ),
             ),
             const SizedBox(height: 10),
@@ -2242,11 +2323,12 @@ class _VehicleSectionState extends State<_VehicleSection> {
             if (_focusedTruck != null) ...[
               const SizedBox(height: 24),
               Text(
-                '2. Select Vehicle Type',
+                '2. SELECT VEHICLE TYPE',
                 style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 13,
-                  letterSpacing: 0.1,
+                  color: context.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
                 ),
               ),
               const SizedBox(height: 10),
@@ -2309,28 +2391,46 @@ class _ClassPickerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color bg = isSelected
+        ? TmColors.yellow
+        : isFocused
         ? context.textPrimary
-        : isAvailable
-        ? context.surface
         : context.bg;
-    final Color borderColor = (isSelected || isFocused)
+    final Color borderColor = isSelected
+        ? TmColors.yellow
+        : isFocused
         ? context.textPrimary
-        : context.divider;
-    final double borderWidth = (isSelected || isFocused) ? 1.5 : 1.0;
+        : context.textPrimary.withValues(alpha: 0.25);
+    final double borderWidth = (isSelected || isFocused) ? 2.0 : 1.5;
     final Color nameColor = isSelected
-        ? context.bg
+        ? TmColors.black
+        : isFocused
+        ? TmColors.white
         : isAvailable
         ? context.textPrimary
-        : context.divider;
+        : context.textTertiary;
     final Color metaColor = isSelected
-        ? context.divider
-        : context.textSecondary;
+        ? TmColors.black.withValues(alpha: 0.65)
+        : isFocused
+        ? TmColors.white.withValues(alpha: 0.6)
+        : context.textTertiary;
+    final Color classBg = isSelected
+        ? TmColors.black.withValues(alpha: 0.12)
+        : isFocused
+        ? TmColors.white.withValues(alpha: 0.12)
+        : TmColors.yellow.withValues(alpha: 0.15);
+    final Color classText = isSelected
+        ? TmColors.black
+        : isFocused
+        ? TmColors.white
+        : TmColors.yellow;
+    final String availText = isAvailable ? 'Available' : 'Unavailable';
     final Color availColor = isSelected
-        ? context.divider
+        ? TmColors.black.withValues(alpha: 0.5)
+        : isFocused
+        ? TmColors.white.withValues(alpha: 0.5)
         : isAvailable
-        ? context.textSecondary
-        : context.divider;
-    final String availText = isAvailable ? 'available' : 'unavailable';
+        ? TmColors.success
+        : context.textTertiary;
 
     return GestureDetector(
       onTap: onTap,
@@ -2350,14 +2450,15 @@ class _ClassPickerCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: TmColors.yellow.withValues(alpha: 0.15),
+                color: classBg,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
                 truck.truckClass.toUpperCase(),
                 style: GoogleFonts.inter(
-                  color: isSelected ? TmColors.yellow : TmColors.yellow,
+                  color: classText,
                   fontSize: 9,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
                 ),
               ),
@@ -2368,6 +2469,7 @@ class _ClassPickerCard extends StatelessWidget {
               style: GoogleFonts.inter(
                 color: nameColor,
                 fontSize: 14,
+                fontWeight: FontWeight.w600,
                 letterSpacing: -0.1,
               ),
             ),
@@ -2386,6 +2488,7 @@ class _ClassPickerCard extends StatelessWidget {
               style: GoogleFonts.inter(
                 color: availColor,
                 fontSize: 11,
+                fontWeight: FontWeight.w500,
                 letterSpacing: 0.1,
               ),
             ),
@@ -2412,16 +2515,19 @@ class _VehicleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color bg = selected
-        ? context.textPrimary
-        : muted
-        ? context.surface
+        ? TmColors.yellow
         : context.bg;
-    final Color borderColor = selected ? context.textPrimary : context.divider;
-    final Color textColor = selected
-        ? context.bg
+    final Color borderColor = selected
+        ? TmColors.yellow
         : muted
-        ? context.textSecondary
-        : context.textSecondary;
+        ? context.textPrimary.withValues(alpha: 0.2)
+        : context.textPrimary;
+    final double borderWidth = selected ? 2.0 : 1.5;
+    final Color textColor = selected
+        ? TmColors.black
+        : muted
+        ? context.textTertiary
+        : context.textPrimary;
 
     return GestureDetector(
       onTap: onTap,
@@ -2431,13 +2537,14 @@ class _VehicleChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: borderColor, width: selected ? 1.5 : 1.0),
+          border: Border.all(color: borderColor, width: borderWidth),
         ),
         child: Text(
           label,
           style: GoogleFonts.inter(
             color: textColor,
             fontSize: 13,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             letterSpacing: 0.1,
           ),
         ),
@@ -2473,9 +2580,10 @@ class _VehicleImageSection extends StatelessWidget {
             style: GoogleFonts.inter(
               color: hasError && images.isEmpty
                   ? TmColors.error
-                  : context.textSecondary,
-              fontSize: 11,
-              letterSpacing: 0.8,
+                  : context.textPrimary,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.0,
             ),
           ),
           const SizedBox(height: 12),
@@ -2495,25 +2603,38 @@ class _VehicleImageSection extends StatelessWidget {
                     width: 88,
                     height: 88,
                     decoration: BoxDecoration(
-                      color: context.surface,
+                      color: context.bg,
                       border: Border.all(
                         color: hasError && images.isEmpty
                             ? TmColors.error
-                            : context.divider,
+                            : context.textPrimary,
+                        width: 1.5,
                       ),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Center(
-                      child: Text(
-                        '+ Photo',
-                        style: GoogleFonts.inter(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_photo_alternate_rounded,
+                          size: 22,
                           color: hasError && images.isEmpty
                               ? TmColors.error
-                              : context.textSecondary,
-                          fontSize: 12,
-                          letterSpacing: 0.2,
+                              : context.textPrimary,
                         ),
-                      ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Photo',
+                          style: GoogleFonts.inter(
+                            color: hasError && images.isEmpty
+                                ? TmColors.error
+                                : context.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -3020,8 +3141,15 @@ class _StepDot extends StatelessWidget {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: active || done ? context.textPrimary : context.divider,
+            color: active
+                ? TmColors.yellow
+                : done
+                ? context.textPrimary
+                : Colors.transparent,
             shape: BoxShape.circle,
+            border: (!active && !done)
+                ? Border.all(color: context.textPrimary.withValues(alpha: 0.25), width: 1.5)
+                : null,
           ),
           child: Center(
             child: done
@@ -3029,8 +3157,11 @@ class _StepDot extends StatelessWidget {
                 : Text(
                     '${index + 1}',
                     style: GoogleFonts.inter(
-                      color: active ? TmColors.yellow : context.textTertiary,
+                      color: active
+                          ? TmColors.black
+                          : context.textPrimary.withValues(alpha: 0.35),
                       fontSize: 12,
+                      fontWeight: FontWeight.w700,
                       letterSpacing: -0.1,
                     ),
                   ),
@@ -3042,6 +3173,7 @@ class _StepDot extends StatelessWidget {
           style: GoogleFonts.inter(
             color: active ? context.textPrimary : context.textTertiary,
             fontSize: 10,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
             letterSpacing: 0.3,
           ),
         ),
@@ -3058,9 +3190,9 @@ class _StepLine extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        height: 1.5,
+        height: 2,
         margin: const EdgeInsets.only(bottom: 20, left: 4, right: 4),
-        color: done ? context.textPrimary : context.divider,
+        color: done ? TmColors.yellow : context.textPrimary.withValues(alpha: 0.15),
       ),
     );
   }
@@ -3083,7 +3215,7 @@ class _PriceBreakdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double extraDist = max(0.0, distanceKm - 1.0);
+    final double extraDist = distanceKm;
     final double distanceFee = extraDist * 300.0;
     double bases = truckType.baseRate;
     final filledExtras = extraVehicles.where((ev) => ev.truck != null).toList();
@@ -3110,13 +3242,10 @@ class _PriceBreakdown extends StatelessWidget {
               label: 'Extra vehicle — ${ev.truck!.name}',
               value: '₱${priceFmt.format(ev.truck!.baseRate)}',
             ),
-          if (extraDist > 0)
-            _BRow(
-              label: '${extraDist.toStringAsFixed(2)} km × ₱300 (after 1st km)',
-              value: '₱${priceFmt.format(distanceFee)}',
-            )
-          else
-            _BRow(label: 'Distance fee (first 1 km free)', value: '—'),
+          _BRow(
+            label: '${extraDist.toStringAsFixed(2)} km × ₱300',
+            value: '₱${priceFmt.format(distanceFee)}',
+          ),
           Container(height: 0.5, color: context.divider),
           _BRow(
             label: 'Subtotal',

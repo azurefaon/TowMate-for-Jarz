@@ -17,7 +17,7 @@ class BookingReceiptMail extends Mailable
 
     public function __construct(Booking $booking)
     {
-        $this->booking = $booking->loadMissing(['customer', 'truckType', 'receipt']);
+        $this->booking = $booking->loadMissing(['customer', 'truckType', 'receipt', 'unit.teamLeader', 'unit.driver']);
         $this->receiptUrl = app(DocumentGenerationService::class)->publicDocumentUrl($this->booking->receipt?->pdf_path);
     }
 

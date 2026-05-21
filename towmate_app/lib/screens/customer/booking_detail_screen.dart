@@ -255,6 +255,29 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           ),
           _divider(),
 
+          // ── Price History ────────────────────────────────────────────
+          if (b.priceChangeLog != null && b.priceChangeLog!.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'PRICE HISTORY',
+                    style: GoogleFonts.inter(
+                      color: context.textSecondary,
+                      fontSize: 10,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  for (final entry in b.priceChangeLog!)
+                    _priceHistoryRow(entry),
+                ],
+              ),
+            ),
+          ],
+
           // ── Crew ────────────────────────────────────────────────────
           if (b.teamLeaderName != null || b.driverName != null) ...[
             _section(
@@ -357,8 +380,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ],
           ),
 
-          // ── Cancel button (scheduled only) ──────────────────────────
-          if (b.status == 'scheduled') ...[
+          // ── Cancel button (scheduled / scheduled_confirmed) ─────────
+          if (b.status == 'scheduled' || b.status == 'scheduled_confirmed') ...[
             _divider(),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
@@ -561,6 +584,69 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     final dateStr = dt != null ? _dateOnly.format(dt) : date;
     if (time == null) return dateStr;
     return '$dateStr  $time';
+  }
+
+  Widget _priceHistoryRow(Map<String, dynamic> entry) {
+    final oldP = double.tryParse(entry['old']?.toString() ?? '') ?? 0;
+    final newP = double.tryParse(entry['new']?.toString() ?? '') ?? 0;
+    final reason = entry['reason'] as String?;
+    DateTime? ts;
+    if (entry['at'] != null) ts = DateTime.tryParse(entry['at'] as String);
+    final tsStr = ts != null ? _dateTime.format(ts.toLocal()) : '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '₱${_money.format(oldP)}',
+                style: GoogleFonts.inter(
+                  color: context.textTertiary,
+                  fontSize: 13,
+                  decoration: TextDecoration.lineThrough,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(Icons.arrow_forward_rounded, size: 14, color: context.textTertiary),
+              ),
+              Text(
+                '₱${_money.format(newP)}',
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          if (reason != null && reason.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              '"$reason"',
+              style: GoogleFonts.inter(
+                color: context.textSecondary,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          if (tsStr.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              tsStr,
+              style: GoogleFonts.inter(
+                color: context.textTertiary,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   String _paymentLabel(String? method) => switch (method) {

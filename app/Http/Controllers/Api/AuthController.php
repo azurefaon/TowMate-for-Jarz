@@ -102,9 +102,23 @@ class AuthController extends Controller
             \Illuminate\Support\Facades\Log::warning('Customer profile creation failed for user ' . $user->id . ': ' . $e->getMessage());
         }
 
+        $token = $user->createToken('mobile')->plainTextToken;
+
         return response()->json([
             'success' => true,
             'message' => 'Account created successfully.',
+            'data'    => [
+                'token' => $token,
+                'user'  => [
+                    'id'                   => $user->id,
+                    'name'                 => $user->name,
+                    'email'                => $user->email,
+                    'phone'                => $user->phone,
+                    'role'                 => $user->role?->name ?? 'Customer',
+                    'duty_class'           => $user->duty_class,
+                    'must_change_password' => false,
+                ],
+            ],
         ], 201);
     }
 

@@ -83,6 +83,16 @@ class JobsController extends Controller
         // so the dispatcher sees the confirmation immediately instead of waiting 10-30s.
         $bookingId = $booking->id;
         app()->terminating(function () use ($bookingId) {
+            // Flush the HTTP response to the client before heavy work so the
+            // browser gets the JSON immediately (built-in dev server + PHP-FPM).
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+            flush();
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+
             try {
                 $b = Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt'])
                     ->find($bookingId);
