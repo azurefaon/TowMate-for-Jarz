@@ -20,6 +20,7 @@ import 'tl_completed_screen.dart';
 import 'tl_return_screen.dart';
 import 'tl_returned_screen.dart';
 import 'tl_navigate_screen.dart';
+import 'tl_task_submitted_screen.dart';
 
 class TlActiveTaskShell extends StatefulWidget {
   const TlActiveTaskShell({super.key});
@@ -345,10 +346,9 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
         task: task,
         onUpdate: onTaskUpdated,
       ),
-      'waiting_verification' => TlAwaitingConfirmScreen(
-        task: task,
-        onUpdate: onTaskUpdated,
-      ),
+      'waiting_verification' => task.paymentMethod != null
+          ? TlTaskSubmittedScreen(task: task)
+          : TlAwaitingConfirmScreen(task: task, onUpdate: onTaskUpdated),
       'completed' => TlCompletedScreen(task: task, onUpdate: onTaskUpdated),
       'returned' => TlReturnedScreen(task: task),
       _ => const Center(

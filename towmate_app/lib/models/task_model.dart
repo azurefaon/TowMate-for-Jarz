@@ -22,6 +22,7 @@ class TaskModel {
   final String? dropoffPhotoPath;
   final String? customerSignaturePath;
   final DateTime? assignedAt;
+  final String? paymentMethod;
   final String? groupCode;
   final int groupVehicleCount;
   final int groupPosition;
@@ -50,6 +51,7 @@ class TaskModel {
     this.dropoffPhotoPath,
     this.customerSignaturePath,
     this.assignedAt,
+    this.paymentMethod,
     this.groupCode,
     this.groupVehicleCount = 1,
     this.groupPosition = 1,
@@ -82,6 +84,7 @@ class TaskModel {
       assignedAt: json['assigned_at'] != null
           ? DateTime.tryParse(json['assigned_at'] as String)
           : null,
+      paymentMethod: json['payment_method'] as String?,
       groupCode: json['group_code'] as String?,
       groupVehicleCount: (json['group_vehicle_count'] as num?)?.toInt() ?? 1,
       groupPosition: (json['group_position'] as num?)?.toInt() ?? 1,
@@ -90,6 +93,7 @@ class TaskModel {
 
   TaskModel copyWith({
     String? status,
+    String? paymentMethod,
     String? groupCode,
     int? groupVehicleCount,
     int? groupPosition,
@@ -118,6 +122,7 @@ class TaskModel {
       dropoffPhotoPath: dropoffPhotoPath,
       customerSignaturePath: customerSignaturePath,
       assignedAt: assignedAt,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
       groupCode: groupCode ?? this.groupCode,
       groupVehicleCount: groupVehicleCount ?? this.groupVehicleCount,
       groupPosition: groupPosition ?? this.groupPosition,

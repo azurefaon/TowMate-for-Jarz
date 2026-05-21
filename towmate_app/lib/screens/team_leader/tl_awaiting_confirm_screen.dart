@@ -221,7 +221,11 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
         widget.task.bookingCode, sigFile, _selectedPayment!);
     if (!mounted) return;
     if (res['success'] == true) {
-      widget.onUpdate(widget.task.copyWith(status: 'completed'));
+      final data = res['data'];
+      final updated = data != null
+          ? TaskModel.fromJson(data as Map<String, dynamic>)
+          : widget.task.copyWith(status: 'completed');
+      widget.onUpdate(updated);
     } else {
       setState(() {
         _loading = false;

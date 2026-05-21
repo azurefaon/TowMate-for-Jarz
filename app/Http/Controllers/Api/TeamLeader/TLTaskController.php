@@ -365,6 +365,7 @@ class TLTaskController extends Controller
             'scheduled_time'      => $booking->scheduled_time,
             'arrival_photo'       => $booking->arrival_photo_path ? Storage::url($booking->arrival_photo_path) : null,
             'dropoff_photo'       => $booking->dropoff_photo_path ? Storage::url($booking->dropoff_photo_path) : null,
+            'payment_method'      => $booking->payment_method,
             'group_code'          => $groupCode,
             'group_vehicle_count' => $groupVehicleCount,
             'group_position'      => $groupPosition,
