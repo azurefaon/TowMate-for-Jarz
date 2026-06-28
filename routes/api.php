@@ -99,8 +99,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Customer quotation routes (in-app flow)
         Route::prefix('quotations')->group(function () {
             Route::get('pending',              [CustomerQuotationController::class, 'pending']);
-            Route::post('{quotation}/accept',  [CustomerQuotationController::class, 'accept']);
-            Route::post('{quotation}/reject',  [CustomerQuotationController::class, 'reject']);
+            Route::post('{quotation}/accept',   [CustomerQuotationController::class, 'accept']);
+            Route::post('{quotation}/reject',   [CustomerQuotationController::class, 'reject']);
+            Route::post('{quotation}/inquire',  [CustomerQuotationController::class, 'inquire']);
         });
 
         // Legacy resource (index/show/update/destroy still go here)

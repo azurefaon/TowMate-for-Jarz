@@ -42,6 +42,8 @@ class Quotation extends Model
         'responded_at',
         'follow_up_sent_at',
         'response_note',
+        'customer_inquiry',
+        'inquiry_sent_at',
         'price_change_log',
         'link_version',
         'scheduled_date',
@@ -65,6 +67,7 @@ class Quotation extends Model
         'follow_up_sent_at' => 'datetime',
         'extra_vehicles' => 'array',
         'price_change_log' => 'array',
+        'inquiry_sent_at' => 'datetime',
     ];
 
     public function getVehicleImagePathsAttribute(): array

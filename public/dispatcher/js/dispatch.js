@@ -488,6 +488,7 @@ document.addEventListener("DOMContentLoaded", function () {
             var channel = pusher.subscribe("dispatch");
             channel.bind("booking.created", handleNewBooking);
             channel.bind("booking.updated", handleBookingUpdate);
+            channel.bind("customer.inquiry", handleCustomerInquiry);
         } catch (error) {
             startPolling();
         }
@@ -1106,6 +1107,22 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         state.pollingInterval = window.setInterval(checkForNewBookings, 8000);
+    }
+
+    function handleCustomerInquiry(data) {
+        var customerName = data.customer_name || "Customer";
+        var message      = data.message || "";
+        var bookingCode  = data.booking_code ? " · " + data.booking_code : "";
+
+        if (window.dispatcherNotifications) {
+            window.dispatcherNotifications.add({
+                title: customerName + " asked about their price" + bookingCode,
+                body:  message,
+                time:  "Just now",
+            });
+        }
+
+        showNotification(customerName + " sent a price inquiry", "info");
     }
 
     function handleBookingUpdate(data) {

@@ -66,7 +66,10 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     setState(() {
       _loadingMore = false;
       if (result['success'] == true) {
-        _bookings = [..._bookings, ...(result['bookings'] as List<BookingModel>)];
+        _bookings = [
+          ..._bookings,
+          ...(result['bookings'] as List<BookingModel>),
+        ];
         _hasMore = result['hasMore'] as bool;
       }
     });
@@ -103,10 +106,11 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Cancel Booking',
-            style: GoogleFonts.inter(fontSize: 16)),
-        content: Text('Cancel booking ${b.bookingCode}?',
-            style: GoogleFonts.inter(fontSize: 14)),
+        title: Text('Cancel Booking', style: GoogleFonts.inter(fontSize: 16)),
+        content: Text(
+          'Cancel booking ${b.bookingCode}?',
+          style: GoogleFonts.inter(fontSize: 14),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -114,8 +118,10 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Yes, cancel',
-                style: GoogleFonts.inter(color: Colors.red)),
+            child: Text(
+              'Yes, cancel',
+              style: GoogleFonts.inter(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -139,15 +145,20 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: context.bg,
-      drawer: TmDrawer(currentRoute: '/my-bookings', isLoggedIn: true, name: _name),
+      drawer: TmDrawer(
+        currentRoute: '/my-bookings',
+        isLoggedIn: true,
+        name: _name,
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top bar ──────────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
+                border: Border(
+                  bottom: BorderSide(color: context.divider, width: 0.5),
+                ),
               ),
               child: Row(
                 children: [
@@ -234,7 +245,9 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                 }
 
                                 return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 20),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 20,
+                                  ),
                                   child: Center(
                                     child: _loadingMore
                                         ? SizedBox(
@@ -394,8 +407,10 @@ class _BookingCard extends StatelessWidget {
             ),
           ),
         if (price != null && booking.distanceKm != null)
-          Text('   ·   ',
-              style: GoogleFonts.inter(color: context.divider, fontSize: 14)),
+          Text(
+            '   ·   ',
+            style: GoogleFonts.inter(color: context.divider, fontSize: 14),
+          ),
         if (booking.distanceKm != null)
           Text(
             '${booking.distanceKm!.toStringAsFixed(2)} km',
@@ -534,9 +549,13 @@ class _GroupBookingCardState extends State<_GroupBookingCard> {
                           ),
                         ),
                       if (price != null && b.distanceKm != null)
-                        Text('   ·   ',
-                            style: GoogleFonts.inter(
-                                color: context.divider, fontSize: 14)),
+                        Text(
+                          '   ·   ',
+                          style: GoogleFonts.inter(
+                            color: context.divider,
+                            fontSize: 14,
+                          ),
+                        ),
                       if (b.distanceKm != null)
                         Text(
                           '${b.distanceKm!.toStringAsFixed(2)} km',
@@ -556,7 +575,9 @@ class _GroupBookingCardState extends State<_GroupBookingCard> {
                     onTap: _canCancel(b) ? widget.onCancel : null,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         border: Border.all(
                           color: _canCancel(b)
@@ -625,7 +646,10 @@ class _SiblingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final timeLabel = _formatSchedTime(sibling.scheduledDate, sibling.scheduledTime);
+    final timeLabel = _formatSchedTime(
+      sibling.scheduledDate,
+      sibling.scheduledTime,
+    );
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -684,8 +708,18 @@ class _SiblingRow extends StatelessWidget {
     try {
       final d = DateTime.parse(date);
       const months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       final datePart = '${months[d.month - 1]} ${d.day}, ${d.year}';
       if (time == null) return datePart;

@@ -828,6 +828,29 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> sendQuotationInquiry(
+    int id,
+    String message,
+  ) async {
+    try {
+      final token = await getToken();
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/v1/quotations/$id/inquire'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({'message': message}),
+          )
+          .timeout(const Duration(seconds: 15));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return {
+        'success': res.statusCode == 200 && body['success'] == true,
+        'message': body['message'] ?? '',
+      };
+    } catch (_) {
+      return {'success': false, 'message': 'Network error. Please try again.'};
+    }
+  }
+
   // ── Registration OTP ───────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> sendRegistrationOtp(String email) async {
