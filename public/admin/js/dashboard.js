@@ -225,7 +225,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             Number(chartCanvas.dataset.assigned || 0),
                             Number(chartCanvas.dataset.pending || 0),
                         ],
-                        backgroundColor: ["#0f172a", "#4f46e5", "#94a3b8"],
+                        backgroundColor: ["#111827", "#facc15", "#d1d5db"],
                         borderWidth: 0,
                         cutout: "70%",
                     },

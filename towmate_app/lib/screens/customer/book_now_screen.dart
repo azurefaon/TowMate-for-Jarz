@@ -639,6 +639,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
           selectedTruck: _selectedTruckType,
           selectedVehicle: _selectedVehicleType,
           readyByClass: _readyByClass,
+          bookNowEnabled: _bookNowEnabled,
           onSelect: _selectVehicle,
           onRetry: _loadData,
           onReset: _resetVehicle,
@@ -2134,6 +2135,7 @@ class _VehicleSection extends StatefulWidget {
     required this.selectedTruck,
     required this.selectedVehicle,
     required this.readyByClass,
+    required this.bookNowEnabled,
     required this.onSelect,
     this.onRetry,
     this.onReset,
@@ -2144,6 +2146,7 @@ class _VehicleSection extends StatefulWidget {
   final TruckTypeModel? selectedTruck;
   final VehicleTypeModel? selectedVehicle;
   final Map<String, int> readyByClass;
+  final bool bookNowEnabled;
   final void Function(TruckTypeModel, VehicleTypeModel) onSelect;
   final VoidCallback? onRetry;
   final VoidCallback? onReset;
@@ -2304,11 +2307,9 @@ class _VehicleSectionState extends State<_VehicleSection> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: trucks.map((truck) {
-                  final isAvailable =
-                      widget.readyByClass.isEmpty ||
-                      (widget.readyByClass[truck.truckClass.toLowerCase()] ??
-                              0) >
-                          0;
+                  final isAvailable = widget.readyByClass.isNotEmpty
+                      ? (widget.readyByClass[truck.truckClass.toLowerCase()] ?? 0) > 0
+                      : widget.bookNowEnabled;
                   return _ClassPickerCard(
                     truck: truck,
                     isFocused: _focusedTruck?.id == truck.id,
@@ -2335,12 +2336,9 @@ class _VehicleSectionState extends State<_VehicleSection> {
               if (_focusedTruck!.vehicleTypes.isNotEmpty) ...[
                 Builder(
                   builder: (context) {
-                    final isAvailable =
-                        widget.readyByClass.isEmpty ||
-                        (widget.readyByClass[_focusedTruck!.truckClass
-                                    .toLowerCase()] ??
-                                0) >
-                            0;
+                    final isAvailable = widget.readyByClass.isNotEmpty
+                        ? (widget.readyByClass[_focusedTruck!.truckClass.toLowerCase()] ?? 0) > 0
+                        : widget.bookNowEnabled;
                     return Wrap(
                       spacing: 8,
                       runSpacing: 8,

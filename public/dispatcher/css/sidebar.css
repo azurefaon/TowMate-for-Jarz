@@ -2,7 +2,7 @@
     width: 290px;
     height: 100vh;
     background: #ffffff;
-    border-right: 0;
+    border-right: 2px solid #111827;
     padding: 18px 14px;
     position: fixed;
     top: 0;
@@ -35,8 +35,10 @@
     align-items: center;
     gap: 12px;
     padding: 14px;
-    background: #ffffff;
+    background: #facc15;
     border: 0;
+    border-radius: 10px;
+    margin-bottom: 6px;
 }
 
 .sidebar-brand img {
@@ -52,9 +54,10 @@
 }
 
 .brand-copy span {
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 800;
     color: #111827;
+    letter-spacing: 0.04em;
     line-height: 1.15;
 }
 
@@ -69,7 +72,7 @@
     font-weight: 800;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #64748b;
+    color: #111827;
 }
 
 .menu {
@@ -87,6 +90,7 @@
     min-height: 46px;
     padding: 12px 14px;
     border: 0;
+    border-radius: 8px;
     color: #334155;
     text-decoration: none;
     text-align: left;
@@ -119,6 +123,7 @@
 
 .menu-item:hover {
     color: #111827;
+    background: rgba(250, 204, 21, 0.15);
 }
 /* 
 .menu-item:hover::before {
@@ -174,7 +179,8 @@
     gap: 10px;
     padding: 12px;
     background: #ffffff;
-    border: 1px solid #000;
+    border: 1px solid #111827;
+    border-radius: 8px;
 }
 
 .account-avatar {
@@ -266,7 +272,8 @@
     padding: 24px;
     background: #ffffff;
     text-align: left;
-    border: 1px solid #000;
+    border: 1px solid #111827;
+    border-radius: 16px;
 }
 
 .logout-icon-wrap {
@@ -280,7 +287,8 @@
 .logout-close {
     width: 34px;
     height: 34px;
-    border: 1px solid #000;
+    border: 1px solid #111827;
+    border-radius: 8px;
     background: #ffffff;
     color: #6b7280;
     cursor: pointer;
@@ -314,6 +322,7 @@
 
 .cancel-btn {
     border: 1px solid #d1d5db;
+    border-radius: 8px;
     background: #ffffff;
     color: #374151;
 }
@@ -324,6 +333,7 @@
 
 .confirm-btn {
     border: none;
+    border-radius: 8px;
     background: #111827;
     color: #ffffff;
 }
@@ -351,7 +361,8 @@ body.modal-open {
     gap: 5px;
     width: 40px;
     height: 40px;
-    border: 1px solid #000;
+    border: 1px solid #111827;
+    border-radius: 8px;
     background: #fff;
     cursor: pointer;
     padding: 0;

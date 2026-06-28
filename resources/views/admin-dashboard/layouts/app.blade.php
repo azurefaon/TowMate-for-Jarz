@@ -42,12 +42,12 @@
 
         .topbar {
             position: sticky;
-            top: 12px;
+            top: 0;
             z-index: 1200;
             overflow: visible;
             background: #ffffff;
             backdrop-filter: none;
-            border-bottom: 0;
+            border-bottom: 2px solid #111827;
         }
 
         @media (max-width: 768px) {
@@ -98,6 +98,7 @@
             gap: 10px;
             padding: 5px 12px;
             background: #fff;
+            border-radius: 8px;
             cursor: pointer;
         }
 
@@ -106,11 +107,12 @@
             height: 36px;
             display: inline-flex;
             align-items: center;
-            border: 1px solid #000;
-            border-radius: 5px;
+            border: 2px solid #111827;
+            border-radius: 50%;
             justify-content: center;
-            background: var(--jarz-surface);
-            color: var(--jarz-text);
+            background: #facc15;
+            color: #111827;
+            font-weight: 700;
         }
 
         .profile-meta {
@@ -129,8 +131,10 @@
             top: calc(100% + 10px);
             min-width: 180px;
             padding: 8px;
-            border: 1px solid #000;
+            border: 1px solid #111827;
+            border-radius: 12px;
             background: #fff;
+            box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
             z-index: 20;
         }
 
@@ -142,6 +146,7 @@
             gap: 8px;
             padding: 10px 12px;
             border: 0;
+            border-radius: 8px;
             background: transparent;
             color: var(--jarz-text);
             text-decoration: none;
@@ -150,7 +155,7 @@
 
         .profile-menu a:hover,
         .profile-menu button:hover {
-            background: var(--jarz-surface);
+            background: #facc15;
         }
     </style>
 </head>
