@@ -18,6 +18,30 @@ Route::get('/test', function () {
     return response()->json(['message' => 'API working']);
 });
 
+// Temporary diagnostic route — reports whether specific env vars are set
+// (booleans/lengths only, never the actual secret value) so we can verify
+// what the *running* server actually sees without relying on dashboard
+// screenshots. Remove once the GOOGLE_MAPS_SERVER_KEY issue is resolved.
+Route::get('/debug-env-check', function () {
+    $check = function (string $key) {
+        $value = trim((string) env($key, ''));
+
+        return [
+            'set' => $value !== '',
+            'length' => strlen($value),
+            'starts_with' => substr($value, 0, 6),
+        ];
+    };
+
+    return response()->json([
+        'app_env' => env('APP_ENV'),
+        'GOOGLE_MAPS_SERVER_KEY' => $check('GOOGLE_MAPS_SERVER_KEY'),
+        'GOOGLE_MAPS_API_KEY' => $check('GOOGLE_MAPS_API_KEY'),
+        'APP_KEY' => $check('APP_KEY'),
+        'server_time' => now()->toDateTimeString(),
+    ]);
+});
+
 Route::get('/debug-availability', function () {
     $bookingService = app(\App\Services\BookingService::class);
     $availability   = $bookingService->dispatchAvailability();
