@@ -85,6 +85,11 @@ class GeoController extends Controller
         return response()->json(['address' => $nominatim ?: 'Unknown location']);
     }
 
+    // Requires GOOGLE_MAPS_SERVER_KEY to be set on whatever environment this
+    // deploys to — a Railway "Redeploy" only restarts the existing image and
+    // will NOT pick up a variable added after that image was built; a fresh
+    // build (new git push, or an explicit rebuild) is required for it to
+    // actually reach this controller.
     public function autocomplete(Request $request): JsonResponse
     {
         $validated = $request->validate([
