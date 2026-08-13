@@ -260,6 +260,32 @@
                         <span class="form-help">Provide details about the zone's coverage area and characteristics</span>
                     </div>
 
+                    <div class="form-group">
+                        <label class="form-label">📍 Zone Boundary (Optional)</label>
+                        <div id="zoneMap" style="height: 320px; border: 2px solid #e5e7eb;"></div>
+                        <div style="display:flex; gap:14px; margin-top:10px; align-items:center; flex-wrap:wrap;">
+                            <label style="font-size:0.85rem; color:#475569; display:flex; align-items:center; gap:8px;">
+                                Radius (km)
+                                <input type="number" id="radiusKmInput" name="radius_km" min="0.1" max="100" step="0.1"
+                                    value="{{ old('radius_km') }}" class="form-input"
+                                    style="width:100px; padding:8px 10px;">
+                            </label>
+                            <button type="button" id="clearZoneBoundary" class="btn btn-cancel"
+                                style="flex:0; padding:8px 16px;">Clear</button>
+                        </div>
+                        <input type="hidden" name="center_lat" id="centerLatInput" value="{{ old('center_lat') }}">
+                        <input type="hidden" name="center_lng" id="centerLngInput" value="{{ old('center_lng') }}">
+                        @error('center_lat')
+                            <div class="error-message">{{ $message }}</div>
+                        @enderror
+                        @error('radius_km')
+                            <div class="error-message">{{ $message }}</div>
+                        @enderror
+                        <span class="form-help">Click the map (or drag the marker) to set this zone's center, then set
+                            a radius. Units whose live GPS location falls inside this circle are automatically
+                            assigned to this zone.</span>
+                    </div>
+
                     @if ($teamLeaders->count() > 0)
                         <div class="form-group">
                             <label class="form-label">🧑‍💼 Assign Team Leaders (Optional)</label>
@@ -296,4 +322,60 @@
             </div>
         </div>
     </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google_maps.browser_key') }}"></script>
+    <script>
+        (function() {
+            var mapEl = document.getElementById('zoneMap');
+            if (typeof google === 'undefined' || !google.maps) {
+                mapEl.innerHTML = '<div style="padding:16px; color:#94a3b8; font-size:0.85rem;">Map unavailable — you can still enter coordinates manually via the hidden fields if needed.</div>';
+                return;
+            }
+
+            var DEFAULT_CENTER = { lat: 14.5995, lng: 120.9842 };
+            var latInput = document.getElementById('centerLatInput');
+            var lngInput = document.getElementById('centerLngInput');
+            var radiusInput = document.getElementById('radiusKmInput');
+
+            var initialLat = parseFloat(latInput.value) || null;
+            var initialLng = parseFloat(lngInput.value) || null;
+            var initialRadius = parseFloat(radiusInput.value) || 3;
+            var center = (initialLat && initialLng) ? { lat: initialLat, lng: initialLng } : DEFAULT_CENTER;
+
+            var map = new google.maps.Map(mapEl, { center: center, zoom: initialLat ? 13 : 11 });
+            var marker = new google.maps.Marker({ position: center, map: map, draggable: true });
+            var circle = new google.maps.Circle({
+                map: map,
+                center: center,
+                radius: (initialLat && initialLng ? initialRadius : 0) * 1000,
+                fillColor: '#667eea',
+                fillOpacity: 0.15,
+                strokeColor: '#667eea',
+                strokeWeight: 2,
+            });
+
+            function setCenter(pos) {
+                latInput.value = pos.lat;
+                lngInput.value = pos.lng;
+                marker.setPosition(pos);
+                circle.setCenter(pos);
+                if (!radiusInput.value) radiusInput.value = 3;
+                circle.setRadius((parseFloat(radiusInput.value) || 3) * 1000);
+            }
+
+            marker.addListener('dragend', function() { setCenter(marker.getPosition().toJSON()); });
+            map.addListener('click', function(e) { setCenter(e.latLng.toJSON()); });
+
+            radiusInput.addEventListener('input', function() {
+                circle.setRadius((parseFloat(this.value) || 0) * 1000);
+            });
+
+            document.getElementById('clearZoneBoundary').addEventListener('click', function() {
+                latInput.value = '';
+                lngInput.value = '';
+                radiusInput.value = '';
+                circle.setRadius(0);
+            });
+        })();
+    </script>
 @endsection

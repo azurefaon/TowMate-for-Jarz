@@ -40,11 +40,17 @@ class ZoneController extends Controller
             'description' => 'nullable|string|max:500',
             'team_leader_ids' => 'nullable|array',
             'team_leader_ids.*' => 'exists:users,id',
+            'center_lat' => 'nullable|numeric|between:-90,90',
+            'center_lng' => 'nullable|numeric|between:-180,180',
+            'radius_km' => 'nullable|numeric|min:0.1|max:100',
         ]);
 
         $zone = Zone::create([
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
+            'center_lat' => $validated['center_lat'] ?? null,
+            'center_lng' => $validated['center_lng'] ?? null,
+            'radius_km' => $validated['radius_km'] ?? null,
         ]);
 
         // Assign team leaders if provided
@@ -97,11 +103,17 @@ class ZoneController extends Controller
             'description' => 'nullable|string|max:500',
             'team_leader_ids' => 'nullable|array',
             'team_leader_ids.*' => 'exists:users,id',
+            'center_lat' => 'nullable|numeric|between:-90,90',
+            'center_lng' => 'nullable|numeric|between:-180,180',
+            'radius_km' => 'nullable|numeric|min:0.1|max:100',
         ]);
 
         $zone->update([
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
+            'center_lat' => $validated['center_lat'] ?? null,
+            'center_lng' => $validated['center_lng'] ?? null,
+            'radius_km' => $validated['radius_km'] ?? null,
         ]);
 
         // Update team leader assignments

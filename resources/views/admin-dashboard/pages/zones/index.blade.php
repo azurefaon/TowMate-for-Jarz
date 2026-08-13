@@ -265,6 +265,18 @@
                     <p class="zone-card__description">
                         {{ $zone->description ?? 'No description provided' }}
                     </p>
+                    @if ($zone->radius_km)
+                        <span class="zone-card__badge" style="margin-bottom: 12px;">
+                            <span style="font-size: 1rem;">🛰️</span>
+                            {{ rtrim(rtrim(number_format($zone->radius_km, 1), '0'), '.') }} km radius
+                        </span>
+                    @else
+                        <span class="zone-card__badge"
+                            style="margin-bottom: 12px; background: #fef3c7; color: #92400e;">
+                            <span style="font-size: 1rem;">⚠️</span>
+                            No boundary set
+                        </span>
+                    @endif
                     <div class="zone-card__actions">
                         <a href="{{ route('admin.zones.edit', $zone) }}" class="btn btn-edit">
                             ✏️ Edit

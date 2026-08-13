@@ -1,10 +1,12 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../services/team_leader_service.dart';
 import '../../widgets/tl_checklist_item.dart';
-import 'tl_return_screen.dart';
 
 class TlArrivedDropoffScreen extends StatefulWidget {
   const TlArrivedDropoffScreen(
@@ -18,8 +20,71 @@ class TlArrivedDropoffScreen extends StatefulWidget {
 }
 
 class _TlArrivedDropoffScreenState extends State<TlArrivedDropoffScreen> {
+  bool _photoTaken = false;
   bool _vehicleUnloaded = false;
   bool _loading = false;
+  XFile? _photo;
+
+  Future<void> _showPhotoSource() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: TmColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 32, height: 4,
+              decoration: BoxDecoration(
+                color: TmColors.grey300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Take Photo',
+                  style: GoogleFonts.inter(color: TmColors.grey700, fontSize: 15)),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            Container(height: 0.5, color: TmColors.grey300),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Choose from Gallery',
+                  style: GoogleFonts.inter(color: TmColors.grey700, fontSize: 15)),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null) await _pickPhoto(source);
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final xfile = await ImagePicker().pickImage(source: source, imageQuality: 75);
+    if (xfile == null || !mounted) return;
+
+    setState(() => _loading = true);
+    final res = await TeamLeaderService.uploadPhoto(widget.task.bookingCode, xfile, 'dropoff');
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (res['success'] == true) {
+        _photo = xfile;
+        _photoTaken = true;
+      }
+    });
+    if (res['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] as String? ?? 'Photo upload failed.'),
+          backgroundColor: TmColors.error));
+    }
+  }
 
   Future<void> _proceed() async {
     setState(() => _loading = true);
@@ -36,13 +101,18 @@ class _TlArrivedDropoffScreenState extends State<TlArrivedDropoffScreen> {
     }
   }
 
-  Future<void> _return() async {
-    final ok = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => TlReturnScreen(task: widget.task)),
-    );
-    if (ok == true && mounted) {
-      widget.onUpdate(widget.task.copyWith(status: 'returned'));
+  Future<void> _back() async {
+    setState(() => _loading = true);
+    final res =
+        await TeamLeaderService.updateStatus(widget.task.bookingCode, 'on_job');
+    if (!mounted) return;
+    if (res['success'] == true) {
+      widget.onUpdate(widget.task.copyWith(status: 'on_job'));
+    } else {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] as String? ?? 'Failed.'),
+          backgroundColor: TmColors.error));
     }
   }
 
@@ -61,18 +131,35 @@ class _TlArrivedDropoffScreenState extends State<TlArrivedDropoffScreen> {
                     color: TmColors.black, fontSize: 15, letterSpacing: -0.2)),
             const SizedBox(height: 12),
             TlChecklistItem(
+              label: 'Take drop-off photo',
+              sublabel: _photoTaken ? 'Photo uploaded' : 'Tap to add photo',
+              checked: _photoTaken,
+              onTap: _loading ? null : _showPhotoSource,
+            ),
+            TlChecklistItem(
               label: 'Vehicle unloaded successfully',
               checked: _vehicleUnloaded,
               onTap: () => setState(() => _vehicleUnloaded = !_vehicleUnloaded),
             ),
+            if (_photo != null) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: kIsWeb
+                    ? Image.network(_photo!.path,
+                        height: 160, width: double.infinity, fit: BoxFit.cover)
+                    : Image.file(File(_photo!.path),
+                        height: 160, width: double.infinity, fit: BoxFit.cover),
+              ),
+            ],
             const SizedBox(height: 24),
             _primaryBtn(
               'Proceed to Verification',
               Icons.verified_outlined,
-              _vehicleUnloaded && !_loading ? _proceed : null,
+              _photoTaken && _vehicleUnloaded && !_loading ? _proceed : null,
             ),
             const SizedBox(height: 12),
-            _outlineBtn('Return Task', Icons.undo_rounded, _return),
+            _outlineBtn('Back', Icons.arrow_back_rounded, _back),
           ],
         ),
       ),
