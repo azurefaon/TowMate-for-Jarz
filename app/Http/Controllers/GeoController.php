@@ -85,6 +85,50 @@ class GeoController extends Controller
         return response()->json(['address' => $nominatim ?: 'Unknown location']);
     }
 
+    public function autocomplete(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['required', 'string', 'max:255'],
+        ]);
+
+        if ($this->shouldUseGoogleMaps()) {
+            $suggestions = $this->resolveGooglePlacesSuggestions($validated['q']);
+
+            if (! empty($suggestions)) {
+                return response()->json(['suggestions' => $suggestions]);
+            }
+        } else {
+            \Illuminate\Support\Facades\Log::warning('GeoController::autocomplete — GOOGLE_MAPS_SERVER_KEY is not configured, falling back to Nominatim.');
+        }
+
+        // Fallback — Nominatim results already carry coordinates, so the
+        // client can use them directly without a follow-up details call.
+        $fallback = $this->resolveNominatimSearchResults($validated['q']);
+
+        if (empty($fallback)) {
+            \Illuminate\Support\Facades\Log::warning('GeoController::autocomplete — both Google and Nominatim returned no suggestions.', ['q' => $validated['q']]);
+        }
+
+        return response()->json(['suggestions' => $fallback]);
+    }
+
+    public function placeDetails(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'place_id' => ['required', 'string', 'max:255'],
+        ]);
+
+        if ($this->shouldUseGoogleMaps()) {
+            $place = $this->resolveGooglePlaceDetails($validated['place_id']);
+
+            if ($place !== null) {
+                return response()->json($place);
+            }
+        }
+
+        return response()->json(['message' => 'Unable to resolve place details.'], 422);
+    }
+
     public function route(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -318,6 +362,80 @@ class GeoController extends Controller
         }
     }
 
+    protected function resolveGooglePlacesSuggestions(string $query): array
+    {
+        try {
+            $response = Http::timeout(10)
+                ->acceptJson()
+                ->withHeaders([
+                    'X-Goog-Api-Key' => $this->googleMapsKey(),
+                    'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.text',
+                ])
+                ->post($this->googlePlacesAutocompleteUrl(), [
+                    'input' => $query,
+                    'includedRegionCodes' => ['ph'],
+                ]);
+
+            if (! $response->successful()) {
+                \Illuminate\Support\Facades\Log::warning('GeoController::resolveGooglePlacesSuggestions — Google Places request failed.', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                return [];
+            }
+
+            return collect($response->json('suggestions', []))
+                ->take(5)
+                ->map(function (array $suggestion) {
+                    $prediction = $suggestion['placePrediction'] ?? [];
+
+                    return [
+                        'label' => data_get($prediction, 'text.text', 'Unknown location'),
+                        'place_id' => (string) data_get($prediction, 'placeId', ''),
+                    ];
+                })
+                ->filter(fn(array $suggestion) => $suggestion['place_id'] !== '')
+                ->values()
+                ->all();
+        } catch (\Throwable $exception) {
+            \Illuminate\Support\Facades\Log::warning('GeoController::resolveGooglePlacesSuggestions — exception thrown.', ['message' => $exception->getMessage()]);
+
+            return [];
+        }
+    }
+
+    protected function resolveGooglePlaceDetails(string $placeId): ?array
+    {
+        try {
+            $response = Http::timeout(10)
+                ->acceptJson()
+                ->withHeaders([
+                    'X-Goog-Api-Key' => $this->googleMapsKey(),
+                    'X-Goog-FieldMask' => 'location,formattedAddress',
+                ])
+                ->get($this->googlePlacesDetailsUrl() . '/' . rawurlencode($placeId));
+
+            if (! $response->successful()) {
+                return null;
+            }
+
+            $lat = (float) data_get($response->json(), 'location.latitude', 0);
+            $lng = (float) data_get($response->json(), 'location.longitude', 0);
+
+            if ($lat === 0.0 && $lng === 0.0) {
+                return null;
+            }
+
+            return [
+                'label' => (string) $response->json('formattedAddress', 'Unknown location'),
+                'coordinates' => [$lng, $lat],
+            ];
+        } catch (\Throwable $exception) {
+            return null;
+        }
+    }
+
     protected function resolveGoogleReverseAddress(float $lat, float $lng): string
     {
         try {
@@ -343,23 +461,30 @@ class GeoController extends Controller
         try {
             $response = Http::timeout(15)
                 ->acceptJson()
-                ->get($this->googleDirectionsUrl(), [
-                    'origin' => $pickupLat . ',' . $pickupLng,
-                    'destination' => $dropLat . ',' . $dropLng,
-                    'mode' => 'driving',
-                    'alternatives' => 'false',
-                    'units' => 'metric',
-                    'key' => $this->googleMapsKey(),
+                ->withHeaders([
+                    'X-Goog-Api-Key' => $this->googleMapsKey(),
+                    'X-Goog-FieldMask' => 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline',
+                ])
+                ->post($this->googleRoutesUrl(), [
+                    'origin' => [
+                        'location' => ['latLng' => ['latitude' => $pickupLat, 'longitude' => $pickupLng]],
+                    ],
+                    'destination' => [
+                        'location' => ['latLng' => ['latitude' => $dropLat, 'longitude' => $dropLng]],
+                    ],
+                    'travelMode' => 'DRIVE',
+                    'computeAlternativeRoutes' => false,
+                    'units' => 'METRIC',
                 ]);
 
-            if (! $response->successful() || $response->json('status') !== 'OK') {
+            if (! $response->successful()) {
                 return null;
             }
 
             $route = $response->json('routes.0', []);
-            $distanceMeters = (float) data_get($route, 'legs.0.distance.value', 0);
-            $durationSeconds = (float) data_get($route, 'legs.0.duration.value', 0);
-            $geometry = $this->decodeGooglePolyline((string) data_get($route, 'overview_polyline.points', ''));
+            $distanceMeters = (float) data_get($route, 'distanceMeters', 0);
+            $durationSeconds = (float) rtrim((string) data_get($route, 'duration', '0s'), 's');
+            $geometry = $this->decodeGooglePolyline((string) data_get($route, 'polyline.encodedPolyline', ''));
 
             if ($distanceMeters <= 0 || count($geometry) < 2) {
                 return null;
@@ -440,9 +565,19 @@ class GeoController extends Controller
         return (string) config('services.google_maps.geocode_url', 'https://maps.googleapis.com/maps/api/geocode/json');
     }
 
-    protected function googleDirectionsUrl(): string
+    protected function googleRoutesUrl(): string
     {
-        return (string) config('services.google_maps.directions_url', 'https://maps.googleapis.com/maps/api/directions/json');
+        return (string) config('services.google_maps.routes_url', 'https://routes.googleapis.com/directions/v2:computeRoutes');
+    }
+
+    protected function googlePlacesAutocompleteUrl(): string
+    {
+        return (string) config('services.google_maps.places_autocomplete_url', 'https://places.googleapis.com/v1/places:autocomplete');
+    }
+
+    protected function googlePlacesDetailsUrl(): string
+    {
+        return (string) config('services.google_maps.places_details_url', 'https://places.googleapis.com/v1/places');
     }
 
     protected function resolveNominatimReverseAddress(float $lat, float $lng): string
@@ -483,6 +618,11 @@ class GeoController extends Controller
                 ]);
 
             if (! $response->successful()) {
+                \Illuminate\Support\Facades\Log::warning('GeoController::resolveNominatimSearchResults — Nominatim request failed.', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
                 return [];
             }
 
@@ -498,7 +638,9 @@ class GeoController extends Controller
                 })
                 ->values()
                 ->all();
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            \Illuminate\Support\Facades\Log::warning('GeoController::resolveNominatimSearchResults — exception thrown.', ['message' => $exception->getMessage()]);
+
             return [];
         }
     }
