@@ -90,6 +90,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('geo/search', [GeoController::class, 'search']);
         Route::post('geo/route', [GeoController::class, 'route']);
         Route::get('geo/reverse', [GeoController::class, 'reverse']);
+        Route::get('geo/autocomplete', [GeoController::class, 'autocomplete']);
+        Route::get('geo/place-details', [GeoController::class, 'placeDetails']);
 
         // Customer notifications
         Route::get('notifications',            [NotificationController::class, 'index']);
@@ -118,6 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->group(function () {
             Route::post('presence/ping',           [TLPresenceController::class, 'ping']);
             Route::post('presence/offline',        [TLPresenceController::class, 'offline']);
+            Route::post('presence/away',           [TLPresenceController::class, 'away']);
             Route::get('task',                    [TLTaskController::class, 'current']);
             Route::post('task/{booking}/accept',   [TLTaskController::class, 'accept']);
             Route::patch('task/{booking}/status',   [TLTaskController::class, 'updateStatus']);
