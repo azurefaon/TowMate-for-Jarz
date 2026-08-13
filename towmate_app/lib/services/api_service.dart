@@ -21,8 +21,9 @@ class ApiService {
   //   return 'http://127.0.0.1:8000/api';
   // }
 
-  // static const String baseUrl = 'http://127.0.0.1:8000/api';
   static const String baseUrl = 'https://jarztowing.up.railway.app/api';
+  // static const String baseUrl = 'http://192.168.254.100:8000/api';
+  // static const String baseUrl = 'http://127.0.0.1:8000/api';
 
   static const _secure = FlutterSecureStorage(
     aOptions: AndroidOptions(
@@ -411,7 +412,10 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> fetchAvailability() async {
+  // Returns null on failure (network error, timeout, non-200) so the caller
+  // can leave existing state untouched instead of overwriting it with a
+  // misleading default.
+  static Future<Map<String, dynamic>?> fetchAvailability() async {
     try {
       final token = await getToken();
       final res = await http
@@ -423,9 +427,9 @@ class ApiService {
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
-      return {'book_now_enabled': true};
+      return null;
     } catch (_) {
-      return {'book_now_enabled': true};
+      return null;
     }
   }
 
@@ -465,6 +469,52 @@ class ApiService {
       return [];
     } catch (_) {
       return [];
+    }
+  }
+
+  // Places Autocomplete (proxied through Laravel so the Google key never
+  // ships to the client). Suggestions may include coordinates directly
+  // (Nominatim fallback) or a place_id needing a follow-up resolvePlaceDetails
+  // call (Google path) — check which fields are present before using either.
+  static Future<List<Map<String, dynamic>>> autocompleteAddress(
+    String query,
+  ) async {
+    try {
+      final token = await getToken();
+      final uri = Uri.parse(
+        '$baseUrl/v1/geo/autocomplete',
+      ).replace(queryParameters: {'q': query});
+      final response = await http
+          .get(uri, headers: {..._headers, 'Authorization': 'Bearer $token'})
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        return (body['suggestions'] as List? ?? [])
+            .cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> resolvePlaceDetails(
+    String placeId,
+  ) async {
+    try {
+      final token = await getToken();
+      final uri = Uri.parse(
+        '$baseUrl/v1/geo/place-details',
+      ).replace(queryParameters: {'place_id': placeId});
+      final response = await http
+          .get(uri, headers: {..._headers, 'Authorization': 'Bearer $token'})
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 
