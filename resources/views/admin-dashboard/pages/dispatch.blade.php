@@ -3,7 +3,6 @@
 @section('title', 'Dispatch')
 
 @push('styles')
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         .tracking-panel {
             background: #fff;
@@ -78,6 +77,29 @@
         .tracking-roster-hint {
             font-size: .72rem;
             color: #9ca3af;
+        }
+
+        .zone-filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .zone-chip {
+            padding: 4px 11px;
+            border-radius: 999px;
+            font-size: .72rem;
+            font-weight: 600;
+            background: #475569;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+
+        .zone-chip.is-active {
+            background: #0f172a;
         }
 
         .tracking-roster {
@@ -481,6 +503,11 @@
             color: #991b1b;
         }
 
+        .queue-chip.not_responding {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
         .queue-chip.active {
             background: #dcfce7;
             color: #166534;
@@ -510,51 +537,8 @@
             /* border-color: #fca5a5; */
         }
 
-        .dp-tl-section {
-            margin-top: 36px;
-            padding-bottom: 40px;
-        }
-
-        .dp-tl-header {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-        }
-
-        .dp-tl-title {
-            margin: 0 0 4px;
-            font-size: 1rem;
-            color: #0f172a;
-        }
-
-        .dp-tl-sub {
-            margin: 0;
-            font-size: .82rem;
-            color: #000000;
-        }
-
-        .dp-tl-link {
-            font-size: .82rem;
-            color: #6366f1;
-            text-decoration: none;
-            white-space: nowrap;
-            align-self: center;
-        }
-
-        .dp-tl-link:hover {
-            text-decoration: underline;
-        }
-
-        .dp-tl-empty {
-            padding: 24px;
-            text-align: center;
-            color: #000000;
-            font-size: .88rem;
-            background: #fff;
-            border: 1px solid #e5e7eb;
+        .status-badge.not_responding {
+            color: #374151;
         }
 
         .group-booking-header {
@@ -586,207 +570,6 @@
 
         .incoming-card--group-child+.incoming-card--group-child {
             margin-top: 2px;
-        }
-
-        .dp-tl-table-wrap {
-            overflow-x: auto;
-            background: #fff;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-        }
-
-        .dp-tl-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .dp-tl-table thead tr {
-            background: #f8fafc;
-            border-bottom: 1.5px solid #e5e7eb;
-        }
-
-        .dp-tl-table th {
-            padding: 11px 14px;
-            text-align: left;
-            font-size: .72rem;
-            color: #000000;
-            text-transform: uppercase;
-            letter-spacing: .07em;
-            white-space: nowrap;
-        }
-
-        .dp-tl-table td {
-            padding: 12px 14px;
-            vertical-align: middle;
-            border-bottom: 1px solid #f1f5f9;
-            font-size: .88rem;
-            color: #374151;
-        }
-
-        .dp-tl-table tbody tr:last-child td {
-            border-bottom: none;
-        }
-
-        .dp-tl-table tbody tr:hover {
-            background: #fafbff;
-        }
-
-        /* Name cell */
-        .dp-name-cell {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .dp-avatar {
-            width: 34px;
-            height: 34px;
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            color: #fff;
-            font-size: .8rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .dp-name {
-            font-size: .88rem;
-            color: #0f172a;
-        }
-
-        .dp-presence {
-            font-size: .72rem;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            margin-top: 1px;
-        }
-
-        .dp-presence::before {
-            content: '';
-            width: 6px;
-            height: 6px;
-            display: inline-block;
-        }
-
-        .dp-presence--online {
-            color: #16a34a;
-        }
-
-        .dp-presence--online::before {
-            background: #22c55e;
-        }
-
-        .dp-presence--offline {
-            color: #000000;
-        }
-
-        .dp-presence--offline::before {
-            background: #cbd5e1;
-        }
-
-        /* Zone */
-        .dp-zone-badge {
-            display: inline-block;
-            padding: 3px 9px;
-            font-size: .72rem;
-            background: #eff6ff;
-            color: #1d4ed8;
-        }
-
-        .dp-zone-none {
-            font-size: .78rem;
-            color: #000000;
-        }
-
-        /* Status badge */
-        .dp-status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            font-size: .72rem;
-            white-space: nowrap;
-        }
-
-        .dp-badge--avail {
-            background: #f0fdf4;
-            color: #15803d;
-        }
-
-        .dp-badge--off {
-            background: #fef2f2;
-            color: #b91c1c;
-        }
-
-        .dp-badge--tow {
-            background: #f5f3ff;
-            color: #6d28d9;
-        }
-
-        .dp-badge--busy {
-            background: #eff6ff;
-            color: #1d4ed8;
-        }
-
-        .dp-badge--idle {
-            background: #fffbeb;
-            color: #b45309;
-        }
-
-        /* Remove unit button */
-        .dp-remove-btn {
-            display: inline-block;
-            margin-top: 4px;
-            padding: 3px 9px;
-            border: 1px solid #fecaca;
-            background: #fef2f2;
-            color: #b91c1c;
-            font-size: .72rem;
-            cursor: pointer;
-            transition: background .15s;
-        }
-
-        .dp-remove-btn:hover {
-            background: #fee2e2;
-        }
-
-        .dp-remove-btn:disabled {
-            opacity: .5;
-            cursor: not-allowed;
-        }
-
-        /* Controls */
-        .dp-ctrl-cell {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .dp-select {
-            padding: 6px 10px;
-            border: 1px solid #e5e7eb;
-            font-size: .82rem;
-            background: #f8fafc;
-            color: #374151;
-            cursor: pointer;
-            outline: none;
-            min-width: 140px;
-            transition: border-color .18s;
-        }
-
-        .dp-select:focus {
-            border-color: #6366f1;
-            background: #fff;
-        }
-
-        .dp-select:disabled {
-            opacity: .5;
-            cursor: not-allowed;
-        }
-
-        .dp-saving {
-            font-size: .72rem;
-            min-width: 36px;
         }
 
         /* Return Reason Styles */
@@ -1111,6 +894,10 @@
                 <span class="dp-stat-n">{{ $queueCounts['returned'] ?? 0 }}</span>
                 <span class="dp-stat-l">Returned</span>
             </div>
+            <div class="dp-stat dp-stat--warn">
+                <span class="dp-stat-n">{{ $queueCounts['not_responding'] ?? 0 }}</span>
+                <span class="dp-stat-l">Not Responding</span>
+            </div>
             <div class="dp-stat dp-stat--green">
                 <span class="dp-stat-n">{{ $queueCounts['ready_completion'] ?? 0 }}</span>
                 <span class="dp-stat-l">Ready</span>
@@ -1151,15 +938,7 @@
 
                     <div class="queue-tabs" id="dispatchQueueTabs">
 
-                        <button type="button" class="queue-filter-btn is-active" data-filter="active">
-                            <span>Active</span>
-                            <span class="queue-tab-count {{ ($queueCounts['active'] ?? 0) > 0 ? 'has-count' : '' }}"
-                                data-count-for="active">
-                                {{ $queueCounts['active'] ?? 0 }}
-                            </span>
-                        </button>
-
-                        <button type="button" class="queue-filter-btn" data-filter="book-now">
+                        <button type="button" class="queue-filter-btn is-active" data-filter="book-now">
                             <span>Book Now</span>
                             <span class="queue-tab-count {{ ($queueCounts['book-now'] ?? 0) > 0 ? 'has-count' : '' }}"
                                 data-count-for="book-now">
@@ -1192,6 +971,15 @@
                             </span>
                         </button>
 
+                        <button type="button" class="queue-filter-btn" data-filter="not_responding">
+                            <span>Not Responding</span>
+                            <span
+                                class="queue-tab-count {{ ($queueCounts['not_responding'] ?? 0) > 0 ? 'has-count' : '' }}"
+                                data-count-for="not_responding">
+                                {{ $queueCounts['not_responding'] ?? 0 }}
+                            </span>
+                        </button>
+
                         <button type="button" class="queue-filter-btn" data-filter="all">
                             <span>All</span>
                             <span class="queue-tab-count {{ ($queueCounts['all'] ?? 0) > 0 ? 'has-count' : '' }}"
@@ -1201,7 +989,7 @@
                         </button>
                     </div>
 
-                    <div class="incoming-list" id="incomingList" data-default-filter="active"
+                    <div class="incoming-list" id="incomingList" data-default-filter="book-now"
                         data-assign-url-template="{{ url('/admin-dashboard/booking/__BOOKING__/assign') }}">
 
                         @forelse($groupedIncoming as $groupCode => $groupBookings)
@@ -1221,31 +1009,40 @@
                                         'payment_submitted',
                                     ]);
                                     $isReturned = $booking->needs_reassignment;
-                                    $queueBucket = $isReadyCompletion
-                                        ? 'ready_completion'
-                                        : ($isReturned
-                                            ? 'returned'
-                                            : 'active');
-                                    $timingLabel = $isReadyCompletion
-                                        ? 'Ready for Completion'
-                                        : ($isReturned
-                                            ? 'Returned'
-                                            : 'Active Booking');
-                                    $statusBadgeClass = $isReadyCompletion
-                                        ? 'payment-pending'
-                                        : ($isReturned
-                                            ? 'returned'
-                                            : 'confirmed');
-                                    $statusBadgeLabel = $isReadyCompletion
-                                        ? match ($booking->status) {
-                                            'waiting_verification' => 'Awaiting Verification',
-                                            'payment_pending' => 'Payment Pending',
-                                            'payment_submitted' => 'Payment Submitted',
-                                            default => ucfirst($booking->status),
-                                        }
-                                        : ($isReturned
-                                            ? 'Needs Reassignment'
-                                            : ucfirst($booking->status));
+                                    $isNotResponding = $booking->status === 'not_responding';
+                                    $queueBucket = $isNotResponding
+                                        ? 'not_responding'
+                                        : ($isReadyCompletion
+                                            ? 'ready_completion'
+                                            : ($isReturned
+                                                ? 'returned'
+                                                : 'active'));
+                                    $timingLabel = $isNotResponding
+                                        ? 'Customer Did Not Respond'
+                                        : ($isReadyCompletion
+                                            ? 'Ready for Completion'
+                                            : ($isReturned
+                                                ? 'Returned'
+                                                : 'Active Booking'));
+                                    $statusBadgeClass = $isNotResponding
+                                        ? 'not_responding'
+                                        : ($isReadyCompletion
+                                            ? 'payment-pending'
+                                            : ($isReturned
+                                                ? 'returned'
+                                                : 'confirmed'));
+                                    $statusBadgeLabel = $isNotResponding
+                                        ? 'Not Responding'
+                                        : ($isReadyCompletion
+                                            ? match ($booking->status) {
+                                                'waiting_verification' => 'Awaiting Verification',
+                                                'payment_pending' => 'Payment Pending',
+                                                'payment_submitted' => 'Payment Submitted',
+                                                default => ucfirst($booking->status),
+                                            }
+                                            : ($isReturned
+                                                ? 'Needs Reassignment'
+                                                : ucfirst($booking->status)));
 
                                     // Extra data for Complete Job modal
                                     $incomingSiblings = ($booking->group_siblings ?? collect())
@@ -1265,12 +1062,14 @@
                                         ->toArray();
 
                                     $cj_vehicleImgUrl = '';
+                                    $cj_vehicleImgExtraCount = 0;
                                     if ($booking->vehicle_image_path) {
                                         $cj_paths = json_decode($booking->vehicle_image_path, true);
                                         if (is_array($cj_paths) && !empty($cj_paths)) {
                                             $cj_vehicleImgUrl = \Illuminate\Support\Facades\Storage::disk(
                                                 'public',
                                             )->url($cj_paths[0]);
+                                            $cj_vehicleImgExtraCount = count($cj_paths) - 1;
                                         }
                                     }
                                     $cj_paymongoRef =
@@ -1347,6 +1146,15 @@
 
                                     <div class="incoming-left">
 
+                                        @if ($cj_vehicleImgUrl)
+                                            <div class="incoming-vehicle-thumb-wrap">
+                                                <img class="incoming-vehicle-thumb" src="{{ $cj_vehicleImgUrl }}" alt="Vehicle photo">
+                                                @if ($cj_vehicleImgExtraCount > 0)
+                                                    <span class="incoming-vehicle-thumb-count">+{{ $cj_vehicleImgExtraCount }}</span>
+                                                @endif
+                                            </div>
+                                        @endif
+
                                         @if ($isMultiGroup)
                                             <div class="group-vehicle-indicator">Vehicle {{ $vIdx + 1 }} of
                                                 {{ $groupBookings->count() }} &mdash;
@@ -1391,11 +1199,6 @@
                                                 {{ $statusBadgeLabel }}
                                             </span>
                                             <span class="wait-badge" data-wait></span>
-                                        </div>
-
-                                        <div class="incoming-details" style="margin-top: 10px;">
-                                            <span><strong>Dispatch Timing:</strong>
-                                                {{ $booking->schedule_window_label }}</span>
                                         </div>
 
                                         <div class="incoming-details" style="margin-top: 10px;">
@@ -1528,14 +1331,43 @@
                                 $bnPrimary = $bnGroupBookings->first();
                                 $bnCount = $bnGroupBookings->count();
                                 $bnTotal = (float) ($bnPrimary->final_total ?? 0); // primary holds the full multi-vehicle total
+
+                                $bnVehicleImgUrl = '';
+                                $bnVehicleImgExtraCount = 0;
+                                if ($bnPrimary->vehicle_image_path) {
+                                    $bnPaths = json_decode($bnPrimary->vehicle_image_path, true);
+                                    if (is_array($bnPaths) && !empty($bnPaths)) {
+                                        $bnVehicleImgUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($bnPaths[0]);
+                                        $bnVehicleImgExtraCount = count($bnPaths) - 1;
+                                    }
+                                }
                             @endphp
                             <div class="incoming-card" data-queue="book-now"
                                 data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}"
                                 data-status="{{ $bnPrimary->status }}"
                                 data-created-at="{{ $bnPrimary->created_at->toIso8601String() }}"
                                 data-pickup-lat="{{ $bnPrimary->pickup_lat ?? '' }}"
-                                data-pickup-lng="{{ $bnPrimary->pickup_lng ?? '' }}">
+                                data-pickup-lng="{{ $bnPrimary->pickup_lng ?? '' }}"
+                                data-customer-name="{{ e($bnPrimary->customer->full_name ?? 'Guest') }}"
+                                data-customer-phone="{{ e($bnPrimary->customer->phone ?? 'N/A') }}"
+                                data-pickup="{{ $bnPrimary->pickup_address ?? '' }}"
+                                data-dropoff="{{ $bnPrimary->dropoff_address ?? '' }}"
+                                data-distance-km="{{ $bnPrimary->distance_km ?? '' }}"
+                                data-current-price="{{ $bnTotal }}"
+                                data-truck-type="{{ e($bnPrimary->truckType->name ?? 'Unknown') }}"
+                                data-assigned-unit="{{ $bnPrimary->assigned_unit_id }}"
+                                data-recommended-unit="{{ $bnPrimary->recommended_unit_id }}"
+                                data-recommended-summary="{{ e($bnPrimary->recommended_unit_summary ?? '') }}"
+                                data-dispatch-zone="{{ e($bnPrimary->dispatch_zone_label ?? 'General Dispatch Zone') }}">
                                 <div class="incoming-left">
+                                    @if ($bnVehicleImgUrl)
+                                        <div class="incoming-vehicle-thumb-wrap">
+                                            <img class="incoming-vehicle-thumb" src="{{ $bnVehicleImgUrl }}" alt="Vehicle photo">
+                                            @if ($bnVehicleImgExtraCount > 0)
+                                                <span class="incoming-vehicle-thumb-count">+{{ $bnVehicleImgExtraCount }}</span>
+                                            @endif
+                                        </div>
+                                    @endif
                                     <div class="incoming-header">
                                         <span class="queue-chip book-now">Book
                                             Now{{ $bnCount > 1 ? ' · ' . $bnCount . ' vehicles' : '' }}</span>
@@ -1579,8 +1411,21 @@
                                         </div>
                                     @endif
                                 </div>
-                                <div class="incoming-right">
+                                <div class="incoming-right"
+                                    style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
                                     <div class="incoming-price">&#8369;{{ number_format((float) $bnTotal, 2) }}</div>
+                                    @if ($bnPrimary->status === 'confirmed')
+                                        <div class="incoming-actions">
+                                            <button type="button" class="btn-accept"
+                                                data-id="{{ $bnPrimary->job_code }}" data-action="accept">
+                                                Start Job
+                                            </button>
+                                            <button type="button" class="btn-reject"
+                                                data-id="{{ $bnPrimary->job_code }}" data-action="reject">
+                                                Cancel Booking
+                                            </button>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         @endforeach
@@ -1656,6 +1501,8 @@
                                     data-group-siblings="{{ json_encode($schVSiblings) }}"
                                     data-customer-name="{{ e($schVehicle->customer->full_name ?? 'Guest') }}"
                                     data-customer-phone="{{ e($schVehicle->customer->phone ?? 'N/A') }}"
+                                    data-customer-email="{{ e($schVehicle->customer->email ?? '') }}"
+                                    data-vehicle-images="{{ json_encode($schVehicle->vehicle_image_paths) }}"
                                     data-distance-km="{{ $schVehicle->distance_km ?? 0 }}"
                                     data-current-price="{{ $schVehicle->final_total ?? 0 }}"
                                     data-truck-type="{{ e($schVehicle->truckType->name ?? '—') }}">
@@ -1707,7 +1554,7 @@
                                         @endif
                                         @if ($schVScheduledFor)
                                             <div class="incoming-details"
-                                                style="margin-top:6px;background:#facc1511;padding:6px 8px;border-left:3px solid #facc15;">
+                                                style="margin-top:6px;background:#facc1511;padding:6px 8px;">
                                                 <span><strong>Scheduled:</strong>
                                                     {{ $schVScheduledFor->format('D, M j, Y') }}
                                                     at {{ $schVScheduledFor->format('g:i A') }}</span>
@@ -2028,36 +1875,6 @@
 
                     </div>
                 </div>
-
-                <div id="dpConfirmModal"
-                    style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);"
-                    aria-modal="true" role="dialog" hidden>
-                    <div
-                        style="background:#fff;padding:28px 28px 24px;max-width:400px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.18);">
-                        <div
-                            style="width:44px;height:44px;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
-                            <svg width="22" height="22" fill="none" stroke="#dc2626" stroke-width="2"
-                                viewBox="0 0 24 24">
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                <path d="M10 11v6" />
-                                <path d="M14 11v6" />
-                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                            </svg>
-                        </div>
-                        <h3 style="margin:0 0 6px;font-size:1rem;color:#0f172a;">Remove Unit</h3>
-                        <p id="dpConfirmBody" style="margin:0 0 22px;font-size:.88rem;color:#64748b;line-height:1.5;">
-                            Remove the
-                            assigned unit from this team leader?</p>
-                        <div style="display:flex;gap:10px;justify-content:flex-end;">
-                            <button id="dpConfirmCancel" type="button"
-                                style="padding:9px 18px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:.88rem;cursor:pointer;">Cancel</button>
-                            <button id="dpConfirmOk" type="button"
-                                style="padding:9px 18px;border:none;background:#dc2626;color:#fff;font-size:.88rem;cursor:pointer;">Remove</button>
-                        </div>
-                    </div>
-                </div>
-
                 <div id="completeJobModal"
                     style="display:none;position:fixed;inset:0;z-index:10000;align-items:flex-start;justify-content:center;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);padding:20px 16px;overflow-y:auto;"
                     aria-modal="true" role="dialog" hidden>
@@ -2342,176 +2159,11 @@
                                 <span class="tracking-roster-hint" id="rosterHint">click a booking to sort by
                                     proximity</span>
                             </div>
+                            <div class="zone-filter-chips" id="zoneFilterChips"></div>
                             <div class="tracking-roster" id="trackingRoster"></div>
                         </div>
                     </div>
                 </div>
-
-                <div class="dp-tl-section">
-                    <div class="dp-tl-header">
-                        <div>
-                            <h3 class="dp-tl-title">Team Leaders</h3>
-                        </div>
-                        <a href="{{ route('admin.drivers') }}" class="dp-tl-link">Full view &rarr;</a>
-                    </div>
-
-                    @php
-                        $dpStatuses = $teamLeaderStatuses ?? collect();
-                        $dpGps = $unitGpsData ?? collect();
-                        $dpTasks = $activeTasksByTL ?? collect();
-                        $dpTLs = $teamLeaders ?? collect();
-                    @endphp
-
-                    @if ($dpTLs->isEmpty())
-                        <div class="dp-tl-empty">No team leaders found.</div>
-                    @else
-                        <div class="dp-tl-table-wrap">
-                            <table class="dp-tl-table">
-                                <thead>
-                                    <tr>
-                                        <th>Team Leader</th>
-                                        <th>Unit</th>
-                                        <th>GPS Signal</th>
-                                        <th>Current Task</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($dpTLs as $dtl)
-                                        @php
-                                            $ds = $dpStatuses->get($dtl->id) ?? [];
-                                            $dOnline = ($ds['presence'] ?? 'offline') === 'online';
-                                            $dHasUnit =
-                                                !empty($ds['unit_name']) && $ds['unit_name'] !== 'No assigned unit';
-                                            $dWorkload = $ds['workload'] ?? 'unavailable';
-                                            $dUnitSt = $ds['unit_status'] ?? null;
-
-                                            // GPS signal from the TL's phone (updated by Flutter LocationTracker)
-$gpsUnit = $dpGps->get($dtl->id);
-$gpsAt = $gpsUnit ? $gpsUnit->location_updated_at : null;
-if (!$gpsAt) {
-    $gpsClass = 'offline';
-} elseif ($gpsAt->diffInMinutes(now()) < 2) {
-    $gpsClass = 'live';
-} elseif ($gpsAt->diffInMinutes(now()) < 30) {
-    $gpsClass = 'recent';
-} else {
-    $gpsClass = 'offline';
-}
-$gpsLabel = [
-    'live' => 'Live',
-    'recent' => 'Recent',
-    'offline' => 'Offline',
-][$gpsClass];
-
-// Active task assigned to this TL
-$dTask = $dpTasks->get($dtl->id);
-
-// Status badge
-if (!$dOnline) {
-    $dBadgeLabel = 'Not Available';
-    $dBadgeCls = 'dp-badge--off';
-    $dForced = true;
-    $dSelVal = 'unavailable';
-} elseif ($dUnitSt === 'on_tow') {
-    $dBadgeLabel = 'On Tow';
-    $dBadgeCls = 'dp-badge--tow';
-    $dForced = false;
-    $dSelVal = 'on_tow';
-} elseif ($dWorkload === 'busy') {
-    $dBadgeLabel = 'Deployed';
-    $dBadgeCls = 'dp-badge--busy';
-    $dForced = false;
-    $dSelVal = 'on_job';
-} elseif ($dUnitSt === 'unavailable') {
-    $dBadgeLabel = 'Not Available';
-    $dBadgeCls = 'dp-badge--off';
-    $dForced = false;
-    $dSelVal = 'unavailable';
-} elseif ($dWorkload === 'idle') {
-    $dBadgeLabel = 'Idle';
-    $dBadgeCls = 'dp-badge--idle';
-    $dForced = true;
-    $dSelVal = '';
-} else {
-    $dBadgeLabel = 'Available';
-    $dBadgeCls = 'dp-badge--avail';
-    $dForced = false;
-    $dSelVal = 'available';
-}
-
-$dParts = explode(' ', trim($dtl->name));
-$dInitials = strtoupper(
-    substr($dParts[0], 0, 1) .
-        (count($dParts) > 1 ? substr(end($dParts), 0, 1) : ''),
-);
-
-$dTaskStatusChip = '';
-if ($dTask) {
-    $chipCls = match (true) {
-        in_array($dTask->status, [
-            'waiting_verification',
-            'arrived_dropoff',
-        ])
-            => 'tl-task-chip--verify',
-        in_array($dTask->status, [
-            'on_the_way',
-            'on_job',
-            'loading_vehicle',
-        ])
-            => 'tl-task-chip--active',
-        default => 'tl-task-chip--other',
-    };
-    $dTaskLabel = ucfirst(str_replace('_', ' ', $dTask->status));
-                                                $dTaskStatusChip = "<span class=\"tl-task-chip {$chipCls}\">{$dTaskLabel}</span>";
-                                            }
-                                        @endphp
-                                        <tr class="dp-tl-row" data-tlid="{{ $dtl->id }}">
-                                            <td>
-                                                <div class="dp-name-cell">
-                                                    <div class="dp-avatar">{{ $dInitials }}</div>
-                                                    <div>
-                                                        <div class="dp-name">{{ $dtl->name }}</div>
-                                                        <div
-                                                            class="dp-presence dp-presence--{{ $dOnline ? 'online' : 'offline' }}">
-                                                            {{ $dOnline ? 'Online' : 'Offline' }}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td class="dp-unit-cell" id="dpUnit-{{ $dtl->id }}">
-                                                {{ $dHasUnit ? $ds['unit_name'] ?? '—' : '—' }}
-                                            </td>
-                                            <td>
-                                                <span class="gps-dot gps-{{ $gpsClass }}"></span>
-                                                <span class="gps-label-{{ $gpsClass }}"
-                                                    style="font-size:.82rem;">{{ $gpsLabel }}</span>
-                                                @if ($gpsAt)
-                                                    <span
-                                                        style="font-size:.72rem;color:#9ca3af;margin-left:4px;">{{ $gpsAt->diffForHumans() }}</span>
-                                                @endif
-                                            </td>
-                                            <td>
-                                                @if ($dTask)
-                                                    <div style="font-size:.82rem;color:#0f172a;margin-bottom:3px;">
-                                                        {{ $dTask->booking_code }}</div>
-                                                    {!! $dTaskStatusChip !!}
-                                                @else
-                                                    <span style="color:#9ca3af;font-size:.82rem;">—</span>
-                                                @endif
-                                            </td>
-                                            <td>
-                                                <span
-                                                    class="dp-status-badge {{ $dBadgeCls }}">{{ $dBadgeLabel }}</span>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    @endif
-                </div>
-
             </div>{{-- /.dp-sidebar-col --}}
         </div>{{-- /.dp-dispatch-layout --}}
 
@@ -2586,255 +2238,10 @@ if ($dTask) {
 @endsection
 
 @push('scripts')
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google_maps.browser_key') }}"></script>
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script src="{{ asset('dispatcher/js/dispatch.js') }}?v={{ filemtime(public_path('dispatcher/js/dispatch.js')) }}">
     </script>
-    <script>
-        (function() {
-            var CSRF = document.querySelector('meta[name="csrf-token"]').content;
-
-            function setSaving(id, on) {
-                var el = document.getElementById(id);
-                if (el) {
-                    el.textContent = on ? 'Saving…' : '';
-                    el.style.color = '#000000';
-                }
-            }
-
-            function showMsg(id, msg, ok) {
-                var el = document.getElementById(id);
-                if (!el) return;
-                el.textContent = msg;
-                el.style.color = ok ? '#16a34a' : '#dc2626';
-                setTimeout(function() {
-                    el.textContent = '';
-                }, 3500);
-            }
-
-            /* Enforce offline = disabled on load */
-            document.querySelectorAll('.dp-status-sel').forEach(function(sel) {
-                if (sel.dataset.online === '0') {
-                    sel.disabled = true;
-                    sel.value = 'unavailable';
-                }
-            });
-
-            /* Status override — same endpoint as Team Leaders module */
-            document.querySelectorAll('.dp-status-sel').forEach(function(sel) {
-                sel.addEventListener('change', function() {
-                    var tlid = sel.dataset.tlid;
-                    var value = sel.value;
-                    setSaving('dpStSaving-' + tlid, true);
-                    sel.disabled = true;
-
-                    var fd = new FormData();
-                    fd.append('_token', CSRF);
-                    fd.append('_method', 'PATCH');
-                    fd.append('unit_status', value);
-
-                    fetch('/admin-dashboard/drivers/' + tlid + '/override', {
-                            method: 'POST',
-                            headers: {
-                                'Accept': 'application/json'
-                            },
-                            body: fd
-                        })
-                        .then(function(r) {
-                            return r.json();
-                        })
-                        .then(function(data) {
-                            setSaving('dpStSaving-' + tlid, false);
-                            sel.disabled = (sel.dataset.online === '0');
-                            if (data.errors) {
-                                var msg = typeof data.errors === 'string' ? data.errors : Object
-                                    .values(data.errors)[0];
-                                showMsg('dpStSaving-' + tlid, msg, false);
-                                sel.value = sel.dataset.current;
-                                return;
-                            }
-                            sel.dataset.current = value;
-
-                            // Lock or unlock the unit select based on new status
-                            var unitSel = sel.closest('tr').querySelector('.dp-unit-sel');
-                            if (unitSel) {
-                                unitSel.disabled = ['unavailable', 'on_tow', 'on_job'].indexOf(
-                                    value) !== -1;
-                            }
-
-                            // If unit was released, hide the row (TL no longer has a unit)
-                            if (data.unit_released) {
-                                var row = sel.closest('tr');
-                                if (row) {
-                                    row.style.transition = 'opacity .3s';
-                                    row.style.opacity = '0';
-                                    setTimeout(function() {
-                                        row.remove();
-                                    }, 320);
-                                }
-                                return;
-                            }
-
-                            /* Sync the status badge in the same row */
-                            var row = sel.closest('tr');
-                            var badge = row ? row.querySelector('.dp-status-badge') : null;
-                            var map = {
-                                available: ['Available', 'dp-badge--avail'],
-                                unavailable: ['Not Available', 'dp-badge--off'],
-                                on_tow: ['On Tow', 'dp-badge--tow'],
-                                on_job: ['Deployed', 'dp-badge--busy'],
-                            };
-                            if (badge && map[value]) {
-                                badge.textContent = map[value][0];
-                                badge.className = 'dp-status-badge ' + map[value][1];
-                            }
-                            showMsg('dpStSaving-' + tlid, 'Saved', true);
-                        })
-                        .catch(function() {
-                            setSaving('dpStSaving-' + tlid, false);
-                            sel.disabled = (sel.dataset.online === '0');
-                            sel.value = sel.dataset.current;
-                            showMsg('dpStSaving-' + tlid, 'Error', false);
-                        });
-                });
-            });
-
-            /* ── Confirm modal ── */
-            var _dpConfirmResolve = null;
-            var dpConfirmModal = document.getElementById('dpConfirmModal');
-            var dpConfirmOk = document.getElementById('dpConfirmOk');
-            var dpConfirmCancel = document.getElementById('dpConfirmCancel');
-            var dpConfirmBody = document.getElementById('dpConfirmBody');
-
-            function dpShowConfirm(message) {
-                return new Promise(function(resolve) {
-                    _dpConfirmResolve = resolve;
-                    dpConfirmBody.textContent = message;
-                    dpConfirmModal.hidden = false;
-                    dpConfirmModal.style.display = 'flex';
-                    dpConfirmOk.focus();
-                });
-            }
-
-            function dpCloseConfirm(result) {
-                dpConfirmModal.hidden = true;
-                dpConfirmModal.style.display = 'none';
-                if (_dpConfirmResolve) {
-                    _dpConfirmResolve(result);
-                    _dpConfirmResolve = null;
-                }
-            }
-            dpConfirmOk.addEventListener('click', function() {
-                dpCloseConfirm(true);
-            });
-            dpConfirmCancel.addEventListener('click', function() {
-                dpCloseConfirm(false);
-            });
-            dpConfirmModal.addEventListener('click', function(e) {
-                if (e.target === dpConfirmModal) dpCloseConfirm(false);
-            });
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && !dpConfirmModal.hidden) dpCloseConfirm(false);
-            });
-
-            /* Remove unit — same endpoint as Team Leaders module */
-            document.querySelectorAll('.dp-remove-btn').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    var tlid = btn.dataset.tlid;
-                    dpShowConfirm(
-                            'Remove the assigned unit from this team leader? They will be set to Idle.')
-                        .then(function(confirmed) {
-                            if (!confirmed) return;
-                            btn.disabled = true;
-
-                            var fd = new FormData();
-                            fd.append('_token', CSRF);
-
-                            fetch('/admin-dashboard/drivers/' + tlid + '/remove-unit', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Accept': 'application/json'
-                                    },
-                                    body: fd
-                                })
-                                .then(function(r) {
-                                    return r.json();
-                                })
-                                .then(function(data) {
-                                    if (data.errors) {
-                                        showMsg('dpUnSaving-' + tlid, typeof data.errors ===
-                                            'string' ? data.errors : Object.values(data
-                                                .errors)[0], false);
-                                        btn.disabled = false;
-                                        return;
-                                    }
-                                    var row = btn.closest('tr');
-                                    if (row) {
-                                        row.style.transition = 'opacity .3s';
-                                        row.style.opacity = '0';
-                                        setTimeout(function() {
-                                            row.remove();
-                                        }, 320);
-                                    }
-                                })
-                                .catch(function() {
-                                    btn.disabled = false;
-                                    showMsg('dpUnSaving-' + tlid, 'Error', false);
-                                });
-                        });
-                });
-            });
-
-            /* Unit assignment — same endpoint as Team Leaders module */
-            document.querySelectorAll('.dp-unit-sel').forEach(function(sel) {
-                sel.addEventListener('change', function() {
-                    var tlid = sel.dataset.tlid;
-                    var unitId = sel.value;
-                    if (!unitId) return;
-                    setSaving('dpUnSaving-' + tlid, true);
-                    sel.disabled = true;
-
-                    var fd = new FormData();
-                    fd.append('_token', CSRF);
-                    fd.append('unit_id', unitId);
-
-                    fetch('/admin-dashboard/drivers/' + tlid + '/assign-unit', {
-                            method: 'POST',
-                            headers: {
-                                'Accept': 'application/json'
-                            },
-                            body: fd
-                        })
-                        .then(function(r) {
-                            return r.json();
-                        })
-                        .then(function(data) {
-                            setSaving('dpUnSaving-' + tlid, false);
-                            sel.disabled = false;
-                            if (data.errors) {
-                                var msg = typeof data.errors === 'string' ? data.errors : Object
-                                    .values(data.errors)[0];
-                                showMsg('dpUnSaving-' + tlid, msg, false);
-                                sel.value = '';
-                                return;
-                            }
-                            /* Update unit name cell */
-                            var unitCell = document.getElementById('dpUnit-' + tlid);
-                            if (unitCell && data.assigned_unit && data.assigned_unit.name) {
-                                unitCell.textContent = data.assigned_unit.name;
-                            }
-                            showMsg('dpUnSaving-' + tlid, 'Saved', true);
-                        })
-                        .catch(function() {
-                            setSaving('dpUnSaving-' + tlid, false);
-                            sel.disabled = false;
-                            showMsg('dpUnSaving-' + tlid, 'Error', false);
-                        });
-                });
-            });
-        })();
-    </script>
-
     <script>
         // Return Reason Action Handlers
         (function() {

@@ -11,9 +11,12 @@ use Illuminate\Support\Facades\Cache;
 
 class TeamLeaderAvailabilityService
 {
-    protected int $presenceWindowSeconds = 600;
+    protected int $presenceWindowSeconds = 90;
 
-    protected array $busyStatuses = ['assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
+    protected array $busyStatuses = [
+        'assigned', 'on_the_way', 'arrived_pickup', 'in_progress',
+        'loading_vehicle', 'on_job', 'arrived_dropoff', 'waiting_verification',
+    ];
 
     protected function isTeamLeader(?User $user): bool
     {
@@ -47,6 +50,21 @@ class TeamLeaderAvailabilityService
 
         $this->releaseBookingsForOfflineLeaderIds($leaderIds);
         $this->releaseUnitsForOfflineLeaderIds($leaderIds);
+    }
+
+    /**
+     * Lightweight presence-only signal for app backgrounding/closing — unlike
+     * markOffline(), this does NOT release the TL's active bookings or unit
+     * assignment. Used so briefly switching apps doesn't unassign a live job;
+     * ping() already self-heals unit/status state on the next resume.
+     */
+    public function markAway(?User $user): void
+    {
+        if (! $user || ! $this->isTeamLeader($user)) {
+            return;
+        }
+
+        User::where('id', $user->id)->update(['last_ping_at' => null]);
     }
 
     public function isOnline(?User $user): bool
@@ -132,6 +150,26 @@ class TeamLeaderAvailabilityService
             ->values();
     }
 
+    /**
+     * Every team leader's currently active booking (any busy-lifecycle status),
+     * keyed by team leader id. Shared by summarize() and anywhere else (e.g.
+     * the dispatch live-tracking map) that needs a real, granular job status
+     * instead of the coarse Unit.status/dispatcher_status columns.
+     */
+    public function activeBookingsByLeaderId(): Collection
+    {
+        return Booking::with(['unit.driver'])
+            ->whereIn('status', $this->busyStatuses)
+            ->whereNull('returned_at')
+            ->latest('updated_at')
+            ->get()
+            ->mapWithKeys(function (Booking $booking) {
+                $leaderId = (int) ($booking->assigned_team_leader_id ?: optional($booking->unit)->team_leader_id);
+
+                return $leaderId > 0 ? [$leaderId => $booking] : [];
+            });
+    }
+
     public function summarize(Collection $teamLeaders, ?Collection $busyTeamLeaderIds = null): array
     {
         $busyIds = ($busyTeamLeaderIds ?? $this->busyTeamLeaderIds())
@@ -153,16 +191,7 @@ class TeamLeaderAvailabilityService
             ->get()
             ->keyBy(fn(Unit $unit) => (int) $unit->team_leader_id);
 
-        $activeBookingsByLeaderId = Booking::with(['unit.driver'])
-            ->whereIn('status', $this->busyStatuses)
-            ->whereNull('returned_at')
-            ->latest('updated_at')
-            ->get()
-            ->mapWithKeys(function (Booking $booking) {
-                $leaderId = (int) ($booking->assigned_team_leader_id ?: optional($booking->unit)->team_leader_id);
-
-                return $leaderId > 0 ? [$leaderId => $booking] : [];
-            });
+        $activeBookingsByLeaderId = $this->activeBookingsByLeaderId();
 
         $leaders = $teamLeaders
             ->map(function (User $teamLeader) use ($busyIds, $activeBookingsByLeaderId, $assignedUnitsByLeaderId) {
@@ -203,6 +232,9 @@ class TeamLeaderAvailabilityService
                     'operational_status' => $workload,
                     'operational_status_label' => $workloadLabel,
                     'status_reason' => $statusReason,
+                    'active_booking_status'       => $activeBooking?->status,
+                    'active_booking_status_label' => $activeBooking
+                        ? str($activeBooking->status)->replace('_', ' ')->title()->toString() : null,
                     'unit_status'        => $assignedUnit?->dispatcher_status ?? $assignedUnit?->status,
                     'dispatcher_status'  => $assignedUnit?->dispatcher_status,
                     'zone_name'          => $assignedUnit?->zone?->name ?? null,

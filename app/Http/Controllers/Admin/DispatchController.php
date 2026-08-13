@@ -65,12 +65,14 @@ class DispatchController extends Controller
     public function index()
     {
 
+        // 'confirmed' bookings have no team leader/unit assigned yet (assignment always
+        // flips status to 'assigned'), so they belong in the Book Now queue, not here.
         $queueBase = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'returnedByTeamLeader'])
             ->where(function ($query) {
 
-                $query->whereIn('status', ['confirmed', 'accepted', 'assigned'])
+                $query->whereIn('status', ['accepted', 'assigned'])
                     ->orWhere(function ($returnedQuery) {
-                        $returnedQuery->whereIn('status', ['confirmed', 'accepted', 'assigned'])
+                        $returnedQuery->whereIn('status', ['accepted', 'assigned'])
                             ->whereNotNull('returned_at');
                     });
             })
@@ -93,8 +95,7 @@ class DispatchController extends Controller
 
         $activeBookings = $queueBase
             ->filter(function (Booking $booking) {
-                return $booking->status === 'confirmed'
-                    || $booking->status === 'accepted'
+                return $booking->status === 'accepted'
                     || $booking->status === 'assigned';
             })
             ->sortByDesc(fn(Booking $booking) => $booking->created_at?->getTimestamp() ?? 0)
@@ -177,9 +178,21 @@ class DispatchController extends Controller
                 return $booking;
             });
 
+        $notRespondingBookings = Booking::with(['customer', 'truckType'])
+            ->where('status', 'not_responding')
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Booking $booking) {
+                $booking->queue_bucket = 'not_responding';
+                $booking->needs_reassignment = false;
+                $booking->needs_assignment = false;
+                return $booking;
+            });
+
         $incomingRequests = $returnedRequests
             ->concat($activeBookings)
             ->concat($readyCompletionBookings)
+            ->concat($notRespondingBookings)
             ->values();
 
         $incomingRequests = $incomingRequests->map(function (Booking $booking) {
@@ -221,6 +234,7 @@ class DispatchController extends Controller
             'returned' => $returnedRequests->count(),
             'active' => $activeBookings->count(),
             'ready_completion' => $readyCompletionBookings->count(),
+            'not_responding' => $notRespondingBookings->count(),
             'pending-quotations' => $pendingQuotationCount,
             'book-now' => $bookNowRequests->count(),
             'scheduled' => $scheduledRequests->count(),
@@ -291,14 +305,21 @@ class DispatchController extends Controller
 
         $zones = \App\Models\Zone::orderBy('name')->get();
 
-
-        $teamLeaders = \App\Models\User::where('role_id', function ($query) {
-            $query->select('id')->from('roles')->where('name', 'team leader');
-        })->orderBy('name')->get();
-
         $returnReasonHandler = $this->returnReasonHandler;
 
 
+        ['allQuotations' => $allQuotations, 'quotationStats' => $quotationStats] = $this->buildFloatingQuotationsData();
+
+        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats', 'bookNowRequests', 'scheduledRequests', 'groupedIncoming', 'groupedBookNow', 'groupedScheduled'));
+    }
+
+    /**
+     * Builds the "Floating Quotations" panel data (draft/pending/sent/negotiating
+     * quotations + their group-sibling batches and summary stats), shared between
+     * the full dispatch page load and the lightweight AJAX panel refresh.
+     */
+    protected function buildFloatingQuotationsData(): array
+    {
         $allQuotations = Quotation::with(['customer', 'truckType', 'sourceBooking'])
             ->whereIn('status', ['draft', 'pending', 'sent', 'negotiating'])
             ->where(function ($q) {
@@ -342,7 +363,6 @@ class DispatchController extends Controller
             return $q;
         });
 
-
         $quotationStats = [
             'total' => Quotation::count(),
             'active' => Quotation::whereIn('status', ['pending', 'sent'])->count(),
@@ -350,16 +370,20 @@ class DispatchController extends Controller
             'expired' => Quotation::where('status', 'expired')->count(),
         ];
 
-        $unitGpsData = Unit::whereNotNull('team_leader_id')
-            ->get(['team_leader_id', 'location_updated_at'])
-            ->keyBy('team_leader_id');
+        return ['allQuotations' => $allQuotations, 'quotationStats' => $quotationStats];
+    }
 
-        $activeTasksByTL = Booking::whereNotNull('assigned_team_leader_id')
-            ->whereNotIn('status', ['completed', 'cancelled', 'returned', 'rejected'])
-            ->get(['booking_code', 'status', 'assigned_team_leader_id'])
-            ->keyBy('assigned_team_leader_id');
+    /**
+     * Lightweight AJAX endpoint used to refresh just the Floating Quotations panel
+     * after actions like Approve, without a full dispatch-page reload.
+     */
+    public function floatingQuotationsPanel(): \Illuminate\Http\JsonResponse
+    {
+        $data = $this->buildFloatingQuotationsData();
 
-        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaders', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats', 'bookNowRequests', 'scheduledRequests', 'groupedIncoming', 'groupedBookNow', 'groupedScheduled', 'unitGpsData', 'activeTasksByTL'));
+        return response()->json([
+            'html' => view('admin-dashboard.pages._quotations-card', $data)->render(),
+        ]);
     }
 
     protected function syncCustomerRiskFlag(?Customer $customer, ?string $reason): void
@@ -1124,7 +1148,7 @@ class DispatchController extends Controller
         $validated = $request->validate([
             'new_price' => 'required|numeric|min:0.01',
             'additional_fee' => 'nullable|numeric',
-            'note' => 'nullable|string|max:1000',
+            'note' => 'required|string|max:1000',
             'assigned_unit_id' => 'nullable|integer|exists:units,id',
         ]);
 
@@ -1221,7 +1245,7 @@ class DispatchController extends Controller
             'price'            => 'required|numeric|min:0',
             'additional_fee'   => 'nullable|numeric|min:0',
             'assigned_unit_id' => 'nullable|integer|exists:units,id',
-            'dispatcher_note'  => 'nullable|string|max:1000',
+            'dispatcher_note'  => 'required|string|max:1000',
             'distance_km'      => 'nullable|numeric|min:0.01|max:10000',
         ]);
 
@@ -1356,30 +1380,48 @@ class DispatchController extends Controller
 
     public function unitLocations(): \Illuminate\Http\JsonResponse
     {
-        $units = Unit::with(['teamLeader', 'truckType'])
+        $units = Unit::with(['teamLeader', 'truckType', 'zone'])
             ->whereNotNull('current_lat')
             ->whereNotNull('current_lng')
             ->where('status', '!=', 'maintenance')
             ->get();
 
-        $data = $units->map(function (Unit $unit) {
-            $secsAgo = $unit->location_updated_at
-                ? (int) $unit->location_updated_at->diffInSeconds(now())
-                : null;
+        // Batched once for all units — the real, granular job status (never
+        // reflected by the Unit.status/dispatcher_status columns, which only
+        // ever change at coarse assignment/override/completion moments).
+        $activeBookingsByLeaderId = $this->teamLeaderAvailability->activeBookingsByLeaderId();
 
-            return [
-                'unit_id'             => $unit->id,
-                'unit_name'           => $unit->name ?? 'Unit',
-                'plate_number'        => $unit->plate_number ?? '',
-                'truck_type_name'     => $unit->truckType?->name ?? '',
-                'lat'                 => $unit->current_lat,
-                'lng'                 => $unit->current_lng,
-                'status'              => $unit->status,
-                'team_leader_name'    => $unit->teamLeader?->name ?? 'Unknown',
-                'is_online'           => $secsAgo !== null && $secsAgo < 300,
-                'updated_seconds_ago' => $secsAgo,
-            ];
-        });
+        $data = $units
+            ->map(function (Unit $unit) use ($activeBookingsByLeaderId) {
+                $secsAgo = $unit->location_updated_at
+                    ? (int) $unit->location_updated_at->diffInSeconds(now())
+                    : null;
+
+                $locationFresh = $secsAgo !== null && $secsAgo < 60;
+                $teamLeaderOnline = $this->teamLeaderAvailability->isOnline($unit->teamLeader);
+                $activeBooking = $unit->team_leader_id
+                    ? $activeBookingsByLeaderId->get((int) $unit->team_leader_id)
+                    : null;
+
+                return [
+                    'unit_id'             => $unit->id,
+                    'unit_name'           => $unit->name ?? 'Unit',
+                    'plate_number'        => $unit->plate_number ?? '',
+                    'truck_type_name'     => $unit->truckType?->name ?? '',
+                    'lat'                 => $unit->current_lat,
+                    'lng'                 => $unit->current_lng,
+                    'status'              => $unit->status,
+                    'team_leader_name'    => $unit->teamLeader?->name ?? 'Unknown',
+                    'is_online'           => $teamLeaderOnline && $locationFresh,
+                    'updated_seconds_ago' => $secsAgo,
+                    'job_status'          => $activeBooking?->status,
+                    'job_status_label'    => $activeBooking
+                        ? str($activeBooking->status)->replace('_', ' ')->title()->toString() : null,
+                    'zone_name'           => $unit->zone?->name,
+                ];
+            })
+            ->filter(fn(array $unit) => $unit['is_online'])
+            ->values();
 
         return response()->json($data);
     }

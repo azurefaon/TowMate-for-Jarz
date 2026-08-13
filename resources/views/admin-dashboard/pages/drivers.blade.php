@@ -16,6 +16,8 @@
 
             if (!$tlId) {
                 $eff = 'no_tl';
+            } elseif (!empty($tlStatus['active_booking_status'])) {
+                $eff = 'on_job';
             } elseif ($raw === 'on_job' || in_array($disp, ['on_job', 'on_tow'])) {
                 $eff = 'on_job';
             } elseif ($disp === 'unavailable') {
@@ -38,49 +40,12 @@
             $unit->tl_full = $unit->teamLeader?->full_name ?? ($unit->teamLeader?->name ?? null);
             $unit->driver_full = $unit->driver?->full_name ?? ($unit->driver?->name ?? ($unit->driver_name ?? null));
             $unit->zone_label = $tlStatus['zone_name'] ?? ($unit->zone?->name ?? null);
+            $unit->active_job_label = $eff === 'on_job' ? ($tlStatus['active_booking_status_label'] ?? null) : null;
 
             return $unit;
         });
 
-        $tabCounts = [
-            'all' => $unitCards->count(),
-            'available' => $unitCards->where('eff_status', 'available')->count(),
-            'on_job' => $unitCards->where('eff_status', 'on_job')->count(),
-            'offline' => $unitCards->where('eff_status', 'offline')->count(),
-            'not_avail' => $unitCards->whereIn('eff_status', ['not_avail', 'no_tl'])->count(),
-        ];
-
-        $zoneSummary = collect();
-        foreach ($teamLeaders as $tl) {
-            $s = $teamLeaderStatuses->get($tl->id) ?? [];
-            $zn = $s['zone_name'] ?? ($tl->unit?->zone?->name ?? null);
-            if (!$zn) {
-                continue;
-            }
-            if (!$zoneSummary->has($zn)) {
-                $zoneSummary->put($zn, ['avail' => 0, 'busy' => 0, 'unavail' => 0]);
-            }
-            $entry = $zoneSummary->get($zn);
-            $wl = $s['workload'] ?? 'unavailable';
-            $pr = $s['presence'] ?? 'offline';
-            if ($wl === 'busy') {
-                $entry['busy']++;
-            } elseif ($pr === 'online') {
-                $entry['avail']++;
-            } else {
-                $entry['unavail']++;
-            }
-            $zoneSummary->put($zn, $entry);
-        }
-
         $zoneList = $unitCards->map(fn($u) => $u->zone_label)->filter()->unique()->values();
-
-        $readyQueue = $teamLeaders
-            ->filter(function ($tl) use ($teamLeaderStatuses) {
-                $s = $teamLeaderStatuses->get($tl->id) ?? [];
-                return ($s['presence'] ?? 'offline') === 'online' && ($s['workload'] ?? '') === 'available';
-            })
-            ->values();
     @endphp
 
     <div id="fleetToast" class="fleet-toast" role="alert" aria-live="polite">
@@ -96,24 +61,15 @@
             <div class="fleet-feedback fleet-feedback--error">{{ $errors->first() }}</div>
         @endif
 
-        <div class="fleet-header">
-            <span class="fleet-total">{{ $unitCards->count() }} units</span>
-        </div>
-
         <div class="fleet-body">
             <div>
                 <div class="fleet-toolbar">
                     <div class="fleet-tabs" role="tablist" aria-label="Filter units">
-                        <button class="ftab is-active" data-tab="all" role="tab">All <span
-                                class="ftab-count">{{ $tabCounts['all'] }}</span></button>
-                        <button class="ftab" data-tab="available" role="tab">Available <span
-                                class="ftab-count">{{ $tabCounts['available'] }}</span></button>
-                        <button class="ftab" data-tab="on_job" role="tab">On Job <span
-                                class="ftab-count">{{ $tabCounts['on_job'] }}</span></button>
-                        <button class="ftab" data-tab="offline" role="tab">Offline <span
-                                class="ftab-count">{{ $tabCounts['offline'] }}</span></button>
-                        <button class="ftab" data-tab="not_avail" role="tab">Not Available <span
-                                class="ftab-count">{{ $tabCounts['not_avail'] }}</span></button>
+                        <button class="ftab is-active" data-tab="all" role="tab">All</button>
+                        <button class="ftab" data-tab="available" role="tab">Available</button>
+                        <button class="ftab" data-tab="on_job" role="tab">On Job</button>
+                        <button class="ftab" data-tab="offline" role="tab">Offline</button>
+                        <button class="ftab" data-tab="not_avail" role="tab">Not Available</button>
                     </div>
                     <div class="fleet-search-wrap">
                         <input type="text" id="fleetSearch" class="fleet-search"
@@ -146,7 +102,7 @@
 
                             [$statusLabel, $badgeCls] = match ($unit->eff_status) {
                                 'available' => ['Available', 'ubadge--available'],
-                                'on_job' => ['On Job', 'ubadge--on-job'],
+                                'on_job' => [$unit->active_job_label ?? 'On Job', 'ubadge--on-job'],
                                 'offline' => ['Offline', 'ubadge--offline'],
                                 'not_avail' => ['Not Available', 'ubadge--not-avail'],
                                 'no_tl' => ['No Leader', 'ubadge--no-tl'],
@@ -193,6 +149,13 @@
                                     <strong class="ucard-name">{{ $unit->name }}</strong>
                                 </div>
                                 <span class="ubadge {{ $badgeCls }}">{{ $statusLabel }}</span>
+                            </div>
+
+                            <div class="ucard-pills">
+                                <span class="ucard-pill ucard-pill--plate">{{ $unit->plate_number ?? 'No plate' }}</span>
+                                @if ($unit->zone_label)
+                                    <span class="ucard-pill ucard-pill--zone">{{ $unit->zone_label }}</span>
+                                @endif
                             </div>
 
                             <div class="ucard-people">

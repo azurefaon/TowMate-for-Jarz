@@ -1,20 +1,34 @@
 // ===============================
+// FLOATING QUOTATIONS — LIGHTWEIGHT REFRESH
+// ===============================
+// Re-fetches and swaps just the Floating Quotations panel in place. Used
+// everywhere an action used to trigger a full location.reload() — a full
+// reload re-executes the Google Maps <script> tag and re-inits the live
+// map, which is a billable Maps JS API load every time.
+function refreshFloatingQuotationsPanel() {
+    return fetch("/admin-dashboard/quotations/floating-panel")
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            var section = document.getElementById("fqSection");
+            if (section && data.html) section.outerHTML = data.html;
+        })
+        .catch(function () {});
+}
+
+// ===============================
 // FIXED GLOBAL CLICK HANDLER
 // ===============================
+// Note: .btn-accept/.btn-reject clicks inside the main queue (#incomingList)
+// are handled by handleQueueClick() further down, which calls
+// event.stopPropagation() — so they never reach this delegate.
 document.addEventListener("click", function (e) {
     const pqSendBtn = e.target.closest(".pq-send-btn");
     const pqCancelBtn = e.target.closest(".pq-cancel-btn");
-    const acceptBtn = e.target.closest(
-        ".btn-accept:not(.pq-send-btn):not(.btn-complete-job)",
-    );
-    const rejectBtn = e.target.closest(".btn-reject:not(.pq-cancel-btn)");
     const viewBtn = e.target.closest(".btn-view-quote");
 
     if (pqSendBtn) openPendingQuotationModal(pqSendBtn.dataset.quotationId);
     if (pqCancelBtn)
         cancelPendingQuotation(pqCancelBtn.dataset.quotationId, pqCancelBtn);
-    if (acceptBtn) openActionModalHandler(acceptBtn, "accept");
-    if (rejectBtn) openActionModalHandler(rejectBtn, "reject");
     if (viewBtn) viewQuotation(viewBtn.dataset.id);
 });
 
@@ -51,92 +65,6 @@ async function cancelPendingQuotation(quotationId, btn) {
         alert("An error occurred. Please try again.");
     }
 }
-
-// ===============================
-// OPEN MODAL + SET STATE
-// ===============================
-function openActionModalHandler(button, actionType) {
-    const card = button.closest(".incoming-card");
-    if (!card) return;
-
-    window.currentAction = actionType;
-    window.currentBookingId = card.dataset.id;
-    window.currentCard = card;
-
-    const modal = document.getElementById("actionModal");
-    modal.classList.remove("hidden");
-
-    document.getElementById("confirmActionBtn").disabled = false;
-
-    if (typeof populateModalFromCard === "function") {
-        populateModalFromCard(card);
-    }
-
-    // Sort unit roster by proximity to this booking's pickup
-    var pickupLat = parseFloat(card.dataset.pickupLat);
-    var pickupLng = parseFloat(card.dataset.pickupLng);
-    if (!isNaN(pickupLat) && !isNaN(pickupLng) && typeof window.sortRosterByPickup === "function") {
-        window.sortRosterByPickup(pickupLat, pickupLng);
-    }
-}
-
-// ===============================
-// SUBMIT ACTION (ACCEPT / REJECT)
-// ===============================
-async function submitDispatchAction(bookingId) {
-    const payload = {
-        action: window.currentAction,
-        assigned_unit_id: document.getElementById("unitSelect")?.value || null,
-        distance_km: document.getElementById("distanceInput")?.value || null,
-        distance_fee: document.getElementById("distanceFeeInput")?.value || 0,
-        additional_fee:
-            document.getElementById("additionalFeeInput")?.value || 0,
-        dispatcher_note:
-            document.getElementById("dispatcherNoteInput")?.value || "",
-        rejection_reason:
-            document.getElementById("rejectReasonInput")?.value || "",
-    };
-
-    try {
-        const response = await fetch(
-            `/admin-dashboard/booking/${bookingId}/assign`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": document.querySelector(
-                        'meta[name="csrf-token"]',
-                    ).content,
-                },
-                body: JSON.stringify(payload),
-            },
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            alert(data.message || "Validation failed.");
-            return;
-        }
-
-        if (data.success) {
-            alert("Quotation sent + email triggered ✅");
-            location.reload();
-        } else {
-            alert(data.message || "Something went wrong");
-        }
-    } catch (err) {
-        console.error(err);
-        alert("Server error");
-    }
-}
-
-document
-    .getElementById("confirmActionBtn")
-    ?.addEventListener("click", function () {
-        if (!window.currentBookingId || !window.currentAction) return;
-        submitDispatchAction(window.currentBookingId);
-    });
 
 // --- VIEW QUOTATION (WORKING VERSION) ---
 async function viewQuotation(quotationId) {
@@ -276,15 +204,15 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     initializeRealtimeUpdates();
 
-    // Initialize live tracking map
+    // Initialize live tracking map (loaded once — markers are moved on each
+    // poll tick, the map itself is never re-created; see poll() below)
     var liveMap = null;
     var liveMapContainer = document.getElementById("dispatchLiveMap");
-    if (liveMapContainer && typeof L !== "undefined") {
-        liveMap = L.map("dispatchLiveMap", { zoomControl: true }).setView([14.5995, 120.9842], 11);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution: "© OpenStreetMap",
-            maxZoom: 18,
-        }).addTo(liveMap);
+    if (liveMapContainer && typeof google !== "undefined" && google.maps) {
+        liveMap = new google.maps.Map(liveMapContainer, {
+            center: { lat: 14.5995, lng: 120.9842 },
+            zoom: 11,
+        });
     }
 
     // Collapsible tracking panel toggle
@@ -296,7 +224,7 @@ document.addEventListener("DOMContentLoaded", function () {
             var collapsed = trackingBody.classList.toggle("is-collapsed");
             trackingToggleLabel.textContent = collapsed ? "show" : "hide";
             if (!collapsed && liveMap) {
-                setTimeout(function () { liveMap.invalidateSize(); }, 50);
+                setTimeout(function () { google.maps.event.trigger(liveMap, "resize"); }, 50);
             }
         });
     }
@@ -321,6 +249,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     queueList.addEventListener("click", handleQueueClick);
+    document.getElementById("bookNowPanel")?.addEventListener("click", handleQueueClick);
 
     if (confirmActionBtn) {
         confirmActionBtn.addEventListener("click", handleModalConfirm);
@@ -382,9 +311,9 @@ document.addEventListener("DOMContentLoaded", function () {
         // ...existing code...
     }
 
-    // apply filter — always default to active bookings tab
+    // apply filter — always default to the Book Now tab
     window.applyDispatchQueueFilter = applyQueueFilter;
-    applyQueueFilter("active");
+    applyQueueFilter("book-now");
 
     function applyQueueFilter(filter) {
         var filterButtons = document.querySelectorAll(".queue-filter-btn");
@@ -440,6 +369,7 @@ document.addEventListener("DOMContentLoaded", function () {
             scheduled: scheduledCards.length,
             delayed: 0,
             ready_completion: 0,
+            not_responding: 0,
             all: cards.length,
         };
 
@@ -740,15 +670,6 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // Confirmed bookings already have an agreed price — skip unit selection check
-        var _cbs = state.selectedCard && state.selectedCard.getAttribute("data-status");
-        var isConfirmedBooking = _cbs === "confirmed" || _cbs === "scheduled_confirmed";
-        if (isConfirmedBooking) {
-            confirmActionBtn.disabled = false;
-            clearValidationSummary();
-            return;
-        }
-
         var hasUnit =
             unitSelect &&
             unitSelect.value &&
@@ -776,7 +697,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         var button = target.closest(".btn-accept, .btn-reject");
 
-        if (!button || !queueList.contains(button)) {
+        var bookNowPanel = document.getElementById("bookNowPanel");
+        var inQueueList = button && queueList.contains(button);
+        var inBookNowPanel = button && bookNowPanel && bookNowPanel.contains(button);
+        if (!button || (!inQueueList && !inBookNowPanel)) {
             return;
         }
 
@@ -856,8 +780,15 @@ document.addEventListener("DOMContentLoaded", function () {
             data.created_at || new Date().toISOString(),
         );
 
+        var thumbHtml = data.vehicle_image_url
+            ? '<img class="incoming-vehicle-thumb" src="' +
+              escapeHtml(data.vehicle_image_url) +
+              '" alt="Vehicle photo">'
+            : "";
+
         newCard.innerHTML =
             '<div class="incoming-left">' +
+            thumbHtml +
             '<div class="incoming-route">' +
             "<strong>" +
             escapeHtml(data.pickup_address || "Unknown Pickup") +
@@ -893,14 +824,6 @@ document.addEventListener("DOMContentLoaded", function () {
             escapeHtml(statusLabel) +
             "</span>" +
             "</div>" +
-            '<div class="incoming-details" style="margin-top: 10px;">' +
-            "<span><strong>Dispatch Timing:</strong> " +
-            escapeHtml(
-                data.schedule_window_label ||
-                    (isScheduled ? "Scheduled pickup" : "Immediate dispatch"),
-            ) +
-            "</span>" +
-            "</div>" +
             "</div>" +
             '<div class="incoming-actions">' +
             '<button type="button" class="btn-accept" data-id="' +
@@ -928,7 +851,6 @@ document.addEventListener("DOMContentLoaded", function () {
         if (typeof updateReturnBanner === "function") updateReturnBanner();
 
         playNotificationSound();
-        showNotification("New booking request received!", "success");
 
         setTimeout(function () {
             newCard.classList.remove("new-booking");
@@ -964,6 +886,60 @@ document.addEventListener("DOMContentLoaded", function () {
         var unitMarkers = {};
         var lastUnits = [];
         var activeSortLat = null, activeSortLng = null;
+        var activeZoneFilter = null;
+
+        function getZoneFilteredUnits() {
+            if (!activeZoneFilter) return lastUnits;
+            return lastUnits.filter(function (u) { return u.zone_name === activeZoneFilter; });
+        }
+
+        // Chips are derived purely from whichever zones currently have an
+        // online unit — never a hand-maintained list, so a zone with nobody
+        // online simply never shows a chip.
+        function renderZoneChips(units) {
+            var container = document.getElementById("zoneFilterChips");
+            if (!container) return;
+
+            var zones = Array.from(new Set(
+                units.map(function (u) { return u.zone_name; }).filter(Boolean)
+            )).sort();
+
+            if (activeZoneFilter && zones.indexOf(activeZoneFilter) === -1) {
+                activeZoneFilter = null;
+            }
+
+            if (!zones.length) {
+                container.innerHTML = "";
+                return;
+            }
+
+            var chipsHtml = '<button type="button" class="zone-chip' +
+                (!activeZoneFilter ? " is-active" : "") + '" data-zone="">All</button>';
+            zones.forEach(function (zone) {
+                chipsHtml += '<button type="button" class="zone-chip' +
+                    (activeZoneFilter === zone ? " is-active" : "") + '" data-zone="' +
+                    escapeHtml(zone) + '">' + escapeHtml(zone) + "</button>";
+            });
+            container.innerHTML = chipsHtml;
+
+            container.querySelectorAll(".zone-chip").forEach(function (chip) {
+                chip.addEventListener("click", function () {
+                    activeZoneFilter = chip.dataset.zone || null;
+                    applyZoneFilter();
+                });
+            });
+        }
+
+        function applyZoneFilter() {
+            renderZoneChips(lastUnits);
+            updateTrackingMeta(lastUnits);
+            Object.keys(unitMarkers).forEach(function (id) {
+                var u = lastUnits.find(function (x) { return String(x.unit_id) === String(id); });
+                var visible = !activeZoneFilter || (u && u.zone_name === activeZoneFilter);
+                unitMarkers[id].marker.setVisible(visible);
+            });
+            renderRoster(getZoneFilteredUnits(), activeSortLat, activeSortLng);
+        }
 
         function gpsAgeLabel(secsAgo) {
             if (secsAgo === null || secsAgo === undefined) return { text: "no gps", cls: "urc-gps--old" };
@@ -1004,10 +980,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
             roster.innerHTML = withDist.map(function (u) {
                 var gps = gpsAgeLabel(u.updated_seconds_ago);
-                var statusCls = u.status === "available" ? "urc-status--available"
-                              : u.status === "on_job"    ? "urc-status--on_job"
-                              : "urc-status--other";
-                var statusText = u.status ? u.status.replace(/_/g, " ") : "unknown";
+                // Real, granular job status (from the TL's live booking) — never
+                // the stale Unit.status column, which only ever changes at
+                // coarse assignment/override/completion moments and would
+                // otherwise stay stuck on "available" for the whole job.
+                var hasJob = !!u.job_status;
+                var statusCls = hasJob ? "urc-status--on_job" : "urc-status--available";
+                var statusText = hasJob ? u.job_status_label : "Available";
                 var distHtml = u._dist !== null
                     ? '<div class="urc-distance">' + u._dist.toFixed(1) + " km from pickup</div>"
                     : "";
@@ -1031,20 +1010,26 @@ document.addEventListener("DOMContentLoaded", function () {
                     var lat = parseFloat(card.dataset.lat);
                     var lng = parseFloat(card.dataset.lng);
                     if (liveMap && !isNaN(lat) && !isNaN(lng)) {
-                        liveMap.setView([lat, lng], 14);
+                        liveMap.setCenter({ lat: lat, lng: lng });
+                        liveMap.setZoom(14);
                     }
                 });
             });
 
-            // Update meta summary
+            var label = document.getElementById("rosterSortLabel");
+            if (label) {
+                label.textContent = (sortLat && sortLng) ? "nearest to pickup" : "all units";
+            }
+        }
+
+        // Always reflects the true total (never the zone-filtered subset),
+        // so the header summary doesn't make it look like fewer units are
+        // online than really are just because a zone filter is active.
+        function updateTrackingMeta(units) {
             var onlineCount = units.filter(function (u) { return u.is_online; }).length;
             var meta = document.getElementById("trackingMeta");
             if (meta) {
                 meta.textContent = units.length + " unit" + (units.length !== 1 ? "s" : "") + " · " + onlineCount + " online";
-            }
-            var label = document.getElementById("rosterSortLabel");
-            if (label) {
-                label.textContent = (sortLat && sortLng) ? "nearest to pickup" : "all units";
             }
         }
 
@@ -1052,7 +1037,7 @@ document.addEventListener("DOMContentLoaded", function () {
         window.sortRosterByPickup = function (lat, lng) {
             activeSortLat = lat;
             activeSortLng = lng;
-            renderRoster(lastUnits, lat, lng);
+            renderRoster(getZoneFilteredUnits(), lat, lng);
         };
 
         function poll() {
@@ -1063,22 +1048,41 @@ document.addEventListener("DOMContentLoaded", function () {
             .then(function (units) {
                 lastUnits = units;
 
-                // Update map markers
+                // Update map markers — the map itself is loaded once (see init
+                // above); each poll tick only moves/creates/removes markers.
                 units.forEach(function (u) {
                     if (!u.lat || !u.lng) return;
-                    var tooltipText = (u.unit_name || "Unit") + " · " + u.team_leader_name;
+                    var tooltipText = (u.unit_name || "Unit") + " · " + u.team_leader_name +
+                        (u.job_status_label ? " — " + u.job_status_label : "");
+                    var position = { lat: u.lat, lng: u.lng };
                     if (liveMap) {
                         if (unitMarkers[u.unit_id]) {
-                            unitMarkers[u.unit_id].setLatLng([u.lat, u.lng]);
-                            unitMarkers[u.unit_id].getTooltip().setContent(tooltipText);
+                            unitMarkers[u.unit_id].marker.setPosition(position);
+                            unitMarkers[u.unit_id].infoWindow.setContent(tooltipText);
                         } else {
-                            unitMarkers[u.unit_id] = L.circleMarker([u.lat, u.lng], {
-                                radius: 7,
-                                fillColor: "#FFCC14",
-                                color: "#111",
-                                weight: 1.5,
-                                fillOpacity: 1,
-                            }).addTo(liveMap).bindTooltip(tooltipText, { permanent: false, direction: "top" });
+                            var marker = new google.maps.Marker({
+                                position: position,
+                                map: liveMap,
+                                icon: {
+                                    path: google.maps.SymbolPath.CIRCLE,
+                                    scale: 7,
+                                    fillColor: "#FFCC14",
+                                    fillOpacity: 1,
+                                    strokeColor: "#111",
+                                    strokeWeight: 1.5,
+                                },
+                            });
+                            var infoWindow = new google.maps.InfoWindow({
+                                content: tooltipText,
+                                disableAutoPan: true,
+                            });
+                            marker.addListener("mouseover", function () {
+                                infoWindow.open({ anchor: marker, map: liveMap });
+                            });
+                            marker.addListener("mouseout", function () {
+                                infoWindow.close();
+                            });
+                            unitMarkers[u.unit_id] = { marker: marker, infoWindow: infoWindow };
                         }
                     }
                 });
@@ -1087,12 +1091,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 var activeIds = units.map(function (u) { return u.unit_id; });
                 Object.keys(unitMarkers).forEach(function (id) {
                     if (!activeIds.includes(Number(id))) {
-                        if (liveMap) liveMap.removeLayer(unitMarkers[id]);
+                        unitMarkers[id].marker.setMap(null);
+                        unitMarkers[id].infoWindow.close();
                         delete unitMarkers[id];
                     }
                 });
 
-                renderRoster(units, activeSortLat, activeSortLng);
+                applyZoneFilter();
             })
             .catch(function () {});
         }
@@ -1135,11 +1140,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 "Customer accepted quotation. Booking is now in active queue.",
                 "success",
             );
-            var quotationModalEl = document.getElementById("quotationModal");
-            var quotationOpen = quotationModalEl && quotationModalEl.style.display === "flex";
-            if ((!actionModal || !actionModal.classList.contains("is-open")) && !quotationOpen) {
-                window.location.reload();
-            }
+            refreshFloatingQuotationsPanel();
             return;
         }
 
@@ -1246,25 +1247,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 var serverScheduled = Number(payload.scheduled_count) || 0;
 
                 if (serverCount > currentCount || serverScheduled > currentScheduled) {
-                    if (
-                        actionModal &&
-                        actionModal.classList.contains("is-open")
-                    ) {
-                        console.log(
-                            "New booking detected, but modal is open — skipping reload",
-                        );
-                        return;
-                    }
-
-                    var quotationModal = document.getElementById("quotationModal");
-                    if (quotationModal && quotationModal.style.display === "flex") {
-                        console.log(
-                            "New booking detected, but quotation modal is open — skipping reload",
-                        );
-                        return;
-                    }
-
-                    window.location.reload();
+                    // Real-time updates (handleNewBooking) normally handle this
+                    // already — this poller is only a fallback for missed events,
+                    // so just sync the counters instead of a full page reload
+                    // (which would re-trigger a billable Google Maps API load).
+                    if (countElement) countElement.textContent = String(serverCount);
+                    if (scheduledEl) scheduledEl.textContent = String(serverScheduled);
+                    playNotificationSound();
                 }
             })
             .catch(function () {
@@ -1787,7 +1776,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (quotationReviewGrid)
                     quotationReviewGrid.style.display = "none";
                 if (priceWrapper) priceWrapper.style.display = "none";
-                if (unitWrapper) unitWrapper.style.display = "none";
+                if (unitWrapper) unitWrapper.style.display = "block";
             } else {
                 if (confirmedBookingPanel)
                     confirmedBookingPanel.style.display = "none";
@@ -2074,7 +2063,21 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (data.success) {
                     showNotification(data.message || "Quotation saved as draft.", "success");
                     closeActionModal();
-                    setTimeout(function() { location.reload(); }, 1500);
+
+                    var card = state.selectedCard;
+                    if (card) {
+                        card.style.transition = "opacity 0.3s";
+                        card.style.opacity = "0";
+                        setTimeout(function () {
+                            card.remove();
+                            updateQueueCount(-1);
+                            updateTabBadges();
+                            updateEmptyState();
+                        }, 300);
+                    }
+                    resetBookingState();
+
+                    refreshFloatingQuotationsPanel();
                 } else {
                     showNotification(data.message || "Failed to save draft.", "error");
                     if (btn) { btn.disabled = false; btn.textContent = "Save as Draft"; }
