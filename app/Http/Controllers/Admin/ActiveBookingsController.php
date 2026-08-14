@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Zone;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class ActiveBookingsController extends Controller
@@ -69,7 +71,17 @@ class ActiveBookingsController extends Controller
             ],
         ]);
 
+        $previousStatus = $booking->status;
         $booking->update(['status' => $validated['status']]);
+
+        AuditLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'booking_status_override',
+            'entity_type' => 'Booking',
+            'entity_id'   => $booking->id,
+            'reference'   => $booking->job_code,
+            'description' => "Status manually changed from {$previousStatus} to {$validated['status']}",
+        ]);
 
         if ($request->expectsJson()) {
             return response()->json([

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Mail\BookingReceiptMail;
+use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\User;
 use App\Services\CustomerNotificationService;
@@ -74,6 +75,15 @@ class JobsController extends Controller
         ]);
 
         $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
+
+        AuditLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => 'payment_confirmed',
+            'entity_type' => 'Booking',
+            'entity_id'   => $booking->id,
+            'reference'   => $booking->job_code,
+            'description' => 'Job completed' . ($cashReceived !== null ? ' — cash received ₱' . number_format((float) $cashReceived, 2) : ''),
+        ]);
 
         // Release unit and team leader
         if ($booking->assigned_unit_id) {

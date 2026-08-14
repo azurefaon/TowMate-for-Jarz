@@ -6,6 +6,7 @@ use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Mail\BookingAcceptedMail;
 use App\Mail\BookingRejectedMail;
+use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Quotation;
@@ -688,6 +689,15 @@ class DispatchController extends Controller
                 $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
                 BookingStatusUpdated::safeFire($booking);
 
+                AuditLog::create([
+                    'user_id'     => auth()->id(),
+                    'action'      => 'booking_reassigned',
+                    'entity_type' => 'Booking',
+                    'entity_id'   => $booking->id,
+                    'reference'   => $booking->job_code,
+                    'description' => 'Returned task reassigned to unit ' . ($selectedUnit?->name ?? 'N/A'),
+                ]);
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Returned task reassigned successfully. The selected team leader can accept it now.',
@@ -710,6 +720,15 @@ class DispatchController extends Controller
 
                 $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
                 BookingStatusUpdated::safeFire($booking);
+
+                AuditLog::create([
+                    'user_id'     => auth()->id(),
+                    'action'      => 'booking_assigned',
+                    'entity_type' => 'Booking',
+                    'entity_id'   => $booking->id,
+                    'reference'   => $booking->job_code,
+                    'description' => 'Assigned to unit ' . ($selectedUnit?->name ?? 'N/A'),
+                ]);
 
                 return response()->json([
                     'success' => true,
@@ -791,8 +810,14 @@ class DispatchController extends Controller
 
             $booking->refresh()->loadMissing(['customer', 'truckType']);
 
-
-
+            AuditLog::create([
+                'user_id'     => auth()->id(),
+                'action'      => 'quotation_sent',
+                'entity_type' => 'Booking',
+                'entity_id'   => $booking->id,
+                'reference'   => $booking->job_code,
+                'description' => 'Quotation ' . $quotationNumber . ' sent — ₱' . number_format((float) $booking->final_total, 2),
+            ]);
 
 
             BookingStatusUpdated::safeFire($booking);
@@ -837,6 +862,16 @@ class DispatchController extends Controller
         $booking->update($this->bookingService->filterPayloadForTable('bookings', $updatePayload));
 
         $booking->refresh()->loadMissing(['customer', 'truckType']);
+
+        AuditLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => 'booking_rejected',
+            'entity_type' => 'Booking',
+            'entity_id'   => $booking->id,
+            'reference'   => $booking->job_code,
+            'description' => $rejectionReason,
+        ]);
+
         $this->syncCustomerRiskFlag($booking->customer, $rejectionReason);
 
 
@@ -902,6 +937,15 @@ class DispatchController extends Controller
             'amount' => $validated['service_fee_amount'],
             'reason' => $validated['service_fee_reason'],
             'dispatcher_id' => auth()->id(),
+        ]);
+
+        AuditLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => 'service_fee_applied',
+            'entity_type' => 'Booking',
+            'entity_id'   => $booking->id,
+            'reference'   => $booking->job_code,
+            'description' => '₱' . number_format($validated['service_fee_amount'], 2) . ' — ' . $validated['service_fee_reason'],
         ]);
 
         return response()->json([
@@ -1211,6 +1255,15 @@ class DispatchController extends Controller
 
         $quotation->increment('link_version');
 
+        AuditLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => 'quotation_price_updated',
+            'entity_type' => $sourceBooking ? 'Booking' : 'Quotation',
+            'entity_id'   => $sourceBooking?->id ?? $quotation->id,
+            'reference'   => $sourceBooking?->job_code ?? $quotation->quotation_number,
+            'description' => "Price changed from ₱" . number_format($oldPrice, 2) . " to ₱" . number_format($newPrice, 2)
+                . (filled($validated['note'] ?? null) ? ' — ' . $validated['note'] : ''),
+        ]);
 
         if ($quotation->customer && $quotation->customer->email) {
             try {
@@ -1353,6 +1406,16 @@ class DispatchController extends Controller
             'dispatcher_note'    => filled($validated['dispatcher_note'] ?? null)
                 ? trim(strip_tags((string) $validated['dispatcher_note'])) : null,
         ]));
+
+        AuditLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => $existing ? 'quotation_draft_updated' : 'quotation_drafted',
+            'entity_type' => 'Booking',
+            'entity_id'   => $booking->id,
+            'reference'   => $booking->job_code,
+            'description' => 'Price recorded: ₱' . number_format((float) $validated['price'], 2)
+                . (filled($validated['dispatcher_note'] ?? null) ? ' — ' . $validated['dispatcher_note'] : ''),
+        ]);
 
         return response()->json([
             'success'          => true,

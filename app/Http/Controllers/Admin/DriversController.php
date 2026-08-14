@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\TeamLeaderAvailabilityService;
@@ -136,6 +137,15 @@ class DriversController extends Controller
 
         $unit->update(['team_leader_id' => $teamLeader->id]);
 
+        AuditLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'unit_assigned',
+            'entity_type' => 'Unit',
+            'entity_id'   => $unit->id,
+            'reference'   => $unit->name,
+            'description' => 'Assigned to ' . ($teamLeader->full_name ?: $teamLeader->name),
+        ]);
+
         if ($request->expectsJson()) {
             // Use the summary service for robust, up-to-date status/unit info
             $summary = $this->teamLeaderAvailability->summarize(collect([$teamLeader]));
@@ -186,6 +196,16 @@ class DriversController extends Controller
             $teamLeader->unit->update(['status' => $validated['unit_status']]);
         }
 
+        AuditLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'team_leader_status_override',
+            'entity_type' => 'User',
+            'entity_id'   => $teamLeader->id,
+            'reference'   => $teamLeader->full_name ?: $teamLeader->name,
+            'description' => 'Operational status set to ' . $validated['operational_status']
+                . (filled($validated['status_reason'] ?? null) ? ' — ' . $validated['status_reason'] : ''),
+        ]);
+
         return redirect()
             ->route('admin.drivers')
             ->with('success', 'Operational status updated for ' . ($teamLeader->full_name ?: $teamLeader->name) . '.');
@@ -220,6 +240,15 @@ class DriversController extends Controller
             'zone_confirmed'    => false,
             'last_updated_by'   => Auth::user()->name,
             'last_updated_at'   => now(),
+        ]);
+
+        AuditLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'unit_removed',
+            'entity_type' => 'Unit',
+            'entity_id'   => $unit->id,
+            'reference'   => $unit->name,
+            'description' => 'Removed from ' . ($teamLeader->full_name ?: $teamLeader->name),
         ]);
 
         if ($request->expectsJson()) {
@@ -272,6 +301,16 @@ class DriversController extends Controller
             'dispatcher_note'   => $validated['dispatcher_note'] ?? null,
             'last_updated_by'   => Auth::user()->name,
             'last_updated_at'   => now(),
+        ]);
+
+        AuditLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'unit_status_override',
+            'entity_type' => 'Unit',
+            'entity_id'   => $unit->id,
+            'reference'   => $unit->name,
+            'description' => 'Status set to ' . ($unitStatus ?? $unit->dispatcher_status)
+                . (filled($validated['dispatcher_note'] ?? null) ? ' — ' . $validated['dispatcher_note'] : ''),
         ]);
 
         if ($request->expectsJson()) {
