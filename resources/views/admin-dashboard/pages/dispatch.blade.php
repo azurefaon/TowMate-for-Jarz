@@ -2650,6 +2650,11 @@
                 _pendingFinalTotal = finalTotal;
                 _pendingIsCash = !ds.paymentMethod || ds.paymentMethod === 'cash';
                 if (cashInput) cashInput.value = '';
+                var cashHint = document.getElementById('cjCashHint');
+                if (cashHint) {
+                    cashHint.textContent = 'Must be at least ' + fmt(finalTotal) + '.';
+                    cashHint.style.color = '#94a3b8';
+                }
                 if (_pendingIsCash) {
                     show('cjCashRow');
                 } else {
@@ -2722,7 +2727,12 @@
 
             if (cashInput) {
                 cashInput.addEventListener('input', function() {
-                    okBtn.disabled = !isCashAmountValid();
+                    var valid = isCashAmountValid();
+                    okBtn.disabled = !valid;
+                    var cashHint = document.getElementById('cjCashHint');
+                    if (cashHint) {
+                        cashHint.style.color = (!valid && cashInput.value !== '') ? '#dc2626' : '#94a3b8';
+                    }
                 });
             }
 

@@ -206,6 +206,37 @@
     flex-direction: column;
     gap: 12px;
     flex: 1;
+    min-width: 0;
+}
+
+.incoming-vehicle-thumb-wrap {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+}
+
+.incoming-vehicle-thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid #e5e7eb;
+    display: block;
+}
+
+.incoming-vehicle-thumb-count {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    background: #0f172a;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 5px;
+    border-radius: 999px;
+    border: 1px solid #fff;
 }
 
 .incoming-route {
@@ -247,6 +278,20 @@
     font-weight: bold;
 }
 
+.incoming-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+}
+
+.incoming-price {
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+}
+
 .incoming-meta {
     display: flex;
     align-items: center;
@@ -285,6 +330,7 @@
     display: flex;
     gap: 12px;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .btn-accept,
@@ -353,6 +399,13 @@
     transform: none;
 }
 
+#completeJobOk:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: #d4d4d8;
+    color: #71717a;
+}
+
 .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -369,7 +422,6 @@
 
 .new-booking {
     animation: highlight 2s ease-in-out;
-    border-left: 3px solid #10b981;
     box-shadow: 0 2px 12px rgba(16, 185, 129, 0.15);
 }
 
@@ -851,39 +903,13 @@
     border-radius: 999px;
 }
 
-/* Booking Cards — Remove Black Border, Add Status Accent */
+/* Booking Cards — plain neutral border, no status-colored accent */
 .incoming-card {
     border: 1px solid #e5e7eb !important;
-    border-left: 4px solid #e5e7eb !important;
     box-shadow: 0 2px 8px rgba(17, 24, 39, 0.05) !important;
 }
 .incoming-card:hover {
     box-shadow: 0 4px 16px rgba(17, 24, 39, 0.1) !important;
-    border-left-color: #facc15 !important;
-}
-.incoming-card[data-status="pending"] {
-    border-left-color: #facc15 !important;
-}
-.incoming-card[data-status="accepted"] {
-    border-left-color: #facc15 !important;
-}
-.incoming-card[data-status="dispatched"] {
-    border-left-color: #3b82f6 !important;
-}
-.incoming-card[data-status="on_the_way"] {
-    border-left-color: #3b82f6 !important;
-}
-.incoming-card[data-status="arrived"] {
-    border-left-color: #8b5cf6 !important;
-}
-.incoming-card[data-status="in_progress"] {
-    border-left-color: #f97316 !important;
-}
-.incoming-card[data-status="waiting_verification"] {
-    border-left-color: #16a34a !important;
-}
-.incoming-card[data-queue="returned"] {
-    border-left-color: #ef4444 !important;
 }
 
 /* Team Leaders Sidebar — Compact */
