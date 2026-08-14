@@ -35,11 +35,17 @@ return [
         ],
     ],
 
-    // 'google_maps' => [
-    //     'key' => env('GOOGLE_MAPS_API_KEY'),
-    //     'geocode_url' => env('GOOGLE_MAPS_GEOCODE_URL', 'https://maps.googleapis.com/maps/api/geocode/json'),
-    //     'directions_url' => env('GOOGLE_MAPS_DIRECTIONS_URL', 'https://maps.googleapis.com/maps/api/directions/json'),
-    // ],
+    'google_maps' => [
+        'key' => env('GOOGLE_MAPS_SERVER_KEY'),
+        'browser_key' => env('GOOGLE_MAPS_API_KEY'),
+        'geocode_url' => env('GOOGLE_MAPS_GEOCODE_URL', 'https://maps.googleapis.com/maps/api/geocode/json'),
+        'routes_url' => env('GOOGLE_MAPS_ROUTES_URL', 'https://routes.googleapis.com/directions/v2:computeRoutes'),
+        'places_autocomplete_url' => env('GOOGLE_PLACES_AUTOCOMPLETE_URL', 'https://places.googleapis.com/v1/places:autocomplete'),
+        'places_details_url' => env('GOOGLE_PLACES_DETAILS_URL', 'https://places.googleapis.com/v1/places'),
+    ],
+
+    // GOOGLE_MAPS_API_KEY is reserved for the browser-facing dispatcher map
+    // (Websites/HTTP-referrer restricted) — never use it for server-side calls.
 
     'openrouteservice' => [
         'key' => env('OPENROUTESERVICE_API_KEY'),

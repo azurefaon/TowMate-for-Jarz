@@ -45,28 +45,6 @@ use App\Http\Controllers\SuperAdmin\VehicleTypeController;
 
 Route::redirect('/', '/login')->name('landing');
 
-// TEMPORARY — diagnose stale config cache for Google Maps browser key.
-// Never exposes raw key values, only presence/length. Remove after diagnosis.
-Route::get('/api/debug-maps-check', function () {
-    $rawFile = require config_path('services.php');
-
-    return response()->json([
-        'getenv_raw_len'                 => strlen((string) getenv('GOOGLE_MAPS_API_KEY')),
-        'env_helper_len'                 => strlen((string) env('GOOGLE_MAPS_API_KEY')),
-        'config_browser_key_len'         => strlen((string) config('services.google_maps.browser_key')),
-        'fresh_file_require_browser_len' => strlen((string) ($rawFile['google_maps']['browser_key'] ?? '')),
-        'google_maps_array_keys'         => array_keys($rawFile['google_maps'] ?? []),
-        'google_maps_array_raw'          => array_map(
-            fn ($v) => is_string($v) ? strlen($v) . ' chars' : gettype($v),
-            $rawFile['google_maps'] ?? []
-        ),
-        'services_php_first_500_chars'   => substr(file_get_contents(config_path('services.php')), 0, 500),
-        'services_php_sha1'              => sha1_file(config_path('services.php')),
-        'services_php_mtime'             => date('Y-m-d H:i:s', filemtime(config_path('services.php'))),
-        'config_cache_file_exists'       => file_exists(base_path('bootstrap/cache/config.php')),
-    ]);
-});
-
 // ── Landing page routes (archived) ───────────────────────────────────────────
 // Route::get('/book', function () { ... })->name('landing.book');
 // Route::post('/book', [CustomerBookingController::class, 'landingStore'])->name('landing.book.store');
