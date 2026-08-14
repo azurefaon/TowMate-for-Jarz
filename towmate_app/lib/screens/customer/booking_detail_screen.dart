@@ -637,6 +637,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   Widget _priceHistoryRow(Map<String, dynamic> entry) {
     final oldP = double.tryParse(entry['old']?.toString() ?? '') ?? 0;
     final newP = double.tryParse(entry['new']?.toString() ?? '') ?? 0;
+    final delta = newP - oldP;
+    final deltaSign = delta >= 0 ? '+' : '-';
     final reason = entry['reason'] as String?;
     DateTime? ts;
     if (entry['at'] != null) ts = DateTime.tryParse(entry['at'] as String);
@@ -657,10 +659,23 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   decoration: TextDecoration.lineThrough,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Icon(Icons.arrow_forward_rounded, size: 14, color: context.textTertiary),
-              ),
+              if (delta != 0) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    '$deltaSign₱${_money.format(delta.abs())}',
+                    style: GoogleFonts.inter(
+                      color: delta > 0 ? TmColors.error : TmColors.success,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ] else
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(Icons.arrow_forward_rounded, size: 14, color: context.textTertiary),
+                ),
               Text(
                 '₱${_money.format(newP)}',
                 style: GoogleFonts.inter(
