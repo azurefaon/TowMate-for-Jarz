@@ -17,8 +17,10 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
   bool _declining = false;
   bool _sendingInquiry = false;
 
-  QuotationModel get _quotation =>
-      ModalRoute.of(context)!.settings.arguments as QuotationModel;
+  QuotationModel? get _quotationOrNull =>
+      ModalRoute.of(context)?.settings.arguments as QuotationModel?;
+
+  QuotationModel get _quotation => _quotationOrNull!;
 
   Future<void> _accept() async {
     setState(() => _accepting = true);
@@ -116,110 +118,37 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
     }
   }
 
-  void _showInquirySheet(BuildContext context) {
+  Future<void> _showInquirySheet(BuildContext context) async {
     final controller = TextEditingController();
-    showModalBottomSheet(
+    final msg = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: context.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetCtx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+      builder: (sheetCtx) => _InquirySheet(controller: controller),
+    );
+    controller.dispose();
+
+    if (msg == null || msg.isEmpty || !mounted) return;
+
+    setState(() => _sendingInquiry = true);
+    final result = await ApiService.sendQuotationInquiry(_quotation.id, msg);
+    if (!mounted) return;
+    setState(() => _sendingInquiry = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['success'] == true
+              ? 'Message sent to dispatcher.'
+              : (result['message'] as String? ?? 'Failed to send. Try again.'),
+          style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Ask about this price',
-              style: GoogleFonts.inter(
-                color: sheetCtx.textPrimary,
-                fontSize: 16,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Your message will be sent to the dispatcher.',
-              style: GoogleFonts.inter(
-                color: sheetCtx.textSecondary,
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              maxLines: 4,
-              maxLength: 500,
-              autofocus: true,
-              style: GoogleFonts.inter(color: sheetCtx.textPrimary, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'e.g. Why was ₱500 added to the price?',
-                hintStyle: GoogleFonts.inter(color: sheetCtx.textSecondary, fontSize: 13),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: sheetCtx.divider),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: sheetCtx.divider),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: TmColors.yellow, width: 1.5),
-                ),
-                contentPadding: const EdgeInsets.all(14),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () async {
-                final msg = controller.text.trim();
-                if (msg.isEmpty) return;
-                Navigator.pop(sheetCtx);
-                setState(() => _sendingInquiry = true);
-                final result = await ApiService.sendQuotationInquiry(
-                  _quotation.id,
-                  msg,
-                );
-                if (!mounted) return;
-                setState(() => _sendingInquiry = false);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      result['success'] == true
-                          ? 'Message sent to dispatcher.'
-                          : (result['message'] as String? ?? 'Failed to send. Try again.'),
-                      style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
-                    ),
-                    backgroundColor: TmColors.black,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    margin: const EdgeInsets.all(16),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: TmColors.yellow,
-                foregroundColor: TmColors.black,
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                elevation: 0,
-              ),
-              child: Text(
-                'Send Message',
-                style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
-              ),
-            ),
-          ],
-        ),
+        backgroundColor: TmColors.black,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
       ),
     );
   }
@@ -485,7 +414,7 @@ class _PriceBreakdown extends StatelessWidget {
     final hasBase       = quotation.baseRate > 0;
     final hasDist       = quotation.distanceFee > 0;
     final hasVat        = quotation.vatAmount > 0;
-    final hasAdditional = quotation.additionalFee > 0;
+    final hasAdditional = quotation.additionalFee != 0;
     final hasBreakdown  = hasBase || hasDist || hasVat;
 
     return Column(
@@ -752,6 +681,98 @@ class _PriceHistorySectionState extends State<_PriceHistorySection> {
           }),
         ],
       ],
+    );
+  }
+}
+
+class _InquirySheet extends StatefulWidget {
+  const _InquirySheet({required this.controller});
+  final TextEditingController controller;
+
+  @override
+  State<_InquirySheet> createState() => _InquirySheetState();
+}
+
+class _InquirySheetState extends State<_InquirySheet> {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Ask about this price',
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 16,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Your message will be sent to the dispatcher.',
+            style: GoogleFonts.inter(
+              color: context.textSecondary,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: widget.controller,
+            maxLines: 4,
+            maxLength: 500,
+            autofocus: true,
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'e.g. Why was ₱500 added to the price?',
+              hintStyle: GoogleFonts.inter(
+                  color: context.textSecondary, fontSize: 13),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: context.divider),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: context.divider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide:
+                    const BorderSide(color: TmColors.yellow, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.all(14),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: () {
+              final msg = widget.controller.text.trim();
+              if (msg.isEmpty) return;
+              Navigator.pop(context, msg);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TmColors.yellow,
+              foregroundColor: TmColors.black,
+              minimumSize: const Size(double.infinity, 48),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: Text(
+              'Send Message',
+              style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

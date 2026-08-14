@@ -1332,7 +1332,14 @@ class DispatchController extends Controller
             $existing->update($draftData);
             $quotation = $existing->fresh();
         } else {
-            $draftData['price_change_log'] = [];
+            $additionalFee = (float) ($validated['additional_fee'] ?? 0);
+            $draftData['price_change_log'] = $additionalFee !== 0.0 ? [[
+                'at'     => now()->toISOString(),
+                'old'    => (float) $validated['price'] - $additionalFee,
+                'new'    => (float) $validated['price'],
+                'reason' => $validated['dispatcher_note'] ?? null,
+                'by'     => auth()->user()?->name ?? 'Dispatcher',
+            ]] : [];
             $quotation = Quotation::create($draftData);
         }
 

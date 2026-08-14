@@ -792,7 +792,8 @@
                 const otherFeesNote = document.getElementById('qmOtherFeesNote');
                 const additionalFee = parseFloat(q.additional_fee || 0) || 0;
                 if (additionalFee !== 0) {
-                    document.getElementById('qmOtherFees').textContent = fmt(additionalFee);
+                    document.getElementById('qmOtherFees').textContent =
+                        (additionalFee < 0 ? '-' : '') + fmt(Math.abs(additionalFee));
                     otherFeesRow.style.display = 'flex';
 
                     const log = Array.isArray(q.price_change_log) ? q.price_change_log : [];
