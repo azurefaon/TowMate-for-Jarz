@@ -1,12 +1,13 @@
 <style>
-    /* Quotation modal — high-contrast flat design */
+    /* Quotation modal */
     #quotationModal * {
-        border-radius: 0 !important;
         box-shadow: none !important;
     }
 
     #quotationModal .modal-card {
-        border: 2px solid #000 !important;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 16px !important;
+        overflow: hidden !important;
     }
 
     /* Tab buttons */
@@ -37,20 +38,20 @@
     /* Section headers */
     .qm-section-hdr {
         padding: 9px 14px;
-        background: #0f172a;
-        border-bottom: none;
+        background: #111827;
         font-size: 0.7rem;
         font-weight: 800;
-        color: #fff;
+        color: #facc15;
         text-transform: uppercase;
         letter-spacing: 0.08em;
     }
 
     /* Section containers */
     .qm-section {
-        border: 2px solid #0f172a;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
         overflow: hidden;
-        margin-bottom: 18px;
+        margin-bottom: 16px;
     }
 
     /* Current price highlight row */
@@ -60,12 +61,12 @@
         align-items: center;
         padding: 10px 14px;
         background: #facc15;
-        border-bottom: 2px solid #0f172a;
     }
 
     /* New total row */
     .qm-new-total-row {
-        background: #0f172a;
+        background: #111827;
+        border-radius: 8px;
         padding: 11px 14px;
         display: flex;
         justify-content: space-between;
@@ -77,7 +78,7 @@
     style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(15, 23, 42, 0.55); align-items: center; justify-content: center; padding: 20px;"
     aria-hidden="true" role="dialog" aria-modal="true">
     <div class="modal-card"
-        style="width: min(1600px, 96vw); max-width: 620px; max-height: 92vh; background: #fff; display: flex; flex-direction: column;">
+        style="width: min(1600px, 96vw); max-width: 620px; max-height: 92vh; background: #fff; display: flex; flex-direction: column; border-radius: 16px; overflow: hidden;">
 
         <!-- HEADER -->
         <div style="padding: 16px 22px 14px; border-bottom: 2px solid #000; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; background: #fff; z-index: 10;">
@@ -86,31 +87,22 @@
                 <p style="margin: 3px 0 0; font-size: 0.78rem; font-weight: 600; color: #6b7280;" id="quotationModalSubtitle">Review and manage this quotation</p>
             </div>
             <button type="button" onclick="closeQuotationModal()"
-                style="width: 30px; height: 30px; border: 2px solid #000; background: #fff; color: #000; font-size: 1.2rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1;">
+                style="width: 30px; height: 30px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; color: #000; font-size: 1.2rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1;">
                 ×
             </button>
         </div>
 
         <!-- TAB NAVIGATION -->
         <div style="display: flex; border-bottom: 2px solid #000; background: #fff; flex-shrink: 0;">
-            <button class="qm-tab-btn" id="qmTab-details" onclick="qmSetTab('details')" data-active="false">Details</button>
-            <button class="qm-tab-btn" id="qmTab-quote"   onclick="qmSetTab('quote')"   data-active="true">Quote</button>
+            <button class="qm-tab-btn" id="qmTab-details" onclick="qmSetTab('details')" data-active="true">Details</button>
+            <button class="qm-tab-btn" id="qmTab-quote"   onclick="qmSetTab('quote')"   data-active="false">Quote</button>
         </div>
 
         <!-- BODY: TAB PANES -->
         <div style="flex: 1; overflow-y: auto; min-height: 0;">
 
             <!-- ── PANE: Details ──────────────────────────────────────────── -->
-            <div id="qmPane-details" style="display: none; padding: 18px 24px;">
-
-                <!-- Mobile booking banner -->
-                <div id="qmMobileBanner"
-                    style="display:none; background:#0f172a; border:2px solid #0f172a; padding:10px 16px; margin-bottom:14px; align-items:center; gap:10px;">
-                    <span style="font-size:0.7rem; font-weight:800; background:#facc15; color:#000; padding:2px 7px; text-transform:uppercase; letter-spacing:0.07em;">Mobile</span>
-                    <span style="font-size:0.85rem; color:#e2e8f0; font-weight:600;">Booking ref:
-                        <span id="qmSourceBookingCode" style="font-family:monospace; font-weight:800; color:#fff;">—</span>
-                    </span>
-                </div>
+            <div id="qmPane-details" style="display: block; padding: 18px 24px;">
 
                 <!-- Linked Scheduled Vehicles section -->
                 <div id="qmLinkedVehicles" style="display:none; background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 16px; margin-bottom:14px;">
@@ -157,11 +149,7 @@
                         </div>
                         <div>
                             <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 2px;">Truck Type</div>
-                            <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
-                                <span style="font-size: 0.88rem; font-weight: 600; color: #0f172a;" id="qmTruckType">—</span>
-                                <span id="qmTruckClassBadge"
-                                      style="display:none; font-size:0.62rem; font-weight:700; padding:2px 6px; text-transform:uppercase; letter-spacing:0.06em; border:1px solid;"></span>
-                            </div>
+                            <div style="font-size: 0.88rem; font-weight: 600; color: #0f172a;" id="qmTruckType">—</div>
                         </div>
                     </div>
                 </div>
@@ -183,10 +171,9 @@
                 </div>
 
                 <!-- Pickup notes section -->
-                <div id="qmNotesSection"
-                    style="display:none; background:#fffbeb; border:1px solid #fde68a; padding:10px 14px; margin-bottom:18px;">
-                    <div style="font-size:0.7rem; color:#92400e; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px;">Pickup Notes</div>
-                    <div id="qmNotesText" style="font-size:0.85rem; color:#78350f;"></div>
+                <div id="qmNotesSection" style="display:none; margin-bottom:18px;">
+                    <div style="font-size:0.7rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px;">Pickup Notes</div>
+                    <div id="qmNotesText" style="font-size:0.85rem; color:#0f172a;"></div>
                 </div>
 
                 <!-- Vehicle photos -->
@@ -210,7 +197,7 @@
             </div>
 
             <!-- ── PANE: Quote (default) ───────────────────────────────────── -->
-            <div id="qmPane-quote" style="display: block; padding: 18px 24px;">
+            <div id="qmPane-quote" style="display: none; padding: 18px 24px;">
 
                 <!-- Price Breakdown -->
                 <div class="qm-section">
@@ -229,6 +216,9 @@
                             style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.85rem; color: #374151;">
                             <span>Additional Fees</span>
                             <span id="qmOtherFees">₱0.00</span>
+                        </div>
+                        <div id="qmOtherFeesNote" style="display: none; padding-left: 4px; font-size: 0.78rem; color: #6b7280;">
+                            ↳ <span id="qmOtherFeesNoteText"></span>
                         </div>
                         <div id="qmExtraVehiclesTotalRow"
                             style="display: none; flex-direction: row; justify-content: space-between; font-size: 0.85rem; color: #374151;">
@@ -265,19 +255,19 @@
                         <div>
                             <label style="font-size:0.78rem; font-weight:600; color:#374151; display:block; margin-bottom:6px;">
                                 Adjustment
-                                <span id="qmSuggestedPriceHint" style="font-weight:400; color:#94a3b8;"></span>
                             </label>
                             <div style="display:flex; gap:6px; align-items:center;">
                                 <button type="button" id="qmSignAdd" onclick="qmSetSign('+')"
-                                    style="padding:7px 12px; border:1px solid #16a34a; background:#16a34a; color:#fff; font-size:0.82rem; font-weight:700; cursor:pointer; flex-shrink:0;">
+                                    style="padding:7px 12px; border:1px solid #16a34a; border-radius:8px; background:#16a34a; color:#fff; font-size:0.82rem; font-weight:700; cursor:pointer; flex-shrink:0;">
                                     + Add
                                 </button>
                                 <button type="button" id="qmSignDeduct" onclick="qmSetSign('-')"
-                                    style="padding:7px 12px; border:1px solid #d1d5db; background:#fff; color:#64748b; font-size:0.82rem; font-weight:700; cursor:pointer; flex-shrink:0;">
+                                    style="padding:7px 12px; border:1px solid #d1d5db; border-radius:8px; background:#fff; color:#64748b; font-size:0.82rem; font-weight:700; cursor:pointer; flex-shrink:0;">
                                     − Deduct
                                 </button>
                                 <input type="number" id="qmAdjustAmount" step="0.01" min="0" placeholder="0.00"
-                                    style="flex:1; padding:7px 10px; border:1px solid #d1d5db; font-size:0.88rem; color:#0f172a; box-sizing:border-box;"
+                                    style="flex:1; padding:7px 10px; border:1px solid #d1d5db; border-radius:8px; font-size:0.88rem; color:#0f172a; box-sizing:border-box;"
+                                    onkeydown="if(['e','E','+','-'].includes(event.key)) event.preventDefault()"
                                     oninput="recalcQuotationTotal()">
                             </div>
                         </div>
@@ -292,12 +282,11 @@
                         <div>
                             <label style="display: block; font-size: 0.78rem; color: #000000; margin-bottom: 5px;">
                                 Note / Reason
-                                <span id="qmNoteRequiredBadge" style="display:none; color:#dc2626; font-weight:700;">*</span>
-                                <span id="qmNoteOptionalBadge" style="color:#94a3b8;">(optional)</span>
+                                <span id="qmNoteRequiredHint" style="display:none; color:#dc2626; font-weight:700;">(required)</span>
                             </label>
                             <textarea id="qmPriceNote" rows="2" placeholder="e.g. Rush fee, toll charges…"
-                                style="width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; font-size: 0.85rem; color: #0f172a; resize: vertical; outline: none; box-sizing: border-box;"
-                                onfocusin="this.style.borderColor='#6366f1'"
+                                style="width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.85rem; color: #0f172a; resize: vertical; outline: none; box-sizing: border-box;"
+                                onfocusin="this.style.borderColor='#facc15'"
                                 onfocusout="this.style.borderColor='#d1d5db'"></textarea>
                             <div id="qmNoteError" style="display:none; color:#dc2626; font-size:0.72rem; margin-top:3px;">
                                 Please enter a reason for the price change.
@@ -306,7 +295,7 @@
 
                         <!-- Draft saved indicator (Schedule bookings only) -->
                         <div id="qmDraftSavedIndicator"
-                            style="display:none; background:#0f172a; border:2px solid #0f172a; padding:11px 14px; align-items:center; justify-content:space-between; gap:8px;">
+                            style="display:none; background:#111827; border-radius:10px; padding:11px 14px; align-items:center; justify-content:space-between; gap:8px;">
                             <div style="display:flex; align-items:center; gap:8px;">
                                 <span style="font-size:0.82rem; font-weight:800; background:#facc15; color:#000; padding:2px 8px; text-transform:uppercase; letter-spacing:0.05em;">Recorded</span>
                                 <span style="color:#e2e8f0; font-size:0.82rem; font-weight:600;">Ready to send to customer</span>
@@ -318,7 +307,7 @@
                 </div>
 
                 <!-- Dispatch Unit section (accepted quotations only) -->
-                <div id="qmDispatchSection" style="display:none; border: 2px solid #0f172a; overflow: hidden; margin-bottom: 18px;">
+                <div id="qmDispatchSection" style="display:none; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; margin-bottom: 18px;">
                     <div class="qm-section-hdr">Assign Unit to Dispatch</div>
                     <div style="padding: 14px;">
                         <div id="qmDispatchNoUnits" style="display:none; color:#dc2626; font-size:0.85rem; padding:4px 0 8px;">
@@ -389,7 +378,7 @@
             </button>
             <button type="button" id="qmRecordBtn" onclick="qmRecordQuotation()" style="display:none;
                 padding: 8px 18px; border: 2px solid #000; background: #fff; color: #000; font-size: 0.82rem; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.04em;">
-                Record Quotation
+                Approve
             </button>
             <button type="button" id="qmUpdatePriceBtn" onclick="updateQuotationPrice()"
                 style="padding: 8px 16px; border: 2px solid #000; background: #000; color: #fff; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
@@ -412,7 +401,7 @@
 
     // Tracks per-modal-open state
     const qmState = {
-        activeTab:            'quote',
+        activeTab:            'details',
         bookingId:            null,   // source_booking_id for mobile bookings
         sourceBookingCode:    null,   // booking_code used to call the assign endpoint on dispatch
         serviceType:          null,   // 'book_now' | 'scheduled'
@@ -429,6 +418,31 @@
             if (btn) btn.setAttribute('data-active', t === tab ? 'true' : 'false');
         });
         qmState.activeTab = tab;
+    }
+
+    // ── Vehicle photo gallery (shared by both modal entry points) ───────────────
+    function qmRenderVehicleGallery(imagePaths) {
+        const gallery = document.getElementById('qmImageGallery');
+        const grid    = document.getElementById('qmImageGrid');
+        const noImg   = document.getElementById('qmNoImages');
+        grid.innerHTML = '';
+        gallery.style.display = 'block';
+        if (!imagePaths || imagePaths.length === 0) {
+            noImg.style.display = 'block';
+        } else {
+            noImg.style.display = 'none';
+            imagePaths.forEach(function(path) {
+                const img = document.createElement('img');
+                img.src = '/storage/' + path;
+                img.title = 'Click to view full size';
+                img.style.cssText = 'width:90px; height:70px; object-fit:cover; cursor:pointer; border:1px solid #e2e8f0; transition:opacity 0.15s;';
+                img.onerror   = function() { this.style.display = 'none'; };
+                img.onmouseover = function() { this.style.opacity = '0.8'; };
+                img.onmouseout  = function() { this.style.opacity = '1'; };
+                img.onclick   = function() { window.open(this.src, '_blank'); };
+                grid.appendChild(img);
+            });
+        }
     }
 
     // ── Open modal for a brand-new Schedule booking (no quotation yet) ──────────
@@ -455,7 +469,7 @@
         set('qmQuotationNumber', 'Draft — not yet assigned');
         set('qmCustomerName',    d.customer);
         set('qmCustomerPhone',   d.phone);
-        set('qmCustomerEmail',   '');
+        set('qmCustomerEmail',   d.customerEmail);
         set('qmPickupAddress',   d.pickup);
         set('qmDropoffAddress',  d.dropoff);
         set('qmDistance',        parseFloat(d.distance || 0).toFixed(2) + ' km');
@@ -465,17 +479,20 @@
         const baseRateLabelEl = document.getElementById('qmBaseRateLabel');
         if (baseRateLabelEl) baseRateLabelEl.textContent = 'Base Rate · ' + (d.truck || 'Unit') + ' (Scheduled)';
 
-        // Show mobile banner with booking ref
-        const banner  = document.getElementById('qmMobileBanner');
-        const srcCode = document.getElementById('qmSourceBookingCode');
-        if (banner)  banner.style.display = 'flex';
-        if (srcCode) srcCode.textContent  = d.ref || '—';
-
-        // Hide vehicle/notes sections (no vehicle data on scheduled bookings)
+        // Hide vehicle-details/notes sections (no make/model/plate data on scheduled bookings)
         const vs = document.getElementById('qmCustomerVehicleSection');
         const ns = document.getElementById('qmNotesSection');
         if (vs) vs.style.display = 'none';
         if (ns) ns.style.display = 'none';
+
+        // Vehicle photo gallery — images are captured at booking time regardless of service type
+        let scheduleVehicleImages = [];
+        try {
+            scheduleVehicleImages = JSON.parse(d.vehicleImages || '[]');
+        } catch (e) {
+            scheduleVehicleImages = [];
+        }
+        qmRenderVehicleGallery(scheduleVehicleImages);
 
         // Clear quote form and re-enable inputs
         const adjustEl = document.getElementById('qmAdjustAmount');
@@ -534,8 +551,8 @@
         modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
 
-        // Land on Quote tab, update footer buttons
-        qmSetTab('quote');
+        // Land on Details tab, update footer buttons
+        qmSetTab('details');
         qmState.quotationStatus = 'pending';
         qmRenderFooterButtons();
     }
@@ -553,6 +570,13 @@
         const price      = Math.max(0, (window.qmCurrentBase || 0) + adjustSign * adjustAmt);
         const note       = document.getElementById('qmPriceNote')?.value?.trim() || '';
 
+        if (adjustAmt !== 0 && !note) {
+            document.getElementById('qmNoteError').style.display = 'block';
+            document.getElementById('qmPriceNote').focus();
+            return;
+        }
+        document.getElementById('qmNoteError').style.display = 'none';
+
         if (price <= 0) {
             showModalMessage('Please enter a price before recording.', 'error');
             return;
@@ -560,11 +584,11 @@
 
         const btn = document.getElementById('qmRecordBtn');
         btn.disabled    = true;
-        btn.textContent = 'Recording…';
+        btn.textContent = 'Approving…';
 
         const payload = {
             price:            price,
-            additional_fee:   0,
+            additional_fee:   adjustSign * adjustAmt,
             assigned_unit_id: unitSelect?.value || null,
             dispatcher_note:  note,
             distance_km:      window.qmDistanceKm || null,
@@ -601,16 +625,19 @@
 
                 showModalMessage(data.message || 'Quotation recorded. You can now send it to the customer.', 'success');
                 qmRenderFooterButtons();
-                setTimeout(() => { closeQuotationModal(); location.reload(); }, 1500);
+                setTimeout(() => {
+                    closeQuotationModal();
+                    refreshFloatingQuotationsPanel();
+                }, 1500);
             } else {
-                showModalMessage(data.message || 'Failed to record quotation.', 'error');
+                showModalMessage(data.message || 'Failed to approve quotation.', 'error');
                 btn.disabled    = false;
-                btn.textContent = 'Record Quotation';
+                btn.textContent = 'Approve';
             }
         } catch (err) {
-            showModalMessage('Error recording quotation: ' + err.message, 'error');
+            showModalMessage('Error approving quotation: ' + err.message, 'error');
             btn.disabled    = false;
-            btn.textContent = 'Record Quotation';
+            btn.textContent = 'Approve';
         }
     }
 
@@ -629,8 +656,8 @@
         modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
 
-        // Start on Quote tab
-        qmSetTab('quote');
+        // Start on Details tab
+        qmSetTab('details');
         showModalMessage('Loading...', 'info');
 
         fetch(`/admin-dashboard/quotations/${quotationId}/details`, {
@@ -684,36 +711,6 @@
                 const modeLabel = q.service_type === 'schedule' ? 'Scheduled' : 'Book Now';
                 const baseLabel = document.getElementById('qmBaseRateLabel');
                 if (baseLabel) baseLabel.textContent = 'Base Rate · ' + (q.truck_type || 'Unit') + ' (' + modeLabel + ')';
-
-                // Mobile banner
-                const mobileBanner = document.getElementById('qmMobileBanner');
-                if (mobileBanner) {
-                    mobileBanner.style.display = q.is_mobile_booking ? 'flex' : 'none';
-                    if (q.is_mobile_booking)
-                        document.getElementById('qmSourceBookingCode').textContent = q.source_booking_code || '—';
-                }
-
-                // Truck class badge
-                const classBadge = document.getElementById('qmTruckClassBadge');
-                if (classBadge) {
-                    const classMap = {
-                        Heavy:  {bg:'#fff7ed', color:'#c2410c', border:'#fed7aa'},
-                        Medium: {bg:'#f0fdf4', color:'#15803d', border:'#bbf7d0'},
-                        Light:  {bg:'#eff6ff', color:'#1d4ed8', border:'#bfdbfe'},
-                    };
-                    const cs = classMap[q.truck_class] || classMap.Light;
-                    if (q.truck_class) {
-                        Object.assign(classBadge.style, {
-                            display: 'inline-block',
-                            background: cs.bg,
-                            color: cs.color,
-                            borderColor: cs.border
-                        });
-                        classBadge.textContent = q.truck_class + ' Duty';
-                    } else {
-                        classBadge.style.display = 'none';
-                    }
-                }
 
                 // Customer vehicle section
                 const vehSection = document.getElementById('qmCustomerVehicleSection');
@@ -772,28 +769,7 @@
                 }
 
                 // Vehicle image gallery
-                const gallery = document.getElementById('qmImageGallery');
-                const grid    = document.getElementById('qmImageGrid');
-                const noImg   = document.getElementById('qmNoImages');
-                grid.innerHTML = '';
-                gallery.style.display = 'block';
-                const imagePaths = q.vehicle_image_paths || [];
-                if (imagePaths.length === 0) {
-                    noImg.style.display = 'block';
-                } else {
-                    noImg.style.display = 'none';
-                    imagePaths.forEach(function(path) {
-                        const img = document.createElement('img');
-                        img.src = '/storage/' + path;
-                        img.title = 'Click to view full size';
-                        img.style.cssText = 'width:90px; height:70px; object-fit:cover; cursor:pointer; border:1px solid #e2e8f0; transition:opacity 0.15s;';
-                        img.onerror   = function() { this.style.display = 'none'; };
-                        img.onmouseover = function() { this.style.opacity = '0.8'; };
-                        img.onmouseout  = function() { this.style.opacity = '1'; };
-                        img.onclick   = function() { window.open(this.src, '_blank'); };
-                        grid.appendChild(img);
-                    });
-                }
+                qmRenderVehicleGallery(q.vehicle_image_paths || []);
 
                 // ── Quote tab content ────────────────────────────────────────
 
@@ -812,7 +788,25 @@
                 document.getElementById('qmDistanceFeeLabel').textContent = distanceKm >= 4
                     ? `Distance (${extraDist.toFixed(2)} km × ₱300)`
                     : `Distance (${extraDist.toFixed(2)} km — free under 4 km)`;
-                document.getElementById('qmOtherFeesRow').style.display = 'none';
+                const otherFeesRow  = document.getElementById('qmOtherFeesRow');
+                const otherFeesNote = document.getElementById('qmOtherFeesNote');
+                const additionalFee = parseFloat(q.additional_fee || 0) || 0;
+                if (additionalFee !== 0) {
+                    document.getElementById('qmOtherFees').textContent = fmt(additionalFee);
+                    otherFeesRow.style.display = 'flex';
+
+                    const log = Array.isArray(q.price_change_log) ? q.price_change_log : [];
+                    const latestReason = log.length > 0 ? (log[log.length - 1].reason || '') : '';
+                    if (latestReason) {
+                        document.getElementById('qmOtherFeesNoteText').textContent = latestReason;
+                        otherFeesNote.style.display = 'block';
+                    } else {
+                        otherFeesNote.style.display = 'none';
+                    }
+                } else {
+                    otherFeesRow.style.display = 'none';
+                    otherFeesNote.style.display = 'none';
+                }
                 window.qmDistanceFee = distanceFee;
 
                 // Extra vehicles total — use pre-VAT base (estimated_price is VAT-inclusive, divide by 1.12)
@@ -866,9 +860,10 @@
                 }
 
                 // Pricing setup: reset adjustment, set current base
-                const suggestedHint  = document.getElementById('qmSuggestedPriceHint');
                 const adjustAmountEl = document.getElementById('qmAdjustAmount');
-                if (adjustAmountEl) adjustAmountEl.value = '';
+                if (adjustAmountEl) { adjustAmountEl.value = ''; adjustAmountEl.disabled = false; }
+                document.getElementById('qmSignAdd')?.removeAttribute('disabled');
+                document.getElementById('qmSignDeduct')?.removeAttribute('disabled');
                 window.qmAdjustSign = '+';
                 qmSetSign('+');
 
@@ -876,7 +871,6 @@
                     // Always use the saved estimated_price as the base for further adjustments
                     window.qmCurrentBase = parseFloat(q.estimated_price || 0);
                     document.getElementById('qmCurrentPriceDisplay').textContent = fmt(window.qmCurrentBase);
-                    if (suggestedHint) suggestedHint.textContent = '';
                 } else {
                     // pending — use stored booking total to avoid rounding drift from distance precision
                     const bookingTotal = parseFloat(q.booking_final_total || 0);
@@ -885,7 +879,6 @@
                     const suggested    = bookingTotal > 0 ? bookingTotal : computed;
                     window.qmCurrentBase = suggested;
                     document.getElementById('qmCurrentPriceDisplay').textContent = fmt(suggested);
-                    if (suggestedHint) suggestedHint.textContent = '(suggested: ' + fmt(suggested) + ')';
                 }
 
                 recalcQuotationTotal();
@@ -982,8 +975,6 @@
         const sendBtn   = document.getElementById('qmSendBtn');
         const updateBtn = document.getElementById('qmUpdatePriceBtn');
         const cancelBtn = document.getElementById('qmCancelQuotationBtn');
-        const noteRequired = document.getElementById('qmNoteRequiredBadge');
-        const noteOptional = document.getElementById('qmNoteOptionalBadge');
 
         const openDispatchBtn    = document.getElementById('qmOpenDispatchBtn');
         const confirmDispatchBtn = document.getElementById('qmDispatchNowBtn');
@@ -1021,14 +1012,8 @@
                 updateBtn.style.opacity  = '0.4';
                 updateBtn.style.cursor   = 'not-allowed';
             }
-            if (noteRequired) noteRequired.style.display = 'inline';
-            if (noteOptional) noteOptional.style.display = 'none';
             return;
         }
-
-        // pending / '' / draft — note is optional
-        if (noteRequired) noteRequired.style.display = 'none';
-        if (noteOptional) noteOptional.style.display = 'inline';
 
         if (status === 'draft') {
             // Draft recorded — show Send + Edit Price (Edit Price starts disabled until adjustment entered)
@@ -1056,15 +1041,13 @@
         const amt      = parseFloat(document.getElementById('qmAdjustAmount')?.value || 0) || 0;
         const sign     = (window.qmAdjustSign === '+') ? 1 : -1;
         const newTotal = Math.max(0, (window.qmCurrentBase || 0) + sign * amt);
-        const vatEl      = document.getElementById('qmVatAmount');
-        const subtotalEl = document.getElementById('qmSubtotalAmount');
-        const vatAmt   = Math.round(newTotal * 0.12 / 1.12 * 100) / 100;
-        const subtotal = Math.round((newTotal - vatAmt) * 100) / 100;
         document.getElementById('qmCalculatedPrice').textContent = fmt(newTotal);
-        const totalEl = document.getElementById('qmTotalAmount');
-        if (totalEl) totalEl.textContent = fmt(newTotal);
-        if (vatEl) vatEl.textContent = fmt(vatAmt);
-        if (subtotalEl) subtotalEl.textContent = fmt(subtotal);
+
+        // Price Breakdown (Base Rate / Subtotal / VAT / Total) stays fixed — only New Total updates.
+
+        // Note/Reason is only required once an adjustment amount is entered
+        const noteRequiredHint = document.getElementById('qmNoteRequiredHint');
+        if (noteRequiredHint) noteRequiredHint.style.display = amt !== 0 ? 'inline' : 'none';
 
         // Enable Update/Edit Price button only when there is an actual adjustment
         const updateBtn = document.getElementById('qmUpdatePriceBtn');
@@ -1226,7 +1209,11 @@
         .then(data => {
             if (data.success) {
                 showModalMessage('Dispatched! The team leader can now accept the task.', 'success');
-                setTimeout(function() { closeQuotationModal(); location.reload(); }, 1500);
+                setTimeout(function() {
+                    closeQuotationModal();
+                    qmRemoveIncomingCard(bookingCode);
+                    refreshFloatingQuotationsPanel();
+                }, 1500);
             } else {
                 showModalMessage(data.message || 'Dispatch failed.', 'error');
                 if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Dispatch'; }
@@ -1250,6 +1237,16 @@
         if (indicator) indicator.style.display = 'none';
     }
 
+    // Best-effort removal of a main-queue card by booking code, for actions
+    // (dispatch, reject) that move a booking out of the incoming queue. A
+    // no-op if the booking isn't shown there (e.g. it only lived in the
+    // Floating Quotations panel), so it's always safe to call.
+    function qmRemoveIncomingCard(bookingCode) {
+        if (!bookingCode) return;
+        const card = document.querySelector('.incoming-card[data-ref="' + bookingCode + '"]');
+        if (card) card.remove();
+    }
+
     // ── Update / Revise price ────────────────────────────────────────────────
     function updateQuotationPrice() {
         if (!currentQuotationId) return;
@@ -1263,8 +1260,8 @@
         const newPrice      = Math.max(0, (window.qmCurrentBase || 0) + adjustSign * adjustAmt);
         const otherFees     = adjustSign * adjustAmt;
 
-        // Require note when sent/negotiating or when adjustment > 0
-        if ((isSentState || adjustAmt > 0) && !note) {
+        // Note is only required when an adjustment is actually being made
+        if (adjustAmt !== 0 && !note) {
             if (noteError) noteError.style.display = 'block';
             document.getElementById('qmPriceNote').focus();
             return;
@@ -1299,7 +1296,7 @@
                     showModalMessage(data.message || 'Price updated', 'success');
                     setTimeout(() => {
                         closeQuotationModal();
-                        location.reload();
+                        refreshFloatingQuotationsPanel();
                     }, 1500);
                 } else {
                     showModalMessage(data.message || 'Failed to update', 'error');
@@ -1347,11 +1344,11 @@
                         showModalMessage(data.message || 'Quotation sent to customer', 'success');
                         setTimeout(() => {
                             closeQuotationModal();
-                            location.reload();
+                            refreshFloatingQuotationsPanel();
                         }, 2000);
                     } else {
                         alert('✅ ' + (data.message || 'Quotation sent successfully!'));
-                        location.reload();
+                        refreshFloatingQuotationsPanel();
                     }
                 } else {
                     if (btn) { btn.disabled = false; btn.textContent = originalText; }
@@ -1373,8 +1370,9 @@
         if (!currentQuotationId) return;
 
         const isScheduled = qmState.serviceType === 'scheduled' || qmState.serviceType === 'schedule';
-        const btnLabel    = isScheduled ? 'Reject Booking' : 'Cancel Quotation';
-        const btn         = document.getElementById('qmCancelQuotationBtn');
+        const btnLabel     = isScheduled ? 'Reject Booking' : 'Cancel Quotation';
+        const bookingCode  = qmState.sourceBookingCode;
+        const btn          = document.getElementById('qmCancelQuotationBtn');
         btn.disabled    = true;
         btn.textContent = isScheduled ? 'Rejecting...' : 'Cancelling...';
 
@@ -1392,7 +1390,8 @@
                     showModalMessage(data.message || (isScheduled ? 'Booking rejected' : 'Quotation cancelled'), 'success');
                     setTimeout(() => {
                         closeQuotationModal();
-                        location.reload();
+                        if (isScheduled) qmRemoveIncomingCard(bookingCode);
+                        refreshFloatingQuotationsPanel();
                     }, 1500);
                 } else {
                     showModalMessage(data.message || 'Failed', 'error');

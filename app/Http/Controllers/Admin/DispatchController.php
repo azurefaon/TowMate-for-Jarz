@@ -1148,7 +1148,12 @@ class DispatchController extends Controller
         $validated = $request->validate([
             'new_price' => 'required|numeric|min:0.01',
             'additional_fee' => 'nullable|numeric',
-            'note' => 'required|string|max:1000',
+            'note' => [
+                Rule::requiredIf(fn () => (float) $request->input('additional_fee', 0) !== 0.0),
+                'nullable',
+                'string',
+                'max:1000',
+            ],
             'assigned_unit_id' => 'nullable|integer|exists:units,id',
         ]);
 
@@ -1243,9 +1248,14 @@ class DispatchController extends Controller
     {
         $validated = $request->validate([
             'price'            => 'required|numeric|min:0',
-            'additional_fee'   => 'nullable|numeric|min:0',
+            'additional_fee'   => 'nullable|numeric',
             'assigned_unit_id' => 'nullable|integer|exists:units,id',
-            'dispatcher_note'  => 'required|string|max:1000',
+            'dispatcher_note'  => [
+                Rule::requiredIf(fn () => (float) $request->input('additional_fee', 0) !== 0.0),
+                'nullable',
+                'string',
+                'max:1000',
+            ],
             'distance_km'      => 'nullable|numeric|min:0.01|max:10000',
         ]);
 
