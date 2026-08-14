@@ -1126,6 +1126,7 @@
                                     data-final-total="{{ $booking->final_total ?? 0 }}"
                                     data-job-code="{{ $booking->job_code ?? '—' }}"
                                     data-payment-method="{{ $booking->payment_method ?? '' }}"
+                                    data-cash-received="{{ $booking->cash_received ?? '' }}"
                                     data-payment-method-label="{{ $cj_paymentMethodLabel }}"
                                     data-payment-status-label="{{ $cj_paymentStatusLabel }}"
                                     data-payment-proof-url="{{ json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p), (array) $booking->payment_proof_path)) : []) }}"
@@ -2031,14 +2032,13 @@
                                     </div>
                                     <div id="cjCashRow"
                                         style="display:none;border-top:1px solid #f1f5f9;padding:10px 14px;">
-                                        <label for="cjCashReceived"
-                                            style="display:block;font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:4px;">
-                                            Cash Received (&#8369;)</label>
-                                        <input type="number" id="cjCashReceived" step="0.01" min="0"
-                                            placeholder="0.00"
-                                            style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;font-size:.9rem;box-sizing:border-box;">
+                                        <div
+                                            style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
+                                            Cash Received (&#8369;)</div>
+                                        <div id="cjCashReceivedDisplay" style="font-size:.88rem;color:#0f172a;">—
+                                        </div>
                                         <p id="cjCashHint" style="margin:4px 0 0;font-size:.68rem;color:#94a3b8;">
-                                            Must be at least the final total.</p>
+                                            Reported by the Team Leader on task completion.</p>
                                     </div>
                                     <div id="cjProofRow"
                                         style="display:none;border-top:1px solid #f1f5f9;padding:12px 14px;">
@@ -2578,7 +2578,6 @@
             var _pendingCard = null;
             var _pendingFinalTotal = 0;
             var _pendingIsCash = false;
-            var cashInput = document.getElementById('cjCashReceived');
 
             function fmt(n) {
                 var v = parseFloat(n) || 0;
@@ -2649,12 +2648,7 @@
 
                 _pendingFinalTotal = finalTotal;
                 _pendingIsCash = !ds.paymentMethod || ds.paymentMethod === 'cash';
-                if (cashInput) cashInput.value = '';
-                var cashHint = document.getElementById('cjCashHint');
-                if (cashHint) {
-                    cashHint.textContent = 'Must be at least ' + fmt(finalTotal) + '.';
-                    cashHint.style.color = '#94a3b8';
-                }
+                setText('cjCashReceivedDisplay', ds.cashReceived ? fmt(ds.cashReceived) : '—');
                 if (_pendingIsCash) {
                     show('cjCashRow');
                 } else {
@@ -2713,27 +2707,10 @@
 
                 modal.hidden = false;
                 modal.style.display = 'flex';
-                okBtn.disabled = _pendingIsCash;
+                okBtn.disabled = false;
                 okBtn.innerHTML =
                     'Mark as Completed';
                 okBtn.focus();
-            }
-
-            function isCashAmountValid() {
-                if (!_pendingIsCash) return true;
-                var val = cashInput ? parseFloat(cashInput.value) : NaN;
-                return !isNaN(val) && val >= _pendingFinalTotal;
-            }
-
-            if (cashInput) {
-                cashInput.addEventListener('input', function() {
-                    var valid = isCashAmountValid();
-                    okBtn.disabled = !valid;
-                    var cashHint = document.getElementById('cjCashHint');
-                    if (cashHint) {
-                        cashHint.style.color = (!valid && cashInput.value !== '') ? '#dc2626' : '#94a3b8';
-                    }
-                });
             }
 
             function closeModal() {
@@ -2772,7 +2749,6 @@
 
             okBtn.addEventListener('click', function() {
                 if (!_pendingUrl) return;
-                if (!isCashAmountValid()) return;
                 okBtn.disabled = true;
                 okBtn.innerHTML = 'Completing…';
 
@@ -2780,8 +2756,6 @@
                 var timeoutId  = setTimeout(function() { controller.abort(); }, 45000);
 
                 var pendingCard = _pendingCard;
-                var payload = _pendingIsCash ?
-                    { cash_received: cashInput ? cashInput.value : '' } : {};
 
                 fetch(_pendingUrl, {
                         method: 'POST',
@@ -2791,7 +2765,7 @@
                             'Accept': 'application/json',
                             'X-CSRF-TOKEN': CSRF,
                         },
-                        body: JSON.stringify(payload),
+                        body: JSON.stringify({}),
                     })
                     .then(function(r) {
                         clearTimeout(timeoutId);

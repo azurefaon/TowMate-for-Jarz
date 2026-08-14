@@ -32,6 +32,7 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
   bool _loading = false;
   String? _error;
   String? _selectedPayment;
+  final _cashReceivedCtrl = TextEditingController();
 
   XFile? _paymentProof;
   bool _proofUploaded = false;
@@ -50,10 +51,16 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
   bool get _needsProof =>
       _selectedPayment == 'gcash' || _selectedPayment == 'bank_transfer';
 
+  bool get _cashCovers {
+    final val = double.tryParse(_cashReceivedCtrl.text);
+    return val != null && val >= widget.task.finalTotal;
+  }
+
   bool get _canSubmit {
     if (!_hasSig) return false;
     if (_selectedPayment == null) return false;
     if (_needsProof && !_proofUploaded) return false;
+    if (_selectedPayment == 'cash' && !_cashCovers) return false;
     return true;
   }
 
@@ -65,11 +72,13 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
         setState(() => _hasSig = true);
       }
     });
+    _cashReceivedCtrl.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _sigCtrl.dispose();
+    _cashReceivedCtrl.dispose();
     super.dispose();
   }
 
@@ -199,6 +208,21 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
     }
   }
 
+  Future<void> _back() async {
+    setState(() => _loading = true);
+    final res = await TeamLeaderService.updateStatus(
+        widget.task.bookingCode, 'arrived_dropoff');
+    if (!mounted) return;
+    if (res['success'] == true) {
+      widget.onUpdate(widget.task.copyWith(status: 'arrived_dropoff'));
+    } else {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] as String? ?? 'Failed.'),
+          backgroundColor: TmColors.error));
+    }
+  }
+
   Future<void> _submit() async {
     if (!_hasSig) {
       setState(() => _error = 'Customer signature is required.');
@@ -212,13 +236,20 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
       setState(() => _error = 'Please upload payment proof.');
       return;
     }
+    if (_selectedPayment == 'cash' && !_cashCovers) {
+      setState(() => _error =
+          'Cash received must cover the final total of ₱${widget.task.finalTotal.toStringAsFixed(2)}.');
+      return;
+    }
 
     setState(() { _loading = true; _error = null; });
 
     final sigFile = await _exportSignature();
 
     final res = await TeamLeaderService.completeTask(
-        widget.task.bookingCode, sigFile, _selectedPayment!);
+        widget.task.bookingCode, sigFile, _selectedPayment!,
+        cashReceived:
+            _selectedPayment == 'cash' ? _cashReceivedCtrl.text : null);
     if (!mounted) return;
     if (res['success'] == true) {
       final data = res['data'];
@@ -270,6 +301,12 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
                 sublabel: _proofUploaded ? 'Uploaded' : 'Upload below',
                 checked: _proofUploaded,
               ),
+            if (_selectedPayment == 'cash')
+              TlChecklistItem(
+                label: 'Cash received',
+                sublabel: _cashCovers ? 'Confirmed' : 'Enter amount below',
+                checked: _cashCovers,
+              ),
             const SizedBox(height: 24),
 
             // ── Payment method ──────────────────────────────────────
@@ -286,6 +323,8 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
                       if (option.value == 'cash') {
                         _paymentProof = null;
                         _proofUploaded = false;
+                      } else {
+                        _cashReceivedCtrl.clear();
                       }
                     }),
                     child: Container(
@@ -331,6 +370,47 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
                 );
               }).toList(),
             ),
+
+            // ── Cash received amount ────────────────────────────────
+            if (_selectedPayment == 'cash') ...[
+              const SizedBox(height: 20),
+              Text('Cash Received (₱)',
+                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 13)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _cashReceivedCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: '0.00',
+                  hintStyle: GoogleFonts.inter(color: TmColors.grey500, fontSize: 15),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: TmColors.grey300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: TmColors.grey300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: TmColors.yellow, width: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Must be at least ₱${widget.task.finalTotal.toStringAsFixed(2)}.',
+                style: GoogleFonts.inter(
+                  color: (_cashReceivedCtrl.text.isNotEmpty && !_cashCovers)
+                      ? TmColors.error
+                      : TmColors.grey500,
+                  fontSize: 11,
+                ),
+              ),
+            ],
 
             // ── Optional cash proof ─────────────────────────────────
             if (_selectedPayment == 'cash') ...[
@@ -531,9 +611,31 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
                       ),
               ),
             ),
+            const SizedBox(height: 12),
+            _outlineBtn('Back', Icons.arrow_back_rounded, _loading ? null : _back),
             const SizedBox(height: 40),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _outlineBtn(String label, IconData icon, VoidCallback? onTap) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: TmColors.grey300),
+          shape: const StadiumBorder(),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: TmColors.grey700, size: 18),
+          const SizedBox(width: 8),
+          Text(label,
+              style: GoogleFonts.inter(color: TmColors.grey700, fontSize: 14)),
+        ]),
       ),
     );
   }

@@ -53,6 +53,7 @@
                     data-dropoff="{{ $dropoff }}"
                     data-vehicle-images="{{ e(json_encode($vehicleImgs)) }}"
                     data-payment-method="{{ $job->payment_method ?? '' }}"
+                    data-cash-received="{{ $job->cash_received ?? '' }}"
                     data-payment-proof="{{ e(json_encode($job->payment_proof_path ? array_values(array_map(fn($p) => asset('storage/' . $p), (array) $job->payment_proof_path)) : [])) }}"
                     data-payment-submitted-at="{{ $job->payment_submitted_at ? $job->payment_submitted_at->format('M d, Y g:i A') : '' }}">
 
@@ -219,12 +220,12 @@
                                 style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
                         </div>
                         <div id="jobCashRow" style="display:none;margin-top:10px;">
-                            <label for="jobCashReceived"
-                                style="display:block;font-size:.68rem;text-transform:uppercase;color:#000000;margin-bottom:4px;">
-                                Cash Received (&#8369;)</label>
-                            <input type="number" id="jobCashReceived" step="0.01" min="0" placeholder="0.00"
-                                style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;font-size:.9rem;box-sizing:border-box;">
-                            <p style="margin:4px 0 0;font-size:.7rem;color:#94a3b8;">Must be at least the final total.</p>
+                            <div
+                                style="font-size:.68rem;text-transform:uppercase;color:#000000;margin-bottom:4px;">
+                                Cash Received (&#8369;)</div>
+                            <div id="jobCashReceivedDisplay" class="detail-value">—</div>
+                            <p style="margin:4px 0 0;font-size:.7rem;color:#94a3b8;">Reported by the Team Leader on
+                                task completion.</p>
                         </div>
                     </div>
 

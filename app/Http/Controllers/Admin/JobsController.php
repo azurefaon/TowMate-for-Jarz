@@ -50,28 +50,12 @@ class JobsController extends Controller
             ], 422);
         }
 
-        $isCashPayment = in_array($booking->payment_method, [null, '', 'cash'], true);
-        $cashReceived = null;
-
-        if ($isCashPayment) {
-            $validated = $request->validate([
-                'cash_received' => ['required', 'numeric', 'min:0'],
-            ]);
-
-            if ((float) $validated['cash_received'] < (float) $booking->final_total) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cash received must cover the final total.',
-                ], 422);
-            }
-
-            $cashReceived = $validated['cash_received'];
-        }
-
+        // cash_received (when applicable) was already collected by the Team Leader
+        // at task-completion time (TLTaskController::complete()) — nothing to
+        // validate or overwrite here, just confirm and complete.
         $booking->update([
-            'status'        => 'completed',
-            'completed_at'  => now(),
-            'cash_received' => $cashReceived,
+            'status'       => 'completed',
+            'completed_at' => now(),
         ]);
 
         $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
@@ -82,7 +66,7 @@ class JobsController extends Controller
             'entity_type' => 'Booking',
             'entity_id'   => $booking->id,
             'reference'   => $booking->job_code,
-            'description' => 'Job completed' . ($cashReceived !== null ? ' — cash received ₱' . number_format((float) $cashReceived, 2) : ''),
+            'description' => 'Job completed' . ($booking->cash_received !== null ? ' — cash received ₱' . number_format((float) $booking->cash_received, 2) : ''),
         ]);
 
         // Release unit and team leader

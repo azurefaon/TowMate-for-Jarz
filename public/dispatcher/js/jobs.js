@@ -11,22 +11,14 @@ document.addEventListener("DOMContentLoaded", function () {
     const totalSection         = document.getElementById("totalSection");
     const vehicleImagesSection = document.getElementById("vehicleImagesSection");
     const vehicleImagesContainer = document.getElementById("vehicleImagesContainer");
-    const jobCashRow      = document.getElementById("jobCashRow");
-    const jobCashReceived = document.getElementById("jobCashReceived");
+    const jobCashRow        = document.getElementById("jobCashRow");
+    const jobCashReceivedEl = document.getElementById("jobCashReceivedDisplay");
 
     const csrfToken =
         document.querySelector(".jobs-page")?.dataset.csrf ??
         document.querySelector('meta[name="csrf-token"]')?.content ?? "";
 
     let currentConfirmUrl = null;
-    let currentIsCash     = false;
-    let currentFinalTotal = 0;
-
-    const isCashAmountValid = () => {
-        if (!currentIsCash) return true;
-        const val = jobCashReceived ? parseFloat(jobCashReceived.value) : NaN;
-        return !isNaN(val) && val >= currentFinalTotal;
-    };
 
     const fillField = (id, value) => {
         const el = document.getElementById(id);
@@ -128,13 +120,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Confirm Payment button — only for payment_submitted
         currentConfirmUrl = isPaymentSent ? (row.dataset.confirmUrl ?? null) : null;
-        currentIsCash     = !row.dataset.paymentMethod || row.dataset.paymentMethod === "cash";
-        currentFinalTotal = parseFloat(row.dataset.total || "0") || 0;
-        if (jobCashReceived) jobCashReceived.value = "";
-        if (jobCashRow) jobCashRow.style.display = isPaymentSent && currentIsCash ? "" : "none";
+        const isCash = !row.dataset.paymentMethod || row.dataset.paymentMethod === "cash";
+        if (jobCashReceivedEl) {
+            jobCashReceivedEl.textContent = row.dataset.cashReceived ? "₱" + row.dataset.cashReceived : "—";
+        }
+        if (jobCashRow) jobCashRow.style.display = isPaymentSent && isCash ? "" : "none";
         if (confirmPaymentBtn) {
             confirmPaymentBtn.style.display = isPaymentSent ? "" : "none";
-            confirmPaymentBtn.disabled      = isPaymentSent && currentIsCash ? !isCashAmountValid() : false;
+            confirmPaymentBtn.disabled      = false;
             confirmPaymentBtn.classList.remove("is-confirmed");
             const span = confirmPaymentBtn.querySelector("span");
             if (span) span.textContent = "Confirm Payment";
@@ -167,21 +160,12 @@ document.addEventListener("DOMContentLoaded", function () {
         if (e.key === "Escape" && modal?.classList.contains("active")) closeModal();
     });
 
-    jobCashReceived?.addEventListener("input", () => {
-        if (confirmPaymentBtn) confirmPaymentBtn.disabled = !isCashAmountValid();
-    });
-
     confirmPaymentBtn?.addEventListener("click", async function () {
         if (!currentConfirmUrl || confirmPaymentBtn.disabled) return;
-        if (!isCashAmountValid()) return;
 
         confirmPaymentBtn.disabled = true;
         const span = confirmPaymentBtn.querySelector("span");
         if (span) span.textContent = "Confirming…";
-
-        const payload = currentIsCash
-            ? { cash_received: jobCashReceived ? jobCashReceived.value : "" }
-            : {};
 
         try {
             const res  = await fetch(currentConfirmUrl, {
@@ -191,7 +175,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     "X-CSRF-TOKEN": csrfToken,
                     Accept: "application/json",
                 },
-                body: JSON.stringify(payload),
+                body: JSON.stringify({}),
             });
             const data = await res.json();
 

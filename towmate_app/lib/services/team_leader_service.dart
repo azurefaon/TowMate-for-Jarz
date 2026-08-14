@@ -201,8 +201,9 @@ class TeamLeaderService {
   static Future<Map<String, dynamic>> completeTask(
     String bookingCode,
     File? signature,
-    String paymentMethod,
-  ) async {
+    String paymentMethod, {
+    String? cashReceived,
+  }) async {
     try {
       final token = await ApiService.getToken();
       final req =
@@ -210,6 +211,10 @@ class TeamLeaderService {
             ..headers['Authorization'] = 'Bearer $token'
             ..headers['Accept'] = 'application/json'
             ..fields['payment_method'] = paymentMethod;
+
+      if (cashReceived != null) {
+        req.fields['cash_received'] = cashReceived;
+      }
 
       if (signature != null) {
         req.files.add(

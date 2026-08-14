@@ -294,6 +294,7 @@ class TLTaskController extends Controller
         $validated = $request->validate([
             'signature'      => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
             'payment_method' => 'required|string|in:cash,gcash,bank_transfer',
+            'cash_received'  => ['required_if:payment_method,cash', 'nullable', 'numeric', 'min:0'],
         ]);
 
         if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
@@ -305,6 +306,13 @@ class TLTaskController extends Controller
             return response()->json(['success' => false, 'message' => 'Task is already in a terminal state.'], 422);
         }
 
+        if ($validated['payment_method'] === 'cash' && (float) $validated['cash_received'] < (float) $booking->final_total) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cash received must cover the final total.',
+            ], 422);
+        }
+
         // Set to waiting_verification so the dispatcher can confirm payment and send the receipt email.
         $updates = [
             'status'                       => 'waiting_verification',
@@ -312,6 +320,10 @@ class TLTaskController extends Controller
             'customer_verification_status' => 'verified',
             'payment_method'               => $validated['payment_method'],
         ];
+
+        if ($validated['payment_method'] === 'cash') {
+            $updates['cash_received'] = $validated['cash_received'];
+        }
 
         if ($request->hasFile('signature')) {
             $updates['customer_signature_path'] = $request->file('signature')->store('signatures', 'public');
