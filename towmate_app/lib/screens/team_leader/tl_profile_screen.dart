@@ -15,6 +15,8 @@ class TlProfileScreen extends StatefulWidget {
 class _TlProfileScreenState extends State<TlProfileScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String? _name;
+  String? _firstName;
+  String? _lastName;
   String? _email;
   String? _phone;
   bool _loading = true;
@@ -26,12 +28,17 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
   }
 
   Future<void> _load() async {
+    await ApiService.fetchAndCacheProfile();
     final name = await ApiService.getUserName();
+    final firstName = await ApiService.getUserFirstName();
+    final lastName = await ApiService.getUserLastName();
     final email = await ApiService.getUserEmail();
     final phone = await ApiService.getUserPhone();
     if (!mounted) return;
     setState(() {
       _name = name;
+      _firstName = firstName;
+      _lastName = lastName;
       _email = email;
       _phone = phone;
       _loading = false;
@@ -59,20 +66,37 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
   }
 
   Future<void> _editName() async {
-    final controller = TextEditingController(text: _name);
-    final result = await showDialog<String>(
+    final firstCtrl = TextEditingController(text: _firstName);
+    final lastCtrl = TextEditingController(text: _lastName);
+    final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: TmColors.white,
         title: Text('Edit Name', style: GoogleFonts.inter(color: TmColors.black, fontSize: 16)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
-          decoration: const InputDecoration(
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.black)),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: firstCtrl,
+              autofocus: true,
+              style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
+              decoration: const InputDecoration(
+                hintText: 'First name',
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.black)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: lastCtrl,
+              style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
+              decoration: const InputDecoration(
+                hintText: 'Last name',
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.black)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -80,18 +104,27 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
             child: Text('Cancel', style: GoogleFonts.inter(color: TmColors.black, fontSize: 14)),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            onPressed: () => Navigator.pop(ctx, true),
             child: Text('Save', style: GoogleFonts.inter(color: TmColors.black, fontWeight: FontWeight.w600, fontSize: 14)),
           ),
         ],
       ),
     );
 
-    if (result == null || result.isEmpty || result == _name) return;
-    final res = await ApiService.updateProfile(name: result);
+    if (result != true) return;
+    final first = firstCtrl.text.trim();
+    final last = lastCtrl.text.trim();
+    if (first.isEmpty || last.isEmpty) return;
+    if (first == _firstName && last == _lastName) return;
+
+    final res = await ApiService.updateProfile(firstName: first, lastName: last, phone: _phone);
     if (!mounted) return;
     if (res['success'] == true) {
-      setState(() => _name = result);
+      setState(() {
+        _firstName = first;
+        _lastName = last;
+        _name = '$first $last';
+      });
       _snack('Name updated.');
     } else {
       _snack(res['message'] as String? ?? 'Failed to update name.');
@@ -129,7 +162,11 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
     );
 
     if (result == null || result.isEmpty || result == _phone) return;
-    final res = await ApiService.updateProfile(name: _name ?? '', phone: result);
+    final res = await ApiService.updateProfile(
+      firstName: _firstName ?? '',
+      lastName: _lastName ?? '',
+      phone: result,
+    );
     if (!mounted) return;
     if (res['success'] == true) {
       setState(() => _phone = result);

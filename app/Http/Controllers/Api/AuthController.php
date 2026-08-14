@@ -179,6 +179,8 @@ class AuthController extends Controller
             'data'    => [
                 'id'         => $user->id,
                 'name'       => $user->name,
+                'first_name' => $user->first_name,
+                'last_name'  => $user->last_name,
                 'email'      => $user->email,
                 'phone'      => $user->phone,
                 'role'       => $user->role?->name ?? 'Customer',
@@ -192,8 +194,9 @@ class AuthController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-            'name'  => 'required|string|max:255',
-            'phone' => [
+            'first_name' => 'required|string|max:100',
+            'last_name'  => 'required|string|max:100',
+            'phone'      => [
                 'nullable',
                 'string',
                 'max:20',
@@ -201,21 +204,31 @@ class AuthController extends Controller
             ],
         ]);
 
-        $user->name = $validated['name'];
+        $user->first_name = $validated['first_name'];
+        $user->last_name  = $validated['last_name'];
         if (array_key_exists('phone', $validated)) {
             $user->phone = $validated['phone'];
         }
         $user->save();
 
         $customer = Customer::where('user_id', $user->id)->first();
-        if ($customer && array_key_exists('phone', $validated)) {
-            $customer->phone = $validated['phone'];
+        if ($customer) {
+            $customer->first_name = $validated['first_name'];
+            $customer->last_name  = $validated['last_name'];
+            if (array_key_exists('phone', $validated)) {
+                $customer->phone = $validated['phone'];
+            }
             $customer->save();
         }
 
         return response()->json([
             'success' => true,
-            'data'    => ['name' => $user->name, 'phone' => $user->phone],
+            'data'    => [
+                'name'       => $user->name,
+                'first_name' => $user->first_name,
+                'last_name'  => $user->last_name,
+                'phone'      => $user->phone,
+            ],
         ]);
     }
 

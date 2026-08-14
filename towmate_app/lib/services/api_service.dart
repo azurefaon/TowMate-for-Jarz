@@ -120,6 +120,16 @@ class ApiService {
     return prefs.getString('user_name');
   }
 
+  static Future<String?> getUserFirstName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('user_first_name');
+  }
+
+  static Future<String?> getUserLastName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('user_last_name');
+  }
+
   static Future<String?> getUserDutyClass() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('duty_class');
@@ -147,7 +157,8 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> updateProfile({
-    required String name,
+    required String firstName,
+    required String lastName,
     String? phone,
   }) async {
     try {
@@ -156,14 +167,23 @@ class ApiService {
           .post(
             Uri.parse('$baseUrl/v1/profile/update'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
-            body: jsonEncode({'name': name, if (phone != null) 'phone': phone}),
+            body: jsonEncode({
+              'first_name': firstName,
+              'last_name': lastName,
+              if (phone != null) 'phone': phone,
+            }),
           )
           .timeout(const Duration(seconds: 15));
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode == 200 && body['success'] == true) {
+        final data = body['data'] as Map<String, dynamic>?;
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_name', name);
+        await prefs.setString('user_first_name', firstName);
+        await prefs.setString('user_last_name', lastName);
+        if (data?['name'] != null) {
+          await prefs.setString('user_name', data!['name'] as String);
+        }
         if (phone != null) {
           await _secure.write(key: 'user_phone', value: phone);
         }
@@ -425,6 +445,12 @@ class ApiService {
           final prefs = await SharedPreferences.getInstance();
           if (data['name'] != null) {
             await prefs.setString('user_name', data['name'] as String);
+          }
+          if (data['first_name'] != null) {
+            await prefs.setString('user_first_name', data['first_name'] as String);
+          }
+          if (data['last_name'] != null) {
+            await prefs.setString('user_last_name', data['last_name'] as String);
           }
           if (data['email'] != null) {
             await _secure.write(

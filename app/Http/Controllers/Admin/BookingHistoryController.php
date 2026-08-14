@@ -20,9 +20,9 @@ class BookingHistoryController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('booking_code', 'like', "%{$search}%")
+                    $q->where('booking_code', 'ilike', "%{$search}%")
                         ->orWhereHas('customer', function ($cq) use ($search) {
-                            $cq->where('full_name', 'like', "%{$search}%");
+                            $cq->where('full_name', 'ilike', "%{$search}%");
                         });
                 });
             })
