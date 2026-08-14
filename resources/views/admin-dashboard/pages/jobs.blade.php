@@ -218,6 +218,14 @@
                             <div id="job-payment-proof-container"
                                 style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
                         </div>
+                        <div id="jobCashRow" style="display:none;margin-top:10px;">
+                            <label for="jobCashReceived"
+                                style="display:block;font-size:.68rem;text-transform:uppercase;color:#000000;margin-bottom:4px;">
+                                Cash Received (&#8369;)</label>
+                            <input type="number" id="jobCashReceived" step="0.01" min="0" placeholder="0.00"
+                                style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;font-size:.9rem;box-sizing:border-box;">
+                            <p style="margin:4px 0 0;font-size:.7rem;color:#94a3b8;">Must be at least the final total.</p>
+                        </div>
                     </div>
 
                 </div>
