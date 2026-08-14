@@ -65,7 +65,8 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
   Future<void> _testArrive() async {
     setState(() => _loading = true);
     final res = await TeamLeaderService.updateStatus(
-        widget.task.bookingCode, 'arrived_dropoff');
+        widget.task.bookingCode, 'arrived_dropoff',
+        lat: widget.task.dropoffLat, lng: widget.task.dropoffLng);
     if (!mounted) return;
     if (res['success'] == true) {
       widget.onUpdate(widget.task.copyWith(status: 'arrived_dropoff'));
@@ -92,7 +93,7 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
             _primaryBtn(
                 'Arrived at Drop-off', Icons.flag_rounded, _loading ? null : _arrive),
             const SizedBox(height: 12),
-            _testBtn('Test: Instant Arrival', _testArrive),
+            _testBtn('Demo Arrival', _testArrive),
             const SizedBox(height: 12),
             _outlineBtn('Back', Icons.arrow_back_rounded, _back),
           ],
@@ -199,12 +200,8 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
           side: BorderSide(color: Colors.orange.shade300, style: BorderStyle.solid),
           shape: const StadiumBorder(),
         ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.science_rounded, color: Colors.orange.shade700, size: 16),
-          const SizedBox(width: 8),
-          Text(label,
-              style: GoogleFonts.inter(color: Colors.orange.shade700, fontSize: 13)),
-        ]),
+        child: Text(label,
+            style: GoogleFonts.inter(color: Colors.orange.shade700, fontSize: 13)),
       ),
     );
   }

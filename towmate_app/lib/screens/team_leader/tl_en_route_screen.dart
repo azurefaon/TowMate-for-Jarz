@@ -62,7 +62,8 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
   Future<void> _testArrive() async {
     setState(() => _loading = true);
     final res = await TeamLeaderService.updateStatus(
-        widget.task.bookingCode, 'arrived_pickup');
+        widget.task.bookingCode, 'arrived_pickup',
+        lat: widget.task.pickupLat, lng: widget.task.pickupLng);
     if (!mounted) return;
     if (res['success'] == true) {
       widget.onUpdate(widget.task.copyWith(status: 'arrived_pickup'));
@@ -101,7 +102,7 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
             const SizedBox(height: 24),
             _primaryBtn('Arrived at Pickup', Icons.location_on_rounded, _arrive),
             const SizedBox(height: 12),
-            _testBtn('Test: Instant Arrival', _testArrive),
+            _testBtn('Demo Arrival', _testArrive),
             const SizedBox(height: 12),
             _outlineBtn('Back', Icons.arrow_back_rounded, _back),
             const SizedBox(height: 12),
@@ -209,12 +210,8 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
           side: BorderSide(color: Colors.orange.shade300, style: BorderStyle.solid),
           shape: const StadiumBorder(),
         ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.science_rounded, color: Colors.orange.shade700, size: 16),
-          const SizedBox(width: 8),
-          Text(label,
-              style: GoogleFonts.inter(color: Colors.orange.shade700, fontSize: 13)),
-        ]),
+        child: Text(label,
+            style: GoogleFonts.inter(color: Colors.orange.shade700, fontSize: 13)),
       ),
     );
   }
