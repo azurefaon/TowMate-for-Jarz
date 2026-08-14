@@ -89,8 +89,7 @@ class QuotationService
             'expiry_hours' => $expiryHours,
         ]);
 
-        // Mobile bookings (source_booking_id set) get in-app notification; skip email.
-        if (!$quotation->source_booking_id && $quotation->customer && $quotation->customer->email) {
+        if ($quotation->customer && $quotation->customer->email) {
             try {
                 \Illuminate\Support\Facades\Mail::to($quotation->customer->email)
                     ->send(new \App\Mail\QuotationSentMail($quotation));
@@ -245,23 +244,6 @@ class QuotationService
 
             DB::commit();
 
-            // Email deferred until after response to avoid Flutter 15s timeout
-            $bookingId = $primaryBooking->id;
-            app()->terminating(function () use ($bookingId) {
-                try {
-                    $b = \App\Models\Booking::with(['customer', 'truckType'])->find($bookingId);
-                    if ($b && $b->customer && $b->customer->email) {
-                        \Illuminate\Support\Facades\Mail::to($b->customer->email)
-                            ->send(new \App\Mail\FinalQuotationConfirmedMail($b));
-                    }
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send booking confirmation email', [
-                        'booking_id' => $bookingId,
-                        'error'      => $e->getMessage(),
-                    ]);
-                }
-            });
-
             return $primaryBooking;
         } catch (\Exception $e) {
             DB::rollBack();
@@ -303,6 +285,30 @@ class QuotationService
         $count = 0;
 
         foreach ($quotations as $quotation) {
+            if ($quotation->customer && $quotation->customer->email) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($quotation->customer->email)
+                        ->send(new \App\Mail\QuotationFollowUpMail($quotation));
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Failed to send quotation follow-up email', [
+                        'quotation_id' => $quotation->id,
+                        'customer_email' => $quotation->customer->email,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            if ($quotation->customer && $quotation->customer->user_id) {
+                $bookingCode = $quotation->sourceBooking?->booking_code;
+                CustomerNotificationService::send(
+                    userId: $quotation->customer->user_id,
+                    type: 'quotation_followup',
+                    title: 'Your quotation is still waiting',
+                    body: 'You have a pending quotation that needs your response. Tap to review it.',
+                    bookingCode: $bookingCode,
+                );
+            }
+
             $quotation->update(['follow_up_sent_at' => now()]);
             $count++;
         }
@@ -314,13 +320,51 @@ class QuotationService
     {
         $followUpDate = now()->subDays(5);
 
-        return Quotation::where('status', 'sent')
+        return Quotation::whereIn('status', ['sent', 'negotiating'])
             ->where('sent_at', '<=', $followUpDate)
             ->whereNull('responded_at')
             ->whereNull('follow_up_sent_at')
             ->where('expires_at', '>', now())
-            ->with(['customer', 'truckType'])
+            ->with(['customer', 'truckType', 'sourceBooking'])
             ->get();
+    }
+
+    public function expireOldQuotations(): int
+    {
+        $quotations = Quotation::whereIn('status', ['sent', 'negotiating'])
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '<=', now())
+            ->with(['sourceBooking', 'customer'])
+            ->get();
+
+        $count = 0;
+
+        foreach ($quotations as $quotation) {
+            $quotation->update([
+                'status' => 'expired',
+            ]);
+
+            $booking = $quotation->sourceBooking;
+            if ($booking && !in_array($booking->status, ['completed', 'cancelled', 'rejected', 'confirmed', 'scheduled_confirmed'], true)) {
+                $booking->update(['status' => 'not_responding']);
+                BookingStatusUpdated::safeFire($booking->fresh(['customer', 'truckType']));
+            }
+
+            if ($quotation->customer && $quotation->customer->user_id) {
+                $bookingCode = $booking?->booking_code;
+                CustomerNotificationService::send(
+                    userId: $quotation->customer->user_id,
+                    type: 'quotation_expired',
+                    title: 'Your quotation has expired',
+                    body: 'You did not respond in time, so this quotation request has closed.',
+                    bookingCode: $bookingCode,
+                );
+            }
+
+            $count++;
+        }
+
+        return $count;
     }
 
     public function updateQuotationPrice(Quotation $quotation, float $newPrice): Quotation

@@ -8,16 +8,12 @@ import '../../services/team_leader_service.dart';
 import '../../services/location_tracker.dart';
 import '../../widgets/tl_drawer.dart';
 import '../../widgets/tl_status_timeline.dart';
-import '../../widgets/tl_task_detail_card.dart';
 import 'tl_en_route_screen.dart';
 import 'tl_arrived_pickup_screen.dart';
-import 'tl_inspection_screen.dart';
-import 'tl_loading_screen.dart';
 import 'tl_transporting_screen.dart';
 import 'tl_arrived_dropoff_screen.dart';
 import 'tl_awaiting_confirm_screen.dart';
 import 'tl_completed_screen.dart';
-import 'tl_return_screen.dart';
 import 'tl_returned_screen.dart';
 import 'tl_navigate_screen.dart';
 import 'tl_task_submitted_screen.dart';
@@ -61,6 +57,9 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       TeamLeaderService.pingPresence();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      TeamLeaderService.markAway();
     }
   }
 
@@ -333,14 +332,20 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
 
   Widget _taskTab(TaskModel task) {
     return switch (task.status) {
-      'accepted' => _AcceptedView(task: task, onUpdate: onTaskUpdated),
+      'accepted' => TlEnRouteScreen(task: task, onUpdate: onTaskUpdated),
       'on_the_way' => TlEnRouteScreen(task: task, onUpdate: onTaskUpdated),
       'arrived_pickup' => TlArrivedPickupScreen(
         task: task,
         onUpdate: onTaskUpdated,
       ),
-      'in_progress' => TlInspectionScreen(task: task, onUpdate: onTaskUpdated),
-      'loading_vehicle' => TlLoadingScreen(task: task, onUpdate: onTaskUpdated),
+      'in_progress' => TlArrivedPickupScreen(
+        task: task,
+        onUpdate: onTaskUpdated,
+      ),
+      'loading_vehicle' => TlArrivedPickupScreen(
+        task: task,
+        onUpdate: onTaskUpdated,
+      ),
       'on_job' => TlTransportingScreen(task: task, onUpdate: onTaskUpdated),
       'arrived_dropoff' => TlArrivedDropoffScreen(
         task: task,
@@ -509,174 +514,17 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
 
   String _statusLabel(String status) {
     return const {
-          'accepted': 'Task Accepted',
-          'on_the_way': 'En Route',
-          'arrived_pickup': 'Arrived at Pickup',
-          'in_progress': 'Inspecting',
-          'loading_vehicle': 'Loading Vehicle',
-          'on_job': 'Transporting',
-          'arrived_dropoff': 'At Drop-off',
-          'waiting_verification': 'Awaiting Verification',
+          'accepted': 'Route',
+          'on_the_way': 'Route',
+          'arrived_pickup': 'Arrived',
+          'in_progress': 'Arrived',
+          'loading_vehicle': 'Arrived',
+          'on_job': 'Towing',
+          'arrived_dropoff': 'Dropoff',
+          'waiting_verification': 'Pending Payment',
           'completed': 'Completed',
           'returned': 'Returned',
         }[status] ??
         status;
-  }
-}
-
-// ── Accepted view (task detail + navigate button) ──────────────────────────
-
-class _AcceptedView extends StatefulWidget {
-  const _AcceptedView({required this.task, required this.onUpdate});
-  final TaskModel task;
-  final void Function(TaskModel) onUpdate;
-
-  @override
-  State<_AcceptedView> createState() => _AcceptedViewState();
-}
-
-class _AcceptedViewState extends State<_AcceptedView> {
-  bool _loading = false;
-
-  Future<void> _startNavigation() async {
-    setState(() => _loading = true);
-    final res = await TeamLeaderService.updateStatus(
-      widget.task.bookingCode,
-      'on_the_way',
-    );
-    if (!mounted) return;
-    if (res['success'] == true) {
-      widget.onUpdate(widget.task.copyWith(status: 'on_the_way'));
-    } else {
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(res['message'] as String? ?? 'Failed.'),
-          backgroundColor: TmColors.error,
-        ),
-      );
-    }
-  }
-
-  Future<void> _return() async {
-    final result = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => TlReturnScreen(task: widget.task)),
-    );
-    if (result == true && mounted) {
-      widget.onUpdate(widget.task.copyWith(status: 'returned'));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Task Details',
-              style: GoogleFonts.inter(
-                color: TmColors.black,
-                fontSize: 18,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TlTaskDetailCard(task: widget.task),
-            const SizedBox(height: 24),
-            _primaryButton(
-              label: 'Start Navigation',
-              icon: Icons.navigation_rounded,
-              loading: _loading,
-              onTap: _startNavigation,
-            ),
-            const SizedBox(height: 12),
-            _secondaryButton(
-              label: 'Return Task',
-              icon: Icons.undo_rounded,
-              onTap: _return,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _primaryButton({
-    required String label,
-    required IconData icon,
-    required bool loading,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: loading ? null : onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: TmColors.yellow,
-          foregroundColor: TmColors.black,
-          disabledBackgroundColor: TmColors.yellow.withValues(alpha: 0.6),
-          shape: const StadiumBorder(),
-          elevation: 0,
-        ),
-        child: loading
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  color: TmColors.black,
-                  strokeWidth: 2,
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: TmColors.black, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: GoogleFonts.inter(
-                      color: TmColors.black,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-              ),
-      ),
-    );
-  }
-
-  Widget _secondaryButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: TmColors.grey700,
-          side: const BorderSide(color: TmColors.grey300),
-          shape: const StadiumBorder(),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: TmColors.grey700, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: GoogleFonts.inter(color: TmColors.grey700, fontSize: 14),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

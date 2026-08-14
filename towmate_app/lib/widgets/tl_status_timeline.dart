@@ -7,21 +7,21 @@ class TlStatusTimeline extends StatelessWidget {
 
   final String currentStatus;
 
+  // Each group merges one or more raw booking statuses into a single
+  // TL-facing step, per the collapsed 6-step flow.
   static const _steps = [
-    ('accepted', 'Accepted'),
-    ('on_the_way', 'En Route'),
-    ('arrived_pickup', 'At Pickup'),
-    ('in_progress', 'Inspecting'),
-    ('loading_vehicle', 'Loading'),
-    ('on_job', 'Transporting'),
-    ('arrived_dropoff', 'At Drop-off'),
-    ('waiting_verification', 'Verifying'),
-    ('completed', 'Done'),
+    (['accepted', 'on_the_way'], 'Route'),
+    (['arrived_pickup', 'in_progress', 'loading_vehicle'], 'Arrived'),
+    (['on_job'], 'Towing'),
+    (['arrived_dropoff'], 'Dropoff'),
+    (['waiting_verification'], 'Pending Payment'),
+    (['completed'], 'Completed'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final currentIdx = _steps.indexWhere((s) => s.$1 == currentStatus);
+    final currentIdx =
+        _steps.indexWhere((s) => s.$1.contains(currentStatus));
     final stepNum = currentIdx < 0 ? 1 : currentIdx + 1;
     final total = _steps.length;
     final label = currentIdx < 0 ? '' : _steps[currentIdx].$2;

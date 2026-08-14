@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../services/api_service.dart';
+import '../../services/location_tracker.dart';
 import '../../services/team_leader_service.dart';
 import '../../widgets/tl_task_detail_card.dart';
 import '../../widgets/tl_drawer.dart';
@@ -24,6 +25,7 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   String? _dutyClass;
   Timer? _pollTimer;
   Timer? _presenceTimer;
+  final LocationTracker _gps = LocationTracker();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
@@ -37,6 +39,11 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       TeamLeaderService.pingPresence();
+      _gps.start();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      TeamLeaderService.markAway();
+      _gps.stop();
     }
   }
 
@@ -44,6 +51,7 @@ class _TlHomeScreenState extends State<TlHomeScreen>
     _name = await ApiService.getUserName();
     _dutyClass = await ApiService.getUserDutyClass();
     TeamLeaderService.pingPresence();
+    _gps.start();
     await _fetchTask();
     if (!mounted) return;
     _pollTimer = Timer.periodic(
@@ -103,6 +111,11 @@ class _TlHomeScreenState extends State<TlHomeScreen>
     if (!mounted) return;
 
     if (res['success'] == true) {
+      // Route step merges 'accepted' + 'on_the_way' — start the en-route
+      // status immediately so the TL lands directly on the Route screen.
+      // If this second hop fails, TlEnRouteScreen resumes it on first tap.
+      await TeamLeaderService.updateStatus(_task!.bookingCode, 'on_the_way');
+      if (!mounted) return;
       _pollTimer?.cancel();
       Navigator.pushReplacementNamed(context, '/tl-active-task');
     } else {
@@ -128,6 +141,7 @@ class _TlHomeScreenState extends State<TlHomeScreen>
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _presenceTimer?.cancel();
+    _gps.stop();
     super.dispose();
   }
 

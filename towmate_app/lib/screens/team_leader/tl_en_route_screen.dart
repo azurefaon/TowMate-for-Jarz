@@ -20,8 +20,27 @@ class TlEnRouteScreen extends StatefulWidget {
 class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
   bool _loading = false;
 
+  /// Resumes from either 'accepted' or 'on_the_way' (Route merges both), so
+  /// this first walks the accepted→on_the_way hop if it hasn't happened yet.
+  Future<bool> _ensureOnTheWay() async {
+    if (widget.task.status != 'accepted') return true;
+    final res = await TeamLeaderService.updateStatus(
+        widget.task.bookingCode, 'on_the_way');
+    if (!mounted) return false;
+    if (res['success'] != true) {
+      _showError(res['message'] as String? ?? 'Failed.');
+      return false;
+    }
+    widget.onUpdate(widget.task.copyWith(status: 'on_the_way'));
+    return true;
+  }
+
   Future<void> _arrive() async {
     setState(() => _loading = true);
+    if (!await _ensureOnTheWay()) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     double? lat;
     double? lng;
     try {
@@ -61,6 +80,10 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
 
   Future<void> _testArrive() async {
     setState(() => _loading = true);
+    if (!await _ensureOnTheWay()) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     final res = await TeamLeaderService.updateStatus(
         widget.task.bookingCode, 'arrived_pickup',
         lat: widget.task.pickupLat, lng: widget.task.pickupLng);

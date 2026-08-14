@@ -13,7 +13,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\BookingRequest;
 use App\Http\Requests\LandingBookingRequest;
 use App\Mail\BookingAcceptedMail;
-use App\Mail\FinalQuotationConfirmedMail;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Services\BookingService;
@@ -245,12 +244,8 @@ class BookingController extends Controller
             $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
             BookingStatusUpdated::safeFire($booking);
 
-            if (filled($booking->customer?->email)) {
-                Mail::to($booking->customer->email)->send(new FinalQuotationConfirmedMail($booking));
-            }
-
             return redirect()->to($redirectUrl)
-                ->with('success', 'Quotation accepted. The final quotation was confirmed and emailed to you.');
+                ->with('success', 'Quotation accepted. Your final quotation is confirmed.');
         }
 
         $counterOffer = $this->bookingService->parsePrice($validated['counter_offer_amount'] ?? null);
