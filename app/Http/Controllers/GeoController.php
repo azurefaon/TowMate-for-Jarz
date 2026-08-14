@@ -379,6 +379,18 @@ class GeoController extends Controller
                 ->post($this->googlePlacesAutocompleteUrl(), [
                     'input' => $query,
                     'includedRegionCodes' => ['ph'],
+                    // Without an explicit bias, Google falls back to biasing
+                    // results by the *requester's* IP address — fine for local
+                    // dev (a PH residential IP) but produces different, less
+                    // relevant results from Railway's server IP. Pin it to the
+                    // Metro Manila service area (same center dispatch.js uses)
+                    // so results are consistent regardless of server location.
+                    'locationBias' => [
+                        'circle' => [
+                            'center' => ['latitude' => 14.5995, 'longitude' => 120.9842],
+                            'radius' => 40000.0,
+                        ],
+                    ],
                 ]);
 
             if (! $response->successful()) {
