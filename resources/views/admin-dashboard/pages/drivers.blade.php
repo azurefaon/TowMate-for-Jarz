@@ -1,6 +1,6 @@
 @extends('admin-dashboard.layouts.app')
 
-@section('title', 'Units & leaders')
+@section('title', 'Units & Leaders')
 
 @section('content')
     <link rel="stylesheet" href="{{ asset('dispatcher/css/drivers.css') }}">

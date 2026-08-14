@@ -1,6 +1,6 @@
 @extends('admin-dashboard.layouts.app')
 
-@section('title', 'Dispatcher Dashboard')
+@section('title', 'Dashboard')
 
 @push('styles')
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -294,8 +294,6 @@
                                     <span>{{ $activity['updated_at_human'] }}</span>
                                 </div>
                             </div>
-
-                            <div class="activity-status available">Live</div>
                         </div>
                     @empty
                         <div class="no-activity">

@@ -1,0 +1,158 @@
+/* ── Booking History — flat, high-contrast house style ─────────────────── */
+
+.bh-page {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.bh-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.bh-tabs {
+    display: flex;
+    gap: 0;
+    border: 1px solid #111827;
+}
+
+.bh-tab {
+    padding: 8px 16px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #111827;
+    background: #ffffff;
+    text-decoration: none;
+    border-right: 1px solid #111827;
+    white-space: nowrap;
+}
+
+.bh-tab:last-child {
+    border-right: none;
+}
+
+.bh-tab.is-active {
+    background: #111827;
+    color: #facc15;
+}
+
+.bh-search {
+    display: flex;
+    gap: 0;
+    border: 1px solid #111827;
+}
+
+.bh-search input {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    border: none;
+    outline: none;
+    min-width: 220px;
+    color: #111827;
+}
+
+.bh-search button {
+    padding: 8px 16px;
+    background: #111827;
+    color: #facc15;
+    border: none;
+    border-left: 1px solid #111827;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.bh-search button:hover {
+    background: #1f2937;
+}
+
+.bh-table-wrap {
+    background: #ffffff;
+    border: 1px solid #111827;
+    overflow-x: auto;
+}
+
+.bh-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.bh-table th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #ffffff;
+    background: #111827;
+    text-align: left;
+    padding: 10px 14px;
+    white-space: nowrap;
+}
+
+.bh-table td {
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    color: #111827;
+    vertical-align: top;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.bh-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.bh-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.bh-cell-main {
+    display: block;
+    font-weight: 600;
+}
+
+.bh-cell-sub {
+    display: block;
+    font-size: 0.78rem;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+.bh-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-radius: 999px;
+    border: 1px solid #111827;
+    white-space: nowrap;
+}
+
+.bh-badge--completed {
+    background: #15803d;
+    color: #ffffff;
+}
+
+.bh-badge--cancelled {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.bh-empty {
+    padding: 60px 20px;
+    text-align: center;
+    color: #6b7280;
+}
+
+.bh-empty-icon {
+    font-size: 2rem;
+    margin-bottom: 10px;
+}
+
+.bh-pagination {
+    margin-top: 4px;
+}

@@ -36,6 +36,7 @@ use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingController;
 use App\Http\Controllers\SuperAdmin\DataProtectionController;
 use App\Http\Controllers\SuperAdmin\MonitoringController;
+use App\Http\Controllers\SuperAdmin\ReportsController;
 use App\Http\Controllers\SuperAdmin\SystemSettingsController;
 use App\Http\Controllers\SuperAdmin\TruckTypeController;
 use App\Http\Controllers\SuperAdmin\UnitController;
@@ -176,10 +177,12 @@ Route::prefix('admin-dashboard')
 
         Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])->name('booking.assign');
         Route::post('/booking/{booking}/save-draft', [DispatchController::class, 'saveQuotationDraft'])->name('booking.save-draft');
+        Route::get('/quotations/floating-panel', [DispatchController::class, 'floatingQuotationsPanel'])->name('quotations.floating-panel');
         Route::post('/booking/{booking}/service-fee', [DispatchController::class, 'applyServiceFee'])->name('booking.service-fee');
         Route::post('/booking/{booking}/mark-risk', [DispatchController::class, 'markCustomerRisk'])->name('booking.mark-risk');
         Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');
         Route::post('/jobs/{booking}/confirm-payment', [JobsController::class, 'confirmPayment'])->name('jobs.confirm-payment');
+        Route::get('/booking-history', [\App\Http\Controllers\Admin\BookingHistoryController::class, 'index'])->name('booking-history');
         Route::post('/booking/{id}/update-status', [DispatchController::class, 'updateStatus'])->name('booking.updateStatus');
 
         Route::prefix('quotations')->name('quotations.')->group(function () {
@@ -197,6 +200,8 @@ Route::prefix('superadmin')
     ->middleware(['auth', 'role:1', 'force.password.change'])
     ->group(function () {
         Route::get('/dashboard', [SuperAdminController::class, 'index'])->name('dashboard');
+        Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
+        Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
         Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
         Route::get('/monitoring/live', [MonitoringController::class, 'live'])->name('monitoring.live');
         Route::get('/protection', [DataProtectionController::class, 'index'])->name('backups.index');

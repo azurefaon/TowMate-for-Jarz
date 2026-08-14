@@ -10,10 +10,6 @@
     <div class="jobs-page" data-csrf="{{ csrf_token() }}">
 
         <div class="jobs-page-header">
-            <div>
-                <h1 class="jobs-page-title">Active Jobs</h1>
-                <p class="jobs-page-sub">Ongoing towing tasks being handled by field crews</p>
-            </div>
             <span class="jobs-count-pill">{{ $stats['total'] }} active now</span>
         </div>
 

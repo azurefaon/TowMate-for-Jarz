@@ -1,6 +1,6 @@
 @extends('admin-dashboard.layouts.app')
 
-@section('title', 'Dispatch')
+@section('title', 'Dispatch Queue')
 
 @push('styles')
     <style>
@@ -886,10 +886,6 @@
         @include('admin-dashboard.pages._quotation-modal')
 
         <div class="dp-stats-bar">
-            <div class="dp-stat">
-                <span class="dp-stat-n">{{ $queueCounts['active'] ?? 0 }}</span>
-                <span class="dp-stat-l">Active</span>
-            </div>
             <div class="dp-stat dp-stat--warn">
                 <span class="dp-stat-n">{{ $queueCounts['returned'] ?? 0 }}</span>
                 <span class="dp-stat-l">Returned</span>

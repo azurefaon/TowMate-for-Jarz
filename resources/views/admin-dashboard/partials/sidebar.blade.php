@@ -34,6 +34,11 @@
                 class="menu-item {{ request()->routeIs('admin.jobs') ? 'active' : '' }}">
                 <span>Active Jobs</span>
             </a>
+
+            <a href="{{ route('admin.booking-history') }}"
+                class="menu-item {{ request()->routeIs('admin.booking-history') ? 'active' : '' }}">
+                <span>Booking History</span>
+            </a>
         </nav>
 
         <div class="menu-label">Units</div>
