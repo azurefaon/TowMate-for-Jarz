@@ -45,6 +45,19 @@ use App\Http\Controllers\SuperAdmin\VehicleTypeController;
 
 Route::redirect('/', '/login')->name('landing');
 
+// TEMPORARY — diagnose stale config cache for Google Maps browser key.
+// Never exposes raw key values, only presence/length. Remove after diagnosis.
+Route::get('/api/debug-maps-check', function () {
+    return response()->json([
+        'env_google_maps_api_key_set'    => filled(env('GOOGLE_MAPS_API_KEY')),
+        'env_google_maps_api_key_len'    => strlen((string) env('GOOGLE_MAPS_API_KEY')),
+        'config_browser_key_set'         => filled(config('services.google_maps.browser_key')),
+        'config_browser_key_len'         => strlen((string) config('services.google_maps.browser_key')),
+        'config_cache_file_exists'       => file_exists(base_path('bootstrap/cache/config.php')),
+        'app_debug'                      => config('app.debug'),
+    ]);
+});
+
 // ── Landing page routes (archived) ───────────────────────────────────────────
 // Route::get('/book', function () { ... })->name('landing.book');
 // Route::post('/book', [CustomerBookingController::class, 'landingStore'])->name('landing.book.store');
