@@ -48,12 +48,18 @@ Route::redirect('/', '/login')->name('landing');
 // TEMPORARY — diagnose stale config cache for Google Maps browser key.
 // Never exposes raw key values, only presence/length. Remove after diagnosis.
 Route::get('/api/debug-maps-check', function () {
+    $rawFile = require config_path('services.php');
+
     return response()->json([
-        'env_google_maps_api_key_set'    => filled(env('GOOGLE_MAPS_API_KEY')),
-        'env_google_maps_api_key_len'    => strlen((string) env('GOOGLE_MAPS_API_KEY')),
-        'config_browser_key_set'         => filled(config('services.google_maps.browser_key')),
+        'getenv_raw_len'                 => strlen((string) getenv('GOOGLE_MAPS_API_KEY')),
+        'env_helper_len'                 => strlen((string) env('GOOGLE_MAPS_API_KEY')),
+        'server_superglobal_len'         => strlen((string) ($_SERVER['GOOGLE_MAPS_API_KEY'] ?? '')),
+        'env_superglobal_len'            => strlen((string) ($_ENV['GOOGLE_MAPS_API_KEY'] ?? '')),
         'config_browser_key_len'         => strlen((string) config('services.google_maps.browser_key')),
+        'config_server_key_len'          => strlen((string) config('services.google_maps.key')),
+        'fresh_file_require_browser_len' => strlen((string) ($rawFile['google_maps']['browser_key'] ?? '')),
         'config_cache_file_exists'       => file_exists(base_path('bootstrap/cache/config.php')),
+        'services_php_mtime'             => date('Y-m-d H:i:s', filemtime(config_path('services.php'))),
         'app_debug'                      => config('app.debug'),
     ]);
 });
