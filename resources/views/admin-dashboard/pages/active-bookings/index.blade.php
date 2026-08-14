@@ -106,9 +106,20 @@
             color: #166534;
         }
 
-        .status-badge.on_way {
+        .status-badge.on_the_way {
             background: #fed7aa;
             color: #92400e;
+        }
+
+        .status-badge.arrived_pickup,
+        .status-badge.arrived_dropoff {
+            background: #fde68a;
+            color: #92400e;
+        }
+
+        .status-badge.loading_vehicle {
+            background: #bfdbfe;
+            color: #1e40af;
         }
 
         .status-badge.on_job {
@@ -116,9 +127,9 @@
             color: #be185d;
         }
 
-        .status-badge.on_tow {
-            background: #fda29b;
-            color: #7c2d12;
+        .status-badge.waiting_verification {
+            background: #e9d5ff;
+            color: #6b21a8;
         }
 
         .team-leader-pill {
@@ -274,7 +285,7 @@
                 <div class="stat-value">
                     @php
                         $inProgress = $activeBookings
-                            ->filter(fn($b) => in_array($b->status, ['in_progress', 'on_way', 'on_job', 'on_tow']))
+                            ->filter(fn($b) => in_array($b->status, ['on_the_way', 'arrived_pickup', 'in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff', 'waiting_verification']))
                             ->count();
                     @endphp
                     {{ $inProgress }}
@@ -399,10 +410,13 @@
                         <option value="accepted">Accepted</option>
                         <option value="assigned">Assigned</option>
                         <option value="confirmed">Confirmed</option>
+                        <option value="on_the_way">On The Way</option>
+                        <option value="arrived_pickup">Arrived Pickup</option>
                         <option value="in_progress">In Progress</option>
-                        <option value="on_way">On Way</option>
+                        <option value="loading_vehicle">Loading Vehicle</option>
                         <option value="on_job">On Job</option>
-                        <option value="on_tow">On Tow</option>
+                        <option value="arrived_dropoff">Arrived Dropoff</option>
+                        <option value="waiting_verification">Waiting Verification</option>
                         <option value="completed">Completed</option>
                     </select>
                 </div>
