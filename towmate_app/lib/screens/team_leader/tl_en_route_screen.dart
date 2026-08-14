@@ -66,6 +66,9 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
   }
 
   Future<void> _back() async {
+    // Route is the first step — if the accepted→on_the_way auto-chain from
+    // Home hasn't completed yet, there's nothing earlier to go back to.
+    if (widget.task.status == 'accepted') return;
     setState(() => _loading = true);
     final res = await TeamLeaderService.updateStatus(
         widget.task.bookingCode, 'accepted');
