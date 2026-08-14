@@ -1,4 +1,4 @@
-/* ── Booking History — flat, high-contrast house style ─────────────────── */
+/* ── Booking History — black / yellow / white only ──────────────────────── */
 
 .bh-page {
     display: flex;
@@ -53,27 +53,15 @@
     outline: none;
     min-width: 220px;
     color: #111827;
-}
-
-.bh-search button {
-    padding: 8px 16px;
-    background: #111827;
-    color: #facc15;
-    border: none;
-    border-left: 1px solid #111827;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.bh-search button:hover {
-    background: #1f2937;
+    background: #ffffff;
 }
 
 .bh-table-wrap {
     background: #ffffff;
     border: 1px solid #111827;
     overflow-x: auto;
+    min-height: 80px;
+    position: relative;
 }
 
 .bh-table {
@@ -97,7 +85,7 @@
     font-size: 0.85rem;
     color: #111827;
     vertical-align: top;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid #111827;
 }
 
 .bh-table tbody tr:last-child td {
@@ -105,18 +93,20 @@
 }
 
 .bh-table tbody tr:hover {
-    background: #f8fafc;
+    background: #fffbea;
 }
 
 .bh-cell-main {
     display: block;
     font-weight: 600;
+    color: #111827;
 }
 
 .bh-cell-sub {
     display: block;
     font-size: 0.78rem;
-    color: #6b7280;
+    color: #111827;
+    opacity: 0.6;
     margin-top: 2px;
 }
 
@@ -133,24 +123,40 @@
 }
 
 .bh-badge--completed {
-    background: #15803d;
-    color: #ffffff;
+    background: #111827;
+    color: #facc15;
 }
 
 .bh-badge--cancelled {
-    background: #dc2626;
-    color: #ffffff;
+    background: #ffffff;
+    color: #111827;
 }
 
 .bh-empty {
     padding: 60px 20px;
     text-align: center;
-    color: #6b7280;
+    color: #111827;
 }
 
 .bh-empty-icon {
     font-size: 2rem;
     margin-bottom: 10px;
+}
+
+.bh-loading {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.bh-loading.is-active {
+    display: flex;
 }
 
 .bh-pagination {

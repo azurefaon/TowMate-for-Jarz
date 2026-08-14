@@ -10,105 +10,85 @@
     <div class="bh-page">
 
         <div class="bh-toolbar">
-            <div class="bh-tabs">
-                <a href="{{ route('admin.booking-history', array_filter(['search' => $search])) }}"
-                    class="bh-tab {{ $status === 'all' ? 'is-active' : '' }}">
+            <div class="bh-tabs" id="bhTabs">
+                <a href="#" data-status="all" class="bh-tab bh-tab-link {{ $status === 'all' ? 'is-active' : '' }}">
                     All
                 </a>
-                <a href="{{ route('admin.booking-history', array_filter(['status' => 'completed', 'search' => $search])) }}"
-                    class="bh-tab {{ $status === 'completed' ? 'is-active' : '' }}">
-                    Completed ({{ $counts['completed'] }})
+                <a href="#" data-status="completed" class="bh-tab bh-tab-link {{ $status === 'completed' ? 'is-active' : '' }}">
+                    Completed (<span id="bhCountCompleted">{{ $counts['completed'] }}</span>)
                 </a>
-                <a href="{{ route('admin.booking-history', array_filter(['status' => 'cancelled', 'search' => $search])) }}"
-                    class="bh-tab {{ $status === 'cancelled' ? 'is-active' : '' }}">
-                    Cancelled ({{ $counts['cancelled'] }})
+                <a href="#" data-status="cancelled" class="bh-tab bh-tab-link {{ $status === 'cancelled' ? 'is-active' : '' }}">
+                    Cancelled (<span id="bhCountCancelled">{{ $counts['cancelled'] }}</span>)
                 </a>
             </div>
 
-            <form action="{{ route('admin.booking-history') }}" method="GET" class="bh-search">
-                @if ($status !== 'all')
-                    <input type="hidden" name="status" value="{{ $status }}">
-                @endif
-                <input type="text" name="search" value="{{ $search }}" placeholder="Search booking # or customer">
-                <button type="submit">Search</button>
-            </form>
-        </div>
-
-        <div class="bh-table-wrap">
-            @forelse ($bookings as $booking)
-                @if ($loop->first)
-                    <table class="bh-table">
-                        <thead>
-                            <tr>
-                                <th>Booking #</th>
-                                <th>Customer</th>
-                                <th>Team Leader / Unit</th>
-                                <th>Final Total</th>
-                                <th>Cash Received</th>
-                                <th>Status</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                @endif
-
-                <tr>
-                    <td>
-                        <span class="bh-cell-main">{{ $booking->job_code }}</span>
-                    </td>
-                    <td>
-                        <span class="bh-cell-main">{{ $booking->customer->full_name ?? 'Guest' }}</span>
-                        <span class="bh-cell-sub">{{ $booking->customer->phone ?? 'N/A' }}</span>
-                    </td>
-                    <td>
-                        @if ($booking->assignedTeamLeader)
-                            <span class="bh-cell-main">{{ $booking->assignedTeamLeader->full_name ?? $booking->assignedTeamLeader->name }}</span>
-                            <span class="bh-cell-sub">{{ $booking->unit->name ?? 'No unit' }}</span>
-                        @else
-                            <span class="bh-cell-sub">Unassigned</span>
-                        @endif
-                    </td>
-                    <td>
-                        <span class="bh-cell-main">₱{{ number_format((float) $booking->final_total, 2) }}</span>
-                    </td>
-                    <td>
-                        @if ($booking->cash_received !== null)
-                            <span class="bh-cell-main">₱{{ number_format((float) $booking->cash_received, 2) }}</span>
-                        @else
-                            <span class="bh-cell-sub">—</span>
-                        @endif
-                    </td>
-                    <td>
-                        <span class="bh-badge bh-badge--{{ $booking->status }}">{{ $booking->status }}</span>
-                    </td>
-                    <td>
-                        <span class="bh-cell-main">
-                            {{ ($booking->status === 'completed' ? $booking->completed_at : $booking->updated_at)?->format('M d, Y') }}
-                        </span>
-                        <span class="bh-cell-sub">
-                            {{ ($booking->status === 'completed' ? $booking->completed_at : $booking->updated_at)?->format('h:i A') }}
-                        </span>
-                    </td>
-                </tr>
-
-                @if ($loop->last)
-                        </tbody>
-                    </table>
-                @endif
-            @empty
-                <div class="bh-empty">
-                    <div class="bh-empty-icon">🗂️</div>
-                    <strong>No booking history yet</strong>
-                    <p>Completed and cancelled bookings will appear here.</p>
-                </div>
-            @endforelse
-        </div>
-
-        @if ($bookings->hasPages())
-            <div class="bh-pagination">
-                {{ $bookings->links() }}
+            <div class="bh-search">
+                <input type="text" id="bhSearchInput" value="{{ $search }}" placeholder="Search booking # or customer">
             </div>
-        @endif
+        </div>
+
+        <div id="bhResults">
+            @include('admin-dashboard.pages.booking-history._table', ['bookings' => $bookings])
+        </div>
 
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        (function() {
+            const resultsEl = document.getElementById('bhResults');
+            const searchInput = document.getElementById('bhSearchInput');
+            const tabsEl = document.getElementById('bhTabs');
+            let currentStatus = '{{ $status }}';
+            let debounceTimer = null;
+
+            function fetchResults(page) {
+                const params = new URLSearchParams();
+                if (currentStatus !== 'all') params.set('status', currentStatus);
+                if (searchInput.value.trim() !== '') params.set('search', searchInput.value.trim());
+                if (page) params.set('page', page);
+
+                fetch('{{ route('admin.booking-history') }}?' + params.toString(), {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    })
+                    .then(r => r.text())
+                    .then(html => {
+                        resultsEl.innerHTML = html;
+                        bindPaginationLinks();
+                    })
+                    .catch(() => {});
+            }
+
+            function bindPaginationLinks() {
+                resultsEl.querySelectorAll('.bh-pagination a[href]').forEach(function(a) {
+                    a.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const url = new URL(a.href);
+                        fetchResults(url.searchParams.get('page'));
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    });
+                });
+            }
+
+            searchInput.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(function() {
+                    fetchResults();
+                }, 350);
+            });
+
+            tabsEl.querySelectorAll('.bh-tab-link').forEach(function(tab) {
+                tab.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    currentStatus = tab.dataset.status;
+                    tabsEl.querySelectorAll('.bh-tab-link').forEach(t => t.classList.remove('is-active'));
+                    tab.classList.add('is-active');
+                    fetchResults();
+                });
+            });
+
+            bindPaginationLinks();
+        })();
+    </script>
+@endpush

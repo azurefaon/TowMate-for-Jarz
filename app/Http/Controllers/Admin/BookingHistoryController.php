@@ -35,6 +35,10 @@ class BookingHistoryController extends Controller
             'cancelled' => Booking::where('status', 'cancelled')->count(),
         ];
 
+        if ($request->ajax()) {
+            return view('admin-dashboard.pages.booking-history._table', compact('bookings'));
+        }
+
         return view('admin-dashboard.pages.booking-history.index', compact('bookings', 'counts', 'status', 'search'));
     }
 }
