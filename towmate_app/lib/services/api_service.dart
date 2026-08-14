@@ -148,6 +148,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> updateProfile({
     required String name,
+    String? phone,
   }) async {
     try {
       final token = await getToken();
@@ -155,7 +156,7 @@ class ApiService {
           .post(
             Uri.parse('$baseUrl/v1/profile/update'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
-            body: jsonEncode({'name': name}),
+            body: jsonEncode({'name': name, if (phone != null) 'phone': phone}),
           )
           .timeout(const Duration(seconds: 15));
 
@@ -163,11 +164,63 @@ class ApiService {
       if (response.statusCode == 200 && body['success'] == true) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('user_name', name);
+        if (phone != null) {
+          await _secure.write(key: 'user_phone', value: phone);
+        }
         return {'success': true};
       }
       return {
         'success': false,
         'message': body['message'] ?? 'Failed to update name.',
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> requestEmailChangeOtp(String email) async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/v1/profile/email/request-otp'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': response.statusCode == 200 && body['success'] == true,
+        'message': body['message'],
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> confirmEmailChange(
+    String email,
+    String otp,
+  ) async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/v1/profile/email/confirm'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({'email': email, 'otp': otp}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 200 && body['success'] == true) {
+        await _secure.write(key: 'user_email', value: email);
+        return {'success': true};
+      }
+      return {
+        'success': false,
+        'message': body['message'] ?? 'Failed to update email.',
       };
     } catch (e) {
       return _networkError(e);

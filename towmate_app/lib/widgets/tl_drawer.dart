@@ -151,6 +151,13 @@ class TlDrawer extends StatelessWidget {
               currentRoute: currentRoute,
               onTap: () => _navigate(context, '/tl-history'),
             ),
+            _TlDrawerItem(
+              icon: Icons.person_outline_rounded,
+              label: 'Profile',
+              route: '/tl-profile',
+              currentRoute: currentRoute,
+              onTap: () => _navigate(context, '/tl-profile'),
+            ),
 
             const SizedBox(height: 8),
             Padding(

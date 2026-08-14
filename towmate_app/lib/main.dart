@@ -18,6 +18,7 @@ import 'screens/team_leader/tl_active_task_shell.dart';
 import 'screens/team_leader/tl_force_password_screen.dart';
 import 'screens/team_leader/tl_history_screen.dart';
 import 'screens/team_leader/tl_home_screen.dart';
+import 'screens/team_leader/tl_profile_screen.dart';
 import 'services/api_service.dart';
 
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
@@ -67,6 +68,7 @@ class MyApp extends StatelessWidget {
               '/tl-home'           => const TlHomeScreen(),
               '/tl-active-task'    => const TlActiveTaskShell(),
               '/tl-history'        => const TlHistoryScreen(),
+              '/tl-profile'        => const TlProfileScreen(),
               '/profile'           => const ProfileScreen(),
               '/notifications'     => const NotificationsScreen(),
               _                    => const PublicHomeScreen(),

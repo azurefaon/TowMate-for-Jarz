@@ -189,18 +189,96 @@ class AuthController extends Controller
 
     public function updateProfile(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name'  => 'required|string|max:255',
+            'phone' => [
+                'nullable',
+                'string',
+                'max:20',
+                \Illuminate\Validation\Rule::unique('users', 'phone')->ignore($user->id),
+            ],
         ]);
 
-        $user = $request->user();
         $user->name = $validated['name'];
+        if (array_key_exists('phone', $validated)) {
+            $user->phone = $validated['phone'];
+        }
         $user->save();
+
+        $customer = Customer::where('user_id', $user->id)->first();
+        if ($customer && array_key_exists('phone', $validated)) {
+            $customer->phone = $validated['phone'];
+            $customer->save();
+        }
 
         return response()->json([
             'success' => true,
-            'data'    => ['name' => $user->name],
+            'data'    => ['name' => $user->name, 'phone' => $user->phone],
         ]);
+    }
+
+    public function requestEmailChangeOtp(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+        ]);
+
+        $newEmail = strtolower(trim($validated['email']));
+
+        if ($newEmail === strtolower((string) $user->email)) {
+            return response()->json(['success' => false, 'message' => 'That is already your current email.'], 422);
+        }
+
+        $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        Cache::put('email_change_otp_' . $user->id, ['otp' => $otp, 'email' => $newEmail], now()->addMinutes(10));
+
+        try {
+            Mail::to($newEmail)->queue(new \App\Mail\EmailChangeOtpMail($otp));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Email change OTP mail failed: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to send confirmation code.'], 500);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Confirmation code sent to your new email. It expires in 10 minutes.']);
+    }
+
+    public function confirmEmailChange(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'email' => 'required|email',
+            'otp'   => 'required|string|size:6',
+        ]);
+
+        $newEmail = strtolower(trim($validated['email']));
+        $cached   = Cache::get('email_change_otp_' . $user->id);
+
+        if (! $cached || $cached['otp'] !== $validated['otp'] || $cached['email'] !== $newEmail) {
+            return response()->json(['success' => false, 'message' => 'Invalid or expired code.'], 422);
+        }
+
+        if (User::where('email', $newEmail)->where('id', '!=', $user->id)->exists()) {
+            Cache::forget('email_change_otp_' . $user->id);
+            return response()->json(['success' => false, 'message' => 'That email is already in use.'], 422);
+        }
+
+        $user->email = $newEmail;
+        $user->save();
+
+        $customer = Customer::where('user_id', $user->id)->first();
+        if ($customer) {
+            $customer->email = $newEmail;
+            $customer->save();
+        }
+
+        Cache::forget('email_change_otp_' . $user->id);
+
+        return response()->json(['success' => true, 'message' => 'Email updated successfully.', 'data' => ['email' => $user->email]]);
     }
 
     public function changePassword(Request $request): JsonResponse

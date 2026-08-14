@@ -75,6 +75,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('v1/profile',                        [AuthController::class, 'profile']);
     Route::post('v1/profile/update',               [AuthController::class, 'updateProfile']);
     Route::post('v1/profile/change-password',      [AuthController::class, 'changePassword']);
+    Route::post('v1/profile/email/request-otp',    [AuthController::class, 'requestEmailChangeOtp']);
+    Route::post('v1/profile/email/confirm',        [AuthController::class, 'confirmEmailChange']);
 
     Route::prefix('v1')->group(function () {
         // Customer-specific routes — must be defined before apiResource to avoid wildcard collisions

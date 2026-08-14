@@ -90,6 +90,171 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _editPhone() async {
+    final controller = TextEditingController(text: _phone);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.card,
+        title: Text(
+          'Edit Phone',
+          style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16, letterSpacing: -0.2),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.phone,
+          style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: 'Your phone number',
+            hintStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 15),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: Text('Save', style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result.isEmpty || result == _phone) return;
+    final res = await ApiService.updateProfile(name: _name ?? '', phone: result);
+    if (!mounted) return;
+    if (res['success'] == true) {
+      setState(() => _phone = result);
+      ScaffoldMessenger.of(context).showSnackBar(_snack('Phone updated.'));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(_snack(res['message'] ?? 'Failed to update phone.'));
+    }
+  }
+
+  Future<void> _editEmail() async {
+    final emailCtrl = TextEditingController();
+    final otpCtrl = TextEditingController();
+    bool otpSent = false;
+    bool sending = false;
+    String? error;
+
+    final newEmail = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          backgroundColor: ctx.card,
+          title: Text(
+            'Change Email',
+            style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16, letterSpacing: -0.2),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (error != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: TmColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(error!, style: GoogleFonts.inter(color: TmColors.error, fontSize: 12)),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                TextField(
+                  controller: emailCtrl,
+                  enabled: !otpSent,
+                  keyboardType: TextInputType.emailAddress,
+                  style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
+                  decoration: InputDecoration(
+                    labelText: 'New email',
+                    labelStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 13),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
+                    focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
+                  ),
+                ),
+                if (otpSent) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: otpCtrl,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
+                    decoration: InputDecoration(
+                      labelText: '6-digit code',
+                      labelStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 13),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
+                      focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: sending ? null : () => Navigator.pop(ctx),
+              child: Text('Cancel', style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14)),
+            ),
+            TextButton(
+              onPressed: sending
+                  ? null
+                  : () async {
+                      if (!otpSent) {
+                        final email = emailCtrl.text.trim();
+                        if (email.isEmpty || !email.contains('@')) {
+                          setS(() => error = 'Enter a valid email address.');
+                          return;
+                        }
+                        setS(() { sending = true; error = null; });
+                        final res = await ApiService.requestEmailChangeOtp(email);
+                        setS(() {
+                          sending = false;
+                          if (res['success'] == true) {
+                            otpSent = true;
+                          } else {
+                            error = res['message'] ?? 'Failed to send code.';
+                          }
+                        });
+                      } else {
+                        final otp = otpCtrl.text.trim();
+                        if (otp.length != 6) {
+                          setS(() => error = 'Enter the 6-digit code.');
+                          return;
+                        }
+                        setS(() { sending = true; error = null; });
+                        final res = await ApiService.confirmEmailChange(emailCtrl.text.trim(), otp);
+                        if (!ctx.mounted) return;
+                        if (res['success'] == true) {
+                          Navigator.pop(ctx, emailCtrl.text.trim());
+                        } else {
+                          setS(() { sending = false; error = res['message'] ?? 'Invalid or expired code.'; });
+                        }
+                      }
+                    },
+              child: Text(
+                sending ? 'Please wait…' : (otpSent ? 'Confirm' : 'Send Code'),
+                style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (newEmail == null || !mounted) return;
+    setState(() => _email = newEmail);
+    ScaffoldMessenger.of(context).showSnackBar(_snack('Email updated.'));
+  }
+
   Future<void> _changePassword() async {
     final currentCtrl = TextEditingController();
     final newCtrl     = TextEditingController();
@@ -283,6 +448,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 12),
                           _SettingsRow(label: 'Name', value: _name ?? '—', onTap: _editName),
+                          _SettingsRow(label: 'Email', value: _email ?? '—', onTap: _editEmail),
+                          _SettingsRow(label: 'Phone', value: _phone ?? '—', onTap: _editPhone),
                           _SettingsRow(label: 'Password', value: '••••••••', onTap: _changePassword),
 
                           // ── Appearance ──────────────────────────────────
