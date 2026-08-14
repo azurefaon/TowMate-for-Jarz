@@ -23,16 +23,30 @@ class TLTaskController extends Controller
         'waiting_verification', 'completed', 'returned',
     ];
 
+    // The two genuine "arrival claim" transitions (from → [to, lat field, lng field])
+    // that require the TL to prove via GPS they're actually at the location — see
+    // updateStatus(). Keyed by the FROM status so backward moves that happen to land
+    // back on 'arrived_pickup'/'arrived_dropoff' (e.g. 'in_progress' → 'arrived_pickup')
+    // are never mistaken for a fresh arrival claim and don't require a location check.
+    private const ARRIVAL_RADIUS_METERS = 150;
+    private const ARRIVAL_CLAIMS = [
+        'on_the_way' => ['arrived_pickup', 'pickup_lat', 'pickup_lng'],
+        'on_job'     => ['arrived_dropoff', 'dropoff_lat', 'dropoff_lng'],
+    ];
+
+    // Backward pairs let a TL undo an accidental advance by one step. They
+    // deliberately stop short of 'completed' (terminal) and never touch
+    // 'returned' (a separate task-abandonment flow, not a step-back).
     private const VALID_TRANSITIONS = [
-        'assigned'          => ['accepted'],
-        'accepted'          => ['on_the_way', 'returned'],
-        'on_the_way'        => ['arrived_pickup', 'returned'],
-        'arrived_pickup'    => ['in_progress', 'returned'],
-        'in_progress'       => ['loading_vehicle', 'returned'],
-        'loading_vehicle'   => ['on_job', 'returned'],
-        'on_job'            => ['arrived_dropoff', 'returned'],
-        'arrived_dropoff'   => ['waiting_verification', 'returned'],
-        'waiting_verification' => ['completed', 'returned'],
+        'assigned'              => ['accepted'],
+        'accepted'              => ['on_the_way', 'returned'],
+        'on_the_way'            => ['arrived_pickup', 'returned', 'accepted'],
+        'arrived_pickup'        => ['in_progress', 'returned', 'on_the_way'],
+        'in_progress'           => ['loading_vehicle', 'returned', 'arrived_pickup'],
+        'loading_vehicle'       => ['on_job', 'returned', 'in_progress'],
+        'on_job'                => ['arrived_dropoff', 'returned', 'loading_vehicle'],
+        'arrived_dropoff'       => ['waiting_verification', 'returned', 'on_job'],
+        'waiting_verification'  => ['completed', 'returned', 'arrived_dropoff'],
     ];
 
     public function current(Request $request): JsonResponse
@@ -52,6 +66,35 @@ class TLTaskController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $this->formatTask($booking),
+        ]);
+    }
+
+    public function history(Request $request): JsonResponse
+    {
+        $bookings = Booking::where('assigned_team_leader_id', $request->user()->id)
+            ->whereIn('status', ['completed', 'returned'])
+            ->with('customer')
+            ->latest('updated_at')
+            ->paginate(15);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $bookings->getCollection()->map(function (Booking $booking) {
+                return [
+                    'id'              => $booking->id,
+                    'booking_code'    => $booking->booking_code,
+                    'status'          => $booking->status,
+                    'pickup_address'  => $booking->pickup_address,
+                    'dropoff_address' => $booking->dropoff_address,
+                    'customer_name'   => $booking->customer?->full_name ?? $booking->customer?->name ?? 'Customer',
+                    'final_total'     => (float) ($booking->final_total ?? 0),
+                    'completed_at'    => $booking->status === 'completed'
+                        ? $booking->completed_at?->toIso8601String()
+                        : $booking->updated_at?->toIso8601String(),
+                ];
+            }),
+            'current_page' => $bookings->currentPage(),
+            'last_page'    => $bookings->lastPage(),
         ]);
     }
 
@@ -87,6 +130,8 @@ class TLTaskController extends Controller
     {
         $validated = $request->validate([
             'status' => 'required|string',
+            'lat'    => 'nullable|numeric|between:-90,90',
+            'lng'    => 'nullable|numeric|between:-180,180',
         ]);
 
         if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
@@ -101,6 +146,42 @@ class TLTaskController extends Controller
                 'success' => false,
                 'message' => "Cannot transition from '{$booking->status}' to '{$newStatus}'.",
             ], 422);
+        }
+
+        // Arrival claims ('arrived_pickup'/'arrived_dropoff') must be backed by GPS
+        // proximity to the relevant location. Backward corrections (e.g. going back
+        // to 'on_the_way', or 'in_progress' → 'arrived_pickup') skip this — only the
+        // two genuine forward arrival-claim transitions require a location check.
+        $arrivalClaim = self::ARRIVAL_CLAIMS[$booking->status] ?? null;
+        if ($arrivalClaim && $arrivalClaim[0] === $newStatus) {
+            [, $latField, $lngField] = $arrivalClaim;
+            $targetLat = (float) $booking->{$latField};
+            $targetLng = (float) $booking->{$lngField};
+
+            if (! isset($validated['lat'], $validated['lng'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Location is required to confirm arrival.',
+                ], 422);
+            }
+
+            $distanceMeters = $this->haversineMeters(
+                (float) $validated['lat'],
+                (float) $validated['lng'],
+                $targetLat,
+                $targetLng,
+            );
+
+            if ($distanceMeters > self::ARRIVAL_RADIUS_METERS) {
+                $distanceLabel = $distanceMeters >= 1000
+                    ? round($distanceMeters / 1000, 1) . 'km'
+                    : round($distanceMeters) . 'm';
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "You appear to be ~{$distanceLabel} from the location. Move closer and try again.",
+                ], 422);
+            }
         }
 
         $updates = ['status' => $newStatus];
@@ -204,7 +285,7 @@ class TLTaskController extends Controller
         return response()->json([
             'success' => true,
             'path'    => $path,
-            'url'     => Storage::url($path),
+            'url'     => Storage::disk('public')->url($path),
         ]);
     }
 
@@ -359,12 +440,13 @@ class TLTaskController extends Controller
             'customer_email'      => $customer?->email ?? '',
             'final_total'         => (float) ($booking->final_total ?? $booking->computed_total ?? 0),
             'vehicle_info'        => $this->vehicleInfo($booking),
-            'vehicle_image_url'   => $booking->vehicle_image_path ? Storage::url($booking->vehicle_image_path) : null,
+            'vehicle_image_url'   => !empty($booking->vehicle_image_paths)
+                ? Storage::disk('public')->url($booking->vehicle_image_paths[0]) : null,
             'notes'               => $booking->notes,
             'scheduled_date'      => $booking->scheduled_date?->toDateString(),
             'scheduled_time'      => $booking->scheduled_time,
-            'arrival_photo'       => $booking->arrival_photo_path ? Storage::url($booking->arrival_photo_path) : null,
-            'dropoff_photo'       => $booking->dropoff_photo_path ? Storage::url($booking->dropoff_photo_path) : null,
+            'arrival_photo'       => $booking->arrival_photo_path ? Storage::disk('public')->url($booking->arrival_photo_path) : null,
+            'dropoff_photo'       => $booking->dropoff_photo_path ? Storage::disk('public')->url($booking->dropoff_photo_path) : null,
             'payment_method'      => $booking->payment_method,
             'group_code'          => $groupCode,
             'group_vehicle_count' => $groupVehicleCount,
@@ -381,5 +463,22 @@ class TLTaskController extends Controller
         ]);
 
         return $parts ? implode(' ', $parts) : null;
+    }
+
+    /**
+     * Great-circle distance between two coordinates, in meters.
+     */
+    private function haversineMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadiusMeters = 6371000;
+
+        $latDelta = deg2rad($lat2 - $lat1);
+        $lngDelta = deg2rad($lng2 - $lng1);
+
+        $a = sin($latDelta / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($lngDelta / 2) ** 2;
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $earthRadiusMeters * $c;
     }
 }

@@ -122,6 +122,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('presence/offline',        [TLPresenceController::class, 'offline']);
             Route::post('presence/away',           [TLPresenceController::class, 'away']);
             Route::get('task',                    [TLTaskController::class, 'current']);
+            Route::get('history',                 [TLTaskController::class, 'history']);
             Route::post('task/{booking}/accept',   [TLTaskController::class, 'accept']);
             Route::patch('task/{booking}/status',   [TLTaskController::class, 'updateStatus']);
             Route::post('task/{booking}/return',   [TLTaskController::class, 'returnTask']);

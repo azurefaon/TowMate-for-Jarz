@@ -79,20 +79,50 @@ class TeamLeaderService {
     }
   }
 
+  static Future<Map<String, dynamic>> getHistory({int page = 1}) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$_base/history?page=$page'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        return {
+          'success': true,
+          'data': (body['data'] as List? ?? []).cast<Map<String, dynamic>>(),
+          'current_page': body['current_page'] ?? 1,
+          'last_page': body['last_page'] ?? 1,
+        };
+      }
+      return {'success': false, 'data': <Map<String, dynamic>>[]};
+    } catch (_) {
+      return {'success': false, 'data': <Map<String, dynamic>>[]};
+    }
+  }
+
   static Future<Map<String, dynamic>> acceptTask(String bookingCode) async {
     return _post('$_base/task/$bookingCode/accept');
   }
 
   static Future<Map<String, dynamic>> updateStatus(
     String bookingCode,
-    String status,
-  ) async {
+    String status, {
+    double? lat,
+    double? lng,
+  }) async {
     try {
       final response = await http
           .patch(
             Uri.parse('$_base/task/$bookingCode/status'),
             headers: await _authHeaders(),
-            body: jsonEncode({'status': status}),
+            body: jsonEncode({
+              'status': status,
+              if (lat != null) 'lat': lat,
+              if (lng != null) 'lng': lng,
+            }),
           )
           .timeout(const Duration(seconds: 15));
       return _parseResult(response);
@@ -221,16 +251,37 @@ class TeamLeaderService {
     } catch (_) {}
   }
 
+  // Lightweight presence-only signal for app backgrounding/closing — unlike
+  // goOffline(), this does not release the TL's active job/unit assignment.
+  static Future<void> markAway() async {
+    try {
+      await http
+          .post(
+            Uri.parse('$_base/presence/away'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {}
+  }
+
   // ── Location ───────────────────────────────────────────────────────────────
 
-  static Future<void> updateLocation(double lat, double lng) async {
+  static Future<void> updateLocation(
+    double lat,
+    double lng, {
+    double? accuracy,
+  }) async {
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
     try {
       await http
           .put(
             Uri.parse('$_base/location'),
             headers: await _authHeaders(),
-            body: jsonEncode({'lat': lat, 'lng': lng}),
+            body: jsonEncode({
+              'lat': lat,
+              'lng': lng,
+              if (accuracy != null) 'accuracy': accuracy,
+            }),
           )
           .timeout(const Duration(seconds: 10));
     } catch (_) {}

@@ -16,6 +16,7 @@ import 'screens/customer/services_screen.dart';
 import 'screens/customer/signup_screen.dart';
 import 'screens/team_leader/tl_active_task_shell.dart';
 import 'screens/team_leader/tl_force_password_screen.dart';
+import 'screens/team_leader/tl_history_screen.dart';
 import 'screens/team_leader/tl_home_screen.dart';
 import 'services/api_service.dart';
 
@@ -47,8 +48,10 @@ class MyApp extends StatelessWidget {
         onGenerateRoute: (settings) {
           final Widget page;
           if (settings.name == '/booking-detail') {
-            page = BookingDetailScreen(
-                bookingCode: settings.arguments as String);
+            final code = settings.arguments;
+            page = code is String && code.isNotEmpty
+                ? BookingDetailScreen(bookingCode: code)
+                : const MyBookingsScreen();
           } else {
             page = switch (settings.name) {
               '/public-home'       => const PublicHomeScreen(),
@@ -63,6 +66,7 @@ class MyApp extends StatelessWidget {
               '/tl-force-password' => const TlForcePasswordScreen(),
               '/tl-home'           => const TlHomeScreen(),
               '/tl-active-task'    => const TlActiveTaskShell(),
+              '/tl-history'        => const TlHistoryScreen(),
               '/profile'           => const ProfileScreen(),
               '/notifications'     => const NotificationsScreen(),
               _                    => const PublicHomeScreen(),
