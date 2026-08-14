@@ -268,7 +268,8 @@
                         </div>
                         <p>Manually override the unit's operational status. This will alert the assigned Team Leader and
                             remove the unit from the active dispatch queue immediately.</p>
-                        <div class="ud-override-form">
+                        <p id="udOverrideLocked" class="ud-override-locked" style="display:none;">This team leader has an active job — status will sync automatically when it's done.</p>
+                        <div class="ud-override-form" id="udOverrideForm">
                             <label for="udOverrideState">change status</label>
                             <select id="udOverrideState">
                                 <option value="available">Available</option>
@@ -463,8 +464,14 @@
 
                 if (udDriverName) udDriverName.textContent = card.dataset.modalDriverName || 'No driver assigned';
 
-                const canOverride = !!currentTlId;
-                if (udOverrideSection) udOverrideSection.style.display = canOverride ? '' : 'none';
+                const isBusy = effStatus === 'on_job';
+                const canOverride = !!currentTlId && !isBusy;
+                if (udOverrideSection) udOverrideSection.style.display = currentTlId ? '' : 'none';
+                const udOverrideForm = document.getElementById('udOverrideForm');
+                const udOverrideLocked = document.getElementById('udOverrideLocked');
+                if (udOverrideForm) udOverrideForm.style.display = canOverride ? '' : 'none';
+                if (udOverrideLocked) udOverrideLocked.style.display = (currentTlId && isBusy) ? '' : 'none';
+                if (udSaveBtn) udSaveBtn.style.display = canOverride ? '' : 'none';
                 if (udOverrideReason) udOverrideReason.value = '';
 
                 const udOverrideState = document.getElementById('udOverrideState');

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
@@ -20,6 +21,45 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
   bool _loading = false;
 
   Future<void> _arrive() async {
+    setState(() => _loading = true);
+    double? lat;
+    double? lng;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      lat = pos.latitude;
+      lng = pos.longitude;
+    } catch (_) {}
+    final res = await TeamLeaderService.updateStatus(
+        widget.task.bookingCode, 'arrived_pickup',
+        lat: lat, lng: lng);
+    if (!mounted) return;
+    if (res['success'] == true) {
+      widget.onUpdate(widget.task.copyWith(status: 'arrived_pickup'));
+    } else {
+      setState(() => _loading = false);
+      _showError(res['message'] as String? ?? 'Failed.');
+    }
+  }
+
+  Future<void> _back() async {
+    setState(() => _loading = true);
+    final res = await TeamLeaderService.updateStatus(
+        widget.task.bookingCode, 'accepted');
+    if (!mounted) return;
+    if (res['success'] == true) {
+      widget.onUpdate(widget.task.copyWith(status: 'accepted'));
+    } else {
+      setState(() => _loading = false);
+      _showError(res['message'] as String? ?? 'Failed.');
+    }
+  }
+
+  Future<void> _testArrive() async {
     setState(() => _loading = true);
     final res = await TeamLeaderService.updateStatus(
         widget.task.bookingCode, 'arrived_pickup');
@@ -60,6 +100,10 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
             TlTaskDetailCard(task: widget.task),
             const SizedBox(height: 24),
             _primaryBtn('Arrived at Pickup', Icons.location_on_rounded, _arrive),
+            const SizedBox(height: 12),
+            _testBtn('Test: Instant Arrival', _testArrive),
+            const SizedBox(height: 12),
+            _outlineBtn('Back', Icons.arrow_back_rounded, _back),
             const SizedBox(height: 12),
             _outlineBtn('Return Task', Icons.undo_rounded, _return),
           ],
@@ -150,6 +194,26 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
           const SizedBox(width: 8),
           Text(label,
               style: GoogleFonts.inter(color: TmColors.grey700, fontSize: 14)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _testBtn(String label, VoidCallback onTap) {
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: OutlinedButton(
+        onPressed: _loading ? null : onTap,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.orange.shade300, style: BorderStyle.solid),
+          shape: const StadiumBorder(),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.science_rounded, color: Colors.orange.shade700, size: 16),
+          const SizedBox(width: 8),
+          Text(label,
+              style: GoogleFonts.inter(color: Colors.orange.shade700, fontSize: 13)),
         ]),
       ),
     );

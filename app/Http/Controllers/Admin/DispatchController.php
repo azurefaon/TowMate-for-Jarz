@@ -1420,7 +1420,11 @@ class DispatchController extends Controller
                     'zone_name'           => $unit->zone?->name,
                 ];
             })
-            ->filter(fn(array $unit) => $unit['is_online'])
+            // Keep a unit on the map if it's presence+GPS online, OR it has an
+            // active job — a TL can briefly go presence-stale mid-job (e.g. app
+            // backgrounded) without losing their booking, and shouldn't vanish
+            // from live tracking while still actively working.
+            ->filter(fn(array $unit) => $unit['is_online'] || $unit['job_status'] !== null)
             ->values();
 
         return response()->json($data);

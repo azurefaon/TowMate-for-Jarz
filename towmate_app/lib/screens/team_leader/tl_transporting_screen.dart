@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../services/team_leader_service.dart';
 import '../../widgets/tl_task_detail_card.dart';
-import 'tl_return_screen.dart';
 
 class TlTransportingScreen extends StatefulWidget {
   const TlTransportingScreen(
@@ -21,8 +21,21 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
 
   Future<void> _arrive() async {
     setState(() => _loading = true);
-    final res =
-        await TeamLeaderService.updateStatus(widget.task.bookingCode, 'arrived_dropoff');
+    double? lat;
+    double? lng;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      lat = pos.latitude;
+      lng = pos.longitude;
+    } catch (_) {}
+    final res = await TeamLeaderService.updateStatus(
+        widget.task.bookingCode, 'arrived_dropoff',
+        lat: lat, lng: lng);
     if (!mounted) return;
     if (res['success'] == true) {
       widget.onUpdate(widget.task.copyWith(status: 'arrived_dropoff'));
@@ -34,13 +47,33 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
     }
   }
 
-  Future<void> _return() async {
-    final ok = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => TlReturnScreen(task: widget.task)),
-    );
-    if (ok == true && mounted) {
-      widget.onUpdate(widget.task.copyWith(status: 'returned'));
+  Future<void> _back() async {
+    setState(() => _loading = true);
+    final res = await TeamLeaderService.updateStatus(
+        widget.task.bookingCode, 'loading_vehicle');
+    if (!mounted) return;
+    if (res['success'] == true) {
+      widget.onUpdate(widget.task.copyWith(status: 'loading_vehicle'));
+    } else {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] as String? ?? 'Failed.'),
+          backgroundColor: TmColors.error));
+    }
+  }
+
+  Future<void> _testArrive() async {
+    setState(() => _loading = true);
+    final res = await TeamLeaderService.updateStatus(
+        widget.task.bookingCode, 'arrived_dropoff');
+    if (!mounted) return;
+    if (res['success'] == true) {
+      widget.onUpdate(widget.task.copyWith(status: 'arrived_dropoff'));
+    } else {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] as String? ?? 'Failed.'),
+          backgroundColor: TmColors.error));
     }
   }
 
@@ -59,7 +92,9 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
             _primaryBtn(
                 'Arrived at Drop-off', Icons.flag_rounded, _loading ? null : _arrive),
             const SizedBox(height: 12),
-            _outlineBtn('Return Task', Icons.undo_rounded, _return),
+            _testBtn('Test: Instant Arrival', _testArrive),
+            const SizedBox(height: 12),
+            _outlineBtn('Back', Icons.arrow_back_rounded, _back),
           ],
         ),
       ),
@@ -149,6 +184,26 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
           Text(label,
               style: GoogleFonts.inter(
                   color: TmColors.grey700, fontSize: 14)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _testBtn(String label, VoidCallback onTap) {
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: OutlinedButton(
+        onPressed: _loading ? null : onTap,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.orange.shade300, style: BorderStyle.solid),
+          shape: const StadiumBorder(),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.science_rounded, color: Colors.orange.shade700, size: 16),
+          const SizedBox(width: 8),
+          Text(label,
+              style: GoogleFonts.inter(color: Colors.orange.shade700, fontSize: 13)),
         ]),
       ),
     );

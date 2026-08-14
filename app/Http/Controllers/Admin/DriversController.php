@@ -166,6 +166,10 @@ class DriversController extends Controller
     {
         abort_unless((int) $teamLeader->role_id === 3, 404);
 
+        if ($this->teamLeaderAvailability->busyTeamLeaderIds()->contains((int) $teamLeader->id)) {
+            return back()->withErrors('Cannot override status while this team leader has an active job.');
+        }
+
         $validated = $request->validate([
             'operational_status' => ['required', 'in:available,busy,unavailable'],
             'unit_status'        => ['nullable', 'in:available,on_job,maintenance'],
@@ -234,6 +238,14 @@ class DriversController extends Controller
      */
     public function override(Request $request, int $teamLeaderId): RedirectResponse|JsonResponse
     {
+        if ($this->teamLeaderAvailability->busyTeamLeaderIds()->contains($teamLeaderId)) {
+            if ($request->expectsJson()) {
+                return response()->json(['errors' => 'Cannot override status while this team leader has an active job.'], 422);
+            }
+
+            return back()->withErrors('Cannot override status while this team leader has an active job.');
+        }
+
         $validated = $request->validate([
             'zone_id'         => ['nullable', 'exists:zones,id'],
             'unit_status'     => ['nullable', 'in:available,unavailable,on_tow,on_job'],
