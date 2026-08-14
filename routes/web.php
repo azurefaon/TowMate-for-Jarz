@@ -202,6 +202,7 @@ Route::prefix('superadmin')
         Route::get('/dashboard', [SuperAdminController::class, 'index'])->name('dashboard');
         Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
         Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
+        Route::get('/reports/bookings', [ReportsController::class, 'bookings'])->name('reports.bookings');
         Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
         Route::get('/monitoring/live', [MonitoringController::class, 'live'])->name('monitoring.live');
         Route::get('/protection', [DataProtectionController::class, 'index'])->name('backups.index');
