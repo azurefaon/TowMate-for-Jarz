@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../services/api_service.dart';
@@ -18,6 +19,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   bool _loading = true;
   bool _fetchError = false;
   bool _cancelling = false;
+  bool _loadingReceipt = false;
 
   static final _money = NumberFormat('#,##0.00', 'en_PH');
   static final _dateTime = DateFormat('MMM d, yyyy  h:mm a');
@@ -41,6 +43,23 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       _loading = false;
       _fetchError = result == null;
     });
+  }
+
+  Future<void> _viewReceipt() async {
+    setState(() => _loadingReceipt = true);
+    final url = await ApiService.fetchReceiptUrl(widget.bookingCode);
+    if (!mounted) return;
+    setState(() => _loadingReceipt = false);
+    if (url == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Receipt is not available yet.')),
+      );
+      return;
+    }
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   String _fmt(double? v) => v == null ? '—' : '₱${_money.format(v)}';
@@ -433,6 +452,35 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
                     : Text('Cancel Booking',
                         style: GoogleFonts.inter(fontSize: 15)),
+              ),
+            ),
+          ],
+
+          // ── Receipt button ───────────────────────────────────────────
+          if (b.status == 'completed') ...[
+            _divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              child: ElevatedButton.icon(
+                onPressed: _loadingReceipt ? null : _viewReceipt,
+                icon: _loadingReceipt
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: TmColors.black),
+                      )
+                    : const Icon(Icons.receipt_long_rounded, color: TmColors.black, size: 18),
+                label: Text(
+                  'View Receipt',
+                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: TmColors.yellow,
+                  foregroundColor: TmColors.black,
+                  minimumSize: const Size(double.infinity, 52),
+                  shape: const StadiumBorder(),
+                  elevation: 0,
+                ),
               ),
             ),
           ],

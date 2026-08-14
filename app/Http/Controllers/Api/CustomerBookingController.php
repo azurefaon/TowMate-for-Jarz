@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
 
 class CustomerBookingController extends Controller
 {
-    private const INACTIVE_STATUSES = ['completed', 'cancelled', 'rejected'];
+    private const INACTIVE_STATUSES = ['completed', 'cancelled', 'rejected', 'not_responding'];
 
     public function __construct(
         private readonly BookingService $bookingService,
@@ -138,9 +138,18 @@ class CustomerBookingController extends Controller
             'notes'                            => 'nullable|string|max:1000',
             'scheduled_date'                   => 'nullable|date|after_or_equal:today',
             'scheduled_time'                   => 'nullable|string|max:10',
-            // vehicle_images validated separately to avoid blocking booking on upload errors
+            // vehicle_images presence is enforced below (needs the raw UploadedFile
+            // instances, not $request->validate()'s file-rule handling) rather than here.
             'extra_vehicles'                   => 'nullable|string',
         ]);
+
+        $validImageFiles = collect($request->file('vehicle_images') ?? [])
+            ->filter(fn($f) => $f instanceof \Symfony\Component\HttpFoundation\File\UploadedFile && $f->isValid())
+            ->values();
+
+        if ($validImageFiles->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'At least one vehicle photo is required. Please try again.'], 422);
+        }
 
         $customer = Customer::where('user_id', $request->user()->id)->first();
 
@@ -234,22 +243,17 @@ class CustomerBookingController extends Controller
             'notes'            => $validated['notes'] ?? null,
             'scheduled_date'   => $validated['scheduled_date'] ?? null,
             'scheduled_time'   => $validated['scheduled_time'] ?? null,
+            'scheduled_expires_at' => ($validated['service_type'] ?? 'book_now') === 'schedule' ? now()->addDays(7) : null,
             'extra_vehicles'   => !empty($pricedBookNowExtras) ? $pricedBookNowExtras : null,
         ]);
 
         $booking->update(['booking_code' => 'TM-' . str_pad($booking->id, 5, '0', STR_PAD_LEFT)]);
 
-        // Store vehicle images — best-effort, never blocks booking creation
+        // Presence of at least one valid file is already guaranteed above; storing it
+        // stays best-effort so one corrupt/unprocessable image doesn't fail the booking.
         try {
-            $validFiles = collect($request->files->get('vehicle_images') ?? [])
-                ->filter(fn($f) => $f instanceof \Symfony\Component\HttpFoundation\File\UploadedFile && $f->isValid())
-                ->values()
-                ->all();
-
-            if (count($validFiles) > 0) {
-                $imagePath = $this->bookingService->storeVehicleImages($validFiles);
-                $booking->update(['vehicle_image_path' => $imagePath]);
-            }
+            $imagePath = $this->bookingService->storeVehicleImages($validImageFiles->all());
+            $booking->update(['vehicle_image_path' => $imagePath]);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('Vehicle image upload failed for booking', [
                 'booking_id' => $booking->id,
@@ -297,6 +301,7 @@ class CustomerBookingController extends Controller
                     'notes'             => $validated['notes'] ?? null,
                     'scheduled_date'    => $ev['scheduled_date'] ?? null,
                     'scheduled_time'    => $ev['scheduled_time'] ?? null,
+                    'scheduled_expires_at' => now()->addDays(7),
                     'group_code'        => $groupCode,
                 ]);
                 $sibling->update(['booking_code' => 'TM-' . str_pad($sibling->id, 5, '0', STR_PAD_LEFT)]);
@@ -417,12 +422,39 @@ class CustomerBookingController extends Controller
                 'team_leader_name'  => $teamLeaderName,
                 'driver_name'       => $driverName,
                 'arrival_photo_url' => $booking->arrival_photo_path
-                    ? \Illuminate\Support\Facades\Storage::url($booking->arrival_photo_path) : null,
+                    ? \Illuminate\Support\Facades\Storage::disk('public')->url($booking->arrival_photo_path) : null,
                 'dropoff_photo_url' => $booking->dropoff_photo_path
-                    ? \Illuminate\Support\Facades\Storage::url($booking->dropoff_photo_path) : null,
+                    ? \Illuminate\Support\Facades\Storage::disk('public')->url($booking->dropoff_photo_path) : null,
                 'created_at'        => $booking->created_at?->toDateTimeString(),
                 'completed_at'      => $booking->completed_at?->toDateTimeString(),
                 'price_change_log'  => $priceChangeLog,
+            ],
+        ]);
+    }
+
+    public function receipt(string $code): JsonResponse
+    {
+        $customer = Customer::where('user_id', auth()->id())->first();
+
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Customer not found.'], 404);
+        }
+
+        $booking = Booking::where('booking_code', $code)
+            ->where('customer_id', $customer->id)
+            ->with('receipt')
+            ->first();
+
+        if (!$booking || $booking->status !== 'completed' || !$booking->receipt || !$booking->receipt->pdf_path) {
+            return response()->json(['success' => false, 'message' => 'Receipt not available for this booking.'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'receipt_number' => $booking->receipt->receipt_number,
+                'pdf_url'        => app(\App\Services\DocumentGenerationService::class)->publicDocumentUrl($booking->receipt->pdf_path),
+                'generated_at'   => $booking->receipt->created_at?->toDateTimeString(),
             ],
         ]);
     }

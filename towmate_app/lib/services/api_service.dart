@@ -580,6 +580,27 @@ class ApiService {
     }
   }
 
+  static Future<String?> fetchReceiptUrl(String code) async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/v1/bookings/$code/receipt'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        if (body['success'] == true) {
+          return (body['data'] as Map<String, dynamic>)['pdf_url'] as String?;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<BookingModel?> fetchCurrentBooking() async {
     try {
       final token = await getToken();
