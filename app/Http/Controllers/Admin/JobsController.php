@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\CustomerNotificationService;
 use App\Services\DocumentGenerationService;
 use App\Services\TeamLeaderAvailabilityService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
 class JobsController extends Controller
@@ -38,7 +39,7 @@ class JobsController extends Controller
         return view('admin-dashboard.pages.jobs', compact('jobs', 'stats'));
     }
 
-    public function confirmPayment(Booking $booking)
+    public function confirmPayment(Request $request, Booking $booking)
     {
         $readyStatuses = ['waiting_verification', 'payment_pending', 'payment_submitted'];
         if (! in_array($booking->status, $readyStatuses, true)) {
@@ -48,9 +49,28 @@ class JobsController extends Controller
             ], 422);
         }
 
+        $isCashPayment = in_array($booking->payment_method, [null, '', 'cash'], true);
+        $cashReceived = null;
+
+        if ($isCashPayment) {
+            $validated = $request->validate([
+                'cash_received' => ['required', 'numeric', 'min:0'],
+            ]);
+
+            if ((float) $validated['cash_received'] < (float) $booking->final_total) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cash received must cover the final total.',
+                ], 422);
+            }
+
+            $cashReceived = $validated['cash_received'];
+        }
+
         $booking->update([
-            'status'       => 'completed',
-            'completed_at' => now(),
+            'status'        => 'completed',
+            'completed_at'  => now(),
+            'cash_received' => $cashReceived,
         ]);
 
         $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);

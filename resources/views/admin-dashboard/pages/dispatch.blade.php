@@ -2033,11 +2033,22 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div id="cjCashRow"
+                                        style="display:none;border-top:1px solid #f1f5f9;padding:10px 14px;">
+                                        <label for="cjCashReceived"
+                                            style="display:block;font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:4px;">
+                                            Cash Received (&#8369;)</label>
+                                        <input type="number" id="cjCashReceived" step="0.01" min="0"
+                                            placeholder="0.00"
+                                            style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;font-size:.9rem;box-sizing:border-box;">
+                                        <p id="cjCashHint" style="margin:4px 0 0;font-size:.68rem;color:#94a3b8;">
+                                            Must be at least the final total.</p>
+                                    </div>
                                     <div id="cjProofRow"
                                         style="display:none;border-top:1px solid #f1f5f9;padding:12px 14px;">
                                         <div
                                             style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:8px;">
-                                            Proof of Payment</div>
+                                            Proof of Payment Required</div>
                                         <div id="cjProofImagesContainer" style="display:flex;flex-wrap:wrap;gap:8px;">
                                         </div>
                                         <p style="margin:6px 0 0;font-size:.7rem;color:#000000;text-align:center;">Click an
@@ -2569,6 +2580,9 @@
 
             var _pendingUrl = null;
             var _pendingCard = null;
+            var _pendingFinalTotal = 0;
+            var _pendingIsCash = false;
+            var cashInput = document.getElementById('cjCashReceived');
 
             function fmt(n) {
                 var v = parseFloat(n) || 0;
@@ -2637,6 +2651,15 @@
                 setText('cjPaymentStatus', ds.paymentStatusLabel || '—');
                 setText('cjPaymongoRef', ds.paymongoRef || '—');
 
+                _pendingFinalTotal = finalTotal;
+                _pendingIsCash = !ds.paymentMethod || ds.paymentMethod === 'cash';
+                if (cashInput) cashInput.value = '';
+                if (_pendingIsCash) {
+                    show('cjCashRow');
+                } else {
+                    hide('cjCashRow');
+                }
+
                 var proofUrls = [];
                 try {
                     proofUrls = JSON.parse(ds.paymentProofUrl || '[]');
@@ -2689,10 +2712,22 @@
 
                 modal.hidden = false;
                 modal.style.display = 'flex';
-                okBtn.disabled = false;
+                okBtn.disabled = _pendingIsCash;
                 okBtn.innerHTML =
                     'Mark as Completed';
                 okBtn.focus();
+            }
+
+            function isCashAmountValid() {
+                if (!_pendingIsCash) return true;
+                var val = cashInput ? parseFloat(cashInput.value) : NaN;
+                return !isNaN(val) && val >= _pendingFinalTotal;
+            }
+
+            if (cashInput) {
+                cashInput.addEventListener('input', function() {
+                    okBtn.disabled = !isCashAmountValid();
+                });
             }
 
             function closeModal() {
@@ -2731,6 +2766,7 @@
 
             okBtn.addEventListener('click', function() {
                 if (!_pendingUrl) return;
+                if (!isCashAmountValid()) return;
                 okBtn.disabled = true;
                 okBtn.innerHTML = 'Completing…';
 
@@ -2738,6 +2774,8 @@
                 var timeoutId  = setTimeout(function() { controller.abort(); }, 45000);
 
                 var pendingCard = _pendingCard;
+                var payload = _pendingIsCash ?
+                    { cash_received: cashInput ? cashInput.value : '' } : {};
 
                 fetch(_pendingUrl, {
                         method: 'POST',
@@ -2747,7 +2785,7 @@
                             'Accept': 'application/json',
                             'X-CSRF-TOKEN': CSRF,
                         },
-                        body: JSON.stringify({}),
+                        body: JSON.stringify(payload),
                     })
                     .then(function(r) {
                         clearTimeout(timeoutId);
