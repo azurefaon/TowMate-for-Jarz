@@ -1253,7 +1253,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     // (which would re-trigger a billable Google Maps API load).
                     if (countElement) countElement.textContent = String(serverCount);
                     if (scheduledEl) scheduledEl.textContent = String(serverScheduled);
-                    playNotificationSound();
+                    // Skip the sound right after a dispatcher action (e.g. Approve) —
+                    // this poller's 8s tick can land moments after, and firing the
+                    // alert then reads as "caused by" the click. See
+                    // window.__suppressBookingSoundUntil, set from the quotation modal.
+                    if (!window.__suppressBookingSoundUntil || Date.now() >= window.__suppressBookingSoundUntil) {
+                        playNotificationSound();
+                    }
                 }
             })
             .catch(function () {

@@ -611,6 +611,10 @@
                 qmState.draftSaved      = true;
                 qmState.quotationStatus = 'draft';
 
+                // Mute the dispatch queue's fallback new-booking sound for a bit —
+                // its 8s poll can land right after Approve and read as caused by it.
+                window.__suppressBookingSoundUntil = Date.now() + 10000;
+
                 // Show "Recorded" indicator with the price
                 const indicator = document.getElementById('qmDraftSavedIndicator');
                 if (indicator) indicator.style.display = 'flex';
