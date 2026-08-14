@@ -3,13 +3,11 @@ import 'dart:io';
 import 'dart:math' show sin, cos, sqrt, atan2, pi;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:latlong2/latlong.dart';
 import '../../core/theme.dart';
 import '../../models/truck_type_model.dart';
 import '../../models/vehicle_type_model.dart';
@@ -86,10 +84,15 @@ class _BookNowScreenState extends State<BookNowScreen> {
   // Wizard step: 0 = Location, 1 = Vehicle, 2 = Review
   int _step = 0;
 
+  Timer? _availabilityPollTimer;
+
   @override
   void initState() {
     super.initState();
     _loadData();
+    _availabilityPollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (_step == 1) _refreshAvailability();
+    });
   }
 
   @override
@@ -122,6 +125,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
   @override
   void dispose() {
+    _availabilityPollTimer?.cancel();
     _notesCtrl.dispose();
     super.dispose();
   }
@@ -131,7 +135,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
     // Start both fetches concurrently but don't block the picker on availability.
     final typeFuture = ApiService.fetchTruckTypes();
-    final availFuture = ApiService.fetchAvailability();
+    final availFuture = _refreshAvailability();
 
     // Show the picker as soon as truck types arrive.
     final types = await typeFuture;
@@ -142,8 +146,15 @@ class _BookNowScreenState extends State<BookNowScreen> {
     });
 
     // Availability result comes in afterwards (already in-flight).
-    final avail = await availFuture;
-    if (!mounted) return;
+    await availFuture;
+  }
+
+  // Re-checks tow-class availability without touching the truck-type catalog
+  // (which doesn't change live). Called once from _loadData() and repeatedly
+  // by _availabilityPollTimer while the customer is on the vehicle step.
+  Future<void> _refreshAvailability() async {
+    final avail = await ApiService.fetchAvailability();
+    if (!mounted || avail == null) return; // failed fetch — leave state as-is
     setState(() {
       _bookNowEnabled = avail['book_now_enabled'] as bool? ?? true;
       _readyUnitsCount = (avail['ready_units_count'] as num? ?? 0).toInt();
@@ -152,12 +163,12 @@ class _BookNowScreenState extends State<BookNowScreen> {
           : (avail['message'] as String? ??
                 'No tow trucks are currently available for immediate dispatch.');
       final byClass = avail['ready_by_class'];
-      if (byClass is Map && byClass.isNotEmpty) {
-        _readyByClass = byClass.map(
-          (k, v) =>
-              MapEntry(k.toString().toLowerCase(), (v as num? ?? 0).toInt()),
-        );
-      }
+      _readyByClass = byClass is Map
+          ? byClass.map(
+              (k, v) =>
+                  MapEntry(k.toString().toLowerCase(), (v as num? ?? 0).toInt()),
+            )
+          : <String, int>{};
     });
   }
 
@@ -633,6 +644,45 @@ class _BookNowScreenState extends State<BookNowScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (!_bookNowEnabled && _serviceType == 'book_now')
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: context.card,
+                border: Border.all(color: TmColors.yellow),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _availabilityMessage ??
+                        'No tow trucks are currently available for immediate dispatch.',
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: () => setState(() => _serviceType = 'schedule'),
+                    child: Text(
+                      'Schedule for later instead →',
+                      style: GoogleFonts.inter(
+                        color: TmColors.yellow,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         _VehicleSection(
           truckTypes: _truckTypes,
           loading: _loadingTypes,
@@ -1344,7 +1394,7 @@ class _LocationSectionState extends State<_LocationSection> {
   late final TextEditingController _dropoffCtrl;
   final _pickupFocus = FocusNode();
   final _dropoffFocus = FocusNode();
-  final _mapController = MapController();
+  GoogleMapController? _mapController;
 
   List<Map<String, dynamic>> _pickupSuggestions = [];
   List<Map<String, dynamic>> _dropoffSuggestions = [];
@@ -1380,7 +1430,7 @@ class _LocationSectionState extends State<_LocationSection> {
     _pickupFocus.dispose();
     _dropoffFocus.dispose();
     _debounce?.cancel();
-    _mapController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -1416,12 +1466,21 @@ class _LocationSectionState extends State<_LocationSection> {
   }
 
   void _fitRoute(List<LatLng> points) {
-    if (points.isEmpty) return;
+    if (points.isEmpty || _mapController == null) return;
     try {
-      final bounds = LatLngBounds.fromPoints(points);
-      _mapController.fitCamera(
-        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(56)),
+      var minLat = points.first.latitude, maxLat = points.first.latitude;
+      var minLng = points.first.longitude, maxLng = points.first.longitude;
+      for (final p in points) {
+        if (p.latitude < minLat) minLat = p.latitude;
+        if (p.latitude > maxLat) maxLat = p.latitude;
+        if (p.longitude < minLng) minLng = p.longitude;
+        if (p.longitude > maxLng) maxLng = p.longitude;
+      }
+      final bounds = LatLngBounds(
+        southwest: LatLng(minLat, minLng),
+        northeast: LatLng(maxLat, maxLng),
       );
+      _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 56));
     } catch (_) {}
   }
 
@@ -1437,7 +1496,7 @@ class _LocationSectionState extends State<_LocationSection> {
       () => isPickup ? _pickupSearching = true : _dropoffSearching = true,
     );
     _debounce = Timer(const Duration(milliseconds: 420), () async {
-      final results = await ApiService.searchAddress(query);
+      final results = await ApiService.autocompleteAddress(query);
       if (!mounted) return;
       setState(() {
         if (isPickup) {
@@ -1451,33 +1510,74 @@ class _LocationSectionState extends State<_LocationSection> {
     });
   }
 
-  void _selectPickup(Map<String, dynamic> feature) {
-    final coords = feature['coordinates'] as List;
-    final lat = (coords[1] as num).toDouble();
-    final lng = (coords[0] as num).toDouble();
-    final label = feature['label'] as String? ?? '';
-    _pickupCtrl.text = label;
+  // Resolves a suggestion to {lat, lng, label} — either the coordinates are
+  // already attached (Nominatim fallback) or a place_id needs a follow-up
+  // Place Details call (Google Places path).
+  Future<Map<String, dynamic>?> _resolveFeature(
+    Map<String, dynamic> feature,
+  ) async {
+    final coords = feature['coordinates'] as List?;
+    if (coords != null) {
+      return {
+        'lat': (coords[1] as num).toDouble(),
+        'lng': (coords[0] as num).toDouble(),
+        'label': feature['label'] as String? ?? '',
+      };
+    }
+
+    final placeId = feature['place_id'] as String?;
+    if (placeId == null || placeId.isEmpty) return null;
+
+    final details = await ApiService.resolvePlaceDetails(placeId);
+    final detailCoords = details?['coordinates'] as List?;
+    if (details == null || detailCoords == null) return null;
+
+    return {
+      'lat': (detailCoords[1] as num).toDouble(),
+      'lng': (detailCoords[0] as num).toDouble(),
+      'label': details['label'] as String? ?? feature['label'] as String? ?? '',
+    };
+  }
+
+  Future<void> _selectPickup(Map<String, dynamic> feature) async {
     _pickupFocus.unfocus();
     setState(() {
       _pickupSuggestions = [];
-      _pickupSearching = false;
+      _pickupSearching = true;
     });
-    _mapController.move(LatLng(lat, lng), 14);
+    final resolved = await _resolveFeature(feature);
+    if (!mounted) return;
+    setState(() => _pickupSearching = false);
+    if (resolved == null) return;
+
+    final lat = resolved['lat'] as double;
+    final lng = resolved['lng'] as double;
+    final label = resolved['label'] as String;
+    _pickupCtrl.text = label;
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(lat, lng), 14),
+    );
     widget.onPickupSelected(LatLng(lat, lng), label);
   }
 
-  void _selectDropoff(Map<String, dynamic> feature) {
-    final coords = feature['coordinates'] as List;
-    final lat = (coords[1] as num).toDouble();
-    final lng = (coords[0] as num).toDouble();
-    final label = feature['label'] as String? ?? '';
-    _dropoffCtrl.text = label;
+  Future<void> _selectDropoff(Map<String, dynamic> feature) async {
     _dropoffFocus.unfocus();
     setState(() {
       _dropoffSuggestions = [];
-      _dropoffSearching = false;
+      _dropoffSearching = true;
     });
-    _mapController.move(LatLng(lat, lng), 14);
+    final resolved = await _resolveFeature(feature);
+    if (!mounted) return;
+    setState(() => _dropoffSearching = false);
+    if (resolved == null) return;
+
+    final lat = resolved['lat'] as double;
+    final lng = resolved['lng'] as double;
+    final label = resolved['label'] as String;
+    _dropoffCtrl.text = label;
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(lat, lng), 14),
+    );
     widget.onDropoffSelected(LatLng(lat, lng), label);
   }
 
@@ -1574,7 +1674,7 @@ class _LocationSectionState extends State<_LocationSection> {
       if (!mounted) return;
 
       _pickupCtrl.text = address;
-      _mapController.move(latlng, 15);
+      _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latlng, 15));
       widget.onPickupSelected(latlng, address);
     } catch (_) {
       if (mounted) {
@@ -1813,7 +1913,7 @@ class _LocationSectionState extends State<_LocationSection> {
           height: 280,
           child: Stack(
             children: [
-              // FlutterMap is always in the tree so MapController is always ready
+              // GoogleMap is always in the tree so the controller is always ready
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -1822,52 +1922,42 @@ class _LocationSectionState extends State<_LocationSection> {
                       bottom: BorderSide(color: context.divider, width: 0.5),
                     ),
                   ),
-                  child: FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: const LatLng(14.5995, 120.9842),
-                      initialZoom: 13,
-                      onTap: bothSet ? null : (_, pt) => _onMapTap(pt),
-                      interactionOptions: const InteractionOptions(
-                        flags: InteractiveFlag.all,
-                      ),
+                  child: GoogleMap(
+                    initialCameraPosition: const CameraPosition(
+                      target: LatLng(14.5995, 120.9842),
+                      zoom: 13,
                     ),
-                    children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.towmate.app',
-                        tileProvider: CancellableNetworkTileProvider(),
-                      ),
+                    onMapCreated: (controller) => _mapController = controller,
+                    onTap: bothSet ? null : (pt) => _onMapTap(pt),
+                    zoomControlsEnabled: false,
+                    myLocationButtonEnabled: false,
+                    polylines: {
                       if (widget.routePoints.isNotEmpty)
-                        PolylineLayer(
-                          polylines: [
-                            Polyline(
-                              points: widget.routePoints,
-                              color: Colors.black,
-                              strokeWidth: 3.0,
-                            ),
-                          ],
+                        Polyline(
+                          polylineId: const PolylineId('route'),
+                          points: widget.routePoints,
+                          color: Colors.black,
+                          width: 3,
                         ),
-                      MarkerLayer(
-                        markers: [
-                          if (widget.pickupLatLng != null)
-                            Marker(
-                              point: widget.pickupLatLng!,
-                              width: 28,
-                              height: 28,
-                              child: _MapPin(label: 'P', dark: true),
-                            ),
-                          if (widget.dropoffLatLng != null)
-                            Marker(
-                              point: widget.dropoffLatLng!,
-                              width: 28,
-                              height: 28,
-                              child: _MapPin(label: 'D', dark: false),
-                            ),
-                        ],
-                      ),
-                    ],
+                    },
+                    markers: {
+                      if (widget.pickupLatLng != null)
+                        Marker(
+                          markerId: const MarkerId('pickup'),
+                          position: widget.pickupLatLng!,
+                          icon: BitmapDescriptor.defaultMarkerWithHue(
+                              BitmapDescriptor.hueViolet),
+                          infoWindow: const InfoWindow(title: 'Pickup'),
+                        ),
+                      if (widget.dropoffLatLng != null)
+                        Marker(
+                          markerId: const MarkerId('dropoff'),
+                          position: widget.dropoffLatLng!,
+                          icon: BitmapDescriptor.defaultMarkerWithHue(
+                              BitmapDescriptor.hueYellow),
+                          infoWindow: const InfoWindow(title: 'Drop-off'),
+                        ),
+                    },
                   ),
                 ),
               ),
@@ -2033,7 +2123,7 @@ class _SearchField extends StatelessWidget {
 class _SuggestionList extends StatelessWidget {
   const _SuggestionList({required this.suggestions, required this.onSelect});
   final List<Map<String, dynamic>> suggestions;
-  final void Function(Map<String, dynamic>) onSelect;
+  final Future<void> Function(Map<String, dynamic>) onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -2097,31 +2187,6 @@ class _SuggestionList extends StatelessWidget {
             ),
           );
         }),
-      ),
-    );
-  }
-}
-
-class _MapPin extends StatelessWidget {
-  const _MapPin({required this.label, required this.dark});
-  final String label;
-  final bool dark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: dark ? TmColors.black : TmColors.yellow,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          color: dark ? TmColors.white : TmColors.black,
-          fontSize: 12,
-          letterSpacing: 0.3,
-        ),
       ),
     );
   }
@@ -3220,8 +3285,8 @@ class _PriceBreakdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double extraDist = distanceKm;
-    final double distanceFee = distanceKm >= 4.0 ? extraDist * 300.0 : 0.0;
+    final double extraDist = distanceKm > 1.0 ? distanceKm - 1.0 : 0.0;
+    final double distanceFee = extraDist * 300.0;
     double bases = truckType.baseRate;
     final filledExtras = extraVehicles.where((ev) => ev.truck != null).toList();
     for (final ev in filledExtras) {
@@ -3248,10 +3313,10 @@ class _PriceBreakdown extends StatelessWidget {
               value: '₱${priceFmt.format(ev.truck!.baseRate)}',
             ),
           _BRow(
-            label: distanceKm >= 4.0
+            label: distanceKm > 1.0
                 ? '${extraDist.toStringAsFixed(2)} km × ₱300'
-                : '${extraDist.toStringAsFixed(2)} km (free under 4 km)',
-            value: distanceKm >= 4.0 ? '₱${priceFmt.format(distanceFee)}' : 'Free',
+                : '${distanceKm.toStringAsFixed(2)} km (first 1 km free)',
+            value: distanceKm > 1.0 ? '₱${priceFmt.format(distanceFee)}' : 'Free',
           ),
           Container(height: 0.5, color: context.divider),
           _BRow(

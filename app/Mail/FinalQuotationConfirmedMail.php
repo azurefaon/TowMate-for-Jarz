@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Booking;
+use App\Services\BookingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -22,13 +23,11 @@ class FinalQuotationConfirmedMail extends Mailable
         $distanceKm    = (float) ($booking->distance_km ?? 0);
         $additionalFee = (float) ($booking->additional_fee ?? 0);
         $total         = (float) ($booking->final_total ?? 0);
-        $kmIncrements  = (int) floor($distanceKm / 4);
-        $distanceFee   = round($kmIncrements * 200.0, 2);
+        $distanceFee   = app(BookingService::class)->distanceFeeFor($distanceKm);
 
         $this->priceBreakdown = [
             'base_rate'      => $baseRate,
             'distance_km'    => $distanceKm,
-            'km_increments'  => $kmIncrements,
             'distance_fee'   => $distanceFee,
             'additional_fee' => $additionalFee,
             'total'          => $total,

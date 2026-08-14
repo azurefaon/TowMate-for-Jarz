@@ -582,7 +582,7 @@ class BookingService
 
         // MMDA formula: first 1 km is included in base fee; ₱300/km after that
         $extraDistance = max(0.0, $distanceKm - 1.0);
-        $distanceFee   = round($extraDistance * 300.0, 2);
+        $distanceFee   = $this->distanceFeeFor($distanceKm);
 
         $grossPrice    = round($baseRate + $extraBaseRates + $distanceFee, 2);
         $customerType  = $this->resolveCustomerType($data);
@@ -611,6 +611,15 @@ class BookingService
         ];
     }
 
+    /**
+     * MMDA formula: first 1 km is included in base fee; ₱300/km after that.
+     * Single source of truth — every distance-fee consumer must call this.
+     */
+    public function distanceFeeFor(float $distanceKm): float
+    {
+        return round(max(0.0, $distanceKm - 1.0) * 300.0, 2);
+    }
+
     public function calculateQuotationTotals(
         Booking $booking,
         ?string $additionalFee = null,
@@ -623,7 +632,7 @@ class BookingService
 
         // MMDA formula: first 1 km included in base fee; ₱300/km after that
         $extraDistance = max(0.0, $resolvedDistanceKm - 1.0);
-        $distanceFee   = round($extraDistance * 300.0, 2);
+        $distanceFee   = $this->distanceFeeFor($resolvedDistanceKm);
 
         $resolvedBaseRate = round((float) ($baseRate ?? $booking->base_rate ?? 0), 2);
         $grossTotal       = round($resolvedBaseRate + $distanceFee, 2);

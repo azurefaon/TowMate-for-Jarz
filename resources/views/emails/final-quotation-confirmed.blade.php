@@ -173,9 +173,8 @@
                                         style="padding:10px 12px;font-size:13px;color:#374151;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
                                         Distance Fee
                                         <span
-                                            style="font-size:11px;color:#94a3b8;display:block;margin-top:1px;">{{ $priceBreakdown['km_increments'] }}
-                                            × ₱200 per 4km ({{ number_format($priceBreakdown['distance_km'], 2) }}
-                                            km)</span>
+                                            style="font-size:11px;color:#94a3b8;display:block;margin-top:1px;">{{ number_format($priceBreakdown['distance_km'], 2) }}
+                                            km</span>
                                     </td>
                                     <td style="padding:10px 12px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;"
                                         align="right">₱{{ number_format($priceBreakdown['distance_fee'], 2) }}</td>

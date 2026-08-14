@@ -234,7 +234,7 @@ class Booking extends Model
     public function getDistanceFeeAmountAttribute(): float
     {
         $distanceKm = (float) ($this->distance_km ?? 0);
-        return $distanceKm >= 4.0 ? round($distanceKm * 300.0, 2) : 0.0;
+        return app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm);
     }
 
     public function getExcessKmAttribute(): float

@@ -6,6 +6,7 @@ use App\Events\CustomerInquirySent;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Quotation;
+use App\Services\BookingService;
 use App\Services\QuotationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,10 @@ use Illuminate\Support\Facades\Log;
 
 class CustomerQuotationController extends Controller
 {
-    public function __construct(private readonly QuotationService $quotationService) {}
+    public function __construct(
+        private readonly QuotationService $quotationService,
+        private readonly BookingService $bookingService,
+    ) {}
 
     public function pending(Request $request): JsonResponse
     {
@@ -33,7 +37,7 @@ class CustomerQuotationController extends Controller
 
         $sourceBooking = $quotation->sourceBooking;
         $distanceKm    = (float) ($quotation->distance_km ?? 0);
-        $distanceFee   = $distanceKm >= 4.0 ? round($distanceKm * 300.0, 2) : 0.0;
+        $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm);
 
         // Prefer stored vat_amount on booking; fall back to back-calculation
         $additionalFee = (float) ($quotation->additional_fee ?? 0);

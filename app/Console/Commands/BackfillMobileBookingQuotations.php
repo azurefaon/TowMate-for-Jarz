@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Booking;
+use App\Services\BookingService;
 use App\Services\QuotationService;
 use Illuminate\Console\Command;
 
@@ -11,7 +12,7 @@ class BackfillMobileBookingQuotations extends Command
     protected $signature = 'booking:backfill-quotations';
     protected $description = 'Create pending quotations for mobile bookings that do not have one yet';
 
-    public function handle(QuotationService $quotationService): int
+    public function handle(QuotationService $quotationService, BookingService $bookingService): int
     {
         $bookings = Booking::with(['customer', 'truckType'])
             ->where('confirmation_type', 'mobile')
@@ -36,10 +37,9 @@ class BackfillMobileBookingQuotations extends Command
             }
 
             try {
-                $distanceKm   = (float) $booking->distance_km;
-                $kmIncrements = (int) floor($distanceKm / 4);
-                $distanceFee  = $kmIncrements * 200;
-                $estimated    = (float) ($booking->computed_total ?? ($booking->base_rate + $distanceFee));
+                $distanceKm  = (float) $booking->distance_km;
+                $distanceFee = $bookingService->distanceFeeFor($distanceKm);
+                $estimated   = (float) ($booking->computed_total ?? ($booking->base_rate + $distanceFee));
 
                 $quotation = $quotationService->createQuotation([
                     'source_booking_id'  => $booking->id,

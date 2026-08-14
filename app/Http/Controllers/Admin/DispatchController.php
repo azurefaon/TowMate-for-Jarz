@@ -1025,7 +1025,7 @@ class DispatchController extends Controller
         $discount      = (float) ($quotation->discount ?? 0);
         $basePrice     = (float) ($quotation->truckType?->base_rate ?? 0);
         $perKmRate     = 300.0;
-        $distanceFee   = round($distanceKm * 300.0, 2);
+        $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm);
 
         $customerName = $quotation->customer->full_name
             ?? $quotation->customer->name

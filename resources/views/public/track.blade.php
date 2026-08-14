@@ -650,8 +650,7 @@
 
                 $baseRate = (float) ($booking->base_rate ?? ($booking->truckType?->base_rate ?? 0));
                 $distanceKm = (float) ($booking->distance_km ?? 0);
-                $kmIncrements = (int) floor($distanceKm / 4);
-                $distanceFee = round($kmIncrements * 200, 2);
+                $distanceFee = app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm);
                 $finalTotal = (float) ($booking->final_total ?? 0);
                 $priceLocked = (bool) $booking->price_locked_at;
             @endphp

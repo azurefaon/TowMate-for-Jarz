@@ -507,7 +507,6 @@
         const baseRate    = parseFloat(d.baseRate || 0);
         const distanceFee = parseFloat(d.distanceFee || 0);
         const distanceKm  = parseFloat(d.distance || 0);
-        const kmIncrements = Math.floor(distanceKm / 4);
 
         // Store globals used by recalcQuotationTotal and unit-select handler
         window.qmBasePrice          = baseRate;
@@ -524,10 +523,10 @@
         // Price Breakdown — distance fee row
         const distFeeEl   = document.getElementById('qmDistanceFee');
         const distLabelEl = document.getElementById('qmDistanceFeeLabel');
-        if (distFeeEl)   distFeeEl.textContent   = distanceKm >= 4 ? fmt(distanceFee) : 'Free';
-        if (distLabelEl) distLabelEl.textContent = distanceKm >= 4
+        if (distFeeEl)   distFeeEl.textContent   = distanceKm > 1 ? fmt(distanceFee) : 'Free';
+        if (distLabelEl) distLabelEl.textContent = distanceKm > 1
             ? `Distance (${distanceKm.toFixed(2)} km × ₱300)`
-            : `Distance (${distanceKm.toFixed(2)} km — free under 4 km)`;
+            : `Distance (${distanceKm.toFixed(2)} km — first 1 km free)`;
 
         // Subtotal / VAT / Total use final_total as the source of truth
         const displaySub = Math.round(finalTotal / 1.12 * 100) / 100;
@@ -784,14 +783,14 @@
                 document.getElementById('qmPriceNote').value = '';
 
                 const distanceKm  = parseFloat(q.distance_km || 0);
-                const extraDist   = distanceKm;
-                const distanceFee = distanceKm >= 4 ? Math.round(extraDist * 300 * 100) / 100 : 0;
+                const extraDist   = Math.max(0, distanceKm - 1);
+                const distanceFee = Math.round(extraDist * 300 * 100) / 100;
 
                 document.getElementById('qmBasePrice').textContent = window.qmBasePrice > 0 ? fmt(window.qmBasePrice) : 'TBD';
-                document.getElementById('qmDistanceFee').textContent = distanceKm >= 4 ? fmt(distanceFee) : 'Free';
-                document.getElementById('qmDistanceFeeLabel').textContent = distanceKm >= 4
+                document.getElementById('qmDistanceFee').textContent = distanceKm > 1 ? fmt(distanceFee) : 'Free';
+                document.getElementById('qmDistanceFeeLabel').textContent = distanceKm > 1
                     ? `Distance (${extraDist.toFixed(2)} km × ₱300)`
-                    : `Distance (${extraDist.toFixed(2)} km — free under 4 km)`;
+                    : `Distance (${distanceKm.toFixed(2)} km — first 1 km free)`;
                 const otherFeesRow  = document.getElementById('qmOtherFeesRow');
                 const otherFeesNote = document.getElementById('qmOtherFeesNote');
                 const additionalFee = parseFloat(q.additional_fee || 0) || 0;
