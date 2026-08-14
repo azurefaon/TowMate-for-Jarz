@@ -53,14 +53,17 @@ Route::get('/api/debug-maps-check', function () {
     return response()->json([
         'getenv_raw_len'                 => strlen((string) getenv('GOOGLE_MAPS_API_KEY')),
         'env_helper_len'                 => strlen((string) env('GOOGLE_MAPS_API_KEY')),
-        'server_superglobal_len'         => strlen((string) ($_SERVER['GOOGLE_MAPS_API_KEY'] ?? '')),
-        'env_superglobal_len'            => strlen((string) ($_ENV['GOOGLE_MAPS_API_KEY'] ?? '')),
         'config_browser_key_len'         => strlen((string) config('services.google_maps.browser_key')),
-        'config_server_key_len'          => strlen((string) config('services.google_maps.key')),
         'fresh_file_require_browser_len' => strlen((string) ($rawFile['google_maps']['browser_key'] ?? '')),
-        'config_cache_file_exists'       => file_exists(base_path('bootstrap/cache/config.php')),
+        'google_maps_array_keys'         => array_keys($rawFile['google_maps'] ?? []),
+        'google_maps_array_raw'          => array_map(
+            fn ($v) => is_string($v) ? strlen($v) . ' chars' : gettype($v),
+            $rawFile['google_maps'] ?? []
+        ),
+        'services_php_first_500_chars'   => substr(file_get_contents(config_path('services.php')), 0, 500),
+        'services_php_sha1'              => sha1_file(config_path('services.php')),
         'services_php_mtime'             => date('Y-m-d H:i:s', filemtime(config_path('services.php'))),
-        'app_debug'                      => config('app.debug'),
+        'config_cache_file_exists'       => file_exists(base_path('bootstrap/cache/config.php')),
     ]);
 });
 
