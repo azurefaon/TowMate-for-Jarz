@@ -365,9 +365,6 @@
                         <select name="driver_name" id="editDriverName">
                             <option value="">— Unassigned —</option>
                         </select>
-                        <small class="form-hint">Wala sa listahan ang kailangan mong driver? Isara muna ito at
-                            gamitin ang <strong>Borrow</strong> button sa Driver 1 column ng table para maglagay ng
-                            driver mula sa ibang unit.</small>
                     </div>
 
                     <div class="form-group">
