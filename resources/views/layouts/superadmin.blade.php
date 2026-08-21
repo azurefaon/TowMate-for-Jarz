@@ -332,18 +332,6 @@
                     <span>Manage Users</span>
                 </a>
 
-                <a href="{{ route('superadmin.customers.index') }}" title="Customers"
-                    class="{{ request()->routeIs('superadmin.customers.*') ? 'active' : '' }}">
-                    <span class="nav-chip">C</span>
-                    <span>Customers</span>
-                </a>
-
-                <a href="{{ route('admin.dispatch') }}" title="Dispatch / Unit Overview"
-                    class="{{ request()->routeIs('admin.*') ? 'active' : '' }}">
-                    <span class="nav-chip">O</span>
-                    <span>Dispatch / Unit Overview</span>
-                </a>
-
             </li>
 
             {{-- <li>

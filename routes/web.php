@@ -33,7 +33,6 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\PublicTrackController;
 
 use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingController;
-use App\Http\Controllers\SuperAdmin\CustomerController as SuperAdminCustomerController;
 use App\Http\Controllers\SuperAdmin\DataProtectionController;
 use App\Http\Controllers\SuperAdmin\MonitoringController;
 use App\Http\Controllers\SuperAdmin\ReportsController;
@@ -145,7 +144,7 @@ Route::prefix('control-center')
 
 Route::prefix('admin-dashboard')
     ->name('admin.')
-    ->middleware(['auth', 'role:1,2', 'force.password.change'])
+    ->middleware(['auth', 'role:2', 'force.password.change'])
     ->group(function () {
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/live-overview', [AdminController::class, 'liveOverview'])->name('live-overview');
@@ -271,10 +270,7 @@ Route::prefix('superadmin')
         Route::get('/bookings', [SuperAdminBookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{id}', [SuperAdminBookingController::class, 'show'])->name('bookings.show');
 
-        Route::get('/customers', [SuperAdminCustomerController::class, 'index'])->name('customers.index');
-        Route::get('/customers/{customer}', [SuperAdminCustomerController::class, 'show'])->name('customers.show');
-
-        Route::get('/settings', [SystemSettingsController::class, 'index'])->name('settings.index');
+Route::get('/settings', [SystemSettingsController::class, 'index'])->name('settings.index');
         Route::post('/settings/update', [SystemSettingsController::class, 'update'])->name('settings.update');
         Route::post('/settings/landing', [SystemSettingsController::class, 'updateLanding'])->name('settings.landing.update');
         Route::post('/settings/upload-apk', [SystemSettingsController::class, 'uploadApk'])->name('settings.upload-apk');
