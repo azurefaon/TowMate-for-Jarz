@@ -17,15 +17,12 @@ class TruckTypeController extends Controller
         }
 
         $truckTypes = TruckType::withCount('units')
-            ->with(['vehicleTypes' => fn($q) => $q->select('vehicle_types.id', 'vehicle_types.name', 'vehicle_types.category')->orderBy('name')])
             ->withCount([
                 'bookings as active_bookings_count' => fn($query) => $query->whereIn('status', $this->busyBookingStatuses()),
             ])
             ->orderBy('name')
             ->paginate(5)
             ->withQueryString();
-
-        $allVehicleTypes = VehicleType::where('status', 'active')->orderBy('name')->get(['id', 'name', 'category', 'weight_kg']);
 
         $stats = [
             'total' => TruckType::count(),
@@ -34,14 +31,13 @@ class TruckTypeController extends Controller
             'units' => Unit::count(),
         ];
 
-        return view('superadmin.truck-types.index', compact('truckTypes', 'stats', 'allVehicleTypes'));
+        return view('superadmin.truck-types.index', compact('truckTypes', 'stats'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:truck_types,name',
-            'class' => 'nullable|in:light,medium,heavy',
             'base_rate' => 'required|numeric|min:0',
             'per_km_rate' => 'required|numeric|min:0',
             'max_tonnage' => 'nullable|numeric|min:0',
@@ -64,7 +60,6 @@ class TruckTypeController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:truck_types,name,' . $truckType->id,
-            'class' => 'nullable|in:light,medium,heavy',
             'base_rate' => 'required|numeric|min:0',
             'per_km_rate' => 'required|numeric|min:0',
             'max_tonnage' => 'nullable|numeric|min:0',

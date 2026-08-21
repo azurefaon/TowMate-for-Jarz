@@ -58,7 +58,7 @@
                             <th>Driver 2</th>
                             <th>Crew Member 1</th>
                             <th>Crew Member 2</th>
-                            <th>Truck Class</th>
+                            <th>Truck Type</th>
                             <th>Base Rate</th>
                             <th>Per KM</th>
                             <th>Max Load</th>
@@ -96,8 +96,17 @@
                                                 ⚠ not a Team Leader
                                             </small>
                                         @endif
+                                        <br>
+                                        <form method="POST" action="{{ route('superadmin.units.remove-team-leader', $unit->id) }}"
+                                            class="js-remove-leader-form"
+                                            data-confirm="Remove {{ $leaderName }} (and their driver/crew) from {{ $unit->name }}?">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" class="crew-slot-link">Remove</button>
+                                        </form>
                                     @else
-                                        <span class="not-assigned">—</span>
+                                        <button type="button" class="crew-slot-action js-assign-leader"
+                                            data-unit-id="{{ $unit->id }}" data-unit-name="{{ $unit->name }}">Assign</button>
                                     @endif
                                 </td>
 
@@ -138,7 +147,7 @@
                                     ])
                                 </td>
 
-                                <td data-label="Truck Class">
+                                <td data-label="Truck Type">
                                     @if ($unit->truckType)
                                         <span class="truck-badge">{{ $unit->truckType->name }}</span>
                                         @if ($unit->truckType->class)
@@ -196,16 +205,9 @@
                                 <td data-label="Action">
                                     <div class="row-actions">
                                         <button type="button" class="action-btn edit-btn js-edit-unit"
-                                            data-id="{{ $unit->id }}" data-name="{{ $unit->name }}"
-                                            data-plate="{{ $unit->plate_number }}" data-status="{{ $unit->status }}"
-                                            data-issue="{{ e($unit->issue_note) }}"
-                                            data-truck="{{ $unit->truck_type_id }}"
-                                            data-leader-id="{{ $unit->team_leader_id }}"
-                                            data-driver-id="{{ $unit->driver_id }}"
-                                            data-driver-name="{{ $unit->driver_name }}"
-                                            data-driver2-name="{{ $unit->driver_2_name }}"
-                                            data-crew1-name="{{ $unit->crew_member_1_name }}"
-                                            data-crew2-name="{{ $unit->crew_member_2_name }}">
+                                            data-id="{{ $unit->id }}"
+                                            data-plate="{{ $unit->plate_number }}"
+                                            data-truck="{{ $unit->truck_type_id }}">
                                             Edit
                                         </button>
                                         <form action="{{ route('superadmin.units.toggle', $unit->id) }}" method="POST">
@@ -277,7 +279,7 @@
                             <input type="text" name="plate_number" id="addPlate" required>
                         </div>
                         <div class="form-group">
-                            <label for="addTruckType">Truck Class</label>
+                            <label for="addTruckType">Truck Type</label>
                             <select name="truck_type_id" id="addTruckType" required>
                                 <option value="">— Select —</option>
                                 @foreach ($truckTypes as $type)
@@ -287,44 +289,46 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="addLeaderId">Team Leader</label>
-                        <select name="team_leader_id" id="addLeaderId">
-                            <option value="">— Unassigned —</option>
-                            @foreach ($teamLeaders as $leader)
-                                <option value="{{ $leader->id }}" @if ($leader->unit_count > 0) disabled @endif>
-                                    {{ $leader->full_name ?: $leader->name }}{{ $leader->unit_count > 0 ? ' (already assigned to a unit)' : '' }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="addDriverName">Driver Name (Driver 1)</label>
-                        <select name="driver_name" id="addDriverName">
-                            <option value="">— Unassigned —</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="addDriver2Name">Driver 2 (optional)</label>
-                        <input type="text" name="driver_2_name" id="addDriver2Name"
-                            placeholder="Optional second driver">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="addCrew1Name">Crew Member 1 (optional)</label>
-                        <input type="text" name="crew_member_1_name" id="addCrew1Name" placeholder="Optional">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="addCrew2Name">Crew Member 2 (optional)</label>
-                        <input type="text" name="crew_member_2_name" id="addCrew2Name" placeholder="Optional">
-                    </div>
-
                     <div class="modal-footer">
                         <button type="button" class="btn-light" data-close-modal="addUnitModal">Cancel</button>
                         <button type="submit" class="btn-dark">Add Truck</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Assign Team Leader Modal --}}
+        <div id="assignLeaderModal" class="modal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div>
+                        <h2>Assign Team Leader</h2>
+                        <p id="assignLeaderUnitName"></p>
+                    </div>
+                    <button type="button" class="modal-close" data-close-modal="assignLeaderModal">✕</button>
+                </div>
+
+                <form method="POST" id="assignLeaderForm">
+                    @csrf
+                    @method('PATCH')
+
+                    <div class="form-group">
+                        <label for="assignLeaderSelect">Team Leader</label>
+                        <select name="team_leader_id" id="assignLeaderSelect" required>
+                            <option value="">— Select —</option>
+                            @foreach ($teamLeaders->where('unit_count', 0) as $leader)
+                                <option value="{{ $leader->id }}">{{ $leader->full_name ?: $leader->name }}</option>
+                            @endforeach
+                        </select>
+                        @if ($teamLeaders->where('unit_count', 0)->isEmpty())
+                            <p class="field-note">No available Team Leaders — everyone already has a unit.</p>
+                        @endif
+                        <p class="field-note" id="assignLeaderPreview"></p>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-light" data-close-modal="assignLeaderModal">Cancel</button>
+                        <button type="submit" class="btn-dark">Assign</button>
                     </div>
                 </form>
             </div>
@@ -336,7 +340,7 @@
                 <div class="modal-header">
                     <div>
                         <h2>Edit Tow Unit</h2>
-                        <p>Update the unit record, plate, truck class, and maintenance state.</p>
+                        <p>Update the plate number and truck type.</p>
                     </div>
                     <button type="button" class="modal-close" data-close-modal="editUnitModal">✕</button>
                 </div>
@@ -345,73 +349,19 @@
                     @csrf
                     @method('PUT')
 
-                    <div class="form-group">
-                        <label for="editName">Unit Name</label>
-                        <input type="text" name="name" id="editName" required>
-                    </div>
-
                     <div class="form-row">
                         <div class="form-group">
                             <label for="editPlate">Plate Number</label>
                             <input type="text" name="plate_number" id="editPlate" required>
                         </div>
                         <div class="form-group">
-                            <label for="editTruckType">Truck Class</label>
+                            <label for="editTruckType">Truck Type</label>
                             <select name="truck_type_id" id="editTruckType" required>
                                 @foreach ($truckTypes as $type)
                                     <option value="{{ $type->id }}">{{ $type->name }}</option>
                                 @endforeach
                             </select>
                         </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="editLeaderId">Team Leader</label>
-                        <select name="team_leader_id" id="editLeaderId">
-                            <option value="">— Unassigned —</option>
-                            @foreach ($teamLeaders as $leader)
-                                <option value="{{ $leader->id }}" data-name="{{ $leader->full_name ?: $leader->name }}">
-                                    {{ $leader->full_name ?: $leader->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="editDriverName">Driver Name (Driver 1)</label>
-                        <select name="driver_name" id="editDriverName">
-                            <option value="">— Unassigned —</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="editDriver2Name">Driver 2 (optional)</label>
-                        <input type="text" name="driver_2_name" id="editDriver2Name"
-                            placeholder="Optional second driver">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="editCrew1Name">Crew Member 1 (optional)</label>
-                        <input type="text" name="crew_member_1_name" id="editCrew1Name" placeholder="Optional">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="editCrew2Name">Crew Member 2 (optional)</label>
-                        <input type="text" name="crew_member_2_name" id="editCrew2Name" placeholder="Optional">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="editStatus">Status</label>
-                        <select name="status" id="editStatus">
-                            <option value="available">Available</option>
-                            <option value="on_job">On Job</option>
-                            <option value="maintenance">Maintenance</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group" id="editIssueWrapper">
-                        <label for="editIssue">Maintenance Note</label>
-                        <textarea name="issue_note" id="editIssue" placeholder="Add maintenance details if needed"></textarea>
                     </div>
 
                     <div class="modal-footer">
@@ -498,87 +448,30 @@
             const teamLeaderStagedData = JSON.parse(document.getElementById('teamLeaderStagedData').textContent ||
                 '[]');
 
-            // ── Driver 1 dropdown: only ever offers "Unassigned" + the selected Team Leader's staged driver ──
-            const rebuildDriverOptions = (selectId, leaderId, preserveValue) => {
-                const select = document.getElementById(selectId);
-                if (!select) return;
-                const staged = leaderId ? teamLeaderStagedData.find(l => l.id === leaderId) : null;
-                const stagedName = staged?.driver_name || '';
-
-                select.innerHTML = '';
-                const unassigned = document.createElement('option');
-                unassigned.value = '';
-                unassigned.textContent = '— Unassigned —';
-                select.appendChild(unassigned);
-
-                if (stagedName) {
-                    const opt = document.createElement('option');
-                    opt.value = stagedName;
-                    opt.textContent = stagedName;
-                    select.appendChild(opt);
+            // Assign Team Leader modal: preview the driver/crew that come with the selected leader.
+            const assignLeaderSelect = document.getElementById('assignLeaderSelect');
+            const assignLeaderPreview = document.getElementById('assignLeaderPreview');
+            assignLeaderSelect?.addEventListener('change', () => {
+                if (!assignLeaderPreview) return;
+                const leaderId = parseInt(assignLeaderSelect.value, 10) || null;
+                if (!leaderId) {
+                    assignLeaderPreview.textContent = '';
+                    return;
                 }
-
-                // Preserve an existing value (e.g. when opening Edit on a unit whose
-                // driver doesn't match its team leader's staged name) so it isn't lost.
-                if (preserveValue && preserveValue !== stagedName) {
-                    const opt = document.createElement('option');
-                    opt.value = preserveValue;
-                    opt.textContent = preserveValue;
-                    select.appendChild(opt);
+                const staged = teamLeaderStagedData.find(l => l.id === leaderId);
+                if (!staged) {
+                    assignLeaderPreview.textContent = '';
+                    return;
                 }
-
-                select.value = preserveValue || stagedName || '';
-            };
-
-            // Auto-fill Crew Member 1 / 2 (still free text) + rebuild the Driver 1 dropdown
-            // whenever the Team Leader selection changes.
-            const wireStagedAutofill = (leaderSelectId, driverSelectId, crew1Id, crew2Id) => {
-                const leaderSelect = document.getElementById(leaderSelectId);
-                const crew1Input = document.getElementById(crew1Id);
-                const crew2Input = document.getElementById(crew2Id);
-                if (!leaderSelect) return;
-
-                leaderSelect.addEventListener('change', () => {
-                    const leaderId = parseInt(leaderSelect.value, 10) || null;
-                    rebuildDriverOptions(driverSelectId, leaderId, null);
-
-                    if (!leaderId) return;
-                    const staged = teamLeaderStagedData.find(l => l.id === leaderId);
-                    if (!staged) return;
-
-                    if (crew1Input && !crew1Input.value && staged.crew_member_1_name) {
-                        crew1Input.value = staged.crew_member_1_name;
-                    }
-                    if (crew2Input && !crew2Input.value && staged.crew_member_2_name) {
-                        crew2Input.value = staged.crew_member_2_name;
-                    }
-                });
-            };
-
-            wireStagedAutofill('addLeaderId', 'addDriverName', 'addCrew1Name', 'addCrew2Name');
-            wireStagedAutofill('editLeaderId', 'editDriverName', 'editCrew1Name', 'editCrew2Name');
-
-            // When opening Edit, rebuild Driver 1's options around this unit's current
-            // team leader + driver name (independent of the click handler in unit-truck.js).
-            document.addEventListener('click', (e) => {
-                const btn = e.target.closest('.js-edit-unit');
-                if (!btn) return;
-                const leaderId = parseInt(btn.dataset.leaderId, 10) || null;
-                rebuildDriverOptions('editDriverName', leaderId, btn.dataset.driverName || null);
-
-                // Label any Team Leader who currently leads a DIFFERENT unit, so picking
-                // them here makes clear they'll be moved off that unit.
-                const editingUnitId = parseInt(btn.dataset.id, 10) || null;
-                document.querySelectorAll('#editLeaderId option[data-name]').forEach(opt => {
-                    const staged = teamLeaderStagedData.find(l => l.id === parseInt(opt.value, 10));
-                    const baseName = opt.dataset.name;
-                    if (staged && staged.current_unit_id && staged.current_unit_id !== editingUnitId) {
-                        opt.textContent = `${baseName} (currently leading ${staged.current_unit_name})`;
-                    } else {
-                        opt.textContent = baseName;
-                    }
-                });
+                const parts = [];
+                if (staged.driver_name) parts.push(`Driver — ${staged.driver_name}`);
+                if (staged.crew_member_1_name) parts.push(`Crew 1 — ${staged.crew_member_1_name}`);
+                if (staged.crew_member_2_name) parts.push(`Crew 2 — ${staged.crew_member_2_name}`);
+                assignLeaderPreview.textContent = parts.length
+                    ? `Comes with: ${parts.join(', ')}`
+                    : 'No driver/crew on file for this Team Leader yet.';
             });
+
 
             const slotColumn = {
                 driver_1: 'driver_name',

@@ -109,33 +109,11 @@ class UnitController extends Controller
 
     public function store(Request $request)
     {
-        $teamLeaderRoleId = Role::where('name', 'Team Leader')->value('id');
-        $driverRoleId     = Role::where('name', 'Driver')->value('id');
-
         $validated = $request->validate([
             'plate_number' => 'required|string|max:50|unique:units,plate_number',
             'truck_type_id' => 'required|exists:truck_types,id',
-            'team_leader_id' => [
-                'nullable',
-                Rule::exists('users', 'id')
-                    ->where(fn($q) => $q->where('role_id', $teamLeaderRoleId)->whereNull('archived_at')),
-                'unique:units,team_leader_id',
-            ],
-            'driver_id' => [
-                'nullable',
-                Rule::exists('users', 'id')
-                    ->where(fn($q) => $q->where('role_id', $driverRoleId)->whereNull('archived_at')),
-            ],
-            'driver_name' => 'nullable|string|max:150',
-            'driver_2_name' => 'nullable|string|max:150',
-            'crew_member_1_name' => 'nullable|string|max:150',
-            'crew_member_2_name' => 'nullable|string|max:150',
             'status' => 'nullable|in:available,maintenance',
             'issue_note' => 'nullable|string|max:500',
-        ], [
-            'team_leader_id.unique' => 'This team leader is already assigned to another unit.',
-            'team_leader_id.exists' => 'Selected team leader is invalid or archived.',
-            'driver_id.exists'      => 'Selected driver is invalid or archived.',
         ]);
 
         $validated['name'] = $this->nextUnitName();
@@ -152,15 +130,78 @@ class UnitController extends Controller
             ->with('success', 'Unit added successfully.');
     }
 
+    public function assignTeamLeader(Request $request, $id): RedirectResponse
+    {
+        $unit = Unit::findOrFail($id);
+        $teamLeaderRoleId = Role::where('name', 'Team Leader')->value('id');
+
+        $validated = $request->validate([
+            'team_leader_id' => [
+                'required',
+                Rule::exists('users', 'id')
+                    ->where(fn($q) => $q->where('role_id', $teamLeaderRoleId)->whereNull('archived_at')),
+                'unique:units,team_leader_id',
+            ],
+        ], [
+            'team_leader_id.required' => 'Select a Team Leader to assign.',
+            'team_leader_id.exists'   => 'Selected team leader is invalid or archived.',
+            'team_leader_id.unique'   => 'This team leader is already assigned to another unit.',
+        ]);
+
+        $leader = User::find($validated['team_leader_id']);
+
+        $unit->update([
+            'team_leader_id' => $validated['team_leader_id'],
+            'driver_name' => build_full_name($leader->driver_first_name, $leader->driver_middle_name, $leader->driver_last_name),
+            'crew_member_1_name' => $leader->crew_member_1_name,
+            'crew_member_2_name' => $leader->crew_member_2_name,
+        ]);
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'team_leader_assigned',
+            'entity_type' => 'Unit',
+            'entity_id' => $unit->id,
+            'reference' => $unit->name,
+            'description' => "Team leader assigned to {$unit->name}.",
+        ]);
+
+        return redirect()->route('superadmin.unit-truck.index')
+            ->with('success', "Team leader assigned to {$unit->name}.");
+    }
+
+    public function removeTeamLeader($id): RedirectResponse
+    {
+        $unit = Unit::findOrFail($id);
+        $leaderName = $unit->teamLeader?->full_name ?? $unit->teamLeader?->name;
+
+        $unit->update([
+            'team_leader_id' => null,
+            'driver_name' => null,
+            'crew_member_1_name' => null,
+            'crew_member_2_name' => null,
+        ]);
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'team_leader_removed',
+            'entity_type' => 'Unit',
+            'entity_id' => $unit->id,
+            'reference' => $unit->name,
+            'description' => $leaderName
+                ? "{$leaderName} (and crew) removed from {$unit->name}."
+                : "Team leader removed from {$unit->name}.",
+        ]);
+
+        return redirect()->route('superadmin.unit-truck.index')
+            ->with('success', "Team leader and crew removed from {$unit->name}.");
+    }
+
     public function update(Request $request, $id)
     {
         $unit = Unit::findOrFail($id);
 
-        $teamLeaderRoleId = Role::where('name', 'Team Leader')->value('id');
-        $driverRoleId     = Role::where('name', 'Driver')->value('id');
-
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
             'plate_number' => [
                 'required',
                 'string',
@@ -168,82 +209,12 @@ class UnitController extends Controller
                 Rule::unique('units', 'plate_number')->ignore($unit->id),
             ],
             'truck_type_id' => 'required|exists:truck_types,id',
-            'status' => 'required|in:available,on_job,maintenance',
-            'issue_note' => 'nullable|string|max:500',
-            'team_leader_id' => [
-                'nullable',
-                Rule::exists('users', 'id')
-                    ->where(fn($q) => $q->where('role_id', $teamLeaderRoleId)->whereNull('archived_at')),
-            ],
-            'driver_id' => [
-                'nullable',
-                Rule::exists('users', 'id')
-                    ->where(fn($q) => $q->where('role_id', $driverRoleId)->whereNull('archived_at')),
-            ],
-            'driver_name' => 'nullable|string|max:150',
-            'driver_2_name' => 'nullable|string|max:150',
-            'crew_member_1_name' => 'nullable|string|max:150',
-            'crew_member_2_name' => 'nullable|string|max:150',
-        ], [
-            'team_leader_id.exists' => 'Selected team leader is invalid or archived.',
-            'driver_id.exists'      => 'Selected driver is invalid or archived.',
         ]);
 
-        $validated['plate_number'] = strtoupper($validated['plate_number']);
-
-        if ($validated['status'] !== 'maintenance') {
-            $validated['issue_note'] = null;
-        }
-
-        $reassignedFromUnit = null;
-
-        DB::transaction(function () use ($validated, $unit, $request, &$reassignedFromUnit) {
-            if (! empty($validated['team_leader_id'])) {
-                $conflictingUnit = Unit::where('team_leader_id', $validated['team_leader_id'])
-                    ->where('id', '!=', $unit->id)
-                    ->first();
-
-                if ($conflictingUnit) {
-                    $conflictingUnit->update([
-                        'team_leader_id'    => null,
-                        'dispatcher_status' => null,
-                        'zone_confirmed'    => false,
-                    ]);
-
-                    $reassignedFromUnit = $conflictingUnit;
-                }
-            }
-
-            $unit->update([
-                'name'           => $validated['name'],
-                'plate_number'   => $validated['plate_number'],
-                'truck_type_id'  => $validated['truck_type_id'],
-                'status'         => $validated['status'],
-                'issue_note'     => $validated['issue_note'] ?? null,
-                'team_leader_id' => $validated['team_leader_id'] ?? null,
-                'driver_id'      => $validated['driver_id'] ?? null,
-                'driver_name'    => $request->filled('driver_id')
-                    ? null
-                    : ($validated['driver_name'] ?? $unit->driver_name),
-                'driver_2_name'       => $validated['driver_2_name'] ?? $unit->driver_2_name,
-                'crew_member_1_name'  => $validated['crew_member_1_name'] ?? $unit->crew_member_1_name,
-                'crew_member_2_name'  => $validated['crew_member_2_name'] ?? $unit->crew_member_2_name,
-            ]);
-        });
-
-        if ($reassignedFromUnit) {
-            AuditLog::create([
-                'user_id' => Auth::id(),
-                'action' => 'team_leader_reassigned',
-                'entity_type' => 'Unit',
-                'entity_id' => $unit->id,
-                'reference' => $unit->name,
-                'description' => "Team leader moved from {$reassignedFromUnit->name} to {$unit->name}.",
-            ]);
-
-            return redirect()->route('superadmin.unit-truck.index')
-                ->with('success', "Team leader moved from {$reassignedFromUnit->name} to {$unit->name}.");
-        }
+        $unit->update([
+            'plate_number'  => strtoupper($validated['plate_number']),
+            'truck_type_id' => $validated['truck_type_id'],
+        ]);
 
         return redirect()->route('superadmin.unit-truck.index')
             ->with('success', 'Unit updated successfully.');

@@ -57,9 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("editDescription").value =
                 button.dataset.description || "";
 
-            const editClassEl = document.getElementById('editClass');
-            if (editClassEl) editClassEl.value = button.dataset.class || '';
-
             if (editForm) {
                 editForm.action = `${baseUrl}/${button.dataset.id}`;
             }

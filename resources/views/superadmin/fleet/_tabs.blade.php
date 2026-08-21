@@ -27,7 +27,7 @@
 <div class="fleet-tabs">
     <a href="{{ route('superadmin.truck-types.index') }}"
         class="{{ request()->routeIs('superadmin.truck-types.*') ? 'is-active' : '' }}">
-        Truck Class
+        Truck Type
     </a>
     <a href="{{ route('superadmin.unit-truck.index') }}"
         class="{{ request()->routeIs('superadmin.unit-truck.*') ? 'is-active' : '' }}">

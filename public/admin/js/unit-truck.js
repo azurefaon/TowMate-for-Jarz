@@ -9,12 +9,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const addModal = document.getElementById("addUnitModal");
     const editModal = document.getElementById("editUnitModal");
     const editForm = document.getElementById("editUnitForm");
+    const assignLeaderModal = document.getElementById("assignLeaderModal");
+    const assignLeaderForm = document.getElementById("assignLeaderForm");
+    const assignLeaderUnitName = document.getElementById("assignLeaderUnitName");
+    const assignLeaderSelect = document.getElementById("assignLeaderSelect");
     const searchInput = document.getElementById("unitSearch");
     const statusFilter = document.getElementById("statusFilter");
-    const addStatus = document.getElementById("addUnitStatus");
-    const editStatus = document.getElementById("editStatus");
-    const addIssueWrapper = document.getElementById("addIssueWrapper");
-    const editIssueWrapper = document.getElementById("editIssueWrapper");
 
     const showModal = (modal) => {
         if (modal) {
@@ -26,15 +26,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (modal) {
             modal.style.display = "none";
         }
-    };
-
-    const syncIssueVisibility = (selectElement, wrapperElement) => {
-        if (!selectElement || !wrapperElement) {
-            return;
-        }
-
-        wrapperElement.style.display =
-            selectElement.value === "maintenance" ? "block" : "none";
     };
 
     if (window.lucide) {
@@ -58,34 +49,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!button) return;
 
-        document.getElementById("editName").value = button.dataset.name || "";
         document.getElementById("editPlate").value = button.dataset.plate || "";
-        document.getElementById("editStatus").value =
-            button.dataset.status || "available";
-        document.getElementById("editIssue").value = button.dataset.issue || "";
         document.getElementById("editTruckType").value =
             button.dataset.truck || "";
-
-        document.getElementById("editLeaderId").value =
-            button.dataset.leaderId || "";
-        // Driver 1 (a dropdown of "Unassigned" + the team leader's staged driver) is
-        // rebuilt separately — see rebuildDriverOptions() in the page's inline script.
-        document.getElementById("editDriver2Name").value =
-            button.dataset.driver2Name || "";
-        document.getElementById("editCrew1Name").value =
-            button.dataset.crew1Name || "";
-        document.getElementById("editCrew2Name").value =
-            button.dataset.crew2Name || "";
 
         if (editForm) {
             editForm.action = `${baseUrl}/${button.dataset.id}`;
         }
 
-        syncIssueVisibility(editStatus, editIssueWrapper);
         showModal(editModal);
     });
 
-    [addModal, editModal].forEach((modal) => {
+    document.addEventListener("click", (e) => {
+        const button = e.target.closest(".js-assign-leader");
+
+        if (!button) return;
+
+        if (assignLeaderForm) {
+            assignLeaderForm.action = `${baseUrl}/${button.dataset.unitId}/assign-team-leader`;
+        }
+        if (assignLeaderUnitName) {
+            assignLeaderUnitName.textContent = `Unit: ${button.dataset.unitName || ""}`;
+        }
+        if (assignLeaderSelect) {
+            assignLeaderSelect.value = "";
+        }
+        const assignLeaderPreview = document.getElementById("assignLeaderPreview");
+        if (assignLeaderPreview) {
+            assignLeaderPreview.textContent = "";
+        }
+
+        showModal(assignLeaderModal);
+    });
+
+    document.querySelectorAll(".js-remove-leader-form").forEach((form) => {
+        form.addEventListener("submit", (e) => {
+            if (!window.confirm(form.dataset.confirm || "Remove this Team Leader?")) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    [addModal, editModal, assignLeaderModal].forEach((modal) => {
         if (!modal) {
             return;
         }
@@ -101,18 +106,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (event.key === "Escape") {
             hideModal(addModal);
             hideModal(editModal);
+            hideModal(assignLeaderModal);
         }
     });
-
-    addStatus?.addEventListener("change", () =>
-        syncIssueVisibility(addStatus, addIssueWrapper),
-    );
-    editStatus?.addEventListener("change", () =>
-        syncIssueVisibility(editStatus, editIssueWrapper),
-    );
-
-    syncIssueVisibility(addStatus, addIssueWrapper);
-    syncIssueVisibility(editStatus, editIssueWrapper);
 
     const filterUnits = () => {
         const search = (searchInput?.value || "").trim().toLowerCase();

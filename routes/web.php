@@ -263,6 +263,8 @@ Route::prefix('superadmin')
         Route::patch('/units/{id}/disable',      [UnitController::class, 'disable'])->name('units.disable');
         Route::patch('/units/{id}/archive',      [UnitController::class, 'archive'])->name('units.archive');
         Route::patch('/units/{id}/restore',      [UnitController::class, 'restore'])->name('units.restore');
+        Route::patch('/units/{id}/assign-team-leader', [UnitController::class, 'assignTeamLeader'])->name('units.assign-team-leader');
+        Route::patch('/units/{id}/remove-team-leader', [UnitController::class, 'removeTeamLeader'])->name('units.remove-team-leader');
         Route::delete('/units/{id}/force-delete', [UnitController::class, 'forceDelete'])->name('units.force-delete');
         Route::post('/units/{unit}/borrow-crew', [UnitController::class, 'borrowCrew'])->name('units.borrow-crew');
         Route::patch('/unit-crew-loans/{loan}/return', [UnitController::class, 'returnCrew'])->name('unit-crew-loans.return');

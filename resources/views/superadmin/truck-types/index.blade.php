@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Truck Classes')
+@section('title', 'Truck Types')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/truck-types.css') }}">
@@ -18,12 +18,12 @@
 
         <div class="page-top">
             <div>
-                <h1>Truck Classes</h1>
+                <h1>Truck Types</h1>
                 <p>{{ $stats['active'] }} active · {{ $stats['inactive'] }} inactive · {{ $stats['units'] }} unit(s) linked</p>
             </div>
 
             <button type="button" class="btn-primary-add" data-open-modal="addModal">
-                Add Truck Class
+                Add Truck Type
             </button>
         </div>
 
@@ -62,10 +62,9 @@
                             <div class="class-card-info">
                                 <span class="class-card-name">{{ $type->name }}</span>
                                 <span class="class-card-meta">
-                                    ₱{{ number_format($type->base_rate, 0) }} base
-                                    · ₱{{ number_format($type->per_km_rate, 0) }}/km
-                                    @if ($type->max_tonnage)· {{ number_format((float) $type->max_tonnage, 1) }} ton cap.@endif
-                                    · {{ $type->units_count ?? 0 }} unit(s)
+                                    ₱{{ number_format($type->per_km_rate, 0) }}/km
+                                    · ₱{{ number_format($type->base_rate, 0) }} base
+                                    @if ($type->max_tonnage)· {{ number_format((float) $type->max_tonnage, 0) }} kg cap.@endif
                                 </span>
                                 @if ($type->description)
                                     <span class="class-card-desc">{{ $type->description }}</span>
@@ -78,7 +77,6 @@
                                     <button type="button" class="card-action js-edit-type"
                                         data-id="{{ $type->id }}"
                                         data-name="{{ $type->name }}"
-                                        data-class="{{ $type->class }}"
                                         data-base="{{ $type->base_rate }}"
                                         data-km="{{ $type->per_km_rate }}"
                                         data-tonnage="{{ $type->max_tonnage }}"
@@ -115,41 +113,6 @@
                                 </div>
                             </div>
                         </div>
-
-                        <div class="class-card-chips">
-                            <div class="vt-cell" data-truck-id="{{ $type->id }}">
-                                @foreach ($type->vehicleTypes as $vt)
-                                    <span class="vt-pill" id="vt-pill-{{ $type->id }}-{{ $vt->id }}">
-                                        {{ $vt->name }}
-                                        <button type="button" class="vt-remove"
-                                            data-truck="{{ $type->id }}"
-                                            data-vehicle="{{ $vt->id }}"
-                                            title="Remove">×</button>
-                                    </span>
-                                @endforeach
-
-                                @php
-                                    $linkedIds = $type->vehicleTypes->pluck('id')->all();
-                                    $available = $allVehicleTypes->reject(
-                                        fn($v) => in_array($v->id, $linkedIds)
-                                            || ! $type->isCompatibleWithWeight($v->weight_kg !== null ? (float) $v->weight_kg : null)
-                                    );
-                                @endphp
-
-                                @if ($available->isNotEmpty())
-                                    <select class="vt-add-select" data-truck="{{ $type->id }}">
-                                        <option value="">+ add vehicle type</option>
-                                        @foreach ($available as $av)
-                                            <option value="{{ $av->id }}">{{ $av->name }}</option>
-                                        @endforeach
-                                    </select>
-                                @endif
-
-                                @if ($type->vehicleTypes->isEmpty() && $available->isEmpty())
-                                    <span class="vt-empty">no vehicle types configured</span>
-                                @endif
-                            </div>
-                        </div>
                     </div>
                 @empty
                     <div class="empty-state" style="padding:40px 20px;">
@@ -168,8 +131,8 @@
             <div class="modal-card">
                 <div class="modal-header">
                     <div>
-                        <h2>Add Truck Class</h2>
-                        <p>Set a name, duty class, and pricing for this towing truck.</p>
+                        <h2>Add Truck Type</h2>
+                        <p>Set a name and pricing for this towing truck.</p>
                     </div>
                     <button type="button" class="modal-close" data-close-modal="addModal">✕</button>
                 </div>
@@ -181,17 +144,6 @@
                         <label for="newTruckTypeName">Name</label>
                         <input id="newTruckTypeName" type="text" name="name"
                             placeholder="e.g. Flatbed, Wheel-Lift" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="newTruckTypeClass">Duty Class</label>
-                        <small class="input-hint">Determines which units the mobile app shows as available</small>
-                        <select id="newTruckTypeClass" name="class">
-                            <option value="">— not set —</option>
-                            <option value="light">Light Duty</option>
-                            <option value="medium">Medium Duty</option>
-                            <option value="heavy">Heavy Duty</option>
-                        </select>
                     </div>
 
                     <div class="form-row">
@@ -209,9 +161,9 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="newTruckTypeTonnage">Max Tonnage</label>
+                        <label for="newTruckTypeTonnage">Max Weight (kg)</label>
                         <input id="newTruckTypeTonnage" type="number" step="0.01" name="max_tonnage"
-                            placeholder="4.5">
+                            placeholder="4500">
                     </div>
 
                     <div class="form-group">
@@ -232,8 +184,8 @@
             <div class="modal-card">
                 <div class="modal-header">
                     <div>
-                        <h2>Edit Truck Class</h2>
-                        <p>Update pricing, capacity, or duty class.</p>
+                        <h2>Edit Truck Type</h2>
+                        <p>Update the name, pricing, or capacity.</p>
                     </div>
                     <button type="button" class="modal-close" data-close-modal="editModal">✕</button>
                 </div>
@@ -245,17 +197,6 @@
                     <div class="form-group">
                         <label for="editName">Name</label>
                         <input type="text" name="name" id="editName" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="editClass">Duty Class</label>
-                        <small class="input-hint">Determines which units the mobile app shows as available</small>
-                        <select name="class" id="editClass">
-                            <option value="">— not set —</option>
-                            <option value="light">Light Duty</option>
-                            <option value="medium">Medium Duty</option>
-                            <option value="heavy">Heavy Duty</option>
-                        </select>
                     </div>
 
                     <div class="form-row">
@@ -271,7 +212,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="editTonnage">Max Tonnage</label>
+                        <label for="editTonnage">Max Weight (kg)</label>
                         <input type="number" step="0.01" name="max_tonnage" id="editTonnage">
                     </div>
 
@@ -290,7 +231,7 @@
 
         <div id="disableModal" class="modal">
             <div class="modal-content">
-                <h3 id="disableTitle">Disable Truck Class?</h3>
+                <h3 id="disableTitle">Disable Truck Type?</h3>
                 <p id="disableText">This type will no longer appear for new towing unit setups.</p>
 
                 <form method="POST" id="disableForm">
@@ -308,7 +249,7 @@
         <!-- Delete Confirmation Modal -->
         <div id="deleteModal" class="modal">
             <div class="modal-content delete-modal-content">
-                <h3 id="deleteTitle">Delete Truck Class?</h3>
+                <h3 id="deleteTitle">Delete Truck Type?</h3>
                 <p id="deleteText">Are you sure you want to delete this truck type?</p>
 
                 <form method="POST" id="deleteForm">
@@ -327,63 +268,4 @@
 
 @push('scripts')
     <script src="{{ asset('admin/js/truck-types.js') }}" defer></script>
-    <script>
-        const _csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-
-        document.addEventListener('click', async function (e) {
-            const btn = e.target.closest('.vt-remove');
-            if (!btn) return;
-            const truckId   = btn.dataset.truck;
-            const vehicleId = btn.dataset.vehicle;
-            const pill      = document.getElementById(`vt-pill-${truckId}-${vehicleId}`);
-            btn.disabled = true;
-            const resp = await fetch(`/superadmin/truck-types/${truckId}/vehicle-types/${vehicleId}/detach`, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': _csrf, 'Accept': 'application/json' },
-            });
-            if ((await resp.json()).success) {
-                pill?.remove();
-            } else {
-                btn.disabled = false;
-            }
-        });
-
-        document.addEventListener('change', async function (e) {
-            const sel = e.target.closest('.vt-add-select');
-            if (!sel || !sel.value) return;
-            const truckId   = sel.dataset.truck;
-            const vehicleId = sel.value;
-            sel.disabled = true;
-            const resp = await fetch(`/superadmin/truck-types/${truckId}/vehicle-types/${vehicleId}/attach`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': _csrf, 'Accept': 'application/json' },
-            });
-            if ((await resp.json()).success) {
-                location.reload();
-            } else {
-                sel.value    = '';
-                sel.disabled = false;
-            }
-        });
-    </script>
-@endpush
-
-@push('styles')
-    <style>
-        .vt-cell { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-        .vt-pill {
-            display: inline-flex; align-items: center; gap: 4px;
-            background: #f3f4f6; border: 1px solid #e5e7eb;
-            border-radius: 6px; padding: 2px 8px; font-size: 12px; color: #374151;
-        }
-        .vt-remove {
-            background: none; border: none; cursor: pointer;
-            color: #9ca3af; font-size: 14px; line-height: 1; padding: 0 2px;
-        }
-        .vt-remove:hover { color: #ef4444; }
-        .vt-add-select {
-            font-size: 12px; border: 1px solid #e5e7eb; border-radius: 6px;
-            padding: 2px 6px; background: #fff; color: #374151; cursor: pointer;
-        }
-    </style>
 @endpush

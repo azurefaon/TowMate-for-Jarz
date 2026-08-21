@@ -43,7 +43,7 @@
                             <th>Unit</th>
                             <th>Plate</th>
                             <th>Team Leader</th>
-                            <th>Truck Class</th>
+                            <th>Truck Type</th>
                             <th>Archived</th>
                             <th></th>
                         </tr>
@@ -80,7 +80,7 @@
                                     @endif
                                 </td>
 
-                                <td data-label="Truck Class">
+                                <td data-label="Truck Type">
                                     @if ($unit->truckType)
                                         <span class="truck-badge">{{ $unit->truckType->name }}</span>
                                     @else
