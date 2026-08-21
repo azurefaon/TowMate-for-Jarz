@@ -98,8 +98,10 @@
                                         @endif
                                         <br>
                                         <form method="POST" action="{{ route('superadmin.units.remove-team-leader', $unit->id) }}"
-                                            class="js-remove-leader-form"
-                                            data-confirm="Remove {{ $leaderName }} (and their driver/crew) from {{ $unit->name }}?">
+                                            class="js-confirm-delete"
+                                            data-confirm-title="Remove Team Leader?"
+                                            data-confirm-message="Remove {{ $leaderName }} (and their driver/crew) from {{ $unit->name }}?"
+                                            data-confirm-button="Remove">
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" class="crew-slot-link">Remove</button>

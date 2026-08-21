@@ -82,14 +82,6 @@ document.addEventListener("DOMContentLoaded", () => {
         showModal(assignLeaderModal);
     });
 
-    document.querySelectorAll(".js-remove-leader-form").forEach((form) => {
-        form.addEventListener("submit", (e) => {
-            if (!window.confirm(form.dataset.confirm || "Remove this Team Leader?")) {
-                e.preventDefault();
-            }
-        });
-    });
-
     [addModal, editModal, assignLeaderModal].forEach((modal) => {
         if (!modal) {
             return;
