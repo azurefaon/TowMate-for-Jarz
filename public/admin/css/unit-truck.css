@@ -11,6 +11,11 @@
 .units-page .type-feedback {
     padding: 12px 14px;
     border-radius: 14px;
+    transition: opacity 0.3s ease;
+}
+
+.units-page .type-feedback.fade-out {
+    opacity: 0;
 }
 
 .units-page .type-feedback--success {
@@ -360,6 +365,14 @@
 .units-page .not-assigned,
 .units-page .empty-state p {
     color: #6b7280;
+}
+
+.units-page .unit-warning {
+    display: inline-block;
+    margin-top: 2px;
+    color: #9a3412;
+    font-weight: 600;
+    font-size: 0.75rem;
 }
 
 .units-page .plate-badge,

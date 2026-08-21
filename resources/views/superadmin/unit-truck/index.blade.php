@@ -23,10 +23,10 @@
         </div>
 
         @if (session('success'))
-            <div class="type-feedback type-feedback--success">{{ session('success') }}</div>
+            <div class="type-feedback type-feedback--success" id="unitsSuccessAlert">{{ session('success') }}</div>
         @endif
         @if (session('error'))
-            <div class="type-feedback type-feedback--error">{{ session('error') }}</div>
+            <div class="type-feedback type-feedback--error" id="unitsErrorAlert">{{ session('error') }}</div>
         @endif
 
         @include('superadmin.fleet._tabs')
@@ -83,9 +83,19 @@
                                 <td data-label="Team Leader">
                                     @php
                                         $leaderName = $unit->teamLeader?->full_name ?? $unit->teamLeader?->name;
+                                        $leaderInvalid = $unit->teamLeader && (
+                                            ($unit->teamLeader->role?->name !== 'Team Leader')
+                                            || $unit->teamLeader->archived_at
+                                        );
                                     @endphp
                                     @if ($leaderName)
                                         <span class="cell-main">{{ $leaderName }}</span>
+                                        @if ($leaderInvalid)
+                                            <br>
+                                            <small class="unit-warning" title="This person's account is not an active Team Leader — reassign or unassign via Edit.">
+                                                ⚠ not a Team Leader
+                                            </small>
+                                        @endif
                                     @else
                                         <span class="not-assigned">—</span>
                                     @endif
@@ -281,9 +291,9 @@
                         <label for="addLeaderId">Team Leader</label>
                         <select name="team_leader_id" id="addLeaderId">
                             <option value="">— Unassigned —</option>
-                            @foreach ($teamLeadersWithoutUnit as $leader)
-                                <option value="{{ $leader->id }}">
-                                    {{ $leader->full_name ?: $leader->name }}
+                            @foreach ($teamLeaders as $leader)
+                                <option value="{{ $leader->id }}" @if ($leader->unit_count > 0) disabled @endif>
+                                    {{ $leader->full_name ?: $leader->name }}{{ $leader->unit_count > 0 ? ' (already assigned to a unit)' : '' }}
                                 </option>
                             @endforeach
                         </select>
@@ -472,6 +482,16 @@
         document.addEventListener('DOMContentLoaded', function() {
             const page = document.querySelector('.units-page');
             if (!page) return;
+
+            // Auto-hide success/error banners after 3 seconds
+            ['unitsSuccessAlert', 'unitsErrorAlert'].forEach((id) => {
+                const alertEl = document.getElementById(id);
+                if (!alertEl) return;
+                setTimeout(() => {
+                    alertEl.classList.add('fade-out');
+                    setTimeout(() => alertEl.remove(), 300);
+                }, 3000);
+            });
 
             const baseUrl = page.dataset.baseUrl;
             const crewUnits = JSON.parse(document.getElementById('crewUnitsData').textContent || '[]');

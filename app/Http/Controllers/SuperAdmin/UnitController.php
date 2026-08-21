@@ -20,7 +20,7 @@ class UnitController extends Controller
 {
     public function index()
     {
-        $units = Unit::with(['teamLeader', 'driver', 'truckType'])
+        $units = Unit::with(['teamLeader.role', 'driver', 'truckType'])
             ->whereNull('archived_at')
             ->latest()
             ->paginate(10);
@@ -41,8 +41,6 @@ class UnitController extends Controller
                 'driver_first_name', 'driver_middle_name', 'driver_last_name',
                 'crew_member_1_name', 'crew_member_2_name',
             ]);
-
-        $teamLeadersWithoutUnit = $teamLeaders->where('unit_count', 0)->values();
 
         $teamLeaderStagedData = $teamLeaders->map(fn($leader) => [
             'id' => $leader->id,
@@ -74,7 +72,7 @@ class UnitController extends Controller
         $archivedCount = Unit::whereNotNull('archived_at')->count();
 
         return view('superadmin.unit-truck.index', compact(
-            'units', 'truckTypes', 'stats', 'teamLeaders', 'teamLeadersWithoutUnit',
+            'units', 'truckTypes', 'stats', 'teamLeaders',
             'crewUnitsData', 'loansOutBySlot', 'loansInBySlot', 'teamLeaderStagedData', 'nextUnitName',
             'archivedCount'
         ));
@@ -82,7 +80,7 @@ class UnitController extends Controller
 
     public function archived(Request $request)
     {
-        $archivedUnits = Unit::with(['teamLeader', 'truckType'])
+        $archivedUnits = Unit::with(['teamLeader.role', 'truckType'])
             ->whereNotNull('archived_at')
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->input('search');

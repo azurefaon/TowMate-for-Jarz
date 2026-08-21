@@ -17,10 +17,10 @@
         </div>
 
         @if (session('success'))
-            <div class="type-feedback type-feedback--success">{{ session('success') }}</div>
+            <div class="type-feedback type-feedback--success" id="unitsSuccessAlert">{{ session('success') }}</div>
         @endif
         @if (session('error'))
-            <div class="type-feedback type-feedback--error">{{ session('error') }}</div>
+            <div class="type-feedback type-feedback--error" id="unitsErrorAlert">{{ session('error') }}</div>
         @endif
 
         <div class="table-card">
@@ -62,9 +62,19 @@
                                 <td data-label="Team Leader">
                                     @php
                                         $leaderName = $unit->teamLeader?->full_name ?? $unit->teamLeader?->name;
+                                        $leaderInvalid = $unit->teamLeader && (
+                                            ($unit->teamLeader->role?->name !== 'Team Leader')
+                                            || $unit->teamLeader->archived_at
+                                        );
                                     @endphp
                                     @if ($leaderName)
                                         <span class="cell-main">{{ $leaderName }}</span>
+                                        @if ($leaderInvalid)
+                                            <br>
+                                            <small class="unit-warning" title="This person's account is not an active Team Leader.">
+                                                ⚠ not a Team Leader
+                                            </small>
+                                        @endif
                                     @else
                                         <span class="not-assigned">—</span>
                                     @endif
@@ -138,6 +148,16 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Auto-hide success/error banners after 3 seconds
+            ['unitsSuccessAlert', 'unitsErrorAlert'].forEach((id) => {
+                const alertEl = document.getElementById(id);
+                if (!alertEl) return;
+                setTimeout(() => {
+                    alertEl.classList.add('fade-out');
+                    setTimeout(() => alertEl.remove(), 300);
+                }, 3000);
+            });
+
             const deleteDialog = document.getElementById('deleteDialog');
             const deleteDialogTitle = document.getElementById('deleteDialogTitle');
             const deleteDialogMessage = document.getElementById('deleteDialogMessage');
