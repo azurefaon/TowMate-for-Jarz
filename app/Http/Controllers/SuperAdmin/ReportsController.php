@@ -367,6 +367,7 @@ class ReportsController extends Controller
         }
 
         $vehicleReport = $base()
+            ->where('status', 'completed')
             ->whereNotNull('assigned_unit_id')
             ->with('unit')
             ->selectRaw('assigned_unit_id, count(*) as trips, sum(final_total) as revenue')
@@ -381,9 +382,9 @@ class ReportsController extends Controller
 
         $financial = [
             'totalRevenue' => $totalRevenue,
-            'additionalFees' => (float) $base()->sum('additional_fee'),
-            'vatCollected' => (float) $base()->sum('vat_amount'),
-            'cashReceived' => (float) $base()->sum('cash_received'),
+            'additionalFees' => (float) $base()->where('status', 'completed')->sum('additional_fee'),
+            'vatCollected' => (float) $base()->where('status', 'completed')->sum('vat_amount'),
+            'cashReceived' => (float) $base()->where('status', 'completed')->sum('cash_received'),
             'averagePerBooking' => $completedCount > 0 ? $totalRevenue / $completedCount : 0.0,
         ];
 
