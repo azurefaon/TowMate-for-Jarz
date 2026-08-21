@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\TeamLeader;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
-use App\Models\TruckType;
 use App\Models\Unit;
 use App\Services\TeamLeaderAvailabilityService;
 use Illuminate\Http\JsonResponse;
@@ -33,30 +32,6 @@ class TLPresenceController extends Controller
 
             if (! $hasActiveJob && $existingUnit->status !== 'available') {
                 $existingUnit->update(['status' => 'available']);
-            }
-        } else {
-            // Auto-assign a unit if TL has none so dispatchAvailability() can find them
-            $unit = Unit::where('status', 'available')->whereNull('team_leader_id')->first();
-
-            if (! $unit) {
-                $truckTypeQuery = TruckType::where('status', 'active');
-                if ($user->duty_class) {
-                    $truckTypeQuery->where('class', $user->duty_class);
-                }
-                $truckType = $truckTypeQuery->first();
-                if ($truckType) {
-                    $unit = Unit::create([
-                        'name'          => ($user->name ?? 'TL') . "'s Unit",
-                        'plate_number'  => 'AUTO-' . strtoupper(substr(md5((string) $user->id), 0, 6)),
-                        'truck_type_id' => $truckType->id,
-                        'driver_name'   => $user->name ?? '',
-                        'status'        => 'available',
-                    ]);
-                }
-            }
-
-            if ($unit) {
-                $unit->update(['team_leader_id' => $user->id]);
             }
         }
 
