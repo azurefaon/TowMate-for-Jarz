@@ -92,7 +92,7 @@
                                         <span class="cell-main">{{ $leaderName }}</span>
                                         @if ($leaderInvalid)
                                             <br>
-                                            <small class="unit-warning" title="This person's account is not an active Team Leader — reassign or unassign via Edit.">
+                                            <small class="unit-warning" title="This person's account is not an active Team Leader - reassign or unassign via Edit.">
                                                 ⚠ not a Team Leader
                                             </small>
                                         @endif
@@ -154,7 +154,7 @@
                                             <small class="unit-subtext">{{ $unit->truckType->class }}</small>
                                         @endif
                                     @else
-                                        <span class="not-assigned">—</span>
+                                        <span class="not-assigned">-</span>
                                     @endif
                                 </td>
 
@@ -162,7 +162,7 @@
                                     @if ($unit->truckType && $unit->truckType->base_rate)
                                         <span class="rate-val">₱{{ number_format($unit->truckType->base_rate, 2) }}</span>
                                     @else
-                                        <span class="not-assigned">—</span>
+                                        <span class="not-assigned">-</span>
                                     @endif
                                 </td>
 
@@ -171,7 +171,7 @@
                                         <span
                                             class="rate-val">₱{{ number_format($unit->truckType->per_km_rate, 2) }}</span>
                                     @else
-                                        <span class="not-assigned">—</span>
+                                        <span class="not-assigned">-</span>
                                     @endif
                                 </td>
 
@@ -179,7 +179,7 @@
                                     @if ($unit->truckType && $unit->truckType->max_tonnage)
                                         <span class="rate-val">{{ $unit->truckType->max_tonnage }} t</span>
                                     @else
-                                        <span class="not-assigned">—</span>
+                                        <span class="not-assigned">-</span>
                                     @endif
                                 </td>
 
@@ -191,7 +191,7 @@
                                         <span class="note-text"
                                             title="{{ $unit->dispatcher_note }}">{{ $unit->dispatcher_note }}</span>
                                     @else
-                                        <span class="not-assigned">—</span>
+                                        <span class="not-assigned">-</span>
                                     @endif
                                 </td>
 
@@ -281,7 +281,7 @@
                         <div class="form-group">
                             <label for="addTruckType">Truck Type</label>
                             <select name="truck_type_id" id="addTruckType" required>
-                                <option value="">— Select —</option>
+                                <option value="">- Select -</option>
                                 @foreach ($truckTypes as $type)
                                     <option value="{{ $type->id }}">{{ $type->name }}</option>
                                 @endforeach
@@ -315,13 +315,13 @@
                     <div class="form-group">
                         <label for="assignLeaderSelect">Team Leader</label>
                         <select name="team_leader_id" id="assignLeaderSelect" required>
-                            <option value="">— Select —</option>
+                            <option value="">- Select -</option>
                             @foreach ($teamLeaders->where('unit_count', 0) as $leader)
                                 <option value="{{ $leader->id }}">{{ $leader->full_name ?: $leader->name }}</option>
                             @endforeach
                         </select>
                         @if ($teamLeaders->where('unit_count', 0)->isEmpty())
-                            <p class="field-note">No available Team Leaders — everyone already has a unit.</p>
+                            <p class="field-note">No available Team Leaders - everyone already has a unit.</p>
                         @endif
                         <p class="field-note" id="assignLeaderPreview"></p>
                     </div>
@@ -391,14 +391,14 @@
                     <div class="form-group">
                         <label for="borrowFromUnit">Borrow from unit</label>
                         <select name="from_unit_id" id="borrowFromUnit" required>
-                            <option value="">— Select unit —</option>
+                            <option value="">- Select unit -</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label for="borrowFromSlot">Person to borrow</label>
                         <select name="from_slot" id="borrowFromSlot" required>
-                            <option value="">— Select unit first —</option>
+                            <option value="">- Select unit first -</option>
                         </select>
                     </div>
 
@@ -464,9 +464,9 @@
                     return;
                 }
                 const parts = [];
-                if (staged.driver_name) parts.push(`Driver — ${staged.driver_name}`);
-                if (staged.crew_member_1_name) parts.push(`Crew 1 — ${staged.crew_member_1_name}`);
-                if (staged.crew_member_2_name) parts.push(`Crew 2 — ${staged.crew_member_2_name}`);
+                if (staged.driver_name) parts.push(`Driver - ${staged.driver_name}`);
+                if (staged.crew_member_1_name) parts.push(`Crew 1 - ${staged.crew_member_1_name}`);
+                if (staged.crew_member_2_name) parts.push(`Crew 2 - ${staged.crew_member_2_name}`);
                 assignLeaderPreview.textContent = parts.length
                     ? `Comes with: ${parts.join(', ')}`
                     : 'No driver/crew on file for this Team Leader yet.';
@@ -506,7 +506,7 @@
 
             const populateFromUnits = () => {
                 const type = slotType(currentToSlot);
-                borrowFromUnit.innerHTML = '<option value="">— Select unit —</option>';
+                borrowFromUnit.innerHTML = '<option value="">- Select unit -</option>';
 
                 crewUnits
                     .filter(u => u.id !== currentToUnitId)
@@ -521,13 +521,13 @@
                         borrowFromUnit.appendChild(opt);
                     });
 
-                borrowFromSlot.innerHTML = '<option value="">— Select unit first —</option>';
+                borrowFromSlot.innerHTML = '<option value="">- Select unit first -</option>';
             };
 
             const populateFromSlots = () => {
                 const type = slotType(currentToSlot);
                 const unitId = parseInt(borrowFromUnit.value, 10);
-                borrowFromSlot.innerHTML = '<option value="">— Select person —</option>';
+                borrowFromSlot.innerHTML = '<option value="">- Select person -</option>';
                 if (!unitId) return;
 
                 const unit = crewUnits.find(u => u.id === unitId);
@@ -551,7 +551,7 @@
                     currentToSlot = btn.dataset.toSlot;
 
                     borrowToLabel.textContent =
-                        `${btn.dataset.toUnitName} — ${btn.dataset.toSlotLabel}`;
+                        `${btn.dataset.toUnitName} - ${btn.dataset.toSlotLabel}`;
                     borrowToSlot.value = currentToSlot;
                     borrowForm.action = `${baseUrl}/${currentToUnitId}/borrow-crew`;
 

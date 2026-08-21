@@ -76,7 +76,7 @@
                                             </small>
                                         @endif
                                     @else
-                                        <span class="not-assigned">—</span>
+                                        <span class="not-assigned">-</span>
                                     @endif
                                 </td>
 
@@ -84,12 +84,12 @@
                                     @if ($unit->truckType)
                                         <span class="truck-badge">{{ $unit->truckType->name }}</span>
                                     @else
-                                        <span class="not-assigned">—</span>
+                                        <span class="not-assigned">-</span>
                                     @endif
                                 </td>
 
                                 <td data-label="Archived">
-                                    {{ optional($unit->archived_at)->format('M d, Y h:i A') ?? '—' }}
+                                    {{ optional($unit->archived_at)->format('M d, Y h:i A') ?? '-' }}
                                 </td>
 
                                 <td data-label="Action">

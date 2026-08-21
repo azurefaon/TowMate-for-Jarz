@@ -9,6 +9,7 @@ use App\Models\TruckType;
 use App\Models\User;
 use App\Services\DocumentGenerationService;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 
 class ReportsController extends Controller
@@ -111,7 +112,7 @@ class ReportsController extends Controller
         $actorId = $request->query('user_id', '');
         $search = trim((string) $request->query('search', ''));
 
-        $logs = AuditLog::with('user')
+        $allLogs = AuditLog::with('user')
             ->whereBetween('created_at', [$start, $end])
             ->when($category !== '', fn ($q) => $q->where('category', $category))
             ->when($entityType !== '', fn ($q) => $q->where('entity_type', $entityType))
@@ -123,8 +124,24 @@ class ReportsController extends Controller
                 });
             })
             ->latest()
-            ->paginate(10)
-            ->withQueryString();
+            ->get();
+
+        // Each log entry can expand into several rows (one per changed field),
+        // so we flatten first and paginate the flattened rows — this keeps the
+        // page's visible row count fixed at $perPage regardless of how many
+        // fields any single action touched.
+        $rows = $allLogs->flatMap(fn ($log) => collect($this->explodeAuditLogRows($log))
+            ->map(fn ($description) => (object) ['log' => $log, 'description' => $description]));
+
+        $perPage = 10;
+        $page = (int) $request->query('page', 1);
+        $logs = new LengthAwarePaginator(
+            $rows->forPage($page, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
         return view('superadmin.reports.activity', [
             'logs' => $logs,
@@ -140,6 +157,51 @@ class ReportsController extends Controller
             'entityTypes' => AuditLog::query()->select('entity_type')->distinct()->whereNotNull('entity_type')->orderBy('entity_type')->pluck('entity_type'),
             'actors' => User::whereIn('role_id', [1, 2, 3])->orderBy('name')->get(['id', 'name', 'first_name', 'middle_name', 'last_name']),
         ]);
+    }
+
+    /**
+     * Turns one audit log's old/new value diff into a list of human-readable
+     * "Field: value" (create/delete) or "Field: old - new" (update) strings —
+     * one row per changed field. Falls back to the log's own description when
+     * there's no diff data to expand (e.g. a plain login/logout event).
+     */
+    protected function explodeAuditLogRows(AuditLog $log): array
+    {
+        $old = $log->old_value ?? [];
+        $new = $log->new_value ?? [];
+
+        $humanize = fn ($key) => ucwords(str_replace('_', ' ', $key));
+        $formatValue = function ($value) {
+            if ($value === null || $value === '') {
+                return '(none)';
+            }
+            if (is_bool($value)) {
+                return $value ? 'Yes' : 'No';
+            }
+            return (string) $value;
+        };
+
+        $rows = [];
+
+        if (empty($old) && ! empty($new)) {
+            foreach ($new as $field => $value) {
+                if ($value !== null && $value !== '') {
+                    $rows[] = $humanize($field) . ': ' . $formatValue($value);
+                }
+            }
+        } elseif (empty($new) && ! empty($old)) {
+            foreach ($old as $field => $value) {
+                if ($value !== null && $value !== '') {
+                    $rows[] = $humanize($field) . ': ' . $formatValue($value);
+                }
+            }
+        } elseif (! empty($old) || ! empty($new)) {
+            foreach (array_unique(array_merge(array_keys($old), array_keys($new))) as $field) {
+                $rows[] = $humanize($field) . ': ' . $formatValue($old[$field] ?? null) . ' - ' . $formatValue($new[$field] ?? null);
+            }
+        }
+
+        return $rows ?: [$log->description];
     }
 
     protected static function bucketLabel(string $bucket): string

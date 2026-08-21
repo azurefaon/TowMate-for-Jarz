@@ -134,29 +134,6 @@
             color: #111111;
         }
 
-        .diff-toggle {
-            margin-top: 6px;
-        }
-
-        .diff-toggle summary {
-            cursor: pointer;
-            font-size: 0.78rem;
-            font-weight: 700;
-            color: #111111;
-            text-decoration: underline;
-        }
-
-        .diff-toggle pre {
-            margin: 6px 0 0;
-            padding: 8px;
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            font-size: 0.74rem;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
         .activity-empty {
             text-align: center;
             padding: 26px;
@@ -215,7 +192,7 @@
     <div class="reports-page">
 
         <h1>Reports</h1>
-        {{-- <p class="subtitle">Every logged action — who, what changed, and when.</p> --}}
+        {{-- <p class="subtitle">Every logged action - who, what changed, and when.</p> --}}
 
         <div class="reports-tabs">
             <a href="{{ route('superadmin.reports.index') }}">Summary</a>
@@ -261,14 +238,15 @@
                 <thead>
                     <tr>
                         <th style="width:14%;">Date / Time</th>
-                        <th style="width:14%;">Actor</th>
+                        <th style="width:14%;">User</th>
                         <th style="width:12%;">Action</th>
                         <th style="width:16%;">Record</th>
                         <th>Description</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse ($logs as $log)
+                    @forelse ($logs as $row)
+                        @php $log = $row->log; @endphp
                         <tr>
                             <td>{{ $log->created_at?->format('M j, Y') }}<br><span
                                     style="color:#374151;">{{ $log->created_at?->format('g:i A') }}</span></td>
@@ -278,17 +256,8 @@
                                     {{ $categories[$log->category] ?? ucfirst(str_replace('_', ' ', (string) $log->category)) }}
                                 </span>
                             </td>
-                            <td>{{ $log->entity_type }}{{ $log->reference ? ' — ' . $log->reference : '' }}</td>
-                            <td>
-                                {{ $log->description }}
-                                @if ($log->old_value || $log->new_value)
-                                    <details class="diff-toggle">
-                                        <summary>View diff</summary>
-                                        <pre>Old: {{ json_encode($log->old_value, JSON_PRETTY_PRINT) }}
-New: {{ json_encode($log->new_value, JSON_PRETTY_PRINT) }}</pre>
-                                    </details>
-                                @endif
-                            </td>
+                            <td>{{ $log->entity_type }}{{ $log->reference ? ' - ' . $log->reference : '' }}</td>
+                            <td>{{ $row->description }}</td>
                         </tr>
                     @empty
                         <tr>
@@ -300,7 +269,7 @@ New: {{ json_encode($log->new_value, JSON_PRETTY_PRINT) }}</pre>
 
             @if ($logs->hasPages())
                 <div class="activity-pagination">
-                    {{ $logs->onEachSide(1)->links('vendor.pagination.custom') }}
+                    {{ $logs->onEachSide(0)->links('vendor.pagination.custom') }}
                 </div>
             @endif
         </div>
