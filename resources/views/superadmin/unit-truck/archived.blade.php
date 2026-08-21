@@ -16,6 +16,13 @@
             <a href="{{ route('superadmin.unit-truck.index') }}" class="btn-light">Back to Truck</a>
         </div>
 
+        @if (session('success'))
+            <div class="type-feedback type-feedback--success">{{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="type-feedback type-feedback--error">{{ session('error') }}</div>
+        @endif
+
         <div class="table-card">
             <div class="table-header">
                 <form method="GET" class="table-controls">

@@ -22,6 +22,13 @@
             </div>
         </div>
 
+        @if (session('success'))
+            <div class="type-feedback type-feedback--success">{{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="type-feedback type-feedback--error">{{ session('error') }}</div>
+        @endif
+
         @include('superadmin.fleet._tabs')
 
         <div class="table-card">
