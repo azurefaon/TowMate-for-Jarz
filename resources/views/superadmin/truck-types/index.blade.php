@@ -27,6 +27,8 @@
             </button>
         </div>
 
+        @include('superadmin.fleet._tabs')
+
         <div class="table-card">
             <div class="table-header">
                 <div>
@@ -128,7 +130,10 @@
 
                                 @php
                                     $linkedIds = $type->vehicleTypes->pluck('id')->all();
-                                    $available = $allVehicleTypes->reject(fn($v) => in_array($v->id, $linkedIds));
+                                    $available = $allVehicleTypes->reject(
+                                        fn($v) => in_array($v->id, $linkedIds)
+                                            || ! $type->isCompatibleWithWeight($v->weight_kg !== null ? (float) $v->weight_kg : null)
+                                    );
                                 @endphp
 
                                 @if ($available->isNotEmpty())

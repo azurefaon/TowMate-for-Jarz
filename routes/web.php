@@ -32,8 +32,8 @@ use App\Http\Controllers\Customer\TrackController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\PublicTrackController;
 
-use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingController;
+use App\Http\Controllers\SuperAdmin\CustomerController as SuperAdminCustomerController;
 use App\Http\Controllers\SuperAdmin\DataProtectionController;
 use App\Http\Controllers\SuperAdmin\MonitoringController;
 use App\Http\Controllers\SuperAdmin\ReportsController;
@@ -145,7 +145,7 @@ Route::prefix('control-center')
 
 Route::prefix('admin-dashboard')
     ->name('admin.')
-    ->middleware(['auth', 'role:2', 'force.password.change'])
+    ->middleware(['auth', 'role:1,2', 'force.password.change'])
     ->group(function () {
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/live-overview', [AdminController::class, 'liveOverview'])->name('live-overview');
@@ -202,7 +202,10 @@ Route::prefix('superadmin')
         Route::get('/dashboard', [SuperAdminController::class, 'index'])->name('dashboard');
         Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
         Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
+        Route::get('/reports/export-pdf', [ReportsController::class, 'exportSummaryPdf'])->name('reports.export-pdf');
         Route::get('/reports/bookings', [ReportsController::class, 'bookings'])->name('reports.bookings');
+        Route::get('/reports/activity', [ReportsController::class, 'activity'])->name('reports.activity');
+        Route::get('/reports/activity/export', [ReportsController::class, 'exportActivityPdf'])->name('reports.activity.export');
         Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
         Route::get('/monitoring/live', [MonitoringController::class, 'live'])->name('monitoring.live');
         Route::get('/protection', [DataProtectionController::class, 'index'])->name('backups.index');
@@ -212,7 +215,10 @@ Route::prefix('superadmin')
         Route::get('users/archived', [UserManagementController::class, 'archived'])->name('users.archived');
         Route::patch('users/{user}/archive', [UserManagementController::class, 'archive'])->name('users.archive');
         Route::patch('users/{id}/restore', [UserManagementController::class, 'restore'])->name('users.restore');
-        Route::delete('users/{id}/force-delete', [UserManagementController::class, 'forceDelete'])->name('users.force-delete');
+        Route::delete('users/{id}/queue-for-deletion', [UserManagementController::class, 'queueForDeletion'])->name('users.queue-for-deletion');
+        Route::patch('users/{id}/restore-from-deleted', [UserManagementController::class, 'restoreFromDeleted'])->name('users.restore-from-deleted');
+        Route::delete('users/{id}/purge-now', [UserManagementController::class, 'purgeNow'])->name('users.purge-now');
+        Route::delete('users/{user}/delete-now', [UserManagementController::class, 'deleteNow'])->name('users.delete-now');
         Route::patch('users/{user}/password-request/set-password', [UserManagementController::class, 'setDefaultPassword'])->name('users.password-request.set-password');
         Route::patch('users/{user}/password-request/resolve', [UserManagementController::class, 'resolvePasswordRequest'])->name('users.password-request.resolve');
         Route::resource('users', UserManagementController::class)->except(['show']);
@@ -251,6 +257,7 @@ Route::prefix('superadmin')
         Route::delete('/vehicle-types/{vehicleType}', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'destroy'])->name('vehicle-types.destroy');
 
         Route::get('/units', [UnitController::class, 'index'])->name('unit-truck.index');
+        Route::get('/units/archived', [UnitController::class, 'archived'])->name('units.archived');
         Route::post('/units', [UnitController::class, 'store'])->name('units.store');
         Route::put('/units/{id}', [UnitController::class, 'update'])->name('units.update');
         Route::patch('/units/{id}/toggle',       [UnitController::class, 'toggle'])->name('units.toggle');
@@ -258,11 +265,14 @@ Route::prefix('superadmin')
         Route::patch('/units/{id}/archive',      [UnitController::class, 'archive'])->name('units.archive');
         Route::patch('/units/{id}/restore',      [UnitController::class, 'restore'])->name('units.restore');
         Route::delete('/units/{id}/force-delete', [UnitController::class, 'forceDelete'])->name('units.force-delete');
+        Route::post('/units/{unit}/borrow-crew', [UnitController::class, 'borrowCrew'])->name('units.borrow-crew');
+        Route::patch('/unit-crew-loans/{loan}/return', [UnitController::class, 'returnCrew'])->name('unit-crew-loans.return');
 
         Route::get('/bookings', [SuperAdminBookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{id}', [SuperAdminBookingController::class, 'show'])->name('bookings.show');
 
-        Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit.logs');
+        Route::get('/customers', [SuperAdminCustomerController::class, 'index'])->name('customers.index');
+        Route::get('/customers/{customer}', [SuperAdminCustomerController::class, 'show'])->name('customers.show');
 
         Route::get('/settings', [SystemSettingsController::class, 'index'])->name('settings.index');
         Route::post('/settings/update', [SystemSettingsController::class, 'update'])->name('settings.update');

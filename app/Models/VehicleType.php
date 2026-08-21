@@ -9,11 +9,21 @@ class VehicleType extends Model
     protected $fillable = [
         'name',
         'category',
+        'weight_kg',
         'description',
         'icon_path',
         'display_order',
         'status'
     ];
+
+    protected $casts = [
+        'weight_kg' => 'decimal:2',
+    ];
+
+    public function auditLabel(): string
+    {
+        return 'Vehicle Type ' . ($this->name ?: "#{$this->getKey()}");
+    }
 
     public function truckTypes()
     {

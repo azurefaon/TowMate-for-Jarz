@@ -70,6 +70,11 @@ class Quotation extends Model
         'inquiry_sent_at' => 'datetime',
     ];
 
+    public function auditLabel(): string
+    {
+        return 'Quotation ' . ($this->quotation_number ?: "#{$this->getKey()}");
+    }
+
     public function getVehicleImagePathsAttribute(): array
     {
         $raw = $this->attributes['vehicle_image_path'] ?? null;

@@ -29,6 +29,11 @@ class User extends Authenticatable
         'password',
         'role_id',
         'duty_class',
+        'driver_first_name',
+        'driver_middle_name',
+        'driver_last_name',
+        'crew_member_1_name',
+        'crew_member_2_name',
         'password_reset_otp',
         'password_reset_otp_expires_at',
         'password_reset_token',
@@ -38,6 +43,7 @@ class User extends Authenticatable
         'password_request_note',
         'password_request_resolved_at',
         'archived_at',
+        'pending_delete_at',
         'email_verified_at',
         'must_change_password',
         'last_ping_at',
@@ -65,6 +71,11 @@ class User extends Authenticatable
     public function getFullNameAttribute(): string
     {
         return build_full_name($this->first_name, $this->middle_name, $this->last_name) ?: (string) $this->name;
+    }
+
+    public function auditLabel(): string
+    {
+        return 'User ' . ($this->full_name ?: "#{$this->getKey()}");
     }
 
     public function scopeVisibleToOperations($query)
@@ -112,6 +123,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'archived_at' => 'datetime',
+            'pending_delete_at' => 'datetime',
             'password_requested_at' => 'datetime',
             'password_request_resolved_at' => 'datetime',
             'password' => 'hashed',

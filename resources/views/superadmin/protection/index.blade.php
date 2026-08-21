@@ -131,7 +131,7 @@
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <a class="protect-link" href="{{ route('superadmin.users.archived') }}">Open Archived Users</a>
                     <a class="protect-link" href="{{ route('superadmin.bookings.index') }}">Review Bookings</a>
-                    <a class="protect-link" href="{{ route('superadmin.audit.logs') }}">Audit Logs</a>
+                    <a class="protect-link" href="{{ route('superadmin.reports.activity') }}">Activity Log</a>
                 </div>
             </div>
         </section>

@@ -119,7 +119,7 @@
                     <i data-lucide="clipboard-list"></i>
                     <span>Bookings</span>
                 </a>
-                <a href="{{ route('superadmin.audit.logs') }}" class="quick-link-btn">
+                <a href="{{ route('superadmin.reports.activity') }}" class="quick-link-btn">
                     <i data-lucide="shield-check"></i>
                     <span>Audit</span>
                 </a>

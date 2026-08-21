@@ -35,7 +35,7 @@ class PasswordResetLinkController extends Controller
             ->where('email', $email)
             ->whereNull('archived_at')
             ->whereHas('role', function ($query) {
-                $query->whereNotIn('name', ['Super Admin', 'Customer', 'Driver']);
+                $query->whereNotIn('id', [1, 4, 5]);
             })
             ->first();
 
@@ -58,6 +58,6 @@ class PasswordResetLinkController extends Controller
         }
 
         return back()
-            ->with('status', 'If the email matches a managed account, the Super Admin has received the account access request.');
+            ->with('status', 'If the email matches a managed account, the Owner has received the account access request.');
     }
 }

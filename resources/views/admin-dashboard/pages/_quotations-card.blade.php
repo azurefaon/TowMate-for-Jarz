@@ -63,7 +63,7 @@
                         Draft
                     </span>
                     <span id="fqBadge-draft"
-                        style="display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: {{ $draftQuotations->count() > 0 ? '#fef3c7' : '#f1f5f9' }}; color: {{ $draftQuotations->count() > 0 ? '#b45309' : '#64748b' }};">
+                        style="display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: {{ $draftQuotations->count() > 0 ? '#f59e0b' : '#f1f5f9' }}; color: {{ $draftQuotations->count() > 0 ? '#fff' : '#64748b' }};">
                         {{ $draftQuotations->count() }}
                     </span>
                 </button>
@@ -99,7 +99,7 @@
                         Negotiating
                     </span>
                     <span id="fqBadge-negotiating"
-                        style="display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: {{ $negotiatingQuotations->count() > 0 ? '#f3e8ff' : '#f1f5f9' }}; color: {{ $negotiatingQuotations->count() > 0 ? '#7e22ce' : '#64748b' }};">
+                        style="display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: {{ $negotiatingQuotations->count() > 0 ? '#a855f7' : '#f1f5f9' }}; color: {{ $negotiatingQuotations->count() > 0 ? '#fff' : '#64748b' }};">
                         {{ $negotiatingQuotations->count() }}
                     </span>
                 </button>
@@ -111,7 +111,7 @@
                 @if ($draftQuotations->count() === 0)
                     <div style="padding: 32px 0; text-align: center; color: #94a3b8; font-size: 0.85rem;">No drafted quotations.</div>
                 @else
-                    <div style="max-height: 380px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+                    <div style="max-height: 460px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px;">
                         @foreach ($draftQuotations as $quotation)
                             @php
                                 $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
@@ -126,7 +126,7 @@
                                 ])->values()->toArray();
                                 $qGroupCode = ($quotation->group_siblings ?? collect())->first()?->group_code ?? '';
                             @endphp
-                            <div style="border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
+                            <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 13px; background: #fff; cursor: pointer; transition: box-shadow 0.15s;"
                                 onclick="viewQuotationDetails({{ $quotation->id }})"
                                 onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
                                 onmouseout="this.style.boxShadow='none'"
@@ -145,10 +145,7 @@
                                         <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 1px;">{{ $quotation->created_at->diffForHumans() }}</div>
                                     </div>
                                     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-                                        <span style="font-size: 0.68rem; padding: 2px 8px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a; border-radius: 4px; font-weight: 700;">DRAFT</span>
-                                        @if ($quotation->source_booking_id)
-                                            <span style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-weight: 700;">MOBILE</span>
-                                        @endif
+                                        <span style="font-size: 0.68rem; padding: 2px 8px; background: #f59e0b; color: #fff; border: 1px solid #f59e0b; border-radius: 4px; font-weight: 700;">DRAFT</span>
                                     </div>
                                 </div>
                                 <div style="font-size: 0.88rem; color: #0f172a; margin-bottom: 1px;">
@@ -159,7 +156,7 @@
                                     <span style="font-size: 1rem; font-weight: 800; color: #0f172a;">₱{{ number_format($quotation->estimated_price, 2) }}</span>
                                     <button type="button"
                                         onclick="event.stopPropagation(); viewQuotationDetails({{ $quotation->id }})"
-                                        style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #fef3c7; color: #b45309; border: 1px solid #fde68a; cursor: pointer;">
+                                        style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #f59e0b; color: #fff; border: 1px solid #f59e0b; cursor: pointer;">
                                         Send Now
                                     </button>
                                 </div>
@@ -176,7 +173,7 @@
                         quotations.</div>
                 @else
                     <div
-                        style="max-height: 380px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+                        style="max-height: 460px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px;">
                         @foreach ($pendingQuotations as $quotation)
                             @php
                                 $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
@@ -216,14 +213,10 @@
                                     <div
                                         style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px;">
                                         <span
-                                            style="font-size: 10px; padding: 2px 8px; border-radius: 999px; color: #000;">PENDING</span>
-                                        @if ($quotation->source_booking_id)
-                                            <span
-                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-weight: 700;">MOBILE</span>
-                                        @endif
+                                            style="font-size: 10px; padding: 2px 8px; border-radius: 999px; background: #475569; color: #fff; font-weight: 700;">PENDING</span>
                                         @if (($quotation->group_sibling_count ?? 0) > 0)
                                             <span
-                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dcfce7; color: #15803d; font-weight: 700;">+{{ $quotation->group_sibling_count }} scheduled</span>
+                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #16a34a; color: #fff; font-weight: 700;">+{{ $quotation->group_sibling_count }} scheduled</span>
                                         @endif
                                     </div>
                                 </div>
@@ -257,7 +250,7 @@
                         awaiting customer response.</div>
                 @else
                     <div
-                        style="max-height: 380px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+                        style="max-height: 460px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px;">
                         @foreach ($sentQuotations as $quotation)
                             @php
                                 $timeRemaining = $quotation->getTimeRemaining();
@@ -279,9 +272,9 @@
                                     default => '#e5e7eb',
                                 };
                                 $badgeBg = match ($urgency) {
-                                    'urgent' => '#fef2f2',
-                                    'warning' => '#fffbeb',
-                                    default => '#f8fafc',
+                                    'urgent' => '#ef4444',
+                                    'warning' => '#f59e0b',
+                                    default => '#64748b',
                                 };
                                 $badgeColor = match ($urgency) {
                                     'urgent' => '#dc2626',
@@ -318,10 +311,10 @@
                                     </div>
                                     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
                                         <span
-                                            style="font-size: 0.68rem; padding: 2px 8px; background: {{ $badgeBg }}; color: {{ $badgeColor }}; border: 1px solid {{ $accentColor }}40; border-radius: 4px;">{{ $badgeText }}</span>
+                                            style="font-size: 0.68rem; padding: 2px 8px; background: {{ $badgeBg }}; color: #fff; border: 1px solid {{ $badgeBg }}; border-radius: 4px;">{{ $badgeText }}</span>
                                         @if (($quotation->group_sibling_count ?? 0) > 0)
                                             <span
-                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dcfce7; color: #15803d; font-weight: 700;">+{{ $quotation->group_sibling_count }} scheduled</span>
+                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #16a34a; color: #fff; font-weight: 700;">+{{ $quotation->group_sibling_count }} scheduled</span>
                                         @endif
                                     </div>
                                 </div>
@@ -332,8 +325,8 @@
                                     {{ $quotation->customer->phone ?? '' }}</div>
                                 @if ($quotation->counter_offer_amount)
                                     <div
-                                        style="padding: 6px 10px; border-radius: 7px; background: #fffbeb; border: 1px solid #fde68a; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                                        <span style="font-size: 0.75rem; color: #000; font-weight: 600;">Counter offer:
+                                        style="padding: 6px 10px; border-radius: 7px; background: #f59e0b; border: 1px solid #f59e0b; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                        <span style="font-size: 0.75rem; color: #fff; font-weight: 600;">Counter offer:
                                             ₱{{ number_format($quotation->counter_offer_amount, 2) }}</span>
                                     </div>
                                 @endif
@@ -366,7 +359,7 @@
                         negotiations.</div>
                 @else
                     <div
-                        style="max-height: 380px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+                        style="max-height: 460px; overflow-y: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px;">
                         @foreach ($negotiatingQuotations as $quotation)
                             @php
                                 $qSiblings = ($quotation->group_siblings ?? collect())->map(fn($s) => [
@@ -404,10 +397,10 @@
                                     </div>
                                     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
                                         <span
-                                            style="font-size: 0.68rem; padding: 2px 8px; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; border-radius: 4px;">NEGOTIATING</span>
+                                            style="font-size: 0.68rem; padding: 2px 8px; background: #a855f7; color: #fff; border: 1px solid #a855f7; border-radius: 4px;">NEGOTIATING</span>
                                         @if (($quotation->group_sibling_count ?? 0) > 0)
                                             <span
-                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #dcfce7; color: #15803d; font-weight: 700;">+{{ $quotation->group_sibling_count }} scheduled</span>
+                                                style="font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #16a34a; color: #fff; font-weight: 700;">+{{ $quotation->group_sibling_count }} scheduled</span>
                                         @endif
                                     </div>
                                 </div>
@@ -418,11 +411,11 @@
                                     {{ $quotation->customer->phone ?? '' }}</div>
                                 @if ($quotation->counter_offer_amount)
                                     <div
-                                        style="padding: 6px 10px; border-radius: 7px; background: #f3e8ff; border: 1px solid #d8b4fe; margin-bottom: 8px;">
-                                        <div style="font-size: 0.75rem; color: #7e22ce; font-weight: 600;">Counter
+                                        style="padding: 6px 10px; border-radius: 7px; background: #a855f7; border: 1px solid #a855f7; margin-bottom: 8px;">
+                                        <div style="font-size: 0.75rem; color: #fff; font-weight: 600;">Counter
                                             offer: ₱{{ number_format($quotation->counter_offer_amount, 2) }}</div>
                                         @if ($quotation->response_note)
-                                            <div style="font-size: 0.72rem; color: #a78bfa; margin-top: 2px;">
+                                            <div style="font-size: 0.72rem; color: rgba(255,255,255,0.85); margin-top: 2px;">
                                                 "{{ Str::limit($quotation->response_note, 50) }}"</div>
                                         @endif
                                     </div>
@@ -441,7 +434,7 @@
                                         @endif
                                         <button type="button"
                                             onclick="event.stopPropagation(); viewQuotationDetails({{ $quotation->id }})"
-                                            style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; cursor: pointer;">
+                                            style="padding: 5px 12px; border-radius: 7px; font-size: 0.75rem; font-weight: 700; background: #a855f7; color: #fff; border: 1px solid #a855f7; cursor: pointer;">
                                             Review
                                         </button>
                                     </div>
@@ -519,7 +512,7 @@
     (function() {
         var TAB_ACTIVE_COLOR = {
             draft: '#f59e0b',
-            pending: '#f59e0b',
+            pending: '#475569',
             sent: '#2563eb',
             negotiating: '#a855f7',
         };
@@ -538,8 +531,8 @@
                     // highlight badge
                     var badge = document.getElementById('fqBadge-' + t);
                     if (badge) {
-                        badge.style.background = TAB_ACTIVE_COLOR[t] + '20';
-                        badge.style.color = TAB_ACTIVE_COLOR[t];
+                        badge.style.background = TAB_ACTIVE_COLOR[t];
+                        badge.style.color = '#fff';
                     }
                 } else {
                     panel.style.display = 'none';

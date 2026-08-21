@@ -692,6 +692,7 @@ class DispatchController extends Controller
                 AuditLog::create([
                     'user_id'     => auth()->id(),
                     'action'      => 'booking_reassigned',
+                    'category'    => 'dispatch',
                     'entity_type' => 'Booking',
                     'entity_id'   => $booking->id,
                     'reference'   => $booking->job_code,
@@ -724,6 +725,7 @@ class DispatchController extends Controller
                 AuditLog::create([
                     'user_id'     => auth()->id(),
                     'action'      => 'booking_assigned',
+                    'category'    => 'dispatch',
                     'entity_type' => 'Booking',
                     'entity_id'   => $booking->id,
                     'reference'   => $booking->job_code,

@@ -4,7 +4,13 @@ namespace App\Providers;
 
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Quotation;
 use App\Models\SystemSetting;
+use App\Models\TruckType;
+use App\Models\Unit;
+use App\Models\User;
+use App\Models\VehicleType;
+use App\Observers\AuditObserver;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -92,6 +98,14 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Paginator::useBootstrapFive();
+
+        foreach ([Booking::class, User::class, Unit::class, TruckType::class, VehicleType::class, Quotation::class, Customer::class] as $auditable) {
+            $auditable::observe(AuditObserver::class);
+        }
+
+        $this->app->terminating(function () {
+            AuditObserver::flush();
+        });
 
         View::composer('*', function ($view) {
             if (! Auth::check() || ! $this->databaseReady() || ! Schema::hasTable('bookings')) {

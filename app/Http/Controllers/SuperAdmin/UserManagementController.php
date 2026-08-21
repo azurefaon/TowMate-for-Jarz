@@ -4,11 +4,13 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Booking;
+use App\Models\Receipt;
 use App\Models\Role;
 use App\Models\SystemSetting;
-use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\UserPurgeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -26,7 +28,7 @@ class UserManagementController extends Controller
     {
         return User::with('role')
             ->whereHas('role', function ($q) {
-                $q->whereNotIn('name', ['Super Admin', 'Customer']);
+                $q->whereNotIn('id', [1]);
             })
             ->when(
                 $archived,
@@ -55,17 +57,31 @@ class UserManagementController extends Controller
         return $query;
     }
 
+    protected function applySort($query, Request $request)
+    {
+        return match ($request->input('sort')) {
+            'name_asc'  => $query->orderBy('name', 'asc'),
+            'name_desc' => $query->orderBy('name', 'desc'),
+            'oldest'    => $query->oldest(),
+            'role'      => $query->join('roles', 'roles.id', '=', 'users.role_id')
+                                  ->orderBy('roles.name')
+                                  ->select('users.*'),
+            default     => $query->latest(),
+        };
+    }
+
     protected function getUserStats(): array
     {
         $baseQuery = User::whereHas('role', function ($q) {
-            $q->whereNotIn('name', ['Super Admin', 'Customer']);
+            $q->whereNotIn('id', [1]);
         });
 
         return [
             'total' => (clone $baseQuery)->whereNull('archived_at')->count(),
             'active' => (clone $baseQuery)->whereNull('archived_at')->where('status', 'active')->count(),
             'inactive' => (clone $baseQuery)->whereNull('archived_at')->where('status', 'inactive')->count(),
-            'archived' => (clone $baseQuery)->whereNotNull('archived_at')->count(),
+            'archived' => (clone $baseQuery)->whereNotNull('archived_at')->whereNull('pending_delete_at')->count(),
+            'deleted' => (clone $baseQuery)->whereNotNull('pending_delete_at')->count(),
             'password_requests' => (clone $baseQuery)->whereNull('archived_at')->where('password_request_status', 'pending')->count(),
         ];
     }
@@ -116,7 +132,7 @@ class UserManagementController extends Controller
 
     protected function manageableRoles()
     {
-        return Role::whereNotIn('name', ['Super Admin', 'Driver', 'Customer'])
+        return Role::whereNotIn('id', [1, 4])
             ->orderBy('name')
             ->get();
     }
@@ -147,9 +163,10 @@ class UserManagementController extends Controller
 
     public function index(Request $request)
     {
-        $users = $this->applyFilters($this->baseUserQuery(), $request)
-            ->latest()
-            ->paginate(10);
+        $users = $this->applySort(
+            $this->applyFilters($this->baseUserQuery(), $request),
+            $request
+        )->paginate(10);
 
         $passwordRequests = $this->baseUserQuery()
             ->where('password_request_status', 'pending')
@@ -170,29 +187,37 @@ class UserManagementController extends Controller
 
         $roles = $this->manageableRoles();
         $stats = $this->getUserStats();
+        $retentionDays = max((int) SystemSetting::getValue('deleted_retention_days', 30), 1);
 
-        return view('superadmin.users.archived', compact('archivedUsers', 'roles', 'stats'));
+        return view('superadmin.users.archived', compact('archivedUsers', 'roles', 'stats', 'retentionDays'));
     }
 
     public function edit($id)
     {
         $user = User::with(['unit', 'unit.truckType'])->findOrFail($id);
+
+        if ($user->role->name === 'Customer') {
+            abort(403, 'Customer accounts cannot be edited from this panel.');
+        }
+
         $roles = $this->manageableRoles();
         $teamLeaderCapacity = $this->teamLeaderCapacity();
-        $truckTypes = TruckType::where('status', 'active')->orderBy('name')->get();
 
-        return view('superadmin.users.create', compact('user', 'roles', 'teamLeaderCapacity', 'truckTypes'));
+        return view('superadmin.users.create', compact('user', 'roles', 'teamLeaderCapacity'));
     }
 
     public function update(Request $request, User $user)
     {
         $this->normalizeUserInput($request);
 
-        if ($user->role->name === 'Super Admin') {
-            abort(403, 'Cannot modify Super Admin.');
+        if ((int) $user->role_id === 1) {
+            abort(403, 'Cannot modify the Owner account.');
         }
 
-        $existingUnitId = $user->unit?->id;
+        if ($user->role->name === 'Customer') {
+            abort(403, 'Customer accounts cannot be edited from this panel.');
+        }
+
         $isTeamLeaderEdit = $user->role->name === 'Team Leader';
 
         $validator = Validator::make($request->all(), [
@@ -202,23 +227,11 @@ class UserManagementController extends Controller
             'driver_first_name' => 'nullable|string|max:100',
             'driver_middle_name' => 'nullable|string|max:100',
             'driver_last_name' => 'nullable|string|max:100',
-            'email' => $this->emailRules($user),
+            'crew_member_1_name' => 'nullable|string|max:150',
+            'crew_member_2_name' => 'nullable|string|max:150',
             'phone' => $isTeamLeaderEdit
                 ? ['required', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)]
                 : ['nullable', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)],
-            'duty_class' => 'nullable|in:light,medium,heavy',
-            'status' => 'required|in:active,inactive',
-            'unit_plate_number' => [
-                'nullable',
-                'string',
-                'max:50',
-                Rule::unique('units', 'plate_number')->ignore($existingUnitId),
-            ],
-            'unit_truck_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('truck_types', 'id')->where('status', 'active'),
-            ],
             'role_id' => [
                 'nullable',
                 function (string $attribute, mixed $value, \Closure $fail) use ($user) {
@@ -228,8 +241,6 @@ class UserManagementController extends Controller
                 },
             ],
         ], [
-            'unit_plate_number.unique' => 'This plate number is already registered to another unit.',
-            'unit_truck_id.exists'      => 'Please select a valid truck type.',
             'phone.required'           => 'Phone number is required for Team Leader accounts.',
             'phone.regex'              => 'Enter a valid Philippine mobile number starting with 9 or 09.',
             'phone.unique'             => 'This phone number is already registered to another user.',
@@ -242,17 +253,6 @@ class UserManagementController extends Controller
         }
 
         $validated = $validator->validated();
-        $statusChanged = $user->status !== $validated['status'];
-
-        if ($statusChanged && $this->isDispatcherOnline($user)) {
-            return response()->json([
-                'errors' => [
-                    'status' => ['Cannot change status while this dispatcher is currently online.'],
-                ],
-            ], 422);
-        }
-
-        $requiresRelogin = $statusChanged;
 
         $userUpdates = [
             'name' => build_full_name(
@@ -263,51 +263,18 @@ class UserManagementController extends Controller
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $validated['last_name'],
-            'email' => $validated['email'],
             'phone' => $validated['phone'] ?? $user->phone,
-            'status' => $validated['status'],
         ];
 
-        if ($isTeamLeaderEdit && $request->filled('duty_class')) {
-            $userUpdates['duty_class'] = $request->input('duty_class');
+        if ($isTeamLeaderEdit) {
+            $userUpdates['driver_first_name'] = $validated['driver_first_name'] ?? null;
+            $userUpdates['driver_middle_name'] = $validated['driver_middle_name'] ?? null;
+            $userUpdates['driver_last_name'] = $validated['driver_last_name'] ?? null;
+            $userUpdates['crew_member_1_name'] = $validated['crew_member_1_name'] ?? null;
+            $userUpdates['crew_member_2_name'] = $validated['crew_member_2_name'] ?? null;
         }
 
         $user->update($userUpdates);
-
-        if ($user->role->name === 'Team Leader') {
-
-            $unit = Unit::where('team_leader_id', $user->id)->first();
-
-            if ($unit) {
-
-                if ($request->filled('driver_first_name') || $request->filled('driver_last_name')) {
-                    $unit->driver_name = build_full_name(
-                        $request->driver_first_name,
-                        $request->driver_middle_name,
-                        $request->driver_last_name
-                    );
-                }
-
-                if ($request->filled('unit_name')) {
-                    $unit->name = $request->unit_name;
-                }
-
-                if ($request->filled('unit_plate_number')) {
-                    $unit->plate_number = strtoupper(trim((string) $request->unit_plate_number));
-                }
-
-                if ($request->filled('unit_truck_id')) {
-                    $truckType = TruckType::where('id', $request->unit_truck_id)
-                        ->where('status', 'active')
-                        ->first();
-                    if ($truckType) {
-                        $unit->truck_type_id = $truckType->id;
-                    }
-                }
-
-                $unit->save();
-            }
-        }
 
         if ($request->filled('password')) {
             $request->validate([
@@ -319,29 +286,19 @@ class UserManagementController extends Controller
             ]);
         }
 
-        if ($requiresRelogin) {
-            $user->forceFill([
-                'remember_token' => Str::random(60),
-            ])->save();
-        }
-
         AuditLog::create([
             'user_id' => Auth::id(),
             'action' => 'user_updated',
             'entity_type' => 'User',
             'entity_id' => $user->id,
             'reference' => $user->name,
-            'description' => $requiresRelogin
-                ? 'Status changed — user should sign in again.'
-                : 'Profile details updated.',
+            'description' => 'Profile details updated.',
         ]);
 
         return response()->json([
             'success' => true,
-            'requires_relogin' => $requiresRelogin,
-            'message' => $requiresRelogin
-                ? 'User updated. Ask the team member to log out and sign back in so the new access is applied.'
-                : '',
+            'requires_relogin' => false,
+            'message' => '',
         ]);
     }
 
@@ -350,9 +307,7 @@ class UserManagementController extends Controller
         $roles = $this->manageableRoles();
         $teamLeaderCapacity = $this->teamLeaderCapacity();
 
-        $truckTypes = TruckType::where('status', 'active')->orderBy('name')->get();
-
-        return view('superadmin.users.create', compact('roles', 'teamLeaderCapacity', 'truckTypes'));
+        return view('superadmin.users.create', compact('roles', 'teamLeaderCapacity'));
     }
 
     public function store(Request $request)
@@ -386,7 +341,6 @@ class UserManagementController extends Controller
                     }
                 },
             ],
-            'status' => 'required|in:active,inactive',
         ];
 
         if ($isTeamLeader) {
@@ -394,14 +348,8 @@ class UserManagementController extends Controller
                 'driver_first_name'  => 'required|string|max:100',
                 'driver_middle_name' => 'nullable|string|max:100',
                 'driver_last_name'   => 'required|string|max:100',
-                'unit_name'          => 'required|string|max:100',
-                'unit_plate_number'  => 'required|string|max:50|unique:units,plate_number',
-                'unit_truck_id'      => [
-                    'required',
-                    'integer',
-                    Rule::exists('truck_types', 'id')->where('status', 'active'),
-                ],
-                'duty_class'         => 'required|in:light,medium,heavy',
+                'crew_member_1_name' => 'nullable|string|max:150',
+                'crew_member_2_name' => 'nullable|string|max:150',
             ]);
         }
 
@@ -412,87 +360,39 @@ class UserManagementController extends Controller
             'phone.regex'                  => 'Enter a valid Philippine mobile number starting with 9 or 09 (e.g. 09171234567).',
             'phone.unique'                 => 'This phone number is already registered to another user.',
             'password.confirmed'           => 'Password confirmation does not match.',
-            'unit_name.required'           => 'Unit name is required.',
-            'unit_plate_number.required'   => 'Plate number is required.',
-            'unit_plate_number.unique'     => 'This plate number is already registered.',
-            'unit_truck_id.required'       => 'Truck type is required.',
-            'unit_truck_id.exists'         => 'Please select a valid active truck type.',
         ];
 
         $validated = $request->validate($rules, $messages);
 
         if ($isTeamLeader) {
-            DB::transaction(function () use ($validated) {
-                $teamLeader = User::create([
-                    'name'                 => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
-                    'first_name'           => $validated['first_name'],
-                    'middle_name'          => $validated['middle_name'] ?? null,
-                    'last_name'            => $validated['last_name'],
-                    'email'                => $validated['email'],
-                    'phone'                => $validated['phone'] ?? null,
-                    'password'             => Hash::make($validated['password']),
-                    'role_id'              => $validated['role_id'],
-                    'duty_class'           => $validated['duty_class'] ?? null,
-                    'status'               => $validated['status'],
-                    'must_change_password' => true,
-                ]);
+            $teamLeader = User::create([
+                'name'                 => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
+                'first_name'           => $validated['first_name'],
+                'middle_name'          => $validated['middle_name'] ?? null,
+                'last_name'            => $validated['last_name'],
+                'email'                => $validated['email'],
+                'phone'                => $validated['phone'] ?? null,
+                'password'             => Hash::make($validated['password']),
+                'role_id'              => $validated['role_id'],
+                'driver_first_name'    => $validated['driver_first_name'] ?? null,
+                'driver_middle_name'   => $validated['driver_middle_name'] ?? null,
+                'driver_last_name'     => $validated['driver_last_name'] ?? null,
+                'crew_member_1_name'   => $validated['crew_member_1_name'] ?? null,
+                'crew_member_2_name'   => $validated['crew_member_2_name'] ?? null,
+                'status'               => 'active',
+                'must_change_password' => true,
+            ]);
 
-                $driverFirst  = trim((string) ($validated['driver_first_name'] ?? ''));
-                $driverMiddle = trim((string) ($validated['driver_middle_name'] ?? ''));
-                $driverLast   = trim((string) ($validated['driver_last_name'] ?? ''));
+            $tlRoleName = Role::find($validated['role_id'])?->name ?? 'Team Leader';
 
-                $truckType = TruckType::where('id', $validated['unit_truck_id'])
-                    ->where('status', 'active')
-                    ->first();
-
-                if (!$truckType) {
-                    throw new \Exception('Truck type not configured. Please set rates first.');
-                }
-
-                $unit = Unit::create([
-                    'name'           => strtoupper(trim((string) $validated['unit_name'])),
-                    'plate_number'   => strtoupper(trim((string) $validated['unit_plate_number'])),
-                    'truck_type_id'  => $truckType->id,
-                    'team_leader_id' => $teamLeader->id,
-                    'driver_name'    => build_full_name($driverFirst, $driverMiddle ?: null, $driverLast),
-                    'status'         => 'available',
-                ]);
-
-                $tlRoleName = Role::find($validated['role_id'])?->name ?? 'Team Leader';
-
-                AuditLog::create([
-                    'user_id' => Auth::id(),
-                    'action' => 'user_registered',
-                    'entity_type' => 'User',
-                    'entity_id' => $teamLeader->id,
-                    'reference' => $teamLeader->name,
-                    'description' => $tlRoleName,
-                ]);
-
-                // AuditLog::create([
-                //     'user_id' => Auth::id(), 'action' => 'user_registered',
-                //     'entity_type' => 'User', 'entity_id' => $driver->id,
-                //     'reference' => $driver->name, 'description' => 'Driver (auto-created with Team Leader)',
-                // ]);
-
-                AuditLog::create([
-                    'user_id' => Auth::id(),
-                    'action' => 'driver_added',
-                    'entity_type' => 'Unit',
-                    'entity_id' => $unit->id,
-                    'reference' => $unit->driver_name,
-                    'description' => 'Driver assigned to unit (no account)',
-                ]);
-
-                AuditLog::create([
-                    'user_id' => Auth::id(),
-                    'action' => 'unit_created',
-                    'entity_type' => 'Unit',
-                    'entity_id' => $unit->id,
-                    'reference' => $unit->name,
-                    'description' => 'Unit auto-created with Team Leader ' . $teamLeader->name,
-                ]);
-            });
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'user_registered',
+                'entity_type' => 'User',
+                'entity_id' => $teamLeader->id,
+                'reference' => $teamLeader->name,
+                'description' => $tlRoleName . ' — no truck assigned yet, add one in Fleet Management → Trucks.',
+            ]);
         } else {
             $user = User::create([
                 'name'                 => build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name']),
@@ -503,7 +403,7 @@ class UserManagementController extends Controller
                 'phone'                => $validated['phone'] ?? null,
                 'password'             => Hash::make($validated['password']),
                 'role_id'              => $validated['role_id'],
-                'status'               => $validated['status'],
+                'status'               => 'active',
                 'must_change_password' => true,
             ]);
 
@@ -536,12 +436,18 @@ class UserManagementController extends Controller
             return back()->with('error', 'Cannot deactivate yourself.');
         }
 
+        if (($user->role->name ?? null) === 'Customer') {
+            return back()->with('error', 'Customer accounts cannot be activated or deactivated from this panel.');
+        }
+
         if ($this->isDispatcherOnline($user)) {
             return back()->with('error', 'Cannot change status while this dispatcher is currently online.');
         }
 
         $user->status = $user->status == 'active' ? 'inactive' : 'active';
-        $user->save();
+        $user->forceFill([
+            'remember_token' => Str::random(60),
+        ])->save();
 
         AuditLog::create([
             'user_id' => Auth::id(),
@@ -559,8 +465,8 @@ class UserManagementController extends Controller
             return back()->with('error', 'You cannot archive your own account.');
         }
 
-        if (($user->role->name ?? null) === 'Super Admin') {
-            abort(403, 'Cannot archive Super Admin.');
+        if ((int) ($user->role_id ?? 0) === 1) {
+            abort(403, 'Cannot archive the Owner account.');
         }
 
         if ($this->isDispatcherOnline($user)) {
@@ -598,12 +504,58 @@ class UserManagementController extends Controller
             ->with('success', 'User moved to archive successfully.');
     }
 
+    public function deleteNow(User $user): RedirectResponse
+    {
+        if ($user->id === Auth::id()) {
+            return back()->with('error', 'You cannot delete your own account.');
+        }
+
+        if ((int) ($user->role_id ?? 0) === 1) {
+            abort(403, 'Cannot delete the Owner account.');
+        }
+
+        if (($user->role->name ?? null) === 'Customer') {
+            abort(403, 'Customer accounts must be archived, not deleted directly.');
+        }
+
+        if ($this->isDispatcherOnline($user)) {
+            return back()->with('error', 'Cannot delete this dispatcher while they are currently online.');
+        }
+
+        $hasHistory = Unit::where('team_leader_id', $user->id)->orWhere('driver_id', $user->id)->exists()
+            || Booking::where('created_by_admin_id', $user->id)->exists()
+            || Receipt::where('generated_by', $user->id)->exists()
+            || DB::table('booking_assignments')->where('dispatcher_id', $user->id)->exists();
+
+        if ($hasHistory) {
+            return back()->with('error', 'This account has unit, booking, or receipt history and cannot be permanently deleted. Archive it instead.');
+        }
+
+        $reference = $user->name;
+        $entityId = $user->id;
+
+        $user->delete();
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'user_permanently_deleted',
+            'entity_type' => 'User',
+            'entity_id' => $entityId,
+            'reference' => $reference,
+            'description' => 'Deleted directly from Manage Users (no prior archive).',
+        ]);
+
+        return redirect()->route('superadmin.users.index')
+            ->with('success', 'User permanently deleted.');
+    }
+
     public function restore($id): RedirectResponse
     {
         $user = User::findOrFail($id);
 
         $user->update([
             'archived_at' => null,
+            'status' => 'active',
         ]);
 
         AuditLog::create([
@@ -619,34 +571,66 @@ class UserManagementController extends Controller
             ->with('success', 'User restored successfully.');
     }
 
-    public function forceDelete($id): RedirectResponse
+    public function queueForDeletion($id): RedirectResponse
     {
         $user = User::findOrFail($id);
 
         if (! $user->archived_at) {
-            return back()->with('error', 'Only archived users can be permanently deleted.');
+            return back()->with('error', 'Only archived users can be deleted.');
         }
 
-        if ($user->archived_at->gt(now()->subYear())) {
-            return back()->with('error', 'Users must stay archived for at least 1 year before permanent deletion.');
-        }
-
-        $reference = $user->name;
-        $entityId = $user->id;
-
-        $user->delete();
+        $user->update(['pending_delete_at' => now()]);
 
         AuditLog::create([
             'user_id' => Auth::id(),
-            'action' => 'user_permanently_deleted',
+            'action' => 'user_queued_for_deletion',
             'entity_type' => 'User',
-            'entity_id' => $entityId,
-            'reference' => $reference,
-            'description' => 'Archived user permanently deleted after retention window',
+            'entity_id' => $user->id,
+            'reference' => $user->name,
+            'description' => 'Marked for deletion, pending permanent purge.',
         ]);
 
         return redirect()->route('superadmin.users.archived')
-            ->with('success', 'Archived user permanently deleted.');
+            ->with('success', 'User marked for deletion.');
+    }
+
+    public function restoreFromDeleted($id): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+
+        $user->update([
+            'pending_delete_at' => null,
+            'archived_at' => null,
+            'status' => 'active',
+        ]);
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'user_deletion_cancelled',
+            'entity_type' => 'User',
+            'entity_id' => $user->id,
+            'reference' => $user->name,
+            'description' => 'Restored from the Deleted list directly to Users.',
+        ]);
+
+        return redirect()->route('superadmin.users.index')
+            ->with('success', 'User restored successfully.');
+    }
+
+    public function purgeNow($id, UserPurgeService $purgeService): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+
+        if (! $user->pending_delete_at) {
+            return back()->with('error', 'Only users pending deletion can be purged.');
+        }
+
+        $outcome = $purgeService->purge($user, automatic: false);
+
+        return redirect()->route('superadmin.users.archived')
+            ->with('success', $outcome === 'deleted'
+                ? 'User permanently deleted.'
+                : 'User could not be fully deleted due to receipt/booking history — personal data was anonymized instead.');
     }
 
     public function setDefaultPassword(Request $request, User $user): RedirectResponse
@@ -655,8 +639,8 @@ class UserManagementController extends Controller
             return back()->with('error', 'Restore this user before setting a default password.');
         }
 
-        if (($user->role->name ?? null) === 'Super Admin') {
-            abort(403, 'Cannot change Super Admin password from this panel.');
+        if ((int) ($user->role_id ?? 0) === 1) {
+            abort(403, 'Cannot change the Owner account password from this panel.');
         }
 
         $validated = $request->validate([

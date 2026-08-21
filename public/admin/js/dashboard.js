@@ -117,7 +117,6 @@ document.addEventListener("DOMContentLoaded", function () {
                                 <span>${escapeHtml(item.updated_at_human)}</span>
                             </div>
                         </div>
-                        <div class="activity-status available">Live</div>
                     </div>`;
             })
             .join("");

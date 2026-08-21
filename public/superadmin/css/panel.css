@@ -2,7 +2,7 @@
     --sa-bg: #f8fafc;
     --sa-surface: #ffffff;
     --sa-sidebar-start: #ffffff;
-    --sa-sidebar-end: #fffdf5;
+    --sa-sidebar-end: #ffffff;
     --sa-primary: #facc15;
     --sa-primary-dark: #f59e0b;
     --sa-primary-soft: rgba(250, 204, 21, 0.16);
@@ -147,9 +147,8 @@ textarea {
 
 .sidebar a.active,
 .sidebar button.active {
-    background: #ffcc00;
-    color: #111111;
-    /* border-color: #000000; */
+    background: #111111;
+    color: #facc15;
 }
 
 .sidebar a i,
@@ -157,6 +156,27 @@ textarea {
     width: 18px;
     height: 18px;
     flex-shrink: 0;
+}
+
+.nav-chip {
+    display: none;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.76rem;
+    font-weight: 800;
+    font-family: sans-serif;
+    border: 1px solid var(--sa-border);
+    color: #475569;
+}
+
+.sidebar a.active .nav-chip,
+.sidebar button.active .nav-chip {
+    border-color: transparent;
+    color: #facc15;
 }
 
 .badge {
@@ -244,6 +264,18 @@ textarea {
 .sidebar.collapsed button span,
 .sidebar.collapsed .badge {
     display: none;
+}
+
+.sidebar.collapsed a .nav-chip,
+.sidebar.collapsed button .nav-chip {
+    display: flex;
+}
+
+.sidebar.collapsed a,
+.sidebar.collapsed button {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
 }
 
 .sidebar.collapsed .brand {
@@ -510,10 +542,20 @@ textarea {
 }
 
 .superadmin-shell input:focus,
-.superadmin-shell select:focus,
 .superadmin-shell textarea:focus {
     border-color: #facc15 !important;
     box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.18) !important;
+    outline: none;
+}
+
+.superadmin-shell select {
+    border-radius: 8px !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.superadmin-shell select:focus {
+    border-color: #94a3b8 !important;
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08) !important;
     outline: none;
 }
 
@@ -594,6 +636,320 @@ textarea {
         min-width: 0;
         width: 100%;
     }
+}
+
+/* ───────────────────────── Custom select ───────────────────────── */
+
+.custom-select {
+    position: relative;
+    display: inline-block;
+}
+
+.custom-select-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.custom-select-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    height: 38px;
+    min-width: 170px;
+    padding: 0 12px;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #111111;
+    background: #f9fafb;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.custom-select-trigger:hover {
+    background: #f3f4f6;
+}
+
+.custom-select.is-open .custom-select-trigger {
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.12);
+}
+
+.custom-select-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.custom-select-chevron {
+    display: inline-flex;
+    color: #6b7280;
+    transition: transform 0.15s ease;
+}
+
+.custom-select.is-open .custom-select-chevron {
+    transform: rotate(180deg);
+}
+
+.custom-select-menu {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 100%;
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 6px;
+    background: #ffffff;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.06);
+    opacity: 0;
+    transform: translateY(-6px);
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.custom-select.is-open .custom-select-menu {
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.custom-select-option {
+    padding: 9px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #111111;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.custom-select-option:hover,
+.custom-select-option.is-focused {
+    background: #f3f4f6;
+}
+
+.custom-select-option.is-selected {
+    background: #fef3c7;
+    font-weight: 800;
+}
+
+/* ───────────────────────── Date range picker ───────────────────────── */
+
+.date-range-picker {
+    position: relative;
+    display: inline-block;
+}
+
+.date-range-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.date-range-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 14px;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #111111;
+    background: #f9fafb;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.date-range-trigger:hover {
+    background: #f3f4f6;
+}
+
+.date-range-picker.is-open .date-range-trigger {
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.12);
+}
+
+.date-range-trigger-icon {
+    display: inline-flex;
+    color: #6b7280;
+}
+
+.date-picker-popup {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 300px;
+    padding: 16px;
+    background: #ffffff;
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.06);
+    opacity: 0;
+    transform: translateY(-6px);
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.date-range-picker.is-open .date-picker-popup {
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.date-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.date-picker-month-label {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #111111;
+}
+
+.date-picker-nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    font-size: 1rem;
+    line-height: 1;
+    color: #111111;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.date-picker-nav:hover {
+    background: #f3f4f6;
+}
+
+.date-picker-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 4px;
+}
+
+.date-picker-weekdays span {
+    display: block;
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+}
+
+.date-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.date-picker-day {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    margin: 0 auto;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #111111;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.date-picker-day:hover {
+    background: #f3f4f6;
+}
+
+.date-picker-day.is-muted {
+    color: #d1d5db;
+}
+
+.date-picker-day.is-today {
+    box-shadow: inset 0 0 0 1.5px #111111;
+}
+
+.date-picker-day.is-in-range {
+    background: #f3f4f6;
+    border-radius: 0;
+}
+
+.date-picker-day.is-selected {
+    background: #111111;
+    color: #facc15;
+    font-weight: 800;
+}
+
+.date-picker-status {
+    margin: 2px 0 10px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #6b7280;
+    text-align: center;
+}
+
+.date-picker-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #f3f4f6;
+}
+
+.date-picker-reset {
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #111111;
+    text-decoration: underline;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+
+.date-picker-reset[disabled] {
+    color: #d1d5db;
+    text-decoration: none;
+    cursor: default;
+    pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

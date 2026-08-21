@@ -302,6 +302,21 @@
                 </div>
             </div>
         </div>
+
+        <div class="settings-card">
+            <div class="settings-card-header">
+                <h3>Deleted User Retention</h3>
+                <p>How many days a user stays in the Deleted list (still restorable) before being permanently purged.</p>
+            </div>
+
+            <div class="settings-grid">
+                <div class="settings-field">
+                    <label>Retention Days</label>
+                    <input type="number" min="1" max="365" name="settings[deleted_retention_days]"
+                        value="{{ old('settings.deleted_retention_days', $settings['deleted_retention_days'] ?? 30) }}">
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- SAVE BUTTON -->

@@ -31,7 +31,7 @@
                 <div class="auth-header">
                     <span class="auth-kicker">Password recovery</span>
                     <h3>Request account access</h3>
-                    <p>Enter your work email and the Super Admin will review your access request.</p>
+                    <p>Enter your work email and the Owner will review your access request.</p>
                 </div>
 
                 @if (session('status'))
@@ -55,7 +55,7 @@
                     <div class="input-group">
                         <label for="note">Reason or note (optional)</label>
                         <textarea id="note" name="note" rows="4"
-                            placeholder="Add a short note so the Super Admin knows what you need.">{{ old('note') }}</textarea>
+                            placeholder="Add a short note so the Owner knows what you need.">{{ old('note') }}</textarea>
                     </div>
 
                     <button type="submit" class="primary-btn">

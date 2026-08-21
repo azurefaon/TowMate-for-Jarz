@@ -14,6 +14,11 @@
     flex-wrap: wrap;
 }
 
+.user-management-page .no-actions {
+    color: #9ca3af;
+    font-size: 13px;
+}
+
 .user-management-page .page-actions,
 .user-management-page .table-actions-right,
 .user-management-page .action-group {

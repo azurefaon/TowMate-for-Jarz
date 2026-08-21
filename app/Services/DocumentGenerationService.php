@@ -75,6 +75,23 @@ class DocumentGenerationService
         return $receipt->fresh();
     }
 
+    /**
+     * Renders a Reports/Activity Log Blade view to PDF bytes, with the
+     * shared company header data and a page-numbered footer. Returns the
+     * raw PDF bytes (callers stream/download them directly rather than
+     * persisting to disk, unlike quotations/receipts).
+     */
+    public function renderReportPdf(string $view, array $data): string
+    {
+        $html = view($view, array_merge($data, [
+            'settings' => $this->documentSettings(),
+            'generatedAt' => now(),
+            'generatedBy' => auth()->user()?->full_name ?? auth()->user()?->name ?? 'System',
+        ]))->render();
+
+        return $this->renderPdf($html, 'Page {PAGE_NUM} of {PAGE_COUNT}');
+    }
+
     public function publicDocumentUrl(?string $path): ?string
     {
         if (! filled($path)) {
@@ -114,33 +131,41 @@ class DocumentGenerationService
         ];
     }
 
+    /**
+     * Resolves a configured asset (or its bundled default) to an inline
+     * data-URI for embedding in a PDF. Deliberately never falls back to a
+     * live asset()/storage URL: dompdf would try to fetch that over HTTP,
+     * and since `php artisan serve` is single-threaded, a request fetching
+     * its own server's URL deadlocks until PHP's max_execution_time kills
+     * the whole render. A missing/broken upload should silently fall back
+     * to the bundled default (or no image) — never hang.
+     */
     protected function assetUrl(?string $value, ?string $default = null): ?string
     {
-        $path = filled($value) ? $value : $default;
+        foreach ([$value, $default] as $candidate) {
+            if (! filled($candidate)) {
+                continue;
+            }
 
-        if (! filled($path)) {
-            return null;
+            if (Str::startsWith($candidate, ['data:', 'http://', 'https://'])) {
+                return $candidate;
+            }
+
+            $absolutePath = $this->resolveAbsoluteAssetPath(ltrim($candidate, '/'));
+
+            if ($absolutePath) {
+                $dataUri = $this->fileAsDataUri($absolutePath);
+
+                if ($dataUri) {
+                    return $dataUri;
+                }
+            }
         }
 
-        if (Str::startsWith($path, ['data:', 'http://', 'https://'])) {
-            return $path;
-        }
-
-        $normalizedPath = ltrim($path, '/');
-        $absolutePath = $this->resolveAbsoluteAssetPath($normalizedPath);
-
-        if ($absolutePath) {
-            return $this->fileAsDataUri($absolutePath) ?? asset($normalizedPath);
-        }
-
-        if (Str::startsWith($normalizedPath, ['storage/', 'customer/', 'home_page/', 'admin/', 'superadmin/'])) {
-            return asset($normalizedPath);
-        }
-
-        return asset('storage/' . $normalizedPath);
+        return null;
     }
 
-    protected function renderPdf(string $html): string
+    protected function renderPdf(string $html, ?string $footerText = null): string
     {
         if (! extension_loaded('gd')) {
             $html = preg_replace('/<img\b[^>]*>/i', '', $html) ?? $html;
@@ -149,13 +174,27 @@ class DocumentGenerationService
         $options = new Options();
         $options->set('defaultFont', 'DejaVu Sans');
         $options->set('isHtml5ParserEnabled', true);
-        $options->set('isRemoteEnabled', true);
+        // Every image we embed is resolved to a data-URI by assetUrl() before
+        // it ever reaches dompdf, so remote fetching is never legitimately
+        // needed — leaving it off closes off the self-request deadlock this
+        // caused before (see assetUrl()'s docblock) for good, not just for
+        // today's specific missing-file case.
+        $options->set('isRemoteEnabled', false);
         $options->set('dpi', 120);
 
         $dompdf = new Dompdf($options);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->render();
+
+        if ($footerText !== null) {
+            $canvas = $dompdf->getCanvas();
+            $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
+            $width = $canvas->get_width();
+            $height = $canvas->get_height();
+
+            $canvas->page_text($width - 170, $height - 30, $footerText, $font, 9, [0.2, 0.2, 0.2]);
+        }
 
         return $dompdf->output();
     }

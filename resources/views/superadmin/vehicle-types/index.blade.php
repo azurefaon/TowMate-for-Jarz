@@ -28,20 +28,6 @@
 .vc-page .page-top h1 { margin:0; font-size:1.9rem; color:#111; }
 .vc-page .page-top p  { margin:6px 0 0; color:#6b7280; }
 
-.vc-stats {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0,1fr));
-    gap: 12px;
-}
-.vc-stat {
-    background:#fff;
-    border:1px solid #e5e7eb;
-    border-radius:12px;
-    padding:16px;
-}
-.vc-stat span  { display:block; font-size:0.75rem; color:#6b7280; text-transform:uppercase; letter-spacing:0.07em; }
-.vc-stat strong { display:block; font-size:1.7rem; color:#111; margin-top:6px; font-weight:500; }
-
 .vc-card {
     background:#fff;
     border:1px solid #e5e7eb;
@@ -66,6 +52,21 @@
     gap: 10px;
     flex-wrap: wrap;
 }
+
+.vc-filter-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.vc-filter-reset {
+    font-size: 0.85rem;
+    color: #6b7280;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.vc-filter-reset:hover { color: #111; text-decoration: underline; }
 
 .vc-search {
     display: flex;
@@ -115,83 +116,114 @@
 
 .vc-table { width:100%; border-collapse:collapse; }
 .vc-table th {
-    padding: 11px 16px;
+    padding: 13px 18px;
     text-align: left;
-    font-size: 0.73rem;
-    color: #6b7280;
+    font-size: 0.8rem;
+    color: #4b5563;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.05em;
     border-bottom: 1px solid #e5e7eb;
-    font-weight: 400;
+    font-weight: 600;
+    background: #f8fafc;
+    white-space: nowrap;
 }
 .vc-table td {
-    padding: 14px 16px;
-    border-bottom: 1px solid #f3f4f6;
-    font-size: 0.88rem;
+    padding: 16px 18px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.95rem;
     color: #374151;
     vertical-align: middle;
 }
 .vc-table tbody tr:last-child td { border-bottom: none; }
 .vc-table tbody tr:hover td { background: #fafafa; }
 
-.vc-name { font-size: 0.9rem; color: #111; }
-.vc-desc { font-size: 0.78rem; color: #9ca3af; margin-top: 2px; }
+.vc-name { font-size: 1rem; font-weight: 500; color: #111; }
+.vc-desc { font-size: 0.82rem; color: #9ca3af; margin-top: 3px; }
 
 .vc-category {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #1f2937;
 }
-.vc-category--2_wheeler    { background:#dbeafe; color:#1e40af; }
-.vc-category--4_wheeler    { background:#dcfce7; color:#166534; }
-.vc-category--heavy_vehicle { background:#fef3c7; color:#92400e; }
+.vc-category--2_wheeler     { color: #2563eb; }
+.vc-category--4_wheeler     { color: #15803d; }
+.vc-category--heavy_vehicle { color: #b45309; }
 
-.vc-classes { display:flex; flex-wrap:wrap; gap:5px; }
+.vc-classes { display:flex; flex-wrap:wrap; gap:6px; }
 .vc-class-tag {
     display: inline-block;
-    padding: 2px 8px;
-    border-radius: 5px;
-    font-size: 0.73rem;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
     background: #f3f4f6;
     color: #4b5563;
     border: 1px solid #e5e7eb;
 }
+.vc-none { color: #9ca3af; font-size: 0.85rem; }
 
 .vc-status {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #1f2937;
 }
-.vc-status.active   { background:#dcfce7; color:#166534; }
-.vc-status.inactive { background:#f3f4f6; color:#6b7280; }
+.vc-status.active   { color: #15803d; }
+.vc-status.inactive { color: #6b7280; }
 
-.vc-actions { display:flex; align-items:center; gap:6px; }
-.vc-action-sep { color:#d1d5db; font-size:0.75rem; user-select:none; }
+.vc-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .vc-action {
-    background: none;
-    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
     cursor: pointer;
-    font-size: 0.8rem;
-    color: #6b7280;
-    padding: 0;
-    transition: color 0.12s;
+    font-size: 0.82rem;
+    color: #374151;
+    padding: 5px 13px;
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
-.vc-action:hover { color: #111; }
-.vc-action--danger { color: #dc2626; }
-.vc-action--danger:hover { color: #b91c1c; }
-.vc-action--enable { color: #16a34a; }
-.vc-action--enable:hover { color: #15803d; }
+.vc-action:hover { background: #f3f4f6; border-color: #d1d5db; color: #111; }
+.vc-action--danger { color: #dc2626; border-color: #fecaca; }
+.vc-action--danger:hover { background: #fef2f2; border-color: #fca5a5; color: #b91c1c; }
+.vc-action--enable { color: #16a34a; border-color: #bbf7d0; }
+.vc-action--enable:hover { background: #f0fdf4; border-color: #86efac; color: #15803d; }
 
 .vc-empty {
     text-align: center;
     padding: 48px 20px;
     color: #9ca3af;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
 }
 
-.vc-pagination { padding: 16px 20px; }
+.vc-pagination { padding: 18px 20px; }
+.vc-pagination .pagination-wrapper { display: flex; justify-content: center; gap: 4px; }
+.vc-pagination .pagination-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #374151;
+    font-size: 0.88rem;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+.vc-pagination .pagination-btn:hover { background: #f3f4f6; border-color: #d1d5db; color: #111; }
+.vc-pagination .pagination-btn.active {
+    background: linear-gradient(135deg, #facc15, #eab308);
+    border-color: #eab308;
+    color: #111;
+}
+.vc-pagination .pagination-btn.disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Modal */
 .vc-modal {
@@ -307,9 +339,7 @@
 .vc-confirm-text  { font-size: 0.88rem; color: #6b7280; line-height: 1.6; margin: 0 0 20px; }
 .vc-confirm-actions { display:flex; justify-content:center; gap:10px; }
 
-@media (max-width: 900px) { .vc-stats { grid-template-columns: repeat(3,1fr); } }
 @media (max-width: 640px) {
-    .vc-stats { grid-template-columns: repeat(2,1fr); }
     .vc-toolbar { flex-direction:column; align-items:stretch; }
     .vc-search { min-width:unset; }
     .vc-trucks-grid { grid-template-columns: 1fr; }
@@ -335,28 +365,7 @@
         </div>
     </div>
 
-    <div class="vc-stats">
-        <div class="vc-stat">
-            <span>Total</span>
-            <strong>{{ $stats['total'] }}</strong>
-        </div>
-        <div class="vc-stat">
-            <span>Active</span>
-            <strong>{{ $stats['active'] }}</strong>
-        </div>
-        <div class="vc-stat">
-            <span>2-Wheeler</span>
-            <strong>{{ $stats['2_wheeler'] }}</strong>
-        </div>
-        <div class="vc-stat">
-            <span>4-Wheeler</span>
-            <strong>{{ $stats['4_wheeler'] }}</strong>
-        </div>
-        <div class="vc-stat">
-            <span>Heavy</span>
-            <strong>{{ $stats['heavy_vehicle'] }}</strong>
-        </div>
-    </div>
+    @include('superadmin.fleet._tabs')
 
     <div class="vc-card">
         <div class="vc-toolbar">
@@ -365,20 +374,26 @@
                 <p>Assign each vehicle to one or more tow truck classes.</p>
             </div>
             <div class="vc-toolbar-right">
-                <div class="vc-search">
-                    <input type="text" id="vcSearch" placeholder="Search vehicle types...">
-                </div>
-                <select id="vcCategoryFilter" class="vc-filter">
-                    <option value="all">All categories</option>
-                    <option value="2_wheeler">2-Wheeler</option>
-                    <option value="4_wheeler">4-Wheeler</option>
-                    <option value="heavy_vehicle">Heavy Vehicle</option>
-                </select>
-                <select id="vcStatusFilter" class="vc-filter">
-                    <option value="all">All status</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
+                <form method="GET" id="vcFilterForm" class="vc-filter-form">
+                    <div class="vc-search">
+                        <input type="text" name="search" id="vcSearch" value="{{ request('search') }}"
+                            placeholder="Search vehicle types...">
+                    </div>
+                    <select name="category" id="vcCategoryFilter" class="vc-filter">
+                        <option value="">All categories</option>
+                        <option value="2_wheeler" {{ request('category') === '2_wheeler' ? 'selected' : '' }}>2-Wheeler</option>
+                        <option value="4_wheeler" {{ request('category') === '4_wheeler' ? 'selected' : '' }}>4-Wheeler</option>
+                        <option value="heavy_vehicle" {{ request('category') === 'heavy_vehicle' ? 'selected' : '' }}>Heavy Vehicle</option>
+                    </select>
+                    <select name="status" id="vcStatusFilter" class="vc-filter">
+                        <option value="">All status</option>
+                        <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
+                        <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
+                    </select>
+                    @if (request()->hasAny(['search', 'category', 'status']))
+                        <a href="{{ route('superadmin.vehicle-types.index') }}" class="vc-filter-reset">Reset</a>
+                    @endif
+                </form>
                 <button type="button" class="vc-btn-add" id="vcAddBtn">Add Vehicle Type</button>
             </div>
         </div>
@@ -388,16 +403,14 @@
                 <tr>
                     <th>Vehicle</th>
                     <th>Category</th>
-                    <th>Tow Classes</th>
+                    <th>Truck Type</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="vcTableBody">
                 @forelse ($vehicleTypes as $type)
-                    <tr data-name="{{ strtolower($type->name) }}"
-                        data-category="{{ $type->category }}"
-                        data-status="{{ $type->status }}">
+                    <tr>
                         <td>
                             <div class="vc-name">{{ $type->name }}</div>
                             @if ($type->description)
@@ -417,11 +430,13 @@
                                     @endforeach
                                 </div>
                             @else
-                                <span style="color:#9ca3af;font-size:0.78rem;">none assigned</span>
+                                <span class="vc-none">none assigned</span>
                             @endif
                         </td>
                         <td>
-                            <span class="vc-status {{ $type->status }}">{{ ucfirst($type->status) }}</span>
+                            <span class="vc-status {{ $type->status }}">
+                                {{ ucfirst($type->status) }}
+                            </span>
                         </td>
                         <td>
                             <div class="vc-actions">
@@ -429,26 +444,23 @@
                                     data-id="{{ $type->id }}"
                                     data-name="{{ $type->name }}"
                                     data-category="{{ $type->category }}"
+                                    data-weight="{{ $type->weight_kg }}"
                                     data-description="{{ $type->description }}"
-                                    data-display-order="{{ $type->display_order }}"
-                                    data-truck-ids="{{ $type->truckTypes->pluck('id')->join(',') }}">edit</button>
-
-                                <span class="vc-action-sep">·</span>
+                                    data-truck-ids="{{ $type->truckTypes->pluck('id')->join(',') }}">Edit</button>
 
                                 <form method="POST"
                                     action="{{ route('superadmin.vehicle-types.toggle', $type->id) }}"
                                     style="display:inline">
                                     @csrf @method('PATCH')
                                     <button type="submit" class="vc-action {{ $type->status === 'active' ? '' : 'vc-action--enable' }}">
-                                        {{ $type->status === 'active' ? 'disable' : 'enable' }}
+                                        {{ $type->status === 'active' ? 'Disable' : 'Enable' }}
                                     </button>
                                 </form>
 
                                 @if ($type->bookings_count === 0)
-                                    <span class="vc-action-sep">·</span>
                                     <button type="button" class="vc-action vc-action--danger js-vc-delete"
                                         data-id="{{ $type->id }}"
-                                        data-name="{{ $type->name }}">delete</button>
+                                        data-name="{{ $type->name }}">Delete</button>
                                 @endif
                             </div>
                         </td>
@@ -462,7 +474,7 @@
         </table>
 
         <div class="vc-pagination">
-            {{ $vehicleTypes->links() }}
+            {{ $vehicleTypes->links('vendor.pagination.custom') }}
         </div>
     </div>
 
@@ -474,7 +486,6 @@
         <div class="vc-modal-header">
             <div>
                 <h2>Add Vehicle Type</h2>
-                <p>Define a new vehicle type and link it to tow truck classes.</p>
             </div>
             <button type="button" class="vc-modal-close js-close-modal" data-modal="addModal">✕</button>
         </div>
@@ -496,8 +507,9 @@
                     </select>
                 </div>
                 <div class="vc-form-group">
-                    <label>Display order</label>
-                    <input type="number" name="display_order" value="0" min="0">
+                    <label>Weight (kg)</label>
+                    <input type="number" name="weight_kg" id="addVcWeight" required min="0" step="1"
+                        placeholder="e.g. 4500">
                 </div>
             </div>
             <div class="vc-form-group">
@@ -506,11 +518,11 @@
             </div>
             <div class="vc-form-group">
                 <label>Compatible tow classes</label>
-                <span class="vc-form-hint">Select which truck classes can tow this vehicle.</span>
-                <div class="vc-trucks-grid" style="margin-top:8px">
+                <div class="vc-trucks-grid" id="addVcTrucks" style="margin-top:8px">
                     @foreach ($truckTypes as $truck)
-                        <label class="vc-truck-check">
-                            <input type="checkbox" name="truck_types[]" value="{{ $truck->id }}">
+                        <label class="vc-truck-check" data-class="{{ $truck->class }}">
+                            <input type="checkbox" name="truck_types[]" value="{{ $truck->id }}" class="add-truck-check"
+                                data-capacity="{{ $truck->max_tonnage }}">
                             {{ $truck->name }}
                         </label>
                     @endforeach
@@ -551,8 +563,8 @@
                     </select>
                 </div>
                 <div class="vc-form-group">
-                    <label>Display order</label>
-                    <input type="number" name="display_order" id="editVcOrder" min="0">
+                    <label>Weight (kg)</label>
+                    <input type="number" name="weight_kg" id="editVcWeight" required min="0" step="1">
                 </div>
             </div>
             <div class="vc-form-group">
@@ -561,11 +573,12 @@
             </div>
             <div class="vc-form-group">
                 <label>Compatible tow classes</label>
+                <span class="vc-form-hint">Only classes matching the weight above are selectable — click a class to auto-fill its weight.</span>
                 <div class="vc-trucks-grid" id="editVcTrucks" style="margin-top:8px">
                     @foreach ($truckTypes as $truck)
-                        <label class="vc-truck-check">
+                        <label class="vc-truck-check" data-class="{{ $truck->class }}">
                             <input type="checkbox" name="truck_types[]" value="{{ $truck->id }}"
-                                class="edit-truck-check">
+                                class="edit-truck-check" data-capacity="{{ $truck->max_tonnage }}">
                             {{ $truck->name }}
                         </label>
                     @endforeach
@@ -640,8 +653,73 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape') document.querySelectorAll('.vc-modal.is-open').forEach(m => m.classList.remove('is-open'));
     });
 
+    // Weight ↔ tow-class compatibility (mirrors TruckType::isCompatibleWithWeight)
+    const isClassCompatible = (truckClass, weightKg) => {
+        if (!truckClass || weightKg === null || Number.isNaN(weightKg)) return true;
+        if (truckClass === 'light')  return weightKg <= 4500;
+        if (truckClass === 'medium') return weightKg > 4500 && weightKg <= 7500;
+        if (truckClass === 'heavy')  return weightKg > 7500;
+        return true;
+    };
+
+    const filterTrucksGrid = (gridId, weightInputId) => {
+        const grid = document.getElementById(gridId);
+        const weightInput = document.getElementById(weightInputId);
+        if (!grid || !weightInput) return;
+        const weightKg = weightInput.value === '' ? null : parseFloat(weightInput.value);
+
+        grid.querySelectorAll('.vc-truck-check').forEach(label => {
+            const compatible = isClassCompatible(label.dataset.class, weightKg);
+            const checkbox = label.querySelector('input[type="checkbox"]');
+            label.style.opacity = compatible ? '1' : '0.4';
+            label.style.pointerEvents = compatible ? '' : 'none';
+            if (checkbox) {
+                checkbox.disabled = !compatible;
+                if (!compatible) checkbox.checked = false;
+            }
+        });
+    };
+
+    document.getElementById('addVcWeight')?.addEventListener('input', () => filterTrucksGrid('addVcTrucks', 'addVcWeight'));
+    document.getElementById('editVcWeight')?.addEventListener('input', () => filterTrucksGrid('editVcTrucks', 'editVcWeight'));
+
+    // Clicking a truck class checkbox auto-fills Weight (kg) with that class's configured capacity
+    const wireClassAutofill = (gridId, weightInputId) => {
+        const grid = document.getElementById(gridId);
+        if (!grid) return;
+        grid.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const weightInput = document.getElementById(weightInputId);
+
+                if (checkbox.checked) {
+                    const capacity = checkbox.dataset.capacity;
+                    if (capacity && weightInput) {
+                        weightInput.value = capacity;
+                        filterTrucksGrid(gridId, weightInputId);
+                    }
+                    return;
+                }
+
+                // Unchecked — if no other class is still selected, clear the weight
+                // so the other classes become selectable again instead of staying
+                // stuck disabled from the previous class's weight.
+                const stillChecked = grid.querySelector('input[type="checkbox"]:checked');
+                if (!stillChecked && weightInput) {
+                    weightInput.value = '';
+                    filterTrucksGrid(gridId, weightInputId);
+                }
+            });
+        });
+    };
+
+    wireClassAutofill('addVcTrucks', 'addVcWeight');
+    wireClassAutofill('editVcTrucks', 'editVcWeight');
+
     // Add
-    document.getElementById('vcAddBtn')?.addEventListener('click', () => openModal('addModal'));
+    document.getElementById('vcAddBtn')?.addEventListener('click', () => {
+        filterTrucksGrid('addVcTrucks', 'addVcWeight');
+        openModal('addModal');
+    });
 
     // Edit
     document.querySelectorAll('.js-vc-edit').forEach(btn => {
@@ -650,10 +728,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('editVcForm').action = `${baseUrl}/${btn.dataset.id}`;
             document.getElementById('editVcName').value = btn.dataset.name || '';
             document.getElementById('editVcCategory').value = btn.dataset.category || '';
+            document.getElementById('editVcWeight').value = btn.dataset.weight || '';
             document.getElementById('editVcDescription').value = btn.dataset.description || '';
-            document.getElementById('editVcOrder').value = btn.dataset.displayOrder || 0;
+            filterTrucksGrid('editVcTrucks', 'editVcWeight');
             document.querySelectorAll('.edit-truck-check').forEach(cb => {
-                cb.checked = truckIds.includes(parseInt(cb.value));
+                if (!cb.disabled) cb.checked = truckIds.includes(parseInt(cb.value));
             });
             openModal('editModal');
         });
@@ -669,26 +748,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Filter
-    const search    = document.getElementById('vcSearch');
-    const catFilter = document.getElementById('vcCategoryFilter');
-    const stFilter  = document.getElementById('vcStatusFilter');
+    // Filter (server-side, so it searches the full dataset — not just the current page)
+    const filterForm = document.getElementById('vcFilterForm');
+    let filterDebounce;
 
-    const filterRows = () => {
-        const q   = (search?.value || '').trim().toLowerCase();
-        const cat = catFilter?.value || 'all';
-        const st  = stFilter?.value  || 'all';
-        document.querySelectorAll('#vcTableBody tr[data-name]').forEach(row => {
-            const matchName = (row.dataset.name || '').includes(q);
-            const matchCat  = cat === 'all' || row.dataset.category === cat;
-            const matchSt   = st  === 'all' || row.dataset.status   === st;
-            row.style.display = matchName && matchCat && matchSt ? '' : 'none';
-        });
-    };
-
-    search?.addEventListener('input', filterRows);
-    catFilter?.addEventListener('change', filterRows);
-    stFilter?.addEventListener('change', filterRows);
+    document.getElementById('vcSearch')?.addEventListener('input', () => {
+        clearTimeout(filterDebounce);
+        filterDebounce = setTimeout(() => filterForm.submit(), 400);
+    });
+    document.getElementById('vcCategoryFilter')?.addEventListener('change', () => filterForm.submit());
+    document.getElementById('vcStatusFilter')?.addEventListener('change', () => filterForm.submit());
 
     // Auto-hide flash
     ['vcSuccess','vcError'].forEach(id => {

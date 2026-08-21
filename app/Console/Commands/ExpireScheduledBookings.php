@@ -16,6 +16,10 @@ class ExpireScheduledBookings extends Command
         $expired = Booking::where('status', 'scheduled')
             ->whereNotNull('scheduled_expires_at')
             ->where('scheduled_expires_at', '<', now())
+            ->where(function ($query) {
+                $query->whereNull('quotation_generated')
+                    ->orWhere('quotation_generated', false);
+            })
             ->get();
 
         if ($expired->isEmpty()) {

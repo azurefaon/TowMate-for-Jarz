@@ -563,7 +563,7 @@ class ControlCenterService
                 [
                     'label' => 'Audit Logs',
                     'description' => 'Inspect system events and administrative actions.',
-                    'url' => route('superadmin.audit.logs'),
+                    'url' => route('superadmin.reports.activity'),
                     'icon' => 'file-search',
                 ],
             ]);

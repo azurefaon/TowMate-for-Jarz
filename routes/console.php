@@ -8,8 +8,8 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('towmate:purge-expired-data')->daily();
 Schedule::command('towmate:sync-quotation-lifecycle')->daily();
 Schedule::command('quotations:expire')->everyFiveMinutes();
 Schedule::command('quotations:followup')->daily();
 Schedule::command('bookings:expire-scheduled')->hourly();
+Schedule::command('towmate:purge-deleted-users')->daily();

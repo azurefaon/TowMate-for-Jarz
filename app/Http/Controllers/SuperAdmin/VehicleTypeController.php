@@ -6,13 +6,41 @@ use App\Http\Controllers\Controller;
 use App\Models\VehicleType;
 use App\Models\TruckType;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class VehicleTypeController extends Controller
 {
-    public function index()
+    protected function assertTruckTypesCompatible(array $truckTypeIds, float $weightKg): void
     {
-        $vehicleTypes = VehicleType::withCount(['truckTypes', 'bookings'])
+        if (empty($truckTypeIds)) {
+            return;
+        }
+
+        $incompatible = TruckType::whereIn('id', $truckTypeIds)
+            ->get()
+            ->reject(fn (TruckType $truckType) => $truckType->isCompatibleWithWeight($weightKg));
+
+        if ($incompatible->isNotEmpty()) {
+            $names = $incompatible->pluck('name')->implode(', ');
+            throw ValidationException::withMessages([
+                'truck_types' => "This vehicle's weight ({$weightKg} kg) is not compatible with: {$names}.",
+            ]);
+        }
+    }
+
+    public function index(Request $request)
+    {
+        $vehicleTypes = VehicleType::withCount('bookings')
             ->with(['truckTypes:id,name'])
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $search = $request->input('search');
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->filled('category'), fn ($query) => $query->where('category', $request->input('category')))
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
             ->orderBy('display_order')
             ->orderBy('name')
             ->paginate(10)
@@ -20,16 +48,7 @@ class VehicleTypeController extends Controller
 
         $truckTypes = TruckType::where('status', 'active')->orderBy('name')->get();
 
-        $stats = [
-            'total' => VehicleType::count(),
-            'active' => VehicleType::where('status', 'active')->count(),
-            'inactive' => VehicleType::where('status', 'inactive')->count(),
-            '2_wheeler' => VehicleType::where('category', '2_wheeler')->count(),
-            '4_wheeler' => VehicleType::where('category', '4_wheeler')->count(),
-            'heavy_vehicle' => VehicleType::where('category', 'heavy_vehicle')->count(),
-        ];
-
-        return view('superadmin.vehicle-types.index', compact('vehicleTypes', 'truckTypes', 'stats'));
+        return view('superadmin.vehicle-types.index', compact('vehicleTypes', 'truckTypes'));
     }
 
     public function store(Request $request)
@@ -37,11 +56,14 @@ class VehicleTypeController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:vehicle_types,name',
             'category' => 'required|in:2_wheeler,4_wheeler,heavy_vehicle',
+            'weight_kg' => 'required|numeric|min:0',
             'description' => 'nullable|string|max:500',
             'display_order' => 'nullable|integer|min:0',
             'truck_types' => 'nullable|array',
             'truck_types.*' => 'exists:truck_types,id',
         ]);
+
+        $this->assertTruckTypesCompatible($validated['truck_types'] ?? [], (float) $validated['weight_kg']);
 
         $validated['status'] = 'active';
         $validated['display_order'] = $validated['display_order'] ?? 0;
@@ -61,11 +83,14 @@ class VehicleTypeController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:vehicle_types,name,' . $vehicleType->id,
             'category' => 'required|in:2_wheeler,4_wheeler,heavy_vehicle',
+            'weight_kg' => 'required|numeric|min:0',
             'description' => 'nullable|string|max:500',
             'display_order' => 'nullable|integer|min:0',
             'truck_types' => 'nullable|array',
             'truck_types.*' => 'exists:truck_types,id',
         ]);
+
+        $this->assertTruckTypesCompatible($validated['truck_types'] ?? [], (float) $validated['weight_kg']);
 
         $vehicleType->update($validated);
 

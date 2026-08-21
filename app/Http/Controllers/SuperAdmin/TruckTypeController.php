@@ -25,7 +25,7 @@ class TruckTypeController extends Controller
             ->paginate(5)
             ->withQueryString();
 
-        $allVehicleTypes = VehicleType::where('status', 'active')->orderBy('name')->get(['id', 'name', 'category']);
+        $allVehicleTypes = VehicleType::where('status', 'active')->orderBy('name')->get(['id', 'name', 'category', 'weight_kg']);
 
         $stats = [
             'total' => TruckType::count(),
@@ -135,6 +135,13 @@ class TruckTypeController extends Controller
 
     public function attachVehicleType(TruckType $truckType, VehicleType $vehicleType): \Illuminate\Http\JsonResponse
     {
+        if (! $truckType->isCompatibleWithWeight($vehicleType->weight_kg !== null ? (float) $vehicleType->weight_kg : null)) {
+            return response()->json([
+                'success' => false,
+                'message' => "{$vehicleType->name} ({$vehicleType->weight_kg} kg) is not compatible with the {$truckType->name} class.",
+            ], 422);
+        }
+
         $truckType->vehicleTypes()->syncWithoutDetaching([$vehicleType->id]);
         return response()->json(['success' => true]);
     }

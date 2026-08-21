@@ -12,23 +12,12 @@
             <div>
                 <h1>Archived Users</h1>
             </div>
-        </div>
 
-        @php
-            $tlRole = $roles->firstWhere('name', 'Team Leader');
-            $dispRole = $roles->firstWhere('name', 'Admin');
-        @endphp
-        <div class="user-view-switch">
-            <a href="{{ route('superadmin.users.index') }}" class="user-view-link">All Users</a>
-            @if ($tlRole)
-                <a href="{{ route('superadmin.users.index', ['role' => $tlRole->id]) }}" class="user-view-link">Team
-                    Leaders</a>
-            @endif
-            @if ($dispRole)
-                <a href="{{ route('superadmin.users.index', ['role' => $dispRole->id]) }}"
-                    class="user-view-link">Dispatchers</a>
-            @endif
-            <a href="{{ route('superadmin.users.archived') }}" class="user-view-link active">Archived Users</a>
+            <div class="page-actions">
+                <a href="{{ route('superadmin.users.index') }}" class="btn-reset">
+                    Back to Users
+                </a>
+            </div>
         </div>
 
         <div class="table-card">
@@ -43,7 +32,7 @@
                         <option value="">All Roles</option>
                         @foreach ($roles as $role)
                             <option value="{{ $role->id }}" {{ request('role') == $role->id ? 'selected' : '' }}>
-                                {{ $role->name }}
+                                {{ $role->name === 'Admin' ? 'Dispatcher' : $role->name }}
                             </option>
                         @endforeach
                     </select>
@@ -60,7 +49,6 @@
                             <th>Role</th>
                             <th>Status</th>
                             <th>Archived</th>
-                            <th>Retention</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -78,51 +66,40 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td data-label="Role">{{ $user->role->name ?? 'N/A' }}</td>
+                                <td data-label="Role">{{ $user->role->name === 'Admin' ? 'Dispatcher' : ($user->role->name ?? 'N/A') }}</td>
                                 <td data-label="Status">
-                                    <span class="status-badge archived">Archived</span>
+                                    @if ($user->pending_delete_at)
+                                        <span class="status-badge pending">Pending Deletion</span>
+                                        @php
+                                            $purgeAt = $user->pending_delete_at->copy()->addDays($retentionDays);
+                                            $daysLeft = max(0, (int) floor(now()->diffInHours($purgeAt, false) / 24));
+                                        @endphp
+                                        <small>{{ $daysLeft > 0 ? $daysLeft . ' day' . ($daysLeft === 1 ? '' : 's') . ' left' : 'Less than 1 day left' }}</small>
+                                    @else
+                                        <span class="status-badge archived">Archived</span>
+                                    @endif
                                 </td>
                                 <td data-label="Archived">
                                     {{ optional($user->archived_at)->format('M d, Y h:i A') ?? '—' }}
                                 </td>
-                                <td data-label="Retention">
-                                    @php
-                                        $deleteEligibleAt = optional($user->archived_at)?->copy()?->addYear();
-                                        $hoursRemaining = $deleteEligibleAt
-                                            ? max(0, now()->diffInHours($deleteEligibleAt, false))
-                                            : 0;
-                                        $daysRemaining = (int) floor($hoursRemaining / 24);
-                                        $canPermanentlyDelete =
-                                            $deleteEligibleAt && now()->greaterThanOrEqualTo($deleteEligibleAt);
-                                    @endphp
-
-                                    @if ($canPermanentlyDelete)
-                                        <span class="status-badge inactive">Eligible now</span>
-                                        <small>Retention complete</small>
-                                    @else
-                                        <span class="status-badge pending">
-                                            {{ $daysRemaining > 0 ? $daysRemaining . ' day' . ($daysRemaining === 1 ? '' : 's') . ' left' : 'Less than 1 day left' }}
-                                        </span>
-                                        <small>Archive retention in progress</small>
-                                    @endif
-                                </td>
                                 <td data-label="Actions">
                                     <div class="action-group" style="display:flex;gap:8px;flex-wrap:wrap;">
-                                        <form method="POST" action="{{ route('superadmin.users.restore', $user->id) }}">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="action-btn restore-btn">
-                                                {{-- <i data-lucide="rotate-ccw"></i> --}}
-                                                Restore
-                                            </button>
-                                        </form>
-
-                                        @if ($canPermanentlyDelete)
+                                        @if ($user->pending_delete_at)
                                             <form method="POST"
-                                                action="{{ route('superadmin.users.force-delete', $user->id) }}"
+                                                action="{{ route('superadmin.users.restore-from-deleted', $user->id) }}">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="action-btn restore-btn">
+                                                    {{-- <i data-lucide="rotate-ccw"></i> --}}
+                                                    Restore
+                                                </button>
+                                            </form>
+
+                                            <form method="POST"
+                                                action="{{ route('superadmin.users.purge-now', $user->id) }}"
                                                 class="js-confirm-delete"
-                                                data-confirm-title="Delete archived user permanently?"
-                                                data-confirm-message="This action cannot be undone."
+                                                data-confirm-title="Delete this user permanently right now?"
+                                                data-confirm-message="This skips the remaining wait time and cannot be undone. If this account has receipt or booking history, its personal data will be anonymized instead of removed."
                                                 data-confirm-button="Delete Permanently">
                                                 @csrf
                                                 @method('DELETE')
@@ -131,13 +108,36 @@
                                                     Delete Permanently
                                                 </button>
                                             </form>
+                                        @else
+                                            <form method="POST" action="{{ route('superadmin.users.restore', $user->id) }}">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="action-btn restore-btn">
+                                                    {{-- <i data-lucide="rotate-ccw"></i> --}}
+                                                    Restore
+                                                </button>
+                                            </form>
+
+                                            <form method="POST"
+                                                action="{{ route('superadmin.users.queue-for-deletion', $user->id) }}"
+                                                class="js-confirm-delete"
+                                                data-confirm-title="Delete this user?"
+                                                data-confirm-message="This will mark the user for deletion. It can still be restored until it's purged."
+                                                data-confirm-button="Delete">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="action-btn archive-btn">
+                                                    {{-- <i data-lucide="trash-2"></i> --}}
+                                                    Delete
+                                                </button>
+                                            </form>
                                         @endif
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6">
+                                <td colspan="5">
                                     <div class="empty-state small-empty">
                                         <h3>No archived users</h3>
                                         <p>Removed accounts will appear here for easy restore.</p>

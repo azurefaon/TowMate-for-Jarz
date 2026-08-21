@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Jarz Super Admin')</title>
+    <title>@yield('title', 'Jarz Owner')</title>
     <link rel="icon" type="image/png" href="{{ asset('admin/images/logo.png') }}">
     @stack('styles')
     <link rel="stylesheet" href="{{ asset('superadmin/css/panel.css') }}">
@@ -42,10 +42,15 @@
             color: var(--jarz-text);
         }
 
-        .sidebar li a.active,
         .sidebar li a:hover,
         .sidebar li button:hover {
             background: var(--jarz-surface);
+        }
+
+        .sidebar li a.active,
+        .sidebar li button.active {
+            background: #111111;
+            color: #facc15;
         }
 
         .badge {
@@ -299,15 +304,21 @@
             <div class="sidebar-section">MAIN</div>
 
             <li>
-                <a href="{{ route('superadmin.dashboard') }}"
+                <a href="{{ route('superadmin.dashboard') }}" title="Dashboard"
                     class="{{ request()->routeIs('superadmin.dashboard') ? 'active' : '' }}">
-                    {{-- <i data-lucide="layout-dashboard"></i> --}}
+                    <span class="nav-chip">D</span>
                     <span>Dashboard</span>
                 </a>
 
-                <a href="{{ route('superadmin.bookings.index') }}"
+                <a href="{{ route('superadmin.reports.index') }}" title="Reports"
+                    class="{{ request()->routeIs('superadmin.reports.*') ? 'active' : '' }}">
+                    <span class="nav-chip">R</span>
+                    <span>Reports</span>
+                </a>
+
+                <a href="{{ route('superadmin.bookings.index') }}" title="Bookings"
                     class="{{ request()->routeIs('superadmin.bookings.*') ? 'active' : '' }}">
-                    {{-- <i data-lucide="clipboard-list"></i> --}}
+                    <span class="nav-chip">B</span>
                     <span>Bookings</span>
 
                     @if (isset($pendingBookings) && $pendingBookings > 0)
@@ -315,16 +326,22 @@
                     @endif
                 </a>
 
-                <a href="{{ route('superadmin.unit-truck.index') }}"
-                    class="{{ request()->routeIs('superadmin.unit-truck.*') ? 'active' : '' }}">
-                    {{-- <i data-lucide="truck"></i> --}}
-                    <span>Units Overview</span>
+                <a href="{{ route('superadmin.users.index') }}" title="Manage Users"
+                    class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
+                    <span class="nav-chip">U</span>
+                    <span>Manage Users</span>
                 </a>
 
-                <a href="{{ route('superadmin.users.index') }}"
-                    class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
-                    {{-- <i data-lucide="users"></i> --}}
-                    <span>Manage Users</span>
+                <a href="{{ route('superadmin.customers.index') }}" title="Customers"
+                    class="{{ request()->routeIs('superadmin.customers.*') ? 'active' : '' }}">
+                    <span class="nav-chip">C</span>
+                    <span>Customers</span>
+                </a>
+
+                <a href="{{ route('admin.dispatch') }}" title="Dispatch / Unit Overview"
+                    class="{{ request()->routeIs('admin.*') ? 'active' : '' }}">
+                    <span class="nav-chip">O</span>
+                    <span>Dispatch / Unit Overview</span>
                 </a>
 
             </li>
@@ -364,16 +381,10 @@
             <div class="sidebar-section">FLEET MANAGEMENT</div>
 
             <li>
-                <a href="{{ route('superadmin.truck-types.index') }}"
-                    class="{{ request()->routeIs('superadmin.truck-types.*') ? 'active' : '' }}">
-                    <span>Truck Classes</span>
-                </a>
-            </li>
-
-            <li>
-                <a href="{{ route('superadmin.vehicle-types.index') }}"
-                    class="{{ request()->routeIs('superadmin.vehicle-types.*') ? 'active' : '' }}">
-                    <span>Vehicle Catalog</span>
+                <a href="{{ route('superadmin.truck-types.index') }}" title="Trucks"
+                    class="{{ request()->routeIs(['superadmin.truck-types.*', 'superadmin.unit-truck.*', 'superadmin.vehicle-types.*']) ? 'active' : '' }}">
+                    <span class="nav-chip">T</span>
+                    <span>Trucks</span>
                 </a>
             </li>
 
@@ -392,17 +403,9 @@
             <div class="sidebar-section">SYSTEM</div>
 
             <li>
-                <a href="{{ route('superadmin.audit.logs') }}"
-                    class="{{ request()->routeIs('superadmin.audit.logs') ? 'active' : '' }}">
-                    {{-- <i data-lucide="shield-check"></i> --}}
-                    <span>Audit Logs</span>
-                </a>
-            </li>
-
-            <li>
-                <a href="{{ route('superadmin.settings.index') }}"
+                <a href="{{ route('superadmin.settings.index') }}" title="System Settings"
                     class="{{ request()->routeIs('superadmin.settings.*') ? 'active' : '' }}">
-                    {{-- <i data-lucide="settings"></i> --}}
+                    <span class="nav-chip">S</span>
                     <span>System Settings</span>
                 </a>
             </li>
@@ -430,7 +433,7 @@
                     <span class="sa-profile-avatar">{{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}</span>
                     <div class="sa-profile-meta">
                         <strong>{{ auth()->user()->full_name ?? auth()->user()->name }}</strong>
-                        <small>Super Admin</small>
+                        <small>{{ auth()->user()->role->name ?? 'Owner' }}</small>
                     </div>
                 </summary>
 
@@ -560,6 +563,8 @@
             }
         });
     </script>
+
+    <script src="{{ asset('superadmin/js/components.js') }}" defer></script>
 
     @stack('scripts')
 

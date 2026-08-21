@@ -78,7 +78,7 @@
 
                 <div class="activity-header">
                     <h2>Recent Activity</h2>
-                    <a href="{{ route('superadmin.audit.logs') }}">View all →</a>
+                    <a href="{{ route('superadmin.reports.activity') }}">View all →</a>
                 </div>
 
                 <div class="activity-list">

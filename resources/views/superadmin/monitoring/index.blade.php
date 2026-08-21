@@ -595,7 +595,7 @@
                         <h3>Dispatcher Tracker</h3>
                         <p>Watch dispatcher activity, quote output, and current operational workload.</p>
                     </div>
-                    <a href="{{ route('superadmin.audit.logs') }}" class="monitor-head-link">
+                    <a href="{{ route('superadmin.reports.activity') }}" class="monitor-head-link">
                         <i data-lucide="activity"></i>
                         <span>View logs</span>
                     </a>
@@ -686,7 +686,7 @@
                         <h3>Recent System Activity</h3>
                         <p>Latest dispatcher and team leader actions from the audit stream.</p>
                     </div>
-                    <a href="{{ route('superadmin.audit.logs') }}" class="monitor-head-link">
+                    <a href="{{ route('superadmin.reports.activity') }}" class="monitor-head-link">
                         <i data-lucide="history"></i>
                         <span>Audit logs</span>
                     </a>

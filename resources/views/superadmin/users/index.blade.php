@@ -28,42 +28,14 @@
             </div>
 
             <div class="page-actions">
+                <a href="{{ route('superadmin.users.archived') }}" class="btn-reset">
+                    Archived Users
+                </a>
                 <a href="{{ route('superadmin.users.create') }}" class="btn-primary-add">
                     {{-- <i data-lucide="user-plus"></i> --}}
                     Add User
                 </a>
             </div>
-        </div>
-
-        @php
-            $tlRole = $roles->firstWhere('name', 'Team Leader');
-            $dispRole = $roles->firstWhere('name', 'Admin');
-            $activeTab = request()->filled('role') ? (int) request('role') : null;
-        @endphp
-        <div class="user-view-switch">
-            <a href="{{ route('superadmin.users.index') }}"
-                class="user-view-link {{ $activeTab === null ? 'active' : '' }}">
-                {{-- <i data-lucide="users"></i> --}}
-                All Users
-            </a>
-            @if ($tlRole)
-                <a href="{{ route('superadmin.users.index', ['role' => $tlRole->id]) }}"
-                    class="user-view-link {{ $activeTab === (int) $tlRole->id ? 'active' : '' }}">
-                    {{-- <i data-lucide="hard-hat"></i> --}}
-                    Team Leaders
-                </a>
-            @endif
-            @if ($dispRole)
-                <a href="{{ route('superadmin.users.index', ['role' => $dispRole->id]) }}"
-                    class="user-view-link {{ $activeTab === (int) $dispRole->id ? 'active' : '' }}">
-                    {{-- <i data-lucide="radio"></i> --}}
-                    Dispatchers
-                </a>
-            @endif
-            <a href="{{ route('superadmin.users.archived') }}" class="user-view-link">
-                {{-- <i data-lucide="archive"></i> --}}
-                Archived Users
-            </a>
         </div>
 
         @if (($passwordRequests ?? collect())->isNotEmpty())
@@ -80,7 +52,7 @@
                     @foreach ($passwordRequests as $requestUser)
                         <div class="request-item">
                             <strong>{{ $requestUser->name }}</strong>
-                            <div class="request-meta">{{ $requestUser->email }} • {{ $requestUser->role->name ?? 'User' }}
+                            <div class="request-meta">{{ $requestUser->email }} • {{ $requestUser->role->name === 'Admin' ? 'Dispatcher' : ($requestUser->role->name ?? 'User') }}
                             </div>
                             <div class="request-time">Requested
                                 {{ optional($requestUser->password_requested_at)?->diffForHumans() ?? 'just now' }}</div>
@@ -144,7 +116,7 @@
                         <option value="">All Roles</option>
                         @foreach ($roles as $role)
                             <option value="{{ $role->id }}" {{ request('role') == $role->id ? 'selected' : '' }}>
-                                {{ $role->name }}
+                                {{ $role->name === 'Admin' ? 'Dispatcher' : $role->name }}
                             </option>
                         @endforeach
                     </select>
@@ -153,6 +125,14 @@
                         <option value="">All Status</option>
                         <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
                         <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Inactive</option>
+                    </select>
+
+                    <select name="sort" class="filter-select">
+                        <option value="">Newest First</option>
+                        <option value="oldest" {{ request('sort') == 'oldest' ? 'selected' : '' }}>Oldest First</option>
+                        <option value="name_asc" {{ request('sort') == 'name_asc' ? 'selected' : '' }}>Name (A–Z)</option>
+                        <option value="name_desc" {{ request('sort') == 'name_desc' ? 'selected' : '' }}>Name (Z–A)</option>
+                        <option value="role" {{ request('sort') == 'role' ? 'selected' : '' }}>Role</option>
                     </select>
 
                     <a href="{{ route('superadmin.users.index') }}" class="btn-reset">Reset</a>
@@ -198,7 +178,7 @@
                                 </td>
 
                                 <td data-label="Role">
-                                    <span class="role-badge">{{ $user->role->name ?? 'N/A' }}</span>
+                                    <span class="role-badge">{{ $user->role->name === 'Admin' ? 'Dispatcher' : ($user->role->name ?? 'N/A') }}</span>
                                 </td>
 
                                 <td data-label="Status">
@@ -219,40 +199,70 @@
                                 <td data-label="Updated">{{ $user->updated_at->diffForHumans() }}</td>
 
                                 <td data-label="Actions">
-                                    <div class="action-group">
-                                        <a href="{{ route('superadmin.users.edit', $user->id) }}"
-                                            class="action-btn edit-btn">Edit</a>
-
-                                        @if ($user->id !== auth()->id())
-                                            {{-- Active / Inactive toggle --}}
-                                            <form method="POST"
-                                                action="{{ route('superadmin.users.toggle', $user->id) }}"
-                                                style="display:inline;">
-                                                @csrf
-                                                @method('PATCH')
-                                                @if ($user->status === 'active')
-                                                    <button type="submit" class="action-btn deactivate-btn"
-                                                        {{ $dispatcherOnline ? 'disabled' : '' }}
-                                                        title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Set user inactive' }}">Inactive</button>
-                                                @else
-                                                    <button type="submit" class="action-btn activate-btn"
-                                                        title="Set user active">Active</button>
-                                                @endif
-                                            </form>
-
+                                    @if (($user->role->name ?? null) === 'Customer')
+                                        <div class="action-group">
                                             {{-- Archive / Remove --}}
-                                            <form method="POST" action="{{ route('superadmin.users.archive', $user) }}"
+                                            <form method="POST"
+                                                action="{{ route('superadmin.users.archive', $user) }}"
                                                 class="js-confirm-action" data-confirm-title="Move user to archive?"
                                                 data-confirm-message="{{ $user->name }} will be moved to the archive panel."
                                                 data-confirm-button="Move to Archive" style="display:inline;">
                                                 @csrf
                                                 @method('PATCH')
                                                 <button type="submit" class="action-btn archive-btn"
-                                                    {{ $dispatcherOnline ? 'disabled' : '' }}
-                                                    title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Move user to archive' }}">Remove</button>
+                                                    title="Move user to archive">Remove</button>
                                             </form>
-                                        @endif
-                                    </div>
+                                        </div>
+                                    @else
+                                        <div class="action-group">
+                                            <a href="{{ route('superadmin.users.edit', $user->id) }}"
+                                                class="action-btn edit-btn">Edit</a>
+
+                                            @if ($user->id !== auth()->id())
+                                                {{-- Active / Inactive toggle --}}
+                                                <form method="POST"
+                                                    action="{{ route('superadmin.users.toggle', $user->id) }}"
+                                                    style="display:inline;">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    @if ($user->status === 'active')
+                                                        <button type="submit" class="action-btn deactivate-btn"
+                                                            {{ $dispatcherOnline ? 'disabled' : '' }}
+                                                            title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Set user inactive' }}">Inactive</button>
+                                                    @else
+                                                        <button type="submit" class="action-btn activate-btn"
+                                                            title="Set user active">Active</button>
+                                                    @endif
+                                                </form>
+
+                                                {{-- Archive / Remove --}}
+                                                <form method="POST"
+                                                    action="{{ route('superadmin.users.archive', $user) }}"
+                                                    class="js-confirm-action" data-confirm-title="Move user to archive?"
+                                                    data-confirm-message="{{ $user->name }} will be moved to the archive panel."
+                                                    data-confirm-button="Move to Archive" style="display:inline;">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" class="action-btn archive-btn"
+                                                        {{ $dispatcherOnline ? 'disabled' : '' }}
+                                                        title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Move user to archive' }}">Remove</button>
+                                                </form>
+
+                                                {{-- Permanent Delete --}}
+                                                <form method="POST"
+                                                    action="{{ route('superadmin.users.delete-now', $user) }}"
+                                                    class="js-confirm-action" data-confirm-title="Permanently delete this user?"
+                                                    data-confirm-message="{{ $user->name }} will be permanently deleted. This cannot be undone."
+                                                    data-confirm-button="Delete Permanently" style="display:inline;">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="action-btn archive-btn"
+                                                        {{ $dispatcherOnline ? 'disabled' : '' }}
+                                                        title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Permanently delete this user' }}">Delete</button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    @endif
                                 </td>
                             </tr>
                         @empty

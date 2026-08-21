@@ -68,8 +68,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         document.getElementById("editLeaderId").value =
             button.dataset.leaderId || "";
-        document.getElementById("editDriverId").value =
-            button.dataset.driverId || "";
+        // Driver 1 (a dropdown of "Unassigned" + the team leader's staged driver) is
+        // rebuilt separately — see rebuildDriverOptions() in the page's inline script.
+        document.getElementById("editDriver2Name").value =
+            button.dataset.driver2Name || "";
+        document.getElementById("editCrew1Name").value =
+            button.dataset.crew1Name || "";
+        document.getElementById("editCrew2Name").value =
+            button.dataset.crew2Name || "";
 
         if (editForm) {
             editForm.action = `${baseUrl}/${button.dataset.id}`;

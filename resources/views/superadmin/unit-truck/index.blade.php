@@ -14,7 +14,15 @@
                 <h1>Units Overview</h1>
                 <p>Track towing units, team leaders, drivers, truck class rates, and dispatcher-managed availability.</p>
             </div>
+            <div class="page-actions" style="display:flex;gap:10px;">
+                <a href="{{ route('superadmin.units.archived') }}" class="btn-light">
+                    Archived Units{{ isset($archivedCount) && $archivedCount > 0 ? " ({$archivedCount})" : '' }}
+                </a>
+                <button type="button" class="btn-dark" data-open-modal="addUnitModal">Add Truck</button>
+            </div>
         </div>
+
+        @include('superadmin.fleet._tabs')
 
         <div class="table-card">
 
@@ -39,7 +47,10 @@
                             <th>Unit</th>
                             <th>Plate</th>
                             <th>Team Leader</th>
-                            <th>Driver</th>
+                            <th>Driver 1</th>
+                            <th>Driver 2</th>
+                            <th>Crew Member 1</th>
+                            <th>Crew Member 2</th>
                             <th>Truck Class</th>
                             <th>Base Rate</th>
                             <th>Per KM</th>
@@ -73,16 +84,41 @@
                                     @endif
                                 </td>
 
-                                <td data-label="Driver">
-                                    @php
-                                        $driverName =
-                                            $unit->driver?->full_name ?? ($unit->driver?->name ?? $unit->driver_name);
-                                    @endphp
-                                    @if ($driverName)
-                                        <span class="cell-main">{{ $driverName }}</span>
+                                <td data-label="Driver 1">
+                                    @if ($unit->driver_id)
+                                        <span
+                                            class="cell-main">{{ $unit->driver?->full_name ?? $unit->driver?->name }}</span>
                                     @else
-                                        <span class="not-assigned">—</span>
+                                        @include('superadmin.unit-truck._crew_cell', [
+                                            'unit' => $unit,
+                                            'slotKey' => 'driver_1',
+                                            'slotLabel' => 'Driver 1',
+                                        ])
                                     @endif
+                                </td>
+
+                                <td data-label="Driver 2">
+                                    @include('superadmin.unit-truck._crew_cell', [
+                                        'unit' => $unit,
+                                        'slotKey' => 'driver_2',
+                                        'slotLabel' => 'Driver 2',
+                                    ])
+                                </td>
+
+                                <td data-label="Crew Member 1">
+                                    @include('superadmin.unit-truck._crew_cell', [
+                                        'unit' => $unit,
+                                        'slotKey' => 'crew_member_1',
+                                        'slotLabel' => 'Crew Member 1',
+                                    ])
+                                </td>
+
+                                <td data-label="Crew Member 2">
+                                    @include('superadmin.unit-truck._crew_cell', [
+                                        'unit' => $unit,
+                                        'slotKey' => 'crew_member_2',
+                                        'slotLabel' => 'Crew Member 2',
+                                    ])
                                 </td>
 
                                 <td data-label="Truck Class">
@@ -148,7 +184,11 @@
                                             data-issue="{{ e($unit->issue_note) }}"
                                             data-truck="{{ $unit->truck_type_id }}"
                                             data-leader-id="{{ $unit->team_leader_id }}"
-                                            data-driver-id="{{ $unit->driver_id }}">
+                                            data-driver-id="{{ $unit->driver_id }}"
+                                            data-driver-name="{{ $unit->driver_name }}"
+                                            data-driver2-name="{{ $unit->driver_2_name }}"
+                                            data-crew1-name="{{ $unit->crew_member_1_name }}"
+                                            data-crew2-name="{{ $unit->crew_member_2_name }}">
                                             Edit
                                         </button>
                                         <form action="{{ route('superadmin.units.toggle', $unit->id) }}" method="POST">
@@ -158,13 +198,26 @@
                                                 {{ $unit->status === 'maintenance' ? 'Enable' : 'Disable' }}
                                             </button>
                                         </form>
+                                        <form action="{{ route('superadmin.units.archive', $unit->id) }}" method="POST"
+                                            class="js-confirm-delete"
+                                            data-confirm-title="Move this unit to archive?"
+                                            data-confirm-message="{{ $unit->name }} will be moved out of the active fleet. You can restore it later from Archived Units."
+                                            data-confirm-button="Move to Archive">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" class="action-btn archive-btn"
+                                                {{ $unit->status === 'on_job' ? 'disabled' : '' }}
+                                                title="{{ $unit->status === 'on_job' ? 'Cannot archive a unit that is on a job' : 'Move unit to archive' }}">
+                                                Archive
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
 
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11">
+                                <td colspan="14">
                                     <div class="empty-state">
                                         <h3>No towing units yet</h3>
                                         <p>Add the first tow unit to start organizing dispatch availability.</p>
@@ -180,6 +233,84 @@
                 {{ $units->onEachSide(1)->links('vendor.pagination.custom') }}
             </div>
 
+        </div>
+
+        {{-- Add Truck Modal --}}
+        <div id="addUnitModal" class="modal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div>
+                        <h2>Add Truck</h2>
+                    </div>
+                    <button type="button" class="modal-close" data-close-modal="addUnitModal">✕</button>
+                </div>
+
+                <form method="POST" action="{{ route('superadmin.units.store') }}">
+                    @csrf
+
+                    <div class="form-group">
+                        <label>Unit Name</label>
+                        <p class="field-note">This truck will be named <strong>{{ $nextUnitName }}</strong>
+                            automatically.</p>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="addPlate">Plate Number</label>
+                            <input type="text" name="plate_number" id="addPlate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="addTruckType">Truck Class</label>
+                            <select name="truck_type_id" id="addTruckType" required>
+                                <option value="">— Select —</option>
+                                @foreach ($truckTypes as $type)
+                                    <option value="{{ $type->id }}">{{ $type->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="addLeaderId">Team Leader</label>
+                        <select name="team_leader_id" id="addLeaderId">
+                            <option value="">— Unassigned —</option>
+                            @foreach ($teamLeadersWithoutUnit as $leader)
+                                <option value="{{ $leader->id }}">
+                                    {{ $leader->full_name ?: $leader->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="addDriverName">Driver Name (Driver 1)</label>
+                        <select name="driver_name" id="addDriverName">
+                            <option value="">— Unassigned —</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="addDriver2Name">Driver 2 (optional)</label>
+                        <input type="text" name="driver_2_name" id="addDriver2Name"
+                            placeholder="Optional second driver">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="addCrew1Name">Crew Member 1 (optional)</label>
+                        <input type="text" name="crew_member_1_name" id="addCrew1Name" placeholder="Optional">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="addCrew2Name">Crew Member 2 (optional)</label>
+                        <input type="text" name="crew_member_2_name" id="addCrew2Name" placeholder="Optional">
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-light" data-close-modal="addUnitModal">Cancel</button>
+                        <button type="submit" class="btn-dark">Add Truck</button>
+                    </div>
+                </form>
+            </div>
         </div>
 
         {{-- Edit Unit Modal --}}
@@ -222,7 +353,7 @@
                         <select name="team_leader_id" id="editLeaderId">
                             <option value="">— Unassigned —</option>
                             @foreach ($teamLeaders as $leader)
-                                <option value="{{ $leader->id }}">
+                                <option value="{{ $leader->id }}" data-name="{{ $leader->full_name ?: $leader->name }}">
                                     {{ $leader->full_name ?: $leader->name }}
                                 </option>
                             @endforeach
@@ -230,15 +361,29 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="editDriverId">Driver</label>
-                        <select name="driver_id" id="editDriverId">
+                        <label for="editDriverName">Driver Name (Driver 1)</label>
+                        <select name="driver_name" id="editDriverName">
                             <option value="">— Unassigned —</option>
-                            @foreach ($drivers as $driver)
-                                <option value="{{ $driver->id }}">
-                                    {{ $driver->full_name ?: $driver->name }}
-                                </option>
-                            @endforeach
                         </select>
+                        <small class="form-hint">Wala sa listahan ang kailangan mong driver? Isara muna ito at
+                            gamitin ang <strong>Borrow</strong> button sa Driver 1 column ng table para maglagay ng
+                            driver mula sa ibang unit.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editDriver2Name">Driver 2 (optional)</label>
+                        <input type="text" name="driver_2_name" id="editDriver2Name"
+                            placeholder="Optional second driver">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editCrew1Name">Crew Member 1 (optional)</label>
+                        <input type="text" name="crew_member_1_name" id="editCrew1Name" placeholder="Optional">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editCrew2Name">Crew Member 2 (optional)</label>
+                        <input type="text" name="crew_member_2_name" id="editCrew2Name" placeholder="Optional">
                     </div>
 
                     <div class="form-group">
@@ -263,9 +408,290 @@
             </div>
         </div>
 
+        {{-- Borrow Crew Modal --}}
+        <div id="borrowCrewModal" class="modal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div>
+                        <h2>Borrow Crew</h2>
+                        <p>Temporarily move a driver or crew member from another unit into <strong
+                                id="borrowToLabel"></strong>.</p>
+                    </div>
+                    <button type="button" class="modal-close" data-close-modal="borrowCrewModal">✕</button>
+                </div>
+
+                <form method="POST" id="borrowCrewForm">
+                    @csrf
+                    <input type="hidden" name="to_slot" id="borrowToSlot">
+
+                    <div class="form-group">
+                        <label for="borrowFromUnit">Borrow from unit</label>
+                        <select name="from_unit_id" id="borrowFromUnit" required>
+                            <option value="">— Select unit —</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="borrowFromSlot">Person to borrow</label>
+                        <select name="from_slot" id="borrowFromSlot" required>
+                            <option value="">— Select unit first —</option>
+                        </select>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-light" data-close-modal="borrowCrewModal">Cancel</button>
+                        <button type="submit" class="btn-dark">Borrow</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="deleteDialog" class="sa-dialog-backdrop">
+            <div class="sa-dialog-card">
+                <h3 id="deleteDialogTitle">Confirm</h3>
+                <p id="deleteDialogMessage">This action cannot be undone.</p>
+                <div class="sa-dialog-actions">
+                    <button type="button" class="sa-dialog-btn cancel" id="deleteDialogCancel">Cancel</button>
+                    <button type="button" class="sa-dialog-btn confirm" id="deleteDialogConfirm">OK</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 @endsection
 
 @push('scripts')
+    <script id="crewUnitsData" type="application/json">{!! json_encode($crewUnitsData) !!}</script>
+    <script id="teamLeaderStagedData" type="application/json">{!! json_encode($teamLeaderStagedData) !!}</script>
     <script src="{{ asset('admin/js/unit-truck.js') }}" defer></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const page = document.querySelector('.units-page');
+            if (!page) return;
+
+            const baseUrl = page.dataset.baseUrl;
+            const crewUnits = JSON.parse(document.getElementById('crewUnitsData').textContent || '[]');
+            const teamLeaderStagedData = JSON.parse(document.getElementById('teamLeaderStagedData').textContent ||
+                '[]');
+
+            // ── Driver 1 dropdown: only ever offers "Unassigned" + the selected Team Leader's staged driver ──
+            const rebuildDriverOptions = (selectId, leaderId, preserveValue) => {
+                const select = document.getElementById(selectId);
+                if (!select) return;
+                const staged = leaderId ? teamLeaderStagedData.find(l => l.id === leaderId) : null;
+                const stagedName = staged?.driver_name || '';
+
+                select.innerHTML = '';
+                const unassigned = document.createElement('option');
+                unassigned.value = '';
+                unassigned.textContent = '— Unassigned —';
+                select.appendChild(unassigned);
+
+                if (stagedName) {
+                    const opt = document.createElement('option');
+                    opt.value = stagedName;
+                    opt.textContent = stagedName;
+                    select.appendChild(opt);
+                }
+
+                // Preserve an existing value (e.g. when opening Edit on a unit whose
+                // driver doesn't match its team leader's staged name) so it isn't lost.
+                if (preserveValue && preserveValue !== stagedName) {
+                    const opt = document.createElement('option');
+                    opt.value = preserveValue;
+                    opt.textContent = preserveValue;
+                    select.appendChild(opt);
+                }
+
+                select.value = preserveValue || stagedName || '';
+            };
+
+            // Auto-fill Crew Member 1 / 2 (still free text) + rebuild the Driver 1 dropdown
+            // whenever the Team Leader selection changes.
+            const wireStagedAutofill = (leaderSelectId, driverSelectId, crew1Id, crew2Id) => {
+                const leaderSelect = document.getElementById(leaderSelectId);
+                const crew1Input = document.getElementById(crew1Id);
+                const crew2Input = document.getElementById(crew2Id);
+                if (!leaderSelect) return;
+
+                leaderSelect.addEventListener('change', () => {
+                    const leaderId = parseInt(leaderSelect.value, 10) || null;
+                    rebuildDriverOptions(driverSelectId, leaderId, null);
+
+                    if (!leaderId) return;
+                    const staged = teamLeaderStagedData.find(l => l.id === leaderId);
+                    if (!staged) return;
+
+                    if (crew1Input && !crew1Input.value && staged.crew_member_1_name) {
+                        crew1Input.value = staged.crew_member_1_name;
+                    }
+                    if (crew2Input && !crew2Input.value && staged.crew_member_2_name) {
+                        crew2Input.value = staged.crew_member_2_name;
+                    }
+                });
+            };
+
+            wireStagedAutofill('addLeaderId', 'addDriverName', 'addCrew1Name', 'addCrew2Name');
+            wireStagedAutofill('editLeaderId', 'editDriverName', 'editCrew1Name', 'editCrew2Name');
+
+            // When opening Edit, rebuild Driver 1's options around this unit's current
+            // team leader + driver name (independent of the click handler in unit-truck.js).
+            document.addEventListener('click', (e) => {
+                const btn = e.target.closest('.js-edit-unit');
+                if (!btn) return;
+                const leaderId = parseInt(btn.dataset.leaderId, 10) || null;
+                rebuildDriverOptions('editDriverName', leaderId, btn.dataset.driverName || null);
+
+                // Label any Team Leader who currently leads a DIFFERENT unit, so picking
+                // them here makes clear they'll be moved off that unit.
+                const editingUnitId = parseInt(btn.dataset.id, 10) || null;
+                document.querySelectorAll('#editLeaderId option[data-name]').forEach(opt => {
+                    const staged = teamLeaderStagedData.find(l => l.id === parseInt(opt.value, 10));
+                    const baseName = opt.dataset.name;
+                    if (staged && staged.current_unit_id && staged.current_unit_id !== editingUnitId) {
+                        opt.textContent = `${baseName} (currently leading ${staged.current_unit_name})`;
+                    } else {
+                        opt.textContent = baseName;
+                    }
+                });
+            });
+
+            const slotColumn = {
+                driver_1: 'driver_name',
+                driver_2: 'driver_2_name',
+                crew_member_1: 'crew_member_1_name',
+                crew_member_2: 'crew_member_2_name',
+            };
+            const slotLabel = {
+                driver_1: 'Driver 1',
+                driver_2: 'Driver 2',
+                crew_member_1: 'Crew Member 1',
+                crew_member_2: 'Crew Member 2',
+            };
+            const slotType = (slot) => slot.startsWith('driver_') ? 'driver' : 'crew_member';
+
+            const borrowModal = document.getElementById('borrowCrewModal');
+            const borrowForm = document.getElementById('borrowCrewForm');
+            const borrowToLabel = document.getElementById('borrowToLabel');
+            const borrowToSlot = document.getElementById('borrowToSlot');
+            const borrowFromUnit = document.getElementById('borrowFromUnit');
+            const borrowFromSlot = document.getElementById('borrowFromSlot');
+
+            const showModal = (m) => {
+                if (m) m.style.display = 'flex';
+            };
+            const hideModal = (m) => {
+                if (m) m.style.display = 'none';
+            };
+
+            let currentToUnitId = null;
+            let currentToSlot = null;
+
+            const populateFromUnits = () => {
+                const type = slotType(currentToSlot);
+                borrowFromUnit.innerHTML = '<option value="">— Select unit —</option>';
+
+                crewUnits
+                    .filter(u => u.id !== currentToUnitId)
+                    .filter(u => {
+                        return Object.keys(slotColumn).some(slot => slotType(slot) === type && u[slotColumn[
+                            slot]]);
+                    })
+                    .forEach(u => {
+                        const opt = document.createElement('option');
+                        opt.value = u.id;
+                        opt.textContent = u.name;
+                        borrowFromUnit.appendChild(opt);
+                    });
+
+                borrowFromSlot.innerHTML = '<option value="">— Select unit first —</option>';
+            };
+
+            const populateFromSlots = () => {
+                const type = slotType(currentToSlot);
+                const unitId = parseInt(borrowFromUnit.value, 10);
+                borrowFromSlot.innerHTML = '<option value="">— Select person —</option>';
+                if (!unitId) return;
+
+                const unit = crewUnits.find(u => u.id === unitId);
+                if (!unit) return;
+
+                Object.keys(slotColumn)
+                    .filter(slot => slotType(slot) === type && unit[slotColumn[slot]])
+                    .forEach(slot => {
+                        const opt = document.createElement('option');
+                        opt.value = slot;
+                        opt.textContent = `${unit[slotColumn[slot]]} (${slotLabel[slot]})`;
+                        borrowFromSlot.appendChild(opt);
+                    });
+            };
+
+            borrowFromUnit.addEventListener('change', populateFromSlots);
+
+            document.querySelectorAll('.js-borrow-crew').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentToUnitId = parseInt(btn.dataset.toUnit, 10);
+                    currentToSlot = btn.dataset.toSlot;
+
+                    borrowToLabel.textContent =
+                        `${btn.dataset.toUnitName} — ${btn.dataset.toSlotLabel}`;
+                    borrowToSlot.value = currentToSlot;
+                    borrowForm.action = `${baseUrl}/${currentToUnitId}/borrow-crew`;
+
+                    populateFromUnits();
+                    showModal(borrowModal);
+                });
+            });
+
+            document.querySelectorAll('[data-close-modal="borrowCrewModal"]').forEach(btn => {
+                btn.addEventListener('click', () => hideModal(borrowModal));
+            });
+            borrowModal?.addEventListener('click', (e) => {
+                if (e.target === borrowModal) hideModal(borrowModal);
+            });
+
+            const deleteDialog = document.getElementById('deleteDialog');
+            const deleteDialogTitle = document.getElementById('deleteDialogTitle');
+            const deleteDialogMessage = document.getElementById('deleteDialogMessage');
+            const deleteDialogCancel = document.getElementById('deleteDialogCancel');
+            const deleteDialogConfirm = document.getElementById('deleteDialogConfirm');
+            let pendingDelete = null;
+
+            function openDeleteDialog(title, message, confirmText, onConfirm) {
+                deleteDialogTitle.textContent = title;
+                deleteDialogMessage.textContent = message;
+                deleteDialogConfirm.textContent = confirmText;
+                pendingDelete = onConfirm;
+                deleteDialog.classList.add('is-open');
+            }
+
+            function closeDeleteDialog() {
+                deleteDialog.classList.remove('is-open');
+                pendingDelete = null;
+            }
+
+            document.querySelectorAll('.js-confirm-delete').forEach(form => {
+                form.addEventListener('submit', function(event) {
+                    event.preventDefault();
+
+                    openDeleteDialog(
+                        this.dataset.confirmTitle || 'Confirm',
+                        this.dataset.confirmMessage || 'This action cannot be undone.',
+                        this.dataset.confirmButton || 'OK',
+                        () => this.submit()
+                    );
+                });
+            });
+
+            deleteDialogCancel?.addEventListener('click', closeDeleteDialog);
+            deleteDialogConfirm?.addEventListener('click', () => {
+                const callback = pendingDelete;
+                closeDeleteDialog();
+
+                if (typeof callback === 'function') {
+                    callback();
+                }
+            });
+        });
+    </script>
 @endpush

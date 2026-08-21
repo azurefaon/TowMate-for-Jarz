@@ -52,6 +52,14 @@ class NewBooking implements ShouldBroadcast
     {
         $this->booking->loadMissing(['customer', 'truckType']);
 
+        $vehicleImageUrl = null;
+        if ($this->booking->vehicle_image_path) {
+            $paths = json_decode($this->booking->vehicle_image_path, true);
+            if (is_array($paths) && !empty($paths)) {
+                $vehicleImageUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($paths[0]);
+            }
+        }
+
         return [
             'id' => $this->booking->booking_code ?: $this->booking->id,
             'booking_code' => $this->booking->job_code,
@@ -66,6 +74,7 @@ class NewBooking implements ShouldBroadcast
             'service_mode_label' => $this->booking->service_mode_label,
             'scheduled_for' => optional($this->booking->scheduled_for)->toISOString(),
             'schedule_window_label' => $this->booking->schedule_window_label,
+            'vehicle_image_url' => $vehicleImageUrl,
         ];
     }
 }

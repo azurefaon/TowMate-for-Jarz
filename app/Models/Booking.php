@@ -173,6 +173,11 @@ class Booking extends Model
         return $this->booking_code ?: str_pad((string) $this->getKey(), 7, '0', STR_PAD_LEFT);
     }
 
+    public function auditLabel(): string
+    {
+        return 'Booking ' . $this->job_code;
+    }
+
     public function resolveQuotationStatus(?string $currentStatus = null): string
     {
         $resolvedStatus = strtolower(trim((string) $currentStatus));

@@ -80,6 +80,11 @@ class Customer extends Model
         });
     }
 
+    public function auditLabel(): string
+    {
+        return 'Customer ' . ($this->full_name ?: "#{$this->getKey()}");
+    }
+
     public function getFullNameAttribute($value): string
     {
         return build_full_name($this->first_name, $this->middle_name, $this->last_name) ?: (string) $value;

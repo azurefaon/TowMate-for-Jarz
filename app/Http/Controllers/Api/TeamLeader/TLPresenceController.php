@@ -69,4 +69,11 @@ class TLPresenceController extends Controller
 
         return response()->json(['success' => true, 'presence' => 'offline']);
     }
+
+    public function away(Request $request): JsonResponse
+    {
+        $this->teamLeaderAvailability->markAway($request->user());
+
+        return response()->json(['success' => true, 'presence' => 'away']);
+    }
 }

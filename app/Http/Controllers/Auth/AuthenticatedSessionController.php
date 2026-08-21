@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
+use App\Services\AuditLogService;
 use App\Services\TeamLeaderAvailabilityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -96,6 +97,8 @@ class AuthenticatedSessionController extends Controller
             Cache::put('dispatcher:presence:' . $user->id, now()->timestamp, now()->addHours(12));
         }
 
+        app(AuditLogService::class)->logLogin($user, $request, $request->selectedGuard());
+
         return redirect()->intended(route($request->redirectRoute(), absolute: false));
     }
 
@@ -108,6 +111,10 @@ class AuthenticatedSessionController extends Controller
             app(TeamLeaderAvailabilityService::class)->markOffline($user);
         } elseif ((int) optional($user)->role_id === 2) {
             Cache::forget('dispatcher:presence:' . $user->id);
+        }
+
+        if ($user) {
+            app(AuditLogService::class)->logLogout($user, $request);
         }
 
         foreach (['web', 'superadmin', 'dispatcher', 'teamleader'] as $guard) {

@@ -24,7 +24,7 @@ class SuperAdminSeeder extends Seeder
         // ── Seed roles ────────────────────────────────────────────────────
         if (Schema::hasTable('roles')) {
             DB::table('roles')->insertOrIgnore([
-                ['id' => 1, 'name' => 'Super Admin', 'created_at' => $now, 'updated_at' => $now],
+                ['id' => 1, 'name' => 'Owner', 'created_at' => $now, 'updated_at' => $now],
                 ['id' => 2, 'name' => 'Admin',       'created_at' => $now, 'updated_at' => $now],
                 ['id' => 3, 'name' => 'Team Leader', 'created_at' => $now, 'updated_at' => $now],
                 ['id' => 4, 'name' => 'Driver',      'created_at' => $now, 'updated_at' => $now],
