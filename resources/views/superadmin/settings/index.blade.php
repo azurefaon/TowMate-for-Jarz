@@ -317,6 +317,21 @@
                 </div>
             </div>
         </div>
+
+        <div class="settings-card">
+            <div class="settings-card-header">
+                <h3>Customer Inactivity Lock</h3>
+                <p>How many days with no login before a customer account is automatically locked. Customers can unlock their own account via Forgot Password.</p>
+            </div>
+
+            <div class="settings-grid">
+                <div class="settings-field">
+                    <label>Inactivity Days</label>
+                    <input type="number" min="1" max="365" name="settings[customer_inactivity_lock_days]"
+                        value="{{ old('settings.customer_inactivity_lock_days', $settings['customer_inactivity_lock_days'] ?? 90) }}">
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- SAVE BUTTON -->

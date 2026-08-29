@@ -23,6 +23,14 @@ class QuotationController extends Controller
             abort(403, 'Invalid or expired link');
         }
 
+        if (! $quotation->is_current) {
+            return $this->redirectToShow(
+                $this->resolveCurrent($quotation),
+                'error',
+                'This quotation was revised. Showing you the latest version.'
+            );
+        }
+
         $quotation->markAsViewed();
         $quotation->load(['customer', 'truckType']);
 
@@ -59,8 +67,8 @@ class QuotationController extends Controller
         }
 
         $requestedVersion = (int) $request->query('v', 1);
-        if (($quotation->link_version ?? 1) > $requestedVersion) {
-            return $this->redirectToShow($quotation, 'error', 'This quotation was updated after your link was sent. Please wait for a new quotation link from the dispatcher.');
+        if (! $quotation->is_current || ($quotation->link_version ?? 1) > $requestedVersion) {
+            return $this->redirectToShow($this->resolveCurrent($quotation), 'error', 'This quotation was updated after your link was sent. Please wait for a new quotation link from the dispatcher.');
         }
 
         if ($quotation->status !== 'sent') {
@@ -95,6 +103,10 @@ class QuotationController extends Controller
             'reason' => 'nullable|string|max:1000',
         ]);
 
+        if (! $quotation->is_current) {
+            return $this->redirectToShow($this->resolveCurrent($quotation), 'error', 'This quotation was revised. Please use the latest link sent to you.');
+        }
+
         if ($quotation->status !== 'sent') {
             return $this->redirectToShow($quotation, 'error', 'This quotation has already been responded to.');
         }
@@ -124,6 +136,10 @@ class QuotationController extends Controller
             'note'          => 'required|string|max:1000',
         ]);
 
+        if (! $quotation->is_current) {
+            return $this->redirectToShow($this->resolveCurrent($quotation), 'error', 'This quotation was revised. Please use the latest link sent to you.');
+        }
+
         if ($quotation->status !== 'sent') {
             return $this->redirectToShow($quotation, 'error', 'This quotation has already been responded to.');
         }
@@ -148,6 +164,13 @@ class QuotationController extends Controller
 
             return $this->redirectToShow($quotation, 'error', 'Failed to submit negotiation. Please try again.');
         }
+    }
+
+    protected function resolveCurrent(Quotation $quotation): Quotation
+    {
+        return Quotation::where('quotation_number', $quotation->quotation_number)
+            ->current()
+            ->first() ?? $quotation;
     }
 
     protected function redirectToShow(Quotation $quotation, string $type, string $message)

@@ -53,14 +53,13 @@ class UserPurgeService
         }
 
         $user->update([
-            'first_name' => 'Deleted',
-            'middle_name' => null,
-            'last_name' => "User #{$user->id}",
-            'name' => "Deleted User #{$user->id}",
             'email' => "deleted-{$user->id}@removed.local",
             'phone' => null,
             'password' => Hash::make(Str::random(40)),
             'pending_delete_at' => null,
+            'pending_delete_reason' => null,
+            'status' => 'inactive',
+            'anonymized_at' => now(),
         ]);
 
         AuditLog::create([
@@ -68,8 +67,8 @@ class UserPurgeService
             'action' => 'user_anonymized',
             'entity_type' => 'User',
             'entity_id' => $user->id,
-            'reference' => "Deleted User #{$user->id}",
-            'description' => 'Could not be permanently deleted (receipt/booking history on record) — personal data anonymized instead.',
+            'reference' => $user->name,
+            'description' => 'Could not be permanently deleted (receipt/booking history on record) — login and contact info disabled; name preserved for historical records.',
         ]);
 
         return 'anonymized';

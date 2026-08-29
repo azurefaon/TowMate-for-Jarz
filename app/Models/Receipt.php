@@ -12,6 +12,7 @@ class Receipt extends Model
     protected $fillable = [
         'receipt_code',
         'booking_id',
+        'invoice_id',
         'generated_by',
         'receipt_number',
         'pdf_path',
@@ -34,5 +35,10 @@ class Receipt extends Model
     public function booking()
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    public function invoice()
+    {
+        return $this->belongsTo(Invoice::class);
     }
 }

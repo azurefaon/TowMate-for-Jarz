@@ -31,6 +31,7 @@ class SystemSettingsController extends Controller
         $request->validate([
             'settings.max_team_leaders' => ['nullable', 'integer', 'min:1', 'max:500'],
             'settings.deleted_retention_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'settings.customer_inactivity_lock_days' => ['nullable', 'integer', 'min:1', 'max:365'],
         ]);
 
         $settings = $request->input('settings', []);

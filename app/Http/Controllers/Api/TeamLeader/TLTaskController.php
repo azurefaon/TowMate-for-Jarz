@@ -4,11 +4,16 @@ namespace App\Http\Controllers\Api\TeamLeader;
 
 use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
+use App\Mail\InvoiceMail;
 use App\Models\Booking;
+use App\Models\Invoice;
 use App\Models\Unit;
 use App\Services\CustomerNotificationService;
+use App\Services\DocumentGenerationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class TLTaskController extends Controller
@@ -193,6 +198,20 @@ class TLTaskController extends Controller
         $booking->update($updates);
         $booking->load(['customer', 'truckType', 'unit']);
 
+        if ($newStatus === 'arrived_dropoff' && ! $booking->currentInvoice()->exists()) {
+            // The exists() check above narrows the race but can't close it (a
+            // double-tap or retried request can both pass it before either
+            // commits) — the partial unique index on invoices(booking_id) WHERE
+            // is_current is the real guard. A losing concurrent call just means
+            // the other request already issued the invoice, so no-op instead of
+            // failing the status update over it.
+            try {
+                $this->issueInvoice($booking, $request->user()->id);
+            } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                // Another concurrent request already issued the current invoice.
+            }
+        }
+
         try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
 
         // Notify customer on key status transitions
@@ -304,6 +323,13 @@ class TLTaskController extends Controller
         $terminalStatuses = ['completed', 'cancelled', 'rejected', 'returned'];
         if (in_array($booking->status, $terminalStatuses)) {
             return response()->json(['success' => false, 'message' => 'Task is already in a terminal state.'], 422);
+        }
+
+        if (! $booking->currentInvoice()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No invoice has been issued for this job yet. Payment cannot be recorded.',
+            ], 422);
         }
 
         if ($validated['payment_method'] === 'cash' && (float) $validated['cash_received'] < (float) $booking->final_total) {
@@ -492,5 +518,59 @@ class TLTaskController extends Controller
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
 
         return $earthRadiusMeters * $c;
+    }
+
+    /**
+     * Issues the invoice for a job the moment it's physically done (vehicle
+     * dropped off), before payment can be recorded — see the guard in complete().
+     */
+    private function issueInvoice(Booking $booking, ?int $createdBy): Invoice
+    {
+        $invoice = Invoice::create([
+            'booking_id' => $booking->id,
+            'quotation_id' => $booking->quotation_id,
+            'subtotal' => (float) ($booking->vat_exclusive_total ?? $booking->final_total ?? 0),
+            'additional_fee' => (float) ($booking->additional_fee ?? 0),
+            'discount' => (float) ($booking->discount_amount ?? 0),
+            'total' => (float) ($booking->final_total ?? 0),
+            'status' => 'issued',
+            'is_current' => true,
+            'created_by' => $createdBy,
+        ]);
+
+        $invoiceId = $invoice->id;
+        app()->terminating(function () use ($invoiceId) {
+            // Flush the HTTP response to the client before heavy work so the
+            // mobile app gets its status update immediately instead of waiting
+            // out PDF generation + email send — same pattern as JobsController.
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+            flush();
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+
+            try {
+                $invoice = Invoice::with('booking.customer')->find($invoiceId);
+                if (! $invoice) {
+                    return;
+                }
+
+                app(DocumentGenerationService::class)->generateInvoice($invoice);
+
+                if (filled($invoice->booking->customer?->email)) {
+                    Mail::to($invoice->booking->customer->email)->send(new InvoiceMail($invoice->fresh()));
+                    $invoice->update(['email_sent' => true]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('Background invoice generation failed', [
+                    'invoice_id' => $invoiceId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
+
+        return $invoice;
     }
 }

@@ -26,6 +26,7 @@ class CustomerQuotationController extends Controller
 
         $quotation = Quotation::where('customer_id', $customer->id)
             ->where('status', 'sent')
+            ->current()
             ->where(function ($q) {
                 $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
             })
@@ -86,6 +87,9 @@ class CustomerQuotationController extends Controller
         $request->validate([
             'quotation' => [
                 function ($attribute, $value, $fail) use ($quotation) {
+                    if (! $quotation->is_current) {
+                        $fail('This quotation was revised. Please refresh and review the latest version.');
+                    }
                     if ($quotation->status !== 'sent') {
                         $fail('This quotation has already been processed.');
                     }
@@ -123,7 +127,7 @@ class CustomerQuotationController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
-        if ($quotation->status !== 'sent') {
+        if (! $quotation->is_current || $quotation->status !== 'sent') {
             return response()->json(['success' => false, 'message' => 'Quotation is no longer active.'], 422);
         }
 
@@ -150,6 +154,9 @@ class CustomerQuotationController extends Controller
             'reason'    => 'nullable|string|max:1000',
             'quotation' => [
                 function ($attribute, $value, $fail) use ($quotation) {
+                    if (! $quotation->is_current) {
+                        $fail('This quotation was revised. Please refresh and review the latest version.');
+                    }
                     if ($quotation->status !== 'sent') {
                         $fail('This quotation has already been processed.');
                     }

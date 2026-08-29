@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\Invoice;
 use App\Models\LandingSetting;
 use App\Models\Receipt;
 use App\Models\SystemSetting;
@@ -49,6 +50,7 @@ class DocumentGenerationService
         $receipt = Receipt::updateOrCreate(
             ['booking_id' => $booking->id],
             [
+                'invoice_id' => $booking->currentInvoice()->value('id'),
                 'generated_by' => $booking->assigned_team_leader_id ?? $booking->created_by_admin_id,
                 'receipt_number' => $booking->receipt->receipt_number ?? sprintf('R-%s-%04d', now()->format('Ymd'), $booking->id),
                 'email_sent' => false,
@@ -73,6 +75,25 @@ class DocumentGenerationService
         ]);
 
         return $receipt->fresh();
+    }
+
+    public function generateInvoice(Invoice $invoice): Invoice
+    {
+        $booking = $invoice->booking()->with(['customer', 'truckType'])->first();
+
+        $html = view('documents.invoice', [
+            'booking' => $booking,
+            'invoice' => $invoice,
+            'settings' => $this->documentSettings(),
+            'generatedAt' => now(),
+        ])->render();
+
+        $path = sprintf('documents/invoices/invoice-%d.pdf', $invoice->id);
+        Storage::disk('public')->put($path, $this->renderPdf($html));
+
+        $invoice->update(['pdf_path' => 'storage/' . $path]);
+
+        return $invoice->fresh();
     }
 
     /**

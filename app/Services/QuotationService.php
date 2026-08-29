@@ -60,6 +60,7 @@ class QuotationService
     public function hasActiveQuotation(int $customerId): bool
     {
         return Quotation::where('customer_id', $customerId)
+            ->current()
             ->whereIn('status', ['pending', 'sent'])
             ->where(function ($query) {
                 $query->whereNull('expires_at')
@@ -71,6 +72,7 @@ class QuotationService
     public function getActiveQuotation(int $customerId): ?Quotation
     {
         return Quotation::where('customer_id', $customerId)
+            ->current()
             ->whereIn('status', ['pending', 'sent'])
             ->where(function ($query) {
                 $query->whereNull('expires_at')
@@ -122,6 +124,10 @@ class QuotationService
         DB::beginTransaction();
 
         try {
+            if (! $quotation->is_current) {
+                throw new \Exception('This quotation was revised. Please use the latest version.');
+            }
+
             if ($quotation->status !== 'sent') {
                 throw new \Exception('Quotation already processed.');
             }
@@ -253,6 +259,12 @@ class QuotationService
 
     public function rejectQuotation(Quotation $quotation, ?string $reason = null): void
     {
+        // Defense-in-depth: callers already check is_current before calling this,
+        // but guard here too in case of a race with a concurrent price revision.
+        if (! $quotation->is_current) {
+            return;
+        }
+
         $quotation->update([
             'status' => 'rejected',
             'responded_at' => now(),
@@ -321,6 +333,7 @@ class QuotationService
         $followUpDate = now()->subDays(5);
 
         return Quotation::whereIn('status', ['sent', 'negotiating'])
+            ->current()
             ->where('sent_at', '<=', $followUpDate)
             ->whereNull('responded_at')
             ->whereNull('follow_up_sent_at')
@@ -332,6 +345,7 @@ class QuotationService
     public function expireOldQuotations(): int
     {
         $quotations = Quotation::whereIn('status', ['sent', 'negotiating'])
+            ->current()
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now())
             ->with(['sourceBooking', 'customer'])

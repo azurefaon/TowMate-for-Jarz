@@ -66,8 +66,6 @@ class DispatchController extends Controller
     public function index()
     {
 
-        // 'confirmed' bookings have no team leader/unit assigned yet (assignment always
-        // flips status to 'assigned'), so they belong in the Book Now queue, not here.
         $queueBase = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'returnedByTeamLeader'])
             ->where(function ($query) {
 
@@ -110,9 +108,6 @@ class DispatchController extends Controller
         $delayedRequests = collect();
         $negotiationRequests = collect();
 
-        // â"€â"€ Book-Now queue: requested/reviewed/quoted/quotation_sent, NOT scheduled â"€â"€
-        // Exclude 'requested' bookings that already have a linked quotation â€" those are
-        // mobile app bookings and are surfaced in the Floating Quotations panel instead.
         $bookNowRequests = Booking::with(['customer', 'truckType'])
             ->whereIn('status', $this->reviewableStatuses)
             ->where(function ($q) {
@@ -120,25 +115,23 @@ class DispatchController extends Controller
                     ->orWhere('service_type', 'book_now');
             })
             ->where(function ($q) {
-                // Keep non-requested statuses always; exclude 'requested' only when a quotation exists
                 $q->where('status', '!=', 'requested')
                     ->orWhereNull('quotation_id');
             })
-            ->oldest('created_at')  // FIFO
+            ->oldest('created_at')
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'book-now'));
 
-        // ── Scheduled queue: scheduled_confirmed first (FIFO), then scheduled (FIFO) ──
         $scheduledRequests = Booking::with(['customer', 'truckType'])
             ->whereIn('status', ['scheduled_confirmed', 'scheduled'])
             ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", ['scheduled_confirmed'])
-            ->oldest('created_at')  // FIFO within same status
+            ->oldest('created_at')
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'scheduled'));
 
-        // Batch-load active quotations for scheduled bookings (drives card button + pill)
         $scheduledBookingIds = $scheduledRequests->pluck('id');
         $activeQuotationMap = \App\Models\Quotation::whereIn('source_booking_id', $scheduledBookingIds)
+            ->current()
             ->whereIn('status', ['pending', 'draft', 'sent', 'negotiating', 'accepted'])
             ->orderByDesc('id')
             ->get(['id', 'status', 'source_booking_id'])
@@ -151,7 +144,6 @@ class DispatchController extends Controller
             return $b;
         });
 
-        // Batch-load group siblings for scheduled bookings (shows status of linked book_now vehicle)
         $scheduledGroupCodes = $scheduledRequests->pluck('group_code')->filter()->unique()->values();
         if ($scheduledGroupCodes->isNotEmpty()) {
             $scheduledSiblingsByGroup = Booking::whereIn('group_code', $scheduledGroupCodes)
@@ -208,7 +200,6 @@ class DispatchController extends Controller
             return $booking;
         });
 
-        // Batch-load group siblings for active/incoming bookings
         $incomingGroupCodes = $incomingRequests->pluck('group_code')->filter()->unique()->values();
         if ($incomingGroupCodes->isNotEmpty()) {
             $incomingSiblingsByGroup = Booking::whereIn('group_code', $incomingGroupCodes)
@@ -228,7 +219,7 @@ class DispatchController extends Controller
         $groupedBookNow  = $bookNowRequests->groupBy(fn($b) => $b->group_code ?: $b->booking_code);
         $groupedScheduled = $scheduledRequests->groupBy(fn($b) => $b->group_code ?: $b->booking_code);
 
-        $pendingQuotationCount = Quotation::where('status', 'pending')->count();
+        $pendingQuotationCount = Quotation::where('status', 'pending')->current()->count();
 
         $queueCounts = [
             'all' => $incomingRequests->count(),
@@ -323,9 +314,10 @@ class DispatchController extends Controller
     {
         $allQuotations = Quotation::with(['customer', 'truckType', 'sourceBooking'])
             ->whereIn('status', ['draft', 'pending', 'sent', 'negotiating'])
+            ->current()
             ->where(function ($q) {
                 $q->where('service_type', '!=', 'schedule')
-                  ->orWhereNull('service_type');
+                    ->orWhereNull('service_type');
             })
             ->orderByRaw("CASE WHEN status = 'draft' THEN 0 WHEN status = 'pending' THEN 1 WHEN status = 'negotiating' THEN 2 ELSE 3 END")
             ->orderBy('created_at', 'asc')
@@ -337,7 +329,6 @@ class DispatchController extends Controller
                 return $quotation;
             });
 
-        // Batch-load group siblings for quotations (shows linked scheduled vehicle badge + modal section)
         $quotationGroupCodes = $allQuotations
             ->filter(fn($q) => $q->sourceBooking?->group_code)
             ->map(fn($q) => $q->sourceBooking->group_code)
@@ -365,10 +356,10 @@ class DispatchController extends Controller
         });
 
         $quotationStats = [
-            'total' => Quotation::count(),
-            'active' => Quotation::whereIn('status', ['pending', 'sent'])->count(),
+            'total' => Quotation::current()->count(),
+            'active' => Quotation::whereIn('status', ['pending', 'sent'])->current()->count(),
             'urgent' => $allQuotations->where('urgency_level', 'urgent')->count(),
-            'expired' => Quotation::where('status', 'expired')->count(),
+            'expired' => Quotation::where('status', 'expired')->current()->count(),
         ];
 
         return ['allQuotations' => $allQuotations, 'quotationStats' => $quotationStats];
@@ -1090,9 +1081,9 @@ class DispatchController extends Controller
         $vehicleTypeIds = array_unique(array_filter(array_column($vehicles, 'vehicle_type_id')));
 
         $truckTypes   = TruckType::whereIn('id', $truckTypeIds)
-                                 ->get(['id', 'name', 'class', 'base_rate'])->keyBy('id');
+            ->get(['id', 'name', 'class', 'base_rate'])->keyBy('id');
         $vehicleTypes = VehicleType::whereIn('id', $vehicleTypeIds)
-                                   ->get(['id', 'name'])->keyBy('id');
+            ->get(['id', 'name'])->keyBy('id');
 
         return array_map(function (array $ev) use ($truckTypes, $vehicleTypes): array {
             $tt = isset($ev['truck_type_id']) ? $truckTypes->get($ev['truck_type_id']) : null;
@@ -1161,8 +1152,12 @@ class DispatchController extends Controller
         if ($quotation->source_booking_id) {
             $sourceBooking = Booking::find($quotation->source_booking_id);
             $rejectableStatuses = [
-                'requested', 'reviewed', 'quoted', 'quotation_sent',
-                'scheduled', 'scheduled_confirmed',
+                'requested',
+                'reviewed',
+                'quoted',
+                'quotation_sent',
+                'scheduled',
+                'scheduled_confirmed',
             ];
             if ($sourceBooking && in_array($sourceBooking->status, $rejectableStatuses)) {
                 $newStatus = in_array($sourceBooking->status, ['scheduled', 'scheduled_confirmed'])
@@ -1191,11 +1186,18 @@ class DispatchController extends Controller
 
     public function updateQuotationPrice(Request $request, Quotation $quotation)
     {
+        if (! $quotation->is_current) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This quotation was already revised by someone else. Please refresh and try again.',
+            ], 409);
+        }
+
         $validated = $request->validate([
             'new_price' => 'required|numeric|min:0.01',
             'additional_fee' => 'nullable|numeric',
             'note' => [
-                Rule::requiredIf(fn () => (float) $request->input('additional_fee', 0) !== 0.0),
+                Rule::requiredIf(fn() => (float) $request->input('additional_fee', 0) !== 0.0),
                 'nullable',
                 'string',
                 'max:1000',
@@ -1203,15 +1205,14 @@ class DispatchController extends Controller
             'assigned_unit_id' => 'nullable|integer|exists:units,id',
         ]);
 
-        // Keep the quotation in its current stage unless it was pending (pending resets back to pending).
-        // Revising a sent/negotiating quotation keeps it at 'sent' and clears the counter offer.
         $previousStatus = $quotation->status;
         $newStatus = in_array($previousStatus, ['sent', 'negotiating']) ? 'sent'
             : ($previousStatus === 'draft' ? 'draft' : 'pending');
 
-        // Append price change to log
         $oldPrice = (float) $quotation->estimated_price;
         $newPrice = (float) $validated['new_price'];
+        $previousQuotationId = $quotation->id;
+
         $changeLog = $quotation->price_change_log ?? [];
         if ($oldPrice !== $newPrice) {
             $changeLog[] = [
@@ -1233,14 +1234,20 @@ class DispatchController extends Controller
             'price_change_log'     => $changeLog,
         ];
 
-        $quotation->update($updateData);
+        try {
+            $quotation = $quotation->newVersion($updateData);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This quotation was already revised by someone else. Please refresh and try again.',
+            ], 409);
+        }
 
-        // Sync final_total on source booking so TL and customer see consistent price
         $sourceBooking = $quotation->source_booking_id
             ? Booking::find($quotation->source_booking_id)
-            : Booking::where('quotation_id', $quotation->id)->first();
+            : Booking::where('quotation_id', $previousQuotationId)->first();
         if ($sourceBooking) {
-            $bookingUpdate = ['final_total' => $newPrice];
+            $bookingUpdate = ['final_total' => $newPrice, 'quotation_id' => $quotation->id];
             if (!empty($validated['assigned_unit_id'])) {
                 $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
                 if ($selectedUnit) {
@@ -1280,7 +1287,6 @@ class DispatchController extends Controller
             }
         }
 
-        // In-app notification for mobile customers when price changes
         if ($quotation->customer && $quotation->customer->user_id && $oldPrice !== $newPrice) {
             $bookingCode = $quotation->sourceBooking?->booking_code ?? $sourceBooking?->booking_code;
             \App\Services\CustomerNotificationService::send(
@@ -1306,7 +1312,7 @@ class DispatchController extends Controller
             'additional_fee'   => 'nullable|numeric',
             'assigned_unit_id' => 'nullable|integer|exists:units,id',
             'dispatcher_note'  => [
-                Rule::requiredIf(fn () => (float) $request->input('additional_fee', 0) !== 0.0),
+                Rule::requiredIf(fn() => (float) $request->input('additional_fee', 0) !== 0.0),
                 'nullable',
                 'string',
                 'max:1000',
@@ -1314,8 +1320,8 @@ class DispatchController extends Controller
             'distance_km'      => 'nullable|numeric|min:0.01|max:10000',
         ]);
 
-        // Block re-drafting if a sent/negotiating/accepted quotation already exists for this booking
         $alreadySent = Quotation::where('source_booking_id', $booking->id)
+            ->current()
             ->whereIn('status', ['sent', 'negotiating', 'accepted'])
             ->exists();
         if ($alreadySent) {
@@ -1358,7 +1364,7 @@ class DispatchController extends Controller
             'vehicle_model'       => $booking->vehicle_model,
             'vehicle_year'        => $booking->vehicle_year,
             'vehicle_color'       => $booking->vehicle_color,
-            'vehicle_plate_number'=> $booking->vehicle_plate_number,
+            'vehicle_plate_number' => $booking->vehicle_plate_number,
             'vehicle_image_path'  => $booking->vehicle_image_path,
             'estimated_price'     => (float) $validated['price'],
             'additional_fee'      => (float) ($validated['additional_fee'] ?? 0),
@@ -1400,7 +1406,7 @@ class DispatchController extends Controller
 
         $booking->update($this->bookingService->filterPayloadForTable('bookings', [
             'quotation_number'   => $quotationNumber,
-            'quotation_generated'=> true,
+            'quotation_generated' => true,
             'reviewed_at'        => $booking->reviewed_at ?? now(),
             'assigned_unit_id'   => $selectedUnit?->id ?? $booking->assigned_unit_id,
             'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,

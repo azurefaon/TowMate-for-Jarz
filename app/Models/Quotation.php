@@ -14,6 +14,8 @@ class Quotation extends Model
 
     protected $fillable = [
         'quotation_number',
+        'version',
+        'is_current',
         'source_booking_id',
         'customer_id',
         'truck_type_id',
@@ -51,6 +53,8 @@ class Quotation extends Model
     ];
 
     protected $casts = [
+        'version' => 'integer',
+        'is_current' => 'boolean',
         'distance_km' => 'decimal:2',
         'eta_minutes' => 'decimal:2',
         'estimated_price' => 'decimal:2',
@@ -102,6 +106,45 @@ class Quotation extends Model
     public function sourceBooking(): BelongsTo
     {
         return $this->belongsTo(Booking::class, 'source_booking_id');
+    }
+
+    // Versioning
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_current', true);
+    }
+
+    /**
+     * Freezes this row as a superseded version and creates a new current row
+     * under the same quotation_number with $changes applied. The old row is
+     * never mutated in place — every edit is a new, immutable version.
+     */
+    public function newVersion(array $changes): Quotation
+    {
+        // Refresh first: in-memory attributes never set explicitly (e.g. expiry_hours
+        // left to its DB column default) would otherwise copy forward as null and
+        // violate not-null constraints instead of carrying the real stored value.
+        $this->refresh();
+
+        $attributes = $this->only($this->fillable);
+        unset($attributes['id']);
+
+        $attributes = array_merge($attributes, $changes, [
+            'version' => $this->version + 1,
+            'is_current' => true,
+        ]);
+
+        // Mark this row non-current BEFORE inserting the replacement: the partial
+        // unique index (one is_current=true row per quotation_number) is checked
+        // per-statement, not deferred to commit, so creating the new row first
+        // would momentarily leave two current rows and fail the insert.
+        $next = \Illuminate\Support\Facades\DB::transaction(function () use ($attributes) {
+            $this->update(['is_current' => false]);
+
+            return static::create($attributes);
+        });
+
+        return $next;
     }
 
     // Helper methods

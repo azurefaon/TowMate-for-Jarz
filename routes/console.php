@@ -13,3 +13,4 @@ Schedule::command('quotations:expire')->everyFiveMinutes();
 Schedule::command('quotations:followup')->daily();
 Schedule::command('bookings:expire-scheduled')->hourly();
 Schedule::command('towmate:purge-deleted-users')->daily();
+Schedule::command('towmate:lock-inactive-customers')->daily();

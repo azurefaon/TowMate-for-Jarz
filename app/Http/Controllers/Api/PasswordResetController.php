@@ -88,6 +88,7 @@ class PasswordResetController extends Controller
             'password_reset_otp'            => null,
             'password_reset_otp_expires_at' => null,
             'password_reset_token'          => null,
+            ...($user->status === 'locked' ? ['status' => 'active', 'last_login_at' => now()] : []),
         ]);
 
         return response()->json(['success' => true, 'message' => 'Password reset successfully. You can now log in.']);

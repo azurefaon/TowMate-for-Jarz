@@ -54,7 +54,7 @@ class TrackController extends Controller
                          ->orWhere('updated_at', '>=', now()->subHours(24));
                   });
             })
-            ->with(['truckType', 'unit.driver', 'assignedTeamLeader'])
+            ->with(['truckType', 'unit.driver', 'assignedTeamLeader', 'currentInvoice'])
             ->first();
 
         if (! $booking) {

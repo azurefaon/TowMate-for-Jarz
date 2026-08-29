@@ -141,6 +141,13 @@ class AuthController extends Controller
             ], 401);
         }
 
+        if ($user->status === 'locked') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account was locked due to inactivity. Reset your password to reactivate it.',
+            ], 423);
+        }
+
         if ($user->status !== 'active') {
             return response()->json([
                 'success' => false,
@@ -150,6 +157,8 @@ class AuthController extends Controller
 
         // Revoke previous tokens so only one session is active at a time
         $user->tokens()->delete();
+
+        $user->update(['last_login_at' => now()]);
 
         $token = $user->createToken('mobile')->plainTextToken;
 

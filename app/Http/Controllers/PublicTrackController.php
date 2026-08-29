@@ -19,7 +19,7 @@ class PublicTrackController extends Controller
 
         if ($ref !== '') {
             // 1) Search existing booking by booking_code, quotation_number, or group_code
-            $booking = Booking::with(['customer', 'truckType', 'unit.teamLeader'])
+            $booking = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'currentInvoice'])
                 ->where(function ($q) use ($ref) {
                     $q->where('booking_code', $ref)
                         ->orWhere('quotation_number', $ref)
@@ -41,6 +41,7 @@ class PublicTrackController extends Controller
             if (! $booking) {
                 $quotation = Quotation::with(['customer', 'truckType'])
                     ->where('quotation_number', $ref)
+                    ->current()
                     ->whereNotIn('status', ['rejected'])
                     ->first();
             }

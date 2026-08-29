@@ -405,6 +405,16 @@ class Booking extends Model
         return $this->hasOne(Receipt::class);
     }
 
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    public function currentInvoice()
+    {
+        return $this->hasOne(Invoice::class)->where('is_current', true);
+    }
+
     public function getIsScheduledQueueAttribute(): bool
     {
         return in_array($this->status, ['scheduled', 'scheduled_confirmed'], true);
