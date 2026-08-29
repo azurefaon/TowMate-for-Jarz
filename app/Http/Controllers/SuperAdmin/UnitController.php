@@ -10,6 +10,7 @@ use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\UnitCrewLoan;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +19,15 @@ use Illuminate\Validation\Rule;
 
 class UnitController extends Controller
 {
+    // 3 letters + 4 digits, 3 letters + 3 digits, or 2 letters + 5 digits; I and O are excluded (confusable with 1/0).
+    private const PLATE_NUMBER_REGEX = '/^(?:[A-HJ-NP-Z]{3}[0-9]{4}|[A-HJ-NP-Z]{3}[0-9]{3}|[A-HJ-NP-Z]{2}[0-9]{5})$/';
+    private const PLATE_NUMBER_ERROR = 'Plate number must be 3 letters + 4 digits, 3 letters + 3 digits, or 2 letters + 5 digits, without the letters I or O.';
+
+    protected function normalizePlateNumber(?string $plateNumber): string
+    {
+        return strtoupper(preg_replace('/\s+/', '', trim((string) $plateNumber)));
+    }
+
     public function index()
     {
         $units = Unit::with(['teamLeader.role', 'driver', 'truckType'])
@@ -31,9 +41,9 @@ class UnitController extends Controller
 
         $teamLeaderRoleId = Role::where('name', 'Team Leader')->value('id');
 
-        $teamLeaders = User::where('role_id', $teamLeaderRoleId)
-            ->whereNull('archived_at')
-            ->withCount('unit')
+        $teamLeaders = User::visibleToOperations()
+            ->where('role_id', $teamLeaderRoleId)
+            ->withCount(['unit' => fn($q) => $q->whereNull('archived_at')])
             ->with('unit:id,name,team_leader_id')
             ->orderBy('name')
             ->get([
@@ -58,14 +68,21 @@ class UnitController extends Controller
             'maintenance' => Unit::where('status', 'maintenance')->count(),
         ];
 
-        $crewUnitsData = Unit::select('id', 'name', 'driver_name', 'driver_2_name', 'crew_member_1_name', 'crew_member_2_name')
-            ->whereNull('archived_at')
-            ->orderBy('name')
-            ->get();
-
         $activeLoans = UnitCrewLoan::whereNull('returned_at')->get();
         $loansOutBySlot = $activeLoans->keyBy(fn($loan) => $loan->from_unit_id . ':' . $loan->from_slot);
         $loansInBySlot = $activeLoans->keyBy(fn($loan) => $loan->to_unit_id . ':' . $loan->to_slot);
+
+        $crewUnitsData = Unit::select('id', 'name', 'status', 'driver_name', 'driver_2_name', 'crew_member_1_name', 'crew_member_2_name')
+            ->whereNull('archived_at')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($unit) use ($loansInBySlot) {
+                $unit->loaned_in_slots = collect(array_keys(Unit::SLOT_COLUMNS))
+                    ->filter(fn($slot) => $loansInBySlot->has("{$unit->id}:{$slot}"))
+                    ->values();
+
+                return $unit;
+            });
 
         $nextUnitName = $this->nextUnitName();
 
@@ -109,15 +126,26 @@ class UnitController extends Controller
 
     public function store(Request $request)
     {
+        $request->merge([
+            'plate_number' => $this->normalizePlateNumber($request->input('plate_number')),
+        ]);
+
         $validated = $request->validate([
-            'plate_number' => 'required|string|max:50|unique:units,plate_number',
+            'plate_number' => [
+                'required',
+                'string',
+                'max:50',
+                'regex:' . self::PLATE_NUMBER_REGEX,
+                'unique:units,plate_number',
+            ],
             'truck_type_id' => 'required|exists:truck_types,id',
             'status' => 'nullable|in:available,maintenance',
             'issue_note' => 'nullable|string|max:500',
+        ], [
+            'plate_number.regex' => self::PLATE_NUMBER_ERROR,
         ]);
 
         $validated['name'] = $this->nextUnitName();
-        $validated['plate_number'] = strtoupper($validated['plate_number']);
         $validated['status'] = $validated['status'] ?? 'available';
 
         if ($validated['status'] !== 'maintenance') {
@@ -132,30 +160,60 @@ class UnitController extends Controller
 
     public function assignTeamLeader(Request $request, $id): RedirectResponse
     {
-        $unit = Unit::findOrFail($id);
         $teamLeaderRoleId = Role::where('name', 'Team Leader')->value('id');
 
         $validated = $request->validate([
             'team_leader_id' => [
                 'required',
                 Rule::exists('users', 'id')
-                    ->where(fn($q) => $q->where('role_id', $teamLeaderRoleId)->whereNull('archived_at')),
-                'unique:units,team_leader_id',
+                    ->where(fn($q) => $q->where('role_id', $teamLeaderRoleId)->whereNull('archived_at')->whereNull('anonymized_at')),
             ],
         ], [
             'team_leader_id.required' => 'Select a Team Leader to assign.',
-            'team_leader_id.exists'   => 'Selected team leader is invalid or archived.',
-            'team_leader_id.unique'   => 'This team leader is already assigned to another unit.',
+            'team_leader_id.exists'   => 'Selected team leader is invalid, archived, or deleted.',
         ]);
 
-        $leader = User::find($validated['team_leader_id']);
+        $alreadyAssignedMessage = 'This team leader is already assigned to another unit.';
 
-        $unit->update([
-            'team_leader_id' => $validated['team_leader_id'],
-            'driver_name' => build_full_name($leader->driver_first_name, $leader->driver_middle_name, $leader->driver_last_name),
-            'crew_member_1_name' => $leader->crew_member_1_name,
-            'crew_member_2_name' => $leader->crew_member_2_name,
-        ]);
+        // Re-check availability and write inside a locked transaction so two
+        // near-simultaneous assign requests for the same leader can't both
+        // pass the check before either commits (the old bare validation rule
+        // was a check-then-write race). The DB's partial unique index on
+        // units.team_leader_id is the hard backstop if this still races.
+        try {
+            $unit = DB::transaction(function () use ($id, $validated, $alreadyAssignedMessage) {
+                $unit = Unit::lockForUpdate()->findOrFail($id);
+
+                $alreadyTaken = Unit::where('team_leader_id', $validated['team_leader_id'])
+                    ->where('id', '!=', $unit->id)
+                    ->exists();
+
+                if ($alreadyTaken) {
+                    throw new \RuntimeException($alreadyAssignedMessage);
+                }
+
+                $leader = User::find($validated['team_leader_id']);
+
+                $unit->update([
+                    'team_leader_id' => $validated['team_leader_id'],
+                    'driver_name' => build_full_name($leader->driver_first_name, $leader->driver_middle_name, $leader->driver_last_name),
+                    'crew_member_1_name' => $leader->crew_member_1_name,
+                    'crew_member_2_name' => $leader->crew_member_2_name,
+                ]);
+
+                return $unit;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        } catch (QueryException $e) {
+            // Belt-and-suspenders: the DB constraint caught a race the
+            // in-transaction check above somehow missed.
+            if ((string) $e->getCode() === '23505') {
+                return back()->with('error', $alreadyAssignedMessage);
+            }
+
+            throw $e;
+        }
 
         AuditLog::create([
             'user_id' => Auth::id(),
@@ -201,18 +259,25 @@ class UnitController extends Controller
     {
         $unit = Unit::findOrFail($id);
 
+        $request->merge([
+            'plate_number' => $this->normalizePlateNumber($request->input('plate_number')),
+        ]);
+
         $validated = $request->validate([
             'plate_number' => [
                 'required',
                 'string',
                 'max:50',
+                'regex:' . self::PLATE_NUMBER_REGEX,
                 Rule::unique('units', 'plate_number')->ignore($unit->id),
             ],
             'truck_type_id' => 'required|exists:truck_types,id',
+        ], [
+            'plate_number.regex' => self::PLATE_NUMBER_ERROR,
         ]);
 
         $unit->update([
-            'plate_number'  => strtoupper($validated['plate_number']),
+            'plate_number'  => $validated['plate_number'],
             'truck_type_id' => $validated['truck_type_id'],
         ]);
 
@@ -323,13 +388,13 @@ class UnitController extends Controller
             'from_slot' => ['required', Rule::in(array_keys(Unit::SLOT_COLUMNS))],
             'to_slot' => ['required', Rule::in(array_keys(Unit::SLOT_COLUMNS))],
         ], [
-            'from_unit_id.not_in' => 'Cannot borrow crew from the same unit.',
+            'from_unit_id.not_in' => 'Cannot assign crew from the same unit.',
         ]);
 
         $slotType = fn(string $slot) => str_starts_with($slot, 'driver_') ? 'driver' : 'crew_member';
 
         if ($slotType($validated['from_slot']) !== $slotType($validated['to_slot'])) {
-            return back()->with('error', 'You can only borrow a Driver into a Driver slot, or a Crew Member into a Crew Member slot.');
+            return back()->with('error', 'You can only assign a Driver into a Driver slot, or a Crew Member into a Crew Member slot.');
         }
 
         $fromUnit = Unit::findOrFail($validated['from_unit_id']);
@@ -337,15 +402,15 @@ class UnitController extends Controller
         $toColumn = Unit::SLOT_COLUMNS[$validated['to_slot']];
 
         if ($validated['to_slot'] === 'driver_1' && $unit->driver_id) {
-            return back()->with('error', 'Driver 1 already has a linked account assigned. Unassign it first before borrowing.');
+            return back()->with('error', 'Driver 1 already has a linked account assigned. Unassign it first before assigning.');
         }
 
         if ($validated['from_slot'] === 'driver_1' && $fromUnit->driver_id) {
-            return back()->with('error', 'That unit\'s Driver 1 is a linked account, not a free-text name, and cannot be borrowed.');
+            return back()->with('error', 'That unit\'s Driver 1 is a linked account, not a free-text name, and cannot be assigned.');
         }
 
         if (filled($unit->{$toColumn})) {
-            return back()->with('error', 'That slot is already filled. Clear it first before borrowing.');
+            return back()->with('error', 'That slot is already filled. Clear it first before assigning.');
         }
 
         if (blank($fromUnit->{$fromColumn})) {
@@ -354,6 +419,14 @@ class UnitController extends Controller
 
         if ($fromUnit->activeLoanOut($validated['from_slot'])) {
             return back()->with('error', 'That person is already on transfer to another unit.');
+        }
+
+        if ($fromUnit->status !== 'available') {
+            return back()->with('error', 'Cannot assign crew from a unit that is currently on a job or in maintenance.');
+        }
+
+        if ($fromUnit->activeLoansIn()->has($validated['from_slot'])) {
+            return back()->with('error', 'This person is already on loan from another unit and cannot be assigned again.');
         }
 
         $personName = $fromUnit->{$fromColumn};
@@ -377,10 +450,10 @@ class UnitController extends Controller
             'entity_type' => 'Unit',
             'entity_id' => $unit->id,
             'reference' => $personName,
-            'description' => "{$personName} borrowed from {$fromUnit->name} to {$unit->name}.",
+            'description' => "{$personName} assigned from {$fromUnit->name} to {$unit->name}.",
         ]);
 
-        return back()->with('success', "{$personName} borrowed from {$fromUnit->name}.");
+        return back()->with('success', "{$personName} assigned from {$fromUnit->name}.");
     }
 
     public function returnCrew(UnitCrewLoan $loan): RedirectResponse

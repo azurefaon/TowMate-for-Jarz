@@ -43,10 +43,14 @@ class User extends Authenticatable
         'password_request_note',
         'password_request_resolved_at',
         'archived_at',
+        'archived_reason',
         'pending_delete_at',
+        'pending_delete_reason',
+        'anonymized_at',
         'email_verified_at',
         'must_change_password',
         'last_ping_at',
+        'last_login_at',
     ];
 
     protected static function booted(): void
@@ -80,7 +84,12 @@ class User extends Authenticatable
 
     public function scopeVisibleToOperations($query)
     {
-        return $query->whereNull('archived_at');
+        // Anonymized accounts are a permanent, irreversible deletion (kept only
+        // because receipt/booking history references the row) — they must never
+        // appear in any live operational UI (dispatch, monitoring, assignment
+        // pickers, login), only in historical records that already store the
+        // name/reference as plain text rather than a live relation.
+        return $query->whereNull('archived_at')->whereNull('anonymized_at');
     }
 
     public function role()
@@ -124,11 +133,13 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'archived_at' => 'datetime',
             'pending_delete_at' => 'datetime',
+            'anonymized_at' => 'datetime',
             'password_requested_at' => 'datetime',
             'password_request_resolved_at' => 'datetime',
             'password' => 'hashed',
             'must_change_password' => 'boolean',
             'last_ping_at' => 'datetime',
+            'last_login_at' => 'datetime',
         ];
     }
 }

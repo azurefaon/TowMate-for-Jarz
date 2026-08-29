@@ -94,7 +94,10 @@ class AuthenticatedSessionController extends Controller
         if ((int) $user->role_id === 3) {
             app(TeamLeaderAvailabilityService::class)->markOnline($user);
         } elseif ((int) $user->role_id === 2) {
-            Cache::put('dispatcher:presence:' . $user->id, now()->timestamp, now()->addHours(12));
+            // Short TTL kept in sync with TouchDispatcherPresence, which refreshes this
+            // on every subsequent dispatcher request so it decays quickly once idle,
+            // instead of lingering for hours past session expiry.
+            Cache::put('dispatcher:presence:' . $user->id, now()->timestamp, 300);
         }
 
         app(AuditLogService::class)->logLogin($user, $request, $request->selectedGuard());

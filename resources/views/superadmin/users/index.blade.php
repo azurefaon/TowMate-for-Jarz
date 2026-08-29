@@ -3,7 +3,7 @@
 @section('title', 'User Management')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('admin/css/users.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin/css/users.css') }}?v={{ filemtime(public_path('admin/css/users.css')) }}">
 @endpush
 
 @section('content')
@@ -25,16 +25,6 @@
         <div class="page-top">
             <div>
                 <h1>User Management</h1>
-            </div>
-
-            <div class="page-actions">
-                <a href="{{ route('superadmin.users.archived') }}" class="btn-reset">
-                    Archived Users
-                </a>
-                <a href="{{ route('superadmin.users.create') }}" class="btn-primary-add">
-                    {{-- <i data-lucide="user-plus"></i> --}}
-                    Add User
-                </a>
             </div>
         </div>
 
@@ -105,182 +95,134 @@
         @endif
 
         <div class="table-card">
+            <div class="table-toolbar">
+                <a href="{{ route('superadmin.users.archived') }}" class="btn-table-action secondary">
+                    <span class="btn-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                            <path d="M4 6 L20 6 L20 9 L4 9 Z" />
+                            <path d="M5 9 L5 19 L19 19 L19 9" />
+                            <line x1="10" y1="13" x2="14" y2="13" />
+                        </svg>
+                    </span>
+                    Archived Users
+                </a>
+                <a href="{{ route('superadmin.users.deleted') }}" class="btn-table-action secondary">
+                    <span class="btn-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                            <path d="M6 8 L18 8 L17 20 L7 20 Z" />
+                            <line x1="4.5" y1="8" x2="19.5" y2="8" />
+                            <path d="M9.5 8 L9.5 5.5 L14.5 5.5 L14.5 8" />
+                            <line x1="10.5" y1="11.5" x2="10.5" y2="16.5" />
+                            <line x1="13.5" y1="11.5" x2="13.5" y2="16.5" />
+                        </svg>
+                    </span>
+                    Pending Deletion
+                </a>
+                <a href="{{ route('superadmin.users.create') }}" class="btn-table-action primary">
+                    <span class="btn-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                            <path d="M9 7 L11.6 4.8 L14.2 7 L13.2 10.5 L9.8 10.5 Z" />
+                            <path d="M6 17 L7.2 12.5 L16.8 12.5 L18 17" />
+                            <line x1="18" y1="6" x2="18" y2="10.5" />
+                            <line x1="15.8" y1="8.25" x2="20.2" y2="8.25" />
+                        </svg>
+                    </span>
+                    Add User
+                </a>
+            </div>
+
             <div class="table-header">
-                <form method="GET" class="filters">
+                <form method="GET" class="filters" id="usersFilterForm">
                     <div class="search-container">
+                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="10.5" cy="10.5" r="6.2" />
+                            <line x1="15.3" y1="15.3" x2="20" y2="20" />
+                        </svg>
                         <input type="text" name="search" value="{{ request('search') }}"
-                            placeholder="Search by name or email..." class="search-input">
+                            placeholder="Search by name or email..." class="search-input" id="usersSearchInput" autocomplete="off">
                     </div>
 
-                    <select name="role" class="filter-select">
-                        <option value="">All Roles</option>
-                        @foreach ($roles as $role)
-                            <option value="{{ $role->id }}" {{ request('role') == $role->id ? 'selected' : '' }}>
-                                {{ $role->name === 'Admin' ? 'Dispatcher' : $role->name }}
-                            </option>
-                        @endforeach
-                    </select>
+                    @php
+                        $roleLabel = 'All Roles';
+                        foreach ($roles as $role) {
+                            if ((string) request('role') === (string) $role->id) {
+                                $roleLabel = $role->name === 'Admin' ? 'Dispatcher' : $role->name;
+                            }
+                        }
 
-                    <select name="status" class="filter-select">
-                        <option value="">All Status</option>
-                        <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
-                        <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Inactive</option>
-                    </select>
+                        $statusOptions = ['' => 'All Status', 'active' => 'Active', 'inactive' => 'Inactive'];
+                        $statusLabel = $statusOptions[request('status')] ?? 'All Status';
 
-                    <select name="sort" class="filter-select">
-                        <option value="">Newest First</option>
-                        <option value="oldest" {{ request('sort') == 'oldest' ? 'selected' : '' }}>Oldest First</option>
-                        <option value="name_asc" {{ request('sort') == 'name_asc' ? 'selected' : '' }}>Name (A–Z)</option>
-                        <option value="name_desc" {{ request('sort') == 'name_desc' ? 'selected' : '' }}>Name (Z–A)</option>
-                        <option value="role" {{ request('sort') == 'role' ? 'selected' : '' }}>Role</option>
-                    </select>
+                        $sortOptions = [
+                            '' => 'Newest First',
+                            'oldest' => 'Oldest First',
+                            'name_asc' => 'Name (A–Z)',
+                            'name_desc' => 'Name (Z–A)',
+                            'role' => 'Role',
+                        ];
+                        $sortLabel = $sortOptions[request('sort')] ?? 'Newest First';
+                    @endphp
+
+                    <div class="custom-select" data-name="role">
+                        <button type="button" class="custom-select-trigger">
+                            <span class="custom-select-label">{{ $roleLabel }}</span>
+                            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9 L12 15 L18 9" /></svg>
+                        </button>
+                        <ul class="custom-select-menu">
+                            <li data-value="" class="{{ request('role') ? '' : 'is-selected' }}">All Roles</li>
+                            @foreach ($roles as $role)
+                                @php
+                                    $roleOptionSlug = match ($role->name) {
+                                        'Admin' => 'dispatcher',
+                                        'Customer' => 'customer',
+                                        'Team Leader' => 'team-leader',
+                                        'Driver' => 'driver',
+                                        default => 'default',
+                                    };
+                                @endphp
+                                <li data-value="{{ $role->id }}" class="{{ (string) request('role') === (string) $role->id ? 'is-selected' : '' }}">
+                                    <span class="role-option-icon role-{{ $roleOptionSlug }}">
+                                        @include('superadmin.users.partials.role-icon', ['roleSlug' => $roleOptionSlug])
+                                    </span>
+                                    <span>{{ $role->name === 'Admin' ? 'Dispatcher' : $role->name }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                        <input type="hidden" name="role" value="{{ request('role') }}">
+                    </div>
+
+                    <div class="custom-select" data-name="status">
+                        <button type="button" class="custom-select-trigger">
+                            <span class="custom-select-label">{{ $statusLabel }}</span>
+                            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9 L12 15 L18 9" /></svg>
+                        </button>
+                        <ul class="custom-select-menu">
+                            @foreach ($statusOptions as $value => $label)
+                                <li data-value="{{ $value }}" class="{{ request('status', '') === $value ? 'is-selected' : '' }}">{{ $label }}</li>
+                            @endforeach
+                        </ul>
+                        <input type="hidden" name="status" value="{{ request('status') }}">
+                    </div>
+
+                    <div class="custom-select" data-name="sort">
+                        <button type="button" class="custom-select-trigger">
+                            <span class="custom-select-label">{{ $sortLabel }}</span>
+                            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9 L12 15 L18 9" /></svg>
+                        </button>
+                        <ul class="custom-select-menu">
+                            @foreach ($sortOptions as $value => $label)
+                                <li data-value="{{ $value }}" class="{{ request('sort', '') === $value ? 'is-selected' : '' }}">{{ $label }}</li>
+                            @endforeach
+                        </ul>
+                        <input type="hidden" name="sort" value="{{ request('sort') }}">
+                    </div>
 
                     <a href="{{ route('superadmin.users.index') }}" class="btn-reset">Reset</a>
                 </form>
-
-                <div class="table-actions-right">
-                    <span class="table-count">
-                        Showing {{ $users->count() }} of {{ $users->total() }} users
-                    </span>
-                </div>
             </div>
 
-            <div class="table-scroll">
-                <table class="modern-table">
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Joined</th>
-                            <th>Updated</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        @forelse($users as $user)
-                            <tr>
-                                <td data-label="User">
-                                    <div class="user-info">
-                                        <div class="avatar">
-                                            {{ strtoupper(substr($user->name, 0, 1)) }}
-                                        </div>
-
-                                        <div class="user-text">
-                                            <span class="user-name">{{ $user->name }}</span>
-                                            <small>{{ $user->email }}</small>
-                                            @if ($user->password_request_status === 'pending')
-                                                <span class="request-pill">Password request pending</span>
-                                            @endif
-                                        </div>
-                                    </div>
-                                </td>
-
-                                <td data-label="Role">
-                                    <span class="role-badge">{{ $user->role->name === 'Admin' ? 'Dispatcher' : ($user->role->name ?? 'N/A') }}</span>
-                                </td>
-
-                                <td data-label="Status">
-                                    @php
-                                        $dispatcherOnline =
-                                            (int) $user->role_id === 2 &&
-                                            \Illuminate\Support\Facades\Cache::has('dispatcher:presence:' . $user->id);
-                                    @endphp
-                                    <span class="status-badge {{ $user->status }}">{{ ucfirst($user->status) }}</span>
-                                    @if ($user->id === auth()->id())
-                                        <small class="self-tag">You</small>
-                                    @elseif ($dispatcherOnline)
-                                        <small class="self-tag">Online</small>
-                                    @endif
-                                </td>
-
-                                <td data-label="Joined">{{ $user->created_at->format('M d, Y') }}</td>
-                                <td data-label="Updated">{{ $user->updated_at->diffForHumans() }}</td>
-
-                                <td data-label="Actions">
-                                    @if (($user->role->name ?? null) === 'Customer')
-                                        <div class="action-group">
-                                            {{-- Archive / Remove --}}
-                                            <form method="POST"
-                                                action="{{ route('superadmin.users.archive', $user) }}"
-                                                class="js-confirm-action" data-confirm-title="Move user to archive?"
-                                                data-confirm-message="{{ $user->name }} will be moved to the archive panel."
-                                                data-confirm-button="Move to Archive" style="display:inline;">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="action-btn archive-btn"
-                                                    title="Move user to archive">Remove</button>
-                                            </form>
-                                        </div>
-                                    @else
-                                        <div class="action-group">
-                                            <a href="{{ route('superadmin.users.edit', $user->id) }}"
-                                                class="action-btn edit-btn">Edit</a>
-
-                                            @if ($user->id !== auth()->id())
-                                                {{-- Active / Inactive toggle --}}
-                                                <form method="POST"
-                                                    action="{{ route('superadmin.users.toggle', $user->id) }}"
-                                                    style="display:inline;">
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    @if ($user->status === 'active')
-                                                        <button type="submit" class="action-btn deactivate-btn"
-                                                            {{ $dispatcherOnline ? 'disabled' : '' }}
-                                                            title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Set user inactive' }}">Inactive</button>
-                                                    @else
-                                                        <button type="submit" class="action-btn activate-btn"
-                                                            title="Set user active">Active</button>
-                                                    @endif
-                                                </form>
-
-                                                {{-- Archive / Remove --}}
-                                                <form method="POST"
-                                                    action="{{ route('superadmin.users.archive', $user) }}"
-                                                    class="js-confirm-action" data-confirm-title="Move user to archive?"
-                                                    data-confirm-message="{{ $user->name }} will be moved to the archive panel."
-                                                    data-confirm-button="Move to Archive" style="display:inline;">
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    <button type="submit" class="action-btn archive-btn"
-                                                        {{ $dispatcherOnline ? 'disabled' : '' }}
-                                                        title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Move user to archive' }}">Remove</button>
-                                                </form>
-
-                                                {{-- Permanent Delete --}}
-                                                <form method="POST"
-                                                    action="{{ route('superadmin.users.delete-now', $user) }}"
-                                                    class="js-confirm-action" data-confirm-title="Permanently delete this user?"
-                                                    data-confirm-message="{{ $user->name }} will be permanently deleted. This cannot be undone."
-                                                    data-confirm-button="Delete Permanently" style="display:inline;">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="action-btn archive-btn"
-                                                        {{ $dispatcherOnline ? 'disabled' : '' }}
-                                                        title="{{ $dispatcherOnline ? 'Dispatcher is online' : 'Permanently delete this user' }}">Delete</button>
-                                                </form>
-                                            @endif
-                                        </div>
-                                    @endif
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6">
-                                    <div class="empty-state">
-                                        <h3>No users found</h3>
-                                        <p>Try adjusting the search filters or add a new team member.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="pagination-wrapper">
-                {{ $users->appends(request()->query())->links('vendor.pagination.custom') }}
+            <div id="usersTableContainer">
+                @include('superadmin.users.partials.table')
             </div>
         </div>
 
@@ -288,6 +230,10 @@
             <div class="sa-dialog-card">
                 <h3 id="actionDialogTitle">Confirm Action</h3>
                 <p id="actionDialogMessage">Please confirm this action.</p>
+                <div id="actionDialogReasonWrap" class="sa-dialog-reason-wrap" style="display:none;">
+                    <label for="actionDialogReason">Reason <span class="required-mark">*</span></label>
+                    <textarea id="actionDialogReason" class="sa-dialog-reason" rows="3" maxlength="1000" placeholder="Why is this being done?"></textarea>
+                </div>
                 <div class="sa-dialog-actions">
                     <button type="button" class="sa-dialog-btn cancel" id="actionDialogCancel">Cancel</button>
                     <button type="button" class="sa-dialog-btn confirm" id="actionDialogConfirm">OK</button>
@@ -304,82 +250,6 @@
                 </div>
             </div>
         </div>
-
-        {{-- <div id="editModal" class="modal">
-            <div class="modal-card">
-                <div class="modal-header">
-                    <div>
-                        <h3>Edit User</h3>
-                        <p>Update account details without leaving the page.</p>
-                    </div>
-                    <button class="modal-close" type="button" onclick="closeEditModal()">✕</button>
-                </div>
-
-                <form method="POST" id="editForm" class="modal-form">
-                    @csrf
-
-                    <div class="form-group">
-                        <label>Name</label>
-                        <input type="text" name="name" id="editName" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" name="email" id="editEmail" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>New Password (optional)</label>
-                        <input type="password" name="password">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Driver First Name</label>
-                        <input type="text" name="driver_first_name" id="editDriverFirst">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Driver Middle Name</label>
-                        <input type="text" name="driver_middle_name" id="editDriverMiddle">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Driver Last Name</label>
-                        <input type="text" name="driver_last_name" id="editDriverLast">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Unit Name</label>
-                        <input type="text" name="unit_name" id="editUnitName">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Role</label>
-                        <select name="role_id" id="editRole" disabled>
-                            @foreach ($roles as $role)
-                                <option value="{{ $role->id }}">{{ $role->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select name="status" id="editStatus">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
-
-                    <p class="form-helper-text">Role is locked after user creation. Only name, email, and status can be
-                        updated here.</p>
-
-                    <div class="modal-actions">
-                        <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
-                        <button type="submit" class="btn-save">Save Changes</button>
-                    </div>
-                </form>
-            </div>
-        </div> --}}
     </div>
 @endsection
 
@@ -409,11 +279,16 @@
                 }, 5000);
             });
 
-            const filterForm = document.querySelector('.filters');
+            const filterForm = document.getElementById('usersFilterForm');
+            const searchInput = document.getElementById('usersSearchInput');
+            const tableContainer = document.getElementById('usersTableContainer');
+            const indexUrl = "{{ route('superadmin.users.index') }}";
 
             const actionDialog = document.getElementById('actionDialog');
             const actionDialogTitle = document.getElementById('actionDialogTitle');
             const actionDialogMessage = document.getElementById('actionDialogMessage');
+            const actionDialogReasonWrap = document.getElementById('actionDialogReasonWrap');
+            const actionDialogReason = document.getElementById('actionDialogReason');
             const actionDialogCancel = document.getElementById('actionDialogCancel');
             const actionDialogConfirm = document.getElementById('actionDialogConfirm');
 
@@ -425,18 +300,36 @@
             let debounceTimer;
             let pendingAction = null;
             let pendingNoticeAction = null;
+            let dialogRequiresReason = false;
+            let fetchAbortController = null;
 
-            function openActionDialog(title, message, confirmText = 'OK', onConfirm = null) {
+            function updateConfirmEnabled() {
+                if (!dialogRequiresReason) {
+                    actionDialogConfirm.disabled = false;
+                    return;
+                }
+                actionDialogConfirm.disabled = actionDialogReason.value.trim().length === 0;
+            }
+
+            actionDialogReason?.addEventListener('input', updateConfirmEnabled);
+
+            function openActionDialog(title, message, confirmText = 'OK', onConfirm = null, variant = null, requireReason = false) {
                 actionDialogTitle.textContent = title;
-                actionDialogMessage.textContent = message;
+                actionDialogMessage.innerHTML = message;
                 actionDialogConfirm.textContent = confirmText;
+                actionDialogConfirm.classList.toggle('danger', variant === 'danger');
                 pendingAction = onConfirm;
+                dialogRequiresReason = requireReason;
+                actionDialogReasonWrap.style.display = requireReason ? 'block' : 'none';
+                actionDialogReason.value = '';
+                updateConfirmEnabled();
                 actionDialog.classList.add('is-open');
             }
 
             function closeActionDialog() {
                 actionDialog.classList.remove('is-open');
                 pendingAction = null;
+                dialogRequiresReason = false;
             }
 
             function openNoticeDialog(message, title = 'Notice', onClose = null) {
@@ -458,61 +351,123 @@
                 }
             }
 
-            if (filterForm) {
-                filterForm.querySelectorAll('input, select').forEach(input => {
-                    input.addEventListener('input', () => {
-                        clearTimeout(debounceTimer);
-                        debounceTimer = setTimeout(() => filterForm.submit(), 250);
-                    });
+            function bindConfirmActions() {
+                document.querySelectorAll('.js-confirm-action').forEach(formElement => {
+                    if (formElement.dataset.confirmBound === 'true') return;
+                    formElement.dataset.confirmBound = 'true';
 
-                    input.addEventListener('change', () => filterForm.submit());
+                    formElement.addEventListener('submit', function(event) {
+                        event.preventDefault();
+
+                        openActionDialog(
+                            this.dataset.confirmTitle || 'Confirm Action',
+                            this.dataset.confirmMessage || 'Please confirm this action.',
+                            this.dataset.confirmButton || 'OK',
+                            (reason) => {
+                                if (reason) {
+                                    const input = document.createElement('input');
+                                    input.type = 'hidden';
+                                    input.name = 'reason';
+                                    input.value = reason;
+                                    this.appendChild(input);
+                                }
+                                this.submit();
+                            },
+                            this.dataset.confirmVariant || null,
+                            this.dataset.requireReason === 'true'
+                        );
+                    });
                 });
             }
 
-            // document.querySelectorAll('.edit-btn').forEach(btn => {
-            //     btn.addEventListener('click', function() {
+            // ── Custom dropdown (Role / Status / Sort) ──────────────────
+            function closeAllCustomSelects(except = null) {
+                document.querySelectorAll('.custom-select.is-open').forEach(el => {
+                    if (el !== except) el.classList.remove('is-open');
+                });
+            }
 
-            //         document.getElementById('editDriverFirst').value = this.dataset.driver_first ||
-            //             '';
-            //         document.getElementById('editDriverMiddle').value = this.dataset
-            //             .driver_middle || '';
-            //         document.getElementById('editDriverLast').value = this.dataset.driver_last ||
-            //             '';
+            document.querySelectorAll('.custom-select').forEach(select => {
+                const trigger = select.querySelector('.custom-select-trigger');
+                const label = select.querySelector('.custom-select-label');
+                const hiddenInput = select.querySelector('input[type="hidden"]');
+                const options = select.querySelectorAll('.custom-select-menu li');
 
-            //         document.getElementById('editUnitName').value = this.dataset.unit || '';
+                trigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = select.classList.contains('is-open');
+                    closeAllCustomSelects();
+                    select.classList.toggle('is-open', !isOpen);
+                });
 
-            //         currentUserId = this.dataset.id;
-            //         originalStatus = this.dataset.status;
-
-            //         editName.value = this.dataset.name;
-            //         editEmail.value = this.dataset.email;
-            //         editRole.value = this.dataset.role;
-            //         editStatus.value = this.dataset.status;
-
-            //         modal.style.display = 'flex';
-            //     });
-            // });
-
-            document.querySelectorAll('.js-confirm-action').forEach(formElement => {
-                formElement.addEventListener('submit', function(event) {
-                    event.preventDefault();
-
-                    openActionDialog(
-                        this.dataset.confirmTitle || 'Confirm Action',
-                        this.dataset.confirmMessage || 'Please confirm this action.',
-                        this.dataset.confirmButton || 'OK',
-                        () => this.submit()
-                    );
+                options.forEach(option => {
+                    option.addEventListener('click', () => {
+                        options.forEach(o => o.classList.remove('is-selected'));
+                        option.classList.add('is-selected');
+                        label.textContent = option.textContent.trim();
+                        hiddenInput.value = option.dataset.value;
+                        select.classList.remove('is-open');
+                        requestFilteredTable();
+                    });
                 });
             });
 
+            document.addEventListener('click', () => closeAllCustomSelects());
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeAllCustomSelects();
+            });
+
+            // ── Live search: debounced AJAX, table swap only (search box keeps focus) ──
+            function requestFilteredTable(pushHistory = true) {
+                if (!filterForm || !tableContainer) return;
+
+                const params = new URLSearchParams(new FormData(filterForm));
+                [...params.keys()].forEach(key => {
+                    if (params.get(key) === '') params.delete(key);
+                });
+
+                fetchAbortController?.abort();
+                fetchAbortController = new AbortController();
+
+                fetch(`${indexUrl}?${params.toString()}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    signal: fetchAbortController.signal,
+                }).then(response => response.text())
+                  .then(html => {
+                      tableContainer.innerHTML = html;
+                      bindConfirmActions();
+
+                      if (pushHistory) {
+                          const newUrl = params.toString() ? `${indexUrl}?${params.toString()}` : indexUrl;
+                          window.history.replaceState({}, '', newUrl);
+                      }
+                  })
+                  .catch(err => {
+                      if (err.name !== 'AbortError') console.error('Filter request failed', err);
+                  });
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => requestFilteredTable(), 350);
+                });
+            }
+
+            bindConfirmActions();
+
             actionDialogCancel?.addEventListener('click', closeActionDialog);
             actionDialogConfirm?.addEventListener('click', () => {
+                if (dialogRequiresReason && actionDialogReason.value.trim().length === 0) {
+                    return;
+                }
+
                 const callback = pendingAction;
+                const reason = actionDialogReason.value.trim();
                 closeActionDialog();
 
                 if (typeof callback === 'function') {
-                    callback();
+                    callback(reason);
                 }
             });
 

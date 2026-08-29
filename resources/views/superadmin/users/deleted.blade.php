@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Archived Users')
+@section('title', 'Users Pending Deletion')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('admin/css/users.css') }}?v={{ filemtime(public_path('admin/css/users.css')) }}">
@@ -10,26 +10,30 @@
     <div class="user-management-page archived-page">
         <div class="page-top">
             <div>
-                <h1>Archived Users</h1>
+                <h1>Users Pending Deletion</h1>
             </div>
 
             <div class="page-actions">
-                <a href="{{ route('superadmin.users.index') }}" class="btn-reset">
-                    Back to Users
+                <a href="{{ route('superadmin.users.index') }}" class="btn-reset btn-back">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 5 L5 12 L11 19" />
+                        <path d="M5.5 12 L19 12" />
+                    </svg>
+                    Back
                 </a>
             </div>
         </div>
 
         <div class="table-card">
-            <div class="table-toolbar-row">
-                <form method="GET" class="filters" id="archivedFilterForm">
+            <div class="table-header">
+                <form method="GET" class="filters" id="deletedFilterForm">
                     <div class="search-container">
                         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="10.5" cy="10.5" r="6.2" />
                             <line x1="15.3" y1="15.3" x2="20" y2="20" />
                         </svg>
                         <input type="text" name="search" value="{{ request('search') }}"
-                            placeholder="Search archived users..." class="search-input" id="archivedSearchInput" autocomplete="off">
+                            placeholder="Search deleted users..." class="search-input" id="deletedSearchInput" autocomplete="off">
                     </div>
 
                     @php
@@ -71,22 +75,18 @@
                 </form>
             </div>
 
-            <div id="archivedTableContainer">
-                @include('superadmin.users.partials.archived-table')
+            <div id="deletedTableContainer">
+                @include('superadmin.users.partials.deleted-table')
             </div>
         </div>
 
-        <div id="actionDialog" class="sa-dialog-backdrop">
+        <div id="deleteDialog" class="sa-dialog-backdrop">
             <div class="sa-dialog-card">
-                <h3 id="actionDialogTitle">Confirm Action</h3>
-                <p id="actionDialogMessage">Please confirm this action.</p>
-                <div id="actionDialogReasonWrap" class="sa-dialog-reason-wrap" style="display:none;">
-                    <label for="actionDialogReason">Reason <span class="required-mark">*</span></label>
-                    <textarea id="actionDialogReason" class="sa-dialog-reason" rows="3" maxlength="1000" placeholder="Why is this being done?"></textarea>
-                </div>
+                <h3 id="deleteDialogTitle">Confirm Delete</h3>
+                <p id="deleteDialogMessage">This action cannot be undone.</p>
                 <div class="sa-dialog-actions">
-                    <button type="button" class="sa-dialog-btn cancel" id="actionDialogCancel">Cancel</button>
-                    <button type="button" class="sa-dialog-btn confirm" id="actionDialogConfirm">OK</button>
+                    <button type="button" class="sa-dialog-btn cancel" id="deleteDialogCancel">Cancel</button>
+                    <button type="button" class="sa-dialog-btn confirm" id="deleteDialogConfirm">OK</button>
                 </div>
             </div>
         </div>
@@ -96,77 +96,47 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const actionDialog = document.getElementById('actionDialog');
-            const actionDialogTitle = document.getElementById('actionDialogTitle');
-            const actionDialogMessage = document.getElementById('actionDialogMessage');
-            const actionDialogReasonWrap = document.getElementById('actionDialogReasonWrap');
-            const actionDialogReason = document.getElementById('actionDialogReason');
-            const actionDialogCancel = document.getElementById('actionDialogCancel');
-            const actionDialogConfirm = document.getElementById('actionDialogConfirm');
+            const deleteDialog = document.getElementById('deleteDialog');
+            const deleteDialogTitle = document.getElementById('deleteDialogTitle');
+            const deleteDialogMessage = document.getElementById('deleteDialogMessage');
+            const deleteDialogCancel = document.getElementById('deleteDialogCancel');
+            const deleteDialogConfirm = document.getElementById('deleteDialogConfirm');
+            let pendingDelete = null;
 
-            const filterForm = document.getElementById('archivedFilterForm');
-            const searchInput = document.getElementById('archivedSearchInput');
-            const tableContainer = document.getElementById('archivedTableContainer');
-            const archivedUrl = "{{ route('superadmin.users.archived') }}";
+            const filterForm = document.getElementById('deletedFilterForm');
+            const searchInput = document.getElementById('deletedSearchInput');
+            const tableContainer = document.getElementById('deletedTableContainer');
+            const deletedUrl = "{{ route('superadmin.users.deleted') }}";
 
-            let pendingAction = null;
-            let dialogRequiresReason = false;
             let debounceTimer;
             let fetchAbortController = null;
 
-            function updateConfirmEnabled() {
-                if (!dialogRequiresReason) {
-                    actionDialogConfirm.disabled = false;
-                    return;
-                }
-                actionDialogConfirm.disabled = actionDialogReason.value.trim().length === 0;
+            function openDeleteDialog(title, message, confirmText = 'OK', onConfirm = null) {
+                deleteDialogTitle.textContent = title;
+                deleteDialogMessage.textContent = message;
+                deleteDialogConfirm.textContent = confirmText;
+                pendingDelete = onConfirm;
+                deleteDialog.classList.add('is-open');
             }
 
-            actionDialogReason?.addEventListener('input', updateConfirmEnabled);
-
-            function openActionDialog(title, message, confirmText = 'OK', onConfirm = null, variant = null, requireReason = false) {
-                actionDialogTitle.textContent = title;
-                actionDialogMessage.innerHTML = message;
-                actionDialogConfirm.textContent = confirmText;
-                actionDialogConfirm.classList.toggle('danger', variant === 'danger');
-                pendingAction = onConfirm;
-                dialogRequiresReason = requireReason;
-                actionDialogReasonWrap.style.display = requireReason ? 'block' : 'none';
-                actionDialogReason.value = '';
-                updateConfirmEnabled();
-                actionDialog.classList.add('is-open');
-            }
-
-            function closeActionDialog() {
-                actionDialog.classList.remove('is-open');
-                pendingAction = null;
-                dialogRequiresReason = false;
+            function closeDeleteDialog() {
+                deleteDialog.classList.remove('is-open');
+                pendingDelete = null;
             }
 
             function bindConfirmActions() {
-                document.querySelectorAll('.js-confirm-action').forEach(formElement => {
-                    if (formElement.dataset.confirmBound === 'true') return;
-                    formElement.dataset.confirmBound = 'true';
+                document.querySelectorAll('.js-confirm-delete').forEach(form => {
+                    if (form.dataset.confirmBound === 'true') return;
+                    form.dataset.confirmBound = 'true';
 
-                    formElement.addEventListener('submit', function(event) {
+                    form.addEventListener('submit', function(event) {
                         event.preventDefault();
 
-                        openActionDialog(
-                            this.dataset.confirmTitle || 'Confirm Action',
-                            this.dataset.confirmMessage || 'Please confirm this action.',
+                        openDeleteDialog(
+                            this.dataset.confirmTitle || 'Confirm Delete',
+                            this.dataset.confirmMessage || 'This action cannot be undone.',
                             this.dataset.confirmButton || 'OK',
-                            (reason) => {
-                                if (reason) {
-                                    const input = document.createElement('input');
-                                    input.type = 'hidden';
-                                    input.name = 'reason';
-                                    input.value = reason;
-                                    this.appendChild(input);
-                                }
-                                this.submit();
-                            },
-                            this.dataset.confirmVariant || null,
-                            this.dataset.requireReason === 'true'
+                            () => this.submit()
                         );
                     });
                 });
@@ -221,7 +191,7 @@
                 fetchAbortController?.abort();
                 fetchAbortController = new AbortController();
 
-                fetch(`${archivedUrl}?${params.toString()}`, {
+                fetch(`${deletedUrl}?${params.toString()}`, {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     signal: fetchAbortController.signal,
                 }).then(response => response.text())
@@ -230,7 +200,7 @@
                       bindConfirmActions();
 
                       if (pushHistory) {
-                          const newUrl = params.toString() ? `${archivedUrl}?${params.toString()}` : archivedUrl;
+                          const newUrl = params.toString() ? `${deletedUrl}?${params.toString()}` : deletedUrl;
                           window.history.replaceState({}, '', newUrl);
                       }
                   })
@@ -248,18 +218,13 @@
 
             bindConfirmActions();
 
-            actionDialogCancel?.addEventListener('click', closeActionDialog);
-            actionDialogConfirm?.addEventListener('click', () => {
-                if (dialogRequiresReason && actionDialogReason.value.trim().length === 0) {
-                    return;
-                }
-
-                const callback = pendingAction;
-                const reason = actionDialogReason.value.trim();
-                closeActionDialog();
+            deleteDialogCancel?.addEventListener('click', closeDeleteDialog);
+            deleteDialogConfirm?.addEventListener('click', () => {
+                const callback = pendingDelete;
+                closeDeleteDialog();
 
                 if (typeof callback === 'function') {
-                    callback(reason);
+                    callback();
                 }
             });
         });

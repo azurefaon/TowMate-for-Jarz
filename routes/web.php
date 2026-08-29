@@ -136,7 +136,7 @@ Route::view('/driver', 'dashboard')
 
 Route::prefix('control-center')
     ->name('control-center.')
-    ->middleware(['auth', 'role:1,2', 'force.password.change'])
+    ->middleware(['auth', 'role:1,2', 'force.password.change', 'touch.dispatcher.presence'])
     ->group(function () {
         Route::get('/', [ControlCenterController::class, 'index'])->name('index');
         Route::get('/live', [ControlCenterController::class, 'live'])->name('live');
@@ -144,7 +144,7 @@ Route::prefix('control-center')
 
 Route::prefix('admin-dashboard')
     ->name('admin.')
-    ->middleware(['auth', 'role:2', 'force.password.change'])
+    ->middleware(['auth', 'role:2', 'force.password.change', 'touch.dispatcher.presence'])
     ->group(function () {
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/live-overview', [AdminController::class, 'liveOverview'])->name('live-overview');
@@ -192,6 +192,10 @@ Route::prefix('admin-dashboard')
             Route::patch('/{quotation}/extend', [DispatchController::class, 'extendQuotation'])->name('extend');
             Route::get('/{quotation}/response', [DispatchController::class, 'viewQuotationResponse'])->name('response');
         });
+
+        Route::prefix('invoices')->name('invoices.')->group(function () {
+            Route::post('/{invoice}/void', [\App\Http\Controllers\Admin\InvoiceController::class, 'void'])->name('void');
+        });
     });
 
 Route::prefix('superadmin')
@@ -212,12 +216,12 @@ Route::prefix('superadmin')
         Route::get('/protection/backups/download', [DataProtectionController::class, 'download'])->name('backups.download');
 
         Route::get('users/archived', [UserManagementController::class, 'archived'])->name('users.archived');
+        Route::get('users/deleted', [UserManagementController::class, 'deleted'])->name('users.deleted');
         Route::patch('users/{user}/archive', [UserManagementController::class, 'archive'])->name('users.archive');
         Route::patch('users/{id}/restore', [UserManagementController::class, 'restore'])->name('users.restore');
         Route::delete('users/{id}/queue-for-deletion', [UserManagementController::class, 'queueForDeletion'])->name('users.queue-for-deletion');
         Route::patch('users/{id}/restore-from-deleted', [UserManagementController::class, 'restoreFromDeleted'])->name('users.restore-from-deleted');
         Route::delete('users/{id}/purge-now', [UserManagementController::class, 'purgeNow'])->name('users.purge-now');
-        Route::delete('users/{user}/delete-now', [UserManagementController::class, 'deleteNow'])->name('users.delete-now');
         Route::patch('users/{user}/password-request/set-password', [UserManagementController::class, 'setDefaultPassword'])->name('users.password-request.set-password');
         Route::patch('users/{user}/password-request/resolve', [UserManagementController::class, 'resolvePasswordRequest'])->name('users.password-request.resolve');
         Route::resource('users', UserManagementController::class)->except(['show']);
@@ -232,6 +236,7 @@ Route::prefix('superadmin')
         //     ->name('superadmin.users.update');
 
         Route::patch('users/{id}/toggle', [UserManagementController::class, 'toggleStatus'])->name('users.toggle');
+        Route::patch('users/{id}/unlock', [UserManagementController::class, 'unlockCustomer'])->name('users.unlock');
 
         Route::resource('truck-types', TruckTypeController::class);
         Route::patch('truck-types/{truckType}/toggle', [TruckTypeController::class, 'toggleStatus'])->name('truck-types.toggle');
@@ -312,16 +317,18 @@ Route::middleware(['auth', 'role:5'])
     ->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-        Route::get('/book', function () {
+        Route::get('/book', function (\App\Services\BookingService $bookingService) {
             $classes   = ['light', 'medium', 'heavy'];
-            $truckTypes = TruckType::withCount([
-                'units as available_units_count' => fn($q) => $q->where('status', 'available')
-                    ->whereNotNull('team_leader_id'),
-            ])->where('status', 'active')->orderBy('base_rate')->get();
+            $truckTypes = TruckType::where('status', 'active')->orderBy('base_rate')->get();
 
-            $classData = collect($classes)->mapWithKeys(function ($cls) use ($truckTypes) {
+            // Single source of truth for "is a class actually dispatch-ready right now"
+            // (online, non-busy team leader on a matching, available unit) — shared with
+            // the Flutter app's GET /api/v1/availability via the same service method.
+            $readyByClass = $bookingService->dispatchAvailability()['ready_by_class'];
+
+            $classData = collect($classes)->mapWithKeys(function ($cls) use ($truckTypes, $readyByClass) {
                 $group          = $truckTypes->where('class', $cls)->values();
-                $availableUnits = (int) $group->sum('available_units_count');
+                $availableUnits = (int) ($readyByClass[$cls] ?? 0);
                 $rep            = $group->sortBy('base_rate')->first();
                 return [$cls => [
                     'available_units' => $availableUnits,

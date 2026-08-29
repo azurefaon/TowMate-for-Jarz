@@ -21,10 +21,6 @@
                 <h1>Truck Types</h1>
                 <p>{{ $stats['active'] }} active · {{ $stats['inactive'] }} inactive · {{ $stats['units'] }} unit(s) linked</p>
             </div>
-
-            <button type="button" class="btn-primary-add" data-open-modal="addModal">
-                Add Truck Type
-            </button>
         </div>
 
         @include('superadmin.fleet._tabs')
@@ -47,6 +43,10 @@
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
+
+                        <button type="button" class="btn-primary-add" data-open-modal="addModal">
+                            Add Truck Type
+                        </button>
                     </div>
                 </div>
             </div>
@@ -71,46 +71,53 @@
                                 @endif
                             </div>
 
-                            <div class="class-card-right">
+                            <div class="class-card-status">
                                 <span class="status-pill {{ $type->status }}">{{ ucfirst($type->status) }}</span>
-                                <div class="class-card-actions">
-                                    <button type="button" class="card-action js-edit-type"
+                            </div>
+
+                            <div class="class-card-actions">
+                                <button type="button" class="card-action js-edit-type"
+                                    data-id="{{ $type->id }}"
+                                    data-name="{{ $type->name }}"
+                                    data-base="{{ $type->base_rate }}"
+                                    data-km="{{ $type->per_km_rate }}"
+                                    data-tonnage="{{ $type->max_tonnage }}"
+                                    data-description="{{ $type->description }}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M14.2 5.3 L18.7 9.8 L8.5 20 L4.3 20.2 L4.5 16 Z"/><line x1="12.6" y1="6.9" x2="17.1" y2="11.4"/></svg>
+                                    Edit
+                                </button>
+
+                                @if ($type->status === 'active')
+                                    <button type="button" class="card-action js-disable-type"
                                         data-id="{{ $type->id }}"
                                         data-name="{{ $type->name }}"
-                                        data-base="{{ $type->base_rate }}"
-                                        data-km="{{ $type->per_km_rate }}"
-                                        data-tonnage="{{ $type->max_tonnage }}"
-                                        data-description="{{ $type->description }}">edit</button>
-
-                                    <span class="action-sep">·</span>
-
-                                    @if ($type->status === 'active')
-                                        <button type="button" class="card-action js-disable-type"
-                                            data-id="{{ $type->id }}"
-                                            data-name="{{ $type->name }}"
-                                            data-busy="{{ ($type->units_count ?? 0) > 0 || ($type->active_bookings_count ?? 0) > 0 ? '1' : '0' }}"
-                                            data-unit-count="{{ $type->units_count ?? 0 }}"
-                                            data-booking-count="{{ $type->active_bookings_count ?? 0 }}">
-                                            {{ ($type->units_count ?? 0) > 0 || ($type->active_bookings_count ?? 0) > 0 ? 'busy' : 'disable' }}
+                                        data-busy="{{ ($type->units_count ?? 0) > 0 || ($type->active_bookings_count ?? 0) > 0 ? '1' : '0' }}"
+                                        data-unit-count="{{ $type->units_count ?? 0 }}"
+                                        data-booking-count="{{ $type->active_bookings_count ?? 0 }}">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><circle cx="12" cy="12" r="8.2"/><line x1="6.5" y1="17.5" x2="17.5" y2="6.5"/></svg>
+                                        Disable
+                                    </button>
+                                @else
+                                    <form method="POST"
+                                        action="{{ route('superadmin.truck-types.toggle', $type->id) }}"
+                                        style="display:inline">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="card-action card-action--enable">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6 12.5 L10 16.5 L18 7.5"/></svg>
+                                            Enable
                                         </button>
-                                    @else
-                                        <form method="POST"
-                                            action="{{ route('superadmin.truck-types.toggle', $type->id) }}"
-                                            style="display:inline">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="card-action card-action--enable">enable</button>
-                                        </form>
-                                    @endif
+                                    </form>
+                                @endif
 
-                                    <span class="action-sep">·</span>
-
-                                    <button type="button" class="card-action card-action--danger js-delete-type"
-                                        data-id="{{ $type->id }}"
-                                        data-name="{{ $type->name }}"
-                                        data-units="{{ $type->units_count ?? 0 }}"
-                                        data-bookings="{{ $type->active_bookings_count ?? 0 }}">delete</button>
-                                </div>
+                                <button type="button" class="card-action card-action--danger js-delete-type"
+                                    data-id="{{ $type->id }}"
+                                    data-name="{{ $type->name }}"
+                                    data-units="{{ $type->units_count ?? 0 }}"
+                                    data-bookings="{{ $type->active_bookings_count ?? 0 }}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M5 7.5 L19 7.5"/><path d="M9.5 7.5 L9.5 5 L14.5 5 L14.5 7.5"/><path d="M7 7.5 L7.8 19 L16.2 19 L17 7.5"/><line x1="10.3" y1="10.8" x2="10.3" y2="15.8"/><line x1="13.7" y1="10.8" x2="13.7" y2="15.8"/></svg>
+                                    Delete
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -141,7 +148,7 @@
                     @csrf
 
                     <div class="form-group">
-                        <label for="newTruckTypeName">Name</label>
+                        <label for="newTruckTypeName">Type</label>
                         <input id="newTruckTypeName" type="text" name="name"
                             placeholder="e.g. Flatbed, Wheel-Lift" required>
                     </div>
@@ -149,21 +156,21 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="newTruckTypeBase">Base Rate</label>
-                            <input id="newTruckTypeBase" type="number" step="0.01" name="base_rate"
-                                placeholder="1500" required>
+                            <input id="newTruckTypeBase" type="text" inputmode="decimal" name="base_rate"
+                                placeholder="1,500" required>
                         </div>
 
                         <div class="form-group">
                             <label for="newTruckTypeKm">Per KM Rate</label>
-                            <input id="newTruckTypeKm" type="number" step="0.01" name="per_km_rate"
+                            <input id="newTruckTypeKm" type="text" inputmode="decimal" name="per_km_rate"
                                 placeholder="200" required>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="newTruckTypeTonnage">Max Weight (kg)</label>
-                        <input id="newTruckTypeTonnage" type="number" step="0.01" name="max_tonnage"
-                            placeholder="4500">
+                        <input id="newTruckTypeTonnage" type="text" inputmode="decimal" name="max_tonnage"
+                            placeholder="4,500">
                     </div>
 
                     <div class="form-group">
@@ -195,25 +202,25 @@
                     @method('PUT')
 
                     <div class="form-group">
-                        <label for="editName">Name</label>
+                        <label for="editName">Type</label>
                         <input type="text" name="name" id="editName" required>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="editBase">Base Rate</label>
-                            <input type="number" step="0.01" name="base_rate" id="editBase" required>
+                            <input type="text" inputmode="decimal" name="base_rate" id="editBase" required>
                         </div>
 
                         <div class="form-group">
                             <label for="editKm">Per KM Rate</label>
-                            <input type="number" step="0.01" name="per_km_rate" id="editKm" required>
+                            <input type="text" inputmode="decimal" name="per_km_rate" id="editKm" required>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="editTonnage">Max Weight (kg)</label>
-                        <input type="number" step="0.01" name="max_tonnage" id="editTonnage">
+                        <input type="text" inputmode="decimal" name="max_tonnage" id="editTonnage">
                     </div>
 
                     <div class="form-group">

@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'force.password.change' => \App\Http\Middleware\ForcePasswordChange::class,
             'tl'                 => \App\Http\Middleware\EnsureTeamLeader::class,
             'password_changed'   => \App\Http\Middleware\EnsurePasswordChanged::class,
+            'touch.dispatcher.presence' => \App\Http\Middleware\TouchDispatcherPresence::class,
         ]);
         // $middleware->api(prepend: [
         //     \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,

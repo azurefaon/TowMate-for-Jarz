@@ -14,12 +14,6 @@
                 <h1>Units Overview</h1>
                 <p>Track towing units, team leaders, drivers, truck class rates, and dispatcher-managed availability.</p>
             </div>
-            <div class="page-actions" style="display:flex;gap:10px;">
-                <a href="{{ route('superadmin.units.archived') }}" class="btn-light">
-                    Archived Units{{ isset($archivedCount) && $archivedCount > 0 ? " ({$archivedCount})" : '' }}
-                </a>
-                <button type="button" class="btn-dark" data-open-modal="addUnitModal">Add Truck</button>
-            </div>
         </div>
 
         @if (session('success'))
@@ -44,6 +38,13 @@
                         <option value="on_job">On Job</option>
                         <option value="maintenance">Maintenance</option>
                     </select>
+                </div>
+
+                <div class="table-controls" style="margin-left:auto;">
+                    <a href="{{ route('superadmin.units.archived') }}" class="btn-light">
+                        Archived Units{{ isset($archivedCount) && $archivedCount > 0 ? " ({$archivedCount})" : '' }}
+                    </a>
+                    <button type="button" class="btn-dark" data-open-modal="addUnitModal">Add Truck</button>
                 </div>
             </div>
 
@@ -152,9 +153,6 @@
                                 <td data-label="Truck Type">
                                     @if ($unit->truckType)
                                         <span class="truck-badge">{{ $unit->truckType->name }}</span>
-                                        @if ($unit->truckType->class)
-                                            <small class="unit-subtext">{{ $unit->truckType->class }}</small>
-                                        @endif
                                     @else
                                         <span class="not-assigned">-</span>
                                     @endif
@@ -278,7 +276,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="addPlate">Plate Number</label>
-                            <input type="text" name="plate_number" id="addPlate" required>
+                            <input type="text" name="plate_number" id="addPlate" maxlength="8" required>
                         </div>
                         <div class="form-group">
                             <label for="addTruckType">Truck Type</label>
@@ -354,7 +352,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="editPlate">Plate Number</label>
-                            <input type="text" name="plate_number" id="editPlate" required>
+                            <input type="text" name="plate_number" id="editPlate" maxlength="8" required>
                         </div>
                         <div class="form-group">
                             <label for="editTruckType">Truck Type</label>
@@ -374,39 +372,34 @@
             </div>
         </div>
 
-        {{-- Borrow Crew Modal --}}
-        <div id="borrowCrewModal" class="modal">
+        {{-- Assign Crew Modal --}}
+        <div id="assignCrewModal" class="modal">
             <div class="modal-card">
                 <div class="modal-header">
                     <div>
-                        <h2>Borrow Crew</h2>
+                        <h2>Assign Crew</h2>
                         <p>Temporarily move a driver or crew member from another unit into <strong
                                 id="borrowToLabel"></strong>.</p>
                     </div>
-                    <button type="button" class="modal-close" data-close-modal="borrowCrewModal">✕</button>
+                    <button type="button" class="modal-close" data-close-modal="assignCrewModal">✕</button>
                 </div>
 
                 <form method="POST" id="borrowCrewForm">
                     @csrf
                     <input type="hidden" name="to_slot" id="borrowToSlot">
+                    <input type="hidden" name="from_unit_id" id="assignFromUnit" required>
+                    <input type="hidden" name="from_slot" id="assignFromSlot" required>
 
-                    <div class="form-group">
-                        <label for="borrowFromUnit">Borrow from unit</label>
-                        <select name="from_unit_id" id="borrowFromUnit" required>
-                            <option value="">- Select unit -</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="borrowFromSlot">Person to borrow</label>
-                        <select name="from_slot" id="borrowFromSlot" required>
-                            <option value="">- Select unit first -</option>
-                        </select>
+                    <div class="form-group" style="position:relative;">
+                        <label for="assignCrewSearch">Search crew or driver</label>
+                        <input type="text" id="assignCrewSearch" autocomplete="off" placeholder="Type a name...">
+                        <div id="assignCrewSuggestions" class="bk-suggestions" style="display:none;"></div>
+                        <p class="field-note" id="assignCrewSelected"></p>
                     </div>
 
                     <div class="modal-footer">
-                        <button type="button" class="btn-light" data-close-modal="borrowCrewModal">Cancel</button>
-                        <button type="submit" class="btn-dark">Borrow</button>
+                        <button type="button" class="btn-light" data-close-modal="assignCrewModal">Cancel</button>
+                        <button type="submit" class="btn-dark">Assign</button>
                     </div>
                 </form>
             </div>
@@ -489,12 +482,15 @@
             };
             const slotType = (slot) => slot.startsWith('driver_') ? 'driver' : 'crew_member';
 
-            const borrowModal = document.getElementById('borrowCrewModal');
+            const assignCrewModal = document.getElementById('assignCrewModal');
             const borrowForm = document.getElementById('borrowCrewForm');
             const borrowToLabel = document.getElementById('borrowToLabel');
             const borrowToSlot = document.getElementById('borrowToSlot');
-            const borrowFromUnit = document.getElementById('borrowFromUnit');
-            const borrowFromSlot = document.getElementById('borrowFromSlot');
+            const assignFromUnit = document.getElementById('assignFromUnit');
+            const assignFromSlot = document.getElementById('assignFromSlot');
+            const assignCrewSearch = document.getElementById('assignCrewSearch');
+            const assignCrewSuggestions = document.getElementById('assignCrewSuggestions');
+            const assignCrewSelected = document.getElementById('assignCrewSelected');
 
             const showModal = (m) => {
                 if (m) m.style.display = 'flex';
@@ -503,70 +499,141 @@
                 if (m) m.style.display = 'none';
             };
 
-            let currentToUnitId = null;
-            let currentToSlot = null;
+            // Flat, pre-filtered list of every borrowable person: excludes anyone on a
+            // truck that isn't available, and anyone currently occupying a slot as a loan-in
+            // (so a borrowed-in person can't be assigned away again from their temporary post).
+            const people = crewUnits.flatMap(u => {
+                if (u.status !== 'available') return [];
+                const loanedInSlots = u.loaned_in_slots || [];
+                return Object.keys(slotColumn)
+                    .filter(slot => u[slotColumn[slot]] && !loanedInSlots.includes(slot))
+                    .map(slot => ({
+                        unitId: u.id,
+                        unitName: u.name,
+                        slot,
+                        slotLabel: slotLabel[slot],
+                        slotType: slotType(slot),
+                        name: u[slotColumn[slot]],
+                    }));
+            });
 
-            const populateFromUnits = () => {
-                const type = slotType(currentToSlot);
-                borrowFromUnit.innerHTML = '<option value="">- Select unit -</option>';
+            let eligiblePeople = [];
 
-                crewUnits
-                    .filter(u => u.id !== currentToUnitId)
-                    .filter(u => {
-                        return Object.keys(slotColumn).some(slot => slotType(slot) === type && u[slotColumn[
-                            slot]]);
-                    })
-                    .forEach(u => {
-                        const opt = document.createElement('option');
-                        opt.value = u.id;
-                        opt.textContent = u.name;
-                        borrowFromUnit.appendChild(opt);
-                    });
-
-                borrowFromSlot.innerHTML = '<option value="">- Select unit first -</option>';
+            const closeSuggestions = () => {
+                assignCrewSuggestions.style.display = 'none';
+                assignCrewSuggestions.innerHTML = '';
             };
 
-            const populateFromSlots = () => {
-                const type = slotType(currentToSlot);
-                const unitId = parseInt(borrowFromUnit.value, 10);
-                borrowFromSlot.innerHTML = '<option value="">- Select person -</option>';
-                if (!unitId) return;
-
-                const unit = crewUnits.find(u => u.id === unitId);
-                if (!unit) return;
-
-                Object.keys(slotColumn)
-                    .filter(slot => slotType(slot) === type && unit[slotColumn[slot]])
-                    .forEach(slot => {
-                        const opt = document.createElement('option');
-                        opt.value = slot;
-                        opt.textContent = `${unit[slotColumn[slot]]} (${slotLabel[slot]})`;
-                        borrowFromSlot.appendChild(opt);
-                    });
+            const clearSelection = () => {
+                assignFromUnit.value = '';
+                assignFromSlot.value = '';
+                assignCrewSelected.textContent = '';
+                assignCrewSelected.classList.remove('field-note--error');
             };
 
-            borrowFromUnit.addEventListener('change', populateFromSlots);
+            const selectPerson = (person) => {
+                assignFromUnit.value = person.unitId;
+                assignFromSlot.value = person.slot;
+                assignCrewSelected.classList.remove('field-note--error');
+                assignCrewSelected.innerHTML = '';
 
-            document.querySelectorAll('.js-borrow-crew').forEach(btn => {
+                const text = document.createElement('span');
+                text.textContent = `Selected: ${person.name} — ${person.unitName} (${person.slotLabel}) `;
+
+                const change = document.createElement('button');
+                change.type = 'button';
+                change.className = 'crew-slot-link';
+                change.textContent = 'change';
+                change.addEventListener('click', () => {
+                    clearSelection();
+                    assignCrewSearch.value = '';
+                    assignCrewSearch.focus();
+                });
+
+                assignCrewSelected.appendChild(text);
+                assignCrewSelected.appendChild(change);
+                assignCrewSearch.value = person.name;
+                closeSuggestions();
+            };
+
+            const renderSuggestions = (matches) => {
+                if (!matches.length) {
+                    assignCrewSuggestions.innerHTML = '<div class="bk-suggestion-empty">No matches found.</div>';
+                    assignCrewSuggestions.style.display = 'block';
+                    return;
+                }
+
+                assignCrewSuggestions.innerHTML = '';
+                matches.slice(0, 8).forEach(person => {
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'bk-suggestion-item';
+                    item.textContent = `${person.name} — ${person.unitName} (${person.slotLabel})`;
+                    item.addEventListener('click', () => selectPerson(person));
+                    assignCrewSuggestions.appendChild(item);
+                });
+                assignCrewSuggestions.style.display = 'block';
+            };
+
+            assignCrewSearch.addEventListener('input', () => {
+                clearSelection();
+                const query = assignCrewSearch.value.trim().toLowerCase();
+                if (!query) {
+                    closeSuggestions();
+                    return;
+                }
+                const matches = eligiblePeople.filter(p =>
+                    p.name.toLowerCase().includes(query) || p.unitName.toLowerCase().includes(query)
+                );
+                renderSuggestions(matches);
+            });
+
+            assignCrewSearch.addEventListener('focus', () => {
+                if (!assignCrewSearch.value.trim()) {
+                    renderSuggestions(eligiblePeople);
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (assignCrewSuggestions && !assignCrewSuggestions.contains(e.target) && e.target !== assignCrewSearch) {
+                    closeSuggestions();
+                }
+            });
+
+            document.querySelectorAll('.js-assign-crew').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    currentToUnitId = parseInt(btn.dataset.toUnit, 10);
-                    currentToSlot = btn.dataset.toSlot;
+                    const toUnitId = parseInt(btn.dataset.toUnit, 10);
+                    const toSlot = btn.dataset.toSlot;
 
                     borrowToLabel.textContent =
                         `${btn.dataset.toUnitName} - ${btn.dataset.toSlotLabel}`;
-                    borrowToSlot.value = currentToSlot;
-                    borrowForm.action = `${baseUrl}/${currentToUnitId}/borrow-crew`;
+                    borrowToSlot.value = toSlot;
+                    borrowForm.action = `${baseUrl}/${toUnitId}/borrow-crew`;
 
-                    populateFromUnits();
-                    showModal(borrowModal);
+                    const type = slotType(toSlot);
+                    eligiblePeople = people.filter(p => p.slotType === type && p.unitId !== toUnitId);
+
+                    assignCrewSearch.value = '';
+                    clearSelection();
+                    closeSuggestions();
+
+                    showModal(assignCrewModal);
                 });
             });
 
-            document.querySelectorAll('[data-close-modal="borrowCrewModal"]').forEach(btn => {
-                btn.addEventListener('click', () => hideModal(borrowModal));
+            borrowForm.addEventListener('submit', (e) => {
+                if (!assignFromUnit.value || !assignFromSlot.value) {
+                    e.preventDefault();
+                    assignCrewSelected.textContent = 'Please search and select a crew member first.';
+                    assignCrewSelected.classList.add('field-note--error');
+                }
             });
-            borrowModal?.addEventListener('click', (e) => {
-                if (e.target === borrowModal) hideModal(borrowModal);
+
+            document.querySelectorAll('[data-close-modal="assignCrewModal"]').forEach(btn => {
+                btn.addEventListener('click', () => hideModal(assignCrewModal));
+            });
+            assignCrewModal?.addEventListener('click', (e) => {
+                if (e.target === assignCrewModal) hideModal(assignCrewModal);
             });
 
             const deleteDialog = document.getElementById('deleteDialog');

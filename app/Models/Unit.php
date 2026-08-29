@@ -56,6 +56,25 @@ class Unit extends Model
         return 'Unit ' . ($this->name ?: $this->plate_number ?: "#{$this->getKey()}");
     }
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Driver/crew name fields are only ever meaningful as "this team leader's
+        // crew for this truck" — there are multiple code paths that detach a team
+        // leader (remove, reassign elsewhere, archive the leader's account), and
+        // each one used to remember to clear these fields itself (some didn't,
+        // leaving stale names behind). Centralizing it here means every current
+        // and future path gets this for free.
+        static::saving(function (self $unit) {
+            if ($unit->isDirty('team_leader_id') && $unit->team_leader_id === null) {
+                foreach (self::SLOT_COLUMNS as $column) {
+                    $unit->{$column} = null;
+                }
+            }
+        });
+    }
+
     public function zone()
     {
         return $this->belongsTo(Zone::class);

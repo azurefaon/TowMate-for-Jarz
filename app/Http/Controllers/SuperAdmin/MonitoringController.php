@@ -191,7 +191,10 @@ class MonitoringController extends Controller
         $recentActivities = AuditLog::query()
             ->with('user')
             ->whereHas('user', function ($query) {
-                $query->visibleToOperations()->whereIn('role_id', [2, 3]);
+                // Intentionally not visibleToOperations() here: this is a historical
+                // activity feed, so a since-deleted (anonymized) user's past actions
+                // should still show up, unlike every live/operational screen.
+                $query->whereNull('archived_at')->whereIn('role_id', [2, 3]);
             })
             ->latest('created_at')
             ->take(12)

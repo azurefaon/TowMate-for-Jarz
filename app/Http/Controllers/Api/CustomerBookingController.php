@@ -169,6 +169,22 @@ class CustomerBookingController extends Controller
         $distanceKm    = (float) $validated['distance_km'];
         $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm);
 
+        // Tow Class Available = Available Team Leader + Available Assigned Unit + Matching
+        // Truck Type. Re-check server-side (not just the client's availability card) so a
+        // stale screen or a dismissed "No Units Available" warning can't create a book_now
+        // request for a class nobody is actually dispatch-ready for — it falls back to
+        // schedule instead, same as the web booking flow.
+        $validated['service_type'] = $validated['service_type'] ?? 'book_now';
+        if ($validated['service_type'] === 'book_now') {
+            $readyTruckTypeIds = $this->bookingService->dispatchAvailability()['ready_truck_type_ids'] ?? [];
+
+            if (! in_array((int) $truckType->id, $readyTruckTypeIds, true)) {
+                $validated['service_type'] = 'schedule';
+                $validated['scheduled_date'] = $validated['scheduled_date'] ?? now()->addHour()->toDateString();
+                $validated['scheduled_time'] = $validated['scheduled_time'] ?? now()->addHour()->format('H:i');
+            }
+        }
+
         // Decode extra vehicles sent as JSON string from multipart
         $allExtraVehicles = null;
         if (!empty($validated['extra_vehicles'])) {

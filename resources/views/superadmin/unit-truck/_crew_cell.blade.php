@@ -7,9 +7,7 @@
 
 <div class="crew-slot">
     @if ($loanIn)
-        <span class="cell-main">{{ $value }}</span>
-        <span class="crew-slot-badge crew-slot-badge--borrowed"
-            title="Borrowed from {{ $loanIn->fromUnit->name ?? '-' }}">Borrowed</span>
+        <span class="cell-main" title="Borrowed from {{ $loanIn->fromUnit->name ?? '-' }}">{{ $value }}</span>
         <form method="POST" action="{{ route('superadmin.unit-crew-loans.return', $loanIn->id) }}">
             @csrf
             @method('PATCH')
@@ -21,8 +19,8 @@
         <span class="crew-slot-badge crew-slot-badge--loaned"
             title="On transfer to {{ $loanOut->toUnit->name ?? '-' }}">On Transfer</span>
     @else
-        <button type="button" class="crew-slot-action js-borrow-crew"
+        <button type="button" class="crew-slot-action js-assign-crew"
             data-to-unit="{{ $unit->id }}" data-to-unit-name="{{ $unit->name }}"
-            data-to-slot="{{ $slotKey }}" data-to-slot-label="{{ $slotLabel }}">Borrow</button>
+            data-to-slot="{{ $slotKey }}" data-to-slot-label="{{ $slotLabel }}">Assign</button>
     @endif
 </div>

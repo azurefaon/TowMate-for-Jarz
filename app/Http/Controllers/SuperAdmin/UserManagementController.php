@@ -5,17 +5,16 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Booking;
-use App\Models\Receipt;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\TeamLeaderAvailabilityService;
 use App\Services\UserPurgeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -24,16 +23,32 @@ use Illuminate\Validation\Rules\Password;
 
 class UserManagementController extends Controller
 {
-    protected function baseUserQuery(bool $archived = false)
+    /**
+     * $bucket: null = active users, 'archived' = hidden but restorable,
+     * 'deleted' = queued for permanent removal (pending_delete_at set).
+     * Anonymized accounts are excluded from every bucket, see below.
+     */
+    protected function baseUserQuery(?string $bucket = null)
     {
         return User::with('role')
             ->whereHas('role', function ($q) {
                 $q->whereNotIn('id', [1]);
             })
+            // Anonymized accounts (permanently processed, blocked from a real hard
+            // delete by receipt/dispatch history) never appear in any admin list —
+            // not active, not archived, not pending deletion.
+            ->whereNull('anonymized_at')
             ->when(
-                $archived,
-                fn($query) => $query->whereNotNull('archived_at'),
-                fn($query) => $query->whereNull('archived_at')
+                $bucket === 'archived',
+                fn($query) => $query->whereNotNull('archived_at')->whereNull('pending_delete_at')
+            )
+            ->when(
+                $bucket === 'deleted',
+                fn($query) => $query->whereNotNull('pending_delete_at')
+            )
+            ->when(
+                $bucket === null,
+                fn($query) => $query->whereNull('archived_at')->whereNull('pending_delete_at')
             );
     }
 
@@ -77,12 +92,12 @@ class UserManagementController extends Controller
         });
 
         return [
-            'total' => (clone $baseQuery)->whereNull('archived_at')->count(),
-            'active' => (clone $baseQuery)->whereNull('archived_at')->where('status', 'active')->count(),
-            'inactive' => (clone $baseQuery)->whereNull('archived_at')->where('status', 'inactive')->count(),
+            'total' => (clone $baseQuery)->whereNull('archived_at')->whereNull('pending_delete_at')->count(),
+            'active' => (clone $baseQuery)->whereNull('archived_at')->whereNull('pending_delete_at')->where('status', 'active')->count(),
+            'inactive' => (clone $baseQuery)->whereNull('archived_at')->whereNull('pending_delete_at')->where('status', 'inactive')->count(),
             'archived' => (clone $baseQuery)->whereNotNull('archived_at')->whereNull('pending_delete_at')->count(),
             'deleted' => (clone $baseQuery)->whereNotNull('pending_delete_at')->count(),
-            'password_requests' => (clone $baseQuery)->whereNull('archived_at')->where('password_request_status', 'pending')->count(),
+            'password_requests' => (clone $baseQuery)->whereNull('archived_at')->whereNull('pending_delete_at')->where('password_request_status', 'pending')->count(),
         ];
     }
 
@@ -161,12 +176,31 @@ class UserManagementController extends Controller
             && Cache::has('dispatcher:presence:' . $user->id);
     }
 
+    /**
+     * Same "currently active job" status set already used by
+     * ControlCenterService/MonitoringController for consistency.
+     */
+    protected function hasActiveAssignment(User $user): bool
+    {
+        return Booking::where('assigned_team_leader_id', $user->id)
+            ->whereIn('status', ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'])
+            ->exists();
+    }
+
     public function index(Request $request)
     {
         $users = $this->applySort(
             $this->applyFilters($this->baseUserQuery(), $request),
             $request
         )->paginate(10);
+
+        // Which team leaders currently have a live job — drives the blue "busy"
+        // presence dot on their avatar (green/gray/blue), see partials/table.blade.php.
+        $busyTeamLeaderIds = app(TeamLeaderAvailabilityService::class)->busyTeamLeaderIds();
+
+        if ($request->ajax()) {
+            return view('superadmin.users.partials.table', compact('users', 'busyTeamLeaderIds'))->render();
+        }
 
         $passwordRequests = $this->baseUserQuery()
             ->where('password_request_status', 'pending')
@@ -176,20 +210,43 @@ class UserManagementController extends Controller
         $roles = $this->manageableRoles();
         $stats = $this->getUserStats();
 
-        return view('superadmin.users.index', compact('users', 'roles', 'stats', 'passwordRequests'));
+        return view('superadmin.users.index', compact('users', 'roles', 'stats', 'passwordRequests', 'busyTeamLeaderIds'));
     }
 
     public function archived(Request $request)
     {
-        $archivedUsers = $this->applyFilters($this->baseUserQuery(true), $request)
-            ->latest('archived_at')
-            ->paginate(10);
+        $archivedUsers = $this->applyFilters($this->baseUserQuery('archived'), $request)
+            ->orderByDesc('archived_at')
+            ->paginate(10)
+            ->appends($request->query());
+
+        if ($request->ajax()) {
+            return view('superadmin.users.partials.archived-table', compact('archivedUsers'))->render();
+        }
 
         $roles = $this->manageableRoles();
         $stats = $this->getUserStats();
+
+        return view('superadmin.users.archived', compact('archivedUsers', 'roles', 'stats'));
+    }
+
+    public function deleted(Request $request)
+    {
+        $deletedUsers = $this->applyFilters($this->baseUserQuery('deleted'), $request)
+            ->orderByDesc('pending_delete_at')
+            ->paginate(10)
+            ->appends($request->query());
+
         $retentionDays = max((int) SystemSetting::getValue('deleted_retention_days', 30), 1);
 
-        return view('superadmin.users.archived', compact('archivedUsers', 'roles', 'stats', 'retentionDays'));
+        if ($request->ajax()) {
+            return view('superadmin.users.partials.deleted-table', compact('deletedUsers', 'retentionDays'))->render();
+        }
+
+        $roles = $this->manageableRoles();
+        $stats = $this->getUserStats();
+
+        return view('superadmin.users.deleted', compact('deletedUsers', 'roles', 'stats', 'retentionDays'));
     }
 
     public function edit($id)
@@ -428,16 +485,12 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
 
-        if ($user->archived_at) {
+        if ($user->archived_at || $user->pending_delete_at) {
             return back()->with('error', 'Restore this user from the archive first.');
         }
 
         if ($user->id == Auth::id()) {
             return back()->with('error', 'Cannot deactivate yourself.');
-        }
-
-        if (($user->role->name ?? null) === 'Customer') {
-            return back()->with('error', 'Customer accounts cannot be activated or deactivated from this panel.');
         }
 
         if ($this->isDispatcherOnline($user)) {
@@ -459,7 +512,32 @@ class UserManagementController extends Controller
         return back()->with('success', 'User status updated.');
     }
 
-    public function archive(User $user): RedirectResponse
+    public function unlockCustomer($id): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+
+        if ($user->status !== 'locked') {
+            return back()->with('error', 'This account is not locked.');
+        }
+
+        $user->update([
+            'status' => 'active',
+            'last_login_at' => now(),
+        ]);
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'customer_unlocked_by_admin',
+            'entity_type' => 'User',
+            'entity_id' => $user->id,
+            'reference' => $user->name,
+            'description' => 'Unlocked from Manage Users by an admin.',
+        ]);
+
+        return back()->with('success', 'Account unlocked.');
+    }
+
+    public function archive(Request $request, User $user): RedirectResponse
     {
         if ($user->id === Auth::id()) {
             return back()->with('error', 'You cannot archive your own account.');
@@ -473,6 +551,14 @@ class UserManagementController extends Controller
             return back()->with('error', 'Cannot archive this dispatcher while they are currently online.');
         }
 
+        if ($this->hasActiveAssignment($user)) {
+            return back()->with('error', 'Cannot archive this user while they have an active job assignment.');
+        }
+
+        $validated = $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+
         // Release the unit owned by this team leader so it remains visible in the dispatcher
         // as an unassigned unit rather than disappearing entirely.
         if (($user->role->name ?? null) === 'Team Leader') {
@@ -484,8 +570,9 @@ class UserManagementController extends Controller
         }
 
         $user->update([
-            'status'      => 'inactive',
-            'archived_at' => now(),
+            'status'          => 'inactive',
+            'archived_at'     => now(),
+            'archived_reason' => $validated['reason'],
         ]);
 
         // Rotate remember_token to terminate any active browser session immediately.
@@ -497,56 +584,11 @@ class UserManagementController extends Controller
             'entity_type' => 'User',
             'entity_id' => $user->id,
             'reference' => $user->name,
-            'description' => 'Moved user to archive panel',
+            'description' => "Moved user to archive panel. Reason: {$validated['reason']}",
         ]);
 
         return redirect()->route('superadmin.users.index')
             ->with('success', 'User moved to archive successfully.');
-    }
-
-    public function deleteNow(User $user): RedirectResponse
-    {
-        if ($user->id === Auth::id()) {
-            return back()->with('error', 'You cannot delete your own account.');
-        }
-
-        if ((int) ($user->role_id ?? 0) === 1) {
-            abort(403, 'Cannot delete the Owner account.');
-        }
-
-        if (($user->role->name ?? null) === 'Customer') {
-            abort(403, 'Customer accounts must be archived, not deleted directly.');
-        }
-
-        if ($this->isDispatcherOnline($user)) {
-            return back()->with('error', 'Cannot delete this dispatcher while they are currently online.');
-        }
-
-        $hasHistory = Unit::where('team_leader_id', $user->id)->orWhere('driver_id', $user->id)->exists()
-            || Booking::where('created_by_admin_id', $user->id)->exists()
-            || Receipt::where('generated_by', $user->id)->exists()
-            || DB::table('booking_assignments')->where('dispatcher_id', $user->id)->exists();
-
-        if ($hasHistory) {
-            return back()->with('error', 'This account has unit, booking, or receipt history and cannot be permanently deleted. Archive it instead.');
-        }
-
-        $reference = $user->name;
-        $entityId = $user->id;
-
-        $user->delete();
-
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'user_permanently_deleted',
-            'entity_type' => 'User',
-            'entity_id' => $entityId,
-            'reference' => $reference,
-            'description' => 'Deleted directly from Manage Users (no prior archive).',
-        ]);
-
-        return redirect()->route('superadmin.users.index')
-            ->with('success', 'User permanently deleted.');
     }
 
     public function restore($id): RedirectResponse
@@ -555,6 +597,8 @@ class UserManagementController extends Controller
 
         $user->update([
             'archived_at' => null,
+            'archived_reason' => null,
+            'pending_delete_at' => null,
             'status' => 'active',
         ]);
 
@@ -571,15 +615,38 @@ class UserManagementController extends Controller
             ->with('success', 'User restored successfully.');
     }
 
-    public function queueForDeletion($id): RedirectResponse
+    public function queueForDeletion(Request $request, $id): RedirectResponse
     {
         $user = User::findOrFail($id);
 
-        if (! $user->archived_at) {
-            return back()->with('error', 'Only archived users can be deleted.');
+        if ($user->id === Auth::id()) {
+            return back()->with('error', 'You cannot delete your own account.');
         }
 
-        $user->update(['pending_delete_at' => now()]);
+        if ((int) ($user->role_id ?? 0) === 1) {
+            abort(403, 'Cannot delete the Owner account.');
+        }
+
+        if ($this->isDispatcherOnline($user)) {
+            return back()->with('error', 'Cannot delete this dispatcher while they are currently online.');
+        }
+
+        if ($this->hasActiveAssignment($user)) {
+            return back()->with('error', 'Cannot delete this user while they have an active job assignment.');
+        }
+
+        $validated = $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        $user->update([
+            'pending_delete_at' => now(),
+            'pending_delete_reason' => $validated['reason'],
+        ]);
+
+        // Rotate remember_token to terminate any active browser session, and revoke API tokens.
+        $user->forceFill(['remember_token' => Str::random(60)])->save();
+        $user->tokens()->delete();
 
         AuditLog::create([
             'user_id' => Auth::id(),
@@ -587,10 +654,10 @@ class UserManagementController extends Controller
             'entity_type' => 'User',
             'entity_id' => $user->id,
             'reference' => $user->name,
-            'description' => 'Marked for deletion, pending permanent purge.',
+            'description' => "Marked for deletion, pending permanent purge. Reason: {$validated['reason']}",
         ]);
 
-        return redirect()->route('superadmin.users.archived')
+        return redirect()->route('superadmin.users.deleted')
             ->with('success', 'User marked for deletion.');
     }
 
@@ -600,7 +667,9 @@ class UserManagementController extends Controller
 
         $user->update([
             'pending_delete_at' => null,
+            'pending_delete_reason' => null,
             'archived_at' => null,
+            'archived_reason' => null,
             'status' => 'active',
         ]);
 
@@ -610,7 +679,7 @@ class UserManagementController extends Controller
             'entity_type' => 'User',
             'entity_id' => $user->id,
             'reference' => $user->name,
-            'description' => 'Restored from the Deleted list directly to Users.',
+            'description' => 'Deletion cancelled — restored from Users Pending Deletion.',
         ]);
 
         return redirect()->route('superadmin.users.index')
@@ -627,7 +696,7 @@ class UserManagementController extends Controller
 
         $outcome = $purgeService->purge($user, automatic: false);
 
-        return redirect()->route('superadmin.users.archived')
+        return redirect()->route('superadmin.users.deleted')
             ->with('success', $outcome === 'deleted'
                 ? 'User permanently deleted.'
                 : 'User could not be fully deleted due to receipt/booking history — personal data was anonymized instead.');
@@ -635,7 +704,7 @@ class UserManagementController extends Controller
 
     public function setDefaultPassword(Request $request, User $user): RedirectResponse
     {
-        if ($user->archived_at) {
+        if ($user->archived_at || $user->pending_delete_at) {
             return back()->with('error', 'Restore this user before setting a default password.');
         }
 
@@ -693,15 +762,4 @@ class UserManagementController extends Controller
         return $this->archive($user);
     }
 
-    public function toggle(User $user): RedirectResponse
-    {
-        if ($user->archived_at) {
-            return back()->with('error', 'Restore this user before changing status.');
-        }
-
-        $user->status = $user->status === 'active' ? 'inactive' : 'active';
-        $user->save();
-
-        return back()->with('success', 'User status updated.');
-    }
 }

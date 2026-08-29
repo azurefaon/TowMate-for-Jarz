@@ -233,8 +233,17 @@ class BookingService
         }
 
         $availability = $this->dispatchAvailability();
+        $requestedTruckTypeId = isset($data['truck_type_id']) ? (int) $data['truck_type_id'] : null;
+        $readyTruckTypeIds = $availability['ready_truck_type_ids'] ?? [];
 
-        if ($availability['book_now_enabled'] ?? false) {
+        // Re-check per truck type, not just "is anything ready at all" — a stale card
+        // on the client, or a request built without going through the picker, must not
+        // be able to get book_now dispatch for a class nobody is actually available for.
+        $classIsReady = ($availability['book_now_enabled'] ?? false)
+            && $requestedTruckTypeId !== null
+            && in_array($requestedTruckTypeId, $readyTruckTypeIds, true);
+
+        if ($classIsReady) {
             return $data;
         }
 
@@ -775,9 +784,15 @@ class BookingService
             )['leaders']
             ->keyBy('id');
 
+        // Tow Class Available = Available Team Leader + Available Assigned Unit + Matching
+        // Truck Type. Only a unit's own truck_type_id counts here — a team leader's
+        // free-text duty_class is not a substitute for the truck they're actually on,
+        // and an online team leader with no assigned unit satisfies none of the classes
+        // (there's no "matching truck type" to report as available).
         $readyUnits = Unit::query()
             ->where('status', 'available')
             ->whereNotNull('team_leader_id')
+            ->whereNotNull('truck_type_id')
             ->with('truckType')
             ->get()
             ->filter(function (Unit $unit) use ($busyTeamLeaderIds, $teamLeaderStatuses) {
@@ -790,59 +805,24 @@ class BookingService
 
         $readyUnitsCount = $readyUnits->count();
 
-        // Build readyByClass from units whose TruckType has a class set.
+        $readyTruckTypeIds = $readyUnits
+            ->pluck('truck_type_id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
         $readyByClass = $readyUnits
             ->filter(fn(Unit $unit) => filled($unit->truckType?->class))
             ->groupBy(fn(Unit $unit) => strtolower($unit->truckType->class))
             ->map->count()
             ->toArray();
 
-        // Track TL IDs already represented via their unit's truck class
-        // so we don't double-count them in the TL duty_class loops below.
-        $countedTlIds = $readyUnits
-            ->filter(fn(Unit $unit) => filled($unit->truckType?->class))
-            ->pluck('team_leader_id')
-            ->map(fn($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->toArray();
-
-        // Ready units with no truck class set: fall back to the TL's duty_class.
-        foreach ($readyUnits->filter(fn(Unit $unit) => ! filled($unit->truckType?->class)) as $unit) {
-            $tlId = (int) ($unit->team_leader_id ?? 0);
-            if (in_array($tlId, $countedTlIds, true)) continue;
-            $tl    = User::find($tlId);
-            $class = strtolower((string) ($tl?->duty_class ?? ''));
-            if (filled($class)) {
-                $readyByClass[$class] = ($readyByClass[$class] ?? 0) + 1;
-                $countedTlIds[]       = $tlId;
-            }
-        }
-
-        // Online free TLs with no ready unit: contribute their duty_class.
-        $onlineFreeTlLeaders = $teamLeaderStatuses->filter(function ($leader) use ($busyTeamLeaderIds) {
-            return ($leader['presence'] ?? 'offline') === 'online'
-                && ! $busyTeamLeaderIds->contains((int) ($leader['id'] ?? 0));
-        });
-
-        $onlineFreeTlCount = $onlineFreeTlLeaders->count();
-
-        foreach ($onlineFreeTlLeaders as $leader) {
-            $tlId = (int) ($leader['id'] ?? 0);
-            if (in_array($tlId, $countedTlIds, true)) continue;
-            $tl    = User::find($leader['id']);
-            $class = strtolower((string) ($tl?->duty_class ?? ''));
-            if (filled($class)) {
-                $readyByClass[$class] = ($readyByClass[$class] ?? 0) + 1;
-                $countedTlIds[]       = $tlId;
-            }
-        }
-
-        $bookNowEnabled = $readyUnitsCount > 0 || $onlineFreeTlCount > 0;
+        $bookNowEnabled = $readyUnitsCount > 0;
 
         return [
             'book_now_enabled'         => $bookNowEnabled,
             'ready_units_count'        => $readyUnitsCount,
+            'ready_truck_type_ids'     => $readyTruckTypeIds->toArray(),
             'recommended_service_type' => $bookNowEnabled ? 'book_now' : 'schedule',
             'message'                  => $bookNowEnabled
                 ? 'A dispatch-ready unit is available right now.'
