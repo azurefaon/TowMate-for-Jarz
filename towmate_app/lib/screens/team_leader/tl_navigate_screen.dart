@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../services/api_service.dart';
@@ -18,7 +17,7 @@ class TlNavigateScreen extends StatefulWidget {
 }
 
 class _TlNavigateScreenState extends State<TlNavigateScreen> {
-  final _mapController = MapController();
+  GoogleMapController? _mapController;
   LatLng? _currentPosition;
   List<LatLng> _routePoints = [];
   double? _distanceKm;
@@ -26,6 +25,8 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
   StreamSubscription<Position>? _positionSub;
   bool _initialCentered = false;
   bool _loadingRoute = false;
+  LatLng? _pendingCameraTarget;
+  double _pendingCameraZoom = 15;
 
   LatLng get _pickupPoint =>
       LatLng(widget.task.pickupLat, widget.task.pickupLng);
@@ -88,8 +89,7 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
       setState(() => _currentPosition = point);
 
       if (!_initialCentered) {
-        _initialCentered = true;
-        _mapController.move(point, 15);
+        _centerCameraOnce(point, zoom: 15);
         _loadRoute(point);
       }
     });
@@ -106,17 +106,29 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
       final point = LatLng(pos.latitude, pos.longitude);
       if (_currentPosition == null) {
         setState(() => _currentPosition = point);
-        _mapController.move(point, 15);
-        _initialCentered = true;
+        _centerCameraOnce(point, zoom: 15);
         _loadRoute(point);
       }
     } catch (_) {
       // Fall back to centering on destination if GPS unavailable
       if (!mounted) return;
-      if (!_initialCentered) {
-        _initialCentered = true;
-        _mapController.move(_destinationPoint, 14);
-      }
+      _centerCameraOnce(_destinationPoint, zoom: 14);
+    }
+  }
+
+  // Centers the camera exactly once, whichever happens last: getting a
+  // position/fallback target, or the GoogleMap platform view finishing
+  // initialization (onMapCreated). If the controller isn't ready yet, the
+  // target is queued and applied as soon as onMapCreated fires.
+  void _centerCameraOnce(LatLng target, {required double zoom}) {
+    if (_initialCentered) return;
+    _initialCentered = true;
+
+    if (_mapController != null) {
+      _mapController!.moveCamera(CameraUpdate.newLatLngZoom(target, zoom));
+    } else {
+      _pendingCameraTarget = target;
+      _pendingCameraZoom = zoom;
     }
   }
 
@@ -152,8 +164,20 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
 
   void _recenter() {
     if (_currentPosition != null) {
-      _mapController.move(_currentPosition!, 15);
+      _mapController?.moveCamera(
+        CameraUpdate.newLatLngZoom(_currentPosition!, 15),
+      );
     }
+  }
+
+  Future<void> _openInGoogleMaps() async {
+    final dest = _destinationPoint;
+    final uri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1'
+      '&destination=${dest.latitude},${dest.longitude}'
+      '&travelmode=driving',
+    );
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -169,54 +193,56 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
         Expanded(
           child: Stack(
             children: [
-              FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: _destinationPoint,
-                  initialZoom: 14,
+              GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: _destinationPoint,
+                  zoom: 14,
                 ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.towmate.app',
-                    tileProvider: CancellableNetworkTileProvider(),
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                  if (_pendingCameraTarget != null) {
+                    controller.moveCamera(CameraUpdate.newLatLngZoom(
+                        _pendingCameraTarget!, _pendingCameraZoom));
+                    _pendingCameraTarget = null;
+                  }
+                },
+                zoomControlsEnabled: false,
+                myLocationButtonEnabled: false,
+                markers: {
+                  Marker(
+                    markerId: const MarkerId('pickup'),
+                    position: _pickupPoint,
+                    icon: BitmapDescriptor.defaultMarkerWithHue(
+                        BitmapDescriptor.hueViolet),
+                    infoWindow: const InfoWindow(title: 'Pickup'),
                   ),
-                  if (_routePoints.isNotEmpty)
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: _routePoints,
-                          color: TmColors.yellow,
-                          strokeWidth: 4.0,
-                        ),
-                      ],
+                  if (_hasValidDropoff)
+                    Marker(
+                      markerId: const MarkerId('dropoff'),
+                      position: _dropoffPoint,
+                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueYellow),
+                      infoWindow: const InfoWindow(title: 'Drop-off'),
                     ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _pickupPoint,
-                        width: 28,
-                        height: 28,
-                        child: const _MapPin(label: 'P', dark: true),
-                      ),
-                      if (_hasValidDropoff)
-                        Marker(
-                          point: _dropoffPoint,
-                          width: 28,
-                          height: 28,
-                          child: const _MapPin(label: 'D', dark: false),
-                        ),
-                      if (_currentPosition != null)
-                        Marker(
-                          point: _currentPosition!,
-                          width: 20,
-                          height: 20,
-                          child: const _CurrentPin(),
-                        ),
-                    ],
-                  ),
-                ],
+                  if (_currentPosition != null)
+                    Marker(
+                      markerId: const MarkerId('current'),
+                      position: _currentPosition!,
+                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueAzure),
+                      infoWindow: const InfoWindow(title: 'You'),
+                      zIndexInt: 2,
+                    ),
+                },
+                polylines: {
+                  if (_routePoints.isNotEmpty)
+                    Polyline(
+                      polylineId: const PolylineId('route'),
+                      points: _routePoints,
+                      color: TmColors.yellow,
+                      width: 4,
+                    ),
+                },
               ),
 
               // Loading route indicator
@@ -295,57 +321,9 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
           distanceKm: _distanceKm,
           durationMin: _durationMin,
           isGpsActive: widget.task.isGpsPhase,
+          onNavigate: _openInGoogleMaps,
         ),
       ],
-    );
-  }
-}
-
-// ── Same marker style as book_now_screen.dart ──────────────────────────────
-
-class _MapPin extends StatelessWidget {
-  const _MapPin({required this.label, required this.dark});
-  final String label;
-  final bool dark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: dark ? TmColors.black : TmColors.yellow,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          color: dark ? TmColors.white : TmColors.black,
-          fontSize: 12,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-}
-
-class _CurrentPin extends StatelessWidget {
-  const _CurrentPin();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF2563EB),
-        shape: BoxShape.circle,
-        border: Border.all(color: TmColors.white, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -359,6 +337,7 @@ class _BottomCard extends StatelessWidget {
     this.distanceKm,
     this.durationMin,
     required this.isGpsActive,
+    required this.onNavigate,
   });
 
   final String destinationLabel;
@@ -366,6 +345,7 @@ class _BottomCard extends StatelessWidget {
   final double? distanceKm;
   final double? durationMin;
   final bool isGpsActive;
+  final VoidCallback onNavigate;
 
   @override
   Widget build(BuildContext context) {
@@ -452,6 +432,30 @@ class _BottomCard extends StatelessWidget {
                     ),
                   ],
                 ],
+              ),
+            ],
+            if (isGpsActive) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onNavigate,
+                  icon: const Icon(Icons.navigation_rounded, size: 18),
+                  label: Text(
+                    'Navigate',
+                    style: GoogleFonts.inter(
+                        fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: TmColors.black,
+                    foregroundColor: TmColors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
               ),
             ],
           ],

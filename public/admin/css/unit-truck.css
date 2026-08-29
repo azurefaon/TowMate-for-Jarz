@@ -51,10 +51,17 @@
 }
 
 .units-page .header-actions,
-.units-page .table-controls,
+.units-page .table-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .units-page .modal-footer {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 10px;
     flex-wrap: wrap;
 }
@@ -802,4 +809,45 @@
 
 .sa-dialog-btn.confirm:hover {
     background: #222;
+}
+
+.units-page .bk-suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 10px 24px rgba(17, 17, 17, 0.12);
+}
+
+.units-page .bk-suggestion-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border: none;
+    background: none;
+    font-size: 0.86rem;
+    color: #111111;
+    cursor: pointer;
+}
+
+.units-page .bk-suggestion-item:hover,
+.units-page .bk-suggestion-item:focus {
+    background: #fdf6e0;
+}
+
+.units-page .bk-suggestion-empty {
+    padding: 10px 12px;
+    font-size: 0.82rem;
+    color: #6b7280;
+}
+
+.units-page .field-note--error {
+    color: #b91c1c;
 }

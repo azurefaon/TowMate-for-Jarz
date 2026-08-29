@@ -582,6 +582,12 @@
                         <span>Total</span>
                         <span>₱{{ number_format($finalTotal, 2) }}</span>
                     </div>
+                    @if ($booking->currentInvoice)
+                    <div class="trk-price-row">
+                        <span>Invoice {{ $booking->currentInvoice->invoice_number }}</span>
+                        <span>₱{{ number_format((float) $booking->currentInvoice->total, 2) }}</span>
+                    </div>
+                    @endif
                 </div>
             </div>
             @endif

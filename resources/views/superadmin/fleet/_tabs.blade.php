@@ -35,6 +35,6 @@
     </a>
     <a href="{{ route('superadmin.vehicle-types.index') }}"
         class="{{ request()->routeIs('superadmin.vehicle-types.*') ? 'is-active' : '' }}">
-        Vehicle Catalog
+        Vehicle Type
     </a>
 </div>

@@ -745,6 +745,15 @@
                     </div>
                 @endif
 
+                @if ($booking->currentInvoice)
+                    <div class="price-row">
+                        <div>
+                            <div class="price-label">Invoice {{ $booking->currentInvoice->invoice_number }}</div>
+                        </div>
+                        <div class="price-value">₱{{ number_format((float) $booking->currentInvoice->total, 2) }}</div>
+                    </div>
+                @endif
+
                 <div class="card-footer">
                     Last updated: {{ $booking->updated_at->diffForHumans() }} &nbsp;·&nbsp;
                     Need help? Call (123) 456-7890

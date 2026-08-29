@@ -16,6 +16,40 @@ document.addEventListener("DOMContentLoaded", () => {
     const searchInput = document.getElementById("unitSearch");
     const statusFilter = document.getElementById("statusFilter");
 
+    // 3 letters + 4 digits, 3 letters + 3 digits, or 2 letters + 5 digits; I and O are excluded (confusable with 1/0).
+    const PLATE_NUMBER_REGEX = /^(?:[A-HJ-NP-Z]{3}[0-9]{4}|[A-HJ-NP-Z]{3}[0-9]{3}|[A-HJ-NP-Z]{2}[0-9]{5})$/;
+    const PLATE_NUMBER_MESSAGE =
+        "Enter 3 letters + 4 digits, 3 letters + 3 digits, or 2 letters + 5 digits. Letters I and O are not allowed.";
+
+    const sanitizePlateInput = (value) =>
+        value
+            .toUpperCase()
+            .replace(/[^A-Z0-9 ]/g, "")
+            .replace(/[IO]/g, "")
+            .replace(/ {2,}/g, " ");
+
+    const validatePlateInput = (input) => {
+        const normalized = input.value.replace(/\s+/g, "");
+        input.setCustomValidity(
+            normalized && !PLATE_NUMBER_REGEX.test(normalized) ? PLATE_NUMBER_MESSAGE : ""
+        );
+    };
+
+    ["addPlate", "editPlate"].forEach((id) => {
+        const input = document.getElementById(id);
+        if (!input) {
+            return;
+        }
+
+        input.addEventListener("input", () => {
+            const cursorFromEnd = input.value.length - input.selectionStart;
+            input.value = sanitizePlateInput(input.value);
+            const nextPosition = Math.max(input.value.length - cursorFromEnd, 0);
+            input.setSelectionRange(nextPosition, nextPosition);
+            validatePlateInput(input);
+        });
+    });
+
     const showModal = (modal) => {
         if (modal) {
             modal.style.display = "flex";
@@ -49,7 +83,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!button) return;
 
-        document.getElementById("editPlate").value = button.dataset.plate || "";
+        const editPlateInput = document.getElementById("editPlate");
+        editPlateInput.value = sanitizePlateInput(button.dataset.plate || "");
+        validatePlateInput(editPlateInput);
         document.getElementById("editTruckType").value =
             button.dataset.truck || "";
 

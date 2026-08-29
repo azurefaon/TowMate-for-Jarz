@@ -9,6 +9,13 @@
         android:label="towmate_app"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Google Maps key restricted to this Android app (package name
+             com.example.towmate_app + release/debug SHA-1 fingerprints).
+             This ships inside the APK — keep it separate from the Laravel
+             server key and the dispatcher web key. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyDi6ELvsOC1uxT8d-LNS2wLuGdps-fNsIE" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

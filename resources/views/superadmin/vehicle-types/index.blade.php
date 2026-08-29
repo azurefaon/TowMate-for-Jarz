@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Vehicle Catalog')
+@section('title', 'Vehicle Type')
 
 @push('styles')
 <style>
@@ -360,7 +360,7 @@
 
     <div class="page-top">
         <div>
-            <h1>Vehicle Catalog</h1>
+            <h1>Vehicle Type</h1>
             <p>Manage the vehicle types customers can select when booking.</p>
         </div>
     </div>

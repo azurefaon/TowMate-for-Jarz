@@ -8,6 +8,66 @@ document.addEventListener("DOMContentLoaded", () => {
     const baseUrl = page.dataset.baseUrl;
     const addModal = document.getElementById("addModal");
     const editModal = document.getElementById("editModal");
+    const addForm = addModal ? addModal.querySelector("form") : null;
+
+    // Format a raw numeric string with comma thousands-separators, preserving
+    // a single decimal point and up to 2 decimal digits while typing.
+    const formatWithCommas = (value) => {
+        if (!value) {
+            return "";
+        }
+
+        let [integerPart, ...rest] = value.replace(/[^0-9.]/g, "").split(".");
+        integerPart = integerPart.replace(/^0+(?=\d)/, "");
+        const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+        if (rest.length === 0) {
+            return formattedInteger;
+        }
+
+        const decimalPart = rest.join("").slice(0, 2);
+        return `${formattedInteger}.${decimalPart}`;
+    };
+
+    const stripCommas = (value) => (value || "").replace(/,/g, "");
+
+    const currencyInputIds = [
+        "newTruckTypeBase",
+        "newTruckTypeKm",
+        "newTruckTypeTonnage",
+        "editBase",
+        "editKm",
+        "editTonnage",
+    ];
+
+    currencyInputIds.forEach((id) => {
+        const input = document.getElementById(id);
+        if (!input) {
+            return;
+        }
+
+        input.addEventListener("input", () => {
+            const cursorFromEnd = input.value.length - input.selectionStart;
+            input.value = formatWithCommas(input.value);
+            const nextPosition = Math.max(input.value.length - cursorFromEnd, 0);
+            input.setSelectionRange(nextPosition, nextPosition);
+        });
+    });
+
+    [addForm, document.getElementById("editForm")].forEach((form) => {
+        if (!form) {
+            return;
+        }
+
+        form.addEventListener("submit", () => {
+            currencyInputIds.forEach((id) => {
+                const input = form.querySelector(`#${id}`);
+                if (input) {
+                    input.value = stripCommas(input.value);
+                }
+            });
+        });
+    });
     const disableModal = document.getElementById("disableModal");
     const editForm = document.getElementById("editForm");
     const disableForm = document.getElementById("disableForm");
@@ -50,10 +110,11 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("editName").value =
                 button.dataset.name || "";
             document.getElementById("editBase").value =
-                button.dataset.base || "";
-            document.getElementById("editKm").value = button.dataset.km || "";
+                formatWithCommas(button.dataset.base || "");
+            document.getElementById("editKm").value =
+                formatWithCommas(button.dataset.km || "");
             document.getElementById("editTonnage").value =
-                button.dataset.tonnage || "";
+                formatWithCommas(button.dataset.tonnage || "");
             document.getElementById("editDescription").value =
                 button.dataset.description || "";
 

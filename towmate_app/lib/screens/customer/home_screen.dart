@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart';
@@ -573,7 +574,7 @@ class _ActiveBookingCard extends StatelessWidget {
               const SizedBox(height: 16),
               if (booking.distanceKm != null && (booking.finalTotal ?? booking.computedTotal) != null)
                 Text(
-                  '${booking.distanceKm!.toStringAsFixed(1)} km  —  ₱${(booking.finalTotal ?? booking.computedTotal)!.toStringAsFixed(0)}',
+                  '${booking.distanceKm!.toStringAsFixed(1)} km  —  ₱${NumberFormat('#,##0.00', 'en_PH').format((booking.finalTotal ?? booking.computedTotal)!)}',
                   style: GoogleFonts.inter(
                     color: context.textTertiary,
                     fontSize: 13,

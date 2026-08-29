@@ -21,9 +21,9 @@ class ApiService {
   //   return 'http://127.0.0.1:8000/api';
   // }
 
-  // static const String baseUrl = 'https://jarztowing.up.railway.app/api';
+  static const String baseUrl = 'https://jarztowing.up.railway.app/api';
   // static const String baseUrl = 'http://192.168.254.100:8000/api';
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+  // static const String baseUrl = 'http://127.0.0.1:8000/api';
 
   static const _secure = FlutterSecureStorage(
     aOptions: AndroidOptions(
@@ -198,7 +198,9 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> requestEmailChangeOtp(String email) async {
+  static Future<Map<String, dynamic>> requestEmailChangeOtp(
+    String email,
+  ) async {
     try {
       final token = await getToken();
       final response = await http
@@ -447,10 +449,16 @@ class ApiService {
             await prefs.setString('user_name', data['name'] as String);
           }
           if (data['first_name'] != null) {
-            await prefs.setString('user_first_name', data['first_name'] as String);
+            await prefs.setString(
+              'user_first_name',
+              data['first_name'] as String,
+            );
           }
           if (data['last_name'] != null) {
-            await prefs.setString('user_last_name', data['last_name'] as String);
+            await prefs.setString(
+              'user_last_name',
+              data['last_name'] as String,
+            );
           }
           if (data['email'] != null) {
             await _secure.write(

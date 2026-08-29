@@ -89,6 +89,7 @@ class BookingModel {
       'completed'            => 'Completed',
       'cancelled'            => 'Cancelled',
       'rejected'             => 'Rejected',
+      'not_responding'       => 'You did not respond',
       _                      => status,
     };
   }

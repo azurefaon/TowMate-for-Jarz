@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../services/api_service.dart';
@@ -399,7 +400,7 @@ class _BookingCard extends StatelessWidget {
       children: [
         if (price != null)
           Text(
-            '₱${price.toStringAsFixed(2)}',
+            '₱${NumberFormat('#,##0.00', 'en_PH').format(price)}',
             style: GoogleFonts.inter(
               color: context.textPrimary,
               fontSize: 14,
@@ -541,7 +542,7 @@ class _GroupBookingCardState extends State<_GroupBookingCard> {
                     children: [
                       if (price != null)
                         Text(
-                          '₱${price.toStringAsFixed(2)}',
+                          '₱${NumberFormat('#,##0.00', 'en_PH').format(price)}',
                           style: GoogleFonts.inter(
                             color: context.textPrimary,
                             fontSize: 14,
@@ -740,7 +741,7 @@ class _SiblingRow extends StatelessWidget {
 
 Color _statusColor(String status, BuildContext context) {
   const completed = {'completed'};
-  const muted = {'cancelled', 'rejected'};
+  const muted = {'cancelled', 'rejected', 'not_responding'};
   if (completed.contains(status)) return context.textSecondary;
   if (muted.contains(status)) return context.divider;
   return context.textPrimary;

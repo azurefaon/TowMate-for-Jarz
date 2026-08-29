@@ -290,35 +290,45 @@
         <ul>
 
             <div class="brand">
-                {{-- <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Logo"> --}}
                 <span class="brand-text">Jarz</span>
             </div>
-
-            {{-- <li class="collapse-item">
-                <button onclick="toggleSidebar()">
-                    <i data-lucide="chevrons-left"></i>
-                    <span>Toggle Menu</span>
-                </button>
-            </li> --}}
 
             <div class="sidebar-section">MAIN</div>
 
             <li>
                 <a href="{{ route('superadmin.dashboard') }}" title="Dashboard"
                     class="{{ request()->routeIs('superadmin.dashboard') ? 'active' : '' }}">
-                    <span class="nav-chip">D</span>
+                    <span class="nav-chip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                            <path d="M4 15.5 A8 8 0 0 1 20 15.5" />
+                            <line x1="12" y1="15.5" x2="16" y2="10.5" />
+                            <circle cx="12" cy="15.5" r="1.1" fill="currentColor" stroke="none"/>
+                        </svg>
+                    </span>
                     <span>Dashboard</span>
                 </a>
 
                 <a href="{{ route('superadmin.reports.index') }}" title="Reports"
                     class="{{ request()->routeIs('superadmin.reports.*') ? 'active' : '' }}">
-                    <span class="nav-chip">R</span>
+                    <span class="nav-chip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square">
+                            <line x1="5" y1="19" x2="19" y2="19" />
+                            <line x1="8" y1="19" x2="8" y2="13" />
+                            <line x1="12" y1="19" x2="12" y2="8" />
+                            <line x1="16" y1="19" x2="16" y2="11" />
+                        </svg>
+                    </span>
                     <span>Reports</span>
                 </a>
 
                 <a href="{{ route('superadmin.bookings.index') }}" title="Bookings"
                     class="{{ request()->routeIs('superadmin.bookings.*') ? 'active' : '' }}">
-                    <span class="nav-chip">B</span>
+                    <span class="nav-chip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                            <path d="M12 4 L19 12 L12 20 L5 12 Z" />
+                            <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+                        </svg>
+                    </span>
                     <span>Bookings</span>
 
                     @if (isset($pendingBookings) && $pendingBookings > 0)
@@ -328,42 +338,16 @@
 
                 <a href="{{ route('superadmin.users.index') }}" title="Manage Users"
                     class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
-                    <span class="nav-chip">U</span>
+                    <span class="nav-chip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                            <path d="M8 8 L11.2 5.5 L14.4 8 L13.2 12 L9.2 12 Z" />
+                            <path d="M4.5 19 L6 13.5 L18 13.5 L19.5 19" />
+                        </svg>
+                    </span>
                     <span>Manage Users</span>
                 </a>
 
             </li>
-
-            {{-- <li>
-                <a href="{{ route('control-center.index') }}"
-                    class="{{ request()->routeIs('control-center.*') ? 'active' : '' }}">
-                    <i data-lucide="radar"></i>
-                    <span>Control Center</span>
-                </a>
-            </li>
-
-            <li>
-                <a href="{{ route('superadmin.monitoring.index') }}"
-                    class="{{ request()->routeIs('superadmin.monitoring.*') ? 'active' : '' }}">
-                    <i data-lucide="activity"></i>
-                    <span>Monitoring</span>
-                </a>
-            </li> --}}
-
-            {{-- <div class="sidebar-divider"></div> --}}
-            {{-- <div class="sidebar-section">OPERATIONS</div> --}}
-
-            {{-- <li>
-                <a href="{{ route('superadmin.bookings.index') }}"
-                    class="{{ request()->routeIs('superadmin.bookings.*') ? 'active' : '' }}">
-                    <i data-lucide="clipboard-list"></i>
-                    <span>Bookings</span>
-
-                    @if (isset($pendingBookings) && $pendingBookings > 0)
-                        <span class="badge">{{ $pendingBookings }}</span>
-                    @endif
-                </a>
-            </li> --}}
 
             <div class="sidebar-divider"></div>
             <div class="sidebar-section">FLEET MANAGEMENT</div>
@@ -371,21 +355,18 @@
             <li>
                 <a href="{{ route('superadmin.truck-types.index') }}" title="Trucks"
                     class="{{ request()->routeIs(['superadmin.truck-types.*', 'superadmin.unit-truck.*', 'superadmin.vehicle-types.*']) ? 'active' : '' }}">
-                    <span class="nav-chip">T</span>
+                    <span class="nav-chip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                            <path d="M3 16 L3 10 L11 10 L11 16" />
+                            <path d="M11 12 L16 12 L19 15.2 L19 16" />
+                            <line x1="3" y1="16" x2="20" y2="16" />
+                            <circle cx="7" cy="18" r="1.6" />
+                            <circle cx="16" cy="18" r="1.6" />
+                        </svg>
+                    </span>
                     <span>Trucks</span>
                 </a>
             </li>
-
-            {{-- <div class="sidebar-divider"></div>
-            <div class="sidebar-section">USER MANAGEMENT</div> --}}
-
-            {{-- <li>
-                <a href="{{ route('superadmin.users.index') }}"
-                    class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
-                    <i data-lucide="users"></i>
-                    <span>Manage Users</span>
-                </a>
-            </li> --}}
 
             <div class="sidebar-divider"></div>
             <div class="sidebar-section">SYSTEM</div>
@@ -393,7 +374,13 @@
             <li>
                 <a href="{{ route('superadmin.settings.index') }}" title="System Settings"
                     class="{{ request()->routeIs('superadmin.settings.*') ? 'active' : '' }}">
-                    <span class="nav-chip">S</span>
+                    <span class="nav-chip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                            <path d="M12 3.5 L18.5 7.2 L18.5 14.8 L12 18.5 L5.5 14.8 L5.5 7.2 Z" />
+                            <circle cx="12" cy="11" r="2.2" />
+                            <line x1="12" y1="3.5" x2="12" y2="6" />
+                        </svg>
+                    </span>
                     <span>System Settings</span>
                 </a>
             </li>
