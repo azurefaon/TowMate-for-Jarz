@@ -3,6 +3,9 @@
 @section('title', 'Dispatch Queue')
 
 @push('styles')
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         .tracking-panel {
             background: #fff;
@@ -874,6 +877,207 @@
             background: #f8fafc;
             color: #64748b;
         }
+
+        /* ===================================================================
+           Booking drawer ("View & Quote") — Book Now queue only.
+           Namespaced under .rb- (Receiving Bookings) to avoid clashing with
+           the existing .incoming-*/.modal-*/.dp-*/.urc-* conventions above.
+        =================================================================== */
+        .rb-drawer-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 12, 15, .45);
+            display: none;
+            z-index: 2099;
+        }
+        .rb-drawer-overlay.is-open { display: block; }
+
+        .rb-drawer {
+            position: fixed;
+            top: 0;
+            right: -520px;
+            width: 100%;
+            max-width: 520px;
+            height: 100%;
+            background: #fff;
+            box-shadow: -16px 0 40px rgba(20, 23, 28, .18);
+            z-index: 2100;
+            display: flex;
+            flex-direction: column;
+            transition: right .22s cubic-bezier(.2,.8,.3,1);
+            font-family: 'Public Sans', system-ui, sans-serif;
+            color: #111111;
+        }
+        .rb-drawer.is-open { right: 0; }
+        .rb-drawer h1, .rb-drawer h2, .rb-drawer h3, .rb-drawer h4 {
+            font-family: 'Sora', system-ui, sans-serif;
+            margin: 0;
+        }
+        .rb-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+        .rb-drawer-head {
+            padding: 20px 22px 16px;
+            border-bottom: 1px solid #E3E6EB;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            flex: none;
+        }
+        .rb-drawer-head .rb-who { display: flex; gap: 12px; align-items: center; }
+        .rb-avatar {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: #FACC15; color: #111111;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 15px; flex: none;
+        }
+        .rb-drawer-head h3 { font-size: 16.5px; }
+        .rb-drawer-head .rb-sub { font-size: 12px; color: #5B6472; margin-top: 2px; display: flex; flex-direction: column; gap: 1px; }
+        .rb-drawer-close {
+            border: none; background: #F6F7F9; width: 28px; height: 28px; border-radius: 8px;
+            color: #5B6472; font-size: 15px; flex: none; cursor: pointer;
+        }
+
+        .rb-drawer-body { flex: 1; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 22px; }
+        .rb-section { display: flex; flex-direction: column; gap: 12px; }
+        .rb-section h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #111111; }
+
+        .rb-grid { display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 32px; row-gap: 14px; font-size: 12.5px; }
+        .rb-grid-row { display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 32px; row-gap: 14px; }
+        .rb-grid-divider { grid-column: 1/-1; height: 1px; background: #E3E6EB; }
+        .rb-grid dt, .rb-grid-row dt { color: #8A93A3; font-size: 11px; margin-bottom: 4px; }
+        .rb-grid dd, .rb-grid-row dd { margin: 0; font-weight: 600; }
+
+        .rb-photo-stack-wrap { position: relative; padding-top: 10px; padding-right: 10px; }
+        .rb-photo-stack-back { position: absolute; border-radius: 14px; background: #fff; border: 1px solid #E3E6EB; }
+        .rb-photo-stack-back-1 { top: 0; right: 0; left: 10px; bottom: 10px; }
+        .rb-photo-stack-back-2 { top: 5px; right: 5px; left: 5px; bottom: 5px; background: #F6F7F9; }
+        .rb-photo-box {
+            position: relative; aspect-ratio: 16/7; border-radius: 14px;
+            background: #F6F7F9; border: 1px solid #E3E6EB;
+            display: flex; align-items: center; justify-content: center;
+            color: #8A93A3; cursor: pointer; z-index: 1; overflow: hidden;
+        }
+        .rb-photo-box img { width: 100%; height: 100%; object-fit: cover; }
+        .rb-photo-stack-badge {
+            position: absolute; bottom: 8px; right: 8px; background: rgba(20,23,28,.72); color: #fff;
+            font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px;
+            display: flex; align-items: center; gap: 4px;
+        }
+
+        .rb-lightbox-backdrop {
+            position: fixed; inset: 0; background: rgba(8,9,11,.85);
+            display: none; align-items: center; justify-content: center; z-index: 2200; padding: 24px;
+        }
+        .rb-lightbox-backdrop.is-open { display: flex; }
+        .rb-lightbox { display: flex; align-items: center; gap: 16px; max-width: 640px; width: 100%; }
+        .rb-lightbox-stage { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+        .rb-lightbox-image { width: 100%; aspect-ratio: 4/3; background: #20242c; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #8A93A3; overflow: hidden; }
+        .rb-lightbox-image img { width: 100%; height: 100%; object-fit: contain; }
+        .rb-lightbox-caption { color: #D5D9E0; font-size: 12.5px; font-weight: 600; }
+        .rb-lightbox-nav { flex: none; width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,.1); border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .rb-lightbox-nav:hover { background: rgba(255,255,255,.2); }
+        .rb-lightbox-close { position: absolute; top: 20px; right: 24px; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,.12); border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+        .rb-route { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: #111111; background: #F6F7F9; border: 1px solid #E3E6EB; border-radius: 10px; padding: 10px 12px; }
+        .rb-route-row { display: flex; gap: 8px; align-items: flex-start; }
+        .rb-route-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex: none; }
+        .rb-route-dot.rb-pick { background: #12804A; }
+        .rb-route-dot.rb-drop { background: #D8402C; }
+        .rb-route-addr { flex: 1; line-height: 1.4; }
+        .rb-route-meta { display: flex; justify-content: space-between; font-size: 11.5px; color: #8A93A3; padding-top: 2px; border-top: 1px dashed #CFD4DC; margin-top: 2px; }
+
+        .rb-note-box { background: #F6F7F9; border: 1px solid #E3E6EB; border-radius: 9px; padding: 10px 12px; font-size: 12.5px; line-height: 1.55; color: #111111; }
+
+        .rb-cq-ref { background: #F6F7F9; border: 1px solid #E3E6EB; border-radius: 10px; padding: 11px 12px; display: flex; flex-direction: column; gap: 6px; }
+        .rb-cq-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #111111; }
+        .rb-cq-row { display: flex; justify-content: space-between; font-size: 12.5px; color: #111111; }
+        .rb-cq-row.rb-cq-total { font-weight: 700; padding-top: 6px; border-top: 1px dashed #CFD4DC; }
+
+        .rb-breakdown { display: flex; flex-direction: column; gap: 5px; background: #F6F7F9; border: 1px solid #E3E6EB; border-radius: 9px; padding: 10px 12px; }
+        .rb-breakdown .rb-b-row { display: flex; justify-content: space-between; font-size: 12.5px; color: #5B6472; }
+        .rb-breakdown .rb-b-row.rb-b-final { color: #111111; font-weight: 700; font-size: 14px; padding-top: 6px; border-top: 1px dashed #CFD4DC; }
+        .rb-breakdown .rb-b-row.rb-b-final.rb-b-solo { padding-top: 0; border-top: none; }
+        .rb-breakdown .rb-b-row.rb-b-adj .rb-mono.rb-is-add { color: #12804A; }
+        .rb-breakdown .rb-b-row.rb-b-adj .rb-mono.rb-is-deduct { color: #D8402C; }
+
+        .rb-sub-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #8A93A3; }
+        .rb-history-toggle-btn, .rb-adj-toggle-btn { width: 100%; justify-content: center; }
+        .rb-adj-form { display: flex; flex-direction: column; gap: 10px; background: #fff; border: 1px solid #E3E6EB; border-radius: 12px; padding: 14px; }
+        .rb-adj-form input, .rb-adj-form select, .rb-adj-form textarea { border: 1px solid #CFD4DC; background: #fff; color: #111111; border-radius: 8px; padding: 9px 10px; font-size: 12.5px; font-family: inherit; width: 100%; }
+        .rb-adj-form textarea { min-height: 70px; resize: vertical; }
+        .rb-adj-form-row { display: flex; gap: 8px; }
+        .rb-adj-form-row select { flex: none; width: 110px; }
+        .rb-currency-input-wrap { position: relative; flex: 1; }
+        .rb-currency-ic { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #8A93A3; font-weight: 600; font-size: 12.5px; }
+        .rb-currency-input-wrap input { padding-left: 26px; }
+        .rb-adj-reason-label { display: flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 12.5px; color: #111111; }
+        .rb-adj-error { color: #D8402C; font-size: 11.5px; font-weight: 600; }
+        .rb-adj-form-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 8px; border-top: 1px solid #E3E6EB; }
+        .rb-adj-form-actions .rb-btn { flex: none; min-width: 110px; }
+        .rb-adj-hint { font-size: 11px; color: #8A93A3; text-align: right; }
+        .rb-history { display: flex; flex-direction: column; gap: 6px; }
+        .rb-adj-row { display: flex; align-items: baseline; gap: 8px; font-size: 12px; background: #F6F7F9; border: 1px solid #E3E6EB; border-radius: 8px; padding: 7px 10px; }
+        .rb-adj-row .rb-adj-sign { font-family: 'JetBrains Mono', monospace; font-weight: 700; flex: none; }
+        .rb-adj-row .rb-adj-sign.rb-is-add { color: #12804A; }
+        .rb-adj-row .rb-adj-sign.rb-is-deduct { color: #D8402C; }
+        .rb-adj-row .rb-adj-reason { flex: 1; color: #111111; }
+        .rb-adj-row .rb-adj-time { color: #8A93A3; font-size: 11px; flex: none; }
+
+        .rb-expired-chip { position: relative; display: flex; align-items: center; gap: 6px; color: #D8402C; padding: 2px 0; font-size: 12px; font-weight: 600; }
+
+        .rb-search-wrap { position: relative; }
+        .rb-search-wrap input { width: 100%; border: 1px solid #CFD4DC; background: #fff; color: #111111; border-radius: 10px; padding: 11px 12px 11px 38px; font-size: 13px; font-family: inherit; }
+        .rb-search-wrap .rb-search-ic { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #8A93A3; display: flex; }
+        .rb-unit-card { border: 1px solid #E3E6EB; border-radius: 12px; padding: 12px; background: #fff; }
+        .rb-unit-card.rb-is-selected { border-color: #111111; }
+        .rb-unit-card-top { display: flex; align-items: flex-start; gap: 12px; }
+        .rb-unit-avatar { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #5B6472; flex: none; }
+        .rb-unit-card-info { flex: 1; min-width: 0; }
+        .rb-unit-card-name { font-weight: 700; font-size: 14px; color: #111111; }
+        .rb-unit-card-row { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #5B6472; margin-top: 5px; }
+        .rb-unit-card-side { display: flex; flex-direction: column; align-items: flex-end; gap: 9px; flex: none; }
+        .rb-unit-star { color: #8A93A3; display: flex; }
+        .rb-unit-star.rb-is-rec { color: #111111; }
+        .rb-unit-expand-toggle { display: flex; align-items: center; gap: 5px; background: none; border: none; color: #8A93A3; font-size: 11.5px; font-weight: 600; padding: 9px 0 0; cursor: pointer; }
+        .rb-unit-expand-body { display: none; flex-direction: column; gap: 4px; padding: 8px 0 0 52px; font-size: 12px; }
+        .rb-unit-expand-body.rb-is-open { display: flex; }
+        .rb-unit-expand-row { display: flex; justify-content: space-between; gap: 10px; color: #5B6472; }
+        .rb-unit-expand-row b { color: #111111; font-weight: 600; }
+        .rb-unit-empty-note { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px; color: #8A93A3; font-size: 12px; border: 1px solid #E3E6EB; border-radius: 12px; }
+
+        .rb-timeline { display: flex; flex-direction: column; gap: 0; }
+        .rb-t-item { display: flex; gap: 10px; position: relative; padding-bottom: 16px; }
+        .rb-t-item:last-child { padding-bottom: 0; }
+        .rb-t-item::before { content: ""; position: absolute; left: 13px; top: 28px; bottom: 0; width: 1px; background: #CFD4DC; }
+        .rb-t-item:last-child::before { display: none; }
+        .rb-t-icon { width: 28px; height: 28px; border-radius: 50%; background: #F6F7F9; border: 1px solid #E3E6EB; display: flex; align-items: center; justify-content: center; color: #5B6472; flex: none; z-index: 1; }
+        .rb-t-item.rb-is-accept .rb-t-icon { background: #E4F6EC; color: #12804A; border-color: transparent; }
+        .rb-t-text { font-size: 12.5px; padding-top: 3px; }
+        .rb-t-time { font-size: 11px; color: #8A93A3; }
+
+        .rb-drawer-foot { padding: 14px 22px 18px; border-top: 1px solid #E3E6EB; display: flex; flex-direction: column; gap: 8px; flex: none; }
+        .rb-drawer-foot-main { display: flex; gap: 8px; flex-wrap: wrap; }
+        .rb-drawer-foot-main .rb-btn { flex: 1; justify-content: center; min-width: 140px; }
+        .rb-drawer-foot-reject { display: flex; justify-content: center; padding-top: 2px; }
+        .rb-link-btn { background: none; border: none; color: #5B6472; font-size: 11.5px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; padding: 0; cursor: pointer; }
+
+        .rb-btn { border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-family: inherit; transition: filter .12s; }
+        .rb-btn:hover { filter: brightness(.97); }
+        .rb-btn-primary { background: #FACC15; color: #111111; }
+        .rb-btn-secondary { background: #fff; color: #111111; border-color: #CFD4DC; }
+        .rb-view-quote-btn { width: 100%; justify-content: center; margin-top: auto; }
+
+        .rb-view-all-modal-backdrop { position: fixed; inset: 0; background: rgba(10,12,15,.5); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 2199; padding: 20px; }
+        .rb-view-all-modal-backdrop.is-open { display: flex; }
+        .rb-view-all-modal { width: 100%; max-width: 460px; background: #fff; border-radius: 16px; border: 1px solid #E3E6EB; box-shadow: 0 20px 60px rgba(20,23,28,.18); max-height: 88vh; overflow-y: auto; }
+        .rb-view-all-modal-head { padding: 18px 20px 14px; border-bottom: 1px solid #E3E6EB; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .rb-view-all-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+
+        @media (max-width: 640px) {
+            .rb-drawer { max-width: 100%; right: -100%; }
+            .rb-grid, .rb-grid-row { grid-template-columns: 1fr; }
+        }
     </style>
 @endpush
 
@@ -1339,23 +1543,40 @@
                                     }
                                 }
                             @endphp
+                            @php
+                                $bnPhotoUrls = collect($bnPrimary->vehicle_image_paths ?? [])
+                                    ->map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p))
+                                    ->values();
+                            @endphp
                             <div class="incoming-card" data-queue="book-now"
                                 data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}"
+                                data-booking-code="{{ $bnPrimary->booking_code }}"
                                 data-status="{{ $bnPrimary->status }}"
                                 data-created-at="{{ $bnPrimary->created_at->toIso8601String() }}"
                                 data-pickup-lat="{{ $bnPrimary->pickup_lat ?? '' }}"
                                 data-pickup-lng="{{ $bnPrimary->pickup_lng ?? '' }}"
                                 data-customer-name="{{ e($bnPrimary->customer->full_name ?? 'Guest') }}"
                                 data-customer-phone="{{ e($bnPrimary->customer->phone ?? 'N/A') }}"
+                                data-customer-email="{{ e($bnPrimary->customer->email ?? '') }}"
                                 data-pickup="{{ $bnPrimary->pickup_address ?? '' }}"
+                                data-pickup-notes="{{ e($bnPrimary->pickup_notes ?? '') }}"
                                 data-dropoff="{{ $bnPrimary->dropoff_address ?? '' }}"
                                 data-distance-km="{{ $bnPrimary->distance_km ?? '' }}"
+                                data-customer-note="{{ e($bnPrimary->notes ?? '') }}"
                                 data-current-price="{{ $bnTotal }}"
+                                data-base-rate="{{ $bnPrimary->base_rate ?? 0 }}"
+                                data-vat-exclusive-total="{{ $bnPrimary->vat_exclusive_total ?? $bnPrimary->computed_total ?? 0 }}"
+                                data-vat-amount="{{ $bnPrimary->vat_amount ?? 0 }}"
                                 data-truck-type="{{ e($bnPrimary->truckType->name ?? 'Unknown') }}"
+                                data-truck-type-id="{{ $bnPrimary->truck_type_id }}"
+                                data-vehicle-category="{{ e($bnPrimary->vehicleType->name ?? '') }}"
+                                data-photos="{{ $bnPhotoUrls->toJson() }}"
                                 data-assigned-unit="{{ $bnPrimary->assigned_unit_id }}"
                                 data-recommended-unit="{{ $bnPrimary->recommended_unit_id }}"
                                 data-recommended-summary="{{ e($bnPrimary->recommended_unit_summary ?? '') }}"
-                                data-dispatch-zone="{{ e($bnPrimary->dispatch_zone_label ?? 'General Dispatch Zone') }}">
+                                data-dispatch-zone="{{ e($bnPrimary->dispatch_zone_label ?? 'General Dispatch Zone') }}"
+                                data-quotation-id="{{ $bnPrimary->active_quotation_id ?? '' }}"
+                                data-quotation-status="{{ $bnPrimary->active_quotation_status ?? '' }}">
                                 <div class="incoming-left">
                                     @if ($bnVehicleImgUrl)
                                         <div class="incoming-vehicle-thumb-wrap">
@@ -1411,18 +1632,12 @@
                                 <div class="incoming-right"
                                     style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
                                     <div class="incoming-price">&#8369;{{ number_format((float) $bnTotal, 2) }}</div>
-                                    @if ($bnPrimary->status === 'confirmed')
-                                        <div class="incoming-actions">
-                                            <button type="button" class="btn-accept"
-                                                data-id="{{ $bnPrimary->job_code }}" data-action="accept">
-                                                Start Job
-                                            </button>
-                                            <button type="button" class="btn-reject"
-                                                data-id="{{ $bnPrimary->job_code }}" data-action="reject">
-                                                Cancel Booking
-                                            </button>
-                                        </div>
-                                    @endif
+                                    <div class="incoming-actions">
+                                        <button type="button" class="rb-btn rb-btn-primary rb-view-quote-btn"
+                                            onclick="event.stopPropagation(); window.openBookingDrawer(this.closest('.incoming-card'));">
+                                            View &amp; Quote
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         @endforeach
@@ -2242,12 +2457,51 @@
     <div id="customerBookingOverlay" onclick="closeCustomerBookingPanel()"
         style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.2); z-index:1999;"></div>
 
+    {{-- Booking drawer ("View & Quote") — Book Now queue only. Content is rendered
+         dynamically by booking-drawer.js; this is just the mount point + overlay. --}}
+    <div class="rb-drawer-overlay" id="rbDrawerOverlay"></div>
+    <div class="rb-drawer" id="rbDrawer"></div>
+
+    <div class="rb-lightbox-backdrop" id="rbLightboxBackdrop">
+        <button class="rb-lightbox-close" id="rbLightboxClose" aria-label="Close">✕</button>
+        <div class="rb-lightbox">
+            <button class="rb-lightbox-nav" id="rbLightboxPrev" aria-label="Previous photo">‹</button>
+            <div class="rb-lightbox-stage">
+                <div class="rb-lightbox-image" id="rbLightboxImage"></div>
+                <div class="rb-lightbox-caption" id="rbLightboxCaption"></div>
+            </div>
+            <button class="rb-lightbox-nav" id="rbLightboxNext" aria-label="Next photo">›</button>
+        </div>
+    </div>
+
+    <div class="rb-view-all-modal-backdrop" id="rbUnitsModalBackdrop">
+        <div class="rb-view-all-modal" id="rbUnitsModalBox"></div>
+    </div>
+
+    {{-- Available units, pre-rendered server-side (same $availableUnits used by #unitSelect
+         above) so booking-drawer.js never has to re-fetch it — it filters/sorts client-side
+         per booking's truck_type_id. --}}
+    <script type="application/json" id="rbAvailableUnitsJson">{!! json_encode($availableUnits ?? [], JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
+
 @endsection
 
 @push('scripts')
     <script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google_maps.browser_key') }}"></script>
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script src="{{ asset('dispatcher/js/dispatch.js') }}?v={{ filemtime(public_path('dispatcher/js/dispatch.js')) }}">
+    </script>
+    <script src="{{ asset('dispatcher/js/booking-drawer.js') }}?v={{ filemtime(public_path('dispatcher/js/booking-drawer.js')) }}">
+    </script>
+    <script>
+        window.RB_ROUTES = {
+            assign:      "{{ route('admin.booking.assign', ':booking') }}",
+            saveDraft:   "{{ route('admin.booking.save-draft', ':booking') }}",
+            quoteDetails:"{{ route('admin.quotations.details', ':quotation') }}",
+            quoteSend:   "{{ route('admin.quotations.send', ':quotation') }}",
+            quoteCancel: "{{ route('admin.quotations.cancel', ':quotation') }}",
+            quoteUpdatePrice: "{{ route('admin.quotations.update-price', ':quotation') }}",
+        };
+        window.RB_CSRF = "{{ csrf_token() }}";
     </script>
     <script>
         // Return Reason Action Handlers

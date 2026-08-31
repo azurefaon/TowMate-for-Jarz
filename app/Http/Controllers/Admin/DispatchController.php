@@ -122,6 +122,21 @@ class DispatchController extends Controller
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'book-now'));
 
+        $bookNowBookingIds = $bookNowRequests->pluck('id');
+        $bookNowQuotationMap = \App\Models\Quotation::whereIn('source_booking_id', $bookNowBookingIds)
+            ->current()
+            ->whereIn('status', ['pending', 'draft', 'sent', 'negotiating', 'accepted', 'expired'])
+            ->orderByDesc('id')
+            ->get(['id', 'status', 'source_booking_id'])
+            ->unique('source_booking_id')          // keep latest per booking
+            ->keyBy('source_booking_id');
+        $bookNowRequests = $bookNowRequests->map(function ($b) use ($bookNowQuotationMap) {
+            $q = $bookNowQuotationMap->get($b->id);
+            $b->active_quotation_id     = $q?->id;
+            $b->active_quotation_status = $q?->status;
+            return $b;
+        });
+
         $scheduledRequests = Booking::with(['customer', 'truckType'])
             ->whereIn('status', ['scheduled_confirmed', 'scheduled'])
             ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", ['scheduled_confirmed'])
@@ -263,6 +278,12 @@ class DispatchController extends Controller
                     'base_rate' => (float) ($unit->truckType->base_rate ?? 0),
                     'team_leader_name' => $unit->teamLeader->full_name ?? $unit->teamLeader->name ?? 'No team leader',
                     'driver_name' => $unit->driver->full_name ?? $unit->driver->name ?? 'No saved driver',
+                    'crew_names' => collect(Unit::SLOT_COLUMNS)
+                        ->reject(fn($col) => $col === 'driver_name') // driver already shown separately above
+                        ->map(fn($col) => $unit->{$col})
+                        ->filter()
+                        ->values()
+                        ->all(),
                     'status_summary' => $hasReadyLeader ? $coverage['summary'] : 'Team leader is not ready for dispatch',
                     'coverage_zones' => $coverage['zones'],
                     'coverage_scores' => $coverage['scores'],
@@ -429,11 +450,22 @@ class DispatchController extends Controller
     {
         $dispatchZone = $this->inferDispatchZoneLabel($booking->pickup_address);
 
-        $recommended = $availableUnits
-            ->map(function (array $unit) use ($booking, $dispatchZone) {
+        // Hard filter: only ever recommend a unit whose truck class matches what the
+        // customer selected. Zone history breaks ties within that class — it never
+        // outweighs a class mismatch. If no same-class unit is ready, return no
+        // recommendation at all rather than silently suggesting the wrong class.
+        $sameClassUnits = $availableUnits->filter(
+            fn(array $unit) => (int) ($unit['truck_type_id'] ?? 0) === (int) ($booking->truck_type_id ?? 0)
+        );
+
+        if ($sameClassUnits->isEmpty()) {
+            return null;
+        }
+
+        $recommended = $sameClassUnits
+            ->map(function (array $unit) use ($dispatchZone) {
                 $zoneMatches = (int) ($unit['coverage_scores'][$dispatchZone] ?? 0);
-                $sameTruckType = (int) ($unit['truck_type_id'] ?? 0) === (int) ($booking->truck_type_id ?? 0);
-                $score = ($sameTruckType ? 6 : 0) + ($zoneMatches * 4) + ((int) ($unit['coverage_total'] ?? 0) > 0 ? 1 : 0);
+                $score = 1 + ($zoneMatches * 4) + ((int) ($unit['coverage_total'] ?? 0) > 0 ? 1 : 0);
 
                 $recommendation = $zoneMatches > 0
                     ? 'Recommended for ' . $dispatchZone . ' based on ' . $zoneMatches . ' recent zone-matched job(s).'
@@ -442,6 +474,7 @@ class DispatchController extends Controller
                 return $unit + [
                     'score' => $score,
                     'recommendation' => $recommendation,
+                    'class_matched' => true,
                 ];
             })
             ->sortByDesc('score')

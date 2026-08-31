@@ -385,6 +385,11 @@ class Booking extends Model
         return $this->belongsTo(TruckType::class);
     }
 
+    public function vehicleType()
+    {
+        return $this->belongsTo(VehicleType::class);
+    }
+
     public function unit()
     {
         return $this->belongsTo(Unit::class, 'assigned_unit_id');
