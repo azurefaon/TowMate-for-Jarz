@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\DispatcherNotification;
 use App\Models\Quotation;
 use App\Models\SystemSetting;
 use App\Models\TruckType;
@@ -11,6 +12,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\VehicleType;
 use App\Observers\AuditObserver;
+use App\Observers\DispatcherNotificationObserver;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -73,28 +75,25 @@ class AppServiceProvider extends ServiceProvider
         });
 
         View::composer('admin-dashboard.layouts.app', function ($view) {
-            if (! $this->databaseReady() || ! Schema::hasTable('bookings')) {
+            if (! $this->databaseReady() || ! Schema::hasTable('dispatcher_notifications')) {
                 $view->with([
-                    'dispatcherNotificationCount' => 0,
+                    'dispatcherUnreadCount' => 0,
                     'dispatcherNotifications' => collect(),
                 ]);
 
                 return;
             }
 
-            $dispatcherStatuses = ['reviewed', 'quoted', 'quotation_sent', 'confirmed', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification'];
-
-            $dispatcherNotifications = Booking::with(['customer', 'truckType', 'assignedTeamLeader', 'unit.teamLeader'])
-                ->whereIn('status', $dispatcherStatuses)
-                ->latest('updated_at')
-                ->take(6)
+            // Latest 5 shown in the dropdown (per design), unread count computed
+            // independently from the full unread set (not just what's visible).
+            $dispatcherNotifications = DispatcherNotification::with(['booking.customer', 'booking.truckType'])
+                ->latest('id')
+                ->take(5)
                 ->get();
 
-            $dispatcherNotificationCount = Booking::whereIn('status', $dispatcherStatuses)
-                ->whereDate('updated_at', today())
-                ->count();
+            $dispatcherUnreadCount = DispatcherNotification::unread()->count();
 
-            $view->with(compact('dispatcherNotificationCount', 'dispatcherNotifications'));
+            $view->with(compact('dispatcherUnreadCount', 'dispatcherNotifications'));
         });
 
         Paginator::useBootstrapFive();
@@ -102,6 +101,8 @@ class AppServiceProvider extends ServiceProvider
         foreach ([Booking::class, User::class, Unit::class, TruckType::class, VehicleType::class, Quotation::class, Customer::class] as $auditable) {
             $auditable::observe(AuditObserver::class);
         }
+
+        Booking::observe(DispatcherNotificationObserver::class);
 
         $this->app->terminating(function () {
             AuditObserver::flush();

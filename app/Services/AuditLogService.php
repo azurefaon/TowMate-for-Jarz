@@ -199,6 +199,10 @@ class AuditLogService
             return '₱' . number_format((float) $raw, 2);
         }
 
+        if (is_array($raw)) {
+            return json_encode($raw) ?: '—';
+        }
+
         return (string) $raw;
     }
 

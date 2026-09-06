@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Events\BookingStatusUpdated;
+use App\Exceptions\Booking\ScheduledQuoteCutoffPassedException;
 use App\Http\Controllers\Controller;
 use App\Mail\BookingAcceptedMail;
 use App\Mail\BookingRejectedMail;
@@ -21,6 +22,7 @@ use App\Services\ReturnReasonHandler;
 use App\Services\TeamLeaderAvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
@@ -33,7 +35,7 @@ class DispatchController extends Controller
     protected ReturnReasonHandler $returnReasonHandler;
     protected QuotationService $quotationService;
 
-    protected array $reviewableStatuses = ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed', 'scheduled_confirmed'];
+    protected array $reviewableStatuses = Booking::REVIEWABLE_STATUSES;
 
     public function __construct(
         BookingService $bookingService,
@@ -114,30 +116,38 @@ class DispatchController extends Controller
                 $q->whereNull('service_type')
                     ->orWhere('service_type', 'book_now');
             })
-            ->where(function ($q) {
-                $q->where('status', '!=', 'requested')
-                    ->orWhereNull('quotation_id');
-            })
             ->oldest('created_at')
             ->get()
-            ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'book-now'));
+            ->map(fn($b) => tap($b, function ($b) {
+                $b->queue_bucket = 'book-now';
+                $b->dispatch_zone_label = $this->inferDispatchZoneLabel($b->pickup_address);
+            }));
 
         $bookNowBookingIds = $bookNowRequests->pluck('id');
         $bookNowQuotationMap = \App\Models\Quotation::whereIn('source_booking_id', $bookNowBookingIds)
             ->current()
-            ->whereIn('status', ['pending', 'draft', 'sent', 'negotiating', 'accepted', 'expired'])
+            ->whereIn('status', ['pending', 'draft', 'sent', 'negotiating', 'accepted', 'expired', 'price_review_requested'])
             ->orderByDesc('id')
-            ->get(['id', 'status', 'source_booking_id'])
+            ->get(['id', 'status', 'source_booking_id', 'estimated_price', 'counter_offer_amount', 'price_change_log', 'additional_fee'])
             ->unique('source_booking_id')          // keep latest per booking
             ->keyBy('source_booking_id');
         $bookNowRequests = $bookNowRequests->map(function ($b) use ($bookNowQuotationMap) {
             $q = $bookNowQuotationMap->get($b->id);
             $b->active_quotation_id     = $q?->id;
             $b->active_quotation_status = $q?->status;
+            $b->active_quotation_price   = $q?->estimated_price;
+            $b->active_quotation_counter = $q?->counter_offer_amount;
+            $b->active_quotation_price_change_log = $q?->price_change_log ?? [];
+            // The current quotation's own additional_fee, not the booking's own
+            // denormalized column — the two can diverge once a price is set via
+            // the Price Review "Adjust price" flow (a direct total override that
+            // never touches additional_fee), and the dispatcher drawer needs the
+            // real value to avoid inventing a phantom "Adjustments" figure.
+            $b->active_quotation_additional_fee = $q?->additional_fee ?? $b->additional_fee;
             return $b;
         });
 
-        $scheduledRequests = Booking::with(['customer', 'truckType'])
+        $scheduledRequests = Booking::with(['customer', 'truckType', 'vehicleType'])
             ->whereIn('status', ['scheduled_confirmed', 'scheduled'])
             ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", ['scheduled_confirmed'])
             ->oldest('created_at')
@@ -147,15 +157,38 @@ class DispatchController extends Controller
         $scheduledBookingIds = $scheduledRequests->pluck('id');
         $activeQuotationMap = \App\Models\Quotation::whereIn('source_booking_id', $scheduledBookingIds)
             ->current()
-            ->whereIn('status', ['pending', 'draft', 'sent', 'negotiating', 'accepted'])
+            ->whereIn('status', ['pending', 'draft', 'sent', 'negotiating', 'price_review_requested', 'accepted', 'expired'])
             ->orderByDesc('id')
-            ->get(['id', 'status', 'source_booking_id'])
+            ->get(['id', 'status', 'source_booking_id', 'estimated_price', 'counter_offer_amount', 'price_change_log', 'additional_fee', 'expires_at'])
             ->unique('source_booking_id')          // keep latest per booking
             ->keyBy('source_booking_id');
+        // Data parity with $bookNowRequests above — same fields, same source —
+        // so the shared .rb-drawer (booking-drawer.js) can render a Scheduled
+        // card exactly like a Book Now one instead of needing a second code path.
         $scheduledRequests = $scheduledRequests->map(function ($b) use ($activeQuotationMap) {
             $q = $activeQuotationMap->get($b->id);
             $b->active_quotation_id     = $q?->id;
             $b->active_quotation_status = $q?->status;
+            $b->active_quotation_price   = $q?->estimated_price;
+            $b->active_quotation_counter = $q?->counter_offer_amount;
+            $b->active_quotation_price_change_log = $q?->price_change_log ?? [];
+            $b->active_quotation_additional_fee = $q?->additional_fee ?? $b->additional_fee;
+            $b->active_quotation_expires_at = $q?->expires_at;
+            $b->dispatch_zone_label = $this->inferDispatchZoneLabel($b->pickup_address);
+
+            // Single filter bucket driving both the Scheduled tab's 7-item
+            // filter dropdown and its counts: Draft nests under Needs Quote,
+            // Price Review Requested nests under Quote Sent (each row's own
+            // STATUS text still shows the full distinction) — mirrors the
+            // locked mock's filter design.
+            if ($b->status === 'scheduled_confirmed') {
+                $b->filter_bucket = $b->scheduling_bucket; // confirmed / upcoming / ready / overdue
+            } elseif (in_array($b->active_quotation_status, ['sent', 'negotiating', 'price_review_requested'], true)) {
+                $b->filter_bucket = 'quote-sent';
+            } else {
+                $b->filter_bucket = 'needs-quote';
+            }
+
             return $b;
         });
 
@@ -245,6 +278,12 @@ class DispatchController extends Controller
             'pending-quotations' => $pendingQuotationCount,
             'book-now' => $bookNowRequests->count(),
             'scheduled' => $scheduledRequests->count(),
+            'scheduled-needs-quote' => $scheduledRequests->where('filter_bucket', 'needs-quote')->count(),
+            'scheduled-quote-sent' => $scheduledRequests->where('filter_bucket', 'quote-sent')->count(),
+            'scheduled-confirmed' => $scheduledRequests->where('filter_bucket', 'confirmed')->count(),
+            'scheduled-upcoming' => $scheduledRequests->where('filter_bucket', 'upcoming')->count(),
+            'scheduled-ready' => $scheduledRequests->where('filter_bucket', 'ready')->count(),
+            'scheduled-overdue' => $scheduledRequests->where('filter_bucket', 'overdue')->count(),
             'delayed' => 0,
             'negotiation' => 0,
         ];
@@ -257,12 +296,17 @@ class DispatchController extends Controller
             )['leaders']
             ->keyBy('id');
 
+        $reservedUnitBookings = Booking::unitReservations()
+            ->get(['id', 'booking_code', 'selected_unit_id'])
+            ->keyBy('selected_unit_id');
+
         $availableUnitProfiles = Unit::with(['truckType', 'driver', 'teamLeader'])
             ->where('status', 'available')
             ->whereNotNull('team_leader_id')
+            ->whereNotNull('driver_id')
             ->orderBy('name')
             ->get()
-            ->map(function (Unit $unit) use ($busyTeamLeaderIds, $teamLeaderStatuses) {
+            ->map(function (Unit $unit) use ($busyTeamLeaderIds, $teamLeaderStatuses, $reservedUnitBookings) {
                 $teamLeaderId = (int) ($unit->team_leader_id ?? 0);
                 $leaderStatus = $teamLeaderStatuses->get($teamLeaderId, []);
                 $isOnline = ($leaderStatus['presence'] ?? 'offline') === 'online';
@@ -271,11 +315,12 @@ class DispatchController extends Controller
 
                 return [
                     'id' => $unit->id,
-                    'label' => trim(($unit->name ?? 'Unit') . ' Â· ' . ($unit->plate_number ?? 'No plate')),
+                    'label' => trim(($unit->name ?? 'Unit') . ' · ' . ($unit->plate_number ?? 'No plate')),
                     'truck_type_id' => (int) ($unit->truck_type_id ?? 0),
                     'truck_type' => $unit->truckType->name ?? 'Unknown truck type',
                     'truck_class' => $unit->truckType->class ?? '',
                     'base_rate' => (float) ($unit->truckType->base_rate ?? 0),
+                    'per_km_rate' => (float) ($unit->truckType->per_km_rate ?? 0),
                     'team_leader_name' => $unit->teamLeader->full_name ?? $unit->teamLeader->name ?? 'No team leader',
                     'driver_name' => $unit->driver->full_name ?? $unit->driver->name ?? 'No saved driver',
                     'crew_names' => collect(Unit::SLOT_COLUMNS)
@@ -289,6 +334,7 @@ class DispatchController extends Controller
                     'coverage_scores' => $coverage['scores'],
                     'coverage_total' => $coverage['total'],
                     'selectable' => $hasReadyLeader,
+                    'reserved_by_booking_code' => optional($reservedUnitBookings->get($unit->id))->booking_code,
                 ];
             });
 
@@ -296,6 +342,19 @@ class DispatchController extends Controller
             ->filter(fn(array $unit) => $unit['selectable'])
             ->sortByDesc('coverage_total')
             ->values();
+
+        // recommendUnitForBooking() needs $availableUnits, which doesn't exist yet at
+        // the point $bookNowRequests is first built above — this pass has to happen
+        // here instead. Previously never wired up at all for Book Now (only the old
+        // #incomingList queue below got it), so the ★ recommended-unit star has never
+        // actually been backed by real data until now.
+        $bookNowRequests = $bookNowRequests->map(function (Booking $booking) use ($availableUnits) {
+            $recommendation = $this->recommendUnitForBooking($booking, $availableUnits);
+            $booking->recommended_unit_id = $recommendation['id'] ?? null;
+            $booking->recommended_unit_label = $recommendation['label'] ?? 'Dispatcher will choose the best ready unit.';
+            $booking->recommended_unit_summary = $recommendation['recommendation'] ?? 'No saved zone history yet; dispatcher can still assign any ready crew.';
+            return $booking;
+        });
 
         $incomingRequests = $incomingRequests
             ->map(function (Booking $booking) use ($availableUnits) {
@@ -454,8 +513,11 @@ class DispatchController extends Controller
         // customer selected. Zone history breaks ties within that class — it never
         // outweighs a class mismatch. If no same-class unit is ready, return no
         // recommendation at all rather than silently suggesting the wrong class.
+        // Also exclude units soft-reserved by a *different* booking's pending quote —
+        // never recommend a unit this booking can't actually pick.
         $sameClassUnits = $availableUnits->filter(
             fn(array $unit) => (int) ($unit['truck_type_id'] ?? 0) === (int) ($booking->truck_type_id ?? 0)
+                && (empty($unit['reserved_by_booking_code']) || $unit['reserved_by_booking_code'] === $booking->booking_code)
         );
 
         if ($sameClassUnits->isEmpty()) {
@@ -517,8 +579,8 @@ class DispatchController extends Controller
 
         $zones = array_slice(array_keys($scores), 0, 2);
         $summary = $zones !== []
-            ? 'Online and ready for dispatch Â· Familiar with ' . implode(', ', $zones)
-            : 'Online and ready for dispatch Â· No saved zone history yet';
+            ? 'Online and ready for dispatch · Familiar with ' . implode(', ', $zones)
+            : 'Online and ready for dispatch · No saved zone history yet';
 
         return [
             'zones' => $zones,
@@ -537,14 +599,23 @@ class DispatchController extends Controller
         }
 
         $zoneMap = [
-            'Makati Zone' => ['makati', 'salcedo', 'legazpi village', 'ayala', 'paseo de roxas'],
-            'Taguig/BGC Zone' => ['taguig', 'bgc', 'bonifacio global city', 'market market'],
-            'Quezon City Zone' => ['quezon city', 'qc', 'cubao', 'commonwealth', 'fairview'],
-            'Pasig Zone' => ['pasig', 'ortigas', 'kapitolyo'],
-            'Pasay Zone' => ['pasay', 'moa', 'mall of asia', 'edsa taft'],
-            'Manila Zone' => ['manila', 'ermita', 'malate', 'sampaloc', 'quiapo'],
-            'Muntinlupa Zone' => ['muntinlupa', 'alabang'],
-            'ParaÃ±aque Zone' => ['paranaque', 'sucat', 'baclaran'],
+            'Makati City' => ['makati', 'salcedo', 'legazpi village', 'ayala', 'paseo de roxas'],
+            'Taguig City' => ['taguig', 'bgc', 'bonifacio global city', 'market market'],
+            'Quezon City' => ['quezon city', 'qc', 'cubao', 'commonwealth', 'fairview', 'diliman', 'katipunan'],
+            'Pasig City' => ['pasig', 'ortigas', 'kapitolyo'],
+            'Pasay City' => ['pasay', 'moa', 'mall of asia', 'edsa taft'],
+            'Manila' => ['manila', 'ermita', 'malate', 'sampaloc', 'quiapo', 'tondo', 'binondo', 'intramuros', 'santa mesa'],
+            'Muntinlupa City' => ['muntinlupa', 'alabang'],
+            'Parañaque City' => ['paranaque', 'parañaque', 'sucat', 'baclaran'],
+            'Caloocan City' => ['caloocan'],
+            'Malabon City' => ['malabon'],
+            'Navotas City' => ['navotas'],
+            'Valenzuela City' => ['valenzuela'],
+            'Marikina City' => ['marikina'],
+            'San Juan City' => ['san juan'],
+            'Mandaluyong City' => ['mandaluyong'],
+            'Las Piñas City' => ['las pinas', 'las piñas'],
+            'Pateros' => ['pateros'],
         ];
 
         foreach ($zoneMap as $label => $keywords) {
@@ -559,7 +630,7 @@ class DispatchController extends Controller
         $fallback = $segments !== [] ? end($segments) : $address;
         $fallback = trim((string) $fallback);
 
-        return $fallback !== '' ? ucfirst($fallback) . ' Zone' : 'General Dispatch Zone';
+        return $fallback !== '' ? ucwords($fallback) : 'General Dispatch Zone';
     }
 
     public function pendingBookingsCount()
@@ -649,301 +720,429 @@ class DispatchController extends Controller
                     }
 
                     $distanceKm = (float) $request->input('distance_km', $booking->distance_km ?? 0);
-                    $expectedDistanceFee = round(max(0.0, $distanceKm - 1.0) * 300.0, 2);
+                    $perKmRate = (float) ($booking->truckType?->per_km_rate ?? 0);
+                    $expectedDistanceFee = $this->bookingService->distanceFeeFor($distanceKm, $perKmRate);
 
                     if (abs($expectedDistanceFee - (float) $value) > 0.11) {
-                        $fail('Distance fee must match the MMDA per-km rate (₱300/km after 1st km).');
+                        $fail('Distance fee must match the truck type\'s per-km rate (₱' . number_format($perKmRate, 2) . '/km after the first 4 km).');
                     }
                 },
             ],
         ]);
 
-        $isReturnedTask = $booking->needs_reassignment;
+        return DB::transaction(function () use ($request, $booking, $validated) {
+            // Re-fetch under a row lock — the $booking passed in is whatever
+            // the route model binder resolved before this transaction began,
+            // which could be stale if a concurrent request (a customer
+            // cancellation, another dispatcher's assign/reject) is racing
+            // this one. Every read/write below uses this locked instance.
+            $booking = Booking::where('id', $booking->id)->lockForUpdate()->first();
+            if (! $booking) {
+                return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
+            }
+            $booking->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
 
-        if (! in_array($booking->status, $this->reviewableStatuses, true) && ! $isReturnedTask) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This booking can no longer be revised from the dispatcher queue.',
-            ], 422);
-        }
+            $isReturnedTask = $booking->needs_reassignment;
 
-        if ($validated['action'] === 'accept') {
-            $selectedUnit = null;
+            if (! in_array($booking->status, $this->reviewableStatuses, true) && ! $isReturnedTask) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This booking can no longer be revised from the dispatcher queue.',
+                ], 422);
+            }
 
-            if (! empty($validated['assigned_unit_id'])) {
-                $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
-                $busyTeamLeaderIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
+            if ($validated['action'] === 'accept') {
+                $selectedUnit = null;
 
+                if (! empty($validated['assigned_unit_id'])) {
+                    $selectedUnit = Unit::with(['teamLeader', 'truckType'])
+                        ->where('id', $validated['assigned_unit_id'])
+                        ->lockForUpdate()
+                        ->first();
+                    $busyTeamLeaderIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
+
+                    if (
+                        ! $selectedUnit
+                        || $selectedUnit->status !== 'available'
+                        || empty($selectedUnit->team_leader_id)
+                        || ! $this->teamLeaderAvailability->isOnline($selectedUnit->teamLeader)
+                        || $busyTeamLeaderIds->contains((int) $selectedUnit->team_leader_id)
+                    ) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Team Leader not available. Please choose another unit.',
+                        ], 422);
+                    }
+                }
+
+                // Server-side Ready/Overdue dispatch guard — a Scheduled booking
+                // never reserves a unit in advance, so dispatch (unit selection)
+                // may only actually commit once the locked row's own computed
+                // scheduling_bucket says ready/overdue. This is independent of
+                // whatever the drawer UI shows, so a direct endpoint call, a
+                // stale client, or a manipulated request can't dispatch early.
+                // Book Now (status === 'confirmed') is untouched by this check.
                 if (
-                    ! $selectedUnit
-                    || $selectedUnit->status !== 'available'
-                    || empty($selectedUnit->team_leader_id)
-                    || ! $this->teamLeaderAvailability->isOnline($selectedUnit->teamLeader)
-                    || $busyTeamLeaderIds->contains((int) $selectedUnit->team_leader_id)
+                    $booking->status === 'scheduled_confirmed'
+                    && ! in_array($booking->scheduling_bucket, ['ready', 'overdue'], true)
                 ) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Team Leader not available. Please choose another unit.',
+                        'message' => 'This booking is not yet ready for dispatch — unit selection opens 1 hour before the scheduled service time.',
                     ], 422);
                 }
-            }
 
-            $quotationNumber = $booking->quotation_number ?: $this->bookingService->generateQuotationNumber($booking);
-            $dispatcherNote = filled($validated['dispatcher_note'] ?? null)
-                ? trim(strip_tags((string) $validated['dispatcher_note']))
-                : null;
+                $quotationNumber = $booking->quotation_number ?: $this->bookingService->generateQuotationNumber($booking);
+                $dispatcherNote = filled($validated['dispatcher_note'] ?? null)
+                    ? trim(strip_tags((string) $validated['dispatcher_note']))
+                    : null;
 
-            if ($isReturnedTask) {
+                if ($isReturnedTask) {
+                    $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+                        'status' => 'confirmed',
+                        'assigned_unit_id' => $selectedUnit?->id ?? $booking->assigned_unit_id,
+                        'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,
+                        'assigned_at' => now(),
+                        'driver_name' => null,
+                        'dispatcher_note' => $dispatcherNote,
+                        'returned_at' => null,
+                        'return_reason' => null,
+                        'returned_by_team_leader_id' => null,
+                        'customer_verification_status' => null,
+                        'customer_verified_at' => null,
+                        'completion_requested_at' => null,
+                        'customer_verification_note' => null,
+                    ]));
+
+                    $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
+                    BookingStatusUpdated::safeFire($booking);
+
+                    AuditLog::create([
+                        'user_id'     => auth()->id(),
+                        'action'      => 'booking_reassigned',
+                        'category'    => 'dispatch',
+                        'entity_type' => 'Booking',
+                        'entity_id'   => $booking->id,
+                        'reference'   => $booking->job_code,
+                        'description' => 'Returned task reassigned to unit ' . ($selectedUnit?->name ?? 'N/A'),
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Returned task reassigned successfully. The selected team leader can accept it now.',
+                        'status' => $booking->status,
+                        'assigned_unit' => $selectedUnit?->name,
+                        'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
+                    ]);
+                }
+
+                if (in_array($booking->status, ['confirmed', 'scheduled_confirmed'])) {
+                    $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+                        'status' => 'assigned',
+                        'assigned_unit_id' => $selectedUnit?->id,
+                        'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id,
+                        'assigned_at' => now(),
+                        'dispatcher_note' => $dispatcherNote,
+                    ]));
+
+                    $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
+                    BookingStatusUpdated::safeFire($booking);
+
+                    AuditLog::create([
+                        'user_id'     => auth()->id(),
+                        'action'      => 'booking_assigned',
+                        'category'    => 'dispatch',
+                        'entity_type' => 'Booking',
+                        'entity_id'   => $booking->id,
+                        'reference'   => $booking->job_code,
+                        'description' => 'Assigned to unit ' . ($selectedUnit?->name ?? 'N/A'),
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Job started. The team leader can now accept the task.',
+                        'status' => $booking->status,
+                        'assigned_unit' => $selectedUnit?->name,
+                        'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
+                    ]);
+                }
+                $remarks = filled($validated['remarks'] ?? null)
+                ? trim(strip_tags((string) $validated['remarks']))
+                : $dispatcherNote;
+            // Not rounded to 2dp here — that would reintroduce the same
+                // precision-loss bug the distance_km column widening (4dp) exists
+                // to fix; only final money figures get rounded, never the raw km.
+                $distanceKm = max((float) ($validated['distance_km'] ?? ($booking->distance_km ?? 0)), 0);
+                $unitBaseRate = (float) ($selectedUnit?->truckType?->base_rate ?? $booking->truckType?->base_rate ?? 0);
+                $totals = $this->bookingService->calculateQuotationTotals(
+                    $booking,
+                    (string) ($validated['additional_fee'] ?? null),
+                    (string) ($validated['price'] ?? null),
+                    $distanceKm,
+                    0,
+                    $unitBaseRate,
+                );
+
                 $booking->update($this->bookingService->filterPayloadForTable('bookings', [
-                    'status' => 'confirmed',
+                    'status' => 'quotation_sent',
+                    'quotation_status' => 'active',
                     'assigned_unit_id' => $selectedUnit?->id ?? $booking->assigned_unit_id,
                     'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,
-                    'assigned_at' => now(),
-                    'driver_name' => null,
+                    'base_rate' => $unitBaseRate,
+                    'per_km_rate' => $totals['per_km_rate'],
+                    'distance_km' => $totals['distance_km'],
+                    'computed_total' => $totals['computed_total'],
+                    'additional_fee' => $totals['additional_fee'],
+                    'final_total' => $totals['final_total'],
+                    'quotation_number' => $quotationNumber,
+                    'quotation_generated' => true,
+                    'reviewed_at' => $booking->reviewed_at ?? now(),
+                    'quoted_at' => now(),
+                    'quotation_sent_at' => now(),
+                    'quotation_expires_at' => now()->addDays(7),
+                    'quotation_follow_up_sent_at' => null,
                     'dispatcher_note' => $dispatcherNote,
+                    'remarks' => $remarks,
+                    'rejection_reason' => null,
+                    'final_quote_path' => null,
+                ]));
+
+                $booking->refresh()->loadMissing(['customer', 'truckType']);
+
+                $quotation = $this->quotationService->createQuotation([
+                    'source_booking_id' => $booking->id,
+                    'customer_id' => $booking->customer_id,
+                    'truck_type_id' => $booking->truck_type_id,
+                    'pickup_address' => $booking->pickup_address,
+                    'dropoff_address' => $booking->dropoff_address,
+                    'distance_km' => $totals['distance_km'],
+                    'eta_minutes' => $booking->eta_minutes,
+                    'vehicle_make' => $booking->vehicle_make,
+                    'vehicle_model' => $booking->vehicle_model,
+                    'vehicle_year' => $booking->vehicle_year,
+                    'vehicle_color' => $booking->vehicle_color,
+                    'vehicle_plate_number' => $booking->vehicle_plate_number,
+                    'vehicle_image_path' => $booking->vehicle_image_path,
+                    'estimated_price' => $totals['final_total'],
+                    'additional_fee' => $totals['additional_fee'],
+                    'service_type' => $booking->service_type ?? null,
+                    'scheduled_date' => $booking->scheduled_date?->toDateString(),
+                    'scheduled_time' => $booking->scheduled_time,
+                    'pickup_notes' => $booking->notes,
+                    'extra_vehicles' => $booking->extra_vehicles,
+                ]);
+
+                $this->quotationService->sendQuotation($quotation);
+
+                $initialQuotePath = $this->documentGenerationService->generateQuotation($booking);
+                $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+                    'initial_quote_path' => $initialQuotePath,
+                ]));
+
+                $booking->refresh()->loadMissing(['customer', 'truckType']);
+
+                AuditLog::create([
+                    'user_id'     => auth()->id(),
+                    'action'      => 'quotation_sent',
+                    'entity_type' => 'Booking',
+                    'entity_id'   => $booking->id,
+                    'reference'   => $booking->job_code,
+                    'description' => 'Quotation ' . $quotationNumber . ' sent — ₱' . number_format((float) $booking->final_total, 2),
+                ]);
+
+                BookingStatusUpdated::safeFire($booking);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Quotation sent to the customer with the updated pricing breakdown.',
+                    'quotation_number' => $quotationNumber,
+                    'quoted_price' => number_format((float) $booking->final_total, 2),
+                    'status' => $booking->status,
+                    'assigned_unit' => $selectedUnit?->name,
+                    'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
+                    'assigned_team_leader_id' => $booking->assigned_team_leader_id,
+                    'drivers_url' => route('admin.drivers'),
+                ]);
+            }
+
+            $rejectionReason = trim((string) ($validated['rejection_reason'] ?? ''));
+
+            // A dispatcher cancelling an already-accepted Scheduled booking
+            // (the Overdue row's "Cancel Booking" button, wired through this
+            // same action:'reject' contract) is a different event from
+            // declining a request that was never quoted — it must not create
+            // a second "declining" Quotation, and the real accepted Quotation
+            // must be left completely untouched as historical evidence of
+            // what the customer agreed to.
+            $isScheduledCancellation = $booking->status === 'scheduled_confirmed';
+
+            if ($isScheduledCancellation && $rejectionReason === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A reason is required to cancel this scheduled booking.',
+                ], 422);
+            }
+
+            if ($rejectionReason === '') {
+                $rejectionReason = 'Your request could not be accommodated at this time. Please contact dispatch for assistance.';
+            }
+
+            $updatePayload = [
+                'status' => 'cancelled',
+                'quotation_status' => 'cancelled',
+                'rejection_reason' => $rejectionReason,
+            ];
+
+            if ($isReturnedTask) {
+                $updatePayload = array_merge($updatePayload, [
                     'returned_at' => null,
                     'return_reason' => null,
                     'returned_by_team_leader_id' => null,
-                    'customer_verification_status' => null,
-                    'customer_verified_at' => null,
-                    'completion_requested_at' => null,
-                    'customer_verification_note' => null,
-                ]));
-
-                $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
-                BookingStatusUpdated::safeFire($booking);
-
-                AuditLog::create([
-                    'user_id'     => auth()->id(),
-                    'action'      => 'booking_reassigned',
-                    'category'    => 'dispatch',
-                    'entity_type' => 'Booking',
-                    'entity_id'   => $booking->id,
-                    'reference'   => $booking->job_code,
-                    'description' => 'Returned task reassigned to unit ' . ($selectedUnit?->name ?? 'N/A'),
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Returned task reassigned successfully. The selected team leader can accept it now.',
-                    'status' => $booking->status,
-                    'assigned_unit' => $selectedUnit?->name,
-                    'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
+                    'assigned_team_leader_id' => null,
+                    'assigned_unit_id' => null,
+                    'driver_name' => null,
                 ]);
             }
 
-
-
-            if (in_array($booking->status, ['confirmed', 'scheduled_confirmed'])) {
-                $booking->update($this->bookingService->filterPayloadForTable('bookings', [
-                    'status' => 'assigned',
-                    'assigned_unit_id' => $selectedUnit?->id,
-                    'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id,
-                    'assigned_at' => now(),
-                    'dispatcher_note' => $dispatcherNote,
-                ]));
-
-                $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
-                BookingStatusUpdated::safeFire($booking);
-
-                AuditLog::create([
-                    'user_id'     => auth()->id(),
-                    'action'      => 'booking_assigned',
-                    'category'    => 'dispatch',
-                    'entity_type' => 'Booking',
-                    'entity_id'   => $booking->id,
-                    'reference'   => $booking->job_code,
-                    'description' => 'Assigned to unit ' . ($selectedUnit?->name ?? 'N/A'),
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Job started. The team leader can now accept the task.',
-                    'status' => $booking->status,
-                    'assigned_unit' => $selectedUnit?->name,
-                    'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
-                ]);
-            }
-            $remarks = filled($validated['remarks'] ?? null)
-                ? trim(strip_tags((string) $validated['remarks']))
-                : $dispatcherNote;
-            $distanceKm = round((float) ($validated['distance_km'] ?? ($booking->distance_km ?? 0)), 2);
-            $unitBaseRate = (float) ($selectedUnit?->truckType?->base_rate ?? $booking->truckType?->base_rate ?? 0);
-            $totals = $this->bookingService->calculateQuotationTotals(
-                $booking,
-                (string) ($validated['additional_fee'] ?? null),
-                (string) ($validated['price'] ?? null),
-                $distanceKm,
-                0,
-                $unitBaseRate,
-            );
-
-            $booking->update($this->bookingService->filterPayloadForTable('bookings', [
-                'status' => 'quotation_sent',
-                'quotation_status' => 'active',
-                'assigned_unit_id' => $selectedUnit?->id ?? $booking->assigned_unit_id,
-                'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,
-                'base_rate' => $unitBaseRate,
-                'per_km_rate' => 0,
-                'distance_km' => $totals['distance_km'],
-                'computed_total' => $totals['computed_total'],
-                'additional_fee' => $totals['additional_fee'],
-                'final_total' => $totals['final_total'],
-                'quotation_number' => $quotationNumber,
-                'quotation_generated' => true,
-                'reviewed_at' => $booking->reviewed_at ?? now(),
-                'quoted_at' => now(),
-                'quotation_sent_at' => now(),
-                'quotation_expires_at' => now()->addDays(7),
-                'quotation_follow_up_sent_at' => null,
-                'dispatcher_note' => $dispatcherNote,
-                'remarks' => $remarks,
-                'rejection_reason' => null,
-                'final_quote_path' => null,
-            ]));
-
-            $booking->refresh()->loadMissing(['customer', 'truckType']);
-
-            $quotation = $this->quotationService->createQuotation([
-                'source_booking_id' => $booking->id,
-                'customer_id' => $booking->customer_id,
-                'truck_type_id' => $booking->truck_type_id,
-                'pickup_address' => $booking->pickup_address,
-                'dropoff_address' => $booking->dropoff_address,
-                'distance_km' => $totals['distance_km'],
-                'eta_minutes' => $booking->eta_minutes,
-                'vehicle_make' => $booking->vehicle_make,
-                'vehicle_model' => $booking->vehicle_model,
-                'vehicle_year' => $booking->vehicle_year,
-                'vehicle_color' => $booking->vehicle_color,
-                'vehicle_plate_number' => $booking->vehicle_plate_number,
-                'vehicle_image_path' => $booking->vehicle_image_path,
-                'estimated_price' => $totals['final_total'],
-                'additional_fee' => $totals['additional_fee'],
-                'service_type' => $booking->service_type ?? null,
-                'scheduled_date' => $booking->scheduled_date?->toDateString(),
-                'scheduled_time' => $booking->scheduled_time,
-                'pickup_notes' => $booking->notes,
-                'extra_vehicles' => $booking->extra_vehicles,
-            ]);
-
-            $this->quotationService->sendQuotation($quotation);
-
-            $initialQuotePath = $this->documentGenerationService->generateQuotation($booking);
-            $booking->update($this->bookingService->filterPayloadForTable('bookings', [
-                'initial_quote_path' => $initialQuotePath,
-            ]));
+            $booking->update($this->bookingService->filterPayloadForTable('bookings', $updatePayload));
 
             $booking->refresh()->loadMissing(['customer', 'truckType']);
 
             AuditLog::create([
                 'user_id'     => auth()->id(),
-                'action'      => 'quotation_sent',
+                'action'      => $isScheduledCancellation ? 'scheduled_booking_cancelled_by_dispatcher' : 'booking_rejected',
                 'entity_type' => 'Booking',
                 'entity_id'   => $booking->id,
                 'reference'   => $booking->job_code,
-                'description' => 'Quotation ' . $quotationNumber . ' sent — ₱' . number_format((float) $booking->final_total, 2),
+                'description' => $rejectionReason,
             ]);
 
+            $this->syncCustomerRiskFlag($booking->customer, $rejectionReason);
 
+            if ($isReturnedTask && str_contains(strtolower($booking->return_reason ?? ''), 'unreachable')) {
+                if ($booking->customer && !$booking->customer->risk_level) {
+                    $booking->customer->update([
+                        'risk_level' => 'watchlist',
+                        'risk_reason' => 'Customer was unreachable when team leader attempted service',
+                    ]);
+
+                    Log::info('Customer auto-marked as watchlist due to unreachable status', [
+                        'customer_id' => $booking->customer_id,
+                        'booking_id' => $booking->id,
+                        'dispatcher_id' => auth()->id(),
+                    ]);
+                }
+            }
+
+            $booking->refresh()->loadMissing(['customer', 'truckType']);
+
+            event(new \App\Events\BookingCancelled($booking));
+            BookingStatusUpdated::safeFire($booking);
+
+            if ($isScheduledCancellation) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Scheduled booking cancelled. The accepted quotation is preserved for your records.',
+                ]);
+            }
+
+            $quotation = $this->quotationService->createQuotation([
+                'customer_id' => $booking->customer_id,
+                'truck_type_id' => $booking->truck_type_id,
+                'pickup_address' => $booking->pickup_address,
+                'dropoff_address' => $booking->dropoff_address,
+                'distance_km' => $booking->distance_km,
+                'eta_minutes' => $booking->eta_minutes ?? null,
+                'vehicle_make' => $booking->vehicle_make ?? null,
+                'vehicle_model' => $booking->vehicle_model ?? null,
+                'vehicle_year' => $booking->vehicle_year ?? null,
+                'vehicle_color' => $booking->vehicle_color ?? null,
+                'vehicle_plate_number' => $booking->vehicle_plate_number ?? null,
+                'vehicle_image_path' => $booking->vehicle_image_path ?? null,
+                'estimated_price' => $booking->final_total,
+                'additional_fee' => $booking->additional_fee ?? 0,
+            ]);
+
+            $this->quotationService->sendQuotation($quotation);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Booking rejected and the customer was notified by email.',
+            ]);
+        });
+    }
+
+    /**
+     * Reschedule an already-confirmed Scheduled booking to a new date/time.
+     * No reschedule endpoint existed anywhere in the app before this — built
+     * fresh rather than reusing something that doesn't exist. Never touches
+     * assigned_unit_id/assigned_team_leader_id: rescheduling never creates a
+     * future Unit/TL reservation, matching the rest of the Scheduled flow.
+     * Confirmed/Upcoming/Ready/Overdue recompute automatically off the new
+     * scheduled_date/scheduled_time via Booking::getSchedulingBucketAttribute()
+     * — nothing else needs to be recalculated by hand.
+     */
+    public function rescheduleBooking(Request $request, Booking $booking)
+    {
+        $validated = $request->validate([
+            'new_scheduled_date' => 'required|date|after_or_equal:today',
+            'new_scheduled_time' => 'required|date_format:H:i',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        return DB::transaction(function () use ($validated, $booking) {
+            $booking = Booking::where('id', $booking->id)->lockForUpdate()->first();
+            if (! $booking) {
+                return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
+            }
+
+            if ($booking->status !== 'scheduled_confirmed') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only a confirmed Scheduled booking can be rescheduled.',
+                ], 422);
+            }
+
+            $newScheduledFor = \Carbon\Carbon::parse($validated['new_scheduled_date'] . ' ' . $validated['new_scheduled_time']);
+
+            if ($newScheduledFor->lte(now())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The new schedule must be in the future.',
+                ], 422);
+            }
+
+            $oldScheduledFor = $booking->scheduled_for;
+
+            $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+                'scheduled_date' => $validated['new_scheduled_date'],
+                'scheduled_time' => $validated['new_scheduled_time'],
+                // Defensive only — a confirmed Scheduled booking should never
+                // carry a soft reservation in the first place (no future-unit
+                // concept exists for Scheduled), but clear it just in case.
+                'selected_unit_id' => null,
+            ]));
+
+            AuditLog::create([
+                'user_id'     => auth()->id(),
+                'action'      => 'booking_rescheduled',
+                'entity_type' => 'Booking',
+                'entity_id'   => $booking->id,
+                'reference'   => $booking->job_code,
+                'description' => 'Rescheduled from ' . ($oldScheduledFor?->format('M d, Y g:i A') ?? 'N/A')
+                    . ' to ' . $newScheduledFor->format('M d, Y g:i A')
+                    . (filled($validated['reason'] ?? null) ? ' — ' . $validated['reason'] : ''),
+            ]);
+
+            $booking->refresh();
             BookingStatusUpdated::safeFire($booking);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Quotation sent to the customer with the updated pricing breakdown.',
-                'quotation_number' => $quotationNumber,
-                'quoted_price' => number_format((float) $booking->final_total, 2),
-                'status' => $booking->status,
-                'assigned_unit' => $selectedUnit?->name,
-                'team_leader' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
-                'assigned_team_leader_id' => $booking->assigned_team_leader_id,
-                'drivers_url' => route('admin.drivers'),
+                'message' => 'Booking rescheduled successfully.',
+                'scheduling_bucket' => $booking->scheduling_bucket,
             ]);
-        }
-
-        $rejectionReason = trim((string) ($validated['rejection_reason'] ?? ''));
-
-        if ($rejectionReason === '') {
-            $rejectionReason = 'Your request could not be accommodated at this time. Please contact dispatch for assistance.';
-        }
-
-
-        $updatePayload = [
-            'status' => 'cancelled',
-            'quotation_status' => 'cancelled',
-            'rejection_reason' => $rejectionReason,
-        ];
-
-        if ($isReturnedTask) {
-            $updatePayload = array_merge($updatePayload, [
-                'returned_at' => null,
-                'return_reason' => null,
-                'returned_by_team_leader_id' => null,
-                'assigned_team_leader_id' => null,
-                'assigned_unit_id' => null,
-                'driver_name' => null,
-            ]);
-        }
-
-        $booking->update($this->bookingService->filterPayloadForTable('bookings', $updatePayload));
-
-        $booking->refresh()->loadMissing(['customer', 'truckType']);
-
-        AuditLog::create([
-            'user_id'     => auth()->id(),
-            'action'      => 'booking_rejected',
-            'entity_type' => 'Booking',
-            'entity_id'   => $booking->id,
-            'reference'   => $booking->job_code,
-            'description' => $rejectionReason,
-        ]);
-
-        $this->syncCustomerRiskFlag($booking->customer, $rejectionReason);
-
-
-        if ($isReturnedTask && str_contains(strtolower($booking->return_reason ?? ''), 'unreachable')) {
-            if ($booking->customer && !$booking->customer->risk_level) {
-                $booking->customer->update([
-                    'risk_level' => 'watchlist',
-                    'risk_reason' => 'Customer was unreachable when team leader attempted service',
-                ]);
-
-                Log::info('Customer auto-marked as watchlist due to unreachable status', [
-                    'customer_id' => $booking->customer_id,
-                    'booking_id' => $booking->id,
-                    'dispatcher_id' => auth()->id(),
-                ]);
-            }
-        }
-
-        $booking->refresh()->loadMissing(['customer', 'truckType']);
-
-        event(new \App\Events\BookingCancelled($booking));
-        BookingStatusUpdated::safeFire($booking);
-
-        $quotation = $this->quotationService->createQuotation([
-            'customer_id' => $booking->customer_id,
-            'truck_type_id' => $booking->truck_type_id,
-            'pickup_address' => $booking->pickup_address,
-            'dropoff_address' => $booking->dropoff_address,
-            'distance_km' => $booking->distance_km,
-            'eta_minutes' => $booking->eta_minutes ?? null,
-            'vehicle_make' => $booking->vehicle_make ?? null,
-            'vehicle_model' => $booking->vehicle_model ?? null,
-            'vehicle_year' => $booking->vehicle_year ?? null,
-            'vehicle_color' => $booking->vehicle_color ?? null,
-            'vehicle_plate_number' => $booking->vehicle_plate_number ?? null,
-            'vehicle_image_path' => $booking->vehicle_image_path ?? null,
-            'estimated_price' => $booking->final_total,
-            'additional_fee' => $booking->additional_fee ?? 0,
-        ]);
-
-        $this->quotationService->sendQuotation($quotation);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Booking rejected and the customer was notified by email.',
-        ]);
+        });
     }
 
     public function applyServiceFee(Request $request, Booking $booking)
@@ -1050,17 +1249,34 @@ class DispatchController extends Controller
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
         $discount      = (float) ($quotation->discount ?? 0);
         $basePrice     = (float) ($quotation->truckType?->base_rate ?? 0);
-        $perKmRate     = 300.0;
-        $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm);
+        $perKmRate     = (float) ($quotation->truckType?->per_km_rate ?? 0);
+        $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm, $perKmRate);
 
         $customerName = $quotation->customer->full_name
             ?? $quotation->customer->name
             ?? 'N/A';
 
+        $rescheduleEvents = $quotation->source_booking_id
+            ? AuditLog::where('entity_type', 'Booking')
+                ->where('entity_id', $quotation->source_booking_id)
+                ->where('action', 'booking_rescheduled')
+                ->orderBy('created_at')
+                ->get()
+                ->map(fn($log) => [
+                    'at'               => $log->created_at->toIso8601String(),
+                    'old_scheduled_for' => $this->resolveAuditScheduleLabel($log->old_value ?? []),
+                    'new_scheduled_for' => $this->resolveAuditScheduleLabel($log->new_value ?? []),
+                    'description'      => $log->description,
+                ])
+                ->values()
+            : collect();
+
         return response()->json([
             'success'   => true,
             'quotation' => [
                 'id'                    => $quotation->id,
+                'version'               => $quotation->version,
+                'sent_at'               => $quotation->sent_at?->toIso8601String(),
                 'quotation_number'      => $quotation->quotation_number,
                 'customer_name'         => $customerName,
                 'customer_phone'        => $quotation->customer->phone ?? 'N/A',
@@ -1089,7 +1305,7 @@ class DispatchController extends Controller
                 'vehicle_image_paths'   => $quotation->vehicle_image_paths    ?: ($quotation->sourceBooking?->vehicle_image_paths ?? []),
                 'extra_vehicles'        => $this->enrichExtraVehicles($quotation->extra_vehicles ?? []),
                 'total_vehicles'        => 1 + count($quotation->extra_vehicles ?? []),
-                'created_at'            => $quotation->created_at->format('M d, Y h:i A'),
+                'created_at'            => $quotation->created_at->toIso8601String(),
                 'vehicle_make'          => $quotation->vehicle_make,
                 'vehicle_model'         => $quotation->vehicle_model,
                 'vehicle_year'          => $quotation->vehicle_year,
@@ -1102,8 +1318,25 @@ class DispatchController extends Controller
                 'is_mobile_booking'     => $quotation->source_booking_id !== null,
                 'group_code'            => $sourceBooking?->group_code,
                 'group_siblings'        => $groupSiblings,
+                'reschedule_events'     => $rescheduleEvents,
             ],
         ]);
+    }
+
+    private function resolveAuditScheduleLabel(array $value): ?string
+    {
+        $date = $value['scheduled_date'] ?? null;
+        $time = $value['scheduled_time'] ?? null;
+
+        if (! $date) {
+            return null;
+        }
+
+        $dateStr = strlen((string) $date) <= 10
+            ? $date
+            : \Carbon\Carbon::parse($date)->setTimezone(config('app.timezone'))->toDateString();
+
+        return \Carbon\Carbon::parse($dateStr . ' ' . ($time ?: '00:00'))->format('M d, Y g:i A');
     }
 
     private function enrichExtraVehicles(array $vehicles): array
@@ -1157,7 +1390,11 @@ class DispatchController extends Controller
 
         $expiryHours = ($quotation->service_type === 'book_now') ? 1 : ($validated['expiry_hours'] ?? 168);
 
-        $this->quotationService->sendQuotation($quotation, $expiryHours);
+        try {
+            $this->quotationService->sendQuotation($quotation, $expiryHours);
+        } catch (ScheduledQuoteCutoffPassedException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json([
             'success' => true,
@@ -1175,35 +1412,7 @@ class DispatchController extends Controller
             ], 422);
         }
 
-        $quotation->update([
-            'status' => 'rejected',
-            'responded_at' => now(),
-            'response_note' => 'Cancelled by dispatcher at customer request',
-        ]);
-
-        // Reject/cancel the source booking so it is removed from the dispatcher list
-        if ($quotation->source_booking_id) {
-            $sourceBooking = Booking::find($quotation->source_booking_id);
-            $rejectableStatuses = [
-                'requested',
-                'reviewed',
-                'quoted',
-                'quotation_sent',
-                'scheduled',
-                'scheduled_confirmed',
-            ];
-            if ($sourceBooking && in_array($sourceBooking->status, $rejectableStatuses)) {
-                $newStatus = in_array($sourceBooking->status, ['scheduled', 'scheduled_confirmed'])
-                    ? 'rejected'
-                    : 'cancelled';
-                $sourceBooking->update([
-                    'status'           => $newStatus,
-                    'quotation_status' => 'cancelled',
-                    'rejection_reason' => 'Booking rejected by dispatcher.',
-                ]);
-                BookingStatusUpdated::safeFire($sourceBooking);
-            }
-        }
+        $this->quotationService->cancelQuotation($quotation);
 
         Log::info('Quotation cancelled by dispatcher', [
             'quotation_id' => $quotation->id,
@@ -1214,6 +1423,97 @@ class DispatchController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Quotation cancelled successfully.',
+        ]);
+    }
+
+    /**
+     * Book Now-only. New, dedicated endpoints for the price-review flow —
+     * deliberately NOT folded into updateQuotationPrice()/cancelQuotation()
+     * above, since Scheduled's old _quotation-modal.blade.php still calls
+     * those two exact methods and must keep working unchanged.
+     */
+    public function keepQuotationPrice(Request $request, Quotation $quotation)
+    {
+        if (! $quotation->is_current || $quotation->status !== 'price_review_requested') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This quotation is not awaiting a price review.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $this->quotationService->keepCurrentPrice($quotation, $validated['note'] ?? null);
+        } catch (ScheduledQuoteCutoffPassedException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        AuditLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => 'quotation_price_review_kept',
+            'entity_type' => 'Quotation',
+            'entity_id'   => $quotation->id,
+            'reference'   => $quotation->quotation_number,
+            'description' => 'Price review completed — amount unchanged.',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Price kept unchanged; customer notified and a new response window has started.',
+        ]);
+    }
+
+    public function adjustQuotationPriceAfterReview(Request $request, Quotation $quotation)
+    {
+        if (! $quotation->is_current || $quotation->status !== 'price_review_requested') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This quotation is not awaiting a price review.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'new_price' => 'required|numeric|min:0.01',
+            'additional_fee' => 'nullable|numeric',
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $next = $this->quotationService->resolvePriceReviewWithNewPrice(
+                $quotation,
+                (float) $validated['new_price'],
+                $validated['note'] ?? null,
+                (float) ($validated['additional_fee'] ?? 0),
+            );
+        } catch (ScheduledQuoteCutoffPassedException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        if ($next->source_booking_id) {
+            $sourceBooking = Booking::find($next->source_booking_id);
+            $sourceBooking?->update($this->bookingService->filterPayloadForTable('bookings', [
+                'final_total'   => $next->estimated_price,
+                'quotation_id'  => $next->id,
+            ]));
+        }
+
+        AuditLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => 'quotation_price_review_adjusted',
+            'entity_type' => 'Quotation',
+            'entity_id'   => $next->id,
+            'reference'   => $next->quotation_number,
+            'description' => 'Price adjusted to ₱' . number_format((float) $next->estimated_price, 2) . ' after review'
+                . (filled($validated['note'] ?? null) ? ' — ' . $validated['note'] : ''),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'New price sent to customer.',
+            'new_price' => number_format((float) $next->estimated_price, 2),
         ]);
     }
 
@@ -1288,7 +1588,7 @@ class DispatchController extends Controller
                         'assigned_unit_id'        => $selectedUnit->id,
                         'assigned_team_leader_id' => $selectedUnit->teamLeader?->id,
                         'base_rate'               => (float) ($selectedUnit->truckType?->base_rate ?? 0),
-                        'per_km_rate'             => 0,
+                        'per_km_rate'             => (float) ($selectedUnit->truckType?->per_km_rate ?? 0),
                     ]);
                 }
             }
@@ -1343,7 +1643,7 @@ class DispatchController extends Controller
         $validated = $request->validate([
             'price'            => 'required|numeric|min:0',
             'additional_fee'   => 'nullable|numeric',
-            'assigned_unit_id' => 'nullable|integer|exists:units,id',
+            'selected_unit_id' => 'nullable|integer|exists:units,id',
             'dispatcher_note'  => [
                 Rule::requiredIf(fn() => (float) $request->input('additional_fee', 0) !== 0.0),
                 'nullable',
@@ -1352,6 +1652,17 @@ class DispatchController extends Controller
             ],
             'distance_km'      => 'nullable|numeric|min:0.01|max:10000',
         ]);
+
+        // Scheduled bookings never reserve a Unit/TL before Ready/Overdue —
+        // this endpoint is shared with Book Now (which still gets its normal
+        // soft-reservation behavior below), so a Scheduled booking's own
+        // pre-dispatch quote-phase saves must always ignore any
+        // selected_unit_id the request carries, regardless of who sent it or
+        // why. Stripped here, before the value is used or persisted anywhere
+        // below.
+        if ($booking->is_scheduled) {
+            $validated['selected_unit_id'] = null;
+        }
 
         $alreadySent = Quotation::where('source_booking_id', $booking->id)
             ->current()
@@ -1364,12 +1675,32 @@ class DispatchController extends Controller
             ], 422);
         }
 
-        $distanceKm    = round((float) ($validated['distance_km'] ?? ($booking->distance_km ?? 0)), 2);
+        // A unit picked here is only a soft reservation (see Booking::REVIEWABLE_STATUSES
+        // / scopeReservingUnit) — but a dispatcher on a stale page could still submit a
+        // pick another booking already grabbed in the meantime. Reject that server-side
+        // regardless of what the client believed was available.
+        if (!empty($validated['selected_unit_id'])) {
+            $conflictingReservation = Booking::reservingUnit((int) $validated['selected_unit_id'])
+                ->where('id', '!=', $booking->id)
+                ->exists();
+
+            if ($conflictingReservation) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This unit was just reserved by another booking. Please choose a different unit.',
+                ], 422);
+            }
+        }
+
+        // Not rounded to 2dp here — that would reintroduce the same
+        // precision-loss bug the distance_km column widening (4dp) exists to
+        // fix; only final money figures get rounded, never the raw km.
+        $distanceKm    = max((float) ($validated['distance_km'] ?? ($booking->distance_km ?? 0)), 0);
         $selectedUnit  = null;
         $unitBaseRate  = (float) ($booking->truckType?->base_rate ?? 0);
 
-        if (!empty($validated['assigned_unit_id'])) {
-            $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['assigned_unit_id']);
+        if (!empty($validated['selected_unit_id'])) {
+            $selectedUnit = Unit::with(['teamLeader', 'truckType'])->find($validated['selected_unit_id']);
             $unitBaseRate = (float) ($selectedUnit?->truckType?->base_rate ?? $unitBaseRate);
         }
 
@@ -1411,9 +1742,17 @@ class DispatchController extends Controller
         ];
 
         if ($existing) {
-            // Log price change if price changed
+            // Log price change if price changed — but only when comparing against
+            // a REAL prior dispatcher-set price ('draft'). A 'pending' $existing
+            // row is just the mobile app's own auto-generated placeholder estimate
+            // (CustomerBookingController), computed from the customer's raw/unrounded
+            // distance before it was stored (and rounded) into distance_km — so a
+            // dispatcher's first-ever save recomputing from that rounded value
+            // almost always lands a few centavos off the customer's original
+            // number, even with zero manual edits. That reconciliation isn't a
+            // deliberate "price update" and must not be logged as one.
             $changeLog = $existing->price_change_log ?? [];
-            if ((float) $existing->estimated_price !== (float) $validated['price']) {
+            if ($existing->status === 'draft' && (float) $existing->estimated_price !== (float) $validated['price']) {
                 $changeLog[] = [
                     'at'     => now()->toISOString(),
                     'old'    => (float) $existing->estimated_price,
@@ -1441,8 +1780,12 @@ class DispatchController extends Controller
             'quotation_number'   => $quotationNumber,
             'quotation_generated' => true,
             'reviewed_at'        => $booking->reviewed_at ?? now(),
-            'assigned_unit_id'   => $selectedUnit?->id ?? $booking->assigned_unit_id,
-            'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id ?? $booking->assigned_team_leader_id,
+            // Always the request's own value (never a fallback to the old
+            // one) — the drawer's payload always carries selected_unit_id
+            // explicitly, including null for a deliberate deselect, and a
+            // `??` fallback here would silently ignore that and keep the
+            // stale unit reserved.
+            'selected_unit_id'   => $selectedUnit?->id,
             'final_total'        => (float) $validated['price'],
             'dispatcher_note'    => filled($validated['dispatcher_note'] ?? null)
                 ? trim(strip_tags((string) $validated['dispatcher_note'])) : null,
@@ -1473,7 +1816,11 @@ class DispatchController extends Controller
             'additional_hours' => 'required|integer|min:1|max:168',
         ]);
 
-        $this->quotationService->extendQuotation($quotation, $validated['additional_hours']);
+        try {
+            $this->quotationService->extendQuotation($quotation, $validated['additional_hours']);
+        } catch (ScheduledQuoteCutoffPassedException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json([
             'success' => true,

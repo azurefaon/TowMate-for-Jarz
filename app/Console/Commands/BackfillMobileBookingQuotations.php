@@ -38,7 +38,7 @@ class BackfillMobileBookingQuotations extends Command
 
             try {
                 $distanceKm  = (float) $booking->distance_km;
-                $distanceFee = $bookingService->distanceFeeFor($distanceKm);
+                $distanceFee = $bookingService->distanceFeeFor($distanceKm, (float) ($booking->truckType->per_km_rate ?? 0));
                 $estimated   = (float) ($booking->computed_total ?? ($booking->base_rate + $distanceFee));
 
                 $quotation = $quotationService->createQuotation([

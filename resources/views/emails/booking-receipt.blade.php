@@ -11,7 +11,7 @@
     $distanceKm   = (float) ($booking->distance_km ?? 0);
     $finalTotal   = (float) ($booking->final_total ?? 0);
     // Calculate from distance_km using the current formula so display is always correct
-    $distanceFee  = app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm);
+    $distanceFee  = app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm, (float) ($booking->truckType?->per_km_rate ?? 0));
     // Back-calculate VAT from the actual charged total to keep rows consistent
     $vatAmount    = $finalTotal > 0 ? round($finalTotal / 1.12 * 0.12, 2) : 0.0;
     $custName     = $booking->customer->full_name ?? ($booking->customer->name ?? 'Customer');

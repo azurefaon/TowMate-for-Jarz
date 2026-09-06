@@ -6,6 +6,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    {{-- Reuses the Active Jobs table/status/drawer classes (.jobs-table, .jobs-row, .jobs-status-text, .jobs-drawer-*) for the Scheduled queue below instead of duplicating them. --}}
+    <link rel="stylesheet" href="{{ asset('dispatcher/css/jobs.css') }}">
     <style>
         .tracking-panel {
             background: #fff;
@@ -397,30 +399,37 @@
             margin: 16px 0 14px;
         }
 
+        /* Book Now / Scheduled tabs — plain text navigation tabs, not
+           outlined buttons. No border box, no background, no shadow; the
+           active tab is communicated purely by weight/color + the thin
+           yellow bottom indicator (.rb-tab.is-active below). */
         .queue-filter-btn {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            border: 1px solid #dbe2ea;
-            background: #fff;
-            color: #0f172a;
-            padding: 10px 14px;
+            gap: 7px;
+            border: none;
+            background: transparent;
+            color: #6b7280;
+            padding: 10px 2px 11px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: color 0.15s ease;
         }
 
+        .queue-filter-btn:hover:not(.is-active) {
+            color: #374151;
+        }
+
+        /* Restrained count text — no pill, no background, no glow. */
         .queue-tab-count {
-            min-width: 20px;
-            height: 20px;
             display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 0 6px;
-            background: #dc2626;
-            color: #fff;
-            font-size: 11px;
-            line-height: 1;
-            box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 12px;
+            font-weight: 500;
+            line-height: inherit;
+            padding: 0;
+            background: transparent;
+            box-shadow: none;
+            color: #9ca3af;
         }
 
         .queue-tab-count.has-count {
@@ -428,8 +437,13 @@
         }
 
         .queue-filter-btn.is-active {
-            background: #facc15;
-            color: #070504;
+            background: transparent;
+            color: #111111;
+            font-weight: 600;
+        }
+
+        .queue-filter-btn.is-active .queue-tab-count {
+            color: #111111;
         }
 
         .incoming-card.is-hidden {
@@ -484,6 +498,171 @@
             color: #facc15;
             font-weight: 700;
             letter-spacing: 0.04em;
+        }
+
+        /* Scheduled tab STATUS column — plain text, no pills. Restrained palette:
+           dark-neutral for "waiting" states, gray for closed-out/draft states,
+           gold for "needs dispatcher action now", green/red only for the two
+           states that truly need to stand out. */
+        .sched-status-needs-quote            { color: #334155; }
+        .sched-status-draft                  { color: #64748b; }
+        .sched-status-quote-sent             { color: #334155; }
+        .sched-status-price-review-requested { color: #a16207; }
+        .sched-status-quote-expired          { color: #64748b; }
+        .sched-status-confirmed              { color: #16a34a; }
+        .sched-status-upcoming               { color: #334155; }
+        .sched-status-ready                  { color: #a16207; }
+        .sched-status-overdue                { color: #dc2626; }
+
+        /* Scheduled table column widths (jobs.css sets table-layout:fixed — without
+           explicit widths here the 6 columns split evenly, which starves Route and
+           over-allocates Truck Class/Updated). Scoped to #scheduledPanel only. */
+        #scheduledPanel .jobs-table th:nth-child(1),
+        #scheduledPanel .jobs-table td:nth-child(1) { width: 17%; }
+        #scheduledPanel .jobs-table th:nth-child(2),
+        #scheduledPanel .jobs-table td:nth-child(2) { width: 17%; }
+        #scheduledPanel .jobs-table th:nth-child(3),
+        #scheduledPanel .jobs-table td:nth-child(3) { width: 13%; }
+        #scheduledPanel .jobs-table th:nth-child(4),
+        #scheduledPanel .jobs-table td:nth-child(4) { width: 28%; }
+        #scheduledPanel .jobs-table th:nth-child(5),
+        #scheduledPanel .jobs-table td:nth-child(5) { width: 13%; }
+        #scheduledPanel .jobs-table th:nth-child(6),
+        #scheduledPanel .jobs-table td:nth-child(6) { width: 12%; }
+
+        /* Route — two compact lines (pickup, then → drop-off) instead of one
+           long truncated line. Each line ellipsizes on its own so the row
+           never grows tall regardless of address length. Shared by both the
+           Book Now and Scheduled tables (only used by this page's Route
+           column — jobs.css/Active Jobs has no Route column to collide with). */
+        .jobs-route-cell {
+            vertical-align: top;
+        }
+        .jobs-route-line {
+            font-size: 0.78rem;
+            color: #64748b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .jobs-route-line--drop {
+            margin-top: 2px;
+            color: #334155;
+        }
+
+        /* Booking code gets a touch more weight than the plain .jobs-cell-primary
+           default (which is also used, unweighted, by the Requested column's
+           timestamp) so it reads as the row's primary identifier. */
+        .jobs-booking-code {
+            font-weight: 600;
+            color: #111111;
+        }
+
+        /* Keyboard-focusable rows (see tabindex on .jobs-row below) — restrained
+           focus ring, no color change, no layout shift. */
+        #bookNowPanel .jobs-row:focus-visible,
+        #scheduledPanel .jobs-row:focus-visible {
+            outline: 2px solid #9ca3af;
+            outline-offset: -2px;
+        }
+
+        /* Brief, neutral emphasis for a row located via a notification deep
+           link — fades on its own, no yellow/border-left/pulsing. */
+        .jobs-row--deep-link {
+            background: #f3f4f6;
+            transition: background 1.4s ease;
+        }
+
+        /* Book Now tab STATUS column — same restrained plain-text system as
+           Scheduled's .sched-status-* above (this doesn't rename or touch any
+           backend status/quotation status, purely a label color). */
+        .bn-status-needs-quote            { color: #334155; }
+        .bn-status-draft                  { color: #64748b; }
+        .bn-status-quote-sent             { color: #334155; }
+        .bn-status-negotiating            { color: #a16207; }
+        .bn-status-price-review-requested { color: #a16207; }
+        .bn-status-quote-expired          { color: #64748b; }
+        .bn-status-confirmed              { color: #16a34a; }
+
+        /* Book Now table column widths — same 6-column proportions as Scheduled. */
+        #bookNowPanel .jobs-table th:nth-child(1),
+        #bookNowPanel .jobs-table td:nth-child(1) { width: 17%; }
+        #bookNowPanel .jobs-table th:nth-child(2),
+        #bookNowPanel .jobs-table td:nth-child(2) { width: 17%; }
+        #bookNowPanel .jobs-table th:nth-child(3),
+        #bookNowPanel .jobs-table td:nth-child(3) { width: 13%; }
+        #bookNowPanel .jobs-table th:nth-child(4),
+        #bookNowPanel .jobs-table td:nth-child(4) { width: 28%; }
+        #bookNowPanel .jobs-table th:nth-child(5),
+        #bookNowPanel .jobs-table td:nth-child(5) { width: 13%; }
+        #bookNowPanel .jobs-table th:nth-child(6),
+        #bookNowPanel .jobs-table td:nth-child(6) { width: 12%; }
+
+        /* Book Now toolbar polish — scoped to #bookNowPanel, mirrors
+           #scheduledPanel .rb-filter-bar above (shared select rule left
+           untouched for both). */
+        #bookNowPanel .rb-filter-bar select,
+        #bookNowPanel .rb-filter-bar input[type="text"] {
+            height: 34px;
+            box-sizing: border-box;
+            border: 1px solid #CFD4DC;
+            border-radius: 9px;
+            padding: 0 11px;
+            font-size: 12.5px;
+            font-family: 'Public Sans', system-ui, sans-serif;
+            color: #111111;
+            background: #fff;
+        }
+        #bookNowPanel .rb-filter-bar select {
+            width: 180px;
+            max-width: 100%;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        #bookNowPanel .rb-filter-bar input[type="text"] {
+            width: 300px;
+            max-width: 100%;
+        }
+        #bookNowPanel .rb-filter-bar select:focus,
+        #bookNowPanel .rb-filter-bar input[type="text"]:focus {
+            outline: none;
+            border-color: #111111;
+        }
+        #bookNowPanel .rb-filter-bar input[type="text"]::placeholder {
+            color: #8A93A3;
+        }
+
+        /* Scheduled toolbar polish — scoped to #scheduledPanel so the shared
+           .rb-filter-bar select rule (also used by Book Now) is untouched. */
+        #scheduledPanel .rb-filter-bar select,
+        #scheduledPanel .rb-filter-bar input[type="text"] {
+            height: 34px;
+            box-sizing: border-box;
+            border: 1px solid #CFD4DC;
+            border-radius: 9px;
+            padding: 0 11px;
+            font-size: 12.5px;
+            font-family: 'Public Sans', system-ui, sans-serif;
+            color: #111111;
+            background: #fff;
+        }
+        #scheduledPanel .rb-filter-bar select {
+            width: 180px;
+            max-width: 100%;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        #scheduledPanel .rb-filter-bar input[type="text"] {
+            width: 300px;
+            max-width: 100%;
+        }
+        #scheduledPanel .rb-filter-bar select:focus,
+        #scheduledPanel .rb-filter-bar input[type="text"]:focus {
+            outline: none;
+            border-color: #111111;
+        }
+        #scheduledPanel .rb-filter-bar input[type="text"]::placeholder {
+            color: #8A93A3;
         }
 
         .queue-chip.delayed {
@@ -883,6 +1062,11 @@
            Namespaced under .rb- (Receiving Bookings) to avoid clashing with
            the existing .incoming-*/.modal-*/.dp-*/.urc-* conventions above.
         =================================================================== */
+        /* .rb-btn and friends set their own `display`, which otherwise beats the
+           browser's default [hidden]{display:none} — without this, toggling the
+           `hidden` attribute on any .rb-btn (or other styled element) has no
+           visible effect. */
+        .rb-drawer [hidden], .rb-view-all-modal [hidden] { display: none !important; }
         .rb-drawer-overlay {
             position: fixed;
             inset: 0;
@@ -970,13 +1154,15 @@
             display: none; align-items: center; justify-content: center; z-index: 2200; padding: 24px;
         }
         .rb-lightbox-backdrop.is-open { display: flex; }
-        .rb-lightbox { display: flex; align-items: center; gap: 16px; max-width: 640px; width: 100%; }
-        .rb-lightbox-stage { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-        .rb-lightbox-image { width: 100%; aspect-ratio: 4/3; background: #20242c; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #8A93A3; overflow: hidden; }
+        .rb-lightbox { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 900px; width: 100%; }
+        .rb-lightbox-stage { position: relative; width: 100%; }
+        .rb-lightbox-image { width: 100%; max-height: 80vh; aspect-ratio: 4/3; background: #20242c; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #8A93A3; overflow: hidden; }
         .rb-lightbox-image img { width: 100%; height: 100%; object-fit: contain; }
-        .rb-lightbox-caption { color: #D5D9E0; font-size: 12.5px; font-weight: 600; }
-        .rb-lightbox-nav { flex: none; width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,.1); border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .rb-lightbox-nav:hover { background: rgba(255,255,255,.2); }
+        .rb-lightbox-caption { color: #D5D9E0; font-size: 12.5px; font-weight: 600; text-align: center; }
+        .rb-lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.45); border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .rb-lightbox-nav:hover { background: rgba(0,0,0,.65); }
+        .rb-lightbox-prev { left: 10px; }
+        .rb-lightbox-next { right: 10px; }
         .rb-lightbox-close { position: absolute; top: 20px; right: 24px; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,.12); border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
         .rb-route { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: #111111; background: #F6F7F9; border: 1px solid #E3E6EB; border-radius: 10px; padding: 10px 12px; }
@@ -1000,6 +1186,8 @@
         .rb-breakdown .rb-b-row.rb-b-final.rb-b-solo { padding-top: 0; border-top: none; }
         .rb-breakdown .rb-b-row.rb-b-adj .rb-mono.rb-is-add { color: #12804A; }
         .rb-breakdown .rb-b-row.rb-b-adj .rb-mono.rb-is-deduct { color: #D8402C; }
+        .rb-is-add { color: #12804A; font-weight: 600; }
+        .rb-is-deduct { color: #D8402C; font-weight: 600; }
 
         .rb-sub-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #8A93A3; }
         .rb-history-toggle-btn, .rb-adj-toggle-btn { width: 100%; justify-content: center; }
@@ -1054,6 +1242,7 @@
         .rb-t-icon { width: 28px; height: 28px; border-radius: 50%; background: #F6F7F9; border: 1px solid #E3E6EB; display: flex; align-items: center; justify-content: center; color: #5B6472; flex: none; z-index: 1; }
         .rb-t-item.rb-is-accept .rb-t-icon { background: #E4F6EC; color: #12804A; border-color: transparent; }
         .rb-t-text { font-size: 12.5px; padding-top: 3px; }
+        .rb-t-note { font-size: 11.5px; color: #8A93A3; margin-top: 2px; }
         .rb-t-time { font-size: 11px; color: #8A93A3; }
 
         .rb-drawer-foot { padding: 14px 22px 18px; border-top: 1px solid #E3E6EB; display: flex; flex-direction: column; gap: 8px; flex: none; }
@@ -1066,6 +1255,8 @@
         .rb-btn:hover { filter: brightness(.97); }
         .rb-btn-primary { background: #FACC15; color: #111111; }
         .rb-btn-secondary { background: #fff; color: #111111; border-color: #CFD4DC; }
+        .rb-btn:disabled { background: #F1F2F4; color: #A6ACB6; border-color: #E3E6EB; cursor: not-allowed; }
+        .rb-btn:disabled:hover { filter: none; }
         .rb-view-quote-btn { width: 100%; justify-content: center; margin-top: auto; }
 
         .rb-view-all-modal-backdrop { position: fixed; inset: 0; background: rgba(10,12,15,.5); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 2199; padding: 20px; }
@@ -1073,10 +1264,75 @@
         .rb-view-all-modal { width: 100%; max-width: 460px; background: #fff; border-radius: 16px; border: 1px solid #E3E6EB; box-shadow: 0 20px 60px rgba(20,23,28,.18); max-height: 88vh; overflow-y: auto; }
         .rb-view-all-modal-head { padding: 18px 20px 14px; border-bottom: 1px solid #E3E6EB; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
         .rb-view-all-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+        .rb-view-all-modal-foot { padding: 14px 20px 18px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid #E3E6EB; }
+        .rb-view-all-modal-foot .rb-btn { min-width: 100px; justify-content: center; }
+
+        /* ===================================================================
+           Book Now card design + filter bar. Ports the approved "Dispatch Fast
+           Lane" mockup's card grid onto the real #bookNowPanel. Reuses
+           .rb-route*/.rb-btn* from the drawer above (identical visual
+           treatment). Prefixed .rb-qcard-* ("queue card") to avoid clashing
+           with the existing .incoming-*/.status-badge conventions — the
+           .incoming-card wrapper element itself is kept so any shared
+           tab/count JS elsewhere on the page keeps working unchanged.
+        =================================================================== */
+        .rb-full-width-col { max-width: 1180px; }
+
+        .rb-tabs { display: flex; gap: 24px; margin: 0 0 18px; padding-bottom: 0; border-bottom: 1px solid #E3E6EB; font-family: 'Public Sans', system-ui, sans-serif; }
+        .rb-tab { padding: 10px 2px 11px; margin-bottom: -1px; border: none; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: #6b7280; font-size: 13.5px; font-weight: 500; display: flex; align-items: center; gap: 7px; cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+        .rb-tab:hover:not(.is-active) { color: #374151; }
+        .rb-tab-count { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; font-weight: 500; background: transparent; border-radius: 0; padding: 0; color: #9ca3af; }
+        .rb-tab.is-active { background: transparent; border-color: transparent; border-bottom-color: #FACC15; color: #111111; font-weight: 600; box-shadow: none; }
+        .rb-tab.is-active .rb-tab-count { background: transparent; color: #111111; }
+
+        .rb-filter-bar { display: flex; align-items: flex-end; justify-content: flex-start; flex-wrap: wrap; gap: 20px; margin-bottom: 14px; font-family: 'Public Sans', system-ui, sans-serif; }
+        .rb-filter-group { display: flex; flex-direction: column; gap: 6px; }
+        .rb-filter-bar label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #8A93A3; }
+        .rb-filter-bar select { border: 1px solid #CFD4DC; background: #fff; color: #111111; border-radius: 9px; padding: 7px 11px; font-size: 12.5px; font-family: inherit; font-weight: 600; }
+
+        .rb-queue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+
+        {{-- .incoming-card (dispatch.css) sets justify-content:space-between/align-items:center and
+             !important border/box-shadow for its old horizontal row layout — .rb-qcard shares that
+             class for JS/count compatibility, so every property it could bleed through is reset
+             explicitly here, with !important where dispatch.css also uses !important. --}}
+        .rb-qcard { font-family: 'Public Sans', system-ui, sans-serif; position: relative; background: #fff; border: 1px solid #E3E6EB !important; border-radius: 14px; padding: 16px 16px 14px; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 11px; box-shadow: none !important; }
+        .rb-qcard:hover { box-shadow: none !important; }
+        .rb-qcard-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .rb-qcard-customer { display: flex; flex-direction: column; gap: 2px; }
+        .rb-qcard-name { font-family: 'Sora', system-ui, sans-serif; font-weight: 700; font-size: 14.5px; color: #111111; }
+        .rb-qcard-phone { font-size: 12px; color: #5B6472; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+        .rb-qcard-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+
+        .rb-pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
+        .rb-pill-zone { background: #F6F7F9; color: #5B6472; border: 1px solid #E3E6EB; }
+        .rb-pill-wait { background: #2B2F38; color: #fff; }
+        .rb-pill-state { background: #146C3A; color: #fff; }
+
+        .rb-qcard-vehicle { font-size: 12.5px; color: #5B6472; display: flex; gap: 6px; flex-wrap: wrap; }
+        .rb-qcard-vehicle b { color: #111111; font-weight: 600; }
+        .rb-qcard-vehicle .rb-sep { color: #CFD4DC; }
+
+        .rb-status-banner { border-radius: 10px; padding: 10px 12px; font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; background: #F6F7F9; color: #111111; }
+        .rb-status-banner.rb-is-negotiating { background: #FCE8E4; color: #D8402C; }
+        .rb-status-banner .rb-b-head { font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+        .rb-status-banner .rb-b-sub { font-weight: 500; opacity: .85; }
+        .rb-price-compare { display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 700; font-size: 14px; margin-top: 8px; }
+        .rb-price-compare .rb-old { font-weight: 500; text-decoration: line-through; opacity: .55; font-size: 12px; }
+
+        .rb-review-plain { display: flex; flex-direction: column; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid #E3E6EB; }
+        .rb-review-plain .rb-review-plain-title { font-weight: 700; font-size: 15px; color: #D97706; }
+        .rb-review-plain .rb-review-plain-reason { font-size: 13px; font-weight: 400; color: #111111; }
+
+        .rb-qcard-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 2px; }
 
         @media (max-width: 640px) {
             .rb-drawer { max-width: 100%; right: -100%; }
             .rb-grid, .rb-grid-row { grid-template-columns: 1fr; }
+            .rb-queue-grid { grid-template-columns: 1fr; }
+            .rb-filter-group { flex: 1 1 100%; }
+            .rb-filter-bar select,
+            .rb-filter-bar input[type="text"] { width: 100%; }
         }
     </style>
 @endpush
@@ -1085,112 +1341,33 @@
 
     <div class="dashboard-container">
 
-        @include('admin-dashboard.pages._quotations-card')
-
         @include('admin-dashboard.pages._quotation-modal')
 
-        <div class="dp-stats-bar">
-            <div class="dp-stat dp-stat--warn">
-                <span class="dp-stat-n">{{ $queueCounts['returned'] ?? 0 }}</span>
-                <span class="dp-stat-l">Returned</span>
-            </div>
-            <div class="dp-stat dp-stat--warn">
-                <span class="dp-stat-n">{{ $queueCounts['not_responding'] ?? 0 }}</span>
-                <span class="dp-stat-l">Not Responding</span>
-            </div>
-            <div class="dp-stat dp-stat--green">
-                <span class="dp-stat-n">{{ $queueCounts['ready_completion'] ?? 0 }}</span>
-                <span class="dp-stat-l">Ready</span>
-            </div>
-            <div class="dp-stat">
-                <span class="dp-stat-n">{{ $queueCounts['book-now'] ?? 0 }}</span>
-                <span class="dp-stat-l">Book Now</span>
-            </div>
-            <div class="dp-stat">
-                <span class="dp-stat-n">{{ $queueCounts['scheduled'] ?? 0 }}</span>
-                <span class="dp-stat-l">Scheduled</span>
-            </div>
-        </div>
-
         <div class="dp-dispatch-layout">
-            <div class="dp-queue-col">
+            <div class="dp-queue-col rb-full-width-col">
 
-                <div class="incoming-section">
+                <div class="rb-tabs" id="dispatchQueueTabs">
 
-                    <div class="section-header">
-                        <div>
-                            <h3>Booking Queue</h3>
-                        </div>
-                        <div class="view-controls">
-                            <span class="count"
-                                id="requestCount">{{ $queueCounts['book-now'] ?? $incomingRequests->count() }}</span>
-                        </div>
-                    </div>
+                    <button type="button" class="queue-filter-btn rb-tab is-active" data-filter="book-now">
+                        <span>Book Now</span>
+                        <span class="queue-tab-count rb-tab-count {{ ($queueCounts['book-now'] ?? 0) > 0 ? 'has-count' : '' }}"
+                            data-count-for="book-now">
+                            {{ $queueCounts['book-now'] ?? 0 }}
+                        </span>
+                    </button>
 
-                    {{-- Return task alert banner --}}
-                    <div id="returnAlertBanner" class="return-alert-banner" style="display:none;">
-                        <span class="return-alert-icon">&#9888;</span>
-                        <span class="return-alert-text" id="returnAlertText"></span>
-                        <button onclick="window.showReturnedQueue()" class="return-alert-btn">View Returns</button>
-                        <button onclick="document.getElementById('returnAlertBanner').style.display='none'"
-                            class="return-alert-dismiss">&#10005;</button>
-                    </div>
+                    <button type="button" class="queue-filter-btn rb-tab" data-filter="scheduled">
+                        <span>Scheduled</span>
+                        <span class="queue-tab-count rb-tab-count {{ ($queueCounts['scheduled'] ?? 0) > 0 ? 'has-count' : '' }}"
+                            data-count-for="scheduled">
+                            {{ $queueCounts['scheduled'] ?? 0 }}
+                        </span>
+                    </button>
+                </div>
 
-                    <div class="queue-tabs" id="dispatchQueueTabs">
-
-                        <button type="button" class="queue-filter-btn is-active" data-filter="book-now">
-                            <span>Book Now</span>
-                            <span class="queue-tab-count {{ ($queueCounts['book-now'] ?? 0) > 0 ? 'has-count' : '' }}"
-                                data-count-for="book-now">
-                                {{ $queueCounts['book-now'] ?? 0 }}
-                            </span>
-                        </button>
-
-                        <button type="button" class="queue-filter-btn" data-filter="scheduled">
-                            <span>Scheduled</span>
-                            <span class="queue-tab-count {{ ($queueCounts['scheduled'] ?? 0) > 0 ? 'has-count' : '' }}"
-                                data-count-for="scheduled">
-                                {{ $queueCounts['scheduled'] ?? 0 }}
-                            </span>
-                        </button>
-
-                        <button type="button" class="queue-filter-btn" data-filter="returned">
-                            <span>Returned</span>
-                            <span class="queue-tab-count {{ ($queueCounts['returned'] ?? 0) > 0 ? 'has-count' : '' }}"
-                                data-count-for="returned">
-                                {{ $queueCounts['returned'] ?? 0 }}
-                            </span>
-                        </button>
-
-                        <button type="button" class="queue-filter-btn" data-filter="ready_completion">
-                            <span>Ready</span>
-                            <span
-                                class="queue-tab-count {{ ($queueCounts['ready_completion'] ?? 0) > 0 ? 'has-count' : '' }}"
-                                data-count-for="ready_completion">
-                                {{ $queueCounts['ready_completion'] ?? 0 }}
-                            </span>
-                        </button>
-
-                        <button type="button" class="queue-filter-btn" data-filter="not_responding">
-                            <span>Not Responding</span>
-                            <span
-                                class="queue-tab-count {{ ($queueCounts['not_responding'] ?? 0) > 0 ? 'has-count' : '' }}"
-                                data-count-for="not_responding">
-                                {{ $queueCounts['not_responding'] ?? 0 }}
-                            </span>
-                        </button>
-
-                        <button type="button" class="queue-filter-btn" data-filter="all">
-                            <span>All</span>
-                            <span class="queue-tab-count {{ ($queueCounts['all'] ?? 0) > 0 ? 'has-count' : '' }}"
-                                data-count-for="all">
-                                {{ $queueCounts['all'] ?? 0 }}
-                            </span>
-                        </button>
-                    </div>
-
-                    <div class="incoming-list" id="incomingList" data-default-filter="book-now"
-                        data-assign-url-template="{{ url('/admin-dashboard/booking/__BOOKING__/assign') }}">
+                <div class="incoming-section incoming-list" id="incomingList" data-default-filter="book-now"
+                        data-assign-url-template="{{ url('/admin-dashboard/booking/__BOOKING__/assign') }}"
+                        style="display:none;">
 
                         @forelse($groupedIncoming as $groupCode => $groupBookings)
                             @php $isMultiGroup = $groupBookings->count() > 1; @endphp
@@ -1368,18 +1545,6 @@
                                             <span>{{ $booking->dropoff_address ?? 'Unknown Dropoff' }}</span>
                                         </div>
 
-                                        {{-- <div class="incoming-details">
-                                    <span><strong>ETA:</strong>
-                                        @if ($booking->eta_minutes)
-                                            {{ round($booking->eta_minutes) }} min
-                                        @elseif ($booking->quotation && $booking->quotation->eta_minutes)
-                                            {{ round($booking->quotation->eta_minutes) }} min
-                                        @else
-                                            <span style="color:#b91c1c">No ETA</span>
-                                        @endif
-                                    </span>
-                                </div> --}}
-
                                         <div class="incoming-details">
                                             <span><strong>Customer:</strong>
                                                 {{ $booking->customer->full_name ?? 'Guest' }}</span>
@@ -1515,9 +1680,6 @@
                             </div>
                         @endforelse
 
-
-                    </div>
-
                 </div>
 
                 {{-- ── Book Now Queue Panel ──────────────────────────────────────────── --}}
@@ -1527,120 +1689,139 @@
                             <p>No book-now requests in queue.</p>
                         </div>
                     @else
+                        <div class="rb-filter-bar">
+                            <div class="rb-filter-group">
+                                <label for="rbBnFilter">Status</label>
+                                <select id="rbBnFilter">
+                                    <option value="all">All statuses</option>
+                                    <option value="new">New - needs quote</option>
+                                    <option value="draft">Draft</option>
+                                    <option value="sent">Quote sent</option>
+                                    <option value="negotiating">Negotiating</option>
+                                    <option value="price_review_requested">Price review requested</option>
+                                    <option value="expired">Expired</option>
+                                    <option value="confirmed">Confirmed</option>
+                                </select>
+                            </div>
+                            <div class="rb-filter-group">
+                                <label for="bnSearch">Search</label>
+                                <input type="text" id="bnSearch" placeholder="Search booking or customer">
+                            </div>
+                        </div>
+
+                        <div class="jobs-table-wrap">
+                            <table class="jobs-table">
+                                <thead>
+                                    <tr>
+                                        <th>Booking / Customer</th>
+                                        <th>Requested</th>
+                                        <th>Status</th>
+                                        <th>Route</th>
+                                        <th>Truck Class</th>
+                                        <th>Updated</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                         @foreach ($groupedBookNow as $bnGroupCode => $bnGroupBookings)
                             @php
                                 $bnPrimary = $bnGroupBookings->first();
                                 $bnCount = $bnGroupBookings->count();
                                 $bnTotal = (float) ($bnPrimary->final_total ?? 0); // primary holds the full multi-vehicle total
 
-                                $bnVehicleImgUrl = '';
-                                $bnVehicleImgExtraCount = 0;
-                                if ($bnPrimary->vehicle_image_path) {
-                                    $bnPaths = json_decode($bnPrimary->vehicle_image_path, true);
-                                    if (is_array($bnPaths) && !empty($bnPaths)) {
-                                        $bnVehicleImgUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($bnPaths[0]);
-                                        $bnVehicleImgExtraCount = count($bnPaths) - 1;
-                                    }
-                                }
-                            @endphp
-                            @php
                                 $bnPhotoUrls = collect($bnPrimary->vehicle_image_paths ?? [])
                                     ->map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p))
                                     ->values();
+
+                                // Mirrors booking-drawer.js's effectiveStatus() exactly — keep both in sync.
+                                $bnEffStatus = 'new';
+                                if ($bnPrimary->active_quotation_status === 'draft') {
+                                    $bnEffStatus = 'draft';
+                                } elseif ($bnPrimary->active_quotation_status === 'sent') {
+                                    $bnEffStatus = 'sent';
+                                } elseif ($bnPrimary->active_quotation_status === 'negotiating') {
+                                    $bnEffStatus = 'negotiating';
+                                } elseif ($bnPrimary->active_quotation_status === 'price_review_requested') {
+                                    $bnEffStatus = 'price_review_requested';
+                                } elseif ($bnPrimary->active_quotation_status === 'expired') {
+                                    $bnEffStatus = 'expired';
+                                } elseif (in_array($bnPrimary->status, ['confirmed', 'scheduled_confirmed'])) {
+                                    $bnEffStatus = 'confirmed';
+                                }
+
+                                // Same restrained plain-text status system as the Scheduled table —
+                                // backend statuses/quotation statuses themselves are untouched, this
+                                // is presentation-only labeling (mirrors $schStatusText below).
+                                $bnStatusText = match ($bnEffStatus) {
+                                    'draft' => 'Draft',
+                                    'sent' => 'Quote Sent',
+                                    'negotiating' => 'Negotiating',
+                                    'price_review_requested' => 'Price Review Requested',
+                                    'expired' => 'Quote Expired',
+                                    'confirmed' => 'Confirmed',
+                                    default => 'Needs Quote',
+                                };
+
+                                $bnRequestedSub = $bnEffStatus === 'confirmed'
+                                    ? 'Confirmed ' . ($bnPrimary->customer_approved_at ?? $bnPrimary->assigned_at ?? $bnPrimary->updated_at)->diffForHumans(null, true) . ' ago'
+                                    : 'Requested ' . $bnPrimary->created_at->diffForHumans(null, true) . ' ago';
                             @endphp
-                            <div class="incoming-card" data-queue="book-now"
-                                data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}"
-                                data-booking-code="{{ $bnPrimary->booking_code }}"
-                                data-status="{{ $bnPrimary->status }}"
-                                data-created-at="{{ $bnPrimary->created_at->toIso8601String() }}"
-                                data-pickup-lat="{{ $bnPrimary->pickup_lat ?? '' }}"
-                                data-pickup-lng="{{ $bnPrimary->pickup_lng ?? '' }}"
-                                data-customer-name="{{ e($bnPrimary->customer->full_name ?? 'Guest') }}"
-                                data-customer-phone="{{ e($bnPrimary->customer->phone ?? 'N/A') }}"
-                                data-customer-email="{{ e($bnPrimary->customer->email ?? '') }}"
-                                data-pickup="{{ $bnPrimary->pickup_address ?? '' }}"
-                                data-pickup-notes="{{ e($bnPrimary->pickup_notes ?? '') }}"
-                                data-dropoff="{{ $bnPrimary->dropoff_address ?? '' }}"
-                                data-distance-km="{{ $bnPrimary->distance_km ?? '' }}"
-                                data-customer-note="{{ e($bnPrimary->notes ?? '') }}"
-                                data-current-price="{{ $bnTotal }}"
-                                data-base-rate="{{ $bnPrimary->base_rate ?? 0 }}"
-                                data-vat-exclusive-total="{{ $bnPrimary->vat_exclusive_total ?? $bnPrimary->computed_total ?? 0 }}"
-                                data-vat-amount="{{ $bnPrimary->vat_amount ?? 0 }}"
-                                data-truck-type="{{ e($bnPrimary->truckType->name ?? 'Unknown') }}"
-                                data-truck-type-id="{{ $bnPrimary->truck_type_id }}"
-                                data-vehicle-category="{{ e($bnPrimary->vehicleType->name ?? '') }}"
-                                data-photos="{{ $bnPhotoUrls->toJson() }}"
-                                data-assigned-unit="{{ $bnPrimary->assigned_unit_id }}"
-                                data-recommended-unit="{{ $bnPrimary->recommended_unit_id }}"
-                                data-recommended-summary="{{ e($bnPrimary->recommended_unit_summary ?? '') }}"
-                                data-dispatch-zone="{{ e($bnPrimary->dispatch_zone_label ?? 'General Dispatch Zone') }}"
-                                data-quotation-id="{{ $bnPrimary->active_quotation_id ?? '' }}"
-                                data-quotation-status="{{ $bnPrimary->active_quotation_status ?? '' }}">
-                                <div class="incoming-left">
-                                    @if ($bnVehicleImgUrl)
-                                        <div class="incoming-vehicle-thumb-wrap">
-                                            <img class="incoming-vehicle-thumb" src="{{ $bnVehicleImgUrl }}" alt="Vehicle photo">
-                                            @if ($bnVehicleImgExtraCount > 0)
-                                                <span class="incoming-vehicle-thumb-count">+{{ $bnVehicleImgExtraCount }}</span>
-                                            @endif
-                                        </div>
-                                    @endif
-                                    <div class="incoming-header">
-                                        <span class="queue-chip book-now">Book
-                                            Now{{ $bnCount > 1 ? ' · ' . $bnCount . ' vehicles' : '' }}</span>
-                                        <span
-                                            class="status-badge {{ $bnPrimary->status }}">{{ ucfirst(str_replace('_', ' ', $bnPrimary->status)) }}</span>
-                                        <span
-                                            style="font-size:0.78rem;color:#64748b;">{{ $bnPrimary->created_at->diffForHumans() }}</span>
-                                        <span class="wait-badge" data-wait></span>
-                                    </div>
-                                    <div class="incoming-route">
-                                        <strong>{{ $bnPrimary->pickup_address }}</strong>
-                                        <span class="arrow">→</span>
-                                        <span>{{ $bnPrimary->dropoff_address }}</span>
-                                    </div>
-                                    <div class="incoming-details">
-                                        <span><strong>Customer:</strong>
-                                            {{ $bnPrimary->customer->full_name ?? 'Guest' }}</span>
-                                        <span><strong>Phone:</strong> {{ $bnPrimary->customer->phone ?? 'N/A' }}</span>
-                                        <span><strong>Ref:</strong> {{ $bnGroupCode }}</span>
-                                    </div>
-                                    @if ($bnCount > 1)
-                                        <div class="incoming-details"
-                                            style="margin-top:6px;border-left:3px solid #dcfce7;padding-left:8px;">
-                                            @foreach ($bnGroupBookings as $bnIdx => $bnVehicle)
-                                                <span>Vehicle {{ $bnIdx + 1 }}:
-                                                    {{ $bnVehicle->truckType->name ?? 'Tow Truck' }}
-                                                    @if ($bnIdx === 0)
-                                                        &middot; <strong>Total:
-                                                            &#8369;{{ number_format((float) ($bnVehicle->final_total ?? 0), 2) }}</strong>
-                                                    @else
-                                                        &middot;
-                                                        &#8369;{{ number_format((float) ($bnVehicle->final_total ?? 0), 2) }}
-                                                        (incl. in total)
-                                                    @endif
-                                                </span>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <div class="incoming-details">
-                                            <span><strong>Truck:</strong> {{ $bnPrimary->truckType->name ?? '—' }}</span>
-                                        </div>
-                                    @endif
-                                </div>
-                                <div class="incoming-right"
-                                    style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
-                                    <div class="incoming-price">&#8369;{{ number_format((float) $bnTotal, 2) }}</div>
-                                    <div class="incoming-actions">
-                                        <button type="button" class="rb-btn rb-btn-primary rb-view-quote-btn"
-                                            onclick="event.stopPropagation(); window.openBookingDrawer(this.closest('.incoming-card'));">
-                                            View &amp; Quote
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                                    <tr class="jobs-row" onclick="window.openBookingDrawer(this)" tabindex="0"
+                                        aria-label="Open {{ $bnPrimary->booking_code }}, {{ $bnPrimary->customer->full_name ?? 'Guest' }}"
+                                        data-queue="book-now" data-eff-status="{{ $bnEffStatus }}"
+                                        data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}"
+                                        data-booking-code="{{ $bnPrimary->booking_code }}"
+                                        data-status="{{ $bnPrimary->status }}"
+                                        data-created-at="{{ $bnPrimary->created_at->toIso8601String() }}"
+                                        data-pickup-lat="{{ $bnPrimary->pickup_lat ?? '' }}"
+                                        data-pickup-lng="{{ $bnPrimary->pickup_lng ?? '' }}"
+                                        data-customer-name="{{ e($bnPrimary->customer->full_name ?? 'Guest') }}"
+                                        data-customer-phone="{{ e($bnPrimary->customer->phone ?? 'N/A') }}"
+                                        data-customer-email="{{ e($bnPrimary->customer->email ?? '') }}"
+                                        data-pickup="{{ $bnPrimary->pickup_address ?? '' }}"
+                                        data-pickup-notes="{{ e($bnPrimary->pickup_notes ?? '') }}"
+                                        data-dropoff="{{ $bnPrimary->dropoff_address ?? '' }}"
+                                        data-distance-km="{{ $bnPrimary->distance_km ?? '' }}"
+                                        data-customer-note="{{ e($bnPrimary->notes ?? '') }}"
+                                        data-current-price="{{ $bnTotal }}"
+                                        data-current-additional="{{ $bnPrimary->active_quotation_additional_fee ?? $bnPrimary->additional_fee ?? 0 }}"
+                                        data-base-rate="{{ $bnPrimary->base_rate ?? 0 }}"
+                                        data-per-km-rate="{{ $bnPrimary->per_km_rate ?: ($bnPrimary->truckType->per_km_rate ?? 0) }}"
+                                        data-vat-exclusive-total="{{ $bnPrimary->vat_exclusive_total ?? $bnPrimary->computed_total ?? 0 }}"
+                                        data-vat-amount="{{ $bnPrimary->vat_amount ?? 0 }}"
+                                        data-truck-type="{{ e($bnPrimary->truckType->name ?? 'Unknown') }}"
+                                        data-truck-type-id="{{ $bnPrimary->truck_type_id }}"
+                                        data-vehicle-category="{{ e($bnPrimary->vehicleType->name ?? '') }}"
+                                        data-photos="{{ $bnPhotoUrls->toJson() }}"
+                                        data-assigned-unit="{{ $bnPrimary->assigned_unit_id }}"
+                                        data-selected-unit="{{ $bnPrimary->selected_unit_id }}"
+                                        data-recommended-unit="{{ $bnPrimary->recommended_unit_id }}"
+                                        data-recommended-summary="{{ e($bnPrimary->recommended_unit_summary ?? '') }}"
+                                        data-dispatch-zone="{{ e($bnPrimary->dispatch_zone_label ?? 'General Dispatch Zone') }}"
+                                        data-quotation-id="{{ $bnPrimary->active_quotation_id ?? '' }}"
+                                        data-quotation-status="{{ $bnPrimary->active_quotation_status ?? '' }}"
+                                        data-price-change-log="{{ json_encode($bnPrimary->active_quotation_price_change_log ?? []) }}">
+                                        <td>
+                                            <div class="jobs-cell-primary jobs-booking-code">{{ $bnPrimary->booking_code }}{{ $bnCount > 1 ? ' (+' . ($bnCount - 1) . ')' : '' }}</div>
+                                            <div class="jobs-cell-secondary">{{ $bnPrimary->customer->full_name ?? 'Guest' }}</div>
+                                        </td>
+                                        <td>
+                                            <div class="jobs-cell-primary">{{ $bnPrimary->created_at->format('M d, Y g:i A') }}</div>
+                                            <div class="jobs-cell-secondary">{{ $bnRequestedSub }}</div>
+                                        </td>
+                                        <td>
+                                            <span class="jobs-status-text bn-status-{{ \Illuminate\Support\Str::slug($bnStatusText) }}">{{ $bnStatusText }}</span>
+                                        </td>
+                                        <td class="jobs-route-cell bn-route-cell" title="{{ $bnPrimary->pickup_address }} → {{ $bnPrimary->dropoff_address }}">
+                                            <div class="jobs-route-line">{{ $bnPrimary->pickup_address }}</div>
+                                            <div class="jobs-route-line jobs-route-line--drop">→ {{ $bnPrimary->dropoff_address }}</div>
+                                        </td>
+                                        <td class="jobs-cell-secondary">{{ $bnPrimary->truckType->class ? ucfirst($bnPrimary->truckType->class) . ' Duty' : ($bnPrimary->truckType->name ?? '—') }}</td>
+                                        <td class="jobs-cell-secondary">{{ $bnPrimary->updated_at?->diffForHumans() }}</td>
+                                    </tr>
                         @endforeach
+                                </tbody>
+                            </table>
+                        </div>
                     @endif
                 </div>
 
@@ -1651,227 +1832,125 @@
                             <p>No scheduled bookings in queue.</p>
                         </div>
                     @else
-                        @foreach ($groupedScheduled as $schGroupCode => $schGroupBookings)
-                            @php
-                                $schCount = $schGroupBookings->count();
-                                $isMultiSch = $schCount > 1;
-                                $schFirst = $schGroupBookings->first();
-                            @endphp
-                            @if ($isMultiSch)
-                                <div class="group-booking-header">
-                                    <strong>Multi-vehicle booking · {{ $schCount }} vehicles</strong>
-                                    <span>{{ $schFirst->customer->full_name ?? 'Guest' }} &middot; Ref:
-                                        {{ $schGroupCode }}</span>
-                                </div>
-                            @endif
-                            @foreach ($schGroupBookings as $schVIdx => $schVehicle)
-                                @php
-                                    $schVIsConfirmed = $schVehicle->status === 'scheduled_confirmed';
-                                    $schVScheduledFor = $schVehicle->scheduled_for;
-                                    $schVExpiresLabel = $schVehicle->scheduled_expires_at
-                                        ? $schVehicle->scheduled_expires_at->diffForHumans()
-                                        : '—';
-                                    $schVSiblings = ($schVehicle->group_siblings ?? collect())
-                                        ->map(
-                                            fn($s) => [
-                                                'booking_code' => $s->booking_code ?? ($s['booking_code'] ?? ''),
-                                                'status' => $s->status ?? ($s['status'] ?? ''),
-                                                'truck_type' => $s->truckType?->name ?? ($s['truck_type'] ?? ''),
-                                                'service_type' =>
-                                                    $s->service_type ?? ($s['service_type'] ?? 'book_now'),
-                                                'final_total' => (float) ($s->final_total ?? ($s['final_total'] ?? 0)),
-                                                'scheduled_date' =>
-                                                    $s->scheduled_date ?? ($s['scheduled_date'] ?? null),
-                                                'scheduled_time' =>
-                                                    $s->scheduled_time ?? ($s['scheduled_time'] ?? null),
-                                            ],
-                                        )
-                                        ->values()
-                                        ->toArray();
-                                    // If a sibling (Vehicle 1) is already completed, this vehicle is ready for immediate dispatch
-                                    $schVSiblingCompleted = collect($schVSiblings)->contains(
-                                        fn($s) => ($s['status'] ?? '') === 'completed',
-                                    );
-                                @endphp
-                                <div class="incoming-card {{ $schVIsConfirmed ? 'incoming-card--scheduled-confirmed' : 'incoming-card--scheduled' }} {{ $isMultiSch ? 'incoming-card--group-child' : '' }}"
-                                    data-queue="scheduled" data-id="{{ $schVehicle->job_code ?? $schVehicle->id }}"
-                                    data-status="{{ $schVehicle->status }}" data-booking-id="{{ $schVehicle->id }}"
-                                    data-created-at="{{ $schVehicle->created_at->toIso8601String() }}"
-                                    data-pickup-lat="{{ $schVehicle->pickup_lat ?? '' }}"
-                                    data-pickup-lng="{{ $schVehicle->pickup_lng ?? '' }}"
-                                    data-customer="{{ e($schVehicle->customer->full_name ?? 'Guest') }}"
-                                    data-phone="{{ e($schVehicle->customer->phone ?? 'N/A') }}"
-                                    data-pickup="{{ e($schVehicle->pickup_address ?? '') }}"
-                                    data-dropoff="{{ e($schVehicle->dropoff_address ?? '') }}"
-                                    data-distance="{{ $schVehicle->distance_km ?? 0 }}"
-                                    data-truck="{{ e($schVehicle->truckType->name ?? '—') }}"
-                                    data-base-rate="{{ $schVehicle->base_rate ?? 0 }}"
-                                    data-distance-fee="{{ $schVehicle->distance_fee_amount }}"
-                                    data-ref="{{ e($schVehicle->job_code ?? '') }}"
-                                    data-final-total="{{ $schVehicle->final_total ?? 0 }}"
-                                    data-group-code="{{ $schVehicle->group_code ?? '' }}"
-                                    data-group-siblings="{{ json_encode($schVSiblings) }}"
-                                    data-customer-name="{{ e($schVehicle->customer->full_name ?? 'Guest') }}"
-                                    data-customer-phone="{{ e($schVehicle->customer->phone ?? 'N/A') }}"
-                                    data-customer-email="{{ e($schVehicle->customer->email ?? '') }}"
-                                    data-vehicle-images="{{ json_encode($schVehicle->vehicle_image_paths) }}"
-                                    data-distance-km="{{ $schVehicle->distance_km ?? 0 }}"
-                                    data-current-price="{{ $schVehicle->final_total ?? 0 }}"
-                                    data-truck-type="{{ e($schVehicle->truckType->name ?? '—') }}">
-                                    <div class="incoming-left">
-                                        @if ($isMultiSch)
-                                            <div class="group-vehicle-indicator">
-                                                Vehicle {{ $schVIdx + 1 }} of {{ $schCount }} &mdash;
-                                                {{ $schVehicle->truckType->name ?? 'Tow Truck' }}
-                                            </div>
-                                        @endif
-                                        <div class="incoming-header">
-                                            <span class="queue-chip scheduled">
-                                                {{ $schVIsConfirmed ? 'Confirmed Schedule' : 'Scheduled' }}
-                                            </span>
-                                            @php $schQStatus = $schVehicle->active_quotation_status ?? null; @endphp
-                                            @if ($schQStatus === 'draft')
-                                                <span
-                                                    style="background:#f59e0b;color:#0f172a;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;">Draft</span>
-                                            @elseif ($schQStatus === 'sent')
-                                                <span
-                                                    style="background:#3b82f6;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;">Sent</span>
-                                            @elseif ($schQStatus === 'negotiating')
-                                                <span
-                                                    style="background:#f97316;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;">Negotiating</span>
-                                            @endif
-                                            <span class="wait-badge" data-wait></span>
-                                        </div>
-                                        <div class="incoming-route">
-                                            <strong>{{ $schVehicle->pickup_address }}</strong>
-                                            <span class="arrow">→</span>
-                                            <span>{{ $schVehicle->dropoff_address }}</span>
-                                        </div>
-                                        <div class="incoming-details">
-                                            @if (!$isMultiSch)
-                                                <span><strong>Customer:</strong>
-                                                    {{ $schVehicle->customer->full_name ?? 'Guest' }}</span>
-                                                <span><strong>Phone:</strong>
-                                                    {{ $schVehicle->customer->phone ?? 'N/A' }}</span>
-                                            @endif
-                                            <span><strong>Truck:</strong> {{ $schVehicle->truckType->name ?? '—' }}</span>
-                                            <span><strong>Ref:</strong> {{ $schGroupCode }}</span>
-                                        </div>
-                                        @if ($schVSiblingCompleted)
-                                            <div
-                                                style="margin-top:8px; padding:7px 10px; background:#dcfce7; border-left:3px solid #16a34a; border-radius:4px; font-size:0.78rem; color:#15803d; font-weight:600;">
-                                                ✓ Vehicle 1 complete — dispatch this vehicle now regardless of scheduled
-                                                time
-                                            </div>
-                                        @endif
-                                        @if ($schVScheduledFor)
-                                            <div class="incoming-details"
-                                                style="margin-top:6px;background:#facc1511;padding:6px 8px;">
-                                                <span><strong>Scheduled:</strong>
-                                                    {{ $schVScheduledFor->format('D, M j, Y') }}
-                                                    at {{ $schVScheduledFor->format('g:i A') }}</span>
-                                                <span><strong>Expires:</strong> {{ $schVExpiresLabel }}</span>
-                                            </div>
-                                        @endif
-                                        @if (!empty($schVSiblings))
-                                            <div
-                                                style="margin-top:8px; padding:7px 10px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.77rem;">
-                                                <div
-                                                    style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                                                    <div
-                                                        style="color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; font-size:0.68rem;">
-                                                        Part of group with:</div>
-                                                    <button type="button"
-                                                        onclick="event.stopPropagation(); openCustomerBookingPanel(this.closest('[data-group-siblings]'))"
-                                                        style="font-size:0.72rem; color:#15803d; background:none; border:none; cursor:pointer; padding:2px 4px; text-decoration:underline;">
-                                                        View Full Booking
-                                                    </button>
-                                                </div>
-                                                @foreach ($schVSiblings as $sv)
-                                                    @php
-                                                        $svStatusColor = match ($sv['status'] ?? '') {
-                                                            'in_progress' => '#a16207',
-                                                            'completed' => '#15803d',
-                                                            'cancelled' => '#dc2626',
-                                                            default => '#475569',
-                                                        };
-                                                        $svStatusBg = match ($sv['status'] ?? '') {
-                                                            'in_progress' => '#fef9c3',
-                                                            'completed' => '#dcfce7',
-                                                            'cancelled' => '#fee2e2',
-                                                            default => '#f1f5f9',
-                                                        };
-                                                        $svStatusLabel = match ($sv['status'] ?? '') {
-                                                            'in_progress' => 'In Progress',
-                                                            'completed' => 'Completed',
-                                                            'cancelled' => 'Cancelled',
-                                                            'scheduled' => 'Scheduled',
-                                                            'scheduled_confirmed' => 'Confirmed',
-                                                            default => ucfirst(
-                                                                str_replace('_', ' ', $sv['status'] ?? ''),
-                                                            ),
-                                                        };
-                                                    @endphp
-                                                    <div
-                                                        style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
-                                                        <span
-                                                            style="font-family:monospace; font-weight:700; color:#0f172a;">{{ $sv['booking_code'] }}</span>
-                                                        <span style="color:#64748b;">{{ $sv['truck_type'] }}</span>
-                                                        <span
-                                                            style="margin-left:auto; font-size:0.68rem; font-weight:700; padding:1px 7px; border-radius:999px; background:{{ $svStatusBg }}; color:{{ $svStatusColor }};">{{ $svStatusLabel }}</span>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        @endif
-                                    </div>
-                                    <div class="incoming-right">
-                                        <div class="incoming-price">
-                                            &#8369;{{ number_format((float) $schVehicle->final_total, 2) }}</div>
-                                        @if ($schVIsConfirmed || $schVSiblingCompleted)
-                                            <div style="margin-top:8px;">
-                                                @if ($schVehicle->active_quotation_id ?? null)
-                                                    <button type="button" class="btn-create-quote"
-                                                        onclick="viewQuotationDetails({{ $schVehicle->active_quotation_id }})"
-                                                        title="View full booking details and dispatch">
-                                                        Open Booking
-                                                    </button>
-                                                @else
-                                                    <button type="button" class="btn-create-quote"
-                                                        onclick="openNewScheduleQuote(this.closest('.incoming-card'))"
-                                                        title="View full booking details and dispatch">
-                                                        Open Booking
-                                                    </button>
-                                                @endif
-                                            </div>
-                                        @elseif ($schVehicle->active_quotation_id ?? null)
-                                            {{-- Active quotation exists — open it directly --}}
-                                            <div style="margin-top:8px;">
-                                                @php
-                                                    $schQBtn = match ($schVehicle->active_quotation_status ?? '') {
-                                                        'sent', 'negotiating' => 'View Quotation',
-                                                        'draft'               => 'Open Draft',
-                                                        default               => 'Set Price',
-                                                    };
-                                                @endphp
-                                                <button type="button" class="btn-create-quote"
-                                                    onclick="viewQuotationDetails({{ $schVehicle->active_quotation_id }})"
-                                                    title="Open quotation for this booking">
-                                                    {{ $schQBtn }}
-                                                </button>
-                                            </div>
-                                        @else
-                                            <div style="margin-top:8px;">
-                                                <button type="button" class="btn-create-quote"
-                                                    onclick="openNewScheduleQuote(this.closest('.incoming-card'))"
-                                                    title="Create a quotation for this scheduled booking">
-                                                    Create Quote
-                                                </button>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </div>
-                            @endforeach
-                        @endforeach
+                        <div class="rb-filter-bar">
+                            <div class="rb-filter-group">
+                                <label for="schedFilter">Status</label>
+                                <select id="schedFilter">
+                                    <option value="all">All Scheduled</option>
+                                    <option value="needs-quote">Needs Quote{{ ($queueCounts['scheduled-needs-quote'] ?? 0) > 0 ? ' (' . $queueCounts['scheduled-needs-quote'] . ')' : '' }}</option>
+                                    <option value="quote-sent">Waiting Response{{ ($queueCounts['scheduled-quote-sent'] ?? 0) > 0 ? ' (' . $queueCounts['scheduled-quote-sent'] . ')' : '' }}</option>
+                                    <option value="confirmed">Confirmed</option>
+                                    <option value="upcoming">Upcoming</option>
+                                    <option value="ready">Ready{{ ($queueCounts['scheduled-ready'] ?? 0) > 0 ? ' (' . $queueCounts['scheduled-ready'] . ')' : '' }}</option>
+                                    <option value="overdue">Overdue{{ ($queueCounts['scheduled-overdue'] ?? 0) > 0 ? ' (' . $queueCounts['scheduled-overdue'] . ')' : '' }}</option>
+                                </select>
+                            </div>
+                            <div class="rb-filter-group">
+                                <label for="schedSearch">Search</label>
+                                <input type="text" id="schedSearch" placeholder="Search booking or customer">
+                            </div>
+                        </div>
+
+                        <div class="jobs-table-wrap">
+                            <table class="jobs-table">
+                                <thead>
+                                    <tr>
+                                        <th>Booking / Customer</th>
+                                        <th>Schedule</th>
+                                        <th>Status</th>
+                                        <th>Route</th>
+                                        <th>Truck Class</th>
+                                        <th>Updated</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="schedTableBody">
+                                    @foreach ($groupedScheduled as $schGroupCode => $schGroupBookings)
+                                        @php
+                                            $sch = $schGroupBookings->first();
+                                            $schCount = $schGroupBookings->count();
+                                            $schQStatus = $sch->active_quotation_status ?? null;
+                                            $schBucket = $sch->filter_bucket;
+
+                                            $schStatusText = match (true) {
+                                                $sch->status === 'scheduled_confirmed' => ucfirst($sch->scheduling_bucket),
+                                                $schQStatus === 'draft' => 'Draft',
+                                                in_array($schQStatus, ['sent', 'negotiating'], true) => 'Quote Sent',
+                                                $schQStatus === 'price_review_requested' => 'Price Review Requested',
+                                                $schQStatus === 'expired' => 'Quote Expired',
+                                                default => 'Needs Quote',
+                                            };
+
+                                            // Always describes scheduled_for, regardless of quote phase or
+                                            // bucket — Needs Quote/Draft/Sent rows show the same relative
+                                            // countdown as Confirmed/Upcoming/Ready/Overdue rows, no
+                                            // duplicate absolute date and no "Submitted X ago"/expiry text.
+                                            $schScheduledFor = $sch->scheduled_for;
+                                            $schSub = $schScheduledFor
+                                                ? ($schScheduledFor->isFuture()
+                                                    ? 'Starts in ' . $schScheduledFor->diffForHumans(null, true)
+                                                    : 'Overdue by ' . $schScheduledFor->diffForHumans(null, true))
+                                                : 'Schedule pending';
+                                        @endphp
+                                        <tr class="jobs-row" onclick="window.openBookingDrawer(this)" tabindex="0"
+                                            aria-label="Open {{ $sch->booking_code }}, {{ $sch->customer->full_name ?? 'Guest' }}"
+                                            data-queue="scheduled" data-eff-status="{{ $schBucket }}"
+                                            data-sched-bucket="{{ $schBucket }}"
+                                            data-id="{{ $sch->job_code ?? $sch->id }}"
+                                            data-booking-code="{{ $sch->booking_code }}"
+                                            data-status="{{ $sch->status }}"
+                                            data-scheduling-bucket="{{ $sch->scheduling_bucket ?? '' }}"
+                                            data-scheduled-for="{{ $schScheduledFor?->toIso8601String() }}"
+                                            data-created-at="{{ $sch->created_at->toIso8601String() }}"
+                                            data-pickup-lat="{{ $sch->pickup_lat ?? '' }}"
+                                            data-pickup-lng="{{ $sch->pickup_lng ?? '' }}"
+                                            data-customer-name="{{ e($sch->customer->full_name ?? 'Guest') }}"
+                                            data-customer-phone="{{ e($sch->customer->phone ?? 'N/A') }}"
+                                            data-customer-email="{{ e($sch->customer->email ?? '') }}"
+                                            data-pickup="{{ $sch->pickup_address ?? '' }}"
+                                            data-pickup-notes="{{ e($sch->pickup_notes ?? '') }}"
+                                            data-dropoff="{{ $sch->dropoff_address ?? '' }}"
+                                            data-distance-km="{{ $sch->distance_km ?? '' }}"
+                                            data-customer-note="{{ e($sch->notes ?? '') }}"
+                                            data-current-price="{{ $sch->final_total ?? 0 }}"
+                                            data-current-additional="{{ $sch->active_quotation_additional_fee ?? $sch->additional_fee ?? 0 }}"
+                                            data-base-rate="{{ $sch->base_rate ?? 0 }}"
+                                            data-per-km-rate="{{ $sch->per_km_rate ?: ($sch->truckType->per_km_rate ?? 0) }}"
+                                            data-vat-exclusive-total="{{ $sch->vat_exclusive_total ?? $sch->computed_total ?? 0 }}"
+                                            data-vat-amount="{{ $sch->vat_amount ?? 0 }}"
+                                            data-truck-type="{{ e($sch->truckType->name ?? 'Unknown') }}"
+                                            data-truck-type-id="{{ $sch->truck_type_id }}"
+                                            data-vehicle-category="{{ e($sch->vehicleType->name ?? '') }}"
+                                            data-photos="{{ collect($sch->vehicle_image_paths ?? [])->map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p))->values()->toJson() }}"
+                                            data-assigned-unit="{{ $sch->assigned_unit_id }}"
+                                            data-selected-unit=""
+                                            data-recommended-unit=""
+                                            data-recommended-summary=""
+                                            data-dispatch-zone="{{ e($sch->dispatch_zone_label ?? 'General Dispatch Zone') }}"
+                                            data-quotation-id="{{ $sch->active_quotation_id ?? '' }}"
+                                            data-quotation-status="{{ $sch->active_quotation_status ?? '' }}"
+                                            data-price-change-log="{{ json_encode($sch->active_quotation_price_change_log ?? []) }}">
+                                            <td>
+                                                <div class="jobs-cell-primary jobs-booking-code">{{ $sch->booking_code }}{{ $schCount > 1 ? ' (+' . ($schCount - 1) . ')' : '' }}</div>
+                                                <div class="jobs-cell-secondary">{{ $sch->customer->full_name ?? 'Guest' }}</div>
+                                            </td>
+                                            <td>
+                                                <div class="jobs-cell-primary">{{ $schScheduledFor ? $schScheduledFor->format('M d, Y g:i A') : 'Schedule pending' }}</div>
+                                                <div class="jobs-cell-secondary">{{ $schSub }}</div>
+                                            </td>
+                                            <td>
+                                                <span class="jobs-status-text sched-status-{{ \Illuminate\Support\Str::slug($schStatusText) }}">{{ $schStatusText }}</span>
+                                            </td>
+                                            <td class="jobs-route-cell sched-route-cell" title="{{ $sch->pickup_address }} → {{ $sch->dropoff_address }}">
+                                                <div class="jobs-route-line">{{ $sch->pickup_address }}</div>
+                                                <div class="jobs-route-line jobs-route-line--drop">→ {{ $sch->dropoff_address }}</div>
+                                            </td>
+                                            <td class="jobs-cell-secondary">{{ $sch->truckType->class ? ucfirst($sch->truckType->class) . ' Duty' : ($sch->truckType->name ?? '—') }}</td>
+                                            <td class="jobs-cell-secondary">{{ $sch->updated_at?->diffForHumans() }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
                     @endif
                 </div>
 
@@ -2012,8 +2091,8 @@
                                     <div class="review-summary-row"><span>Base Rate (Unit)</span><strong
                                             id="summaryBase">TBD</strong>
                                     </div>
-                                    <div class="review-summary-row"><span>Distance Fee (MMDA: ₱300/km after
-                                            1st)</span><strong id="summaryDistanceFee">₱0.00</strong></div>
+                                    <div class="review-summary-row"><span>Distance Fee (₱300/km after
+                                            first 4km)</span><strong id="summaryDistanceFee">₱0.00</strong></div>
                                     <div class="review-summary-row"><span>Additional Fee</span><strong
                                             id="summaryAdditional">₱0.00</strong></div>
                                     <div class="review-summary-row total"><span>Final Total</span><strong
@@ -2034,7 +2113,8 @@
                                             data-driver="{{ e($unit['driver_name']) }}"
                                             data-zones="{{ e(implode(', ', $unit['coverage_zones'] ?? [])) }}"
                                             data-summary="{{ e($unit['status_summary']) }}"
-                                            data-base-rate="{{ $unit['base_rate'] ?? 0 }}">
+                                            data-base-rate="{{ $unit['base_rate'] ?? 0 }}"
+                                            data-per-km-rate="{{ $unit['per_km_rate'] ?? 0 }}">
                                             {{ $unit['label'] }} · {{ $unit['team_leader_name'] }}
                                         </option>
                                     @empty
@@ -2362,31 +2442,7 @@
                 </div>
 
             </div>{{-- /.dp-queue-col --}}
-            <div class="dp-sidebar-col">
-
-                {{-- ── Live Unit Tracking ──────────────────────────────────────────── --}}
-                <div class="tracking-panel" id="trackingPanel">
-                    <div class="tracking-panel-header" id="trackingToggleBtn">
-                        <span>units — live tracking</span>
-                        <span class="tracking-meta" id="trackingMeta">loading...</span>
-                        <span class="tracking-toggle-label" id="trackingToggleLabel">hide</span>
-                    </div>
-                    <div class="tracking-body" id="trackingBody">
-                        <div class="tracking-map-wrap">
-                            <div id="dispatchLiveMap"></div>
-                        </div>
-                        <div class="tracking-roster-wrap">
-                            <div class="tracking-roster-header">
-                                <span id="rosterSortLabel">all units</span>
-                                <span class="tracking-roster-hint" id="rosterHint">click a booking to sort by
-                                    proximity</span>
-                            </div>
-                            <div class="zone-filter-chips" id="zoneFilterChips"></div>
-                            <div class="tracking-roster" id="trackingRoster"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>{{-- /.dp-sidebar-col --}}
+            {{-- .dp-sidebar-col (live tracking map) removed per redesign — Active Jobs page still has its own tracking. --}}
         </div>{{-- /.dp-dispatch-layout --}}
 
     </div>{{-- /.dashboard-container --}}
@@ -2465,12 +2521,12 @@
     <div class="rb-lightbox-backdrop" id="rbLightboxBackdrop">
         <button class="rb-lightbox-close" id="rbLightboxClose" aria-label="Close">✕</button>
         <div class="rb-lightbox">
-            <button class="rb-lightbox-nav" id="rbLightboxPrev" aria-label="Previous photo">‹</button>
             <div class="rb-lightbox-stage">
                 <div class="rb-lightbox-image" id="rbLightboxImage"></div>
-                <div class="rb-lightbox-caption" id="rbLightboxCaption"></div>
+                <button class="rb-lightbox-nav rb-lightbox-prev" id="rbLightboxPrev" aria-label="Previous photo">‹</button>
+                <button class="rb-lightbox-nav rb-lightbox-next" id="rbLightboxNext" aria-label="Next photo">›</button>
             </div>
-            <button class="rb-lightbox-nav" id="rbLightboxNext" aria-label="Next photo">›</button>
+            <div class="rb-lightbox-caption" id="rbLightboxCaption"></div>
         </div>
     </div>
 
@@ -2495,11 +2551,15 @@
     <script>
         window.RB_ROUTES = {
             assign:      "{{ route('admin.booking.assign', ':booking') }}",
+            reschedule:  "{{ route('admin.booking.reschedule', ':booking') }}",
             saveDraft:   "{{ route('admin.booking.save-draft', ':booking') }}",
             quoteDetails:"{{ route('admin.quotations.details', ':quotation') }}",
             quoteSend:   "{{ route('admin.quotations.send', ':quotation') }}",
             quoteCancel: "{{ route('admin.quotations.cancel', ':quotation') }}",
             quoteUpdatePrice: "{{ route('admin.quotations.update-price', ':quotation') }}",
+            quoteKeepPrice:   "{{ route('admin.quotations.keep-price', ':quotation') }}",
+            quoteAdjustPrice: "{{ route('admin.quotations.adjust-price', ':quotation') }}",
+            jobsIndex: "{{ route('admin.jobs') }}",
         };
         window.RB_CSRF = "{{ csrf_token() }}";
     </script>

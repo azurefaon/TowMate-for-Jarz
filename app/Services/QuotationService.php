@@ -3,14 +3,59 @@
 namespace App\Services;
 
 use App\Events\BookingStatusUpdated;
+use App\Exceptions\Booking\ScheduledQuoteCutoffPassedException;
 use App\Models\Booking;
 use App\Models\Quotation;
 use App\Models\TruckType;
 use App\Services\CustomerNotificationService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class QuotationService
 {
+    /**
+     * Single authoritative cap on quotation expiry for a Scheduled booking:
+     * expiry may never extend past 2 hours before the scheduled service time,
+     * leaving a real window to reach the Ready dispatch window afterward.
+     * Book Now (or a quotation with no scheduled time) passes through
+     * unchanged. Throws when the cutoff has already passed rather than
+     * silently producing a near-zero, negative, or post-cutoff expiry — every
+     * call site below routes through this instead of computing its own cap.
+     */
+    private function resolveExpiry(Quotation $quotation, Carbon $candidate): Carbon
+    {
+        if ($quotation->service_type === 'book_now' || ! $quotation->scheduled_for) {
+            return $candidate;
+        }
+
+        $cutoff = $quotation->scheduled_for->copy()->subHours(2);
+
+        if ($cutoff->isPast()) {
+            throw new ScheduledQuoteCutoffPassedException(
+                'The quote window for this scheduled service has closed. Reschedule this booking to a later time before sending a quote.'
+            );
+        }
+
+        return $candidate->lessThan($cutoff) ? $candidate : $cutoff;
+    }
+
+    private function appendSentVersionEntry(array $log, int $version): array
+    {
+        foreach ($log as $entry) {
+            if (($entry['type'] ?? null) === 'quotation_sent' && (int) ($entry['version'] ?? 0) === $version) {
+                return $log;
+            }
+        }
+
+        $log[] = [
+            'at' => now()->toISOString(),
+            'type' => 'quotation_sent',
+            'version' => $version,
+        ];
+
+        return $log;
+    }
+
     public function generateQuotationNumber(): string
     {
         $prefix = 'QT';
@@ -84,11 +129,15 @@ class QuotationService
 
     public function sendQuotation(Quotation $quotation, int $expiryHours = 168): Quotation
     {
+        $expiresAt = $this->resolveExpiry($quotation, now()->addHours($expiryHours));
+        $log = $this->appendSentVersionEntry($quotation->price_change_log ?? [], (int) ($quotation->version ?: 1));
+
         $quotation->update([
             'status' => 'sent',
             'sent_at' => now(),
-            'expires_at' => now()->addHours($expiryHours),
+            'expires_at' => $expiresAt,
             'expiry_hours' => $expiryHours,
+            'price_change_log' => $log,
         ]);
 
         if ($quotation->customer && $quotation->customer->email) {
@@ -149,7 +198,7 @@ class QuotationService
 
             if ($quotation->source_booking_id) {
                 $primaryBooking = Booking::findOrFail($quotation->source_booking_id);
-                $primaryBooking->update([
+                $primaryBooking->update(array_merge([
                     'quotation_id'         => $quotation->id,
                     'final_total'          => $finalTotal,
                     'vat_amount'           => $vatAmount,
@@ -157,7 +206,12 @@ class QuotationService
                     'status'               => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
                     'customer_approved_at' => now(),
                     'price_locked_at'      => now(),
-                ]);
+                    // Defensive only, Scheduled-only (never affects Book Now,
+                    // which doesn't add this key at all): a Scheduled booking
+                    // must never carry a Unit/TL reservation into
+                    // scheduled_confirmed, no matter how a stale
+                    // selected_unit_id could have gotten onto the row.
+                ], $isScheduled ? ['selected_unit_id' => null] : []));
             } else {
                 $primaryBooking = Booking::create([
                     'quotation_id'        => $quotation->id,
@@ -281,6 +335,213 @@ class QuotationService
         }
     }
 
+    /**
+     * Dispatcher-initiated withdrawal of an already-sent quote — distinct from
+     * rejectQuotation() above, which is the customer's own self-decline. Kept
+     * as its own status ('cancelled' vs 'rejected') so neither the dispatcher
+     * UI nor the customer-facing quote page has to guess which side pulled it.
+     */
+    public function cancelQuotation(Quotation $quotation): void
+    {
+        $quotation->update([
+            'status' => 'cancelled',
+            'responded_at' => now(),
+            'response_note' => 'Cancelled by dispatcher.',
+        ]);
+
+        if ($quotation->source_booking_id) {
+            $sourceBooking = Booking::find($quotation->source_booking_id);
+            $rejectableStatuses = [
+                'requested', 'reviewed', 'quoted', 'quotation_sent',
+                'scheduled', 'scheduled_confirmed',
+            ];
+            if ($sourceBooking && in_array($sourceBooking->status, $rejectableStatuses)) {
+                $newStatus = in_array($sourceBooking->status, ['scheduled', 'scheduled_confirmed'])
+                    ? 'rejected'
+                    : 'cancelled';
+                $sourceBooking->update([
+                    'status'           => $newStatus,
+                    'quotation_status' => 'cancelled',
+                    'rejection_reason' => 'Booking cancelled by dispatcher.',
+                ]);
+                BookingStatusUpdated::safeFire($sourceBooking);
+            }
+        }
+
+        if ($quotation->customer && $quotation->customer->email) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($quotation->customer->email)
+                    ->send(new \App\Mail\QuotationCancelledMail($quotation));
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to send quotation cancellation email', [
+                    'quotation_id' => $quotation->id,
+                    'customer_email' => $quotation->customer->email,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Customer-initiated: "I responded in time, but I'd like the dispatcher to
+     * look at this price again." Distinct from negotiateQuotation()/'negotiating'
+     * below (which has no live customer entry point and isn't reused here to
+     * avoid confusing semantics) — this is Book Now-only. Deliberately does NOT
+     * touch sent_at/expires_at: excluding 'price_review_requested' from
+     * expireOldQuotations()/getQuotationsNeedingFollowUp()'s status whitelist is
+     * what "pauses" the customer-response clock, no timestamp faking needed.
+     */
+    public function requestPriceReview(Quotation $quotation, string $reason): void
+    {
+        if (! $quotation->is_current || $quotation->status !== 'sent') {
+            return;
+        }
+
+        $log = $quotation->price_change_log ?? [];
+        $log[] = [
+            'at' => now()->toISOString(),
+            'old' => (float) $quotation->estimated_price,
+            'new' => (float) $quotation->estimated_price,
+            'reason' => $reason,
+            'by' => $quotation->customer?->full_name ?? 'Customer',
+            'type' => 'price_review_requested',
+        ];
+
+        $quotation->update([
+            'status' => 'price_review_requested',
+            'response_note' => $reason,
+            'responded_at' => now(),
+            'price_change_log' => $log,
+        ]);
+    }
+
+    /**
+     * Dispatcher decided the current price is fine as-is. Same quotation row/
+     * version — NOT newVersion() — since nothing financial changed. Resuming
+     * with a fresh sent_at/expires_at is what restarts the customer-response
+     * clock (and, by the same status-whitelist mechanism as above, makes it
+     * eligible for the 30-minute reminder again).
+     */
+    public function keepCurrentPrice(Quotation $quotation, ?string $dispatcherNote = null): Quotation
+    {
+        if (! $quotation->is_current || $quotation->status !== 'price_review_requested') {
+            throw new \Exception('This quotation is not awaiting a price review.');
+        }
+
+        $expiresAt = $this->resolveExpiry($quotation, now()->addHours($quotation->expiry_hours ?: 1));
+
+        $log = $quotation->price_change_log ?? [];
+        $log[] = [
+            'at' => now()->toISOString(),
+            'old' => (float) $quotation->estimated_price,
+            'new' => (float) $quotation->estimated_price,
+            'reason' => $dispatcherNote,
+            'by' => auth()->user()?->name ?? 'Dispatcher',
+            'type' => 'price_review_kept',
+        ];
+        $log = $this->appendSentVersionEntry($log, (int) ($quotation->version ?: 1));
+
+        $quotation->update([
+            'status' => 'sent',
+            'sent_at' => now(),
+            'expires_at' => $expiresAt,
+            'response_note' => null,
+            'responded_at' => null,
+            'follow_up_sent_at' => null,
+            'price_change_log' => $log,
+        ]);
+
+        if ($quotation->customer && $quotation->customer->email) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($quotation->customer->email)
+                    ->send(new \App\Mail\PriceReviewCompletedMail($quotation));
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to send price review completed email', [
+                    'quotation_id' => $quotation->id,
+                    'customer_email' => $quotation->customer->email,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($quotation->customer && $quotation->customer->user_id) {
+            CustomerNotificationService::send(
+                userId: $quotation->customer->user_id,
+                type: 'quotation_price_review_kept',
+                title: 'Price review completed',
+                body: 'JARZ Towing Services has reviewed your request. The quotation amount remains unchanged.',
+                bookingCode: $quotation->sourceBooking?->booking_code,
+            );
+        }
+
+        return $quotation->fresh();
+    }
+
+    /**
+     * Dispatcher decided to change the price after a review request. Never
+     * mutates the sent version in place — creates a new one via the existing
+     * newVersion() mechanism (old row -> is_current=false = "Superseded",
+     * enforced by the same is_current guard every accept/reject/update path
+     * already uses to reject stale actions).
+     */
+    public function resolvePriceReviewWithNewPrice(Quotation $quotation, float $newPrice, ?string $note, float $additionalFee = 0): Quotation
+    {
+        if (! $quotation->is_current || $quotation->status !== 'price_review_requested') {
+            throw new \Exception('This quotation is not awaiting a price review.');
+        }
+
+        $expiresAt = $this->resolveExpiry($quotation, now()->addHours($quotation->expiry_hours ?: 1));
+
+        $log = $quotation->price_change_log ?? [];
+        $log[] = [
+            'at' => now()->toISOString(),
+            'old' => (float) $quotation->estimated_price,
+            'new' => $newPrice,
+            'reason' => $note,
+            'by' => auth()->user()?->name ?? 'Dispatcher',
+            'type' => 'price_review_adjusted',
+        ];
+        $log = $this->appendSentVersionEntry($log, (int) ($quotation->version ?: 1) + 1);
+
+        $next = $quotation->newVersion([
+            'estimated_price' => $newPrice,
+            'additional_fee' => $additionalFee,
+            'counter_offer_amount' => null,
+            'response_note' => null,
+            'status' => 'sent',
+            'sent_at' => now(),
+            'expires_at' => $expiresAt,
+            'responded_at' => null,
+            'follow_up_sent_at' => null,
+            'price_change_log' => $log,
+        ]);
+
+        if ($next->customer && $next->customer->email) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($next->customer->email)
+                    ->send(new \App\Mail\QuotationUpdatedMail($next));
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to send quotation updated email', [
+                    'quotation_id' => $next->id,
+                    'customer_email' => $next->customer->email,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($next->customer && $next->customer->user_id) {
+            CustomerNotificationService::send(
+                userId: $next->customer->user_id,
+                type: 'quotation_updated',
+                title: 'Your quotation price was updated',
+                body: 'The price for your booking has been revised. Tap to view the updated quotation.',
+                bookingCode: $next->sourceBooking?->booking_code,
+            );
+        }
+
+        return $next;
+    }
+
     public function negotiateQuotation(Quotation $quotation, ?float $counterOffer, string $note): void
     {
         $quotation->update([
@@ -330,14 +591,28 @@ class QuotationService
 
     public function getQuotationsNeedingFollowUp()
     {
-        $followUpDate = now()->subDays(5);
-
+        // Book Now quotations only live for 1 hour (see sendQuotation()'s
+        // $expiryHours), so a reminder tied to a multi-day threshold would
+        // never fire before they expire — remind at the halfway point (30 min
+        // after sending) instead. Everything else (schedule bookings) keeps
+        // the original 5-day threshold. A null service_type is treated as
+        // Book Now, matching the convention already used for the queue query
+        // in DispatchController::index().
         return Quotation::whereIn('status', ['sent', 'negotiating'])
             ->current()
-            ->where('sent_at', '<=', $followUpDate)
             ->whereNull('responded_at')
             ->whereNull('follow_up_sent_at')
             ->where('expires_at', '>', now())
+            ->where(function ($query) {
+                $query->where(function ($bookNow) {
+                    $bookNow->where(function ($q) {
+                        $q->whereNull('service_type')->orWhere('service_type', 'book_now');
+                    })->where('sent_at', '<=', now()->subMinutes(30));
+                })->orWhere(function ($scheduled) {
+                    $scheduled->where('service_type', '!=', 'book_now')
+                        ->where('sent_at', '<=', now()->subDays(5));
+                });
+            })
             ->with(['customer', 'truckType', 'sourceBooking'])
             ->get();
     }
@@ -393,7 +668,7 @@ class QuotationService
         if ($quotation->status === 'sent') {
             $quotation->update([
                 'sent_at' => now(),
-                'expires_at' => now()->addHours($quotation->expiry_hours),
+                'expires_at' => $this->resolveExpiry($quotation, now()->addHours($quotation->expiry_hours)),
             ]);
         }
 
@@ -403,12 +678,12 @@ class QuotationService
     public function extendQuotation(Quotation $quotation, int $additionalHours = 24): Quotation
     {
         if ($quotation->expires_at) {
-            $newExpiry = $quotation->isExpired()
+            $candidate = $quotation->isExpired()
                 ? now()->addHours($additionalHours)
-                : $quotation->expires_at->addHours($additionalHours);
+                : $quotation->expires_at->copy()->addHours($additionalHours);
 
             $quotation->update([
-                'expires_at' => $newExpiry,
+                'expires_at' => $this->resolveExpiry($quotation, $candidate),
                 'status' => 'sent',
             ]);
         }

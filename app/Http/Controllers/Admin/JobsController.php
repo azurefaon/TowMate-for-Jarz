@@ -7,34 +7,46 @@ use App\Http\Controllers\Controller;
 use App\Mail\BookingReceiptMail;
 use App\Models\AuditLog;
 use App\Models\Booking;
+use App\Models\Unit;
 use App\Models\User;
 use App\Services\CustomerNotificationService;
 use App\Services\DocumentGenerationService;
 use App\Services\TeamLeaderAvailabilityService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
 class JobsController extends Controller
 {
     protected array $activeStatuses = [
-        'assigned', 'on_the_way', 'in_progress',
-        'waiting_verification', 'payment_pending', 'payment_submitted',
-        'on_job', 'delayed',
+        'assigned', 'accepted', 'on_the_way', 'arrived_pickup',
+        'in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff',
+        'waiting_verification', 'payment_pending', 'payment_submitted', 'delayed',
     ];
+
+    protected array $verificationStatuses = ['waiting_verification', 'payment_pending', 'payment_submitted'];
 
     public function index()
     {
-        $jobs = Booking::with(['customer', 'truckType', 'unit.driver', 'unit.teamLeader', 'assignedTeamLeader'])
+        $jobs = Booking::with(['customer', 'truckType', 'unit.driver', 'assignedTeamLeader'])
             ->whereIn('status', $this->activeStatuses)
             ->latest()
             ->paginate(12);
 
         $stats = [
-            'total'    => Booking::whereIn('status', $this->activeStatuses)->count(),
-            'on_job'   => Booking::whereIn('status', ['on_the_way', 'in_progress', 'on_job'])->count(),
-            'assigned' => Booking::where('status', 'assigned')->count(),
-            'delayed'  => Booking::where('status', 'delayed')->count(),
-            'awaiting_payment' => Booking::whereIn('status', ['payment_pending', 'payment_submitted'])->count(),
+            'total'             => Booking::whereIn('status', $this->activeStatuses)->count(),
+            'operational'       => Booking::whereIn('status', array_values(array_diff($this->activeStatuses, $this->verificationStatuses)))->count(),
+            'awaiting_payment'  => Booking::whereIn('status', $this->verificationStatuses)->count(),
+            'delayed'           => Booking::where('status', 'delayed')->count(),
+            // UI filter-group counts for the Active Jobs tabs — computed
+            // independently of pagination (the table itself is paginated at
+            // 12/page, so counting rendered rows client-side would be wrong).
+            // Presentation groupings only; the underlying statuses/lifecycle
+            // are unchanged.
+            'assigned'              => Booking::whereIn('status', ['assigned', 'accepted'])->count(),
+            'en_route'              => Booking::whereIn('status', ['on_the_way', 'arrived_pickup'])->count(),
+            'in_service'            => Booking::whereIn('status', ['in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff'])->count(),
+            'awaiting_verification' => Booking::where('status', 'waiting_verification')->count(),
         ];
 
         return view('admin-dashboard.pages.jobs', compact('jobs', 'stats'));
@@ -43,42 +55,60 @@ class JobsController extends Controller
     public function confirmPayment(Request $request, Booking $booking)
     {
         $readyStatuses = ['waiting_verification', 'payment_pending', 'payment_submitted'];
-        if (! in_array($booking->status, $readyStatuses, true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This booking is not ready for completion.',
-            ], 422);
-        }
 
-        // cash_received (when applicable) was already collected by the Team Leader
-        // at task-completion time (TLTaskController::complete()) — nothing to
-        // validate or overwrite here, just confirm and complete.
-        $booking->update([
-            'status'       => 'completed',
-            'completed_at' => now(),
-        ]);
+        $outcome = DB::transaction(function () use ($booking, $readyStatuses) {
+            $locked = Booking::whereKey($booking->id)->lockForUpdate()->first();
 
-        $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
-
-        AuditLog::create([
-            'user_id'     => auth()->id(),
-            'action'      => 'payment_confirmed',
-            'entity_type' => 'Booking',
-            'entity_id'   => $booking->id,
-            'reference'   => $booking->job_code,
-            'description' => 'Job completed' . ($booking->cash_received !== null ? ' — cash received ₱' . number_format((float) $booking->cash_received, 2) : ''),
-        ]);
-
-        // Release unit and team leader
-        if ($booking->assigned_unit_id) {
-            \App\Models\Unit::whereKey($booking->assigned_unit_id)->update(['status' => 'available']);
-        }
-        if ($booking->assigned_team_leader_id) {
-            $tl = User::find($booking->assigned_team_leader_id);
-            if ($tl) {
-                app(TeamLeaderAvailabilityService::class)->setOperationalOverride($tl, 'available');
+            if ($locked->status === 'completed') {
+                return ['already' => $locked];
             }
+
+            if (! in_array($locked->status, $readyStatuses, true)) {
+                return ['error' => 'This booking is not ready for completion.'];
+            }
+
+            $locked->update([
+                'status'       => 'completed',
+                'completed_at' => now(),
+            ]);
+
+            AuditLog::create([
+                'user_id'     => auth()->id(),
+                'action'      => 'payment_confirmed',
+                'entity_type' => 'Booking',
+                'entity_id'   => $locked->id,
+                'reference'   => $locked->job_code,
+                'description' => 'Job completed' . ($locked->cash_received !== null ? ' — cash received ₱' . number_format((float) $locked->cash_received, 2) : ''),
+            ]);
+
+            if (! $locked->payment_submitted_at) {
+                if ($locked->assigned_unit_id) {
+                    Unit::whereKey($locked->assigned_unit_id)->update(['status' => 'available']);
+                }
+                if ($locked->assigned_team_leader_id) {
+                    $tl = User::find($locked->assigned_team_leader_id);
+                    if ($tl) {
+                        app(TeamLeaderAvailabilityService::class)->setOperationalOverride($tl, 'available');
+                    }
+                }
+            }
+
+            return ['booking' => $locked];
+        });
+
+        if (isset($outcome['error'])) {
+            return response()->json(['success' => false, 'message' => $outcome['error']], 422);
         }
+
+        if (isset($outcome['already'])) {
+            return response()->json([
+                'success' => true,
+                'message' => 'This job was already confirmed.',
+            ]);
+        }
+
+        $booking = $outcome['booking'];
+        $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
 
         BookingStatusUpdated::safeFire($booking);
 

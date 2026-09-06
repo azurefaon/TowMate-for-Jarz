@@ -182,6 +182,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     initializeViewToggle();
     initializeQueueFilters();
+    initializeBookNowFilter();
+    initializeScheduledFilter();
+    initializeRowKeyboardAccess();
 
     function initializeViewToggle() {
         // No view-toggle UI exists on this page — no-op stub kept for compatibility.
@@ -271,7 +274,6 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     }
-    // ...existing code...
 
     // --- POPULATE SUMMARY FROM DATABASE ---
     function populateSummaryFromDB(data) {
@@ -292,28 +294,29 @@ document.addEventListener("DOMContentLoaded", function () {
             "₱" + data.final_total;
     }
 
-    // // Call populateModalFromCard when opening modal
-    // function openActionModal() {
-    //     // ...existing code...
-    //     if (state.selectedCard) {
-    //         populateModalFromCard(state.selectedCard);
-    //     }
-    //     // ...existing code...
-    // }
-
     function openActionModal() {
-        // ...existing code...
-
         if (state.selectedCard) {
             populateModalFromCard(state.selectedCard);
         }
-
-        // ...existing code...
     }
 
-    // apply filter — always default to the Book Now tab
+    // apply filter — defaults to Book Now, unless a mutating drawer action
+    // (see booking-drawer.js's reloadAfterSuccess()) just reloaded the page
+    // and stashed which tab was active beforehand, so that tab is restored
+    // instead of silently bouncing the dispatcher back to Book Now.
     window.applyDispatchQueueFilter = applyQueueFilter;
-    applyQueueFilter("book-now");
+    (function () {
+        var initialFilter = "book-now";
+        try {
+            var stashed = sessionStorage.getItem("rbReopenQueueFilter");
+            sessionStorage.removeItem("rbReopenQueueFilter");
+            if (stashed) initialFilter = stashed;
+        } catch (e) {
+            /* ignore */
+        }
+        applyQueueFilter(initialFilter);
+    })();
+    applyNotificationDeepLink();
 
     function applyQueueFilter(filter) {
         var filterButtons = document.querySelectorAll(".queue-filter-btn");
@@ -360,8 +363,15 @@ document.addEventListener("DOMContentLoaded", function () {
         var cards = queueList.querySelectorAll(".incoming-card");
         var bookNowPanel = document.getElementById("bookNowPanel");
         var scheduledPanel = document.getElementById("scheduledPanel");
-        var bookNowCards = bookNowPanel ? bookNowPanel.querySelectorAll(".incoming-card") : [];
-        var scheduledCards = scheduledPanel ? scheduledPanel.querySelectorAll(".incoming-card") : [];
+        // Both Book Now and Scheduled render as .jobs-table rows now, queried
+        // the same way (.jobs-row) — Book Now rows deliberately do NOT carry
+        // .incoming-card (dispatch.css's base .incoming-card rule sets
+        // display:flex/padding/border for the old card layout, which breaks
+        // table-row rendering when applied to a <tr> with no counteracting
+        // class). The badge always shows the total, never the currently-
+        // filtered count (see #schedFilter wiring below).
+        var bookNowCards = bookNowPanel ? bookNowPanel.querySelectorAll(".jobs-row") : [];
+        var scheduledCards = scheduledPanel ? scheduledPanel.querySelectorAll(".jobs-row") : [];
         var counts = {
             returned: 0,
             active: 0,
@@ -393,6 +403,131 @@ document.addEventListener("DOMContentLoaded", function () {
             badge.textContent = String(counts[key]);
             badge.classList.toggle("has-count", counts[key] > 0);
         });
+    }
+
+    // Scheduled tab's own 7-item filter (needs-quote/quote-sent/confirmed/
+    // upcoming/ready/overdue) + search — filters .jobs-row rows by
+    // data-sched-bucket and customer/booking text. The tab's own count badge
+    // (updateTabBadges() above) intentionally always shows the total, not
+    // this filtered count.
+    function initializeScheduledFilter() {
+        var filterSelect = document.getElementById("schedFilter");
+        var searchInput = document.getElementById("schedSearch");
+        var tbody = document.getElementById("schedTableBody");
+        if (!tbody) return;
+
+        function applySchedFilter() {
+            var bucket = filterSelect ? filterSelect.value : "all";
+            var query = (searchInput ? searchInput.value : "").trim().toLowerCase();
+            var rows = tbody.querySelectorAll(".jobs-row");
+
+            Array.prototype.forEach.call(rows, function (row) {
+                var matchesBucket = bucket === "all" || row.getAttribute("data-sched-bucket") === bucket;
+                var text = (row.textContent || "").toLowerCase();
+                var matchesQuery = !query || text.indexOf(query) > -1;
+                row.style.display = matchesBucket && matchesQuery ? "" : "none";
+            });
+        }
+
+        if (filterSelect) filterSelect.addEventListener("change", applySchedFilter);
+        if (searchInput) searchInput.addEventListener("input", applySchedFilter);
+    }
+
+    // Book Now tab's own status filter + search — same pattern as
+    // initializeScheduledFilter() above, filtering by the row's
+    // data-eff-status (mirrors $bnEffStatus in dispatch.blade.php, which
+    // already matches #rbBnFilter's option values 1:1) and free-text search.
+    function initializeBookNowFilter() {
+        var filterSelect = document.getElementById("rbBnFilter");
+        var searchInput = document.getElementById("bnSearch");
+        var panel = document.getElementById("bookNowPanel");
+        if (!panel) return;
+
+        function applyBnFilter() {
+            var status = filterSelect ? filterSelect.value : "all";
+            var query = (searchInput ? searchInput.value : "").trim().toLowerCase();
+            var rows = panel.querySelectorAll(".jobs-row");
+
+            Array.prototype.forEach.call(rows, function (row) {
+                var matchesStatus = status === "all" || row.getAttribute("data-eff-status") === status;
+                var text = (row.textContent || "").toLowerCase();
+                var matchesQuery = !query || text.indexOf(query) > -1;
+                row.style.display = matchesStatus && matchesQuery ? "" : "none";
+            });
+        }
+
+        if (filterSelect) filterSelect.addEventListener("change", applyBnFilter);
+        if (searchInput) searchInput.addEventListener("input", applyBnFilter);
+    }
+
+    // Whole-row click already opens the drawer via the row's own onclick
+    // attribute (window.openBookingDrawer(this)) — this only adds keyboard
+    // parity for the tabindex="0" rows: Enter/Space triggers the same click.
+    function initializeRowKeyboardAccess() {
+        ["bookNowPanel", "scheduledPanel"].forEach(function (panelId) {
+            var panel = document.getElementById(panelId);
+            if (!panel) return;
+
+            panel.addEventListener("keydown", function (event) {
+                var row = event.target.closest && event.target.closest(".jobs-row");
+                if (!row || !panel.contains(row)) return;
+                if (event.key !== "Enter" && event.key !== " ") return;
+
+                event.preventDefault();
+                row.click();
+            });
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Notification deep-link: /admin-dashboard/dispatch?type=book-now&booking=TM-00128
+    // (or type=scheduled) — see App\Models\DispatcherNotification::getTargetUrlAttribute().
+    // Activates the right tab, locates the row by its existing
+    // data-booking-code, gives it a brief neutral highlight, and reuses the
+    // exact same window.openBookingDrawer() the row's own click already
+    // uses — no second booking-details implementation.
+    // ------------------------------------------------------------------
+    function applyNotificationDeepLink() {
+        var params;
+        try {
+            params = new URLSearchParams(window.location.search);
+        } catch (e) {
+            return;
+        }
+
+        var type = params.get("type");
+        var bookingCode = params.get("booking");
+        if ((type !== "book-now" && type !== "scheduled") || !bookingCode) return;
+
+        if (typeof window.applyDispatchQueueFilter === "function") {
+            window.applyDispatchQueueFilter(type);
+        }
+
+        var panel = document.getElementById(type === "book-now" ? "bookNowPanel" : "scheduledPanel");
+        if (!panel) return;
+
+        var row = panel.querySelector('.jobs-row[data-booking-code="' + bookingCode.replace(/"/g, '') + '"]');
+        if (!row) return;
+
+        row.scrollIntoView({ block: "center" });
+        row.classList.add("jobs-row--deep-link");
+        setTimeout(function () {
+            row.classList.remove("jobs-row--deep-link");
+        }, 1600);
+
+        if (typeof window.openBookingDrawer === "function") {
+            window.openBookingDrawer(row);
+        }
+
+        // One-shot: don't reopen the same booking again on a later manual refresh.
+        try {
+            var url = new URL(window.location.href);
+            url.searchParams.delete("type");
+            url.searchParams.delete("booking");
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            /* ignore */
+        }
     }
 
     function initializeRealtimeUpdates() {
@@ -487,6 +622,14 @@ document.addEventListener("DOMContentLoaded", function () {
         var opt = unitSelect.options[unitSelect.selectedIndex];
         return parseNumericPrice(
             opt ? opt.getAttribute("data-base-rate") || "0" : "0",
+        );
+    }
+
+    function getSelectedUnitPerKmRate() {
+        if (!unitSelect || !unitSelect.value) return 0;
+        var opt = unitSelect.options[unitSelect.selectedIndex];
+        return parseNumericPrice(
+            opt ? opt.getAttribute("data-per-km-rate") || "0" : "0",
         );
     }
 
@@ -589,8 +732,9 @@ document.addEventListener("DOMContentLoaded", function () {
         var distanceFeeValue = parseNumericPrice(
             distanceFeeInput ? distanceFeeInput.value : 0,
         );
+        var selectedPerKmRate = getSelectedUnitPerKmRate();
         var expectedDistanceFee = roundValue(
-            Math.max(0, distanceValue - 1) * 300,
+            Math.max(0, distanceValue - 4) * selectedPerKmRate,
         );
 
         if (unitSelect) {
@@ -640,7 +784,9 @@ document.addEventListener("DOMContentLoaded", function () {
             if (Math.abs(distanceFeeValue - expectedDistanceFee) > 0.11) {
                 rememberError(
                     distanceFeeInput,
-                    "Distance fee must match MMDA rate (₱300/km after first 1km).",
+                    "Distance fee must match the unit's per-km rate (₱" +
+                        selectedPerKmRate.toFixed(2) +
+                        "/km after the first 4km).",
                 );
             }
         }
@@ -849,8 +995,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (typeof updateAllWaitTimes === "function") updateAllWaitTimes();
         if (typeof updateReturnBanner === "function") updateReturnBanner();
-
-        playNotificationSound();
 
         setTimeout(function () {
             newCard.classList.remove("new-booking");
@@ -1164,7 +1308,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
             }
 
-            playNotificationSound();
             showNotification(
                 "Job " +
                     jobCode +
@@ -1194,7 +1337,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
             }
 
-            playNotificationSound();
             showNotification(
                 tlName +
                     " completed job " +
@@ -1253,13 +1395,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     // (which would re-trigger a billable Google Maps API load).
                     if (countElement) countElement.textContent = String(serverCount);
                     if (scheduledEl) scheduledEl.textContent = String(serverScheduled);
-                    // Skip the sound right after a dispatcher action (e.g. Approve) —
-                    // this poller's 8s tick can land moments after, and firing the
-                    // alert then reads as "caused by" the click. See
-                    // window.__suppressBookingSoundUntil, set from the quotation modal.
-                    if (!window.__suppressBookingSoundUntil || Date.now() >= window.__suppressBookingSoundUntil) {
-                        playNotificationSound();
-                    }
                 }
             })
             .catch(function () {
@@ -1504,40 +1639,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (!visibleCards && !queueList.contains(emptyState)) {
             queueList.appendChild(emptyState);
-        }
-    }
-
-    function playNotificationSound() {
-        try {
-            var AudioContextClass =
-                window.AudioContext || window.webkitAudioContext;
-            if (!AudioContextClass) {
-                return;
-            }
-
-            var audioContext = new AudioContextClass();
-            var oscillator = audioContext.createOscillator();
-            var gainNode = audioContext.createGain();
-
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-            oscillator.frequency.setValueAtTime(
-                600,
-                audioContext.currentTime + 0.1,
-            );
-
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(
-                0.01,
-                audioContext.currentTime + 0.3,
-            );
-
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.3);
-        } catch (error) {
-            return;
         }
     }
 
@@ -2048,8 +2149,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
         var distanceFeeVal = parseFloat(distanceFeeInput ? distanceFeeInput.value : 0);
         var baseRate = getSelectedUnitBaseRate();
-        var extraDist = Math.max(0, parseFloat(distanceKm) - 1);
-        var dFee = roundValue(extraDist * 300);
+        var extraDist = Math.max(0, parseFloat(distanceKm) - 4);
+        var dFee = roundValue(extraDist * getSelectedUnitPerKmRate());
         var computedPrice = roundValue((baseRate + dFee) * 1.12);
         var price = parseNumericPrice(quotedPrice) > 0 ? parseNumericPrice(quotedPrice) : computedPrice;
 
@@ -2326,8 +2427,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 ? discountRate
                 : 0;
 
-        var extraDistance = Math.max(0, distanceKm - 1);
-        var distanceFee = roundValue(extraDistance * 300);
+        var extraDistance = Math.max(0, distanceKm - 4);
+        var selectedUnitPerKmRate = getSelectedUnitPerKmRate();
+        var distanceFee = roundValue(extraDistance * selectedUnitPerKmRate);
         var selectedUnitBaseRate = getSelectedUnitBaseRate();
         var computedTotal = roundValue(selectedUnitBaseRate + distanceFee);
         var discountAmount = roundValue(computedTotal * (discountRate / 100));
@@ -2354,7 +2456,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 ? "₱" + formatCurrencyValue(selectedUnitBaseRate)
                 : "TBD (assign unit first)",
         );
-        setText("summaryPerKmRate", formatNumberValue(extraDistance) + " km extra × ₱300");
+        setText(
+            "summaryPerKmRate",
+            formatNumberValue(extraDistance) +
+                " km extra × ₱" +
+                formatCurrencyValue(selectedUnitPerKmRate),
+        );
         setText(
             "summaryCustomerType",
             state.reviewData.customerType || "Regular",

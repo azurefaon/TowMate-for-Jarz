@@ -25,7 +25,8 @@ class CustomerQuotationController extends Controller
         if (!$customer) return response()->json(['data' => null]);
 
         $quotation = Quotation::where('customer_id', $customer->id)
-            ->where('status', 'sent')
+            ->whereIn('status', ['sent', 'price_review_requested'])
+            ->whereNotNull('source_booking_id')
             ->current()
             ->where(function ($q) {
                 $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
@@ -38,14 +39,16 @@ class CustomerQuotationController extends Controller
 
         $sourceBooking = $quotation->sourceBooking;
         $distanceKm    = (float) ($quotation->distance_km ?? 0);
-        $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm);
+        $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm, (float) ($quotation->truckType?->per_km_rate ?? 0));
 
-        // Prefer stored vat_amount on booking; fall back to back-calculation
+        // Derived live from the CURRENT quotation's authoritative estimated_price —
+        // never from booking.vat_amount, which is only guaranteed fresh at send
+        // and at acceptance and can go stale in between (e.g. after a Price
+        // Review adjustment creates a new current version). Mirrors the same
+        // total/1.12 split the dispatcher drawer already uses.
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
-        $vatAmount     = (float) ($sourceBooking?->vat_amount ?? 0);
-        if ($vatAmount <= 0 && (float) $quotation->estimated_price > 0) {
-            $vatAmount = round(((float) $quotation->estimated_price - $additionalFee) / 1.12 * 0.12, 2);
-        }
+        $vatExclusive  = round(((float) $quotation->estimated_price) / 1.12, 2);
+        $vatAmount     = round(((float) $quotation->estimated_price) - $vatExclusive, 2);
 
         // Use the dispatcher note from the source booking as the fee description,
         // or fall back to the latest reason in the price change log.
@@ -74,6 +77,9 @@ class CustomerQuotationController extends Controller
             'expires_at'          => $quotation->expires_at?->toIso8601String(),
             'sent_at'             => $quotation->sent_at?->toIso8601String(),
             'price_change_log'    => $quotation->price_change_log ?? [],
+            // Only meaningful once status === 'price_review_requested' — the
+            // customer's own submitted reason, echoed back for the waiting UI.
+            'response_note'       => $quotation->response_note,
         ]]);
     }
 
@@ -141,6 +147,33 @@ class CustomerQuotationController extends Controller
         broadcast(new CustomerInquirySent($quotation, $validated['message']))->toOthers();
 
         return response()->json(['success' => true, 'message' => 'Your message has been sent to the dispatcher.']);
+    }
+
+    /**
+     * Reason-only replacement for the old (never actually live) counter-offer
+     * negotiation — no price field, just a required reason. Pauses the
+     * customer-response clock: see QuotationService::requestPriceReview().
+     * Available to both Book Now and Scheduled quotations — the dispatcher's
+     * Keep Current Price / Adjust Price response already caps any refreshed
+     * expiry at scheduled_for - 2h for Scheduled via QuotationService's
+     * resolveExpiry(), so no separate handling is needed here.
+     */
+    public function requestPriceReview(Request $request, Quotation $quotation): JsonResponse
+    {
+        $customer = Customer::where('user_id', $request->user()->id)->first();
+        if (!$customer || (int) $quotation->customer_id !== $customer->id) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+        }
+
+        if (! $quotation->is_current || $quotation->status !== 'sent' || $quotation->isExpired()) {
+            return response()->json(['success' => false, 'message' => 'This quotation is no longer active.'], 422);
+        }
+
+        $validated = $request->validate(['reason' => 'required|string|max:1000']);
+
+        $this->quotationService->requestPriceReview($quotation, $validated['reason']);
+
+        return response()->json(['success' => true, 'message' => 'Your request has been sent. We will review the price and follow up shortly.']);
     }
 
     public function reject(Request $request, Quotation $quotation): JsonResponse

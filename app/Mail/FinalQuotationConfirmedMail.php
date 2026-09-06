@@ -23,7 +23,7 @@ class FinalQuotationConfirmedMail extends Mailable
         $distanceKm    = (float) ($booking->distance_km ?? 0);
         $additionalFee = (float) ($booking->additional_fee ?? 0);
         $total         = (float) ($booking->final_total ?? 0);
-        $distanceFee   = app(BookingService::class)->distanceFeeFor($distanceKm);
+        $distanceFee   = app(BookingService::class)->distanceFeeFor($distanceKm, (float) ($booking->truckType->per_km_rate ?? 0));
 
         $this->priceBreakdown = [
             'base_rate'      => $baseRate,

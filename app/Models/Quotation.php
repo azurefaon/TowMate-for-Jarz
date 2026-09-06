@@ -55,7 +55,10 @@ class Quotation extends Model
     protected $casts = [
         'version' => 'integer',
         'is_current' => 'boolean',
-        'distance_km' => 'decimal:2',
+        // Matches the widened decimal(10,4) column — a 'decimal:2' cast here
+        // would silently re-truncate every read even after the DB column was
+        // widened, reintroducing the exact precision-loss bug one layer up.
+        'distance_km' => 'decimal:4',
         'eta_minutes' => 'decimal:2',
         'estimated_price' => 'decimal:2',
         'additional_fee' => 'decimal:2',
@@ -85,6 +88,30 @@ class Quotation extends Model
         if (! $raw) return [];
         $decoded = json_decode($raw, true);
         return is_array($decoded) ? $decoded : [$raw];
+    }
+
+    /**
+     * Mirrors Booking::getScheduledForAttribute() — no notes-fallback needed
+     * here, just the two columns. Reads scheduled_date through its own
+     * 'date' cast (not the raw $attributes value) and re-normalizes it to a
+     * plain Y-m-d string before combining with scheduled_time — this is what
+     * makes it safe whether the model was just created in this same PHP
+     * process (where the raw attribute is Eloquent's in-memory "Y-m-d
+     * H:i:s" cast serialization) or freshly loaded from Postgres (where the
+     * raw attribute is the plain "Y-m-d" the driver returns for a date
+     * column) — both normalize to the same Y-m-d through the cast, so
+     * there's nothing left to concatenate incorrectly.
+     */
+    public function getScheduledForAttribute(): ?Carbon
+    {
+        $scheduledDate = $this->scheduled_date; // casted Carbon|null
+        if (! $scheduledDate) {
+            return null;
+        }
+
+        $scheduledTime = trim((string) ($this->scheduled_time ?? ''));
+
+        return Carbon::parse($scheduledDate->toDateString() . ' ' . ($scheduledTime ?: '00:00'));
     }
 
     // Relationships

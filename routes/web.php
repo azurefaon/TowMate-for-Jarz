@@ -21,6 +21,7 @@ use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\Admin\AvailableUnitsController;
 use App\Http\Controllers\Admin\DashboardController as AdminController;
 use App\Http\Controllers\Admin\DispatchController;
+use App\Http\Controllers\Admin\DispatcherNotificationController;
 use App\Http\Controllers\Admin\DriversController;
 use App\Http\Controllers\Admin\JobsController;
 
@@ -148,6 +149,9 @@ Route::prefix('admin-dashboard')
     ->group(function () {
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/live-overview', [AdminController::class, 'liveOverview'])->name('live-overview');
+        Route::get('/notifications', [DispatcherNotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/mark-all-read', [DispatcherNotificationController::class, 'markAllRead'])->name('notifications.mark-all-read');
+        Route::get('/notifications/{notification}/open', [DispatcherNotificationController::class, 'open'])->name('notifications.open');
         Route::get('/dispatch', [DispatchController::class, 'index'])->name('dispatch');
         Route::get('/pending-bookings-count', [DispatchController::class, 'pendingBookingsCount'])->name('pending-bookings-count');
         Route::get('/units/locations', [DispatchController::class, 'unitLocations'])->name('units.locations');
@@ -186,6 +190,7 @@ Route::prefix('admin-dashboard')
         });
 
         Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])->name('booking.assign');
+        Route::post('/booking/{booking}/reschedule', [DispatchController::class, 'rescheduleBooking'])->name('booking.reschedule');
         Route::post('/booking/{booking}/save-draft', [DispatchController::class, 'saveQuotationDraft'])->name('booking.save-draft');
         Route::get('/quotations/floating-panel', [DispatchController::class, 'floatingQuotationsPanel'])->name('quotations.floating-panel');
         Route::post('/booking/{booking}/service-fee', [DispatchController::class, 'applyServiceFee'])->name('booking.service-fee');
@@ -200,6 +205,8 @@ Route::prefix('admin-dashboard')
             Route::post('/{quotation}/send', [DispatchController::class, 'sendQuotation'])->name('send');
             Route::post('/{quotation}/cancel', [DispatchController::class, 'cancelQuotation'])->name('cancel');
             Route::patch('/{quotation}/update-price', [DispatchController::class, 'updateQuotationPrice'])->name('update-price');
+            Route::post('/{quotation}/keep-price', [DispatchController::class, 'keepQuotationPrice'])->name('keep-price');
+            Route::post('/{quotation}/adjust-price', [DispatchController::class, 'adjustQuotationPriceAfterReview'])->name('adjust-price');
             Route::patch('/{quotation}/extend', [DispatchController::class, 'extendQuotation'])->name('extend');
             Route::get('/{quotation}/response', [DispatchController::class, 'viewQuotationResponse'])->name('response');
         });

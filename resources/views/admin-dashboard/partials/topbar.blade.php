@@ -1,8 +1,9 @@
 @php
     $dispatcherNotifications = $dispatcherNotifications ?? collect();
-    $dispatcherNotificationCount = $dispatcherNotificationCount ?? 0;
+    $dispatcherUnreadCount = $dispatcherUnreadCount ?? 0;
     $dispatcherUser = auth()->user();
     $dispatcherName = $dispatcherUser->full_name ?? ($dispatcherUser->name ?? 'Dispatcher');
+    $dispatcherRoleName = $dispatcherUser->role->name ?? 'Dispatcher';
 @endphp
 
 <div class="topbar">
@@ -12,108 +13,66 @@
             <span></span>
             <span></span>
         </button>
-        <div class="topbar-copy">
-            <h2>@yield('title', 'Dispatcher Panel')</h2>
-        </div>
     </div>
 
     <div class="topbar-actions">
         <details class="notif-dropdown">
-            <summary class="notif-button" aria-label="Open dispatcher notifications">
+            <summary class="notif-button" aria-label="Notifications" aria-haspopup="true">
                 <i data-lucide="bell"></i>
-                <span id="dispatcherNotifCount" class="notif-count" @if ($dispatcherNotificationCount < 1) hidden @endif>
-                    {{ $dispatcherNotificationCount }}
-                </span>
+                @if ($dispatcherUnreadCount > 0)
+                    <span id="dispatcherNotifCount" class="notif-count">{{ $dispatcherUnreadCount }}</span>
+                @endif
             </summary>
 
             <div class="notif-menu">
                 <div class="notif-menu-head">
-                    <div>
-                        <h4>Update Notifications</h4>
-                    </div>
+                    <h4>Notifications</h4>
+                    <button type="button" class="notif-mark-all" id="notifMarkAllRead">Mark all as read</button>
                 </div>
 
                 <div class="notif-list" id="dispatcherNotifList">
                     @forelse ($dispatcherNotifications as $notification)
-                        @php
-                            $teamLeaderName =
-                                optional($notification->assignedTeamLeader)->name ??
-                                (optional(optional($notification->unit)->teamLeader)->name ?? 'a team leader');
-
-                            [$headline, $detail] = match ($notification->status) {
-                                'reviewed' => [
-                                    "Booking {$notification->job_code} has a negotiation request",
-                                    'The customer asked dispatch to review a counter-offer or adjustment.',
-                                ],
-                                'quoted' => [
-                                    "Booking {$notification->job_code} quotation sent",
-                                    'Waiting for the customer to accept the price or request changes.',
-                                ],
-                                'confirmed' => [
-                                    "Booking {$notification->job_code} quotation approved",
-                                    'Customer approval is complete and the booking is ready for dispatch.',
-                                ],
-                                'accepted' => [
-                                    "Booking {$notification->job_code} sent to team leader queue",
-                                    'Waiting for a team leader to take this job.',
-                                ],
-                                'assigned' => [
-                                    "Booking {$notification->job_code} taken by {$teamLeaderName}",
-                                    'The dispatcher handoff has been accepted.',
-                                ],
-                                'on_the_way' => [
-                                    "Booking {$notification->job_code} is now on the way",
-                                    "{$teamLeaderName} is heading to the pickup location.",
-                                ],
-                                'in_progress', 'on_job' => [
-                                    "Booking {$notification->job_code} towing is active",
-                                    'The towing operation is currently in progress.',
-                                ],
-                                'waiting_verification' => [
-                                    "Booking {$notification->job_code} is awaiting customer confirmation",
-                                    'Waiting for the customer to verify job completion.',
-                                ],
-                                default => [
-                                    "Booking {$notification->job_code} updated",
-                                    'The job status was updated by the field team.',
-                                ],
-                            };
-                        @endphp
-                        <div class="notif-item">
-                            <span class="notif-dot"></span>
-                            <div>
-                                <strong>{{ $headline }}</strong>
-                                <p>
-                                    {{ $notification->customer->full_name ?? 'Customer' }}
-                                    · {{ $notification->truckType->name ?? 'Tow request' }}
-                                    · {{ $detail }}
-                                </p>
-                                <small>{{ optional($notification->updated_at)->diffForHumans() ?? 'Just now' }}</small>
-                            </div>
-                        </div>
+                        @include('admin-dashboard.partials.notification-item', ['notification' => $notification])
                     @empty
-                        <div class="notif-empty">No dispatch updates yet.</div>
+                        <div class="notif-empty">No notifications yet.</div>
                     @endforelse
                 </div>
+
+                <a href="{{ route('admin.notifications.index') }}" class="notif-view-all">View all notifications</a>
             </div>
         </details>
 
         <details class="profile-dropdown">
-            <summary class="profile-trigger" aria-label="Open profile menu">
-                <span class="profile-avatar">{{ strtoupper(substr($dispatcherName, 0, 1)) }}</span>
+            <summary class="profile-trigger" aria-label="Open profile menu" aria-haspopup="true">
+                <span class="profile-avatar">
+                    <i data-lucide="user"></i>
+                </span>
                 <span class="profile-meta">
                     <strong>{{ $dispatcherName }}</strong>
                 </span>
+                <i data-lucide="chevron-down" class="profile-chevron"></i>
             </summary>
 
             <div class="profile-menu">
+                <div class="profile-menu-head">
+                    <span class="profile-avatar">
+                        <i data-lucide="user"></i>
+                    </span>
+                    <span class="profile-menu-meta">
+                        <strong>{{ $dispatcherName }}</strong>
+                        <small>{{ $dispatcherRoleName }}</small>
+                    </span>
+                </div>
+
+                <hr class="profile-menu-divider">
+
                 <a href="{{ route('profile.edit') }}">
                     <i data-lucide="settings"></i>
                     <span>Settings</span>
                 </a>
                 <button type="button" onclick="openLogoutModal()">
                     <i data-lucide="log-out"></i>
-                    <span>Logout</span>
+                    <span>Log out</span>
                 </button>
             </div>
         </details>

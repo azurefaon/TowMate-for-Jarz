@@ -107,6 +107,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('{quotation}/accept',   [CustomerQuotationController::class, 'accept']);
             Route::post('{quotation}/reject',   [CustomerQuotationController::class, 'reject']);
             Route::post('{quotation}/inquire',  [CustomerQuotationController::class, 'inquire']);
+            Route::post('{quotation}/request-price-review', [CustomerQuotationController::class, 'requestPriceReview']);
         });
 
         // Legacy resource (index/show/update/destroy still go here)

@@ -592,9 +592,10 @@ class BookingService
             }
         }
 
-        // MMDA formula: first 1 km is included in base fee; ₱300/km after that
-        $extraDistance = max(0.0, $distanceKm - 1.0);
-        $distanceFee   = $this->distanceFeeFor($distanceKm);
+        // First 4 km included in base fee; chargeable distance billed at the
+        // truck type's own per_km_rate (SuperAdmin-editable), not a literal.
+        $extraDistance = max(0.0, $distanceKm - 4.0);
+        $distanceFee   = $this->distanceFeeFor($distanceKm, (float) $truckType->per_km_rate);
 
         $grossPrice    = round($baseRate + $extraBaseRates + $distanceFee, 2);
         $customerType  = $this->resolveCustomerType($data);
@@ -609,7 +610,7 @@ class BookingService
             'distance_km'         => $distanceKm,
             'extra_distance'      => $extraDistance,
             'base_rate'           => $baseRate,
-            'per_km_rate'         => 300.0,
+            'per_km_rate'         => (float) $truckType->per_km_rate,
             'distance_fee'        => $distanceFee,
             'computed_total'      => $grossPrice,
             'discount_percentage' => $discount['discount_percentage'],
@@ -624,12 +625,15 @@ class BookingService
     }
 
     /**
-     * MMDA formula: first 1 km is included in base fee; ₱300/km after that.
-     * Single source of truth — every distance-fee consumer must call this.
+     * First 4 km are included in the base fee; chargeable distance after
+     * that is billed at $perKmRate — which must come from the truck type's
+     * own truck_types.per_km_rate column (editable in the SuperAdmin owner
+     * panel), never a hardcoded literal. Single source of truth — every
+     * distance-fee consumer must call this.
      */
-    public function distanceFeeFor(float $distanceKm): float
+    public function distanceFeeFor(float $distanceKm, float $perKmRate): float
     {
-        return round(max(0.0, $distanceKm - 1.0) * 300.0, 2);
+        return round(max(0.0, $distanceKm - 4.0) * $perKmRate, 2);
     }
 
     public function calculateQuotationTotals(
@@ -640,11 +644,15 @@ class BookingService
         ?float $discountPercentage = null,
         ?float $baseRate = null,
     ): array {
-        $resolvedDistanceKm = max(round((float) ($distanceKm ?? ($booking->distance_km ?? 0)), 2), 0);
+        // Not rounded to 2dp here — that would silently reintroduce the same
+        // precision-loss bug the distance_km column widening (4dp) exists to
+        // fix; only the final money figures get rounded, not the raw km input.
+        $resolvedDistanceKm = max((float) ($distanceKm ?? ($booking->distance_km ?? 0)), 0);
 
-        // MMDA formula: first 1 km included in base fee; ₱300/km after that
-        $extraDistance = max(0.0, $resolvedDistanceKm - 1.0);
-        $distanceFee   = $this->distanceFeeFor($resolvedDistanceKm);
+        // First 4 km included in base fee; chargeable distance billed at the
+        // truck type's own per_km_rate (SuperAdmin-editable), not a literal.
+        $extraDistance = max(0.0, $resolvedDistanceKm - 4.0);
+        $distanceFee   = $this->distanceFeeFor($resolvedDistanceKm, (float) ($booking->truckType?->per_km_rate ?? 0));
 
         $resolvedBaseRate = round((float) ($baseRate ?? $booking->base_rate ?? 0), 2);
         $grossTotal       = round($resolvedBaseRate + $distanceFee, 2);
@@ -670,7 +678,7 @@ class BookingService
             'distance_km'         => $resolvedDistanceKm,
             'extra_distance'      => $extraDistance,
             'base_rate'           => $resolvedBaseRate,
-            'per_km_rate'         => 300.0,
+            'per_km_rate'         => (float) ($booking->truckType?->per_km_rate ?? 0),
             'distance_fee'        => $distanceFee,
             'computed_total'      => $grossTotal,
             'discount_percentage' => $resolvedDiscountPercentage,
@@ -897,7 +905,10 @@ class BookingService
     protected function resolveDistanceKm(array $data): float
     {
         if (is_numeric($data['distance_km'] ?? null)) {
-            return max(round((float) $data['distance_km'], 2), 0);
+            // Not rounded to 2dp here — that would reintroduce the same
+            // precision-loss bug the distance_km column widening (4dp) exists
+            // to fix; only final money figures get rounded, never the raw km.
+            return max((float) $data['distance_km'], 0);
         }
 
         $resolvedDistance = round($this->parseDistance((string) ($data['distance'] ?? '0')), 2);

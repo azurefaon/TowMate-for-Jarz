@@ -507,6 +507,7 @@
         const baseRate    = parseFloat(d.baseRate || 0);
         const distanceFee = parseFloat(d.distanceFee || 0);
         const distanceKm  = parseFloat(d.distance || 0);
+        const perKmRate   = parseFloat(d.perKmRate || 0);
 
         // Store globals used by recalcQuotationTotal and unit-select handler
         window.qmBasePrice          = baseRate;
@@ -523,10 +524,10 @@
         // Price Breakdown — distance fee row
         const distFeeEl   = document.getElementById('qmDistanceFee');
         const distLabelEl = document.getElementById('qmDistanceFeeLabel');
-        if (distFeeEl)   distFeeEl.textContent   = distanceKm > 1 ? fmt(distanceFee) : 'Free';
-        if (distLabelEl) distLabelEl.textContent = distanceKm > 1
-            ? `Distance (${distanceKm.toFixed(2)} km × ₱300)`
-            : `Distance (${distanceKm.toFixed(2)} km — first 1 km free)`;
+        if (distFeeEl)   distFeeEl.textContent   = distanceKm > 4 ? fmt(distanceFee) : 'Free';
+        if (distLabelEl) distLabelEl.textContent = distanceKm > 4
+            ? `Distance (${distanceKm.toFixed(2)} km × ₱${perKmRate.toFixed(2)})`
+            : `Distance (${distanceKm.toFixed(2)} km — first 4 km free)`;
 
         // Subtotal / VAT / Total use final_total as the source of truth
         const displaySub = Math.round(finalTotal / 1.12 * 100) / 100;
@@ -609,10 +610,6 @@
                 currentQuotationId = data.quotation_id;
                 qmState.draftSaved      = true;
                 qmState.quotationStatus = 'draft';
-
-                // Mute the dispatch queue's fallback new-booking sound for a bit —
-                // its 8s poll can land right after Approve and read as caused by it.
-                window.__suppressBookingSoundUntil = Date.now() + 10000;
 
                 // Show "Recorded" indicator with the price
                 const indicator = document.getElementById('qmDraftSavedIndicator');
@@ -783,14 +780,15 @@
                 document.getElementById('qmPriceNote').value = '';
 
                 const distanceKm  = parseFloat(q.distance_km || 0);
-                const extraDist   = Math.max(0, distanceKm - 1);
-                const distanceFee = Math.round(extraDist * 300 * 100) / 100;
+                const extraDist   = Math.max(0, distanceKm - 4);
+                const perKmRate   = parseFloat(q.per_km_rate || 0);
+                const distanceFee = Math.round(extraDist * perKmRate * 100) / 100;
 
                 document.getElementById('qmBasePrice').textContent = window.qmBasePrice > 0 ? fmt(window.qmBasePrice) : 'TBD';
-                document.getElementById('qmDistanceFee').textContent = distanceKm > 1 ? fmt(distanceFee) : 'Free';
-                document.getElementById('qmDistanceFeeLabel').textContent = distanceKm > 1
-                    ? `Distance (${extraDist.toFixed(2)} km × ₱300)`
-                    : `Distance (${distanceKm.toFixed(2)} km — first 1 km free)`;
+                document.getElementById('qmDistanceFee').textContent = distanceKm > 4 ? fmt(distanceFee) : 'Free';
+                document.getElementById('qmDistanceFeeLabel').textContent = distanceKm > 4
+                    ? `Distance (${extraDist.toFixed(2)} km × ₱${perKmRate.toFixed(2)})`
+                    : `Distance (${distanceKm.toFixed(2)} km — first 4 km free)`;
                 const otherFeesRow  = document.getElementById('qmOtherFeesRow');
                 const otherFeesNote = document.getElementById('qmOtherFeesNote');
                 const additionalFee = parseFloat(q.additional_fee || 0) || 0;
@@ -1351,7 +1349,7 @@
                             refreshFloatingQuotationsPanel();
                         }, 2000);
                     } else {
-                        alert('✅ ' + (data.message || 'Quotation sent successfully!'));
+                        (window.rbAlert || alert)(data.message || 'Quotation sent successfully!', { title: 'Quotation sent' });
                         refreshFloatingQuotationsPanel();
                     }
                 } else {
@@ -1359,13 +1357,13 @@
                     if (document.getElementById('quotationModal').style.display === 'flex') {
                         showModalMessage(data.message || 'Failed to send', 'error');
                     } else {
-                        alert('❌ ' + (data.message || 'Failed to send quotation'));
+                        (window.rbAlert || alert)(data.message || 'Failed to send quotation', { title: 'Failed to send' });
                     }
                 }
             })
             .catch(err => {
                 if (btn) { btn.disabled = false; btn.textContent = originalText; }
-                alert('❌ Error sending quotation: ' + err.message);
+                (window.rbAlert || alert)('Error sending quotation: ' + err.message, { title: 'Something went wrong' });
             });
     }
 

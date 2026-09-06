@@ -2,196 +2,269 @@
 .jobs-page {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 18px;
 }
 
 .jobs-page-header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: flex-end;
-    gap: 12px;
+}
+
+.jobs-summary-pills {
+    display: flex;
+    gap: 10px;
     flex-wrap: wrap;
 }
 
-.jobs-page-title {
-    margin: 0;
-    font-size: 1.35rem;
-    color: #0f172a;
-    font-weight: 700;
-}
-
-.jobs-page-sub {
-    margin: 4px 0 0;
-    font-size: 0.84rem;
-    color: #64748b;
-}
-
-.jobs-count-pill {
+.jobs-summary-pill {
     display: inline-flex;
     align-items: center;
-    padding: 6px 14px;
+    gap: 6px;
+    padding: 7px 14px;
     border-radius: 999px;
-    background: #facc15;
-    color: #0f172a;
+    background: #f6f7f9;
+    color: #334155;
     font-size: 0.8rem;
-    font-weight: 800;
-    white-space: nowrap;
-    align-self: center;
 }
 
-/* ── List ────────────────────────────────────────────────── */
-.jobs-list-wrap {
+.jobs-summary-num {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ── Tabs ────────────────────────────────────────────────── */
+/* Underline tabs — same visual language as the refined Dispatch Queue
+   tabs (no outlined-button box, no colored count pill). Active Jobs has no
+   local style override the way dispatch.blade.php does, so these rules are
+   this page's actual live tab styling. */
+.jobs-tabs {
     display: flex;
-    flex-direction: column;
-    border-radius: 16px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-    background: #ffffff;
+    gap: 24px;
+    margin: 0;
+    padding-bottom: 0;
+    border-bottom: 1px solid #e2e8f0;
+    flex-wrap: wrap;
 }
 
-.job-row {
+.rb-tab {
+    padding: 10px 2px 11px;
+    margin-bottom: -1px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: #6b7280;
+    font-size: 13.5px;
+    font-weight: 500;
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 14px 18px;
-    border-bottom: 1px solid #f1f5f9;
+    gap: 7px;
     cursor: pointer;
-    transition: background 0.14s;
-    text-decoration: none;
-    color: inherit;
+    transition: color .15s ease, border-color .15s ease;
 }
 
-.job-row:last-child {
-    border-bottom: none;
+.rb-tab:hover:not(.is-active) {
+    color: #374151;
 }
 
-.job-row:hover {
-    background: #f8fafc;
+.rb-tab-count {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 500;
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    color: #9ca3af;
 }
 
-/* Status dot */
-.job-row-dot {
-    flex-shrink: 0;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #94a3b8;
+.rb-tab.is-active {
+    background: transparent;
+    border-color: transparent;
+    border-bottom-color: #facc15;
+    color: #111111;
+    font-weight: 600;
+    box-shadow: none;
 }
 
-.dot-assigned          { background: #f59e0b; }
-.dot-on-the-way        { background: #7c3aed; }
-.dot-in-progress,
-.dot-on-job            { background: #16a34a; }
-.dot-loading-vehicle   { background: #0ea5e9; }
-.dot-waiting-verification { background: #2563eb; }
-.dot-delayed           { background: #dc2626; }
-.dot-payment-pending   { background: #ea580c; }
-.dot-payment-submitted { background: #d97706; }
+.rb-tab.is-active .rb-tab-count {
+    background: transparent;
+    color: #111111;
+}
 
-/* Main body (code + route) */
-.job-row-body {
-    flex: 1 1 0;
-    min-width: 0;
+/* ── Toolbar (Search only — status is covered by the tabs above) ──── */
+.jobs-toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 20px;
+    margin: 14px 0;
+    flex-wrap: wrap;
+}
+
+.jobs-filter-group {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-}
-
-.job-row-top {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.job-row-code {
-    font-size: 0.82rem;
-    font-weight: 800;
-    color: #0f172a;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
-.job-row-badge {
-    font-size: 0.68rem;
-}
-
-.job-row-route {
-    font-size: 0.82rem;
-    color: #475569;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: flex;
-    align-items: center;
     gap: 6px;
 }
 
-.job-row-arrow {
-    color: #94a3b8;
-    flex-shrink: 0;
+.jobs-filter-group label {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #8a93a3;
 }
 
-/* Aside (customer + unit) */
-.job-row-aside {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 3px;
-    flex-shrink: 0;
+.jobs-filter-group input[type="text"] {
+    height: 34px;
+    width: 340px;
+    max-width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #cfd4dc;
+    border-radius: 9px;
+    padding: 0 11px;
+    font-size: 12.5px;
+    font-family: inherit;
+    color: #111111;
+    background: #fff;
 }
 
-.job-row-customer {
-    font-size: 0.83rem;
-    font-weight: 600;
-    color: #0f172a;
-    white-space: nowrap;
+.jobs-filter-group input[type="text"]:focus {
+    outline: none;
+    border-color: #111111;
 }
 
-.job-row-unit {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.76rem;
-    color: #64748b;
-    white-space: nowrap;
+.jobs-filter-group input[type="text"]::placeholder {
+    color: #8a93a3;
 }
 
-.job-row-time {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    flex-shrink: 0;
-    white-space: nowrap;
+@media (max-width: 640px) {
+    .jobs-filter-group input[type="text"] {
+        width: 100%;
+    }
 }
 
-.job-row-chevron {
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
-    color: #94a3b8;
+/* ── Table ───────────────────────────────────────────────── */
+.jobs-table-wrap {
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    overflow-x: auto;
 }
 
-/* ── Status badges ───────────────────────────────────────── */
-.status-badge {
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.72rem;
-    font-weight: 800;
+.jobs-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+/* Active Jobs' own 6-column widths — scoped to .jobs-page so this never
+   affects Dispatch Queue's own nth-child width rules for the same shared
+   .jobs-table class (those are scoped under #bookNowPanel/#scheduledPanel
+   in dispatch.blade.php's own stylesheet, which takes precedence there). */
+.jobs-page .jobs-table th:nth-child(1),
+.jobs-page .jobs-table td:nth-child(1) { width: 18%; }
+.jobs-page .jobs-table th:nth-child(2),
+.jobs-page .jobs-table td:nth-child(2) { width: 14%; }
+.jobs-page .jobs-table th:nth-child(3),
+.jobs-page .jobs-table td:nth-child(3) { width: 18%; }
+.jobs-page .jobs-table th:nth-child(4),
+.jobs-page .jobs-table td:nth-child(4) { width: 28%; }
+.jobs-page .jobs-table th:nth-child(5),
+.jobs-page .jobs-table td:nth-child(5) { width: 12%; }
+.jobs-page .jobs-table th:nth-child(6),
+.jobs-page .jobs-table td:nth-child(6) { width: 10%; }
+
+.jobs-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    background: none;
-    padding: 0;
-    border-radius: 0;
+    color: #1a1a1a;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
 }
 
-.status-assigned             { color: #d97706; }
-.status-on-the-way           { color: #7c3aed; }
-.status-in-progress,
-.status-on-job               { color: #16a34a; }
-.status-loading-vehicle      { color: #0369a1; }
-.status-waiting-verification { color: #2563eb; }
-.status-delayed              { color: #dc2626; }
-.status-payment-pending      { color: #ea580c; }
-.status-payment-submitted    { color: #d97706; }
+.jobs-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+}
+
+.jobs-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.jobs-row {
+    cursor: pointer;
+    transition: background 0.15s ease, box-shadow 0.3s ease;
+}
+
+.jobs-row:hover {
+    background: #f8fafc;
+}
+
+.jobs-row:focus-visible {
+    outline: 2px solid #9ca3af;
+    outline-offset: -2px;
+}
+
+/* Brief, neutral emphasis for a row located via the notification deep-link
+   (see the ?booking= handling at the bottom of jobs.js) — fades on its own,
+   no yellow border-left/glow/pulsing. */
+.jobs-row--highlight {
+    background: #f3f4f6;
+    transition: background 1.4s ease;
+}
+
+.jobs-cell-primary {
+    font-size: 0.86rem;
+    color: #0f172a;
+}
+
+.jobs-cell-secondary {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+/* Booking code gets a touch more weight than the plain .jobs-cell-primary
+   default (also used, unweighted, by the Unit/Team column's primary line). */
+.jobs-booking-code {
+    font-weight: 600;
+    color: #111111;
+}
+
+/* ── Status (plain text only, no dot/badge/background/purple) ────────── */
+.jobs-status-text {
+    font-size: 0.82rem;
+    color: #0f172a;
+}
+
+.jobs-status-text--emphasis {
+    font-weight: 700;
+}
+
+/* ── Route — two compact lines (pickup, then → drop-off), same pattern
+   used on the refined Dispatch Queue. Each line ellipsizes on its own so
+   rows never grow tall regardless of address length. */
+.jobs-route-cell {
+    vertical-align: top;
+}
+
+.jobs-route-line {
+    font-size: 0.78rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.jobs-route-line--drop {
+    margin-top: 2px;
+    color: #334155;
+}
 
 /* ── Empty state ─────────────────────────────────────────── */
 .jobs-empty {
@@ -214,7 +287,6 @@
 .jobs-empty p {
     margin: 0;
     font-size: 1rem;
-    font-weight: 700;
     color: #334155;
 }
 
@@ -229,265 +301,273 @@
     justify-content: center;
 }
 
-/* ── Modal ───────────────────────────────────────────────── */
-.job-modal {
+/* ── Right-side drawer ───────────────────────────────────── */
+.jobs-drawer-backdrop {
     position: fixed;
     inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    z-index: 1400;
     display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 1200;
-    padding: 18px;
 }
 
-.job-modal.active {
-    display: flex;
+.jobs-drawer-backdrop.is-open {
+    display: block;
 }
 
-.modal-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.44);
-    backdrop-filter: blur(2px);
-}
-
-.modal-content {
-    position: relative;
-    z-index: 1;
-    width: min(680px, 100%);
-    max-height: calc(100vh - 48px);
-    border-radius: 18px;
+.jobs-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(440px, 100%);
     background: #ffffff;
-    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
-    overflow: hidden;
+    box-shadow: -12px 0 40px rgba(15, 23, 42, 0.16);
+    z-index: 1401;
     display: flex;
     flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
 }
 
-.modal-header {
+.jobs-drawer.is-open {
+    transform: translateX(0);
+}
+
+.jobs-drawer-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    padding: 20px 22px 16px;
+    padding: 20px 20px 14px;
     border-bottom: 1px solid #f1f5f9;
 }
 
-.modal-header-left {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.modal-eyebrow {
-    margin: 0;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #94a3b8;
-}
-
-.modal-title {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 700;
+.jobs-drawer-eyebrow {
+    margin: 0 0 4px;
+    font-size: 1.05rem;
     color: #0f172a;
-    letter-spacing: -0.02em;
 }
 
-.modal-header-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.jobs-drawer-status {
+    font-size: 0.8rem;
+    color: #0f172a;
 }
 
-.modal-status-pill {
-    font-size: 0.72rem;
-    font-weight: 800;
-    padding: 5px 12px;
-    border-radius: 999px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.close-modal {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+.jobs-drawer-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
     border: 0;
     background: #f3f4f6;
     cursor: pointer;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     color: #64748b;
     line-height: 1;
     flex-shrink: 0;
 }
 
-.close-modal:hover {
+.jobs-drawer-close:hover {
     background: #e2e8f0;
 }
 
-/* Modal body */
-.modal-body {
-    padding: 6px 22px 10px;
+.jobs-drawer-body {
     flex: 1 1 auto;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+    padding: 4px 20px;
 }
 
-.modal-section {
+.jobs-drawer-section {
     padding: 14px 0;
     border-bottom: 1px solid #f1f5f9;
 }
 
-.modal-section:last-child {
+.jobs-drawer-section:last-child {
     border-bottom: none;
 }
 
-.modal-section-title {
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.09em;
+.jobs-drawer-section-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #94a3b8;
+    color: #1a1a1a;
     margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
 }
 
-/* Route box */
-.modal-route-box {
-    background: #f8fafc;
-    border-radius: 12px;
-    padding: 14px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-}
-
-.modal-route-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-}
-
-.route-dot {
-    flex-shrink: 0;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    margin-top: 3px;
-}
-
-.route-from { background: #facc15; }
-.route-to   { border: 2px solid #94a3b8; background: transparent; }
-
-.route-line {
-    width: 2px;
-    height: 22px;
-    background: #e2e8f0;
-    margin-left: 4px;
-}
-
-.route-addr {
-    font-size: 0.88rem;
-    color: #1e293b;
-    font-weight: 500;
-    line-height: 1.45;
-}
-
-/* Detail grid */
-.detail-grid {
+.jobs-drawer-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
 }
 
-.detail-item {
+.jobs-drawer-item {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 12px;
+    gap: 3px;
+    padding: 10px 12px;
     border-radius: 10px;
     background: #f8fafc;
 }
 
-.detail-item.full-width {
+.jobs-drawer-item.full-width {
     grid-column: 1 / -1;
 }
 
-.detail-label {
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.07em;
+.jobs-drawer-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #94a3b8;
+    color: #1a1a1a;
 }
 
-.detail-value {
-    font-size: 0.92rem;
+.jobs-drawer-value {
+    font-size: 0.86rem;
     color: #0f172a;
-    font-weight: 600;
     word-break: break-word;
 }
 
-/* Total price */
-.total-price-box {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 16px;
+.jobs-drawer-route {
+    background: #f8fafc;
     border-radius: 12px;
-    background: #0f172a;
+    padding: 12px 14px;
 }
 
-.total-price-label {
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: #94a3b8;
+.jobs-drawer-route-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 0.84rem;
+    color: #1e293b;
 }
 
-.total-price-value {
-    font-size: 1.45rem;
-    font-weight: 800;
-    color: #facc15;
-    letter-spacing: -0.02em;
+.route-dot {
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    margin-top: 4px;
 }
 
-/* Payment */
-.payment-section {
-    padding-top: 14px;
+.route-from { background: #facc15; }
+.route-to   { border: 2px solid #94a3b8; background: transparent; }
+
+.jobs-drawer-route-line {
+    width: 2px;
+    height: 18px;
+    background: #e2e8f0;
+    margin-left: 3px;
 }
 
-.payment-proof-area {
-    margin-top: 12px;
+/* ── Route (shared with Dispatch Queue) ──────────────────────────────
+   Identical class names/values to .rb-route* in dispatch.blade.php's own
+   inline <style> (see routeSectionHtml() in booking-drawer.js, used by
+   both the Book Now and Scheduled drawers) — kept here in the genuinely
+   shared jobs.css so the Active Jobs drawer's Route section renders
+   pixel-identically, without touching dispatch.blade.php at all. Dispatch
+   Queue's own inline copy (loaded after this file on that page) still
+   wins there, so this cannot regress Dispatch Queue. */
+.rb-route {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
+    font-size: 12.5px;
+    color: #111111;
+    background: #f6f7f9;
+    border: 1px solid #e3e6eb;
+    border-radius: 10px;
+    padding: 10px 12px;
 }
 
-.payment-proof-img {
-    display: block;
-    max-width: 100%;
-    max-height: 220px;
+.rb-route-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.rb-route-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex: none;
+}
+
+.rb-route-dot.rb-pick {
+    background: #12804a;
+}
+
+.rb-route-dot.rb-drop {
+    background: #d8402c;
+}
+
+.rb-route-addr {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.rb-route-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: #8a93a3;
+    padding-top: 2px;
+    border-top: 1px dashed #cfd4dc;
+    margin-top: 2px;
+}
+
+/* Payment proof */
+.jobs-proof-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     border-radius: 10px;
-    object-fit: contain;
+    overflow: hidden;
     border: 1.5px solid #e2e8f0;
+    text-decoration: none;
+    color: #64748b;
+    font-size: 0.76rem;
+    text-align: center;
+    padding-bottom: 8px;
+}
+
+.jobs-proof-box img {
+    display: block;
+    width: 100%;
+    max-height: 200px;
+    object-fit: contain;
     background: #f8fafc;
 }
 
-/* Modal footer */
-.modal-actions {
+.jobs-cash-note {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+/* Signature */
+.jobs-signature-box {
     display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 14px 22px 20px;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px;
+    border-radius: 10px;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.jobs-signature-box img {
+    max-width: 100%;
+    max-height: 90px;
+}
+
+.jobs-signature-caption {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+/* Drawer footer */
+.jobs-drawer-foot {
+    padding: 14px 20px 20px;
     border-top: 1px solid #f1f5f9;
 }
 
@@ -496,32 +576,22 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 40px;
+    width: 100%;
+    min-height: 42px;
     padding: 9px 16px;
     border-radius: 10px;
     border: 0;
     text-decoration: none;
     font-size: 0.85rem;
-    font-weight: 700;
     cursor: pointer;
     transition: opacity 0.14s;
 }
 
 .btn:hover { opacity: 0.85; }
 
-.btn-primary {
-    background: #facc15;
-    color: #111827;
-}
-
-.btn-secondary {
-    background: #f3f4f6;
-    color: #334155;
-}
-
 .btn-confirm-payment {
-    background: #16a34a;
-    color: #ffffff;
+    background: #facc15;
+    color: #111111;
 }
 
 .btn-confirm-payment:disabled {
@@ -530,33 +600,25 @@
 }
 
 .btn-confirm-payment.is-confirmed {
-    background: #15803d;
+    background: #16a34a;
+    color: #ffffff;
 }
 
 /* ── Responsive ──────────────────────────────────────────── */
-@media (max-width: 780px) {
-    .job-row-aside,
-    .job-row-time {
-        display: none;
+@media (max-width: 900px) {
+    .jobs-drawer {
+        width: 100%;
     }
+}
 
-    .detail-grid {
+@media (max-width: 780px) {
+    .jobs-drawer-grid {
         grid-template-columns: 1fr;
     }
 }
 
-@media (max-width: 480px) {
-    .modal-actions {
-        flex-direction: column;
-    }
-
-    .btn {
-        width: 100%;
-        justify-content: center;
-    }
-}
-
 @media (prefers-reduced-motion: reduce) {
-    .job-row,
+    .jobs-row,
+    .jobs-drawer,
     .btn { transition: none !important; }
 }

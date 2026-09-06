@@ -46,34 +46,20 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (!Array.isArray(items) || !items.length) {
-            list.innerHTML = `
-                <div class="no-activity">
-                    <p>No pending requests right now.</p>
-                </div>`;
+            list.innerHTML = `<p class="empty-note">No pending requests right now.</p>`;
             return;
         }
 
         list.innerHTML = items
-            .map((item, index) => {
-                const type = index === 0 ? "priority" : "request";
+            .map((item) => {
                 return `
-                    <div class="activity-item" data-type="${type}">
-                        <div class="activity-icon request-icon">
-                            <i data-lucide="siren"></i>
+                    <div class="simple-row">
+                        <div class="simple-row-top">
+                            <strong>${escapeHtml(item.customer_name)}</strong>
+                            <span class="badge-pending">Pending</span>
                         </div>
-                        <div class="activity-content">
-                            <div class="activity-line">
-                                <strong>${escapeHtml(item.customer_name)}</strong>
-                                <span>${escapeHtml(item.truck_type)}</span>
-                            </div>
-                            <div class="activity-meta">
-                                <span>${escapeHtml(item.booking_code)}</span>
-                                <span>${escapeHtml(item.created_at_human)}</span>
-                                <span>${escapeHtml(item.pickup_address)}</span>
-                                <span>${escapeHtml(item.dropoff_address)}</span>
-                            </div>
-                        </div>
-                        <div class="activity-status pending">Pending</div>
+                        <div class="simple-row-sub">${escapeHtml(item.truck_type)} &middot; ${escapeHtml(item.booking_code)}</div>
+                        <div class="simple-row-time">${escapeHtml(item.created_at_human)}</div>
                     </div>`;
             })
             .join("");
@@ -86,38 +72,20 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (!Array.isArray(items) || !items.length) {
-            list.innerHTML = `
-                <div class="no-activity">
-                    <p>No jobs are active right now.</p>
-                </div>`;
+            list.innerHTML = `<tr><td colspan="5" class="empty-note">No jobs are active right now.</td></tr>`;
             return;
         }
 
         list.innerHTML = items
             .map((item) => {
-                const leaderSync = item.team_leader_status_summary
-                    ? `<span>${escapeHtml(item.team_leader_status_summary)}</span>`
-                    : "";
-
                 return `
-                    <div class="activity-item" data-type="request">
-                        <div class="activity-icon request-icon">
-                            <i data-lucide="truck"></i>
-                        </div>
-                        <div class="activity-content">
-                            <div class="activity-line">
-                                <strong>${escapeHtml(item.booking_code)}</strong>
-                                <span>${escapeHtml(item.status)}</span>
-                            </div>
-                            <div class="activity-meta">
-                                <span>${escapeHtml(item.customer_name)}</span>
-                                <span>${escapeHtml(item.unit_name)} · ${escapeHtml(item.unit_plate)}</span>
-                                <span>${escapeHtml(item.team_leader_name)} · ${escapeHtml(item.driver_name)}</span>
-                                ${leaderSync}
-                                <span>${escapeHtml(item.updated_at_human)}</span>
-                            </div>
-                        </div>
-                    </div>`;
+                    <tr>
+                        <td>${escapeHtml(item.booking_code)}</td>
+                        <td>${escapeHtml(item.status)}</td>
+                        <td>${escapeHtml(item.unit_name)} &middot; ${escapeHtml(item.unit_plate)}</td>
+                        <td>${escapeHtml(item.customer_name)}</td>
+                        <td>${escapeHtml(item.updated_at_human)}</td>
+                    </tr>`;
             })
             .join("");
     }
@@ -247,12 +215,17 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        chartInstance.data.datasets[0].data = [
-            Number(chartData.completed || 0),
-            Number(chartData.assigned || 0),
-            Number(chartData.pending || 0),
-        ];
+        const completed = Number(chartData.completed || 0);
+        const assigned = Number(chartData.assigned || 0);
+        const pending = Number(chartData.pending || 0);
+
+        chartInstance.data.datasets[0].data = [completed, assigned, pending];
         chartInstance.update();
+
+        setText("totalJobsCount", completed + assigned + pending);
+        setText("legendAssigned", assigned);
+        setText("legendCompleted", completed);
+        setText("legendPending", pending);
     }
 
     function refreshOverview() {
@@ -347,26 +320,6 @@ document.addEventListener("DOMContentLoaded", function () {
     setInterval(refreshOverview, 12000);
 
     refreshButton?.addEventListener("click", refreshOverview);
-
-    document.querySelectorAll(".filter-btn").forEach((button) => {
-        button.addEventListener("click", function () {
-            document
-                .querySelector(".filter-btn.active")
-                ?.classList.remove("active");
-            this.classList.add("active");
-
-            const filter = this.dataset.filter;
-
-            document
-                .querySelectorAll("#incomingRequestList .activity-item")
-                .forEach((item) => {
-                    item.style.display =
-                        filter === "all" || item.dataset.type === filter
-                            ? "flex"
-                            : "none";
-                });
-        });
-    });
 
     if (typeof lucide !== "undefined") {
         lucide.createIcons();

@@ -1,146 +1,143 @@
-/* ── Booking History — black / yellow / white only ──────────────────────── */
+/* ── Booking History — read-only archive workspace ───────────────────────
+   Visually consistent with the refined Dispatch Queue / Active Jobs pages.
+   Tabs (.rb-tab / .rb-tab-count) and table cells (.jobs-table / .jobs-row /
+   .jobs-cell-primary / .jobs-cell-secondary / .jobs-status-text /
+   .jobs-booking-code) are reused directly from dispatcher/css/jobs.css
+   (loaded alongside this file — see index.blade.php) rather than
+   duplicated with slightly different values. Only page-specific pieces
+   (toolbar, date range, pagination, empty state) live here. */
 
 .bh-page {
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 14px;
 }
 
+/* .rb-tab (shared with Dispatch Queue/Active Jobs) is only ever a <button>
+   elsewhere, so it never needed text-decoration — Booking History's tabs
+   are <a> elements, which pick up the browser's default anchor underline.
+   Scoped to .bh-tab-link only, so no other page's links are affected. */
+.bh-tab-link,
+.bh-tab-link:hover,
+.bh-tab-link:focus,
+.bh-tab-link:active,
+.bh-tab-link .rb-tab-count {
+    text-decoration: none;
+}
+
+/* Terminal-outcome status color — text only, Booking History only. Not a
+   general "non-completed = red" rule and not applied to .jobs-status-text
+   itself (shared with Active Jobs), so nothing outside this page is
+   affected. The cancellation reason underneath keeps its own
+   .jobs-cell-secondary neutral gray, unaffected by these classes. */
+.bh-status--completed {
+    color: #15803d;
+}
+
+.bh-status--cancelled {
+    color: #b91c1c;
+}
+
+/* ── Toolbar: Search + Date, left-aligned ────────────────────────────── */
 .bh-toolbar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 20px;
     flex-wrap: wrap;
 }
 
-.bh-tabs {
+.bh-filter-group {
     display: flex;
-    gap: 0;
-    border: 1px solid #111827;
+    flex-direction: column;
+    gap: 6px;
 }
 
-.bh-tab {
-    padding: 8px 16px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #111827;
-    background: #ffffff;
-    text-decoration: none;
-    border-right: 1px solid #111827;
-    white-space: nowrap;
-}
-
-.bh-tab:last-child {
-    border-right: none;
-}
-
-.bh-tab.is-active {
-    background: #111827;
-    color: #facc15;
-}
-
-.bh-search {
-    display: flex;
-    gap: 0;
-    border: 1px solid #111827;
-}
-
-.bh-search input {
-    padding: 8px 12px;
-    font-size: 0.85rem;
-    border: none;
-    outline: none;
-    min-width: 220px;
-    color: #111827;
-    background: #ffffff;
-}
-
-.bh-table-wrap {
-    background: #ffffff;
-    border: 1px solid #111827;
-    overflow-x: auto;
-    min-height: 80px;
-    position: relative;
-}
-
-.bh-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.bh-table th {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #ffffff;
-    background: #111827;
-    text-align: left;
-    padding: 10px 14px;
-    white-space: nowrap;
-}
-
-.bh-table td {
-    padding: 12px 14px;
-    font-size: 0.85rem;
-    color: #111827;
-    vertical-align: top;
-    border-bottom: 1px solid #111827;
-}
-
-.bh-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.bh-table tbody tr:hover {
-    background: #fffbea;
-}
-
-.bh-cell-main {
-    display: block;
-    font-weight: 600;
-    color: #111827;
-}
-
-.bh-cell-sub {
-    display: block;
-    font-size: 0.78rem;
-    color: #111827;
-    opacity: 0.6;
-    margin-top: 2px;
-}
-
-.bh-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    font-size: 0.7rem;
+.bh-filter-group label {
+    font-size: 11.5px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-radius: 999px;
-    border: 1px solid #111827;
-    white-space: nowrap;
+    letter-spacing: .04em;
+    color: #8a93a3;
 }
 
-.bh-badge--completed {
-    background: #111827;
-    color: #facc15;
+.bh-filter-group input[type="text"] {
+    height: 34px;
+    width: 320px;
+    max-width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #cfd4dc;
+    border-radius: 9px;
+    padding: 0 11px;
+    font-size: 12.5px;
+    font-family: inherit;
+    color: #111111;
+    background: #fff;
 }
 
-.bh-badge--cancelled {
-    background: #ffffff;
-    color: #111827;
+.bh-filter-group input[type="text"]:focus {
+    outline: none;
+    border-color: #111111;
 }
 
-.bh-empty {
-    padding: 60px 20px;
-    text-align: center;
-    color: #111827;
+.bh-filter-group input[type="text"]::placeholder {
+    color: #8a93a3;
 }
 
-.bh-empty-icon {
-    font-size: 2rem;
-    margin-bottom: 10px;
+.bh-date-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bh-date-range input[type="date"] {
+    height: 34px;
+    box-sizing: border-box;
+    border: 1px solid #cfd4dc;
+    border-radius: 9px;
+    padding: 0 10px;
+    font-size: 12.5px;
+    font-family: inherit;
+    color: #111111;
+    background: #fff;
+}
+
+.bh-date-range input[type="date"]:focus {
+    outline: none;
+    border-color: #111111;
+}
+
+.bh-date-sep {
+    color: #8a93a3;
+    font-size: 12.5px;
+}
+
+.bh-date-clear {
+    border: none;
+    background: none;
+    color: #6b7280;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.bh-date-clear:hover {
+    color: #111111;
+}
+
+@media (max-width: 640px) {
+    .bh-filter-group input[type="text"] {
+        width: 100%;
+    }
+}
+
+/* ── Table wrap loading state (AJAX re-fetch) ────────────────────────── */
+.bh-table-wrap {
+    position: relative;
+    min-height: 80px;
 }
 
 .bh-loading {
@@ -159,6 +156,110 @@
     display: flex;
 }
 
+/* Booking History's own 7-column widths (Active Jobs' equivalent
+   nth-child rules are scoped to .jobs-page, a different wrapper, so they
+   never apply here — no collision either direction). */
+.bh-page .jobs-table th:nth-child(1),
+.bh-page .jobs-table td:nth-child(1) { width: 22%; }
+.bh-page .jobs-table th:nth-child(2),
+.bh-page .jobs-table td:nth-child(2) { width: 14%; }
+.bh-page .jobs-table th:nth-child(3),
+.bh-page .jobs-table td:nth-child(3) { width: 16%; }
+.bh-page .jobs-table th:nth-child(4),
+.bh-page .jobs-table td:nth-child(4) { width: 12%; }
+.bh-page .jobs-table th:nth-child(5),
+.bh-page .jobs-table td:nth-child(5) { width: 12%; }
+.bh-page .jobs-table th:nth-child(6),
+.bh-page .jobs-table td:nth-child(6) { width: 12%; }
+.bh-page .jobs-table th:nth-child(7),
+.bh-page .jobs-table td:nth-child(7) { width: 12%; }
+
+/* ── Empty state (plain, no illustration) ────────────────────────────── */
+.bh-empty {
+    padding: 48px 20px;
+    text-align: center;
+}
+
+.bh-empty strong {
+    display: block;
+    font-size: 0.95rem;
+    color: #334155;
+}
+
+.bh-empty p {
+    margin: 6px 0 0;
+    font-size: 0.84rem;
+    color: #94a3b8;
+}
+
+/* ── Pagination footer — compact outlined controls ───────────────────── */
 .bh-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
     margin-top: 4px;
+    padding: 4px 2px;
+}
+
+.bh-pagination-info {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.bh-pagination-links {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+
+/* Compact outlined control — used for Previous/Next and each page number
+   alike, so all pagination controls read as one consistent clickable set. */
+.bh-page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    height: 30px;
+    min-width: 30px;
+    padding: 0 10px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #111111;
+    background: #fff;
+    border: 1px solid #cfd4dc;
+    border-radius: 7px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease;
+}
+
+.bh-page-link:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+    color: #111111;
+}
+
+.bh-page-link.is-active {
+    background: #fff;
+    color: #111111;
+    font-weight: 600;
+    border-color: #facc15;
+}
+
+.bh-page-link.is-disabled {
+    background: #fff;
+    color: #cbd5e1;
+    border-color: #e5e7eb;
+    cursor: default;
+    pointer-events: none;
+}
+
+@media (max-width: 640px) {
+    .bh-pagination {
+        justify-content: center;
+        text-align: center;
+    }
 }

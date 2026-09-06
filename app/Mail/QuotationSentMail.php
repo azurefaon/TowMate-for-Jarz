@@ -24,7 +24,7 @@ class QuotationSentMail extends Mailable
         $distanceKm    = (float) ($quotation->distance_km ?? 0);
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
 
-        $distanceFee = app(BookingService::class)->distanceFeeFor($distanceKm);
+        $distanceFee = app(BookingService::class)->distanceFeeFor($distanceKm, (float) ($quotation->truckType->per_km_rate ?? 0));
 
         $vatAmount = (float) ($sourceBooking?->vat_amount ?? 0);
         if ($vatAmount <= 0 && $totalAmount > 0) {

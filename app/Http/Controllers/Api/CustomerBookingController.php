@@ -167,7 +167,7 @@ class CustomerBookingController extends Controller
 
         $truckType     = TruckType::findOrFail($validated['truck_type_id']);
         $distanceKm    = (float) $validated['distance_km'];
-        $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm);
+        $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm, (float) $truckType->per_km_rate);
 
         // Tow Class Available = Available Team Leader + Available Assigned Unit + Matching
         // Truck Type. Re-check server-side (not just the client's availability card) so a

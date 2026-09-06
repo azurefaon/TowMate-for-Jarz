@@ -9,240 +9,319 @@
 @section('content')
     <div class="jobs-page" data-csrf="{{ csrf_token() }}">
 
-        <div class="jobs-page-header">
-            <span class="jobs-count-pill">{{ $stats['total'] }} active now</span>
+        <div class="jobs-tabs" id="jobsTabs">
+            <button type="button" class="rb-tab is-active" data-tab="all">All <span class="rb-tab-count">{{ $stats['total'] }}</span></button>
+            <button type="button" class="rb-tab" data-tab="assigned">Assigned <span class="rb-tab-count">{{ $stats['assigned'] }}</span></button>
+            <button type="button" class="rb-tab" data-tab="en-route">En Route <span class="rb-tab-count">{{ $stats['en_route'] }}</span></button>
+            <button type="button" class="rb-tab" data-tab="in-service">In Service <span class="rb-tab-count">{{ $stats['in_service'] }}</span></button>
+            <button type="button" class="rb-tab" data-tab="awaiting-verification">Awaiting Verification <span class="rb-tab-count">{{ $stats['awaiting_verification'] }}</span></button>
         </div>
 
-        <div class="jobs-list-wrap">
-            @forelse ($jobs as $job)
-                @php
-                    $customer    = optional($job->customer)->full_name ?? optional($job->customer)->name ?? 'Customer unavailable';
-                    $custPhone   = optional($job->customer)->phone ?? '';
-                    $custEmail   = optional($job->customer)->email ?? '';
-                    $unit        = optional($job->unit)->name ?? 'Unassigned';
-                    $teamLeader  = optional(optional($job->unit)->teamLeader)->full_name
-                        ?? optional(optional($job->unit)->teamLeader)->name
-                        ?? optional($job->assignedTeamLeader)->name
-                        ?? 'Unassigned';
-                    $driver      = $job->driver_name
-                        ?? optional(optional($job->unit)->driver)->full_name
-                        ?? optional(optional($job->unit)->driver)->name
-                        ?? 'No member assigned';
-                    $towType     = optional($job->truckType)->name ?? 'General Tow';
-                    $pickup      = $job->pickup_address ?? 'Pickup pending';
-                    $dropoff     = $job->dropoff_address ?? 'Drop-off pending';
-                    $statusSlug  = str_replace('_', '-', $job->status);
-                    $finalTotal  = $job->final_total ? number_format((float) $job->final_total, 2) : '';
-                    $vehicleImgs = array_values(array_map(fn($p) => asset('storage/' . $p), $job->vehicle_image_paths ?? []));
-                @endphp
-                <div class="job-row js-open-job-row"
-                    data-job-id="{{ $job->job_code }}"
-                    data-booking-id="{{ $job->id }}"
-                    data-confirm-url="{{ route('admin.jobs.confirm-payment', $job) }}"
-                    data-customer="{{ $customer }}"
-                    data-phone="{{ $custPhone }}"
-                    data-email="{{ $custEmail }}"
-                    data-service="{{ $towType }}"
-                    data-status="{{ $job->status }}"
-                    data-unit="{{ $unit }}"
-                    data-teamleader="{{ $teamLeader }}"
-                    data-driver="{{ $driver }}"
-                    data-total="{{ $finalTotal }}"
-                    data-created="{{ $job->created_at->diffForHumans() }}"
-                    data-pickup="{{ $pickup }}"
-                    data-dropoff="{{ $dropoff }}"
-                    data-vehicle-images="{{ e(json_encode($vehicleImgs)) }}"
-                    data-payment-method="{{ $job->payment_method ?? '' }}"
-                    data-cash-received="{{ $job->cash_received ?? '' }}"
-                    data-payment-proof="{{ e(json_encode($job->payment_proof_path ? array_values(array_map(fn($p) => asset('storage/' . $p), (array) $job->payment_proof_path)) : [])) }}"
-                    data-payment-submitted-at="{{ $job->payment_submitted_at ? $job->payment_submitted_at->format('M d, Y g:i A') : '' }}">
+        <div class="jobs-toolbar">
+            <div class="jobs-filter-group">
+                <label for="jobsSearch">Search</label>
+                <input type="text" id="jobsSearch" placeholder="Search booking, customer, unit or team leader">
+            </div>
+        </div>
 
-                    <span class="job-row-dot dot-{{ $statusSlug }}"></span>
+        <div class="jobs-table-wrap">
+            <table class="jobs-table">
+                <thead>
+                    <tr>
+                        <th>Booking / Customer</th>
+                        <th>Status</th>
+                        <th>Unit / Team</th>
+                        <th>Route</th>
+                        <th>Payment</th>
+                        <th>Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @forelse ($jobs as $job)
+                    @php
+                        // $isAwaiting gates payment-section display/data only (unchanged
+                        // business-adjacent logic) — kept exactly as before. $bucket below
+                        // is a separate, purely presentational grouping for the tabs.
+                        $isAwaiting = in_array($job->status, ['waiting_verification', 'payment_pending', 'payment_submitted']);
 
-                    <div class="job-row-body">
-                        <div class="job-row-top">
-                            <span class="job-row-code">{{ $job->job_code }}</span>
-                            <span class="job-row-badge status-badge status-{{ $statusSlug }}">
-                                {{ ucwords(str_replace('_', ' ', $job->status)) }}
-                            </span>
-                        </div>
-                        <div class="job-row-route">
-                            <span>{{ \Illuminate\Support\Str::limit($pickup, 42) }}</span>
-                            <span class="job-row-arrow">→</span>
-                            <span>{{ \Illuminate\Support\Str::limit($dropoff, 42) }}</span>
-                        </div>
-                    </div>
+                        // UI filter-group only — does not touch the stored status or the
+                        // Team Leader lifecycle. payment_pending/payment_submitted/delayed
+                        // are legacy defensive statuses never actually assigned anywhere in
+                        // the app today (confirmed by inspection); they fall into the
+                        // 'in-service' default here purely so an unrecognized status never
+                        // disappears from every tab.
+                        $bucket = match (true) {
+                            in_array($job->status, ['assigned', 'accepted'], true) => 'assigned',
+                            in_array($job->status, ['on_the_way', 'arrived_pickup'], true) => 'en-route',
+                            in_array($job->status, ['in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff'], true) => 'in-service',
+                            $job->status === 'waiting_verification' => 'awaiting-verification',
+                            default => 'in-service',
+                        };
 
-                    <div class="job-row-aside">
-                        <span class="job-row-customer">{{ $customer }}</span>
-                        <span class="job-row-unit">
-                            <i data-lucide="truck" style="width:12px;height:12px;"></i>
-                            {{ $unit }}
-                        </span>
-                    </div>
+                        $statusLabel = match ($job->status) {
+                            'assigned' => 'Assigned',
+                            'accepted' => 'Accepted',
+                            'on_the_way' => 'On the Way',
+                            'arrived_pickup' => 'Arrived at Pickup',
+                            'in_progress' => 'In Progress',
+                            'loading_vehicle' => 'Loading Vehicle',
+                            'on_job' => 'In Transit',
+                            'arrived_dropoff' => 'Arrived at Drop-off',
+                            'waiting_verification' => 'Awaiting Verification',
+                            default => ucwords(str_replace('_', ' ', $job->status)),
+                        };
 
-                    <span class="job-row-time">{{ $job->created_at->diffForHumans() }}</span>
-                    <i data-lucide="chevron-right" class="job-row-chevron"></i>
-                </div>
-            @empty
-                <div class="jobs-empty">
-                    <i data-lucide="truck"></i>
-                    <p>No active jobs right now</p>
-                    <span>Jobs will appear here once a team leader starts a towing task.</span>
-                </div>
-            @endforelse
+                        $customer   = optional($job->customer)->full_name ?? optional($job->customer)->name ?? 'Customer unavailable';
+                        $custPhone  = optional($job->customer)->phone ?? '';
+                        $custEmail  = optional($job->customer)->email ?? '';
+                        $unitName   = optional($job->unit)->name ?? 'Unassigned';
+                        $teamLeaderName = optional($job->assignedTeamLeader)->full_name
+                            ?? optional($job->assignedTeamLeader)->name
+                            ?? 'Unassigned';
+                        $driverName = $job->driver_name
+                            ?: optional($job->unit)->driver?->full_name
+                            ?: optional($job->unit)->driver?->name
+                            ?: optional($job->unit)->driver_name
+                            ?: 'No member recorded';
+                        $pickup     = $job->pickup_address ?? 'Pickup pending';
+                        $dropoff    = $job->dropoff_address ?? 'Drop-off pending';
+
+                        $serviceCompletedAt = $job->completion_requested_at ?? ($isAwaiting ? $job->updated_at : null);
+                        $paymentSubmittedAt = $job->payment_submitted_at ?? ($job->payment_method ? $job->updated_at : null);
+
+                        // The only status-adjacent secondary line that carries genuinely
+                        // unique data (a real timestamp, not filler restating the status).
+                        $statusSecondary = ($bucket === 'awaiting-verification' && $serviceCompletedAt)
+                            ? 'Completed ' . $serviceCompletedAt->diffForHumans()
+                            : null;
+
+                        $paymentReady = $isAwaiting && filled($job->payment_method);
+                        $paymentMethodLabel = match ($job->payment_method) {
+                            'gcash' => 'GCash',
+                            'bank_transfer' => 'Bank Transfer',
+                            'cash' => 'Cash',
+                            default => null,
+                        };
+                        $amountSubmitted = $job->payment_method === 'cash'
+                            ? $job->cash_received
+                            : $job->final_total;
+                        $finalTotal = $job->final_total ? number_format((float) $job->final_total, 2) : '';
+                        $proofUrl = $job->payment_proof_path ? asset('storage/' . $job->payment_proof_path) : '';
+                        $signatureUrl = $job->customer_signature_path ? asset('storage/' . $job->customer_signature_path) : '';
+                    @endphp
+                    <tr class="jobs-row js-open-job-row" tabindex="0"
+                        aria-label="Open {{ $job->booking_code }}, {{ $customer }}"
+                        data-bucket="{{ $bucket }}"
+                        data-booking-code="{{ $job->booking_code }}"
+                        data-confirm-url="{{ route('admin.jobs.confirm-payment', $job) }}"
+                        data-customer="{{ $customer }}"
+                        data-phone="{{ $custPhone }}"
+                        data-email="{{ $custEmail }}"
+                        data-service="{{ optional($job->truckType)->name ?? 'General Tow' }}"
+                        data-status-label="{{ $statusLabel }}"
+                        data-bucket-class="{{ $bucket }}"
+                        data-unit="{{ $unitName }}"
+                        data-teamleader="{{ $teamLeaderName }}"
+                        data-driver="{{ $driverName }}"
+                        data-pickup="{{ $pickup }}"
+                        data-dropoff="{{ $dropoff }}"
+                        data-distance-km="{{ $job->distance_km ?? '' }}"
+                        data-total="{{ $finalTotal }}"
+                        data-service-completed-at="{{ $serviceCompletedAt?->format('M d, Y g:i A') }}"
+                        data-payment-ready="{{ $paymentReady ? '1' : '0' }}"
+                        data-payment-method="{{ $paymentMethodLabel ?? '' }}"
+                        data-amount-submitted="{{ $amountSubmitted ? number_format((float) $amountSubmitted, 2) : '' }}"
+                        data-payment-submitted-at="{{ $paymentSubmittedAt?->format('M d, Y g:i A') }}"
+                        data-proof-url="{{ $proofUrl }}"
+                        data-signature-url="{{ $signatureUrl }}"
+                        data-cash-received="{{ $job->cash_received ? number_format((float) $job->cash_received, 2) : '' }}">
+                        <td>
+                            <div class="jobs-cell-primary jobs-booking-code">{{ $job->booking_code }}</div>
+                            <div class="jobs-cell-secondary">{{ $customer }}</div>
+                        </td>
+                        <td>
+                            <span class="jobs-status-text {{ $bucket === 'awaiting-verification' ? 'jobs-status-text--emphasis' : '' }}">{{ $statusLabel }}</span>
+                            @if ($statusSecondary)
+                                <div class="jobs-cell-secondary">{{ $statusSecondary }}</div>
+                            @endif
+                        </td>
+                        <td>
+                            <div class="jobs-cell-primary">{{ $unitName }}</div>
+                            <div class="jobs-cell-secondary">{{ $teamLeaderName }}</div>
+                        </td>
+                        <td class="jobs-route-cell" title="{{ $pickup }} → {{ $dropoff }}">
+                            <div class="jobs-route-line">{{ $pickup }}</div>
+                            <div class="jobs-route-line jobs-route-line--drop">→ {{ $dropoff }}</div>
+                        </td>
+                        <td>
+                            @if ($isAwaiting)
+                                @if ($paymentReady)
+                                    <div class="jobs-cell-primary">{{ $paymentMethodLabel }}</div>
+                                    <div class="jobs-cell-secondary">₱{{ $amountSubmitted ? number_format((float) $amountSubmitted, 2) : '0.00' }}</div>
+                                @else
+                                    <span class="jobs-cell-secondary">Payment not yet submitted</span>
+                                @endif
+                            @else
+                                <span class="jobs-cell-secondary">—</span>
+                            @endif
+                        </td>
+                        <td class="jobs-cell-secondary">{{ $job->updated_at?->diffForHumans() }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="6">
+                            <div class="jobs-empty">
+                                <i data-lucide="truck"></i>
+                                <p>No active jobs right now</p>
+                                <span>Jobs will appear here once a team leader starts a towing task.</span>
+                            </div>
+                        </td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
         </div>
 
         <div class="jobs-pagination">
             {{ $jobs->onEachSide(1)->links() }}
         </div>
 
-        {{-- Job Detail Modal --}}
-        <div class="job-modal" id="jobModal">
-            <div class="modal-overlay"></div>
-            <div class="modal-content">
+        {{-- Right-side drawer --}}
+        <div class="jobs-drawer-backdrop" id="jobsDrawerBackdrop"></div>
+        <div class="jobs-drawer" id="jobsDrawer">
+            <div class="jobs-drawer-head">
+                <div>
+                    <p class="jobs-drawer-eyebrow" id="drawerBookingCode">—</p>
+                    <span class="jobs-drawer-status" id="drawerStatus"></span>
+                </div>
+                <button type="button" class="jobs-drawer-close" id="jobsDrawerClose" aria-label="Close">×</button>
+            </div>
 
-                <div class="modal-header">
-                    <div class="modal-header-left">
-                        <p class="modal-eyebrow">Active Job</p>
-                        <h2 class="modal-title" id="modalTitle">—</h2>
-                    </div>
-                    <div class="modal-header-right">
-                        <span class="modal-status-pill" id="modalStatusPill"></span>
-                        <button type="button" class="close-modal" aria-label="Close">×</button>
+            <div class="jobs-drawer-body">
+                <div class="jobs-drawer-section">
+                    <div class="jobs-drawer-section-title">Customer</div>
+                    <div class="jobs-drawer-grid">
+                        <div class="jobs-drawer-item full-width">
+                            <span class="jobs-drawer-label">Name</span>
+                            <span class="jobs-drawer-value" id="drawer-customer">—</span>
+                        </div>
+                        <div class="jobs-drawer-item">
+                            <span class="jobs-drawer-label">Phone</span>
+                            <span class="jobs-drawer-value" id="drawer-phone">—</span>
+                        </div>
+                        <div class="jobs-drawer-item">
+                            <span class="jobs-drawer-label">Email</span>
+                            <span class="jobs-drawer-value" id="drawer-email">—</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="modal-body">
-
-                    {{-- Route --}}
-                    <div class="modal-section">
-                        <div class="modal-section-title">Route</div>
-                        <div class="modal-route-box">
-                            <div class="modal-route-row">
-                                <span class="route-dot route-from"></span>
-                                <span class="route-addr" id="job-pickup">—</span>
-                            </div>
-                            <div class="route-line"></div>
-                            <div class="modal-route-row">
-                                <span class="route-dot route-to"></span>
-                                <span class="route-addr" id="job-dropoff">—</span>
-                            </div>
+                <div class="jobs-drawer-section">
+                    <div class="jobs-drawer-section-title">Route</div>
+                    {{-- Same .rb-route* markup/classes as the approved Dispatch Queue
+                         booking drawer (see routeSectionHtml() in booking-drawer.js,
+                         shared by Book Now and Scheduled) — reused here via jobs.css
+                         for visual consistency, not a divergent copy. --}}
+                    <div class="rb-route">
+                        <div class="rb-route-row">
+                            <span class="rb-route-dot rb-pick"></span>
+                            <span class="rb-route-addr" id="drawer-pickup">—</span>
+                        </div>
+                        <div class="rb-route-row">
+                            <span class="rb-route-dot rb-drop"></span>
+                            <span class="rb-route-addr" id="drawer-dropoff">—</span>
+                        </div>
+                        <div class="rb-route-meta" id="drawer-distance-wrap" style="display:none;">
+                            <span>Distance</span>
+                            <span id="drawer-distance">—</span>
                         </div>
                     </div>
-
-                    {{-- Customer --}}
-                    <div class="modal-section">
-                        <div class="modal-section-title">Customer</div>
-                        <div class="detail-grid">
-                            <div class="detail-item full-width">
-                                <span class="detail-label">Name</span>
-                                <span class="detail-value" id="job-customer">—</span>
-                            </div>
-                            <div class="detail-item" id="job-phone-wrap">
-                                <span class="detail-label">Phone</span>
-                                <span class="detail-value" id="job-phone">—</span>
-                            </div>
-                            <div class="detail-item" id="job-email-wrap">
-                                <span class="detail-label">Email</span>
-                                <span class="detail-value" id="job-email">—</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Vehicle images from customer --}}
-                    <div class="modal-section" id="vehicleImagesSection" style="display:none;">
-                        <div class="modal-section-title">Customer's Vehicle</div>
-                        <div id="vehicleImagesContainer" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-                    </div>
-
-                    {{-- Total price --}}
-                    <div class="modal-section" id="totalSection" style="display:none;">
-                        <div class="modal-section-title">Total Price</div>
-                        <div class="total-price-box">
-                            <span class="total-price-label">Final Total</span>
-                            <span class="total-price-value" id="job-total">—</span>
-                        </div>
-                    </div>
-
-                    {{-- Assigned Unit --}}
-                    <div class="modal-section">
-                        <div class="modal-section-title">Assigned Unit</div>
-                        <div class="detail-grid">
-                            <div class="detail-item">
-                                <span class="detail-label">Unit</span>
-                                <span class="detail-value" id="job-unit">—</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Tow Type</span>
-                                <span class="detail-value" id="job-service">—</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Team Leader</span>
-                                <span class="detail-value" id="job-teamleader">—</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Member Driver</span>
-                                <span class="detail-value" id="job-driver">—</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Meta --}}
-                    <div class="modal-section">
-                        <div class="detail-grid">
-                            <div class="detail-item full-width">
-                                <span class="detail-label">Job Started</span>
-                                <span class="detail-value" id="job-time">—</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Payment --}}
-                    <div class="payment-section" id="paymentSection" style="display:none;">
-                        <div class="modal-section-title">
-                            <i data-lucide="credit-card" style="width:14px;height:14px;"></i>
-                            Payment Submission
-                        </div>
-                        <div class="detail-grid">
-                            <div class="detail-item">
-                                <span class="detail-label">Method</span>
-                                <span class="detail-value" id="job-payment-method">—</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Submitted At</span>
-                                <span class="detail-value" id="job-payment-submitted-at">—</span>
-                            </div>
-                        </div>
-                        <div class="payment-proof-area" id="paymentProofArea" style="display:none;">
-                            <span class="detail-label">Payment Proof</span>
-                            <div id="job-payment-proof-container"
-                                style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
-                        </div>
-                        <div id="jobCashRow" style="display:none;margin-top:10px;">
-                            <div
-                                style="font-size:.68rem;text-transform:uppercase;color:#000000;margin-bottom:4px;">
-                                Cash Received (&#8369;)</div>
-                            <div id="jobCashReceivedDisplay" class="detail-value">—</div>
-                            <p style="margin:4px 0 0;font-size:.7rem;color:#94a3b8;">Reported by the Team Leader on
-                                task completion.</p>
-                        </div>
-                    </div>
-
                 </div>
 
-                <div class="modal-actions">
-                    <a href="{{ route('admin.dispatch') }}" class="btn btn-secondary">Open Dispatch Queue</a>
-                    <button type="button" id="confirmPaymentBtn" class="btn btn-confirm-payment" style="display:none;">
-                        <i data-lucide="check-circle"></i>
-                        <span>Confirm Payment</span>
-                    </button>
-                    <button type="button" class="btn btn-primary close-modal-btn">
-                        <i data-lucide="check"></i>
-                        Close
-                    </button>
+                <div class="jobs-drawer-section">
+                    <div class="jobs-drawer-section-title">Truck Type</div>
+                    <div class="jobs-drawer-grid">
+                        <div class="jobs-drawer-item">
+                            <span class="jobs-drawer-value" id="drawer-service">—</span>
+                        </div>
+                        <div class="jobs-drawer-item" id="drawer-completed-wrap" style="display:none;">
+                            <span class="jobs-drawer-label">Service Completed</span>
+                            <span class="jobs-drawer-value" id="drawer-completed-at">—</span>
+                        </div>
+                    </div>
                 </div>
 
+                <div class="jobs-drawer-section">
+                    <div class="jobs-drawer-section-title" id="drawer-unit-title">Assigned Unit</div>
+                    <div class="jobs-drawer-grid">
+                        <div class="jobs-drawer-item">
+                            <span class="jobs-drawer-label">Unit</span>
+                            <span class="jobs-drawer-value" id="drawer-unit">—</span>
+                        </div>
+                        <div class="jobs-drawer-item">
+                            <span class="jobs-drawer-label">Team Leader</span>
+                            <span class="jobs-drawer-value" id="drawer-teamleader">—</span>
+                        </div>
+                        <div class="jobs-drawer-item full-width">
+                            <span class="jobs-drawer-label">Member Driver</span>
+                            <span class="jobs-drawer-value" id="drawer-driver">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="jobs-drawer-section" id="drawer-payment-section" style="display:none;">
+                    <div class="jobs-drawer-section-title">Payment Summary</div>
+                    <div class="jobs-drawer-grid">
+                        <div class="jobs-drawer-item" id="drawer-amount-due-wrap">
+                            <span class="jobs-drawer-label">Amount Due</span>
+                            <span class="jobs-drawer-value" id="drawer-amount-due">—</span>
+                        </div>
+                        <div class="jobs-drawer-item" id="drawer-amount-submitted-wrap">
+                            <span class="jobs-drawer-label">Amount Submitted</span>
+                            <span class="jobs-drawer-value" id="drawer-amount-submitted">—</span>
+                        </div>
+                        <div class="jobs-drawer-item" id="drawer-difference-wrap">
+                            <span class="jobs-drawer-label">Difference</span>
+                            <span class="jobs-drawer-value" id="drawer-difference">—</span>
+                        </div>
+                        <div class="jobs-drawer-item" id="drawer-amount-paid-wrap">
+                            <span class="jobs-drawer-label">Amount Paid</span>
+                            <span class="jobs-drawer-value" id="drawer-amount-paid">—</span>
+                        </div>
+                        <div class="jobs-drawer-item">
+                            <span class="jobs-drawer-label">Payment Method</span>
+                            <span class="jobs-drawer-value" id="drawer-payment-method">—</span>
+                        </div>
+                        <div class="jobs-drawer-item">
+                            <span class="jobs-drawer-label">Submitted At</span>
+                            <span class="jobs-drawer-value" id="drawer-submitted-at">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="jobs-drawer-section" id="drawer-proof-section" style="display:none;">
+                    <div class="jobs-drawer-section-title">Payment Proof</div>
+                    <a id="drawer-proof-link" href="#" target="_blank" rel="noopener noreferrer" class="jobs-proof-box">
+                        <img id="drawer-proof-img" src="" alt="Payment proof">
+                        <span>View full size</span>
+                    </a>
+                    <p class="jobs-cash-note" id="drawer-cash-note" style="display:none;">Cash received on-site — no proof image required.</p>
+                </div>
+
+                <div class="jobs-drawer-section" id="drawer-signature-section" style="display:none;">
+                    <div class="jobs-drawer-section-title">Customer Acknowledgment</div>
+                    <div class="jobs-signature-box">
+                        <img id="drawer-signature-img" src="" alt="Customer signature">
+                        <span class="jobs-signature-caption" id="drawer-signature-caption">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="jobs-drawer-foot">
+                <button type="button" id="drawerConfirmPaymentBtn" class="btn btn-confirm-payment" style="display:none;">
+                    <i data-lucide="check-circle"></i>
+                    <span>Confirm Payment</span>
+                </button>
             </div>
         </div>
 

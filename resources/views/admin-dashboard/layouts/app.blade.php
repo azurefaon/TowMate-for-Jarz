@@ -56,21 +56,12 @@
             }
         }
 
-        .topbar-copy h2 {
-            color: var(--jarz-text);
-        }
-
         .topbar-actions {
             display: flex;
             align-items: center;
             gap: 12px;
             position: relative;
             z-index: 1250;
-        }
-
-        .topbar-date {
-            color: var(--jarz-text);
-            opacity: 0.78;
         }
 
         .main-content,
@@ -96,23 +87,27 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 5px 12px;
-            background: #fff;
+            padding: 5px 8px;
+            background: transparent;
             border-radius: 8px;
             cursor: pointer;
         }
 
         .profile-avatar {
-            width: 36px;
-            height: 36px;
+            width: 34px;
+            height: 34px;
+            flex-shrink: 0;
             display: inline-flex;
             align-items: center;
-            border: 2px solid #111827;
-            border-radius: 50%;
             justify-content: center;
-            background: #facc15;
-            color: #111827;
-            font-weight: 700;
+            border-radius: 50%;
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .profile-avatar i {
+            width: 18px;
+            height: 18px;
         }
 
         .profile-meta {
@@ -121,21 +116,59 @@
             line-height: 1.15;
         }
 
-        .profile-meta small {
-            color: rgba(48, 56, 65, 0.68);
+        .profile-meta strong {
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .profile-chevron {
+            width: 14px;
+            height: 14px;
+            color: #9ca3af;
         }
 
         .profile-menu {
             position: absolute;
             right: 0;
             top: calc(100% + 10px);
-            min-width: 180px;
+            min-width: 220px;
             padding: 8px;
-            border: 1px solid #111827;
+            border: 1px solid #e5e7eb;
             border-radius: 12px;
             background: #fff;
-            box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
+            box-shadow: 0 12px 28px rgba(17, 24, 39, 0.12);
             z-index: 20;
+        }
+
+        .profile-menu-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 8px 10px;
+        }
+
+        .profile-menu-meta {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+            min-width: 0;
+        }
+
+        .profile-menu-meta strong {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--jarz-text);
+        }
+
+        .profile-menu-meta small {
+            font-size: 0.76rem;
+            color: #6b7280;
+        }
+
+        .profile-menu-divider {
+            border: none;
+            border-top: 1px solid #e5e7eb;
+            margin: 4px 0 6px;
         }
 
         .profile-menu a,
@@ -151,11 +184,19 @@
             color: var(--jarz-text);
             text-decoration: none;
             cursor: pointer;
+            font-size: 0.86rem;
+        }
+
+        .profile-menu a i,
+        .profile-menu button i {
+            width: 16px;
+            height: 16px;
+            color: #6b7280;
         }
 
         .profile-menu a:hover,
         .profile-menu button:hover {
-            background: #facc15;
+            background: #f3f4f6;
         }
     </style>
 </head>
@@ -213,7 +254,6 @@
         window.dispatcherNotifications = {
             add(payload = {}) {
                 const list = document.getElementById('dispatcherNotifList');
-                const countNode = document.getElementById('dispatcherNotifCount');
 
                 if (!list) {
                     return;
@@ -221,26 +261,88 @@
 
                 list.querySelector('.notif-empty')?.remove();
 
-                const item = document.createElement('div');
+                const item = document.createElement('a');
+                item.href = payload.url || '#';
                 item.className = 'notif-item';
+                item.dataset.unread = 'true';
                 item.innerHTML = `
-                    <span class="notif-dot"></span>
-                    <div>
-                        <strong>${payload.title || 'Team leader update'}</strong>
-                        <p>${payload.body || 'A booking has been handed off to the team leader queue.'}</p>
-                        <small>${payload.time || 'Just now'}</small>
-                    </div>
+                    <span class="notif-state" aria-hidden="true">✕</span>
+                    <span class="sr-only">Unread.</span>
+                    <span class="notif-body">
+                        <span class="notif-top">
+                            <strong>${payload.title || 'Booking update'}</strong>
+                            <span class="notif-time">${payload.time || 'Just now'}</span>
+                        </span>
+                        <span class="notif-line">${payload.body || ''}</span>
+                    </span>
                 `;
 
                 list.prepend(item);
 
+                this.refreshBadge(1);
+            },
+
+            refreshBadge(delta) {
+                const bellButton = document.querySelector('.notif-button');
+                let countNode = document.getElementById('dispatcherNotifCount');
+
+                const current = countNode ? (parseInt(countNode.textContent || '0', 10) || 0) : 0;
+                const next = Math.max(0, current + delta);
+
+                if (next === 0) {
+                    countNode?.remove();
+                    return;
+                }
+
+                if (!countNode && bellButton) {
+                    countNode = document.createElement('span');
+                    countNode.id = 'dispatcherNotifCount';
+                    countNode.className = 'notif-count';
+                    bellButton.appendChild(countNode);
+                }
+
                 if (countNode) {
-                    const nextCount = (parseInt(countNode.textContent || '0', 10) || 0) + 1;
-                    countNode.textContent = nextCount;
-                    countNode.hidden = false;
+                    countNode.textContent = next;
                 }
             }
         };
+
+        (function() {
+            const markAllBtn = document.getElementById('notifMarkAllRead');
+
+            if (!markAllBtn) {
+                return;
+            }
+
+            markAllBtn.addEventListener('click', function() {
+                fetch('{{ route('admin.notifications.mark-all-read') }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            Accept: 'application/json',
+                        },
+                    })
+                    .then(function(response) {
+                        return response.json();
+                    })
+                    .then(function() {
+                        document.querySelectorAll('#dispatcherNotifList .notif-item[data-unread="true"]').forEach(function(item) {
+                            item.dataset.unread = 'false';
+                            const state = item.querySelector('.notif-state');
+                            if (state) {
+                                state.textContent = '✓';
+                            }
+                            const label = item.querySelector('.sr-only');
+                            if (label) {
+                                label.textContent = 'Read.';
+                            }
+                        });
+
+                        document.getElementById('dispatcherNotifCount')?.remove();
+                    })
+                    .catch(function() {});
+            });
+        })();
 
         window.openLogoutModal = function() {
             const modal = document.getElementById('logoutModal');

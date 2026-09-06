@@ -11,6 +11,13 @@ class Booking extends Model
 {
     use HasFactory, GeneratesPublicCode;
 
+    /**
+     * Statuses where a booking is still actively being quoted/negotiated in the
+     * dispatcher queue — single source of truth for "is this booking still live"
+     * checks, including the soft unit-reservation queries below.
+     */
+    public const REVIEWABLE_STATUSES = ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed', 'scheduled_confirmed'];
+
     protected $fillable = [
         'booking_code',
         'quotation_id',
@@ -18,6 +25,7 @@ class Booking extends Model
         'customer_id',
         'truck_type_id',
         'assigned_unit_id',
+        'selected_unit_id',
         'assigned_team_leader_id',
         'created_by_admin_id',
         'age',
@@ -110,6 +118,16 @@ class Booking extends Model
 
         static::saving(function (Booking $booking) {
             $booking->quotation_status = $booking->resolveQuotationStatus($booking->quotation_status ?? null);
+
+            // A unit "reserved" for a pre-confirm quotation must release the moment
+            // the booking leaves the actively-quoting statuses. Clearing it here —
+            // once, centrally — means every current *and future* termination path
+            // (reject, cancel, expire, or anything not yet written) gets this for
+            // free, with no risk of a stale FK lingering if some future report/query
+            // forgets to also filter by status.
+            if ($booking->isDirty('status') && ! in_array($booking->status, self::REVIEWABLE_STATUSES, true) && $booking->selected_unit_id !== null) {
+                $booking->selected_unit_id = null;
+            }
         });
 
         static::updated(function (Booking $booking) {
@@ -239,7 +257,8 @@ class Booking extends Model
     public function getDistanceFeeAmountAttribute(): float
     {
         $distanceKm = (float) ($this->distance_km ?? 0);
-        return app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm);
+        $perKmRate = (float) ($this->truckType?->per_km_rate ?? 0);
+        return app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm, $perKmRate);
     }
 
     public function getExcessKmAttribute(): float
@@ -345,6 +364,49 @@ class Booking extends Model
             && $this->scheduled_for->copy()->addHour()->lte(now());
     }
 
+    /**
+     * True once a confirmed Scheduled booking has entered its 1-hour
+     * pre-service dispatch window — this is when a dispatcher may first pick
+     * a currently-available Unit/TL. Scheduled bookings never reserve a unit
+     * before this point.
+     */
+    public function getIsReadyForDispatchScheduleAttribute(): bool
+    {
+        return $this->status === 'scheduled_confirmed'
+            && $this->is_scheduled
+            && ! is_null($this->scheduled_for)
+            && $this->scheduled_for->copy()->subHour()->lte(now());
+    }
+
+    /** Same 0-hour threshold as is_due_for_dispatch, scoped to a confirmed Scheduled booking only. */
+    public function getIsOverdueForDispatchScheduleAttribute(): bool
+    {
+        return $this->status === 'scheduled_confirmed' && $this->is_due_for_dispatch;
+    }
+
+    /**
+     * Computed dispatch-queue bucket for a confirmed Scheduled booking:
+     * confirmed (>24h out) / upcoming (within 24h) / ready (within 1h) /
+     * overdue (past scheduled start). Null for anything not yet confirmed —
+     * the quote-phase table/drawer status carries those instead.
+     */
+    public function getSchedulingBucketAttribute(): ?string
+    {
+        if ($this->status !== 'scheduled_confirmed' || is_null($this->scheduled_for)) {
+            return null;
+        }
+
+        if ($this->is_overdue_for_dispatch_schedule) {
+            return 'overdue';
+        }
+
+        if ($this->is_ready_for_dispatch_schedule) {
+            return 'ready';
+        }
+
+        return $this->scheduled_for->copy()->subHours(24)->lte(now()) ? 'upcoming' : 'confirmed';
+    }
+
     public function getNeedsReassignmentAttribute(): bool
     {
         if ($this->status === 'confirmed') {
@@ -393,6 +455,23 @@ class Booking extends Model
     public function unit()
     {
         return $this->belongsTo(Unit::class, 'assigned_unit_id');
+    }
+
+    public function selectedUnit()
+    {
+        return $this->belongsTo(Unit::class, 'selected_unit_id');
+    }
+
+    /** Bookings that currently hold a soft reservation on the given unit. */
+    public function scopeReservingUnit($query, int $unitId)
+    {
+        return $query->where('selected_unit_id', $unitId)->whereIn('status', self::REVIEWABLE_STATUSES);
+    }
+
+    /** All bookings that currently hold a soft reservation on any unit. */
+    public function scopeUnitReservations($query)
+    {
+        return $query->whereNotNull('selected_unit_id')->whereIn('status', self::REVIEWABLE_STATUSES);
     }
 
     public function assignedTeamLeader()

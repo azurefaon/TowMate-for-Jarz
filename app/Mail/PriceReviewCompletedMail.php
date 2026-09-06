@@ -10,7 +10,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class QuotationFollowUpMail extends Mailable
+class PriceReviewCompletedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -49,19 +49,14 @@ class QuotationFollowUpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Reminder: Your Quotation Is Still Waiting — ' . $this->quotation->quotation_number,
+            subject: 'Price Review Completed — ' . $this->quotation->quotation_number,
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            view: 'emails.quotation-followup',
+            view: 'emails.price-review-completed',
         );
-    }
-
-    public function attachments(): array
-    {
-        return [];
     }
 }

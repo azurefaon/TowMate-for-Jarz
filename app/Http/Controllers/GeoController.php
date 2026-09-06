@@ -211,7 +211,7 @@ class GeoController extends Controller
                 'distance_km'         => (float) $pricing['distance_km'],
                 'extra_distance'      => (float) $pricing['extra_distance'],
                 'base_rate'           => (float) $pricing['base_rate'],
-                'per_km_rate'         => 300.0,
+                'per_km_rate'         => (float) $pricing['per_km_rate'],
                 'distance_fee'        => (float) $pricing['distance_fee'],
                 'computed_total'      => (float) $pricing['computed_total'],
                 'discount_percentage' => (float) $pricing['discount_percentage'],
