@@ -89,6 +89,8 @@
                                             || $unit->teamLeader->archived_at
                                         );
                                     @endphp
+                                    {{-- Team Leader assignment/removal/transfer is managed exclusively in
+                                         Dispatcher → Units & Leaders; this view is read-only. --}}
                                     @if ($leaderName)
                                         <span class="cell-main">{{ $leaderName }}</span>
                                         @if ($leaderInvalid)
@@ -97,19 +99,8 @@
                                                 ⚠ not a Team Leader
                                             </small>
                                         @endif
-                                        <br>
-                                        <form method="POST" action="{{ route('superadmin.units.remove-team-leader', $unit->id) }}"
-                                            class="js-confirm-delete"
-                                            data-confirm-title="Remove Team Leader?"
-                                            data-confirm-message="Remove {{ $leaderName }} (and their driver/crew) from {{ $unit->name }}?"
-                                            data-confirm-button="Remove">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="crew-slot-link">Remove</button>
-                                        </form>
                                     @else
-                                        <button type="button" class="crew-slot-action js-assign-leader"
-                                            data-unit-id="{{ $unit->id }}" data-unit-name="{{ $unit->name }}">Assign</button>
+                                        <span class="not-assigned">No Team Leader assigned</span>
                                     @endif
                                 </td>
 
@@ -297,43 +288,6 @@
             </div>
         </div>
 
-        {{-- Assign Team Leader Modal --}}
-        <div id="assignLeaderModal" class="modal">
-            <div class="modal-card">
-                <div class="modal-header">
-                    <div>
-                        <h2>Assign Team Leader</h2>
-                        <p id="assignLeaderUnitName"></p>
-                    </div>
-                    <button type="button" class="modal-close" data-close-modal="assignLeaderModal">✕</button>
-                </div>
-
-                <form method="POST" id="assignLeaderForm">
-                    @csrf
-                    @method('PATCH')
-
-                    <div class="form-group">
-                        <label for="assignLeaderSelect">Team Leader</label>
-                        <select name="team_leader_id" id="assignLeaderSelect" required>
-                            <option value="">- Select -</option>
-                            @foreach ($teamLeaders->where('unit_count', 0) as $leader)
-                                <option value="{{ $leader->id }}">{{ $leader->full_name ?: $leader->name }}</option>
-                            @endforeach
-                        </select>
-                        @if ($teamLeaders->where('unit_count', 0)->isEmpty())
-                            <p class="field-note">No available Team Leaders - everyone already has a unit.</p>
-                        @endif
-                        <p class="field-note" id="assignLeaderPreview"></p>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn-light" data-close-modal="assignLeaderModal">Cancel</button>
-                        <button type="submit" class="btn-dark">Assign</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
         {{-- Edit Unit Modal --}}
         <div id="editUnitModal" class="modal">
             <div class="modal-card">
@@ -372,39 +326,6 @@
             </div>
         </div>
 
-        {{-- Assign Crew Modal --}}
-        <div id="assignCrewModal" class="modal">
-            <div class="modal-card">
-                <div class="modal-header">
-                    <div>
-                        <h2>Assign Crew</h2>
-                        <p>Temporarily move a driver or crew member from another unit into <strong
-                                id="borrowToLabel"></strong>.</p>
-                    </div>
-                    <button type="button" class="modal-close" data-close-modal="assignCrewModal">✕</button>
-                </div>
-
-                <form method="POST" id="borrowCrewForm">
-                    @csrf
-                    <input type="hidden" name="to_slot" id="borrowToSlot">
-                    <input type="hidden" name="from_unit_id" id="assignFromUnit" required>
-                    <input type="hidden" name="from_slot" id="assignFromSlot" required>
-
-                    <div class="form-group" style="position:relative;">
-                        <label for="assignCrewSearch">Search crew or driver</label>
-                        <input type="text" id="assignCrewSearch" autocomplete="off" placeholder="Type a name...">
-                        <div id="assignCrewSuggestions" class="bk-suggestions" style="display:none;"></div>
-                        <p class="field-note" id="assignCrewSelected"></p>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn-light" data-close-modal="assignCrewModal">Cancel</button>
-                        <button type="submit" class="btn-dark">Assign</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
         <div id="deleteDialog" class="sa-dialog-backdrop">
             <div class="sa-dialog-card">
                 <h3 id="deleteDialogTitle">Confirm</h3>
@@ -420,8 +341,6 @@
 @endsection
 
 @push('scripts')
-    <script id="crewUnitsData" type="application/json">{!! json_encode($crewUnitsData) !!}</script>
-    <script id="teamLeaderStagedData" type="application/json">{!! json_encode($teamLeaderStagedData) !!}</script>
     <script src="{{ asset('admin/js/unit-truck.js') }}" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -438,203 +357,9 @@
                 }, 3000);
             });
 
-            const baseUrl = page.dataset.baseUrl;
-            const crewUnits = JSON.parse(document.getElementById('crewUnitsData').textContent || '[]');
-            const teamLeaderStagedData = JSON.parse(document.getElementById('teamLeaderStagedData').textContent ||
-                '[]');
-
-            // Assign Team Leader modal: preview the driver/crew that come with the selected leader.
-            const assignLeaderSelect = document.getElementById('assignLeaderSelect');
-            const assignLeaderPreview = document.getElementById('assignLeaderPreview');
-            assignLeaderSelect?.addEventListener('change', () => {
-                if (!assignLeaderPreview) return;
-                const leaderId = parseInt(assignLeaderSelect.value, 10) || null;
-                if (!leaderId) {
-                    assignLeaderPreview.textContent = '';
-                    return;
-                }
-                const staged = teamLeaderStagedData.find(l => l.id === leaderId);
-                if (!staged) {
-                    assignLeaderPreview.textContent = '';
-                    return;
-                }
-                const parts = [];
-                if (staged.driver_name) parts.push(`Driver - ${staged.driver_name}`);
-                if (staged.crew_member_1_name) parts.push(`Crew 1 - ${staged.crew_member_1_name}`);
-                if (staged.crew_member_2_name) parts.push(`Crew 2 - ${staged.crew_member_2_name}`);
-                assignLeaderPreview.textContent = parts.length
-                    ? `Comes with: ${parts.join(', ')}`
-                    : 'No driver/crew on file for this Team Leader yet.';
-            });
-
-
-            const slotColumn = {
-                driver_1: 'driver_name',
-                driver_2: 'driver_2_name',
-                crew_member_1: 'crew_member_1_name',
-                crew_member_2: 'crew_member_2_name',
-            };
-            const slotLabel = {
-                driver_1: 'Driver 1',
-                driver_2: 'Driver 2',
-                crew_member_1: 'Crew Member 1',
-                crew_member_2: 'Crew Member 2',
-            };
-            const slotType = (slot) => slot.startsWith('driver_') ? 'driver' : 'crew_member';
-
-            const assignCrewModal = document.getElementById('assignCrewModal');
-            const borrowForm = document.getElementById('borrowCrewForm');
-            const borrowToLabel = document.getElementById('borrowToLabel');
-            const borrowToSlot = document.getElementById('borrowToSlot');
-            const assignFromUnit = document.getElementById('assignFromUnit');
-            const assignFromSlot = document.getElementById('assignFromSlot');
-            const assignCrewSearch = document.getElementById('assignCrewSearch');
-            const assignCrewSuggestions = document.getElementById('assignCrewSuggestions');
-            const assignCrewSelected = document.getElementById('assignCrewSelected');
-
-            const showModal = (m) => {
-                if (m) m.style.display = 'flex';
-            };
-            const hideModal = (m) => {
-                if (m) m.style.display = 'none';
-            };
-
-            // Flat, pre-filtered list of every borrowable person: excludes anyone on a
-            // truck that isn't available, and anyone currently occupying a slot as a loan-in
-            // (so a borrowed-in person can't be assigned away again from their temporary post).
-            const people = crewUnits.flatMap(u => {
-                if (u.status !== 'available') return [];
-                const loanedInSlots = u.loaned_in_slots || [];
-                return Object.keys(slotColumn)
-                    .filter(slot => u[slotColumn[slot]] && !loanedInSlots.includes(slot))
-                    .map(slot => ({
-                        unitId: u.id,
-                        unitName: u.name,
-                        slot,
-                        slotLabel: slotLabel[slot],
-                        slotType: slotType(slot),
-                        name: u[slotColumn[slot]],
-                    }));
-            });
-
-            let eligiblePeople = [];
-
-            const closeSuggestions = () => {
-                assignCrewSuggestions.style.display = 'none';
-                assignCrewSuggestions.innerHTML = '';
-            };
-
-            const clearSelection = () => {
-                assignFromUnit.value = '';
-                assignFromSlot.value = '';
-                assignCrewSelected.textContent = '';
-                assignCrewSelected.classList.remove('field-note--error');
-            };
-
-            const selectPerson = (person) => {
-                assignFromUnit.value = person.unitId;
-                assignFromSlot.value = person.slot;
-                assignCrewSelected.classList.remove('field-note--error');
-                assignCrewSelected.innerHTML = '';
-
-                const text = document.createElement('span');
-                text.textContent = `Selected: ${person.name} — ${person.unitName} (${person.slotLabel}) `;
-
-                const change = document.createElement('button');
-                change.type = 'button';
-                change.className = 'crew-slot-link';
-                change.textContent = 'change';
-                change.addEventListener('click', () => {
-                    clearSelection();
-                    assignCrewSearch.value = '';
-                    assignCrewSearch.focus();
-                });
-
-                assignCrewSelected.appendChild(text);
-                assignCrewSelected.appendChild(change);
-                assignCrewSearch.value = person.name;
-                closeSuggestions();
-            };
-
-            const renderSuggestions = (matches) => {
-                if (!matches.length) {
-                    assignCrewSuggestions.innerHTML = '<div class="bk-suggestion-empty">No matches found.</div>';
-                    assignCrewSuggestions.style.display = 'block';
-                    return;
-                }
-
-                assignCrewSuggestions.innerHTML = '';
-                matches.slice(0, 8).forEach(person => {
-                    const item = document.createElement('button');
-                    item.type = 'button';
-                    item.className = 'bk-suggestion-item';
-                    item.textContent = `${person.name} — ${person.unitName} (${person.slotLabel})`;
-                    item.addEventListener('click', () => selectPerson(person));
-                    assignCrewSuggestions.appendChild(item);
-                });
-                assignCrewSuggestions.style.display = 'block';
-            };
-
-            assignCrewSearch.addEventListener('input', () => {
-                clearSelection();
-                const query = assignCrewSearch.value.trim().toLowerCase();
-                if (!query) {
-                    closeSuggestions();
-                    return;
-                }
-                const matches = eligiblePeople.filter(p =>
-                    p.name.toLowerCase().includes(query) || p.unitName.toLowerCase().includes(query)
-                );
-                renderSuggestions(matches);
-            });
-
-            assignCrewSearch.addEventListener('focus', () => {
-                if (!assignCrewSearch.value.trim()) {
-                    renderSuggestions(eligiblePeople);
-                }
-            });
-
-            document.addEventListener('click', (e) => {
-                if (assignCrewSuggestions && !assignCrewSuggestions.contains(e.target) && e.target !== assignCrewSearch) {
-                    closeSuggestions();
-                }
-            });
-
-            document.querySelectorAll('.js-assign-crew').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const toUnitId = parseInt(btn.dataset.toUnit, 10);
-                    const toSlot = btn.dataset.toSlot;
-
-                    borrowToLabel.textContent =
-                        `${btn.dataset.toUnitName} - ${btn.dataset.toSlotLabel}`;
-                    borrowToSlot.value = toSlot;
-                    borrowForm.action = `${baseUrl}/${toUnitId}/borrow-crew`;
-
-                    const type = slotType(toSlot);
-                    eligiblePeople = people.filter(p => p.slotType === type && p.unitId !== toUnitId);
-
-                    assignCrewSearch.value = '';
-                    clearSelection();
-                    closeSuggestions();
-
-                    showModal(assignCrewModal);
-                });
-            });
-
-            borrowForm.addEventListener('submit', (e) => {
-                if (!assignFromUnit.value || !assignFromSlot.value) {
-                    e.preventDefault();
-                    assignCrewSelected.textContent = 'Please search and select a crew member first.';
-                    assignCrewSelected.classList.add('field-note--error');
-                }
-            });
-
-            document.querySelectorAll('[data-close-modal="assignCrewModal"]').forEach(btn => {
-                btn.addEventListener('click', () => hideModal(assignCrewModal));
-            });
-            assignCrewModal?.addEventListener('click', (e) => {
-                if (e.target === assignCrewModal) hideModal(assignCrewModal);
-            });
+            // Team Leader assignment and Driver/Crew borrowing are now
+            // Dispatcher-only (Units & Leaders) — this page no longer wires
+            // up any personnel-write modal/search/borrow JS.
 
             const deleteDialog = document.getElementById('deleteDialog');
             const deleteDialogTitle = document.getElementById('deleteDialogTitle');

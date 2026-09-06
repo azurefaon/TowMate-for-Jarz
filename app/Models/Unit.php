@@ -18,15 +18,29 @@ class Unit extends Model
         'crew_member_2'  => 'crew_member_2_name',
     ];
 
+    /**
+     * Duty is only tracked for the slots that actually matter to the final
+     * availability formula (the primary Driver, plus Crew for display) —
+     * driver_2 has no duty column and is never duty-blocking, same as crew.
+     */
+    public const DUTY_COLUMNS = [
+        'driver_1'       => 'driver_duty_status',
+        'crew_member_1'  => 'crew_1_duty_status',
+        'crew_member_2'  => 'crew_2_duty_status',
+    ];
+
     protected $fillable = [
         'name',
         'plate_number',
         'truck_type_id',
         'driver_id',
         'driver_name',
+        'driver_duty_status',
         'driver_2_name',
         'crew_member_1_name',
+        'crew_1_duty_status',
         'crew_member_2_name',
+        'crew_2_duty_status',
         'team_leader_id',
         'zone_id',
         'status',
@@ -60,19 +74,29 @@ class Unit extends Model
     {
         parent::boot();
 
-        // Driver/crew name fields are only ever meaningful as "this team leader's
-        // crew for this truck" — there are multiple code paths that detach a team
-        // leader (remove, reassign elsewhere, archive the leader's account), and
-        // each one used to remember to clear these fields itself (some didn't,
-        // leaving stale names behind). Centralizing it here means every current
-        // and future path gets this for free.
-        static::saving(function (self $unit) {
-            if ($unit->isDirty('team_leader_id') && $unit->team_leader_id === null) {
-                foreach (self::SLOT_COLUMNS as $column) {
-                    $unit->{$column} = null;
-                }
-            }
-        });
+        // Historically, Driver/Crew name fields were treated as "this team
+        // leader's own crew" and auto-cleared whenever the Team Leader was
+        // detached. Under the current Units & Leaders model, Driver/Crew are
+        // independent Unit-slot assignments (individually borrowable/
+        // returnable via UnitCrewLoan, same as a Team Leader) — removing or
+        // transferring a Team Leader must NOT drag their Driver/Crew along
+        // for the ride, so this hook no longer touches those columns.
+    }
+
+    /**
+     * Driver Duty — see User::dutyStatus() for the Team Leader equivalent.
+     * Null means "available".
+     */
+    public function driverDutyStatus(): string
+    {
+        return $this->driver_duty_status === 'unavailable' ? 'unavailable' : 'available';
+    }
+
+    public function crewDutyStatus(int $slot): string
+    {
+        $column = $slot === 2 ? 'crew_2_duty_status' : 'crew_1_duty_status';
+
+        return $this->{$column} === 'unavailable' ? 'unavailable' : 'available';
     }
 
     public function zone()

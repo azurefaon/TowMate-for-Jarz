@@ -159,6 +159,17 @@ Route::prefix('admin-dashboard')
 
         Route::patch('/drivers/{teamLeader}/override', [DriversController::class, 'override'])->name('team-leaders.override');
 
+        Route::get('/drivers/eligible-people', [DriversController::class, 'eligiblePeople'])->name('drivers.eligible-people');
+        Route::post('/drivers/units/{unit}/assign-team-leader', [DriversController::class, 'assignTeamLeader'])->name('drivers.units.assign-team-leader');
+        Route::post('/drivers/units/{unit}/return-team-leader', [DriversController::class, 'returnTeamLeader'])->name('drivers.units.return-team-leader');
+        Route::post('/drivers/units/{unit}/remove-team-leader', [DriversController::class, 'removeTeamLeader'])->name('drivers.units.remove-team-leader');
+        Route::post('/drivers/units/{unit}/assign-slot', [DriversController::class, 'assignSlot'])->name('drivers.units.assign-slot');
+        Route::post('/drivers/units/{unit}/remove-slot', [DriversController::class, 'removeSlot'])->name('drivers.units.remove-slot');
+        Route::post('/drivers/loans/{loan}/return', [DriversController::class, 'returnSlot'])->name('drivers.loans.return');
+        Route::post('/drivers/units/{unit}/transfer-team', [DriversController::class, 'transferTeam'])->name('drivers.units.transfer-team');
+        Route::post('/drivers/team-leaders/{teamLeader}/duty', [DriversController::class, 'setTeamLeaderDuty'])->name('drivers.team-leaders.duty');
+        Route::post('/drivers/units/{unit}/slot-duty', [DriversController::class, 'setSlotDuty'])->name('drivers.units.slot-duty');
+
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
         Route::post('/available-units', [AvailableUnitsController::class, 'store'])->name('available-units.store');
         Route::patch('/available-units/{unit}/toggle', [AvailableUnitsController::class, 'toggle'])->name('available-units.toggle');

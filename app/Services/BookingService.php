@@ -28,13 +28,16 @@ class BookingService
 {
     protected TeamLeaderAvailabilityService $teamLeaderAvailability;
     protected QuotationService $quotationService;
+    protected UnitAvailabilityService $unitAvailability;
 
     public function __construct(
         TeamLeaderAvailabilityService $teamLeaderAvailability,
         QuotationService $quotationService,
+        UnitAvailabilityService $unitAvailability,
     ) {
         $this->teamLeaderAvailability = $teamLeaderAvailability;
         $this->quotationService = $quotationService;
+        $this->unitAvailability = $unitAvailability;
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -764,58 +767,25 @@ class BookingService
         return $base . '-' . now()->format('His');
     }
 
+    /**
+     * Delegates to UnitAvailabilityService, the shared availability engine
+     * also used by Dispatcher Units & Leaders and Scheduled dispatch, so
+     * there is a single "ready unit" formula. Requires a Unit to have both
+     * a Team Leader and a Driver with Duty available.
+     */
     public function dispatchAvailability(): array
     {
-        $busyTeamLeaderIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
-        $teamLeaderRoleIds = Role::query()
-            ->whereIn('name', ['Team Leader', 'team leader'])
-            ->pluck('id');
+        $evaluated = $this->unitAvailability->evaluateAll();
+        $available = $evaluated->filter(fn (array $row) => $row['available']);
 
-        $teamLeadersQuery = User::visibleToOperations()->with(['unit', 'unit.driver']);
+        $readyUnitsCount = $available->count();
 
-        if ($teamLeaderRoleIds->isNotEmpty()) {
-            $teamLeadersQuery->whereIn('role_id', $teamLeaderRoleIds);
-        }
-
-        $teamLeaderStatuses = $this->teamLeaderAvailability
-            ->summarize(
-                $teamLeadersQuery->get(),
-                $busyTeamLeaderIds,
-            )['leaders']
-            ->keyBy('id');
-
-        // Tow Class Available = Available Team Leader + Available Assigned Unit + Matching
-        // Truck Type. Only a unit's own truck_type_id counts here — a team leader's
-        // free-text duty_class is not a substitute for the truck they're actually on,
-        // and an online team leader with no assigned unit satisfies none of the classes
-        // (there's no "matching truck type" to report as available).
-        $readyUnits = Unit::query()
-            ->where('status', 'available')
-            ->whereNotNull('team_leader_id')
-            ->whereNotNull('truck_type_id')
-            ->with('truckType')
-            ->get()
-            ->filter(function (Unit $unit) use ($busyTeamLeaderIds, $teamLeaderStatuses) {
-                $teamLeaderId = (int) ($unit->team_leader_id ?? 0);
-                $leaderStatus = $teamLeaderStatuses->get($teamLeaderId, []);
-                $isOnline = ($leaderStatus['presence'] ?? 'offline') === 'online';
-
-                return $teamLeaderId > 0 && $isOnline && ! $busyTeamLeaderIds->contains($teamLeaderId);
-            });
-
-        $readyUnitsCount = $readyUnits->count();
-
-        $readyTruckTypeIds = $readyUnits
-            ->pluck('truck_type_id')
-            ->map(fn($id) => (int) $id)
+        $readyTruckTypeIds = $available
+            ->map(fn (array $row) => (int) $row['unit']->truck_type_id)
             ->unique()
             ->values();
 
-        $readyByClass = $readyUnits
-            ->filter(fn(Unit $unit) => filled($unit->truckType?->class))
-            ->groupBy(fn(Unit $unit) => strtolower($unit->truckType->class))
-            ->map->count()
-            ->toArray();
+        $readyByClass = $this->unitAvailability->readyByClass();
 
         $bookNowEnabled = $readyUnitsCount > 0;
 

@@ -12,6 +12,7 @@ class UnitCrewLoan extends Model
         'from_slot',
         'to_slot',
         'person_name',
+        'person_user_id',
         'borrowed_at',
         'returned_at',
         'created_by',
@@ -35,5 +36,14 @@ class UnitCrewLoan extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Only set for Team Leader loans (a real, stable account) — Driver/Crew
+     * loans continue to identify the person by person_name alone.
+     */
+    public function person()
+    {
+        return $this->belongsTo(User::class, 'person_user_id');
     }
 }

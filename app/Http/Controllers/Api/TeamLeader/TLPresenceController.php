@@ -21,16 +21,25 @@ class TLPresenceController extends Controller
         $existingUnit = Unit::where('team_leader_id', $user->id)->first();
 
         if ($existingUnit) {
-            // If the unit got stuck in a non-available state (e.g. app crash without offline call),
-            // reset it to available as long as there is no active job still running.
-            $activeJobStatuses = ['on_the_way', 'in_progress', 'waiting_verification', 'payment_pending', 'payment_submitted'];
-            $hasActiveJob = Booking::whereIn('status', $activeJobStatuses)
+            // Self-heals only the one genuinely stuck legacy state (a unit left
+            // at 'on_job' by an app crash without a clean offline call) — never
+            // touches 'maintenance', which is a deliberate Owner/Dispatcher
+            // fleet decision that a mere presence ping must not undo. Uses the
+            // same canonical busy-status list as everywhere else (previously a
+            // shorter, drifted local copy that didn't include 'accepted',
+            // 'assigned', 'arrived_pickup', 'loading_vehicle', 'arrived_dropoff').
+            $hasActiveJob = Booking::whereIn('status', $this->teamLeaderAvailability->busyStatusesList())
                 ->where(function ($q) use ($user, $existingUnit) {
                     $q->where('assigned_team_leader_id', $user->id)
                       ->orWhere('assigned_unit_id', $existingUnit->id);
-                })->exists();
+                })
+                ->where(function ($q) {
+                    $q->where('status', '!=', 'waiting_verification')
+                        ->orWhereNull('payment_submitted_at');
+                })
+                ->exists();
 
-            if (! $hasActiveJob && $existingUnit->status !== 'available') {
+            if (! $hasActiveJob && $existingUnit->status === 'on_job') {
                 $existingUnit->update(['status' => 'available']);
             }
         }

@@ -1,9 +1,9 @@
 .sidebar {
-    width: 290px;
+    width: 268px;
     height: 100vh;
-    background: #ffffff;
-    border-right: 2px solid #111827;
-    padding: 18px 14px;
+    background: #171717;
+    border-right: none;
+    padding: 0 14px 18px;
     position: fixed;
     top: 0;
     left: 0;
@@ -11,7 +11,7 @@
     overflow-y: auto;
     transition: transform 0.18s ease;
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: #3a3a3a transparent;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -19,7 +19,7 @@
 }
 
 .sidebar::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: #3a3a3a;
     border-radius: 999px;
 }
 
@@ -30,138 +30,88 @@
     gap: 14px;
 }
 
-.sidebar-brand {
+/* ── Logo area — the JARZ Towing Services logo (transparent PNG). No
+   background/border/card is added around it; the matte-black sidebar is
+   its surrounding brand environment. ─────────────────────────────────── */
+.sidebar-logo {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px;
-    background: #facc15;
-    border: 0;
-    border-radius: 10px;
-    margin-bottom: 6px;
+    justify-content: center;
+    min-height: 120px;
+    padding: 10px 16px;
+    margin: 0 -14px 4px;
+    border-bottom: 1px solid #2a2a2a;
 }
 
-.sidebar-brand img {
-    width: 40px;
-    height: 40px;
-    object-fit: cover;
-}
-
-.brand-copy {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.brand-copy span {
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: #111827;
-    letter-spacing: 0.04em;
-    line-height: 1.15;
-}
-
-.brand-copy small {
-    color: #64748b;
-    font-size: 0.78rem;
+.sidebar-logo-img {
+    max-width: 100%;
+    max-height: 118px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
 }
 
 .menu-label {
-    margin: 10px 10px 4px;
-    font-size: 0.66rem;
-    font-weight: 800;
-    letter-spacing: 0.14em;
+    margin: 14px 10px 6px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #111827;
+    color: #8a8a8a;
+}
+
+/* Only the label immediately after the logo divider sits closer to it —
+   the "Units" label's spacing above Booking History is left untouched. */
+.sidebar-logo + .menu-label {
+    margin-top: 8px;
 }
 
 .menu {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 4px;
 }
 
 .menu-item {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 12px;
     width: 100%;
-    min-height: 46px;
-    padding: 12px 14px;
+    min-height: 43px;
+    padding: 11px 14px;
     border: 0;
     border-radius: 8px;
-    color: #334155;
+    color: #e5e5e5;
     text-decoration: none;
     text-align: left;
     font-size: 14px;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.menu-item::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 8px;
-    bottom: 8px;
-    width: 4px;
-    border-radius: 999px;
     background: transparent;
-    transition: background-color 0.16s ease;
+    transition: background-color 0.14s ease, color 0.14s ease;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .menu-item span {
     flex: 1;
 }
 
-.menu-item i {
-    width: 18px;
-    height: 18px;
-    color: #facc15;
-    flex-shrink: 0;
-}
-
 .menu-item:hover {
-    color: #111827;
-    background: rgba(250, 204, 21, 0.15);
+    color: #ffffff;
+    background: #262626;
 }
-/* 
-.menu-item:hover::before {
-    background: #facc15;
-} */
 
 .menu-item.active {
     background: #facc15;
-    color: #111827;
-    /* box-shadow: 0 12px 24px rgba(250, 204, 21, 0.2); */
+    color: #171717;
+    font-weight: 600;
 }
-/* 
-.menu-item.active::before {
-    background: #111827;
-} */
 
-.menu-item.active i,
 .menu-item.active span {
-    color: #111827;
+    color: #171717;
 }
 
-.menu-item:focus,
-.menu-item:focus-visible,
-.menu-item:active {
-    outline: none;
-    border: 0;
-}
-
-.menu-item:not(.active):focus,
-.menu-item:not(.active):focus-visible,
-.menu-item:not(.active):active {
-    box-shadow: 0 8px 18px rgba(17, 24, 39, 0.05);
-}
-
-.menu-item.active:focus,
-.menu-item.active:focus-visible,
-.menu-item.active:active {
-    box-shadow: 0 12px 24px rgba(17, 24, 39, 0.18);
+.menu-item:focus-visible {
+    outline: 2px solid #525252;
+    outline-offset: 2px;
 }
 
 .sidebar-footer {
@@ -243,7 +193,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1001;
+    z-index: 1500;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;

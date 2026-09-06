@@ -5,11 +5,12 @@
 
 <aside class="sidebar">
     <div class="sidebar-shell">
-        <div class="sidebar-brand">
-            {{-- <img src="{{ asset('admin/images/logo.png') }}" alt="Jarz Logo"> --}}
-            <div class="brand-copy">
-                <span>Jarz Dispatch</span>
-            </div>
+        <div class="sidebar-logo">
+            <img
+                src="{{ asset('dispatcher/images/jarz-logo.png') }}"
+                alt="JARZ Towing Services"
+                class="sidebar-logo-img"
+            >
         </div>
 
         <div class="menu-label">Operations</div>

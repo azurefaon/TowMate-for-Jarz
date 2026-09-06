@@ -3,71 +3,277 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AuditLog;
 use App\Models\Unit;
+use App\Models\UnitCrewLoan;
 use App\Models\User;
 use App\Services\TeamLeaderAvailabilityService;
+use App\Services\UnitAvailabilityService;
+use App\Services\UnitTeamAssignmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use RuntimeException;
 
 class DriversController extends Controller
 {
-    protected TeamLeaderAvailabilityService $teamLeaderAvailability;
-
-    public function __construct(TeamLeaderAvailabilityService $teamLeaderAvailability)
-    {
-        $this->teamLeaderAvailability = $teamLeaderAvailability;
+    public function __construct(
+        protected TeamLeaderAvailabilityService $teamLeaderAvailability,
+        protected UnitAvailabilityService $availability,
+        protected UnitTeamAssignmentService $teamAssignment,
+    ) {
     }
 
+    /**
+     * Units & Leaders — the Dispatcher's daily operational readiness
+     * workspace. One row per Unit, built entirely from
+     * UnitAvailabilityService::evaluateAll() (the single shared engine also
+     * used by Dispatch Queue, Scheduled dispatch, and Customer Book Now) —
+     * no separate/competing availability formula lives in this controller
+     * or its Blade anymore.
+     */
     public function index()
     {
-        $teamLeaders = User::visibleToOperations()
-            ->where('role_id', 3)
-            ->with(['unit', 'unit.driver'])
-            ->get();
+        $rows = $this->availability->evaluateAll()
+            ->map(function (array $row) {
+                $unit = $row['unit'];
+                $unit->loadMissing(['truckType', 'teamLeader']);
 
-        $assignableUnits = Unit::with(['truckType', 'teamLeader'])
-            ->orderByRaw("CASE WHEN status = 'available' THEN 0 ELSE 1 END")
-            ->orderBy('name')
-            ->get();
+                $activeLoanTl = UnitCrewLoan::where('to_unit_id', $unit->id)
+                    ->where('to_slot', 'team_leader')
+                    ->whereNull('returned_at')
+                    ->with('fromUnit:id,name')
+                    ->first();
 
-        $allUnits = Unit::with(['truckType', 'teamLeader.role', 'driver.role', 'zone'])
-            ->whereNull('archived_at')
-            ->where(function ($q) {
-                // Include units with no TL (offline/unassigned) AND units with an active TL.
-                // Exclude only units whose assigned TL has been archived.
-                $q->whereNull('team_leader_id')
-                  ->orWhereHas('teamLeader', fn ($sq) => $sq->whereNull('archived_at'));
-            })
-            ->orderByRaw("CASE status
-                WHEN 'available' THEN 0
-                WHEN 'on_job'    THEN 1
-                WHEN 'offline'   THEN 2
-                ELSE 3 END")
-            ->orderBy('name')
-            ->get();
+                $activeLoansIn = $unit->crewLoansIn()
+                    ->whereNull('returned_at')
+                    ->with('fromUnit:id,name')
+                    ->get()
+                    ->keyBy('to_slot');
 
-        $busyTeamLeaders       = $this->teamLeaderAvailability->busyTeamLeaderIds();
-        $teamLeaderSummary     = $this->teamLeaderAvailability->summarize($teamLeaders, $busyTeamLeaders);
-        $teamLeaderStatuses    = $teamLeaderSummary['leaders']->keyBy('id');
-        $onlineTeamLeadersCount  = $teamLeaderSummary['online_count'];
-        $offlineTeamLeadersCount = $teamLeaderSummary['offline_count'];
+                $row['unit'] = $unit;
+                $row['team_leader_home_unit'] = $activeLoanTl?->fromUnit?->name;
+                $row['driver_loan'] = $activeLoansIn->get('driver_1');
+                $row['crew_1_loan'] = $activeLoansIn->get('crew_member_1');
+                $row['crew_2_loan'] = $activeLoansIn->get('crew_member_2');
 
-        $zones = \App\Models\Zone::orderBy('name')->get();
+                return $row;
+            });
 
-        return view('admin-dashboard.pages.drivers', compact(
-            'teamLeaders',
-            'allUnits',
-            'assignableUnits',
-            'busyTeamLeaders',
-            'teamLeaderStatuses',
-            'onlineTeamLeadersCount',
-            'offlineTeamLeadersCount',
-            'zones'
-        ));
+        $eligibleTeamLeaders = User::visibleToOperations()->where('role_id', 3)->orderBy('name')->get();
+
+        return view('admin-dashboard.pages.drivers', [
+            'rows' => $rows,
+            'eligibleTeamLeaders' => $eligibleTeamLeaders,
+        ]);
     }
+
+    /**
+     * Eligible people for the Assign search dialog. Presence is returned
+     * for display only (Team Leaders) — it never excludes anyone.
+     */
+    public function eligiblePeople(Request $request): JsonResponse
+    {
+        $role = $request->query('role');
+        $excludeUnitId = (int) $request->query('exclude_unit_id', 0);
+
+        if ($role === 'team_leader') {
+            $teamLeaders = User::visibleToOperations()->where('role_id', 3)->with('unit:id,name,team_leader_id')->get();
+            $busyIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
+
+            $people = $teamLeaders->map(function (User $tl) use ($busyIds) {
+                return [
+                    'id' => $tl->id,
+                    'name' => $tl->full_name ?? $tl->name,
+                    'home_unit' => $tl->unit?->name,
+                    'duty' => $tl->dutyStatus(),
+                    'workload' => $busyIds->contains((int) $tl->id) ? 'busy' : 'free',
+                    'presence' => $this->availability->presence($tl),
+                    'eligible' => $tl->dutyStatus() === 'available' && ! $busyIds->contains((int) $tl->id),
+                ];
+            })->values();
+
+            return response()->json(['people' => $people]);
+        }
+
+        if (in_array($role, ['driver', 'crew'], true)) {
+            $slots = $role === 'driver' ? ['driver_1'] : ['crew_member_1', 'crew_member_2'];
+
+            $units = Unit::whereNull('archived_at')->get();
+            $people = collect();
+
+            foreach ($units as $unit) {
+                if ($unit->id === $excludeUnitId) {
+                    continue;
+                }
+
+                foreach ($slots as $slot) {
+                    $column = Unit::SLOT_COLUMNS[$slot];
+                    $name = $unit->{$column};
+                    if (blank($name)) {
+                        continue;
+                    }
+                    if ($slot === 'driver_1' && $unit->driver_id) {
+                        // Linked-account driver — not eligible for a free-text slot move.
+                        continue;
+                    }
+                    if ($unit->activeLoanOut($slot)) {
+                        continue;
+                    }
+                    if ($unit->activeLoansIn()->has($slot)) {
+                        continue;
+                    }
+
+                    $state = $this->availability->evaluate($unit);
+
+                    $people->push([
+                        'name' => $name,
+                        'source_unit_id' => $unit->id,
+                        'source_unit_name' => $unit->name,
+                        'from_slot' => $slot,
+                        'duty' => $slot === 'driver_1' ? $unit->driverDutyStatus() : $unit->crewDutyStatus($slot === 'crew_member_1' ? 1 : 2),
+                        'eligible' => ! $state['active_booking'] && ! $state['reservation'],
+                    ]);
+                }
+            }
+
+            return response()->json(['people' => $people->values()]);
+        }
+
+        return response()->json(['people' => []]);
+    }
+
+    public function assignTeamLeader(Request $request, Unit $unit): JsonResponse|RedirectResponse
+    {
+        $validated = $request->validate(['team_leader_id' => 'required|integer|exists:users,id']);
+
+        try {
+            $this->teamAssignment->assignTeamLeader($unit, (int) $validated['team_leader_id'], Auth::user());
+        } catch (RuntimeException $e) {
+            return $this->fail($request, $e->getMessage());
+        }
+
+        return $this->ok($request, 'Team Leader assigned.');
+    }
+
+    public function returnTeamLeader(Request $request, Unit $unit): JsonResponse|RedirectResponse
+    {
+        try {
+            $this->teamAssignment->returnTeamLeader($unit, Auth::user());
+        } catch (RuntimeException $e) {
+            return $this->fail($request, $e->getMessage());
+        }
+
+        return $this->ok($request, 'Team Leader returned.');
+    }
+
+    public function assignSlot(Request $request, Unit $unit): JsonResponse|RedirectResponse
+    {
+        $validated = $request->validate([
+            'to_slot' => 'required|string|in:driver_1,crew_member_1,crew_member_2',
+            'source_unit_id' => 'required|integer|exists:units,id',
+            'from_slot' => 'required|string|in:driver_1,driver_2,crew_member_1,crew_member_2',
+        ]);
+
+        try {
+            $sourceUnit = Unit::findOrFail($validated['source_unit_id']);
+            $this->teamAssignment->assignSlotPerson($unit, $validated['to_slot'], $sourceUnit, $validated['from_slot'], Auth::user());
+        } catch (RuntimeException $e) {
+            return $this->fail($request, $e->getMessage());
+        }
+
+        return $this->ok($request, 'Assigned.');
+    }
+
+    public function returnSlot(Request $request, UnitCrewLoan $loan): JsonResponse|RedirectResponse
+    {
+        try {
+            $this->teamAssignment->returnSlotPerson($loan, Auth::user());
+        } catch (RuntimeException $e) {
+            return $this->fail($request, $e->getMessage());
+        }
+
+        return $this->ok($request, 'Returned.');
+    }
+
+    public function removeTeamLeader(Request $request, Unit $unit): JsonResponse|RedirectResponse
+    {
+        try {
+            $this->teamAssignment->removeTeamLeader($unit, Auth::user());
+        } catch (RuntimeException $e) {
+            return $this->fail($request, $e->getMessage());
+        }
+
+        return $this->ok($request, 'Team Leader removed.');
+    }
+
+    public function removeSlot(Request $request, Unit $unit): JsonResponse|RedirectResponse
+    {
+        $validated = $request->validate([
+            'slot' => 'required|string|in:driver_1,crew_member_1,crew_member_2',
+        ]);
+
+        try {
+            $this->teamAssignment->removeSlotPerson($unit, $validated['slot'], Auth::user());
+        } catch (RuntimeException $e) {
+            return $this->fail($request, $e->getMessage());
+        }
+
+        return $this->ok($request, 'Removed.');
+    }
+
+    public function transferTeam(Request $request, Unit $unit): JsonResponse|RedirectResponse
+    {
+        $validated = $request->validate(['target_unit_id' => 'required|integer|exists:units,id']);
+
+        try {
+            $target = Unit::findOrFail($validated['target_unit_id']);
+            $this->teamAssignment->transferTeam($unit, $target, Auth::user());
+        } catch (RuntimeException $e) {
+            return $this->fail($request, $e->getMessage());
+        }
+
+        return $this->ok($request, 'Team transferred.');
+    }
+
+    public function setTeamLeaderDuty(Request $request, User $teamLeader): JsonResponse|RedirectResponse
+    {
+        $validated = $request->validate(['status' => 'required|in:available,unavailable']);
+
+        try {
+            $this->teamAssignment->setTeamLeaderDuty($teamLeader, $validated['status'], Auth::user());
+        } catch (RuntimeException $e) {
+            return $this->fail($request, $e->getMessage());
+        }
+
+        return $this->ok($request, 'Duty updated.');
+    }
+
+    public function setSlotDuty(Request $request, Unit $unit): JsonResponse|RedirectResponse
+    {
+        $validated = $request->validate([
+            'slot' => 'required|string|in:driver_1,crew_member_1,crew_member_2',
+            'status' => 'required|in:available,unavailable',
+        ]);
+
+        try {
+            $this->teamAssignment->setSlotDuty($unit, $validated['slot'], $validated['status'], Auth::user());
+        } catch (RuntimeException $e) {
+            return $this->fail($request, $e->getMessage());
+        }
+
+        return $this->ok($request, 'Duty updated.');
+    }
+
+    // ------------------------------------------------------------------
+    // Legacy actions — no longer linked from the Units & Leaders UI (see
+    // assignTeamLeader/returnTeamLeader/assignSlot/transferTeam above, which
+    // replace these), but kept in place so the existing routes
+    // (drivers.assign-unit, drivers.remove-unit, drivers.update-status,
+    // team-leaders.override) and any code/tests still pointed at them keep
+    // working rather than 404/500ing outright. Not used by, and safe to
+    // eventually retire once nothing references them anymore.
+    // ------------------------------------------------------------------
 
     public function assignUnit(Request $request, User $teamLeader): RedirectResponse|JsonResponse
     {
@@ -84,7 +290,6 @@ class DriversController extends Controller
             return redirect()->route('admin.drivers')->withErrors(['unit_id' => 'This team leader is offline.']);
         }
 
-        // Block assignment when status is unavailable, on_tow, or on_job
         $teamLeader->loadMissing('unit');
         $currentDispatcherStatus = $teamLeader->unit?->dispatcher_status;
         if (in_array($currentDispatcherStatus, ['unavailable', 'on_tow', 'on_job'], true)) {
@@ -129,7 +334,6 @@ class DriversController extends Controller
                 ->withErrors(['unit_id' => 'This unit is already assigned to ' . $ownerName . '. Release it first before reassigning.']);
         }
 
-
         Unit::query()
             ->where('team_leader_id', $teamLeader->id)
             ->whereKeyNot($unit->id)
@@ -137,7 +341,7 @@ class DriversController extends Controller
 
         $unit->update(['team_leader_id' => $teamLeader->id]);
 
-        AuditLog::create([
+        \App\Models\AuditLog::create([
             'user_id'     => Auth::id(),
             'action'      => 'unit_assigned',
             'entity_type' => 'Unit',
@@ -147,7 +351,6 @@ class DriversController extends Controller
         ]);
 
         if ($request->expectsJson()) {
-            // Use the summary service for robust, up-to-date status/unit info
             $summary = $this->teamLeaderAvailability->summarize(collect([$teamLeader]));
             $leader = $summary['leaders']->first();
             return response()->json([
@@ -196,7 +399,7 @@ class DriversController extends Controller
             $teamLeader->unit->update(['status' => $validated['unit_status']]);
         }
 
-        AuditLog::create([
+        \App\Models\AuditLog::create([
             'user_id'     => Auth::id(),
             'action'      => 'team_leader_status_override',
             'entity_type' => 'User',
@@ -224,7 +427,6 @@ class DriversController extends Controller
             return back()->withErrors('No unit assigned to this team leader.');
         }
 
-        // Block removal if unit is actively on a job or towing
         if (in_array($unit->dispatcher_status, ['on_tow', 'on_job'], true)) {
             if ($request->expectsJson()) {
                 return response()->json(['errors' => 'Cannot remove unit while it is ' . $unit->dispatcher_status . '.'], 422);
@@ -242,7 +444,7 @@ class DriversController extends Controller
             'last_updated_at'   => now(),
         ]);
 
-        AuditLog::create([
+        \App\Models\AuditLog::create([
             'user_id'     => Auth::id(),
             'action'      => 'unit_removed',
             'entity_type' => 'Unit',
@@ -262,9 +464,6 @@ class DriversController extends Controller
         return back()->with('success', 'Unit removed from ' . ($teamLeader->full_name ?: $teamLeader->name) . '.');
     }
 
-    /**
-     * Accepts both AJAX (JSON) and standard form POST.
-     */
     public function override(Request $request, int $teamLeaderId): RedirectResponse|JsonResponse
     {
         if ($this->teamLeaderAvailability->busyTeamLeaderIds()->contains($teamLeaderId)) {
@@ -303,7 +502,7 @@ class DriversController extends Controller
             'last_updated_at'   => now(),
         ]);
 
-        AuditLog::create([
+        \App\Models\AuditLog::create([
             'user_id'     => Auth::id(),
             'action'      => 'unit_status_override',
             'entity_type' => 'Unit',
@@ -348,5 +547,23 @@ class DriversController extends Controller
             'offline'                    => 'offline',
             default                      => 'available',
         };
+    }
+
+    protected function ok(Request $request, string $message): JsonResponse|RedirectResponse
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => $message]);
+        }
+
+        return redirect()->route('admin.drivers')->with('success', $message);
+    }
+
+    protected function fail(Request $request, string $message): JsonResponse|RedirectResponse
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        return back()->withErrors(['team' => $message]);
     }
 }

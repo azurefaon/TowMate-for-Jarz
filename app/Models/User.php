@@ -29,6 +29,7 @@ class User extends Authenticatable
         'password',
         'role_id',
         'duty_class',
+        'duty_status',
         'driver_first_name',
         'driver_middle_name',
         'driver_last_name',
@@ -95,6 +96,18 @@ class User extends Authenticatable
     public function role()
     {
         return $this->belongsTo(\App\Models\Role::class, 'role_id');
+    }
+
+    /**
+     * Duty — Dispatcher-set operational attendance, separate from Presence
+     * (last_ping_at mobile heartbeat) and Workload (derived from active
+     * Booking status). Null means "available" (the default assumption for
+     * a Team Leader nobody has ever explicitly marked unavailable) — see
+     * UnitAvailabilityService, the single place this should be read from.
+     */
+    public function dutyStatus(): string
+    {
+        return $this->duty_status === 'unavailable' ? 'unavailable' : 'available';
     }
 
     public function customer()

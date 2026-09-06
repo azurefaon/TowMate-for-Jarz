@@ -14,9 +14,19 @@ class TeamLeaderAvailabilityService
     protected int $presenceWindowSeconds = 90;
 
     protected array $busyStatuses = [
-        'assigned', 'on_the_way', 'arrived_pickup', 'in_progress',
+        'assigned', 'accepted', 'on_the_way', 'arrived_pickup', 'in_progress',
         'loading_vehicle', 'on_job', 'arrived_dropoff', 'waiting_verification',
     ];
+
+    /**
+     * The one canonical "busy" booking-status list — exposed so other
+     * services (UnitAvailabilityService) can reuse it exactly instead of
+     * maintaining a second, potentially-drifting copy.
+     */
+    public function busyStatusesList(): array
+    {
+        return $this->busyStatuses;
+    }
 
     protected function isTeamLeader(?User $user): bool
     {
@@ -32,10 +42,12 @@ class TeamLeaderAvailabilityService
             return;
         }
 
+        // Presence is purely a connectivity signal — it must never touch Duty
+        // (users.duty_status, Dispatcher-set) or any operational override.
+        // A ping used to clear the legacy cache-based override here, which is
+        // exactly the "mobile ping silently undoes a Dispatcher's decision"
+        // bug this must not do; Duty now persists independently of presence.
         User::where('id', $user->id)->update(['last_ping_at' => now()]);
-
-        // Clear any dispatcher override so the TL is available when they log back in.
-        Cache::forget($this->statusCacheKey((int) $user->id));
     }
 
     public function markOffline(?User $user): void
@@ -139,6 +151,10 @@ class TeamLeaderAvailabilityService
     {
         return Booking::with('unit:id,team_leader_id')
             ->whereIn('status', $this->busyStatuses)
+            ->where(function ($query) {
+                $query->where('status', '!=', 'waiting_verification')
+                    ->orWhereNull('payment_submitted_at');
+            })
             ->whereNull('returned_at')
             ->get(['id', 'assigned_team_leader_id', 'assigned_unit_id'])
             ->map(function (Booking $booking) {
@@ -160,6 +176,10 @@ class TeamLeaderAvailabilityService
     {
         return Booking::with(['unit.driver'])
             ->whereIn('status', $this->busyStatuses)
+            ->where(function ($query) {
+                $query->where('status', '!=', 'waiting_verification')
+                    ->orWhereNull('payment_submitted_at');
+            })
             ->whereNull('returned_at')
             ->latest('updated_at')
             ->get()
@@ -300,6 +320,10 @@ class TeamLeaderAvailabilityService
         $leadersWithActiveJobs = Booking::query()
             ->whereIn('assigned_team_leader_id', $leaderIds->all())
             ->whereIn('status', $activeJobStatuses)
+            ->where(function ($query) {
+                $query->where('status', '!=', 'waiting_verification')
+                    ->orWhereNull('payment_submitted_at');
+            })
             ->pluck('assigned_team_leader_id')
             ->map(fn ($id) => (int) $id)
             ->unique();
