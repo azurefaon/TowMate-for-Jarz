@@ -24,9 +24,12 @@ class AuditLogService
         'updated_at',
         'remember_token',
         'password',
-        'password_reset_token',
-        'password_reset_otp',
+        'password_reset_otp_hash',
         'password_reset_otp_expires_at',
+        'password_reset_attempts',
+        'password_reset_resend_available_at',
+        'password_reset_token_hash',
+        'password_reset_token_expires_at',
         'email_verified_at',
     ];
 
@@ -78,6 +81,11 @@ class AuditLogService
     {
         return match (true) {
             $action === 'failed_login' => 'login_failed',
+            str_starts_with($action, 'customer_registration_otp_')
+                || str_starts_with($action, 'customer_password_reset_otp_')
+                || $action === 'customer_password_reset_completed'
+                || str_starts_with($action, 'staff_password_reset_otp_')
+                || $action === 'staff_password_reset_completed' => 'security',
             str_contains($action, 'archived') => 'archive',
             str_contains($action, 'restored') => 'restore',
             str_contains($action, 'purged') || str_contains($action, 'permanently_deleted') || str_contains($action, 'deleted') || str_contains($action, 'anonymized') => 'delete',

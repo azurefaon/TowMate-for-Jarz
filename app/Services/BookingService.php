@@ -303,14 +303,11 @@ class BookingService
 
     protected function storeVehicleImage(UploadedFile $file): string
     {
-        // Magic-bytes check — reads actual file headers, not just extension/MIME
         $imageInfo = @getimagesize($file->getRealPath());
         abort_unless($imageInfo !== false, 422, 'Uploaded file is not a valid image.');
 
-        // Strict allow-list: IMAGETYPE_JPEG (2) and IMAGETYPE_PNG (3) only
         abort_unless(in_array($imageInfo[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true), 422, 'Only JPG and PNG images are accepted.');
 
-        // Re-encode via GD to strip polyglot payloads and EXIF metadata
         $source = imagecreatefromstring(file_get_contents($file->getRealPath()));
         abort_unless($source !== false, 422, 'Could not process the uploaded image.');
 
@@ -318,7 +315,7 @@ class BookingService
         imagejpeg($source, $tmpPath, 85);
         imagedestroy($source);
 
-        $storedPath = Storage::disk('public')->putFile('vehicle_images', new File($tmpPath));
+        $storedPath = Storage::disk('local')->putFile('vehicle_images', new File($tmpPath));
 
         @unlink($tmpPath);
 

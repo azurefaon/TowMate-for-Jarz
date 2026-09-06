@@ -1302,7 +1302,7 @@ class DispatchController extends Controller
                 'status'                => $quotation->status,
                 'service_type'          => $quotation->service_type,
                 'link_version'          => $quotation->link_version ?? 1,
-                'vehicle_image_paths'   => $quotation->vehicle_image_paths    ?: ($quotation->sourceBooking?->vehicle_image_paths ?? []),
+                'vehicle_image_paths'   => collect($quotation->vehicle_image_paths ?: ($quotation->sourceBooking?->vehicle_image_paths ?? []))->map(fn($p) => protected_file_url($p))->values()->all(),
                 'extra_vehicles'        => $this->enrichExtraVehicles($quotation->extra_vehicles ?? []),
                 'total_vehicles'        => 1 + count($quotation->extra_vehicles ?? []),
                 'created_at'            => $quotation->created_at->toIso8601String(),

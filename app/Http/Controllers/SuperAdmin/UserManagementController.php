@@ -97,7 +97,6 @@ class UserManagementController extends Controller
             'inactive' => (clone $baseQuery)->whereNull('archived_at')->whereNull('pending_delete_at')->where('status', 'inactive')->count(),
             'archived' => (clone $baseQuery)->whereNotNull('archived_at')->whereNull('pending_delete_at')->count(),
             'deleted' => (clone $baseQuery)->whereNotNull('pending_delete_at')->count(),
-            'password_requests' => (clone $baseQuery)->whereNull('archived_at')->whereNull('pending_delete_at')->where('password_request_status', 'pending')->count(),
         ];
     }
 
@@ -202,15 +201,10 @@ class UserManagementController extends Controller
             return view('superadmin.users.partials.table', compact('users', 'busyTeamLeaderIds'))->render();
         }
 
-        $passwordRequests = $this->baseUserQuery()
-            ->where('password_request_status', 'pending')
-            ->orderByDesc('password_requested_at')
-            ->get();
-
         $roles = $this->manageableRoles();
         $stats = $this->getUserStats();
 
-        return view('superadmin.users.index', compact('users', 'roles', 'stats', 'passwordRequests', 'busyTeamLeaderIds'));
+        return view('superadmin.users.index', compact('users', 'roles', 'stats', 'busyTeamLeaderIds'));
     }
 
     public function archived(Request $request)
@@ -702,60 +696,14 @@ class UserManagementController extends Controller
                 : 'User could not be fully deleted due to receipt/booking history — personal data was anonymized instead.');
     }
 
-    public function setDefaultPassword(Request $request, User $user): RedirectResponse
-    {
-        if ($user->archived_at || $user->pending_delete_at) {
-            return back()->with('error', 'Restore this user before setting a default password.');
-        }
-
-        if ((int) ($user->role_id ?? 0) === 1) {
-            abort(403, 'Cannot change the Owner account password from this panel.');
-        }
-
-        $validated = $request->validate([
-            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()],
-        ], [
-            'password.required' => 'Enter a default password for this user.',
-            'password.confirmed' => 'The password confirmation does not match.',
-        ]);
-
-        $user->forceFill([
-            'password' => Hash::make($validated['password']),
-            'password_request_status' => 'resolved',
-            'password_request_resolved_at' => now(),
-            'password_request_note' => null,
-            'remember_token' => Str::random(60),
-        ])->save();
-
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'default_password_set',
-            'entity_type' => 'User',
-            'entity_id' => $user->id,
-        ]);
-
-        return redirect()->route('superadmin.users.index')
-            ->with('success', 'Default password saved for ' . $user->name . '. Ask the user to sign in and update it after access is restored.');
-    }
-
-    public function resolvePasswordRequest(User $user): RedirectResponse
-    {
-        $user->forceFill([
-            'password_request_status' => 'resolved',
-            'password_request_resolved_at' => now(),
-            'password_request_note' => null,
-        ])->save();
-
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'password_request_marked_handled',
-            'entity_type' => 'User',
-            'entity_id' => $user->id,
-        ]);
-
-        return redirect()->route('superadmin.users.index')
-            ->with('success', 'Password request for ' . $user->name . ' has been marked as handled.');
-    }
+    // setDefaultPassword() and resolvePasswordRequest() (Owner-assigned
+    // password / manual access-request resolution) were retired — password
+    // recovery is now self-service only via the OTP flow
+    // (App\Http\Controllers\Auth\StaffPasswordResetController). The Owner no
+    // longer knows, chooses, or assigns another user's password. The
+    // password_request_* columns remain on the users table as legacy,
+    // read-only historical data — nothing in the live application writes to
+    // them anymore.
 
     public function destroy(User $user): RedirectResponse
     {

@@ -2,7 +2,6 @@
 
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Support\Facades\Hash;
 
 function seedManagedRoles(): void
 {
@@ -17,59 +16,36 @@ test('forgot password request screen can be rendered', function () {
     $response->assertStatus(200);
 });
 
-test('staff member can submit an account access request for superadmin review', function () {
-    seedManagedRoles();
+// Password recovery is now self-service only via the OTP flow
+// (StaffPasswordResetController — see StaffPasswordResetTest.php). The old
+// manual "account access request" workflow (Owner reviewing/approving a
+// request, setDefaultPassword(), resolvePasswordRequest()) has been fully
+// retired: no route can submit one, and the Owner's Users index no longer
+// shows an "Account Access Requests" panel or any per-row pending badge.
+// The historical users.password_request_* columns are left untouched as
+// legacy data — nothing reads or writes them in the live application anymore.
 
-    $user = User::factory()->create([
-        'role_id' => 2,
-        'email' => 'dispatcher@example.com',
-    ]);
-
-    $this->post('/forgot-password', [
-        'email' => $user->email,
-        'note' => 'Locked out before shift start.',
-    ])->assertSessionHas('status');
-
-    $user->refresh();
-
-    expect($user->password_request_status)->toBe('pending');
-    expect($user->password_request_note)->toBe('Locked out before shift start.');
-    expect($user->password_requested_at)->not->toBeNull();
+test('no route exists to submit a manual account access request anymore', function () {
+    expect(\Illuminate\Support\Facades\Route::has('superadmin.users.password-request.set-password'))->toBeFalse();
+    expect(\Illuminate\Support\Facades\Route::has('superadmin.users.password-request.resolve'))->toBeFalse();
 });
 
-test('superadmin can set a default password for a pending access request', function () {
+test('the Users index no longer shows the Account Access Requests panel', function () {
     seedManagedRoles();
 
-    $superAdmin = User::factory()->create([
-        'role_id' => 1,
-        'email' => 'superadmin@example.com',
-    ]);
+    $superAdmin = User::factory()->create(['role_id' => 1]);
 
-    $user = User::factory()->create([
+    // A historical pending row is preserved data, not something the UI acts on anymore.
+    User::factory()->create([
         'role_id' => 2,
-        'password' => Hash::make('OldPassword!123'),
         'password_request_status' => 'pending',
         'password_requested_at' => now(),
-        'password_request_note' => 'Need help resetting access.',
+        'password_request_note' => 'Historical, pre-cleanup request.',
     ]);
 
     $this->actingAs($superAdmin)
         ->get(route('superadmin.users.index'))
         ->assertOk()
-        ->assertSeeText('Account Access Requests')
-        ->assertSeeText($user->email);
-
-    $this->actingAs($superAdmin)
-        ->patch(route('superadmin.users.password-request.set-password', $user), [
-            'password' => 'TowMate123A',
-            'password_confirmation' => 'TowMate123A',
-        ])
-        ->assertRedirect(route('superadmin.users.index'));
-
-    $user->refresh();
-
-    expect($user->password_request_status)->toBe('resolved');
-    expect($user->password_request_resolved_at)->not->toBeNull();
-    expect(Hash::check('TowMate123A', $user->password))->toBeTrue();
-    expect(Hash::check('OldPassword!123', $user->password))->toBeFalse();
+        ->assertDontSeeText('Account Access Requests')
+        ->assertDontSeeText('Password request pending');
 });

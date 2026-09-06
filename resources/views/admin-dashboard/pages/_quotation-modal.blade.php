@@ -433,7 +433,7 @@
             noImg.style.display = 'none';
             imagePaths.forEach(function(path) {
                 const img = document.createElement('img');
-                img.src = '/storage/' + path;
+                img.src = path;
                 img.title = 'Click to view full size';
                 img.style.cssText = 'width:90px; height:70px; object-fit:cover; cursor:pointer; border:1px solid #e2e8f0; transition:opacity 0.15s;';
                 img.onerror   = function() { this.style.display = 'none'; };

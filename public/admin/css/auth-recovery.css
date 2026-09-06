@@ -1,0 +1,239 @@
+/* Centered single-card auth screens (Forgot Password / Verify OTP /
+   Reset Password / Success). Deliberately no left marketing panel. */
+
+:root {
+    --tm-yellow: #f4b400;
+    --tm-ink: #111827;
+    --tm-muted: #667085;
+    --tm-line: #e5e7eb;
+}
+
+body.recovery-page {
+    font-family: "Inter", sans-serif;
+    background: #ffffff;
+    color: var(--tm-ink);
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.recovery-wrap {
+    width: 100%;
+    max-width: 420px;
+}
+
+.recovery-card {
+    background: #ffffff;
+    border: 1px solid var(--tm-line);
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, 0.04);
+    padding: 36px 32px;
+}
+
+.recovery-wordmark {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 28px;
+}
+
+.recovery-wordmark span {
+    color: var(--tm-yellow);
+}
+
+.recovery-header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 8px;
+}
+
+.recovery-header p {
+    font-size: 13.5px;
+    color: var(--tm-muted);
+    line-height: 1.6;
+    margin: 0 0 24px;
+}
+
+.recovery-alert {
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 18px;
+    line-height: 1.5;
+}
+
+.recovery-alert.success {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.recovery-alert.error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.recovery-field {
+    margin-bottom: 18px;
+}
+
+.recovery-field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.recovery-field input[type="email"],
+.recovery-field input[type="password"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 14px;
+    border: 1px solid var(--tm-line);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #ffffff;
+}
+
+.recovery-field input:focus {
+    outline: none;
+    border-color: var(--tm-yellow);
+}
+
+.password-field-shell {
+    position: relative;
+}
+
+.password-field-shell input {
+    padding-right: 64px !important;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: none;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tm-muted);
+    cursor: pointer;
+}
+
+.field-error {
+    display: block;
+    font-size: 12px;
+    color: #dc2626;
+    margin-top: 6px;
+}
+
+.recovery-btn {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--tm-yellow);
+    color: var(--tm-ink);
+    border: none;
+    border-radius: 8px;
+    font-size: 14.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.recovery-btn:hover {
+    filter: brightness(0.95);
+}
+
+.recovery-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.recovery-back {
+    display: block;
+    text-align: center;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--tm-muted);
+    text-decoration: none;
+}
+
+.recovery-back:hover {
+    color: var(--tm-ink);
+}
+
+/* OTP boxes */
+.otp-boxes {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.otp-box {
+    width: 46px;
+    height: 54px;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    border: 1px solid var(--tm-line);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.otp-box:focus {
+    outline: none;
+    border-color: var(--tm-yellow);
+}
+
+.otp-timer {
+    text-align: center;
+    font-size: 13px;
+    color: var(--tm-muted);
+    margin-bottom: 18px;
+}
+
+.otp-timer.expired {
+    color: #dc2626;
+}
+
+.recovery-resend {
+    text-align: center;
+    font-size: 13px;
+    color: var(--tm-muted);
+    margin-top: 18px;
+}
+
+.recovery-resend button {
+    border: none;
+    background: none;
+    color: var(--tm-ink);
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+    font-size: 13px;
+    text-decoration: underline;
+}
+
+.recovery-resend button:disabled {
+    color: var(--tm-muted);
+    text-decoration: none;
+    cursor: default;
+}
+
+.recovery-success-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #f0fdf4;
+    color: #166534;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin: 0 auto 18px;
+}

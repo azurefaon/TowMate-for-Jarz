@@ -5,43 +5,35 @@ namespace App\Http\Controllers\Api\TeamLeader;
 use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Mail\InvoiceMail;
+use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Invoice;
 use App\Models\Unit;
+use App\Models\User;
 use App\Services\CustomerNotificationService;
 use App\Services\DocumentGenerationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 
 class TLTaskController extends Controller
 {
     private const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected', 'returned'];
 
-    // Statuses that belong to the TL workflow â€” excludes pre-dispatch states
-    // like 'confirmed' (awaiting dispatcher "Start Job") or 'quotation_sent'.
     private const TL_TASK_STATUSES = [
         'assigned', 'accepted', 'on_the_way', 'arrived_pickup',
         'in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff',
         'waiting_verification', 'completed', 'returned',
     ];
 
-    // The two genuine "arrival claim" transitions (from → [to, lat field, lng field])
-    // that require the TL to prove via GPS they're actually at the location — see
-    // updateStatus(). Keyed by the FROM status so backward moves that happen to land
-    // back on 'arrived_pickup'/'arrived_dropoff' (e.g. 'in_progress' → 'arrived_pickup')
-    // are never mistaken for a fresh arrival claim and don't require a location check.
     private const ARRIVAL_RADIUS_METERS = 150;
     private const ARRIVAL_CLAIMS = [
         'on_the_way' => ['arrived_pickup', 'pickup_lat', 'pickup_lng'],
         'on_job'     => ['arrived_dropoff', 'dropoff_lat', 'dropoff_lng'],
     ];
 
-    // Backward pairs let a TL undo an accidental advance by one step. They
-    // deliberately stop short of 'completed' (terminal) and never touch
-    // 'returned' (a separate task-abandonment flow, not a step-back).
     private const VALID_TRANSITIONS = [
         'assigned'              => ['accepted'],
         'accepted'              => ['on_the_way', 'returned'],
@@ -50,13 +42,12 @@ class TLTaskController extends Controller
         'in_progress'           => ['loading_vehicle', 'returned', 'arrived_pickup'],
         'loading_vehicle'       => ['on_job', 'returned', 'in_progress'],
         'on_job'                => ['arrived_dropoff', 'returned', 'loading_vehicle'],
-        'arrived_dropoff'       => ['waiting_verification', 'returned', 'on_job'],
-        'waiting_verification'  => ['completed', 'returned', 'arrived_dropoff'],
+        'arrived_dropoff'       => ['returned', 'on_job'],
+        'waiting_verification'  => ['returned', 'arrived_dropoff'],
     ];
 
     public function current(Request $request): JsonResponse
     {
-        // Active tasks first; fall back to completed/returned only if nothing active
         $booking = Booking::where('assigned_team_leader_id', $request->user()->id)
             ->whereIn('status', self::TL_TASK_STATUSES)
             ->with(['customer', 'truckType', 'unit'])
@@ -134,9 +125,10 @@ class TLTaskController extends Controller
     public function updateStatus(Booking $booking, Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'status' => 'required|string',
-            'lat'    => 'nullable|numeric|between:-90,90',
-            'lng'    => 'nullable|numeric|between:-180,180',
+            'status'   => 'required|string',
+            'lat'      => 'nullable|numeric|between:-90,90',
+            'lng'      => 'nullable|numeric|between:-180,180',
+            'is_demo'  => 'nullable|boolean',
         ]);
 
         if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
@@ -153,39 +145,45 @@ class TLTaskController extends Controller
             ], 422);
         }
 
-        // Arrival claims ('arrived_pickup'/'arrived_dropoff') must be backed by GPS
-        // proximity to the relevant location. Backward corrections (e.g. going back
-        // to 'on_the_way', or 'in_progress' → 'arrived_pickup') skip this — only the
-        // two genuine forward arrival-claim transitions require a location check.
+        $isDemo = $request->boolean('is_demo');
+        if ($isDemo && ! config('towmate.demo_arrival_enabled')) {
+            return response()->json(['success' => false, 'message' => 'Demo arrival is not enabled.'], 403);
+        }
+
         $arrivalClaim = self::ARRIVAL_CLAIMS[$booking->status] ?? null;
+        $isDemoArrival = false;
         if ($arrivalClaim && $arrivalClaim[0] === $newStatus) {
-            [, $latField, $lngField] = $arrivalClaim;
-            $targetLat = (float) $booking->{$latField};
-            $targetLng = (float) $booking->{$lngField};
+            $isDemoArrival = $isDemo;
 
-            if (! isset($validated['lat'], $validated['lng'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Location is required to confirm arrival.',
-                ], 422);
-            }
+            if (! $isDemo) {
+                [, $latField, $lngField] = $arrivalClaim;
+                $targetLat = (float) $booking->{$latField};
+                $targetLng = (float) $booking->{$lngField};
 
-            $distanceMeters = $this->haversineMeters(
-                (float) $validated['lat'],
-                (float) $validated['lng'],
-                $targetLat,
-                $targetLng,
-            );
+                if (! isset($validated['lat'], $validated['lng'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Location is required to confirm arrival.',
+                    ], 422);
+                }
 
-            if ($distanceMeters > self::ARRIVAL_RADIUS_METERS) {
-                $distanceLabel = $distanceMeters >= 1000
-                    ? round($distanceMeters / 1000, 1) . 'km'
-                    : round($distanceMeters) . 'm';
+                $distanceMeters = $this->haversineMeters(
+                    (float) $validated['lat'],
+                    (float) $validated['lng'],
+                    $targetLat,
+                    $targetLng,
+                );
 
-                return response()->json([
-                    'success' => false,
-                    'message' => "You appear to be ~{$distanceLabel} from the location. Move closer and try again.",
-                ], 422);
+                if ($distanceMeters > self::ARRIVAL_RADIUS_METERS) {
+                    $distanceLabel = $distanceMeters >= 1000
+                        ? round($distanceMeters / 1000, 1) . 'km'
+                        : round($distanceMeters) . 'm';
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => "You appear to be ~{$distanceLabel} from the location. Move closer and try again.",
+                    ], 422);
+                }
             }
         }
 
@@ -198,23 +196,26 @@ class TLTaskController extends Controller
         $booking->update($updates);
         $booking->load(['customer', 'truckType', 'unit']);
 
+        if ($isDemoArrival) {
+            AuditLog::create([
+                'user_id'     => $request->user()->id,
+                'action'      => 'demo_arrival_confirmed',
+                'entity_type' => 'Booking',
+                'entity_id'   => $booking->id,
+                'reference'   => $booking->booking_code,
+                'description' => "Team Leader confirmed '{$newStatus}' via Demo Arrival (GPS proximity check skipped).",
+            ]);
+        }
+
         if ($newStatus === 'arrived_dropoff' && ! $booking->currentInvoice()->exists()) {
-            // The exists() check above narrows the race but can't close it (a
-            // double-tap or retried request can both pass it before either
-            // commits) — the partial unique index on invoices(booking_id) WHERE
-            // is_current is the real guard. A losing concurrent call just means
-            // the other request already issued the invoice, so no-op instead of
-            // failing the status update over it.
             try {
                 $this->issueInvoice($booking, $request->user()->id);
             } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
-                // Another concurrent request already issued the current invoice.
             }
         }
 
         try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
 
-        // Notify customer on key status transitions
         if ($booking->customer && $booking->customer->user_id) {
             $notifMap = [
                 'on_the_way'     => 'Your tow truck is on the way',
@@ -262,7 +263,6 @@ class TLTaskController extends Controller
                 : ($validated['notes'] ?? null),
         ]);
 
-        // Free up the unit scoped to the assigned unit
         if ($booking->assigned_unit_id) {
             Unit::where('id', $booking->assigned_unit_id)
                 ->where('status', 'on_job')
@@ -291,7 +291,7 @@ class TLTaskController extends Controller
             return response()->json(['success' => false, 'message' => 'This task is not assigned to you.'], 403);
         }
 
-        $path = $request->file('photo')->store('task-photos', 'public');
+        $path = $request->file('photo')->store('task-photos', 'local');
 
         $column = match ($validated['type']) {
             'arrival'            => 'arrival_photo_path',
@@ -304,86 +304,121 @@ class TLTaskController extends Controller
         return response()->json([
             'success' => true,
             'path'    => $path,
-            'url'     => Storage::disk('public')->url($path),
+            'url'     => protected_file_url($path),
         ]);
     }
 
     public function complete(Booking $booking, Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'signature'      => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
-            'payment_method' => 'required|string|in:cash,gcash,bank_transfer',
-            'cash_received'  => ['required_if:payment_method,cash', 'nullable', 'numeric', 'min:0'],
-        ]);
-
         if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
             return response()->json(['success' => false, 'message' => 'This task is not assigned to you.'], 403);
         }
 
-        $terminalStatuses = ['completed', 'cancelled', 'rejected', 'returned'];
-        if (in_array($booking->status, $terminalStatuses)) {
-            return response()->json(['success' => false, 'message' => 'Task is already in a terminal state.'], 422);
-        }
+        $validated = $request->validate([
+            'signature'      => 'required|file|mimes:jpg,jpeg,png|max:2048',
+            'payment_method' => 'required|string|in:cash,gcash,bank_transfer',
+            'cash_received'  => ['required_if:payment_method,cash', 'nullable', 'numeric', 'min:0'],
+        ]);
 
-        if (! $booking->currentInvoice()->exists()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No invoice has been issued for this job yet. Payment cannot be recorded.',
-            ], 422);
-        }
+        $signaturePath = $request->file('signature')->store('signatures', 'local');
 
-        if ($validated['payment_method'] === 'cash' && (float) $validated['cash_received'] < (float) $booking->final_total) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cash received must cover the final total.',
-            ], 422);
-        }
+        $outcome = DB::transaction(function () use ($booking, $validated, $signaturePath, $request) {
+            $locked = Booking::whereKey($booking->id)->lockForUpdate()->first();
 
-        // Set to waiting_verification so the dispatcher can confirm payment and send the receipt email.
-        $updates = [
-            'status'                       => 'waiting_verification',
-            'customer_verified_at'         => now(),
-            'customer_verification_status' => 'verified',
-            'payment_method'               => $validated['payment_method'],
-        ];
-
-        if ($validated['payment_method'] === 'cash') {
-            $updates['cash_received'] = $validated['cash_received'];
-        }
-
-        if ($request->hasFile('signature')) {
-            $updates['customer_signature_path'] = $request->file('signature')->store('signatures', 'public');
-        }
-
-        $booking->update($updates);
-
-        // Auto-assign TL to sibling scheduled booking (group booking support)
-        $nextTask = null;
-        $sibling  = null;
-        if ($booking->group_code) {
-            $sibling = Booking::where('group_code', $booking->group_code)
-                ->where('id', '!=', $booking->id)
-                ->whereIn('status', ['requested', 'scheduled', 'scheduled_confirmed', 'confirmed'])
-                ->first();
-            if ($sibling) {
-                $sibling->update([
-                    'assigned_team_leader_id' => $booking->assigned_team_leader_id,
-                    'assigned_unit_id'        => $booking->assigned_unit_id,
-                    'status'                  => 'accepted',
-                    'assigned_at'             => now(),
-                ]);
-                $sibling->load(['customer', 'truckType', 'unit']);
-                $nextTask = $this->formatTask($sibling);
+            if (in_array($locked->status, self::TERMINAL_STATUSES, true)) {
+                return ['error' => ['message' => 'Task is already in a terminal state.', 'status' => 422]];
             }
+
+            if ($locked->status === 'waiting_verification' && $locked->payment_submitted_at !== null) {
+                $locked->load(['customer', 'truckType', 'unit']);
+
+                return ['already' => $locked];
+            }
+
+            if (! $locked->currentInvoice()->exists()) {
+                return ['error' => ['message' => 'No invoice has been issued for this job yet. Payment cannot be recorded.', 'status' => 422]];
+            }
+
+            if ($validated['payment_method'] === 'cash' && (float) $validated['cash_received'] < (float) $locked->final_total) {
+                return ['error' => ['message' => 'Cash received must cover the final total.', 'status' => 422]];
+            }
+
+            if (in_array($validated['payment_method'], ['gcash', 'bank_transfer'], true) && blank($locked->payment_proof_path)) {
+                return ['error' => ['message' => 'Payment proof must be uploaded before completing this task.', 'status' => 422]];
+            }
+
+            $updates = [
+                'status'                       => 'waiting_verification',
+                'customer_verified_at'         => now(),
+                'customer_verification_status' => 'verified',
+                'payment_method'               => $validated['payment_method'],
+                'payment_submitted_at'         => now(),
+                'completion_requested_at'      => $locked->completion_requested_at ?? now(),
+            ];
+
+            if ($validated['payment_method'] === 'cash') {
+                $updates['cash_received'] = $validated['cash_received'];
+            }
+
+            $updates['customer_signature_path'] = $signaturePath;
+
+            $locked->update($updates);
+
+            $sibling = null;
+            if ($locked->group_code) {
+                $sibling = Booking::where('group_code', $locked->group_code)
+                    ->where('id', '!=', $locked->id)
+                    ->whereIn('status', ['requested', 'scheduled', 'scheduled_confirmed', 'confirmed'])
+                    ->lockForUpdate()
+                    ->first();
+                if ($sibling) {
+                    $sibling->update([
+                        'assigned_team_leader_id' => $locked->assigned_team_leader_id,
+                        'assigned_unit_id'        => $locked->assigned_unit_id,
+                        'status'                  => 'accepted',
+                        'assigned_at'             => now(),
+                    ]);
+                    $sibling->load(['customer', 'truckType', 'unit']);
+                }
+            }
+
+            if (! $sibling) {
+                if ($locked->assigned_unit_id) {
+                    Unit::where('id', $locked->assigned_unit_id)
+                        ->where('status', 'on_job')
+                        ->update(['status' => 'available']);
+                }
+            }
+
+            AuditLog::create([
+                'user_id'     => $request->user()->id,
+                'action'      => 'payment_submitted',
+                'entity_type' => 'Booking',
+                'entity_id'   => $locked->id,
+                'reference'   => $locked->booking_code,
+                'description' => 'Team Leader submitted service completion and payment for dispatcher verification.',
+            ]);
+
+            $locked->load(['customer', 'truckType', 'unit']);
+
+            return ['booking' => $locked, 'sibling' => $sibling];
+        });
+
+        if (isset($outcome['error'])) {
+            return response()->json(['success' => false, 'message' => $outcome['error']['message']], $outcome['error']['status']);
         }
 
-        // Unit is freed by the dispatcher when they confirm payment (JobsController::confirmPayment).
-        // Only free early when a sibling group task takes over.
-        if ($nextTask) {
-            // Sibling task already assigned — unit stays on_job
+        if (isset($outcome['already'])) {
+            return response()->json([
+                'success'   => true,
+                'message'   => 'Task already submitted for dispatcher confirmation.',
+                'data'      => $this->formatTask($outcome['already']),
+                'next_task' => null,
+            ]);
         }
 
-        $booking->load(['customer', 'truckType', 'unit']);
+        $booking = $outcome['booking'];
+        $sibling = $outcome['sibling'];
 
         try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
         if ($sibling) {
@@ -394,7 +429,7 @@ class TLTaskController extends Controller
             'success'   => true,
             'message'   => 'Task submitted for dispatcher confirmation.',
             'data'      => $this->formatTask($booking),
-            'next_task' => $nextTask,
+            'next_task' => $sibling ? $this->formatTask($sibling) : null,
         ]);
     }
 
@@ -402,7 +437,6 @@ class TLTaskController extends Controller
     {
         $tl = $request->user();
 
-        // If auto-assign already ran (the common path), return the active sibling immediately
         $alreadyAssigned = Booking::where('group_code', $groupCode)
             ->where('assigned_team_leader_id', $tl->id)
             ->whereIn('status', ['assigned', 'accepted', 'on_the_way', 'arrived_pickup',
@@ -414,7 +448,17 @@ class TLTaskController extends Controller
             return response()->json(['success' => true, 'data' => $this->formatTask($alreadyAssigned)]);
         }
 
-        // Fallback: sibling still unassigned — TL self-assigns
+        $hasGroupHistory = Booking::where('group_code', $groupCode)
+            ->where('assigned_team_leader_id', $tl->id)
+            ->exists();
+
+        if (! $hasGroupHistory) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are not assigned to this booking group.',
+            ], 403);
+        }
+
         $sibling = Booking::where('group_code', $groupCode)
             ->whereNull('assigned_team_leader_id')
             ->whereIn('status', ['requested', 'scheduled', 'scheduled_confirmed', 'confirmed'])
@@ -427,7 +471,6 @@ class TLTaskController extends Controller
             ], 404);
         }
 
-        // Inherit unit from the TL's completed booking in the same group
         $completedBooking = Booking::where('group_code', $groupCode)
             ->where('assigned_team_leader_id', $tl->id)
             ->where('status', 'completed')
@@ -479,12 +522,12 @@ class TLTaskController extends Controller
             'final_total'         => (float) ($booking->final_total ?? $booking->computed_total ?? 0),
             'vehicle_info'        => $this->vehicleInfo($booking),
             'vehicle_image_url'   => !empty($booking->vehicle_image_paths)
-                ? Storage::disk('public')->url($booking->vehicle_image_paths[0]) : null,
+                ? protected_file_url($booking->vehicle_image_paths[0]) : null,
             'notes'               => $booking->notes,
             'scheduled_date'      => $booking->scheduled_date?->toDateString(),
             'scheduled_time'      => $booking->scheduled_time,
-            'arrival_photo'       => $booking->arrival_photo_path ? Storage::disk('public')->url($booking->arrival_photo_path) : null,
-            'dropoff_photo'       => $booking->dropoff_photo_path ? Storage::disk('public')->url($booking->dropoff_photo_path) : null,
+            'arrival_photo'       => protected_file_url($booking->arrival_photo_path),
+            'dropoff_photo'       => protected_file_url($booking->dropoff_photo_path),
             'payment_method'      => $booking->payment_method,
             'group_code'          => $groupCode,
             'group_vehicle_count' => $groupVehicleCount,
@@ -503,9 +546,6 @@ class TLTaskController extends Controller
         return $parts ? implode(' ', $parts) : null;
     }
 
-    /**
-     * Great-circle distance between two coordinates, in meters.
-     */
     private function haversineMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
     {
         $earthRadiusMeters = 6371000;
@@ -520,10 +560,6 @@ class TLTaskController extends Controller
         return $earthRadiusMeters * $c;
     }
 
-    /**
-     * Issues the invoice for a job the moment it's physically done (vehicle
-     * dropped off), before payment can be recorded — see the guard in complete().
-     */
     private function issueInvoice(Booking $booking, ?int $createdBy): Invoice
     {
         $invoice = Invoice::create([
@@ -540,9 +576,6 @@ class TLTaskController extends Controller
 
         $invoiceId = $invoice->id;
         app()->terminating(function () use ($invoiceId) {
-            // Flush the HTTP response to the client before heavy work so the
-            // mobile app gets its status update immediately instead of waiting
-            // out PDF generation + email send — same pattern as JobsController.
             while (ob_get_level() > 0) {
                 ob_end_flush();
             }

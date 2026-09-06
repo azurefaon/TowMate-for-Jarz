@@ -16,12 +16,19 @@ class SuperAdminSeeder extends Seeder
             return;
         }
 
-        $email    = strtolower(trim((string) env('SUPERADMIN_EMAIL',    'superadmin@gmail.com')));
-        $password = (string) env('SUPERADMIN_PASSWORD', 'admin123456');
-        $name     = (string) env('SUPERADMIN_NAME',     'System SuperAdmin');
-        $now      = now();
+        $email = strtolower(trim((string) env('SUPERADMIN_EMAIL', 'superadmin@gmail.com')));
+        $name  = (string) env('SUPERADMIN_NAME', 'System SuperAdmin');
+        $now   = now();
 
-        // ── Seed roles ────────────────────────────────────────────────────
+        $envPassword = env('SUPERADMIN_PASSWORD');
+        $generated = blank($envPassword);
+        $password = $generated ? Str::random(20) : (string) $envPassword;
+
+        if ($generated) {
+            $this->command?->warn("SUPERADMIN_PASSWORD was not set. Generated a one-time password for {$email}: {$password}");
+            $this->command?->warn('Log in immediately and change this password, or set SUPERADMIN_PASSWORD before seeding.');
+        }
+
         if (Schema::hasTable('roles')) {
             DB::table('roles')->insertOrIgnore([
                 ['id' => 1, 'name' => 'Owner', 'created_at' => $now, 'updated_at' => $now],
@@ -30,13 +37,11 @@ class SuperAdminSeeder extends Seeder
                 ['id' => 4, 'name' => 'Driver',      'created_at' => $now, 'updated_at' => $now],
             ]);
 
-            // Advance PostgreSQL sequence after explicit-ID inserts.
             if (DB::connection()->getDriverName() === 'pgsql') {
                 DB::statement("SELECT setval(pg_get_serial_sequence('roles', 'id'), GREATEST((SELECT MAX(id) FROM roles), 1))");
             }
         }
 
-        // ── Upsert Super Admin ────────────────────────────────────────────
         $values = [
             'name'       => $name,
             'password'   => Hash::make($password),
@@ -54,7 +59,6 @@ class SuperAdminSeeder extends Seeder
         $exists = DB::table('users')->where('email', $email)->exists();
 
         if ($exists) {
-            // Only update password + role so we don't clobber other fields.
             DB::table('users')->where('email', $email)->update($values);
         } else {
             $insert = array_merge($values, [
@@ -63,10 +67,21 @@ class SuperAdminSeeder extends Seeder
             ]);
 
             if (Schema::hasColumn('users', 'user_code')) {
-                $insert['user_code'] = strtoupper('SA-' . Str::random(6));
+                $insert['user_code'] = $this->nextUserCode();
             }
 
             DB::table('users')->insert($insert);
         }
+    }
+
+    protected function nextUserCode(): string
+    {
+        $highest = DB::table('users')
+            ->whereNotNull('user_code')
+            ->pluck('user_code')
+            ->map(fn ($value) => (int) preg_replace('/\D+/', '', (string) $value))
+            ->max() ?? 0;
+
+        return str_pad((string) ($highest + 1), 7, '0', STR_PAD_LEFT);
     }
 }

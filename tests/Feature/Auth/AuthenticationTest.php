@@ -37,13 +37,15 @@ test('dispatcher and team leader login screens can be rendered', function () {
 
 test('seeded super admin can authenticate through the super admin flow', function () {
     ensureAuthRole(1, 'Super Admin');
+    putenv('SUPERADMIN_PASSWORD=SeededSuperAdminPass123!');
     $this->seed(SuperAdminSeeder::class);
+    putenv('SUPERADMIN_PASSWORD');
 
     $response = $this->post('/login', [
         'role' => 'superadmin',
         'login_method' => 'password',
         'email' => 'SuperAdmin@Gmail.com',
-        'password' => 'admin123456',
+        'password' => 'SeededSuperAdminPass123!',
     ]);
 
     $this->assertAuthenticated('web');

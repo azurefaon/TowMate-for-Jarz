@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
+import '../../core/validators.dart';
 import '../../services/api_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
@@ -94,14 +95,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 _buildField(
                   controller: _passwordCtrl,
                   label: 'New Password',
-                  hint: 'At least 8 characters',
+                  hint: '12+ characters, upper/lower/number/symbol',
                   obscure: _obscurePassword,
                   onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Password is required';
-                    if (v.length < 8) return 'Minimum 8 characters';
-                    return null;
-                  },
+                  validator: Validators.password,
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: 20),

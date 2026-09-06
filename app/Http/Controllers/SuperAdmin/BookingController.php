@@ -125,7 +125,7 @@ class BookingController extends Controller
             'status' => $booking->status,
             'receipt' => $booking->receipt ? [
                 'receipt_code' => $booking->receipt->receipt_code ?? $booking->receipt->receipt_number,
-                'pdf_path' => $booking->receipt->pdf_path,
+                'pdf_url' => app(\App\Services\DocumentGenerationService::class)->publicDocumentUrl($booking->receipt->pdf_path),
             ] : null,
         ]);
     }

@@ -45,9 +45,6 @@
                             <div class="user-text">
                                 <span class="user-name">{{ $user->name }}</span>
                                 <small>{{ $user->email }}</small>
-                                @if ($user->password_request_status === 'pending')
-                                    <span class="request-pill">Password request pending</span>
-                                @endif
                             </div>
                         </div>
                     </td>

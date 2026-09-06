@@ -47,6 +47,7 @@ class ReportsController extends Controller
         'quotation_change' => 'Quotation Change',
         'status_change' => 'Status Change',
         'system' => 'System',
+        'security' => 'Security',
     ];
 
     public function __construct(protected DocumentGenerationService $documents)

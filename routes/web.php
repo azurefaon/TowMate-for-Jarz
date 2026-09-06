@@ -53,6 +53,7 @@ Route::redirect('/', '/login')->name('landing');
 
 Route::prefix('geo')
     ->name('geo.')
+    ->middleware('throttle:public-geo-proxy')
     ->group(function () {
         Route::get('/search', [GeoController::class, 'search'])->name('search');
         Route::get('/reverse', [GeoController::class, 'reverse'])->name('reverse');
@@ -240,8 +241,8 @@ Route::prefix('superadmin')
         Route::delete('users/{id}/queue-for-deletion', [UserManagementController::class, 'queueForDeletion'])->name('users.queue-for-deletion');
         Route::patch('users/{id}/restore-from-deleted', [UserManagementController::class, 'restoreFromDeleted'])->name('users.restore-from-deleted');
         Route::delete('users/{id}/purge-now', [UserManagementController::class, 'purgeNow'])->name('users.purge-now');
-        Route::patch('users/{user}/password-request/set-password', [UserManagementController::class, 'setDefaultPassword'])->name('users.password-request.set-password');
-        Route::patch('users/{user}/password-request/resolve', [UserManagementController::class, 'resolvePasswordRequest'])->name('users.password-request.resolve');
+        // Manual access-request routes (users.password-request.*) retired — password
+        // recovery is now self-service only via the OTP flow (routes/auth.php).
         Route::resource('users', UserManagementController::class)->except(['show']);
 
         // Route::get('/superadmin/users/{id}/edit', [UserController::class, 'edit'])

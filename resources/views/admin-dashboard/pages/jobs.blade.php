@@ -39,17 +39,8 @@
                 <tbody>
                 @forelse ($jobs as $job)
                     @php
-                        // $isAwaiting gates payment-section display/data only (unchanged
-                        // business-adjacent logic) — kept exactly as before. $bucket below
-                        // is a separate, purely presentational grouping for the tabs.
                         $isAwaiting = in_array($job->status, ['waiting_verification', 'payment_pending', 'payment_submitted']);
 
-                        // UI filter-group only — does not touch the stored status or the
-                        // Team Leader lifecycle. payment_pending/payment_submitted/delayed
-                        // are legacy defensive statuses never actually assigned anywhere in
-                        // the app today (confirmed by inspection); they fall into the
-                        // 'in-service' default here purely so an unrecognized status never
-                        // disappears from every tab.
                         $bucket = match (true) {
                             in_array($job->status, ['assigned', 'accepted'], true) => 'assigned',
                             in_array($job->status, ['on_the_way', 'arrived_pickup'], true) => 'en-route',
@@ -89,8 +80,6 @@
                         $serviceCompletedAt = $job->completion_requested_at ?? ($isAwaiting ? $job->updated_at : null);
                         $paymentSubmittedAt = $job->payment_submitted_at ?? ($job->payment_method ? $job->updated_at : null);
 
-                        // The only status-adjacent secondary line that carries genuinely
-                        // unique data (a real timestamp, not filler restating the status).
                         $statusSecondary = ($bucket === 'awaiting-verification' && $serviceCompletedAt)
                             ? 'Completed ' . $serviceCompletedAt->diffForHumans()
                             : null;
@@ -106,8 +95,8 @@
                             ? $job->cash_received
                             : $job->final_total;
                         $finalTotal = $job->final_total ? number_format((float) $job->final_total, 2) : '';
-                        $proofUrl = $job->payment_proof_path ? asset('storage/' . $job->payment_proof_path) : '';
-                        $signatureUrl = $job->customer_signature_path ? asset('storage/' . $job->customer_signature_path) : '';
+                        $proofUrl = protected_file_url($job->payment_proof_path) ?? '';
+                        $signatureUrl = protected_file_url($job->customer_signature_path) ?? '';
                     @endphp
                     <tr class="jobs-row js-open-job-row" tabindex="0"
                         aria-label="Open {{ $job->booking_code }}, {{ $customer }}"
@@ -186,7 +175,6 @@
             {{ $jobs->onEachSide(1)->links() }}
         </div>
 
-        {{-- Right-side drawer --}}
         <div class="jobs-drawer-backdrop" id="jobsDrawerBackdrop"></div>
         <div class="jobs-drawer" id="jobsDrawer">
             <div class="jobs-drawer-head">
@@ -218,10 +206,6 @@
 
                 <div class="jobs-drawer-section">
                     <div class="jobs-drawer-section-title">Route</div>
-                    {{-- Same .rb-route* markup/classes as the approved Dispatch Queue
-                         booking drawer (see routeSectionHtml() in booking-drawer.js,
-                         shared by Book Now and Scheduled) — reused here via jobs.css
-                         for visual consistency, not a divergent copy. --}}
                     <div class="rb-route">
                         <div class="rb-route-row">
                             <span class="rb-route-dot rb-pick"></span>

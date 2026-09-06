@@ -14,7 +14,6 @@ return new class extends Migration
             return;
         }
 
-        // Seed roles
         if (Schema::hasTable('roles')) {
             $now = now();
             DB::table('roles')->insertOrIgnore([
@@ -24,17 +23,23 @@ return new class extends Migration
                 ['id' => 4, 'name' => 'Driver',      'created_at' => $now, 'updated_at' => $now],
             ]);
 
-            // PostgreSQL sequences don't advance on explicit-ID inserts
             if (DB::getDriverName() === 'pgsql') {
                 DB::statement("SELECT setval(pg_get_serial_sequence('roles', 'id'), GREATEST((SELECT MAX(id) FROM roles), 1))");
             }
         }
 
-        // Seed superadmin
-        $email    = strtolower((string) env('SUPERADMIN_EMAIL',    'superadmin@gmail.com'));
-        $password = (string) env('SUPERADMIN_PASSWORD', 'admin123456');
-        $name     = (string) env('SUPERADMIN_NAME',     'System SuperAdmin');
-        $now      = now();
+        $email = strtolower((string) env('SUPERADMIN_EMAIL', 'superadmin@gmail.com'));
+        $name  = (string) env('SUPERADMIN_NAME', 'System SuperAdmin');
+        $now   = now();
+
+        $envPassword = env('SUPERADMIN_PASSWORD');
+        $generated = blank($envPassword);
+        $password = $generated ? Str::random(20) : (string) $envPassword;
+
+        if ($generated) {
+            fwrite(STDOUT, "\n[TowMate] SUPERADMIN_PASSWORD was not set. Generated a one-time password for {$email}: {$password}\n");
+            fwrite(STDOUT, "[TowMate] Log in immediately and change this password, or set SUPERADMIN_PASSWORD before migrating.\n\n");
+        }
 
         $values = [
             'name'       => $name,
@@ -53,7 +58,6 @@ return new class extends Migration
         $exists = DB::table('users')->where('email', $email)->exists();
 
         if ($exists) {
-            // Only update password + role so we don't clobber other fields
             DB::table('users')->where('email', $email)->update($values);
         } else {
             $insert = array_merge($values, [
@@ -62,11 +66,22 @@ return new class extends Migration
             ]);
 
             if (Schema::hasColumn('users', 'user_code')) {
-                $insert['user_code'] = strtoupper('SA-' . Str::random(6));
+                $insert['user_code'] = $this->nextUserCode();
             }
 
             DB::table('users')->insert($insert);
         }
+    }
+
+    protected function nextUserCode(): string
+    {
+        $highest = DB::table('users')
+            ->whereNotNull('user_code')
+            ->pluck('user_code')
+            ->map(fn ($value) => (int) preg_replace('/\D+/', '', (string) $value))
+            ->max() ?? 0;
+
+        return str_pad((string) ($highest + 1), 7, '0', STR_PAD_LEFT);
     }
 
     public function down(): void {}

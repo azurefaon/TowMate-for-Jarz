@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\TruckType;
@@ -11,6 +12,7 @@ use App\Services\BookingService;
 use App\Services\QuotationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CustomerBookingController extends Controller
 {
@@ -138,8 +140,6 @@ class CustomerBookingController extends Controller
             'notes'                            => 'nullable|string|max:1000',
             'scheduled_date'                   => 'nullable|date|after_or_equal:today',
             'scheduled_time'                   => 'nullable|string|max:10',
-            // vehicle_images presence is enforced below (needs the raw UploadedFile
-            // instances, not $request->validate()'s file-rule handling) rather than here.
             'extra_vehicles'                   => 'nullable|string',
         ]);
 
@@ -169,11 +169,6 @@ class CustomerBookingController extends Controller
         $distanceKm    = (float) $validated['distance_km'];
         $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm, (float) $truckType->per_km_rate);
 
-        // Tow Class Available = Available Team Leader + Available Assigned Unit + Matching
-        // Truck Type. Re-check server-side (not just the client's availability card) so a
-        // stale screen or a dismissed "No Units Available" warning can't create a book_now
-        // request for a class nobody is actually dispatch-ready for — it falls back to
-        // schedule instead, same as the web booking flow.
         $validated['service_type'] = $validated['service_type'] ?? 'book_now';
         if ($validated['service_type'] === 'book_now') {
             $readyTruckTypeIds = $this->bookingService->dispatchAvailability()['ready_truck_type_ids'] ?? [];
@@ -185,7 +180,6 @@ class CustomerBookingController extends Controller
             }
         }
 
-        // Decode extra vehicles sent as JSON string from multipart
         $allExtraVehicles = null;
         if (!empty($validated['extra_vehicles'])) {
             $decoded = json_decode($validated['extra_vehicles'], true);
@@ -193,7 +187,6 @@ class CustomerBookingController extends Controller
                 if (count($decoded) > 5) {
                     return response()->json(['success' => false, 'message' => 'Maximum 6 vehicles per booking.'], 422);
                 }
-                // Validate every extra references a real truck type
                 $extraIds = array_filter(array_column($decoded, 'truck_type_id'));
                 if (count($extraIds) !== count($decoded)) {
                     return response()->json(['success' => false, 'message' => 'Each additional vehicle must have a truck type selected.'], 422);
@@ -207,11 +200,9 @@ class CustomerBookingController extends Controller
             }
         }
 
-        // Split extras: book_now stays on primary booking, schedule becomes sibling bookings
         $scheduleExtras = array_values(array_filter($allExtraVehicles ?? [], fn($ev) => ($ev['service_type'] ?? 'book_now') === 'schedule'));
         $bookNowExtras  = array_values(array_filter($allExtraVehicles ?? [], fn($ev) => ($ev['service_type'] ?? 'book_now') !== 'schedule'));
 
-        // Price each book_now extra and accumulate their base rates into the primary total
         $extraVehiclesTotalBase = 0.0;
         $pricedBookNowExtras    = [];
         if (!empty($bookNowExtras)) {
@@ -229,7 +220,6 @@ class CustomerBookingController extends Controller
             }, $bookNowExtras);
         }
 
-        // Total = primary + book_now extras base rates + shared distance fee, then + 12% VAT
         $allVehiclesBase = (float) $truckType->base_rate + $extraVehiclesTotalBase;
         $computedTotal   = round($allVehiclesBase + $distanceFee, 2);
         $finalTotal      = round($computedTotal * 1.12, 2);
@@ -265,8 +255,6 @@ class CustomerBookingController extends Controller
 
         $booking->update(['booking_code' => 'TM-' . str_pad($booking->id, 5, '0', STR_PAD_LEFT)]);
 
-        // Presence of at least one valid file is already guaranteed above; storing it
-        // stays best-effort so one corrupt/unprocessable image doesn't fail the booking.
         try {
             $imagePath = $this->bookingService->storeVehicleImages($validImageFiles->all());
             $booking->update(['vehicle_image_path' => $imagePath]);
@@ -277,7 +265,6 @@ class CustomerBookingController extends Controller
             ]);
         }
 
-        // Create sibling bookings for each scheduled extra vehicle, linked by group_code
         if (!empty($scheduleExtras)) {
             $groupCode = 'GRP-' . str_pad($booking->id, 6, '0', STR_PAD_LEFT);
             $booking->update(['group_code' => $groupCode]);
@@ -324,8 +311,6 @@ class CustomerBookingController extends Controller
             }
         }
 
-        // Auto-create a pending quotation for Book Now bookings only.
-        // Schedule bookings land in the Booking Queue (status='scheduled') directly.
         if (($validated['service_type'] ?? 'book_now') !== 'schedule') {
             try {
                 $quotation = $this->quotationService->createQuotation([
@@ -360,7 +345,7 @@ class CustomerBookingController extends Controller
         ], 201);
     }
 
-    public function cancelBooking(string $code): JsonResponse
+    public function cancelBooking(Request $request, string $code): JsonResponse
     {
         $customer = Customer::where('user_id', auth()->id())->first();
 
@@ -368,22 +353,62 @@ class CustomerBookingController extends Controller
             return response()->json(['success' => false, 'message' => 'Customer not found.'], 404);
         }
 
-        $booking = Booking::where('booking_code', $code)
-            ->where('customer_id', $customer->id)
-            ->first();
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
 
-        if (!$booking) {
-            return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
+        $result = DB::transaction(function () use ($code, $customer, $validated) {
+            $booking = Booking::where('booking_code', $code)
+                ->where('customer_id', $customer->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$booking) {
+                return ['status' => 404, 'body' => ['success' => false, 'message' => 'Booking not found.']];
+            }
+
+            if (!in_array($booking->status, ['requested', 'scheduled', 'scheduled_confirmed'])) {
+                return ['status' => 422, 'body' => [
+                    'success' => false,
+                    'message' => 'This booking can no longer be cancelled — it has already progressed past the point cancellation is allowed.',
+                ]];
+            }
+
+            $reason = $validated['reason'] ?? null;
+
+            $booking->update([
+                'status' => 'cancelled',
+                'rejection_reason' => $reason,
+            ]);
+
+            AuditLog::create([
+                'user_id'     => auth()->id(),
+                'action'      => 'booking_cancelled_by_customer',
+                'entity_type' => 'Booking',
+                'entity_id'   => $booking->id,
+                'reference'   => $booking->job_code,
+                'description' => $reason ? "Cancelled by customer — {$reason}" : 'Cancelled by customer.',
+            ]);
+
+            $quotation = \App\Models\Quotation::where('source_booking_id', $booking->id)
+                ->current()
+                ->first();
+            if ($quotation && !in_array($quotation->status, ['accepted', 'rejected', 'cancelled', 'expired'])) {
+                $quotation->update([
+                    'status' => 'rejected',
+                    'responded_at' => now(),
+                    'response_note' => 'Booking cancelled by customer.',
+                ]);
+            }
+
+            return ['status' => 200, 'body' => ['success' => true, 'message' => 'Booking cancelled successfully.'], 'booking' => $booking];
+        });
+
+        if (isset($result['booking'])) {
+            BookingStatusUpdated::safeFire($result['booking']);
         }
 
-        if (!in_array($booking->status, ['scheduled', 'scheduled_confirmed'])) {
-            return response()->json(['success' => false, 'message' => 'Only scheduled bookings can be cancelled.'], 422);
-        }
-
-        $booking->update(['status' => 'cancelled']);
-        BookingStatusUpdated::safeFire($booking);
-
-        return response()->json(['success' => true, 'message' => 'Booking cancelled successfully.']);
+        return response()->json($result['body'], $result['status']);
     }
 
     public function detail(string $code): JsonResponse
@@ -405,11 +430,16 @@ class CustomerBookingController extends Controller
         $driverName = $booking->driver_name
             ?? optional(optional($booking->unit)->driver)->name;
 
-        // Load price change history from the linked quotation (source_booking_id)
         $quotation = \App\Models\Quotation::where('source_booking_id', $booking->id)
             ->latest('id')
             ->first();
         $priceChangeLog = $quotation?->price_change_log ?? [];
+
+        $cancelledAt = AuditLog::where('entity_type', 'Booking')
+            ->where('entity_id', $booking->id)
+            ->where('action', 'booking_cancelled_by_customer')
+            ->orderByDesc('created_at')
+            ->value('created_at');
 
         return response()->json([
             'success' => true,
@@ -427,22 +457,28 @@ class CustomerBookingController extends Controller
                 'pickup_notes'      => $booking->pickup_notes,
                 'truck_type_id'     => $booking->truck_type_id,
                 'truck_type_name'   => $booking->truckType?->name,
+                'truck_type_class'  => $booking->truckType?->class,
                 'base_rate'         => $booking->base_rate !== null ? (float) $booking->base_rate : null,
                 'per_km_rate'       => $booking->per_km_rate !== null ? (float) $booking->per_km_rate : null,
+                'distance_fee'      => $booking->distance_km !== null && $booking->per_km_rate !== null
+                    ? $this->bookingService->distanceFeeFor((float) $booking->distance_km, (float) $booking->per_km_rate)
+                    : null,
                 'computed_total'    => $booking->computed_total !== null ? (float) $booking->computed_total : null,
                 'additional_fee'    => $booking->additional_fee !== null ? (float) $booking->additional_fee : null,
+                'vat_amount'        => $booking->vat_amount !== null ? (float) $booking->vat_amount : null,
                 'final_total'       => $booking->final_total !== null ? (float) $booking->final_total : null,
                 'payment_method'    => $booking->payment_method,
                 'scheduled_date'    => $booking->scheduled_date?->toDateString(),
                 'scheduled_time'    => $booking->scheduled_time,
+                'scheduled_for'     => $booking->scheduled_for?->toIso8601String(),
+                'scheduling_bucket' => $booking->scheduling_bucket,
                 'team_leader_name'  => $teamLeaderName,
                 'driver_name'       => $driverName,
-                'arrival_photo_url' => $booking->arrival_photo_path
-                    ? \Illuminate\Support\Facades\Storage::disk('public')->url($booking->arrival_photo_path) : null,
-                'dropoff_photo_url' => $booking->dropoff_photo_path
-                    ? \Illuminate\Support\Facades\Storage::disk('public')->url($booking->dropoff_photo_path) : null,
+                'arrival_photo_url' => protected_file_url($booking->arrival_photo_path),
+                'dropoff_photo_url' => protected_file_url($booking->dropoff_photo_path),
                 'created_at'        => $booking->created_at?->toDateTimeString(),
                 'completed_at'      => $booking->completed_at?->toDateTimeString(),
+                'cancelled_at'      => $cancelledAt?->toIso8601String(),
                 'price_change_log'  => $priceChangeLog,
             ],
         ]);

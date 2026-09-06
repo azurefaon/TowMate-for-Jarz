@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/app_prefs.dart';
 import '../../core/theme.dart';
+import '../../core/validators.dart';
 import '../../main.dart' show themeModeNotifier;
 import '../../services/api_service.dart';
 
@@ -348,8 +349,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         setS(() => error = 'All fields are required.');
                         return;
                       }
-                      if (nw.length < 8) {
-                        setS(() => error = 'New password must be at least 8 characters.');
+                      final passwordError = Validators.password(nw);
+                      if (passwordError != null) {
+                        setS(() => error = passwordError);
                         return;
                       }
                       if (nw != conf) {

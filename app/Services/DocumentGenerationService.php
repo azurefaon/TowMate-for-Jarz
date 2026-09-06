@@ -38,7 +38,7 @@ class DocumentGenerationService
         );
 
         Storage::disk('public')->delete($legacyHtmlPath);
-        Storage::disk('public')->put($path, $this->renderPdf($html));
+        Storage::disk('local')->put($path, $this->renderPdf($html));
 
         return $path;
     }
@@ -68,10 +68,10 @@ class DocumentGenerationService
         $legacyHtmlPath = sprintf('documents/receipts/booking-%d-receipt.html', $booking->id);
 
         Storage::disk('public')->delete($legacyHtmlPath);
-        Storage::disk('public')->put($path, $this->renderPdf($html));
+        Storage::disk('local')->put($path, $this->renderPdf($html));
 
         $receipt->update([
-            'pdf_path' => 'storage/' . $path,
+            'pdf_path' => $path,
         ]);
 
         return $receipt->fresh();
@@ -89,19 +89,13 @@ class DocumentGenerationService
         ])->render();
 
         $path = sprintf('documents/invoices/invoice-%d.pdf', $invoice->id);
-        Storage::disk('public')->put($path, $this->renderPdf($html));
+        Storage::disk('local')->put($path, $this->renderPdf($html));
 
-        $invoice->update(['pdf_path' => 'storage/' . $path]);
+        $invoice->update(['pdf_path' => $path]);
 
         return $invoice->fresh();
     }
 
-    /**
-     * Renders a Reports/Activity Log Blade view to PDF bytes, with the
-     * shared company header data and a page-numbered footer. Returns the
-     * raw PDF bytes (callers stream/download them directly rather than
-     * persisting to disk, unlike quotations/receipts).
-     */
     public function renderReportPdf(string $view, array $data): string
     {
         $html = view($view, array_merge($data, [
@@ -127,7 +121,13 @@ class DocumentGenerationService
             return asset($path);
         }
 
-        return asset('storage/' . ltrim($path, '/'));
+        $normalized = ltrim($path, '/');
+
+        if (Storage::disk('local')->exists($normalized)) {
+            return Storage::disk('local')->temporaryUrl($normalized, now()->addMinutes(30));
+        }
+
+        return asset('storage/' . $normalized);
     }
 
     public function documentSettings(): array
@@ -152,15 +152,6 @@ class DocumentGenerationService
         ];
     }
 
-    /**
-     * Resolves a configured asset (or its bundled default) to an inline
-     * data-URI for embedding in a PDF. Deliberately never falls back to a
-     * live asset()/storage URL: dompdf would try to fetch that over HTTP,
-     * and since `php artisan serve` is single-threaded, a request fetching
-     * its own server's URL deadlocks until PHP's max_execution_time kills
-     * the whole render. A missing/broken upload should silently fall back
-     * to the bundled default (or no image) — never hang.
-     */
     protected function assetUrl(?string $value, ?string $default = null): ?string
     {
         foreach ([$value, $default] as $candidate) {
@@ -195,11 +186,6 @@ class DocumentGenerationService
         $options = new Options();
         $options->set('defaultFont', 'DejaVu Sans');
         $options->set('isHtml5ParserEnabled', true);
-        // Every image we embed is resolved to a data-URI by assetUrl() before
-        // it ever reaches dompdf, so remote fetching is never legitimately
-        // needed — leaving it off closes off the self-request deadlock this
-        // caused before (see assetUrl()'s docblock) for good, not just for
-        // today's specific missing-file case.
         $options->set('isRemoteEnabled', false);
         $options->set('dpi', 120);
 

@@ -1443,9 +1443,7 @@
                                     if ($booking->vehicle_image_path) {
                                         $cj_paths = json_decode($booking->vehicle_image_path, true);
                                         if (is_array($cj_paths) && !empty($cj_paths)) {
-                                            $cj_vehicleImgUrl = \Illuminate\Support\Facades\Storage::disk(
-                                                'public',
-                                            )->url($cj_paths[0]);
+                                            $cj_vehicleImgUrl = protected_file_url($cj_paths[0]);
                                             $cj_vehicleImgExtraCount = count($cj_paths) - 1;
                                         }
                                     }
@@ -1510,7 +1508,7 @@
                                     data-cash-received="{{ $booking->cash_received ?? '' }}"
                                     data-payment-method-label="{{ $cj_paymentMethodLabel }}"
                                     data-payment-status-label="{{ $cj_paymentStatusLabel }}"
-                                    data-payment-proof-url="{{ json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p), (array) $booking->payment_proof_path)) : []) }}"
+                                    data-payment-proof-url="{{ json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => protected_file_url($p), (array) $booking->payment_proof_path)) : []) }}"
                                     data-paymongo-ref="{{ $cj_paymongoRef }}"
                                     data-vat-amount="{{ $booking->vat_amount ?? 0 }}"
                                     data-discount-percentage="{{ $booking->discount_percentage ?? 0 }}"
@@ -1729,7 +1727,7 @@
                                 $bnTotal = (float) ($bnPrimary->final_total ?? 0); // primary holds the full multi-vehicle total
 
                                 $bnPhotoUrls = collect($bnPrimary->vehicle_image_paths ?? [])
-                                    ->map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p))
+                                    ->map(fn($p) => protected_file_url($p))
                                     ->values();
 
                                 // Mirrors booking-drawer.js's effectiveStatus() exactly — keep both in sync.
@@ -1920,7 +1918,7 @@
                                             data-truck-type="{{ e($sch->truckType->name ?? 'Unknown') }}"
                                             data-truck-type-id="{{ $sch->truck_type_id }}"
                                             data-vehicle-category="{{ e($sch->vehicleType->name ?? '') }}"
-                                            data-photos="{{ collect($sch->vehicle_image_paths ?? [])->map(fn($p) => \Illuminate\Support\Facades\Storage::disk('public')->url($p))->values()->toJson() }}"
+                                            data-photos="{{ collect($sch->vehicle_image_paths ?? [])->map(fn($p) => protected_file_url($p))->values()->toJson() }}"
                                             data-assigned-unit="{{ $sch->assigned_unit_id }}"
                                             data-selected-unit=""
                                             data-recommended-unit=""

@@ -22,7 +22,7 @@ class _ResetOtpScreenState extends State<ResetOtpScreen> {
   bool _loading = false;
   bool _resending = false;
   String? _error;
-  int _secondsLeft = 600; // 10 minutes
+  int _secondsLeft = 300; // 5 minutes — must match PasswordResetController::OTP_TTL_MINUTES
   Timer? _timer;
 
   @override
@@ -33,7 +33,7 @@ class _ResetOtpScreenState extends State<ResetOtpScreen> {
 
   void _startTimer() {
     _timer?.cancel();
-    setState(() => _secondsLeft = 600);
+    setState(() => _secondsLeft = 300);
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       if (_secondsLeft <= 0) {

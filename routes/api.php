@@ -12,58 +12,24 @@ use App\Http\Controllers\Api\TeamLeader\TLLocationController;
 use App\Http\Controllers\Api\CustomerQuotationController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\CustomerContentController;
 use App\Http\Controllers\GeoController;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'API working']);
 });
 
-Route::get('/debug-availability', function () {
-    $bookingService = app(\App\Services\BookingService::class);
-    $availability   = $bookingService->dispatchAvailability();
-
-    $tls = \App\Models\User::whereNull('archived_at')
-        ->with('role')
-        ->get()
-        ->filter(fn($u) => (int) $u->role_id === 3 || str_contains(strtolower($u->role?->name ?? ''), 'team'))
-        ->map(fn($u) => [
-            'id'         => $u->id,
-            'name'       => $u->name,
-            'role_id'    => $u->role_id,
-            'role_name'  => $u->role?->name,
-            'duty_class' => $u->duty_class,
-            'last_ping_at' => $u->last_ping_at,
-        'online'     => $u->last_ping_at && \Illuminate\Support\Carbon::parse($u->last_ping_at)->gte(now()->subSeconds(600)),
-        ]);
-
-    $units = \App\Models\Unit::with('truckType')->get()->map(fn($u) => [
-        'id'             => $u->id,
-        'name'           => $u->name,
-        'status'         => $u->status,
-        'team_leader_id' => $u->team_leader_id,
-        'truck_class'    => $u->truckType?->class,
-    ]);
-
-    return response()->json([
-        'dispatch_availability' => $availability,
-        'team_leaders'          => $tls->values(),
-        'units'                 => $units->values(),
-        'cache_driver'          => config('cache.default'),
-    ]);
-});
-
-// Public auth routes
 Route::post('/register',                [AuthController::class, 'register']);
-Route::post('/register/send-otp',       [AuthController::class, 'sendRegistrationOtp']);
-Route::post('/register/verify-otp',     [AuthController::class, 'verifyRegistrationOtp']);
+Route::post('/register/send-otp',       [AuthController::class, 'sendRegistrationOtp'])->middleware('throttle:customer-otp-send');
+Route::post('/register/verify-otp',     [AuthController::class, 'verifyRegistrationOtp'])->middleware('throttle:customer-otp-verify');
 Route::post('/login',                   [AuthController::class, 'login']);
 
-// Password reset (public)
-Route::post('/password/forgot',     [PasswordResetController::class, 'sendOtp']);
-Route::post('/password/verify-otp', [PasswordResetController::class, 'verifyOtp']);
-Route::post('/password/reset',      [PasswordResetController::class, 'resetPassword']);
+Route::post('/password/forgot',     [PasswordResetController::class, 'sendOtp'])->middleware('throttle:customer-otp-send');
+Route::post('/password/verify-otp', [PasswordResetController::class, 'verifyOtp'])->middleware('throttle:customer-otp-verify');
+Route::post('/password/reset',      [PasswordResetController::class, 'resetPassword'])->middleware('throttle:customer-password-reset-submit');
 
-// Authenticated routes
+Route::get('/v1/customer/content', [CustomerContentController::class, 'index']);
+
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/user', function (Request $request) {
@@ -79,60 +45,57 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('v1/profile/email/confirm',        [AuthController::class, 'confirmEmailChange']);
 
     Route::prefix('v1')->group(function () {
-        // Customer-specific routes — must be defined before apiResource to avoid wildcard collisions
         Route::get('truck-types',  [CustomerBookingController::class, 'truckTypes']);
         Route::get('availability', [CustomerBookingController::class, 'availability']);
         Route::get('bookings/current', [CustomerBookingController::class, 'currentBooking']);
         Route::get('bookings/history', [CustomerBookingController::class, 'bookingHistory']);
-        Route::post('bookings', [CustomerBookingController::class, 'createBooking']);
+        Route::post('bookings', [CustomerBookingController::class, 'createBooking'])->middleware('throttle:customer-booking-create');
         Route::get('bookings/{code}/detail', [CustomerBookingController::class, 'detail']);
         Route::get('bookings/{code}/receipt', [CustomerBookingController::class, 'receipt']);
-        Route::post('bookings/{code}/cancel', [CustomerBookingController::class, 'cancelBooking']);
+        Route::post('bookings/{code}/cancel', [CustomerBookingController::class, 'cancelBooking'])->middleware('throttle:customer-booking-cancel');
 
-        // Geo — reuse existing controller, exposed over sanctum-authenticated API
-        Route::get('geo/search', [GeoController::class, 'search']);
-        Route::post('geo/route', [GeoController::class, 'route']);
-        Route::get('geo/reverse', [GeoController::class, 'reverse']);
-        Route::get('geo/autocomplete', [GeoController::class, 'autocomplete']);
-        Route::get('geo/place-details', [GeoController::class, 'placeDetails']);
-
-        // Customer notifications
-        Route::get('notifications',            [NotificationController::class, 'index']);
-        Route::post('notifications/mark-read', [NotificationController::class, 'markAllRead']);
-        Route::post('notifications/{id}/read', [NotificationController::class, 'markRead']);
-
-        // Customer quotation routes (in-app flow)
-        Route::prefix('quotations')->group(function () {
-            Route::get('pending',              [CustomerQuotationController::class, 'pending']);
-            Route::post('{quotation}/accept',   [CustomerQuotationController::class, 'accept']);
-            Route::post('{quotation}/reject',   [CustomerQuotationController::class, 'reject']);
-            Route::post('{quotation}/inquire',  [CustomerQuotationController::class, 'inquire']);
-            Route::post('{quotation}/request-price-review', [CustomerQuotationController::class, 'requestPriceReview']);
+        Route::middleware('throttle:api-geo-proxy')->group(function () {
+            Route::get('geo/search', [GeoController::class, 'search']);
+            Route::post('geo/route', [GeoController::class, 'route']);
+            Route::get('geo/reverse', [GeoController::class, 'reverse']);
+            Route::get('geo/autocomplete', [GeoController::class, 'autocomplete']);
+            Route::get('geo/place-details', [GeoController::class, 'placeDetails']);
         });
 
-        // Legacy resource (index/show/update/destroy still go here)
+        Route::middleware('throttle:customer-notifications')->group(function () {
+            Route::get('notifications',            [NotificationController::class, 'index']);
+            Route::post('notifications/mark-read', [NotificationController::class, 'markAllRead']);
+            Route::post('notifications/{id}/read', [NotificationController::class, 'markRead']);
+        });
+
+        Route::prefix('quotations')->group(function () {
+            Route::get('pending',              [CustomerQuotationController::class, 'pending']);
+            Route::post('{quotation}/accept',   [CustomerQuotationController::class, 'accept'])->middleware('throttle:customer-quotation-action');
+            Route::post('{quotation}/reject',   [CustomerQuotationController::class, 'reject'])->middleware('throttle:customer-quotation-action');
+            Route::post('{quotation}/inquire',  [CustomerQuotationController::class, 'inquire'])->middleware('throttle:customer-quotation-action');
+            Route::post('{quotation}/request-price-review', [CustomerQuotationController::class, 'requestPriceReview'])->middleware('throttle:customer-quotation-action');
+        });
+
         Route::apiResource('bookings', BookingController::class)->except(['store']);
         Route::get('/bookings/{booking}/track', [BookingController::class, 'show']);
     });
 
-    // Team Leader — password change (no password_changed guard, that's the point)
     Route::post('v1/team-leader/auth/change-password', [TLAuthController::class, 'changePassword']);
 
-    // Team Leader — task & location (guarded by role + password_changed)
     Route::prefix('v1/team-leader')
         ->middleware(['tl', 'password_changed'])
         ->group(function () {
-            Route::post('presence/ping',           [TLPresenceController::class, 'ping']);
-            Route::post('presence/offline',        [TLPresenceController::class, 'offline']);
-            Route::post('presence/away',           [TLPresenceController::class, 'away']);
+            Route::post('presence/ping',           [TLPresenceController::class, 'ping'])->middleware('throttle:tl-presence');
+            Route::post('presence/offline',        [TLPresenceController::class, 'offline'])->middleware('throttle:tl-presence');
+            Route::post('presence/away',           [TLPresenceController::class, 'away'])->middleware('throttle:tl-presence');
             Route::get('task',                    [TLTaskController::class, 'current']);
             Route::get('history',                 [TLTaskController::class, 'history']);
-            Route::post('task/{booking}/accept',   [TLTaskController::class, 'accept']);
-            Route::patch('task/{booking}/status',   [TLTaskController::class, 'updateStatus']);
-            Route::post('task/{booking}/return',   [TLTaskController::class, 'returnTask']);
-            Route::post('task/{booking}/photo',    [TLTaskController::class, 'uploadPhoto']);
-            Route::post('task/{booking}/complete', [TLTaskController::class, 'complete']);
-            Route::post('group/{groupCode}/claim-next', [TLTaskController::class, 'claimNext']);
-            Route::put('location',                [TLLocationController::class, 'update']);
+            Route::post('task/{booking}/accept',   [TLTaskController::class, 'accept'])->middleware('throttle:tl-task-mutate');
+            Route::patch('task/{booking}/status',   [TLTaskController::class, 'updateStatus'])->middleware('throttle:tl-task-mutate');
+            Route::post('task/{booking}/return',   [TLTaskController::class, 'returnTask'])->middleware('throttle:tl-task-mutate');
+            Route::post('task/{booking}/photo',    [TLTaskController::class, 'uploadPhoto'])->middleware('throttle:tl-upload');
+            Route::post('task/{booking}/complete', [TLTaskController::class, 'complete'])->middleware('throttle:tl-task-mutate');
+            Route::post('group/{groupCode}/claim-next', [TLTaskController::class, 'claimNext'])->middleware('throttle:tl-task-mutate');
+            Route::put('location',                [TLLocationController::class, 'update'])->middleware('throttle:tl-location');
         });
 });

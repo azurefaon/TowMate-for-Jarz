@@ -8,6 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Guards against fresh installs (e.g. a test database) where this
+        // file's timestamp sorts before 2026_02_27_170000_create_quotations_table.php.
+        // On databases where this migration already ran, its recorded row is
+        // untouched and this content is never re-executed.
+        if (!Schema::hasTable('quotations')) {
+            return;
+        }
+
         Schema::table('quotations', function (Blueprint $table) {
             if (!Schema::hasColumn('quotations', 'additional_fee')) {
                 $table->decimal('additional_fee', 10, 2)->default(0)->after('estimated_price');
@@ -20,8 +28,15 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('quotations')) {
+            return;
+        }
+
         Schema::table('quotations', function (Blueprint $table) {
-            $table->dropColumn(['additional_fee', 'discount']);
+            $columns = array_filter(['additional_fee', 'discount'], fn ($column) => Schema::hasColumn('quotations', $column));
+            if ($columns) {
+                $table->dropColumn($columns);
+            }
         });
     }
 };

@@ -95,6 +95,26 @@ if (!function_exists('public_email_domains')) {
     }
 }
 
+if (!function_exists('protected_file_url')) {
+    function protected_file_url(?string $path, int $expiresInMinutes = 30): ?string
+    {
+        if (!filled($path)) {
+            return null;
+        }
+
+        $path = ltrim($path, '/');
+
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            return \Illuminate\Support\Facades\Storage::disk('local')->temporaryUrl(
+                $path,
+                now()->addMinutes($expiresInMinutes)
+            );
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+    }
+}
+
 if (!function_exists('is_public_email')) {
     function is_public_email(?string $email): bool
     {

@@ -14,7 +14,6 @@
 
         .booking-period-tab {
             padding: 10px 14px;
-            /* border-radius: 999px; */
             border: 1px solid #d1d5db;
             text-decoration: none;
             color: #1f2937;
@@ -40,7 +39,6 @@
 
         .booking-period-tab.active {
             background: #facc15;
-            /* border-color: #111827; */
             color: #000000;
         }
 
@@ -51,7 +49,6 @@
         }
 
         .booking-table-card.is-loading {
-            /* opacity: 0.65; */
             pointer-events: none;
             transition: opacity 0.2s ease;
         }
@@ -68,7 +65,6 @@
 
         .booking-table-shell {
             overflow-x: auto;
-            /* border: 1px solid #eef2f7; */
             border-radius: 16px;
             background: rgb(255, 255, 255);
         }
@@ -173,16 +169,6 @@
                         placeholder="Search bookings, customers, or locations">
                 </div>
 
-                {{-- <select name="status" onchange="this.form.submit()">
-                    <option value="">All Status</option>
-                    <option value="requested"
-                        {{ ($filters['status'] ?? request('status')) == 'requested' ? 'selected' : '' }}>Requests</option>
-                    <option value="active" {{ ($filters['status'] ?? request('status')) == 'active' ? 'selected' : '' }}>
-                        Active</option>
-                    <option value="completed"
-                        {{ ($filters['status'] ?? request('status')) == 'completed' ? 'selected' : '' }}>Completed</option>
-                </select> --}}
-
                 <input type="hidden" name="period" value="{{ $filters['period'] ?? 'today' }}">
 
             </form>
@@ -219,34 +205,6 @@
             <strong>Showing {{ $periodLabel }}</strong>
             <span>{{ $periodDescription }}</span>
         </div>
-
-        {{-- <div class="booking-summary" id="bookingSummary">
-
-            <div class="summary-card blue-card">
-                
-                <div class="summary-number">{{ $stats['total'] }}</div>
-                <div class="summary-title">Total Bookings</div>
-            </div>
-
-            <div class="summary-card yellow-card">
-                
-                <div class="summary-number">{{ $stats['requested'] }}</div>
-                <div class="summary-title">Requests</div>
-            </div>
-
-            <div class="summary-card orange-card">
-                
-                <div class="summary-number">{{ $stats['active'] }}</div>
-                <div class="summary-title">Active</div>
-            </div>
-
-            <div class="summary-card green-card">
-                
-                <div class="summary-number">{{ $stats['completed'] }}</div>
-                <div class="summary-title">Completed</div>
-            </div>
-
-        </div> --}}
 
         <div class="booking-table-card" id="bookingTableCard">
 
@@ -456,7 +414,7 @@
                     if (data.receipt) {
                         document.getElementById('m_receipt').innerText = data.receipt.receipt_code ?? data.receipt
                             .receipt_number
-                        document.getElementById('m_download').href = "/" + data.receipt.pdf_path
+                        document.getElementById('m_download').href = data.receipt.pdf_url
                         document.getElementById('m_download').target = "_blank"
                         document.getElementById('m_download').rel = "noopener noreferrer"
                         document.getElementById('m_download').style.display = "inline-flex"
