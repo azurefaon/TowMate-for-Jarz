@@ -18,22 +18,16 @@ Route::middleware('guest')->group(function () {
     Route::post('register', [RegisteredUserController::class, 'store']);
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
-        ->middleware('guest')
         ->name('login');
 
     Route::get('dispatcher/login', [AuthenticatedSessionController::class, 'createDispatcher'])
-        ->middleware('guest')
         ->name('dispatcher.login');
 
     Route::get('teamleader/login', [AuthenticatedSessionController::class, 'createTeamLeader'])
-        ->middleware('guest')
         ->name('teamleader.login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
-    // Staff (Dispatcher / Team Leader) password recovery — OTP-based.
-    // Separate from the Customer mobile app's own OTP flow (Api\PasswordResetController)
-    // and from the retired manual "access request" flow.
     Route::get('forgot-password', [StaffPasswordResetController::class, 'create'])
         ->name('password.request');
 
@@ -64,13 +58,11 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    // Force password change on first login (OWASP A01, A07).
-    // Exempt from the force.password.change middleware itself — declared before other protected routes.
     Route::get('password/change-required', [ForcePasswordChangeController::class, 'show'])
         ->name('password.force-change');
 
     Route::post('password/change-required', [ForcePasswordChangeController::class, 'update'])
-        ->middleware('throttle:5,1')  // A07 — rate-limit to prevent brute-force
+        ->middleware('throttle:5,1')
         ->name('password.force-change.update');
 
     Route::get('verify-email', EmailVerificationPromptController::class)

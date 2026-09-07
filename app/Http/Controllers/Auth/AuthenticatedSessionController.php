@@ -80,6 +80,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         $request->session()->regenerate();
+        $request->session()->forget('url.intended');
 
         foreach (['superadmin', 'dispatcher', 'teamleader'] as $guard) {
             if ($guard === $request->selectedGuard()) {
@@ -94,17 +95,13 @@ class AuthenticatedSessionController extends Controller
         if ((int) $user->role_id === 3) {
             app(TeamLeaderAvailabilityService::class)->markOnline($user);
         } elseif ((int) $user->role_id === 2) {
-            // Short TTL kept in sync with TouchDispatcherPresence, which refreshes this
-            // on every subsequent dispatcher request so it decays quickly once idle,
-            // instead of lingering for hours past session expiry.
             Cache::put('dispatcher:presence:' . $user->id, now()->timestamp, 300);
         }
 
         app(AuditLogService::class)->logLogin($user, $request, $request->selectedGuard());
 
-        return redirect()->intended(route($request->redirectRoute(), absolute: false));
+        return redirect()->route($request->redirectRoute());
     }
-
 
     public function destroy(Request $request): RedirectResponse
     {
