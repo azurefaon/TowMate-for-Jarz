@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 
@@ -148,6 +149,9 @@ it('3: booking cancellation is rate limited', function () {
 
 // 4 — geo proxy throttled ─────────────────────────────────────────────────
 it('4: the authenticated mobile geo proxy is rate limited', function () {
+    Http::fake(['*' => Http::response(['features' => [
+        ['properties' => ['label' => 'Test Location'], 'geometry' => ['coordinates' => [121.0, 14.5]]],
+    ]], 200)]);
     [$user] = phase2CustomerScenario();
     Sanctum::actingAs($user, ['*']);
 
@@ -159,6 +163,10 @@ it('4: the authenticated mobile geo proxy is rate limited', function () {
 });
 
 it('4b: the public web geo proxy is rate limited', function () {
+    Http::fake(['*' => Http::response(['features' => [
+        ['properties' => ['label' => 'Test Location'], 'geometry' => ['coordinates' => [121.0, 14.5]]],
+    ]], 200)]);
+
     for ($i = 0; $i < 20; $i++) {
         $this->getJson('/geo/search?q=test');
     }
