@@ -18,8 +18,6 @@ class ReportsController extends Controller
 
     protected const ACTIVITY_PDF_ROW_CAP = 1000;
 
-    // Status buckets shared between the pipeline breakdown and the drill-down
-    // list, so a clicked count always resolves to exactly the same bookings.
     protected const BUCKETS = [
         'requested'            => ['requested'],
         'quoted'                => ['reviewed', 'quotation_sent'],
@@ -50,6 +48,8 @@ class ReportsController extends Controller
         'security' => 'Security',
     ];
 
+    protected const SECURITY_CATEGORIES = ['login', 'logout', 'login_failed', 'security'];
+
     public function __construct(protected DocumentGenerationService $documents)
     {
     }
@@ -68,8 +68,164 @@ class ReportsController extends Controller
                 'toInput' => $request->query('to'),
                 'filters' => $filters,
                 'truckTypes' => TruckType::orderBy('name')->get(['id', 'name']),
+                'bookingsTrend' => $this->buildBookingsTrend($start, $end, $filters),
+                'truckTypePerformance' => $this->buildTruckTypePerformance($start, $end, $filters),
+                'fleetPerformance' => $this->buildFleetPerformance($start, $end, $filters),
             ],
         ));
+    }
+
+    protected function buildBookingsTrend($start, $end, array $filters = []): array
+    {
+        $start = Carbon::parse($start)->startOfDay();
+        $end = Carbon::parse($end)->endOfDay();
+
+        $rows = Booking::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
+            ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
+            ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']))
+            ->selectRaw('DATE(created_at) as day, count(*) as total')
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $trend = [];
+        $cursor = $start->copy();
+
+        while ($cursor->lte($end)) {
+            $key = $cursor->toDateString();
+            $trend[] = [
+                'label' => $cursor->format('M j'),
+                'total' => (int) ($rows[$key] ?? 0),
+            ];
+            $cursor->addDay();
+        }
+
+        return $trend;
+    }
+
+    protected function buildTruckTypePerformance($start, $end, array $filters = []): \Illuminate\Support\Collection
+    {
+        $base = fn () => Booking::whereBetween('created_at', [$start, $end])
+            ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
+            ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
+            ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']));
+
+        return $base()
+            ->whereNotNull('truck_type_id')
+            ->with('truckType')
+            ->selectRaw(
+                'truck_type_id, count(*) as total_jobs, '
+                . 'sum(case when status = ? then 1 else 0 end) as completed_jobs, '
+                . 'sum(case when status = ? then 1 else 0 end) as cancelled_jobs, '
+                . 'sum(case when status = ? then final_total else 0 end) as revenue',
+                ['completed', 'cancelled', 'completed']
+            )
+            ->groupBy('truck_type_id')
+            ->orderByDesc('total_jobs')
+            ->get()
+            ->map(fn ($row) => [
+                'truck_type_name' => $row->truckType->name ?? 'Truck Type #' . $row->truck_type_id,
+                'total_jobs' => (int) $row->total_jobs,
+                'completed_jobs' => (int) $row->completed_jobs,
+                'cancelled_jobs' => (int) $row->cancelled_jobs,
+                'revenue' => (float) $row->revenue,
+            ]);
+    }
+
+    protected function buildFleetPerformance($start, $end, array $filters = []): \Illuminate\Support\Collection
+    {
+        $base = fn () => Booking::whereBetween('created_at', [$start, $end])
+            ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
+            ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
+            ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']));
+
+        return $base()
+            ->whereNotNull('assigned_unit_id')
+            ->with('unit.truckType')
+            ->selectRaw(
+                'assigned_unit_id, count(*) as total_jobs, '
+                . 'sum(case when status = ? then 1 else 0 end) as completed_jobs, '
+                . 'sum(case when status = ? then final_total else 0 end) as revenue',
+                ['completed', 'completed']
+            )
+            ->groupBy('assigned_unit_id')
+            ->orderByDesc('total_jobs')
+            ->get()
+            ->map(fn ($row) => [
+                'unit_name' => $row->unit->name ?? 'Unit #' . $row->assigned_unit_id,
+                'truck_type_name' => $row->unit->truckType->name ?? '—',
+                'total_jobs' => (int) $row->total_jobs,
+                'completed_jobs' => (int) $row->completed_jobs,
+                'revenue' => (float) $row->revenue,
+            ]);
+    }
+
+    public function revenue(Request $request)
+    {
+        [$start, $end, $period, $customRange] = $this->resolveRange($request);
+        $filters = $this->resolveFilters($request);
+
+        $summary = $this->buildSummary($start, $end, $filters);
+
+        $revenueByTruckType = Booking::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->where('status', 'completed')
+            ->whereNotNull('truck_type_id')
+            ->with('truckType')
+            ->selectRaw('truck_type_id, count(*) as trips, sum(final_total) as revenue')
+            ->groupBy('truck_type_id')
+            ->orderByDesc('revenue')
+            ->get()
+            ->map(fn ($row) => [
+                'truck_type_name' => $row->truckType->name ?? 'Truck Type #' . $row->truck_type_id,
+                'trips' => (int) $row->trips,
+                'revenue' => (float) $row->revenue,
+            ]);
+
+        $revenueTrend = $this->buildRevenueTrend($start, $end, $filters);
+
+        return view('superadmin.revenue.index', array_merge($summary, [
+            'period' => $period,
+            'customRange' => $customRange,
+            'fromInput' => $request->query('from'),
+            'toInput' => $request->query('to'),
+            'filters' => $filters,
+            'truckTypes' => TruckType::orderBy('name')->get(['id', 'name']),
+            'revenueByTruckType' => $revenueByTruckType,
+            'topUnits' => $summary['vehicleReport']->take(5)->values(),
+            'revenueTrend' => $revenueTrend,
+        ]));
+    }
+
+    protected function buildRevenueTrend($start, $end, array $filters = []): array
+    {
+        $start = Carbon::parse($start)->startOfDay();
+        $end = Carbon::parse($end)->endOfDay();
+
+        $rows = Booking::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->where('status', 'completed')
+            ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
+            ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
+            ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']))
+            ->selectRaw('DATE(created_at) as day, sum(final_total) as revenue')
+            ->groupBy('day')
+            ->pluck('revenue', 'day');
+
+        $trend = [];
+        $cursor = $start->copy();
+
+        while ($cursor->lte($end)) {
+            $key = $cursor->toDateString();
+            $trend[] = [
+                'label' => $cursor->format('M j'),
+                'revenue' => (float) ($rows[$key] ?? 0),
+            ];
+            $cursor->addDay();
+        }
+
+        return $trend;
     }
 
     public function bookings(Request $request)
@@ -80,7 +236,7 @@ class ReportsController extends Controller
         $bucket = (string) $request->query('bucket', '');
         $statuses = self::BUCKETS[$bucket] ?? null;
 
-        $query = Booking::with(['customer', 'truckType'])
+        $query = Booking::with(['customer', 'truckType', 'unit'])
             ->whereBetween('created_at', [$start, $end])
             ->when($statuses, fn ($q) => $q->whereIn('status', $statuses))
             ->when($filters['truck_type_id'], fn ($q, $id) => $q->where('truck_type_id', $id))
@@ -100,10 +256,6 @@ class ReportsController extends Controller
         ]);
     }
 
-    /**
-     * Detailed, filterable activity log — replaces the old standalone Audit
-     * Logs page. Lives as a tab inside Reports.
-     */
     public function activity(Request $request)
     {
         [$start, $end, $period, $customRange] = $this->resolveRange($request);
@@ -116,6 +268,7 @@ class ReportsController extends Controller
         $allLogs = AuditLog::with('user')
             ->whereBetween('created_at', [$start, $end])
             ->when($category !== '', fn ($q) => $q->where('category', $category))
+            ->when($category === '', fn ($q) => $q->whereNotIn('category', self::SECURITY_CATEGORIES))
             ->when($entityType !== '', fn ($q) => $q->where('entity_type', $entityType))
             ->when(filled($actorId), fn ($q) => $q->where('user_id', $actorId))
             ->when($search !== '', function ($q) use ($search) {
@@ -127,10 +280,6 @@ class ReportsController extends Controller
             ->latest()
             ->get();
 
-        // Each log entry can expand into several rows (one per changed field),
-        // so we flatten first and paginate the flattened rows — this keeps the
-        // page's visible row count fixed at $perPage regardless of how many
-        // fields any single action touched.
         $rows = $allLogs->flatMap(fn ($log) => collect($this->explodeAuditLogRows($log))
             ->map(fn ($description) => (object) ['log' => $log, 'description' => $description]));
 
@@ -160,12 +309,6 @@ class ReportsController extends Controller
         ]);
     }
 
-    /**
-     * Turns one audit log's old/new value diff into a list of human-readable
-     * "Field: value" (create/delete) or "Field: old - new" (update) strings —
-     * one row per changed field. Falls back to the log's own description when
-     * there's no diff data to expand (e.g. a plain login/logout event).
-     */
     protected function explodeAuditLogRows(AuditLog $log): array
     {
         $old = $log->old_value ?? [];
@@ -227,10 +370,6 @@ class ReportsController extends Controller
         return self::ACTIVITY_CATEGORIES[$category] ?? ucfirst(str_replace('_', ' ', (string) $category));
     }
 
-    /**
-     * Resolves the active date range from either a validated custom from/to
-     * pair or the fixed period buckets, returning [start, end, period, isCustom].
-     */
     protected function resolveRange(Request $request): array
     {
         $from = $request->query('from');
@@ -245,7 +384,6 @@ class ReportsController extends Controller
                     return [$start, $end, 'custom', true];
                 }
             } catch (\Throwable) {
-                // fall through to period-based range
             }
         }
 
@@ -255,10 +393,6 @@ class ReportsController extends Controller
         return [$start, $end, $period, false];
     }
 
-    /**
-     * Vehicle-type and amount filters shared by the summary and bookings
-     * drill-down views.
-     */
     protected function resolveFilters(Request $request): array
     {
         $minAmount = $request->query('min_amount');
@@ -429,6 +563,12 @@ class ReportsController extends Controller
             $pipeline->push(['key' => '', 'label' => 'Other', 'count' => $otherCount]);
         }
 
+        $pipeline = $pipeline->map(function (array $row) use ($totalBookings) {
+            $row['share'] = $totalBookings > 0 ? ($row['count'] / $totalBookings) * 100 : 0.0;
+
+            return $row;
+        });
+
         $vehicleReport = $base()
             ->where('status', 'completed')
             ->whereNotNull('assigned_unit_id')
@@ -459,6 +599,7 @@ class ReportsController extends Controller
             'completedCount' => $completedCount,
             'pendingCount' => $pendingCount,
             'cancelledCount' => $cancelledCount,
+            'completionRate' => $totalBookings > 0 ? ($completedCount / $totalBookings) * 100 : 0.0,
             'pipeline' => $pipeline,
             'vehicleReport' => $vehicleReport,
             'totalVehiclesUsed' => $vehicleReport->count(),

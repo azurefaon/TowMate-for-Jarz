@@ -5,57 +5,73 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Jarz Owner')</title>
+    <title>@yield('title', 'JARZ Owner')</title>
     <link rel="icon" type="image/png" href="{{ asset('admin/images/logo.png') }}">
     @stack('styles')
-    <link rel="stylesheet" href="{{ asset('superadmin/css/panel.css') }}">
+    <link rel="stylesheet" href="{{ asset('superadmin/css/panel.css') }}?v={{ filemtime(public_path('superadmin/css/panel.css')) }}">
     <style>
         :root {
             --jarz-accent: #facc15;
-            --jarz-bg: #f8fafc;
-            --jarz-surface: #facc15;
-            --jarz-text: #111827;
-            --jarz-line: #e5e7eb;
+            --jarz-bg: #ffffff;
+            --jarz-sidebar: #171717;
+            --jarz-text: #171717;
+            --jarz-line: #e5e5e5;
+            --jarz-muted: #525252;
+            --jarz-success: #15803d;
+            --jarz-danger: #b91c1c;
         }
 
         body.superadmin-shell {
-            background: linear-gradient(180deg, var(--jarz-bg) 0%, #f3f4f6 100%);
+            background: var(--jarz-bg);
             color: var(--jarz-text);
         }
 
         .sidebar,
-        .content,
-        .sa-profile-trigger,
-        .sa-profile-dropdown {
+        .content {
             border-color: var(--jarz-line) !important;
         }
 
         .sidebar {
-            background: #fff;
+            background: var(--jarz-sidebar);
         }
 
-        .sidebar .brand-text,
-        .sidebar .sidebar-section,
         .sidebar li a,
-        .sidebar li button,
+        .sidebar li button {
+            color: #ffffff;
+        }
+
+        .sidebar li button.sidebar-group-toggle {
+            color: #e5e5e5;
+        }
+
+        .sidebar .sidebar-section {
+            color: #a3a3a3;
+        }
+
         .content {
             color: var(--jarz-text);
         }
 
         .sidebar li a:hover,
         .sidebar li button:hover {
-            background: var(--jarz-surface);
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
         }
 
         .sidebar li a.active,
         .sidebar li button.active {
-            background: #111111;
-            color: #facc15;
+            background: var(--jarz-accent);
+            color: #171717;
+        }
+
+        .sidebar li a.active .nav-chip,
+        .sidebar li button.active .nav-chip {
+            color: #171717;
         }
 
         .badge {
             background: var(--jarz-accent);
-            color: var(--jarz-text);
+            color: #171717;
         }
 
         .sa-topbar {
@@ -66,7 +82,7 @@
             top: 0;
             z-index: 140;
             padding: 0 0 8px;
-            background: linear-gradient(180deg, rgba(248, 250, 252, 0.98) 0%, rgba(248, 250, 252, 0.92) 100%);
+            background: #ffffff;
         }
 
         .sa-profile-menu {
@@ -87,11 +103,9 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: #fff;
-            border: 1px solid var(--jarz-line);
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+            padding: 4px;
+            background: transparent;
+            border: none;
         }
 
         .sa-profile-avatar {
@@ -102,8 +116,8 @@
             align-items: center;
             justify-content: center;
             background: var(--jarz-accent);
-            color: var(--jarz-text);
-            font-weight: 700;
+            color: #171717;
+            font-weight: 600;
         }
 
         .sa-profile-dropdown {
@@ -111,11 +125,9 @@
             right: 0;
             top: calc(100% + 8px);
             min-width: 180px;
-            padding: 8px;
-            border-radius: 14px;
-            background: #fff;
+            padding: 6px;
+            background: #ffffff;
             border: 1px solid var(--jarz-line);
-            box-shadow: 0 18px 40px rgba(48, 56, 65, .12);
             z-index: 40;
         }
 
@@ -127,7 +139,6 @@
             gap: 8px;
             padding: 10px 12px;
             border: 0;
-            border-radius: 10px;
             background: transparent;
             color: var(--jarz-text);
             text-decoration: none;
@@ -136,29 +147,29 @@
 
         .sa-profile-dropdown a:hover,
         .sa-profile-dropdown button:hover {
-            background: #f8fafc;
+            background: #f5f5f5;
         }
 
         .sa-profile-meta strong {
             display: block;
-            font-size: 0.95rem;
+            font-size: 0.92rem;
+            font-weight: 500;
             line-height: 1.2;
         }
 
         .sa-profile-meta small {
             display: block;
             margin-top: 2px;
-            color: #64748b;
+            color: var(--jarz-muted);
             font-size: 0.76rem;
         }
 
         .sa-profile-dropdown .sa-logout-trigger {
-            color: #b91c1c;
+            color: var(--jarz-danger);
         }
 
         .sa-profile-dropdown .sa-logout-trigger:hover {
-            background: #fef2f2;
-            color: #991b1b;
+            background: #fdf1f1;
         }
 
         .sa-logout-modal {
@@ -177,18 +188,15 @@
         .sa-logout-backdrop {
             position: absolute;
             inset: 0;
-            background: rgba(15, 23, 42, 0.55);
-            backdrop-filter: blur(4px);
+            background: rgba(23, 23, 23, 0.55);
         }
 
         .sa-logout-card {
             position: relative;
             width: min(420px, calc(100% - 24px));
             padding: 22px;
-            border-radius: 20px;
             background: #fff;
             border: 1px solid var(--jarz-line);
-            box-shadow: 0 30px 70px rgba(15, 23, 42, 0.22);
         }
 
         .sa-logout-card-head {
@@ -202,29 +210,28 @@
             width: 36px;
             height: 36px;
             border: 0;
-            border-radius: 10px;
-            background: #f8fafc;
-            color: #64748b;
+            background: #f5f5f5;
+            color: var(--jarz-muted);
             cursor: pointer;
         }
 
         .sa-logout-close:hover {
-            background: #eef2f7;
-            color: #0f172a;
+            background: #e5e5e5;
+            color: #171717;
         }
 
         .sa-logout-card h3 {
             margin: 0 0 8px;
-            font-size: 1.2rem;
-            color: #0f172a;
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: #171717;
         }
 
         .sa-logout-card p {
             margin: 0;
-            color: #64748b;
+            color: var(--jarz-muted);
             line-height: 1.55;
         }
-
 
         .sa-logout-actions {
             margin-top: 18px;
@@ -236,26 +243,24 @@
 
         .sa-logout-actions button {
             border: 0;
-            border-radius: 12px;
             padding: 10px 14px;
-            font-weight: 700;
+            font-weight: 500;
             cursor: pointer;
         }
 
         .sa-logout-actions .secondary {
-            background: #f8fafc;
-            color: #0f172a;
-            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            color: #171717;
+            border: 1px solid var(--jarz-line);
         }
 
         .sa-logout-actions .primary {
-            background: #111827;
+            background: #171717;
             color: #fff;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
         }
 
         .sa-logout-actions .primary:hover {
-            background: #1f2937;
+            background: #000000;
         }
 
         @media (max-width: 768px) {
@@ -285,15 +290,33 @@
 
 <body class="superadmin-shell">
 
+    @php
+        $sidebarChevron = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>';
+
+        $businessGroupActive = request()->routeIs('superadmin.revenue.*')
+            || request()->routeIs('superadmin.reports.index')
+            || request()->routeIs('superadmin.reports.bookings')
+            || request()->routeIs('superadmin.reports.export*')
+            || request()->routeIs('superadmin.bookings.*');
+
+        $fleetGroupActive = request()->routeIs('superadmin.unit-truck.*')
+            || request()->routeIs('superadmin.units.*')
+            || request()->routeIs('superadmin.truck-types.*')
+            || request()->routeIs('superadmin.vehicle-types.*');
+
+        $oversightGroupActive = request()->routeIs('superadmin.monitoring.*')
+            || request()->routeIs('superadmin.reports.activity*');
+
+        $managementGroupActive = request()->routeIs('superadmin.settings.*');
+    @endphp
+
     <div class="sidebar" id="sidebar">
 
         <ul>
 
             <div class="brand">
-                <span class="brand-text">Jarz</span>
+                <img src="{{ asset('dispatcher/images/jarz-logo.png') }}" alt="JARZ" class="brand-logo">
             </div>
-
-            <div class="sidebar-section">MAIN</div>
 
             <li>
                 <a href="{{ route('superadmin.dashboard') }}" title="Dashboard"
@@ -307,54 +330,57 @@
                     </span>
                     <span>Dashboard</span>
                 </a>
-
-                <a href="{{ route('superadmin.reports.index') }}" title="Reports"
-                    class="{{ request()->routeIs('superadmin.reports.*') ? 'active' : '' }}">
-                    <span class="nav-chip">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square">
-                            <line x1="5" y1="19" x2="19" y2="19" />
-                            <line x1="8" y1="19" x2="8" y2="13" />
-                            <line x1="12" y1="19" x2="12" y2="8" />
-                            <line x1="16" y1="19" x2="16" y2="11" />
-                        </svg>
-                    </span>
-                    <span>Reports</span>
-                </a>
-
-                <a href="{{ route('superadmin.bookings.index') }}" title="Bookings"
-                    class="{{ request()->routeIs('superadmin.bookings.*') ? 'active' : '' }}">
-                    <span class="nav-chip">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-                            <path d="M12 4 L19 12 L12 20 L5 12 Z" />
-                            <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
-                        </svg>
-                    </span>
-                    <span>Bookings</span>
-
-                    @if (isset($pendingBookings) && $pendingBookings > 0)
-                        <span class="badge">{{ $pendingBookings }}</span>
-                    @endif
-                </a>
-
-                <a href="{{ route('superadmin.users.index') }}" title="Manage Users"
-                    class="{{ request()->routeIs('superadmin.users.*') ? 'active' : '' }}">
-                    <span class="nav-chip">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-                            <path d="M8 8 L11.2 5.5 L14.4 8 L13.2 12 L9.2 12 Z" />
-                            <path d="M4.5 19 L6 13.5 L18 13.5 L19.5 19" />
-                        </svg>
-                    </span>
-                    <span>Manage Users</span>
-                </a>
-
             </li>
 
             <div class="sidebar-divider"></div>
-            <div class="sidebar-section">FLEET MANAGEMENT</div>
 
             <li>
-                <a href="{{ route('superadmin.truck-types.index') }}" title="Trucks"
-                    class="{{ request()->routeIs(['superadmin.truck-types.*', 'superadmin.unit-truck.*', 'superadmin.vehicle-types.*']) ? 'active' : '' }}">
+                <button type="button" class="sidebar-group-toggle" title="Business"
+                    aria-expanded="{{ $businessGroupActive ? 'true' : 'false' }}" aria-controls="sidebarGroupBusiness">
+                    <span class="nav-chip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                            <rect x="3.5" y="8" width="17" height="11" rx="1.2" />
+                            <path d="M9 8 L9 6 A1.5 1.5 0 0 1 10.5 4.5 L13.5 4.5 A1.5 1.5 0 0 1 15 6 L15 8" />
+                            <line x1="3.5" y1="12.5" x2="20.5" y2="12.5" />
+                        </svg>
+                    </span>
+                    <span>Business</span>
+                    <span class="sidebar-group-chevron">{!! $sidebarChevron !!}</span>
+                </button>
+
+                <div class="sidebar-subnav {{ $businessGroupActive ? 'is-open' : '' }}" id="sidebarGroupBusiness">
+                    <ul class="sidebar-subnav-list">
+                        <li>
+                            <a href="{{ route('superadmin.revenue.index') }}" title="Revenue"
+                                class="{{ request()->routeIs('superadmin.revenue.*') ? 'active' : '' }}">
+                                <span>Revenue</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('superadmin.reports.index') }}" title="Reports"
+                                class="{{ request()->routeIs('superadmin.reports.index') || request()->routeIs('superadmin.reports.bookings') || request()->routeIs('superadmin.reports.export*') ? 'active' : '' }}">
+                                <span>Reports</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('superadmin.bookings.index') }}" title="Bookings"
+                                class="{{ request()->routeIs('superadmin.bookings.*') ? 'active' : '' }}">
+                                <span>Bookings</span>
+
+                                @if (isset($pendingBookings) && $pendingBookings > 0)
+                                    <span class="badge">{{ $pendingBookings }}</span>
+                                @endif
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+
+            <div class="sidebar-divider"></div>
+
+            <li>
+                <a href="{{ route('superadmin.truck-types.index') }}" title="Fleet Management"
+                    class="{{ $fleetGroupActive ? 'active' : '' }}">
                     <span class="nav-chip">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
                             <path d="M3 16 L3 10 L11 10 L11 16" />
@@ -364,16 +390,49 @@
                             <circle cx="16" cy="18" r="1.6" />
                         </svg>
                     </span>
-                    <span>Trucks</span>
+                    <span>Fleet Management</span>
                 </a>
             </li>
 
             <div class="sidebar-divider"></div>
-            <div class="sidebar-section">SYSTEM</div>
 
             <li>
-                <a href="{{ route('superadmin.settings.index') }}" title="System Settings"
-                    class="{{ request()->routeIs('superadmin.settings.*') ? 'active' : '' }}">
+                <button type="button" class="sidebar-group-toggle" title="Oversight"
+                    aria-expanded="{{ $oversightGroupActive ? 'true' : 'false' }}" aria-controls="sidebarGroupOversight">
+                    <span class="nav-chip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                            <rect x="3.5" y="5" width="17" height="11" rx="1" />
+                            <line x1="9" y1="19" x2="15" y2="19" />
+                            <line x1="12" y1="16" x2="12" y2="19" />
+                        </svg>
+                    </span>
+                    <span>Oversight</span>
+                    <span class="sidebar-group-chevron">{!! $sidebarChevron !!}</span>
+                </button>
+
+                <div class="sidebar-subnav {{ $oversightGroupActive ? 'is-open' : '' }}" id="sidebarGroupOversight">
+                    <ul class="sidebar-subnav-list">
+                        <li>
+                            <a href="{{ route('superadmin.monitoring.index') }}" title="Operations Monitor"
+                                class="{{ request()->routeIs('superadmin.monitoring.*') ? 'active' : '' }}">
+                                <span>Operations Monitor</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('superadmin.reports.activity') }}" title="Business Activity"
+                                class="{{ request()->routeIs('superadmin.reports.activity*') ? 'active' : '' }}">
+                                <span>Business Activity</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+
+            <div class="sidebar-divider"></div>
+
+            <li>
+                <button type="button" class="sidebar-group-toggle" title="Management"
+                    aria-expanded="{{ $managementGroupActive ? 'true' : 'false' }}" aria-controls="sidebarGroupManagement">
                     <span class="nav-chip">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
                             <path d="M12 3.5 L18.5 7.2 L18.5 14.8 L12 18.5 L5.5 14.8 L5.5 7.2 Z" />
@@ -381,8 +440,20 @@
                             <line x1="12" y1="3.5" x2="12" y2="6" />
                         </svg>
                     </span>
-                    <span>System Settings</span>
-                </a>
+                    <span>Management</span>
+                    <span class="sidebar-group-chevron">{!! $sidebarChevron !!}</span>
+                </button>
+
+                <div class="sidebar-subnav {{ $managementGroupActive ? 'is-open' : '' }}" id="sidebarGroupManagement">
+                    <ul class="sidebar-subnav-list">
+                        <li>
+                            <a href="{{ route('superadmin.settings.index') }}" title="Business Settings"
+                                class="{{ request()->routeIs('superadmin.settings.*') ? 'active' : '' }}">
+                                <span>Business Settings</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </li>
 
             <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display:none;">
@@ -408,7 +479,7 @@
                     <span class="sa-profile-avatar">{{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}</span>
                     <div class="sa-profile-meta">
                         <strong>{{ auth()->user()->full_name ?? auth()->user()->name }}</strong>
-                        <small>{{ auth()->user()->role->name ?? 'Owner' }}</small>
+                        <small>Company Owner</small>
                     </div>
                 </summary>
 
@@ -536,6 +607,16 @@
             if (event.key === 'Escape') {
                 closeSuperadminLogoutModal();
             }
+        });
+
+        document.querySelectorAll('.sidebar-group-toggle').forEach((toggle) => {
+            toggle.addEventListener('click', () => {
+                const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+                const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+
+                toggle.setAttribute('aria-expanded', String(!isOpen));
+                panel?.classList.toggle('is-open', !isOpen);
+            });
         });
     </script>
 

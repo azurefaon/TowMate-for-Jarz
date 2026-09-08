@@ -9,14 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const addModal = document.getElementById("addUnitModal");
     const editModal = document.getElementById("editUnitModal");
     const editForm = document.getElementById("editUnitForm");
-    const assignLeaderModal = document.getElementById("assignLeaderModal");
-    const assignLeaderForm = document.getElementById("assignLeaderForm");
-    const assignLeaderUnitName = document.getElementById("assignLeaderUnitName");
-    const assignLeaderSelect = document.getElementById("assignLeaderSelect");
     const searchInput = document.getElementById("unitSearch");
     const statusFilter = document.getElementById("statusFilter");
 
-    // 3 letters + 4 digits, 3 letters + 3 digits, or 2 letters + 5 digits; I and O are excluded (confusable with 1/0).
     const PLATE_NUMBER_REGEX = /^(?:[A-HJ-NP-Z]{3}[0-9]{4}|[A-HJ-NP-Z]{3}[0-9]{3}|[A-HJ-NP-Z]{2}[0-9]{5})$/;
     const PLATE_NUMBER_MESSAGE =
         "Enter 3 letters + 4 digits, 3 letters + 3 digits, or 2 letters + 5 digits. Letters I and O are not allowed.";
@@ -96,29 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
         showModal(editModal);
     });
 
-    document.addEventListener("click", (e) => {
-        const button = e.target.closest(".js-assign-leader");
-
-        if (!button) return;
-
-        if (assignLeaderForm) {
-            assignLeaderForm.action = `${baseUrl}/${button.dataset.unitId}/assign-team-leader`;
-        }
-        if (assignLeaderUnitName) {
-            assignLeaderUnitName.textContent = `Unit: ${button.dataset.unitName || ""}`;
-        }
-        if (assignLeaderSelect) {
-            assignLeaderSelect.value = "";
-        }
-        const assignLeaderPreview = document.getElementById("assignLeaderPreview");
-        if (assignLeaderPreview) {
-            assignLeaderPreview.textContent = "";
-        }
-
-        showModal(assignLeaderModal);
-    });
-
-    [addModal, editModal, assignLeaderModal].forEach((modal) => {
+    [addModal, editModal].forEach((modal) => {
         if (!modal) {
             return;
         }
@@ -134,7 +107,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (event.key === "Escape") {
             hideModal(addModal);
             hideModal(editModal);
-            hideModal(assignLeaderModal);
         }
     });
 
@@ -157,4 +129,66 @@ document.addEventListener("DOMContentLoaded", () => {
 
     searchInput?.addEventListener("input", filterUnits);
     statusFilter?.addEventListener("change", filterUnits);
+
+    const closeAllUnitMenus = (except) => {
+        document.querySelectorAll(".u-menu.is-open").forEach((menu) => {
+            if (menu === except) {
+                return;
+            }
+
+            menu.classList.remove("is-open");
+            menu.querySelector(".u-menu-trigger")?.setAttribute("aria-expanded", "false");
+        });
+    };
+
+    const positionUnitMenu = (trigger, dropdown) => {
+        const rect = trigger.getBoundingClientRect();
+        const dropdownWidth = dropdown.offsetWidth || 200;
+        const dropdownHeight = dropdown.offsetHeight || 160;
+
+        let left = rect.right - dropdownWidth;
+        left = Math.max(8, Math.min(left, window.innerWidth - dropdownWidth - 8));
+
+        let top = rect.bottom + 4;
+        if (top + dropdownHeight > window.innerHeight) {
+            top = rect.top - dropdownHeight - 4;
+        }
+        top = Math.max(8, top);
+
+        dropdown.style.left = `${left}px`;
+        dropdown.style.top = `${top}px`;
+    };
+
+    document.querySelectorAll(".u-menu-trigger").forEach((trigger) => {
+        trigger.addEventListener("click", (event) => {
+            event.stopPropagation();
+
+            const menu = trigger.closest(".u-menu");
+            const dropdown = menu?.querySelector(".u-menu-dropdown");
+            if (!menu || !dropdown) {
+                return;
+            }
+
+            const willOpen = !menu.classList.contains("is-open");
+
+            closeAllUnitMenus(willOpen ? menu : null);
+
+            if (willOpen) {
+                positionUnitMenu(trigger, dropdown);
+            }
+
+            menu.classList.toggle("is-open", willOpen);
+            trigger.setAttribute("aria-expanded", String(willOpen));
+        });
+    });
+
+    document.addEventListener("click", () => closeAllUnitMenus());
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            closeAllUnitMenus();
+        }
+    });
+
+    document.addEventListener("scroll", () => closeAllUnitMenus(), true);
 });

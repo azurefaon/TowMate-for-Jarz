@@ -3,342 +3,317 @@
 @section('title', 'Reports')
 
 @push('styles')
-    <style>
-        .reports-page {
-            color: #111111;
-        }
-
-        .reports-page h1 {
-            margin: 0 0 4px;
-            font-size: 1.6rem;
-            color: #111111;
-        }
-
-        .reports-page .subtitle {
-            margin: 0 0 16px;
-            color: #111111;
-        }
-
-        .reports-tabs {
-            display: flex;
-            gap: 22px;
-            margin-bottom: 18px;
-            padding: 6px 18px 0;
-            background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.06);
-        }
-
-        .reports-tabs a {
-            padding: 12px 2px;
-            border-bottom: 3px solid transparent;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 0.92rem;
-            color: #6b7280;
-            background: transparent;
-        }
-
-        .reports-tabs a:hover {
-            color: #111111;
-        }
-
-        .reports-tabs a.active {
-            color: #111111;
-            font-weight: 700;
-            border-bottom-color: #facc15;
-        }
-
-        .reports-toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-            justify-content: space-between;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 14px 16px;
-            margin-bottom: 20px;
-            background: #ffffff;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.06);
-        }
-
-        .reports-toolbar .filter-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center;
-        }
-
-
-        .pdf-btn {
-            padding: 9px 16px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 800;
-            text-decoration: none;
-            border: 1px solid #111111;
-            background: #111111;
-            color: #facc15;
-        }
-
-        .report-section {
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            background: #ffffff;
-            margin-bottom: 22px;
-            overflow: hidden;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.06);
-        }
-
-        .report-section-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 14px 16px;
-            background: #ffffff;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .report-section-head h2 {
-            margin: 0;
-            font-size: 1.05rem;
-            color: #111111;
-        }
-
-        .section-pdf-btn {
-            flex: none;
-            padding: 7px 14px;
-            border-radius: 6px;
-            font-size: 0.78rem;
-            font-weight: 800;
-            text-decoration: none;
-            background: #111111;
-            color: #facc15;
-        }
-
-        .report-section table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .report-section thead th {
-            text-align: left;
-            padding: 10px 14px;
-            font-size: 0.78rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            color: #111111;
-            background: #ffffff;
-            border-bottom: 2px solid #111111;
-        }
-
-        .report-section thead th.num,
-        .report-section tbody td.num,
-        .report-section tfoot td.num {
-            text-align: right;
-        }
-
-        .report-section tbody td {
-            padding: 10px 14px;
-            font-size: 0.92rem;
-            color: #111111;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .report-section tbody td a {
-            color: #111111;
-            text-decoration: underline;
-            text-decoration-color: #facc15;
-            text-decoration-thickness: 2px;
-            font-weight: 700;
-        }
-
-        .report-section tfoot td {
-            padding: 12px 14px;
-            font-weight: 800;
-            background: #facc15;
-            color: #111111;
-        }
-
-        .report-empty {
-            padding: 18px;
-            text-align: center;
-            font-weight: 600;
-            color: #111111;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ asset('superadmin/css/reports.css') }}?v={{ filemtime(public_path('superadmin/css/reports.css')) }}">
 @endpush
 
 @section('content')
-    <div class="reports-page">
+    @php
+        $pdfBaseParams = array_filter(array_merge($filters, $customRange ? ['from' => $fromInput, 'to' => $toInput] : ['period' => $period]));
+        $bucketLinkParams = fn (string $bucket) => array_filter(array_merge($filters, [
+            'bucket' => $bucket,
+            'period' => ! $customRange ? $period : null,
+            'from' => $customRange ? $fromInput : null,
+            'to' => $customRange ? $toInput : null,
+        ]));
+    @endphp
 
-        <h1>Reports</h1>
-        <p class="subtitle">Booking, vehicle, and financial statistics for the selected period.</p>
-
-        <div class="reports-tabs">
-            <a href="{{ route('superadmin.reports.index', request()->except('page')) }}" class="active">Summary</a>
-            <a href="{{ route('superadmin.reports.activity') }}">Activity Log</a>
+    <div class="page-top reports-header">
+        <div>
+            <h1>Reports</h1>
+            <p>Business performance from {{ $start->format('M j') }}&ndash;{{ $end->format('M j, Y') }}.</p>
         </div>
 
-        <form class="reports-toolbar" method="GET" action="{{ route('superadmin.reports.index') }}">
+        <div class="reporting-toolbar">
+            <span class="reporting-toolbar-label">Reporting Period</span>
 
-            <div class="filter-group">
-                <div class="date-range-picker" data-range-picker>
-                    <input type="date" name="from" data-role="from" value="{{ $fromInput }}" form="reportsRangeForm"
-                        onchange="this.form.submit()">
-                    <input type="date" name="to" data-role="to" value="{{ $toInput }}" form="reportsRangeForm"
-                        onchange="this.form.submit()">
+            <div class="reporting-controls-row">
+                <div class="reporting-period-group" role="group" aria-label="Reporting period">
+                    @foreach (['today' => ['Today', 'calendar'], 'week' => ['This Week', 'calendar-days'], 'month' => ['This Month', 'calendar-range'], 'quarter' => ['Quarter', 'bar-chart-2']] as $value => $meta)
+                        <a href="{{ route('superadmin.reports.index', array_filter(array_merge($filters, ['period' => $value]))) }}"
+                            class="{{ ! $customRange && $period === $value ? 'active' : '' }}">
+                            <i data-lucide="{{ $meta[1] }}"></i>
+                            <span>{{ $meta[0] }}</span>
+                        </a>
+                    @endforeach
+                    <button type="button" id="reportsCustomToggle" class="{{ $customRange ? 'active' : '' }}">
+                        <i data-lucide="calendar-plus"></i>
+                        <span>Custom</span>
+                    </button>
                 </div>
 
-                <select name="truck_type_id" class="vehicle-type-select" data-custom form="reportsRangeForm"
-                    onchange="document.getElementById('reportsRangeForm').submit()">
-                    <option value="">All vehicle types</option>
+                <select class="reporting-truck-select" id="reportsTruckTypeSelect">
+                    <option value="">All Truck Types</option>
                     @foreach ($truckTypes as $truckType)
-                        <option value="{{ $truckType->id }}"
-                            {{ (int) ($filters['truck_type_id'] ?? 0) === $truckType->id ? 'selected' : '' }}>
+                        <option value="{{ $truckType->id }}" {{ (int) ($filters['truck_type_id'] ?? 0) === $truckType->id ? 'selected' : '' }}>
                             {{ $truckType->name }}
                         </option>
                     @endforeach
                 </select>
             </div>
-        </form>
 
-        <form id="reportsRangeForm" method="GET" action="{{ route('superadmin.reports.index') }}"></form>
+            <form class="reporting-range-form" method="GET" action="{{ route('superadmin.reports.index') }}"
+                id="reportsRangeForm" @if (! $customRange) hidden @endif>
+                <label>
+                    <span>From</span>
+                    <input type="date" name="from" value="{{ $fromInput }}">
+                </label>
+                <label>
+                    <span>To</span>
+                    <input type="date" name="to" value="{{ $toInput }}">
+                </label>
+                <input type="hidden" name="truck_type_id" id="reportsTruckTypeHidden" value="{{ $filters['truck_type_id'] ?? '' }}">
+                <button type="submit" class="reporting-apply-btn">Apply</button>
+            </form>
+        </div>
+    </div>
 
-        @php
-            $pdfBaseParams = array_filter(array_merge($filters, $period === 'custom' ? ['from' => $fromInput, 'to' => $toInput] : ['period' => $period]));
-        @endphp
+    <div class="reports-metric-row">
+        <div class="owner-kpi">
+            <span class="owner-kpi-label">Total Bookings</span>
+            <div class="owner-kpi-value">{{ number_format($totalBookings) }}</div>
+        </div>
 
-        <div class="report-section">
-            <div class="report-section-head">
-                <h2>Booking Report - Status Breakdown</h2>
-                <a class="section-pdf-btn"
-                    href="{{ route('superadmin.reports.export-pdf', array_merge($pdfBaseParams, ['section' => 'booking'])) }}">Download
-                    PDF</a>
+        <div class="owner-kpi">
+            <span class="owner-kpi-label">Completed Jobs</span>
+            <div class="owner-kpi-value is-positive">{{ number_format($completedCount) }}</div>
+        </div>
+
+        <div class="owner-kpi">
+            <span class="owner-kpi-label">Cancelled Jobs</span>
+            <div class="owner-kpi-value is-negative">{{ number_format($cancelledCount) }}</div>
+        </div>
+
+        <div class="owner-kpi">
+            <span class="owner-kpi-label">Completion Rate</span>
+            <div class="owner-kpi-value">{{ number_format($completionRate, 1) }}%</div>
+        </div>
+
+        <div class="owner-kpi">
+            <span class="owner-kpi-label">Completed Revenue</span>
+            <div class="owner-kpi-value">₱{{ number_format($totalRevenue, 2) }}</div>
+        </div>
+    </div>
+
+    <div class="owner-panel reports-chart-panel">
+        <h2><i data-lucide="trending-up"></i> Bookings Trend</h2>
+        @if (collect($bookingsTrend)->sum('total') > 0)
+            <canvas id="reportsBookingsTrendChart"></canvas>
+        @else
+            <div class="owner-chart-empty">
+                <p>No bookings recorded for this period.</p>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Status</th>
-                        <th class="num">Bookings</th>
-                    </tr>
-                </thead>
-                <tbody>
+        @endif
+    </div>
+
+    <div class="reports-summary-grid">
+        <div class="reports-section reports-section--tight">
+            <h2 class="reports-section-title"><i data-lucide="list-checks"></i> Booking Performance</h2>
+
+            @if ($totalBookings > 0)
+                <div class="reports-table--pipeline">
+                    <div class="reports-table-head">
+                        <span>Status</span>
+                        <span>Jobs</span>
+                        <span>Share</span>
+                    </div>
                     @foreach ($pipeline as $row)
-                        <tr>
-                            <td>{{ $row['label'] }}</td>
-                            <td class="num">
-                                @if (!empty($row['key']) && $row['count'] > 0)
-                                    <a
-                                        href="{{ route(
-                                            'superadmin.reports.bookings',
-                                            array_filter(
-                                                array_merge($filters, [
-                                                    'bucket' => $row['key'],
-                                                    'period' => $period !== 'custom' ? $period : null,
-                                                    'from' => $period === 'custom' ? $fromInput : null,
-                                                    'to' => $period === 'custom' ? $toInput : null,
-                                                ]),
-                                            ),
-                                        ) }}">
-                                        {{ $row['count'] }}
-                                    </a>
+                        <div class="reports-table-row">
+                            <span>{{ $row['label'] }}</span>
+                            <span>
+                                @if (! empty($row['key']) && $row['count'] > 0)
+                                    <a href="{{ route('superadmin.reports.bookings', $bucketLinkParams($row['key'])) }}">{{ $row['count'] }}</a>
                                 @else
                                     {{ $row['count'] }}
                                 @endif
-                            </td>
-                        </tr>
+                            </span>
+                            <span>{{ number_format($row['share'], 1) }}%</span>
+                        </div>
                     @endforeach
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <td>Total Bookings</td>
-                        <td class="num">{{ $totalBookings }}</td>
-                    </tr>
-                </tfoot>
-            </table>
+                </div>
+            @else
+                <p class="owner-empty">No bookings recorded for this period.</p>
+            @endif
         </div>
 
-        <div class="report-section">
-            <div class="report-section-head">
-                <h2>Vehicle Report - Units Used</h2>
-                <a class="section-pdf-btn"
-                    href="{{ route('superadmin.reports.export-pdf', array_merge($pdfBaseParams, ['section' => 'vehicle'])) }}">Download
-                    PDF</a>
+        <div class="reports-section reports-section--tight">
+            <h2 class="reports-section-title"><i data-lucide="banknote"></i> Financial Summary</h2>
+
+            <div class="reports-financial-list">
+                <div class="reports-financial-row">
+                    <span>Completed Revenue</span>
+                    <strong>₱{{ number_format($financial['totalRevenue'], 2) }}</strong>
+                </div>
+                <div class="reports-financial-row">
+                    <span>VAT Collected</span>
+                    <strong>₱{{ number_format($financial['vatCollected'], 2) }}</strong>
+                </div>
+                <div class="reports-financial-row">
+                    <span>Additional Fees</span>
+                    <strong>₱{{ number_format($financial['additionalFees'], 2) }}</strong>
+                </div>
+                <div class="reports-financial-row">
+                    <span>Average Revenue / Job</span>
+                    <strong>₱{{ number_format($financial['averagePerBooking'], 2) }}</strong>
+                </div>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Unit</th>
-                        <th class="num">Trips</th>
-                        <th class="num">Revenue</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($vehicleReport as $row)
-                        <tr>
-                            <td>{{ $row['unit_name'] }}</td>
-                            <td class="num">{{ $row['trips'] }}</td>
-                            <td class="num">&#8369;{{ number_format($row['revenue'], 2) }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="3" class="report-empty">No vehicles dispatched in this range.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <td>{{ $totalVehiclesUsed }} vehicles used</td>
-                        <td class="num">{{ $totalTrips }} trips</td>
-                        <td class="num"></td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
 
-        <div class="report-section">
-            <div class="report-section-head">
-                <h2>Financial Report</h2>
-                <a class="section-pdf-btn"
-                    href="{{ route('superadmin.reports.export-pdf', array_merge($pdfBaseParams, ['section' => 'financial'])) }}">Download
-                    PDF</a>
+            <div class="reports-export-row reports-export-row--bordered">
+                <a class="reports-export-btn" href="{{ route('superadmin.reports.export-pdf', array_merge($pdfBaseParams, ['section' => 'financial'])) }}">
+                    <i data-lucide="file-text"></i> Export Financial PDF
+                </a>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Item</th>
-                        <th class="num">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Additional Fees Collected</td>
-                        <td class="num">&#8369;{{ number_format($financial['additionalFees'], 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td>VAT Collected</td>
-                        <td class="num">&#8369;{{ number_format($financial['vatCollected'], 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Cash Received</td>
-                        <td class="num">&#8369;{{ number_format($financial['cashReceived'], 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Average Revenue per Completed Booking</td>
-                        <td class="num">&#8369;{{ number_format($financial['averagePerBooking'], 2) }}</td>
-                    </tr>
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <td>Total Revenue</td>
-                        <td class="num">&#8369;{{ number_format($financial['totalRevenue'], 2) }}</td>
-                    </tr>
-                </tfoot>
-            </table>
         </div>
+    </div>
 
+    <div class="reports-section">
+        <h2 class="reports-section-title"><i data-lucide="truck"></i> Truck Type Performance</h2>
+
+        @if ($truckTypePerformance->isNotEmpty())
+            <div class="reports-table--truck">
+                <div class="reports-table-head">
+                    <span>Truck Type</span>
+                    <span>Jobs</span>
+                    <span>Completed</span>
+                    <span>Cancelled</span>
+                    <span>Revenue</span>
+                </div>
+                @foreach ($truckTypePerformance as $row)
+                    <div class="reports-table-row">
+                        <span>{{ $row['truck_type_name'] }}</span>
+                        <span>{{ $row['total_jobs'] }}</span>
+                        <span class="reports-status-completed">{{ $row['completed_jobs'] }}</span>
+                        <span class="reports-status-cancelled">{{ $row['cancelled_jobs'] }}</span>
+                        <span>₱{{ number_format($row['revenue'], 2) }}</span>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <p class="owner-empty">No truck type activity recorded for this period.</p>
+        @endif
+    </div>
+
+    <div class="reports-section">
+        <h2 class="reports-section-title"><i data-lucide="trophy"></i> Fleet Performance</h2>
+
+        @if ($fleetPerformance->isNotEmpty())
+            <div class="reports-table--fleet">
+                <div class="reports-table-head">
+                    <span>Unit</span>
+                    <span>Truck Type</span>
+                    <span>Jobs</span>
+                    <span>Completed</span>
+                    <span>Revenue</span>
+                </div>
+                @foreach ($fleetPerformance as $row)
+                    <div class="reports-table-row">
+                        <span>{{ $row['unit_name'] }}</span>
+                        <span>{{ $row['truck_type_name'] }}</span>
+                        <span>{{ $row['total_jobs'] }}</span>
+                        <span class="reports-status-completed">{{ $row['completed_jobs'] }}</span>
+                        <span>₱{{ number_format($row['revenue'], 2) }}</span>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <p class="owner-empty">No fleet activity recorded for this period.</p>
+        @endif
+
+        <div class="reports-export-row">
+            <a class="reports-export-btn" href="{{ route('superadmin.reports.export-pdf', array_merge($pdfBaseParams, ['section' => 'vehicle'])) }}">
+                <i data-lucide="file-text"></i> Export Fleet PDF
+            </a>
+        </div>
+    </div>
+
+    <div class="reports-section">
+        <h2 class="reports-section-title"><i data-lucide="table"></i> Detailed Booking Report</h2>
+
+        <p class="owner-empty" style="padding-top:0;">Full booking-by-booking detail for this reporting period, including customer, truck type, unit, status, and amount.</p>
+
+        <div class="reports-export-row">
+            <a class="reports-detail-link" href="{{ route('superadmin.reports.bookings', array_filter(array_merge($filters, ['period' => ! $customRange ? $period : null, 'from' => $customRange ? $fromInput : null, 'to' => $customRange ? $toInput : null]))) }}">
+                <i data-lucide="table"></i> View Detailed Booking Report
+            </a>
+            <a class="reports-export-btn" href="{{ route('superadmin.reports.export-pdf', array_merge($pdfBaseParams, ['section' => 'booking'])) }}">
+                <i data-lucide="file-text"></i> Export Booking PDF
+            </a>
+            <a class="reports-export-btn" href="{{ route('superadmin.reports.export', $pdfBaseParams) }}">
+                <i data-lucide="download"></i> Export Summary CSV
+            </a>
+        </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggle = document.getElementById('reportsCustomToggle');
+            const form = document.getElementById('reportsRangeForm');
+            if (toggle && form) {
+                toggle.addEventListener('click', function() {
+                    form.hidden = !form.hidden;
+                });
+            }
+
+            const truckSelect = document.getElementById('reportsTruckTypeSelect');
+            const truckHidden = document.getElementById('reportsTruckTypeHidden');
+            if (truckSelect) {
+                truckSelect.addEventListener('change', function() {
+                    const url = new URL(window.location.href);
+                    if (truckSelect.value) {
+                        url.searchParams.set('truck_type_id', truckSelect.value);
+                    } else {
+                        url.searchParams.delete('truck_type_id');
+                    }
+                    if (truckHidden) {
+                        truckHidden.value = truckSelect.value;
+                    }
+                    window.location.href = url.toString();
+                });
+            }
+
+            const canvas = document.getElementById('reportsBookingsTrendChart');
+            if (canvas) {
+                const totals = @json(collect($bookingsTrend)->pluck('total'));
+
+                new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: @json(collect($bookingsTrend)->pluck('label')),
+                        datasets: [{
+                            label: 'Bookings',
+                            data: totals,
+                            borderColor: '#171717',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: false,
+                            pointBackgroundColor: '#facc15',
+                            pointBorderColor: '#facc15',
+                            pointRadius: totals.map(value => value > 0 ? 3 : 0),
+                            pointHoverRadius: totals.map(value => value > 0 ? 5 : 3),
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { stepSize: 1 },
+                                grid: { color: '#f0f0f0' },
+                                border: { display: false },
+                            },
+                            x: {
+                                grid: { display: false },
+                                border: { display: false },
+                                ticks: { autoSkip: true, maxTicksLimit: 10 },
+                            },
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+@endpush

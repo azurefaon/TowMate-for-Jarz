@@ -10,16 +10,13 @@ use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\UnitCrewLoan;
 use App\Models\User;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class UnitController extends Controller
 {
-    // 3 letters + 4 digits, 3 letters + 3 digits, or 2 letters + 5 digits; I and O are excluded (confusable with 1/0).
     private const PLATE_NUMBER_REGEX = '/^(?:[A-HJ-NP-Z]{3}[0-9]{4}|[A-HJ-NP-Z]{3}[0-9]{3}|[A-HJ-NP-Z]{2}[0-9]{5})$/';
     private const PLATE_NUMBER_ERROR = 'Plate number must be 3 letters + 4 digits, 3 letters + 3 digits, or 2 letters + 5 digits, without the letters I or O.';
 
@@ -114,7 +111,7 @@ class UnitController extends Controller
 
     protected function nextUnitName(): string
     {
-        $prefix = 'JARZ'; // TODO: move to System Settings once Content Management exists
+        $prefix = 'JARZ';
 
         $max = Unit::where('name', 'like', $prefix . ' %')
             ->get(['name'])
@@ -158,103 +155,6 @@ class UnitController extends Controller
             ->with('success', 'Unit added successfully.');
     }
 
-    public function assignTeamLeader(Request $request, $id): RedirectResponse
-    {
-        $teamLeaderRoleId = Role::where('name', 'Team Leader')->value('id');
-
-        $validated = $request->validate([
-            'team_leader_id' => [
-                'required',
-                Rule::exists('users', 'id')
-                    ->where(fn($q) => $q->where('role_id', $teamLeaderRoleId)->whereNull('archived_at')->whereNull('anonymized_at')),
-            ],
-        ], [
-            'team_leader_id.required' => 'Select a Team Leader to assign.',
-            'team_leader_id.exists'   => 'Selected team leader is invalid, archived, or deleted.',
-        ]);
-
-        $alreadyAssignedMessage = 'This team leader is already assigned to another unit.';
-
-        // Re-check availability and write inside a locked transaction so two
-        // near-simultaneous assign requests for the same leader can't both
-        // pass the check before either commits (the old bare validation rule
-        // was a check-then-write race). The DB's partial unique index on
-        // units.team_leader_id is the hard backstop if this still races.
-        try {
-            $unit = DB::transaction(function () use ($id, $validated, $alreadyAssignedMessage) {
-                $unit = Unit::lockForUpdate()->findOrFail($id);
-
-                $alreadyTaken = Unit::where('team_leader_id', $validated['team_leader_id'])
-                    ->where('id', '!=', $unit->id)
-                    ->exists();
-
-                if ($alreadyTaken) {
-                    throw new \RuntimeException($alreadyAssignedMessage);
-                }
-
-                $leader = User::find($validated['team_leader_id']);
-
-                $unit->update([
-                    'team_leader_id' => $validated['team_leader_id'],
-                    'driver_name' => build_full_name($leader->driver_first_name, $leader->driver_middle_name, $leader->driver_last_name),
-                    'crew_member_1_name' => $leader->crew_member_1_name,
-                    'crew_member_2_name' => $leader->crew_member_2_name,
-                ]);
-
-                return $unit;
-            });
-        } catch (\RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
-        } catch (QueryException $e) {
-            // Belt-and-suspenders: the DB constraint caught a race the
-            // in-transaction check above somehow missed.
-            if ((string) $e->getCode() === '23505') {
-                return back()->with('error', $alreadyAssignedMessage);
-            }
-
-            throw $e;
-        }
-
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'team_leader_assigned',
-            'entity_type' => 'Unit',
-            'entity_id' => $unit->id,
-            'reference' => $unit->name,
-            'description' => "Team leader assigned to {$unit->name}.",
-        ]);
-
-        return redirect()->route('superadmin.unit-truck.index')
-            ->with('success', "Team leader assigned to {$unit->name}.");
-    }
-
-    public function removeTeamLeader($id): RedirectResponse
-    {
-        $unit = Unit::findOrFail($id);
-        $leaderName = $unit->teamLeader?->full_name ?? $unit->teamLeader?->name;
-
-        $unit->update([
-            'team_leader_id' => null,
-            'driver_name' => null,
-            'crew_member_1_name' => null,
-            'crew_member_2_name' => null,
-        ]);
-
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'team_leader_removed',
-            'entity_type' => 'Unit',
-            'entity_id' => $unit->id,
-            'reference' => $unit->name,
-            'description' => $leaderName
-                ? "{$leaderName} (and crew) removed from {$unit->name}."
-                : "Team leader removed from {$unit->name}.",
-        ]);
-
-        return redirect()->route('superadmin.unit-truck.index')
-            ->with('success', "Team leader and crew removed from {$unit->name}.");
-    }
-
     public function update(Request $request, $id)
     {
         $unit = Unit::findOrFail($id);
@@ -288,6 +188,10 @@ class UnitController extends Controller
     public function toggle($id)
     {
         $unit = Unit::findOrFail($id);
+
+        if ($unit->status === 'on_job') {
+            return back()->with('error', 'This truck cannot be placed under maintenance while it is assigned to an active job.');
+        }
 
         $nextStatus = $unit->status === 'maintenance' ? 'available' : 'maintenance';
 
@@ -381,106 +285,4 @@ class UnitController extends Controller
             ->with('success', 'Unit permanently deleted.');
     }
 
-    public function borrowCrew(Request $request, Unit $unit): RedirectResponse
-    {
-        $validated = $request->validate([
-            'from_unit_id' => ['required', 'exists:units,id', Rule::notIn([$unit->id])],
-            'from_slot' => ['required', Rule::in(array_keys(Unit::SLOT_COLUMNS))],
-            'to_slot' => ['required', Rule::in(array_keys(Unit::SLOT_COLUMNS))],
-        ], [
-            'from_unit_id.not_in' => 'Cannot assign crew from the same unit.',
-        ]);
-
-        $slotType = fn(string $slot) => str_starts_with($slot, 'driver_') ? 'driver' : 'crew_member';
-
-        if ($slotType($validated['from_slot']) !== $slotType($validated['to_slot'])) {
-            return back()->with('error', 'You can only assign a Driver into a Driver slot, or a Crew Member into a Crew Member slot.');
-        }
-
-        $fromUnit = Unit::findOrFail($validated['from_unit_id']);
-        $fromColumn = Unit::SLOT_COLUMNS[$validated['from_slot']];
-        $toColumn = Unit::SLOT_COLUMNS[$validated['to_slot']];
-
-        if ($validated['to_slot'] === 'driver_1' && $unit->driver_id) {
-            return back()->with('error', 'Driver 1 already has a linked account assigned. Unassign it first before assigning.');
-        }
-
-        if ($validated['from_slot'] === 'driver_1' && $fromUnit->driver_id) {
-            return back()->with('error', 'That unit\'s Driver 1 is a linked account, not a free-text name, and cannot be assigned.');
-        }
-
-        if (filled($unit->{$toColumn})) {
-            return back()->with('error', 'That slot is already filled. Clear it first before assigning.');
-        }
-
-        if (blank($fromUnit->{$fromColumn})) {
-            return back()->with('error', 'The selected source slot is empty.');
-        }
-
-        if ($fromUnit->activeLoanOut($validated['from_slot'])) {
-            return back()->with('error', 'That person is already on transfer to another unit.');
-        }
-
-        if ($fromUnit->status !== 'available') {
-            return back()->with('error', 'Cannot assign crew from a unit that is currently on a job or in maintenance.');
-        }
-
-        if ($fromUnit->activeLoansIn()->has($validated['from_slot'])) {
-            return back()->with('error', 'This person is already on loan from another unit and cannot be assigned again.');
-        }
-
-        $personName = $fromUnit->{$fromColumn};
-
-        $fromUnit->update([$fromColumn => null]);
-        $unit->update([$toColumn => $personName]);
-
-        $loan = UnitCrewLoan::create([
-            'from_unit_id' => $fromUnit->id,
-            'to_unit_id' => $unit->id,
-            'from_slot' => $validated['from_slot'],
-            'to_slot' => $validated['to_slot'],
-            'person_name' => $personName,
-            'borrowed_at' => now(),
-            'created_by' => Auth::id(),
-        ]);
-
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'crew_borrowed',
-            'entity_type' => 'Unit',
-            'entity_id' => $unit->id,
-            'reference' => $personName,
-            'description' => "{$personName} assigned from {$fromUnit->name} to {$unit->name}.",
-        ]);
-
-        return back()->with('success', "{$personName} assigned from {$fromUnit->name}.");
-    }
-
-    public function returnCrew(UnitCrewLoan $loan): RedirectResponse
-    {
-        if ($loan->returned_at) {
-            return back()->with('error', 'This transfer has already been returned.');
-        }
-
-        $fromUnit = $loan->fromUnit;
-        $toUnit = $loan->toUnit;
-        $fromColumn = Unit::SLOT_COLUMNS[$loan->from_slot];
-        $toColumn = Unit::SLOT_COLUMNS[$loan->to_slot];
-
-        $fromUnit->update([$fromColumn => $loan->person_name]);
-        $toUnit->update([$toColumn => null]);
-
-        $loan->update(['returned_at' => now()]);
-
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'crew_returned',
-            'entity_type' => 'Unit',
-            'entity_id' => $toUnit->id,
-            'reference' => $loan->person_name,
-            'description' => "{$loan->person_name} returned from {$toUnit->name} to {$fromUnit->name}.",
-        ]);
-
-        return back()->with('success', "{$loan->person_name} returned to {$fromUnit->name}.");
-    }
 }

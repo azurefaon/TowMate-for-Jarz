@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Operations Overview')
+@section('title', 'Operations Monitor')
 
 @push('styles')
     <style>
@@ -405,7 +405,7 @@
     <div class="monitor-shell">
         <section class="monitor-hero">
             <div>
-                <h1>Operations Overview</h1>
+                <h1>Operations Monitor</h1>
                 <p>Keep an eye on bookings, dispatcher activity, and team leader progress all in one place.</p>
             </div>
             <div class="monitor-sync" id="monitorLastSync">Live sync ready</div>

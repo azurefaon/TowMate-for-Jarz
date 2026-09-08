@@ -222,6 +222,7 @@ Route::prefix('superadmin')
     ->middleware(['auth', 'role:1', 'force.password.change'])
     ->group(function () {
         Route::get('/dashboard', [SuperAdminController::class, 'index'])->name('dashboard');
+        Route::get('/revenue', [ReportsController::class, 'revenue'])->name('revenue.index');
         Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
         Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
         Route::get('/reports/export-pdf', [ReportsController::class, 'exportSummaryPdf'])->name('reports.export-pdf');
@@ -284,14 +285,9 @@ Route::prefix('superadmin')
         Route::post('/units', [UnitController::class, 'store'])->name('units.store');
         Route::put('/units/{id}', [UnitController::class, 'update'])->name('units.update');
         Route::patch('/units/{id}/toggle',       [UnitController::class, 'toggle'])->name('units.toggle');
-        Route::patch('/units/{id}/disable',      [UnitController::class, 'disable'])->name('units.disable');
         Route::patch('/units/{id}/archive',      [UnitController::class, 'archive'])->name('units.archive');
         Route::patch('/units/{id}/restore',      [UnitController::class, 'restore'])->name('units.restore');
-        Route::patch('/units/{id}/assign-team-leader', [UnitController::class, 'assignTeamLeader'])->name('units.assign-team-leader');
-        Route::patch('/units/{id}/remove-team-leader', [UnitController::class, 'removeTeamLeader'])->name('units.remove-team-leader');
         Route::delete('/units/{id}/force-delete', [UnitController::class, 'forceDelete'])->name('units.force-delete');
-        Route::post('/units/{unit}/borrow-crew', [UnitController::class, 'borrowCrew'])->name('units.borrow-crew');
-        Route::patch('/unit-crew-loans/{loan}/return', [UnitController::class, 'returnCrew'])->name('unit-crew-loans.return');
 
         Route::get('/bookings', [SuperAdminBookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{id}', [SuperAdminBookingController::class, 'show'])->name('bookings.show');

@@ -1,0 +1,437 @@
+.reporting-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.reporting-toolbar-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #525252;
+}
+
+.reporting-controls-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.reporting-period-group {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.reporting-period-group a,
+.reporting-period-group button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #171717;
+    background: #ffffff;
+    border: 1px solid #171717;
+    border-radius: 4px;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.reporting-period-group svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
+.reporting-period-group a:hover,
+.reporting-period-group button:hover {
+    background: #171717;
+    color: #ffffff;
+}
+
+.reporting-period-group a.active,
+.reporting-period-group button.active {
+    background: #facc15;
+    color: #171717;
+    border-color: #171717;
+    font-weight: 600;
+}
+
+.reporting-period-group a:focus-visible,
+.reporting-period-group button:focus-visible {
+    outline: 2px solid #171717;
+    outline-offset: 2px;
+}
+
+.reporting-truck-select {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    color: #171717;
+    background: #ffffff;
+    border: 1px solid #171717;
+    border-radius: 4px;
+}
+
+.reporting-truck-select:focus-visible {
+    outline: 2px solid #171717;
+    outline-offset: 2px;
+}
+
+.reporting-range-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.reporting-range-form[hidden] {
+    display: none;
+}
+
+.reporting-range-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #525252;
+}
+
+.reporting-range-form input[type="date"] {
+    border: 1px solid #171717;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+    color: #171717;
+    background: #ffffff;
+    border-radius: 4px;
+}
+
+.reporting-range-form input[type="date"]:focus-visible {
+    outline: 2px solid #171717;
+    outline-offset: 2px;
+}
+
+.reporting-apply-btn {
+    padding: 7px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #ffffff;
+    background: #171717;
+    border: 1px solid #171717;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.reporting-apply-btn:hover {
+    background: #000000;
+}
+
+.reporting-apply-btn:focus-visible {
+    outline: 2px solid #171717;
+    outline-offset: 2px;
+}
+
+.reports-metric-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 24px 32px;
+    margin-bottom: 40px;
+}
+
+.reports-metric-row .owner-kpi-value.is-positive {
+    color: #15803d;
+}
+
+.reports-metric-row .owner-kpi-value.is-negative {
+    color: #b91c1c;
+}
+
+.reports-chart-panel {
+    margin-bottom: 40px;
+}
+
+.reports-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 18px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #171717;
+}
+
+.reports-section {
+    margin-bottom: 44px;
+}
+
+.reports-section--tight {
+    margin-bottom: 0;
+}
+
+.reports-section-title svg,
+.owner-panel h2 svg {
+    width: 17px;
+    height: 17px;
+    color: #171717;
+    flex-shrink: 0;
+}
+
+.owner-panel h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reports-summary-grid {
+    display: grid;
+    grid-template-columns: 1.85fr 1fr;
+    gap: 56px;
+    margin-bottom: 44px;
+}
+
+.reports-table-head,
+.reports-table-row {
+    display: grid;
+    align-items: baseline;
+}
+
+.reports-table-head {
+    padding-bottom: 8px;
+    border-bottom: 1px solid #a3a3a3;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #525252;
+}
+
+.reports-table-row {
+    padding: 9px 0;
+    border-bottom: 1px solid #d4d4d4;
+    font-size: 0.88rem;
+    color: #171717;
+}
+
+.reports-table-row:last-child {
+    border-bottom: none;
+}
+
+.reports-table-row a {
+    color: #171717;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.reports-table-row a:hover,
+.reports-table-row a:focus-visible {
+    text-decoration: underline;
+}
+
+.reports-table-row a:focus-visible {
+    outline: 2px solid #171717;
+    outline-offset: 2px;
+}
+
+.reports-table-head span:not(:first-child),
+.reports-table-row span:not(:first-child) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.reports-table--pipeline .reports-table-head,
+.reports-table--pipeline .reports-table-row {
+    grid-template-columns: 1fr 70px 70px;
+    column-gap: 20px;
+    max-width: 420px;
+}
+
+.reports-table--truck {
+    max-width: 760px;
+}
+
+.reports-table--truck .reports-table-head,
+.reports-table--truck .reports-table-row {
+    grid-template-columns: 1.5fr 70px 90px 90px 120px;
+    column-gap: 16px;
+}
+
+.reports-table--fleet {
+    max-width: 880px;
+}
+
+.reports-table--fleet .reports-table-head,
+.reports-table--fleet .reports-table-row {
+    grid-template-columns: 1.4fr 1.1fr 70px 90px 120px;
+    column-gap: 16px;
+}
+
+.reports-status-completed {
+    color: #15803d;
+}
+
+.reports-status-cancelled {
+    color: #b91c1c;
+}
+
+.reports-financial-list {
+    max-width: 360px;
+}
+
+.reports-financial-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    padding: 9px 0;
+    border-bottom: 1px solid #d4d4d4;
+    font-size: 0.88rem;
+    color: #171717;
+    font-variant-numeric: tabular-nums;
+}
+
+.reports-financial-row:last-child {
+    border-bottom: none;
+}
+
+.reports-financial-row strong {
+    font-weight: 600;
+}
+
+.reports-export-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.reports-export-row--bordered {
+    padding-top: 16px;
+    border-top: 1px solid #d4d4d4;
+}
+
+.reports-export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #171717;
+    background: #ffffff;
+    border: 1px solid #171717;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+.reports-export-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.reports-export-btn:hover {
+    background: #171717;
+    color: #ffffff;
+}
+
+.reports-export-btn:focus-visible {
+    outline: 2px solid #171717;
+    outline-offset: 2px;
+}
+
+.reports-detail-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #ffffff;
+    background: #171717;
+    border: 1px solid #171717;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+.reports-detail-link svg {
+    width: 15px;
+    height: 15px;
+}
+
+.reports-detail-link:hover {
+    background: #000000;
+}
+
+.reports-detail-link:focus-visible {
+    outline: 2px solid #171717;
+    outline-offset: 2px;
+}
+
+#reportsBookingsTrendChart {
+    max-height: 220px;
+}
+
+@media (max-width: 1200px) {
+    .reports-metric-row {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .page-top.reports-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .reporting-toolbar {
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .reports-summary-grid {
+        grid-template-columns: 1fr;
+        gap: 40px;
+    }
+
+    .reports-section--tight {
+        margin-bottom: 40px;
+    }
+
+    .reports-section--tight:last-child {
+        margin-bottom: 0;
+    }
+
+    .reports-table--truck,
+    .reports-table--fleet {
+        max-width: none;
+        overflow-x: auto;
+    }
+
+    .reports-table--truck .reports-table-head,
+    .reports-table--truck .reports-table-row {
+        min-width: 620px;
+    }
+
+    .reports-table--fleet .reports-table-head,
+    .reports-table--fleet .reports-table-row {
+        min-width: 680px;
+    }
+}
+
+@media (max-width: 640px) {
+    .reports-metric-row {
+        grid-template-columns: 1fr;
+    }
+
+    .reporting-period-group {
+        flex-wrap: wrap;
+    }
+
+    .reporting-range-form {
+        flex-wrap: wrap;
+    }
+}

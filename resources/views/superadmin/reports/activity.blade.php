@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Activity Log')
+@section('title', 'Business Activity')
 
 @push('styles')
     <style>
@@ -191,8 +191,7 @@
 @section('content')
     <div class="reports-page">
 
-        <h1>Reports</h1>
-        {{-- <p class="subtitle">Every logged action - who, what changed, and when.</p> --}}
+        <h1>Business Activity</h1>
 
         <div class="reports-tabs">
             <a href="{{ route('superadmin.reports.index') }}">Summary</a>

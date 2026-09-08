@@ -3,17 +3,20 @@
 @section('title', 'Archived Units')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('admin/css/unit-truck.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin/css/unit-truck.css') }}?v={{ filemtime(public_path('admin/css/unit-truck.css')) }}">
 @endpush
 
 @section('content')
-    <div class="units-page archived-page">
+    <div class="units-page archived-page" data-base-url="{{ url('/superadmin/units') }}">
         <div class="page-top">
             <div>
                 <h1>Archived Units</h1>
-                <p>Units moved out of the active fleet. Restore them back into service or delete them permanently.</p>
+                <p>View trucks removed from the active fleet. Restore them when needed or permanently remove archived records.</p>
             </div>
-            <a href="{{ route('superadmin.unit-truck.index') }}" class="btn-light">Back to Truck</a>
+            <a href="{{ route('superadmin.unit-truck.index') }}" class="u-back-btn">
+                <i data-lucide="arrow-left"></i>
+                Back to Trucks
+            </a>
         </div>
 
         @if (session('success'))
@@ -23,40 +26,53 @@
             <div class="type-feedback type-feedback--error" id="unitsErrorAlert">{{ session('error') }}</div>
         @endif
 
-        <div class="table-card">
-            <div class="table-header">
-                <form method="GET" class="table-controls">
-                    <label class="search-box">
-                        <input type="text" name="search" value="{{ request('search') }}"
-                            placeholder="Search by unit or plate...">
-                    </label>
-                    <button type="submit" class="btn-light">Search</button>
-                </form>
+        <div class="u-toolbar">
+            <form method="GET" class="u-toolbar-left">
+                <div class="search-box">
+                    <i data-lucide="search"></i>
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Search by unit or plate...">
+                </div>
+                <button type="submit" class="u-search-btn">Search</button>
+            </form>
 
-                <span class="table-count">{{ $archivedUnits->total() }} archived units</span>
+            <div class="u-toolbar-right">
+                <span class="u-archived-count">
+                    <span class="u-archived-count-label">Archived trucks</span>
+                    <span class="u-archived-count-value">{{ $archivedUnits->total() }} record{{ $archivedUnits->total() === 1 ? '' : 's' }}</span>
+                </span>
             </div>
+        </div>
 
+        <div class="table-card">
             <div class="table-scroll">
                 <table class="modern-table">
                     <thead>
                         <tr>
                             <th>Unit</th>
                             <th>Plate</th>
-                            <th>Team Leader</th>
                             <th>Truck Type</th>
-                            <th>Archived</th>
-                            <th></th>
+                            <th>Team Leader</th>
+                            <th>Archived Date</th>
+                            <th class="u-actions-col"></th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($archivedUnits as $unit)
                             <tr>
                                 <td data-label="Unit">
-                                    <span class="unit-name">{{ $unit->name }}</span>
+                                    <span class="cell-main">{{ $unit->name }}</span>
                                 </td>
 
                                 <td data-label="Plate">
-                                    <span class="plate-badge">{{ strtoupper($unit->plate_number) }}</span>
+                                    <span class="cell-main">{{ strtoupper($unit->plate_number) }}</span>
+                                </td>
+
+                                <td data-label="Truck Type">
+                                    @if ($unit->truckType)
+                                        <span class="cell-main">{{ $unit->truckType->name }}</span>
+                                    @else
+                                        <span class="not-assigned">-</span>
+                                    @endif
                                 </td>
 
                                 <td data-label="Team Leader">
@@ -70,46 +86,55 @@
                                     @if ($leaderName)
                                         <span class="cell-main">{{ $leaderName }}</span>
                                         @if ($leaderInvalid)
-                                            <br>
-                                            <small class="unit-warning" title="This person's account is not an active Team Leader.">
-                                                ⚠ not a Team Leader
-                                            </small>
+                                            <span class="cell-sub" title="This person's account is not an active Team Leader.">&#9888; not a Team Leader</span>
                                         @endif
                                     @else
                                         <span class="not-assigned">-</span>
                                     @endif
                                 </td>
 
-                                <td data-label="Truck Type">
-                                    @if ($unit->truckType)
-                                        <span class="truck-badge">{{ $unit->truckType->name }}</span>
+                                <td data-label="Archived Date">
+                                    @if ($unit->archived_at)
+                                        <span class="cell-main">{{ $unit->archived_at->format('M j, Y') }}</span>
+                                        <span class="cell-sub">{{ $unit->archived_at->format('g:i A') }}</span>
                                     @else
                                         <span class="not-assigned">-</span>
                                     @endif
                                 </td>
 
-                                <td data-label="Archived">
-                                    {{ optional($unit->archived_at)->format('M d, Y h:i A') ?? '-' }}
-                                </td>
+                                <td data-label="Actions" class="u-actions-col">
+                                    <div class="u-menu">
+                                        <button type="button" class="u-menu-trigger" aria-haspopup="menu"
+                                            aria-expanded="false" aria-label="Actions for {{ $unit->name }}">
+                                            <i data-lucide="more-vertical"></i>
+                                        </button>
 
-                                <td data-label="Action">
-                                    <div class="row-actions">
-                                        <form method="POST" action="{{ route('superadmin.units.restore', $unit->id) }}">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="action-btn restore-btn">Restore</button>
-                                        </form>
+                                        <div class="u-menu-dropdown" role="menu">
+                                            <form method="POST" class="u-menu-form"
+                                                action="{{ route('superadmin.units.restore', $unit->id) }}">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="u-menu-item u-menu-item--positive" role="menuitem">
+                                                    <i data-lucide="archive-restore"></i>
+                                                    <span>Restore Unit</span>
+                                                </button>
+                                            </form>
 
-                                        <form method="POST"
-                                            action="{{ route('superadmin.units.force-delete', $unit->id) }}"
-                                            class="js-confirm-delete"
-                                            data-confirm-title="Delete this unit permanently?"
-                                            data-confirm-message="This cannot be undone. Units with booking history cannot be deleted."
-                                            data-confirm-button="Delete Permanently">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="action-btn archive-btn">Delete</button>
-                                        </form>
+                                            <div class="u-menu-divider"></div>
+
+                                            <form method="POST" class="u-menu-form js-confirm-delete"
+                                                action="{{ route('superadmin.units.force-delete', $unit->id) }}"
+                                                data-confirm-title="Delete this archived truck permanently?"
+                                                data-confirm-message="This action cannot be undone. Units with booking history cannot be deleted."
+                                                data-confirm-button="Delete Permanently">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="u-menu-item u-menu-item--danger" role="menuitem">
+                                                    <i data-lucide="trash-2"></i>
+                                                    <span>Delete Permanently</span>
+                                                </button>
+                                            </form>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -117,8 +142,9 @@
                             <tr>
                                 <td colspan="6">
                                     <div class="empty-state">
-                                        <h3>No archived units</h3>
-                                        <p>Units you archive from the Truck tab will appear here.</p>
+                                        <i data-lucide="archive" class="empty-state-icon"></i>
+                                        <h3>No archived trucks</h3>
+                                        <p>Trucks archived from the active fleet will appear here.</p>
                                     </div>
                                 </td>
                             </tr>
@@ -146,9 +172,9 @@
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('admin/js/unit-truck.js') }}?v={{ filemtime(public_path('admin/js/unit-truck.js')) }}" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Auto-hide success/error banners after 3 seconds
             ['unitsSuccessAlert', 'unitsErrorAlert'].forEach((id) => {
                 const alertEl = document.getElementById(id);
                 if (!alertEl) return;

@@ -4,7 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
-use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
@@ -15,10 +15,36 @@ class BookingController extends Controller
             'search' => trim((string) $request->input('search', '')),
             'status' => (string) $request->input('status', ''),
             'period' => (string) $request->input('period', 'today'),
+            'from' => (string) $request->input('from', ''),
+            'to' => (string) $request->input('to', ''),
         ];
 
-        if (! in_array($filters['period'], ['today', 'week', 'month'], true)) {
-            $filters['period'] = 'today';
+        $customRange = false;
+        $periodStart = null;
+        $periodEnd = null;
+
+        if ($filters['from'] !== '' && $filters['to'] !== '') {
+            try {
+                $start = Carbon::parse($filters['from'])->startOfDay();
+                $end = Carbon::parse($filters['to'])->endOfDay();
+
+                if ($start->lte($end) && $start->diffInDays($end) <= 366) {
+                    $periodStart = $start;
+                    $periodEnd = $end;
+                    $customRange = true;
+                    $filters['period'] = 'custom';
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        if (! $customRange) {
+            if (! in_array($filters['period'], ['today', 'week', 'month'], true)) {
+                $filters['period'] = 'today';
+            }
+
+            $filters['from'] = '';
+            $filters['to'] = '';
         }
 
         $query = Booking::with([
@@ -45,25 +71,23 @@ class BookingController extends Controller
             }
         }
 
-        $periodStart = match ($filters['period']) {
-            'week' => now()->subDays(6)->startOfDay(),
-            'month' => now()->subDays(29)->startOfDay(),
-            default => today()->startOfDay(),
-        };
+        if (! $customRange) {
+            $periodStart = match ($filters['period']) {
+                'week' => now()->subDays(6)->startOfDay(),
+                'month' => now()->subDays(29)->startOfDay(),
+                default => today()->startOfDay(),
+            };
 
-        $periodEnd = now()->endOfDay();
+            $periodEnd = now()->endOfDay();
+        }
 
-        $periodLabel = match ($filters['period']) {
-            'week' => 'This Week',
-            'month' => 'This Month',
-            default => 'Today',
-        };
-
-        $periodDescription = match ($filters['period']) {
-            'week' => 'Showing bookings from the last 7 days.',
-            'month' => 'Showing bookings from the last 30 days.',
-            default => 'Showing only today\'s bookings.',
-        };
+        $rangeLabel = $customRange
+            ? $periodStart->format('M j, Y') . ' – ' . $periodEnd->format('M j, Y')
+            : match ($filters['period']) {
+                'week' => 'This Week',
+                'month' => 'Last 30 Days',
+                default => 'Today',
+            };
 
         $query->whereBetween('created_at', [$periodStart, $periodEnd]);
         $statsQuery->whereBetween('created_at', [$periodStart, $periodEnd]);
@@ -77,6 +101,8 @@ class BookingController extends Controller
                 $query->whereIn('status', ['scheduled', 'scheduled_confirmed']);
             } elseif ($filters['status'] === 'returned') {
                 $query->whereNotNull('returned_at');
+            } elseif ($filters['status'] === 'needs_attention') {
+                $query->whereIn('status', ['requested', 'reviewed']);
             } else {
                 $query->where('status', $filters['status']);
             }
@@ -91,7 +117,7 @@ class BookingController extends Controller
 
         $bookings = $query->latest()->paginate(10)->withQueryString();
 
-        return view('superadmin.bookings.index', compact('bookings', 'filters', 'stats', 'periodLabel', 'periodDescription'));
+        return view('superadmin.bookings.index', compact('bookings', 'filters', 'stats', 'rangeLabel'));
     }
 
     public function show($id)
@@ -130,31 +156,4 @@ class BookingController extends Controller
         ]);
     }
 
-    public function store(Request $request)
-    {
-        $customer = Auth::user()->customer;
-        $admin = \App\Models\User::where('role_id', 1)->first();
-
-        $truck = \App\Models\TruckType::findOrFail($request->truck_type_id);
-
-        $distanceKm = (float) ($request->distance_km ?? 0);
-        $kmIncrements = (int) floor($distanceKm / 4);
-        $distanceCost = round($kmIncrements * 200.0, 2);
-        $total = $distanceCost;
-
-        Booking::create([
-            'customer_id' => $customer->id,
-            'truck_type_id' => $truck->id,
-            'pickup_address' => $request->pickup_address,
-            'dropoff_address' => $request->dropoff_address,
-            'distance_km' => $distanceKm,
-            'base_rate' => 0,
-            'per_km_rate' => 0,
-            'final_total' => $total,
-            'status' => 'requested',
-            'created_by_admin_id' => $admin->id,
-        ]);
-
-        return back();
-    }
 }
