@@ -297,6 +297,46 @@ it('keeps pagination rendering when results exceed one page', function () {
     $response->assertSee('pagination-wrapper', false);
 });
 
+it('renders the standardized owner pagination footer with an active page and results summary', function () {
+    for ($i = 0; $i < 12; $i++) {
+        vtVehicleType();
+    }
+
+    $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index'));
+
+    $response->assertOk();
+    $response->assertSee('owner-pagination', false);
+    $response->assertSee('is-active', false);
+    $response->assertSee('aria-current="page"', false);
+    $response->assertSee('Showing 1', false);
+});
+
+it('loads page two of vehicle types and updates the results summary', function () {
+    for ($i = 0; $i < 12; $i++) {
+        vtVehicleType();
+    }
+
+    $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index', ['page' => 2]));
+
+    $response->assertOk();
+    $response->assertSee('Showing 11', false);
+});
+
+it('preserves the category and status filters inside the pagination links', function () {
+    for ($i = 0; $i < 12; $i++) {
+        vtVehicleType(['category' => '2_wheeler', 'status' => 'active']);
+    }
+
+    $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index', [
+        'category' => '2_wheeler',
+        'status' => 'active',
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('category=2_wheeler', false);
+    $response->assertSee('status=active', false);
+});
+
 it('renders a compact empty state distinguishing filtered from genuinely empty results', function () {
     $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index'));
 

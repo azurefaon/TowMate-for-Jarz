@@ -4,6 +4,10 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\MobileAnnouncement;
+use App\Models\MobileCoverageArea;
+use App\Models\MobileHowItWorksStep;
+use App\Models\MobileService;
 use App\Models\SystemSetting;
 use App\Models\LandingSetting;
 use App\Models\Role;
@@ -13,8 +17,6 @@ class SystemSettingsController extends Controller
 {
     public function index()
     {
-
-        // $settings = SystemSetting::pluck('setting_value', 'setting_key');
         $landing = LandingSetting::first();
         $settings = SystemSetting::pluck('value', 'key');
         $teamLeaderRole = Role::query()->where('name', 'Team Leader')->first();
@@ -23,7 +25,15 @@ class SystemSettingsController extends Controller
             ? User::query()->where('role_id', $teamLeaderRole->id)->whereNull('archived_at')->count()
             : 0;
 
-        return view('superadmin.settings.index', compact('settings', 'landing', 'teamLeaderLimit', 'teamLeaderCount'));
+        $mobileAnnouncements = MobileAnnouncement::latest('id')->get();
+        $mobileServices = MobileService::orderBy('display_order')->orderBy('id')->get();
+        $mobileHowItWorksSteps = MobileHowItWorksStep::orderBy('display_order')->orderBy('id')->get();
+        $mobileCoverageAreas = MobileCoverageArea::orderBy('display_order')->orderBy('id')->get();
+
+        return view('superadmin.settings.index', compact(
+            'settings', 'landing', 'teamLeaderLimit', 'teamLeaderCount',
+            'mobileAnnouncements', 'mobileServices', 'mobileHowItWorksSteps', 'mobileCoverageAreas'
+        ));
     }
 
     public function update(Request $request)
@@ -50,7 +60,7 @@ class SystemSettingsController extends Controller
             SystemSetting::setValue($key, $value);
         }
 
-        return back()->with('success');
+        return back()->with('success', 'Business settings updated successfully.');
     }
 
     public function uploadApk(Request $request)

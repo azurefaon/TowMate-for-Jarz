@@ -333,3 +333,39 @@ it('keeps Cancel and Add Truck actions present in the modal footer', function ()
     $response->assertSee('data-close-modal="addUnitModal">Cancel</button>', false);
     $response->assertSee('data-lucide="plus"></i>', false);
 });
+
+it('renders the results summary and loads page two of trucks when enough units exist', function () {
+    $owner = trucksOwner();
+
+    for ($i = 0; $i < 15; $i++) {
+        trucksUnit();
+    }
+
+    $page1 = $this->actingAs($owner)->get(route('superadmin.unit-truck.index'));
+    $page2 = $this->actingAs($owner)->get(route('superadmin.unit-truck.index', ['page' => 2]));
+
+    $page1->assertOk();
+    $page2->assertOk();
+    $page1->assertSee('Showing 1', false);
+    $page2->assertSee('Showing 11', false);
+});
+
+it('keeps trucks ordered newest first across paginated pages', function () {
+    $owner = trucksOwner();
+
+    $oldest = trucksUnit();
+    $oldest->forceFill(['created_at' => now()->subDays(2)])->save();
+
+    for ($i = 0; $i < 9; $i++) {
+        trucksUnit();
+    }
+
+    $newest = trucksUnit();
+    $newest->forceFill(['created_at' => now()->addMinute()])->save();
+
+    $response = $this->actingAs($owner)->get(route('superadmin.unit-truck.index'));
+
+    $response->assertOk();
+    $response->assertSee($newest->name);
+    $response->assertDontSee($oldest->name);
+});

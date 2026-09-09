@@ -34,6 +34,7 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\PublicTrackController;
 
 use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingController;
+use App\Http\Controllers\SuperAdmin\CustomerAppContentController;
 use App\Http\Controllers\SuperAdmin\DataProtectionController;
 use App\Http\Controllers\SuperAdmin\MonitoringController;
 use App\Http\Controllers\SuperAdmin\ReportsController;
@@ -296,6 +297,31 @@ Route::get('/settings', [SystemSettingsController::class, 'index'])->name('setti
         Route::post('/settings/update', [SystemSettingsController::class, 'update'])->name('settings.update');
         Route::post('/settings/landing', [SystemSettingsController::class, 'updateLanding'])->name('settings.landing.update');
         Route::post('/settings/upload-apk', [SystemSettingsController::class, 'uploadApk'])->name('settings.upload-apk');
+
+        // Customer App Content — lives inside System Settings (no separate sidebar entry).
+        Route::prefix('settings/customer-content')->name('settings.customer-content.')->group(function () {
+            Route::post('/announcements', [CustomerAppContentController::class, 'announcementStore'])->name('announcements.store');
+            Route::patch('/announcements/{announcement}', [CustomerAppContentController::class, 'announcementUpdate'])->name('announcements.update');
+            Route::patch('/announcements/{announcement}/toggle', [CustomerAppContentController::class, 'announcementToggle'])->name('announcements.toggle');
+
+            Route::post('/services', [CustomerAppContentController::class, 'serviceStore'])->name('services.store');
+            Route::patch('/services/{service}', [CustomerAppContentController::class, 'serviceUpdate'])->name('services.update');
+            Route::patch('/services/{service}/toggle', [CustomerAppContentController::class, 'serviceToggle'])->name('services.toggle');
+            Route::patch('/services/{service}/move', [CustomerAppContentController::class, 'serviceMove'])->name('services.move');
+
+            Route::post('/how-it-works', [CustomerAppContentController::class, 'howItWorksStore'])->name('how-it-works.store');
+            Route::patch('/how-it-works/{step}', [CustomerAppContentController::class, 'howItWorksUpdate'])->name('how-it-works.update');
+            Route::patch('/how-it-works/{step}/toggle', [CustomerAppContentController::class, 'howItWorksToggle'])->name('how-it-works.toggle');
+            Route::patch('/how-it-works/{step}/move', [CustomerAppContentController::class, 'howItWorksMove'])->name('how-it-works.move');
+
+            Route::post('/coverage-areas', [CustomerAppContentController::class, 'coverageAreaStore'])->name('coverage-areas.store');
+            Route::patch('/coverage-areas/{coverageArea}', [CustomerAppContentController::class, 'coverageAreaUpdate'])->name('coverage-areas.update');
+            Route::patch('/coverage-areas/{coverageArea}/toggle', [CustomerAppContentController::class, 'coverageAreaToggle'])->name('coverage-areas.toggle');
+            Route::patch('/coverage-areas/{coverageArea}/move', [CustomerAppContentController::class, 'coverageAreaMove'])->name('coverage-areas.move');
+
+            Route::post('/about', [CustomerAppContentController::class, 'aboutUpdate'])->name('about.update');
+            Route::post('/support', [CustomerAppContentController::class, 'supportUpdate'])->name('support.update');
+        });
 
         Route::get('/dashboard-stats', function () {
             $todayBookings  = \App\Models\Booking::whereDate('created_at', today())->count();

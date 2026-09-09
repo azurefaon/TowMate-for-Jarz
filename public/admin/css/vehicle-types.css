@@ -383,50 +383,88 @@
 }
 
 .vc-page .pagination-wrapper {
-    padding: 16px 18px 18px;
-    display: flex;
-    justify-content: center;
+    background: #ffffff;
+    border-top: 1px solid #e5e5e5;
+    padding: 12px 14px;
 }
 
-.vc-page .pagination-wrapper nav ul {
+.vc-page .owner-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.vc-page .owner-pagination-summary {
+    font-size: 14px;
+    font-weight: 400;
+    color: #737373;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.vc-page .owner-pagination-controls {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
     gap: 6px;
     list-style: none;
     margin: 0;
     padding: 0;
+    flex-wrap: wrap;
 }
 
-.vc-page .pagination-wrapper nav ul li a,
-.vc-page .pagination-wrapper nav ul li span {
+.vc-page .owner-pagination-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-width: 34px;
     height: 34px;
     padding: 0 10px;
-    border-radius: 6px;
-    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    border: 1px solid #d4d4d4;
     background: #ffffff;
     color: #171717;
     text-decoration: none;
-    font-size: 0.82rem;
+    font-size: 13px;
+    white-space: nowrap;
 }
 
-.vc-page .pagination-wrapper nav ul li a:hover {
+.vc-page a.owner-pagination-btn:hover {
     background: #f5f5f5;
+    border-color: #a3a3a3;
 }
 
-.vc-page .pagination-wrapper nav ul li span[aria-current="page"] {
-    background: #facc15;
+.vc-page a.owner-pagination-btn:focus-visible {
+    outline: 2px solid #171717;
+    outline-offset: 2px;
+}
+
+.vc-page .owner-pagination-btn.is-active {
+    background: #171717;
     border-color: #171717;
-    color: #171717;
-    font-weight: 600;
+    color: #ffffff;
 }
 
-.vc-page .pagination-wrapper nav ul li span:not([aria-current="page"]) {
+.vc-page .owner-pagination-btn.is-disabled {
+    background: #f5f5f5;
+    border-color: #e5e5e5;
     color: #a3a3a3;
+    cursor: default;
+}
+
+.vc-page .owner-pagination-ellipsis {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 4px;
+    color: #737373;
+    font-size: 13px;
+}
+
+@media (max-width: 640px) {
+    .vc-page .owner-pagination {
+        justify-content: flex-start;
+    }
 }
 
 .vc-modal {

@@ -9,7 +9,6 @@ use App\Models\TruckType;
 use App\Models\User;
 use App\Services\DocumentGenerationService;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 
 class ReportsController extends Controller
@@ -265,7 +264,7 @@ class ReportsController extends Controller
         $actorId = $request->query('user_id', '');
         $search = trim((string) $request->query('search', ''));
 
-        $allLogs = AuditLog::with('user')
+        $logs = AuditLog::with(['user.role'])
             ->whereBetween('created_at', [$start, $end])
             ->when($category !== '', fn ($q) => $q->where('category', $category))
             ->when($category === '', fn ($q) => $q->whereNotIn('category', self::SECURITY_CATEGORIES))
@@ -278,20 +277,16 @@ class ReportsController extends Controller
                 });
             })
             ->latest()
-            ->get();
+            ->paginate(10)
+            ->withQueryString();
 
-        $rows = $allLogs->flatMap(fn ($log) => collect($this->explodeAuditLogRows($log))
-            ->map(fn ($description) => (object) ['log' => $log, 'description' => $description]));
+        $logs->getCollection()->transform(function (AuditLog $log) {
+            $log->activity_label = ucwords(str_replace('_', ' ', (string) $log->action));
+            $log->entity_label = $log->entity_type ? trim(preg_replace('/(?<!^)[A-Z]/', ' $0', $log->entity_type)) : null;
+            $log->activity_changes = $this->explodeAuditLogRows($log);
 
-        $perPage = 10;
-        $page = (int) $request->query('page', 1);
-        $logs = new LengthAwarePaginator(
-            $rows->forPage($page, $perPage)->values(),
-            $rows->count(),
-            $perPage,
-            $page,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
+            return $log;
+        });
 
         return view('superadmin.reports.activity', [
             'logs' => $logs,
@@ -309,43 +304,81 @@ class ReportsController extends Controller
         ]);
     }
 
+    protected function formatAuditValue($value): string
+    {
+        if ($value === null || $value === '') {
+            return '(none)';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        if (is_object($value)) {
+            if ($value instanceof \JsonSerializable) {
+                $value = $value->jsonSerialize();
+            } elseif (method_exists($value, '__toString')) {
+                return (string) $value;
+            } else {
+                $value = (array) $value;
+            }
+        }
+
+        if (is_array($value)) {
+            if (empty($value)) {
+                return '(none)';
+            }
+
+            $isList = array_is_list($value);
+            $hasNestedValues = collect($value)->contains(fn ($item) => is_array($item) || is_object($item));
+
+            $parts = [];
+            foreach ($value as $key => $item) {
+                $formatted = $this->formatAuditValue($item);
+                $parts[] = $isList ? $formatted : ucwords(str_replace('_', ' ', (string) $key)) . ': ' . $formatted;
+            }
+
+            $parts = array_slice($parts, 0, 12);
+            $result = implode($hasNestedValues ? '; ' : ', ', $parts);
+
+            return mb_strlen($result) > 300 ? mb_substr($result, 0, 297) . '…' : $result;
+        }
+
+        return (string) $value;
+    }
+
     protected function explodeAuditLogRows(AuditLog $log): array
     {
         $old = $log->old_value ?? [];
         $new = $log->new_value ?? [];
 
         $humanize = fn ($key) => ucwords(str_replace('_', ' ', $key));
-        $formatValue = function ($value) {
-            if ($value === null || $value === '') {
-                return '(none)';
-            }
-            if (is_bool($value)) {
-                return $value ? 'Yes' : 'No';
-            }
-            return (string) $value;
-        };
 
         $rows = [];
 
         if (empty($old) && ! empty($new)) {
             foreach ($new as $field => $value) {
                 if ($value !== null && $value !== '') {
-                    $rows[] = $humanize($field) . ': ' . $formatValue($value);
+                    $rows[] = ['label' => $humanize($field), 'value' => $this->formatAuditValue($value)];
                 }
             }
         } elseif (empty($new) && ! empty($old)) {
             foreach ($old as $field => $value) {
                 if ($value !== null && $value !== '') {
-                    $rows[] = $humanize($field) . ': ' . $formatValue($value);
+                    $rows[] = ['label' => $humanize($field), 'value' => $this->formatAuditValue($value)];
                 }
             }
         } elseif (! empty($old) || ! empty($new)) {
             foreach (array_unique(array_merge(array_keys($old), array_keys($new))) as $field) {
-                $rows[] = $humanize($field) . ': ' . $formatValue($old[$field] ?? null) . ' - ' . $formatValue($new[$field] ?? null);
+                $rows[] = [
+                    'label' => $humanize($field),
+                    'old' => $this->formatAuditValue($old[$field] ?? null),
+                    'new' => $this->formatAuditValue($new[$field] ?? null),
+                ];
             }
         }
 
-        return $rows ?: [$log->description];
+        return $rows ?: [['label' => null, 'value' => $log->description]];
     }
 
     protected static function bucketLabel(string $bucket): string

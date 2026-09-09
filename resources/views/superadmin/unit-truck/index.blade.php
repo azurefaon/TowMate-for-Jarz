@@ -209,7 +209,7 @@
             </div>
 
             <div class="pagination-wrapper">
-                {{ $units->onEachSide(1)->links('vendor.pagination.custom') }}
+                {{ $units->onEachSide(1)->links('vendor.pagination.owner-standard') }}
             </div>
 
         </div>

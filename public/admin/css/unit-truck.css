@@ -484,23 +484,38 @@
 }
 
 .units-page .pagination-wrapper {
-    padding: 16px 18px 18px;
-    display: flex;
-    justify-content: center;
+    background: #ffffff;
+    border-top: 1px solid #e5e5e5;
+    padding: 12px 14px;
 }
 
-.units-page .pagination-wrapper nav ul {
+.units-page .owner-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.units-page .owner-pagination-summary {
+    font-size: 14px;
+    font-weight: 400;
+    color: #737373;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.units-page .owner-pagination-controls {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
     gap: 6px;
     list-style: none;
     margin: 0;
     padding: 0;
+    flex-wrap: wrap;
 }
 
-.units-page .pagination-wrapper nav ul li a,
-.units-page .pagination-wrapper nav ul li span {
+.units-page .owner-pagination-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -508,26 +523,49 @@
     height: 34px;
     padding: 0 10px;
     border-radius: 4px;
-    border: 1px solid #e5e5e5;
+    border: 1px solid #d4d4d4;
     background: #ffffff;
     color: #171717;
     text-decoration: none;
-    font-size: 0.82rem;
+    font-size: 13px;
+    white-space: nowrap;
 }
 
-.units-page .pagination-wrapper nav ul li a:hover {
+.units-page a.owner-pagination-btn:hover {
     background: #f5f5f5;
+    border-color: #a3a3a3;
 }
 
-.units-page .pagination-wrapper nav ul li span[aria-current="page"] {
-    background: #facc15;
+.units-page a.owner-pagination-btn:focus-visible {
+    outline: 2px solid #171717;
+    outline-offset: 2px;
+}
+
+.units-page .owner-pagination-btn.is-active {
+    background: #171717;
     border-color: #171717;
-    color: #171717;
-    font-weight: 500;
+    color: #ffffff;
 }
 
-.units-page .pagination-wrapper nav ul li span:not([aria-current="page"]) {
+.units-page .owner-pagination-btn.is-disabled {
+    background: #f5f5f5;
+    border-color: #e5e5e5;
     color: #a3a3a3;
+    cursor: default;
+}
+
+.units-page .owner-pagination-ellipsis {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 4px;
+    color: #737373;
+    font-size: 13px;
+}
+
+@media (max-width: 640px) {
+    .units-page .owner-pagination {
+        justify-content: flex-start;
+    }
 }
 
 .units-page .modal {

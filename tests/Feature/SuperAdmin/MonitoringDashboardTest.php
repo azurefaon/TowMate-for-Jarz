@@ -4,9 +4,13 @@ use App\Models\Role;
 use App\Models\User;
 
 it('shows the superadmin operations control board sections', function () {
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    foreach ([1 => 'Super Admin', 2 => 'Dispatcher', 3 => 'Team Leader'] as $id => $name) {
+        if (! Role::find($id)) {
+            $role = new Role(['name' => $name]);
+            $role->id = $id;
+            $role->save();
+        }
+    }
 
     $superAdmin = User::factory()->create([
         'role_id' => 1,
@@ -15,10 +19,11 @@ it('shows the superadmin operations control board sections', function () {
     $this->actingAs($superAdmin)
         ->get(route('superadmin.monitoring.index'))
         ->assertOk()
-        ->assertSeeText('Attention Needed')
-        ->assertSeeText('Attention Needed')
-        ->assertSeeText('Booking Pipeline')
-        ->assertSeeText('Team Leader Tracker')
-        ->assertSeeText('Dispatcher Tracker')
-        ->assertSeeText('Schedule Monitor');
+        ->assertSeeText('Operations Summary')
+        ->assertSeeText('Needs Attention')
+        ->assertSeeText('Current Operations')
+        ->assertSeeText('Team Leaders')
+        ->assertSeeText('Units')
+        ->assertSeeText('Dispatcher Activity')
+        ->assertSeeText('Risk Watchlist');
 });

@@ -167,7 +167,7 @@
             </div>
 
             <div class="pagination-wrapper">
-                {{ $vehicleTypes->links('vendor.pagination.custom') }}
+                {{ $vehicleTypes->onEachSide(1)->links('vendor.pagination.owner-standard') }}
             </div>
         </div>
 
