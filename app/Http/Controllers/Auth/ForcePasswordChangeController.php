@@ -5,20 +5,26 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 
 class ForcePasswordChangeController extends Controller
 {
-    /**
-     * Show the forced password-change form.
-     * Cache-Control headers are set here (OWASP A02 — no caching of sensitive pages).
-     */
+    private function dashboardRouteFor(\App\Models\User $user): string
+    {
+        return match ((int) $user->role_id) {
+            1 => 'superadmin.dashboard',
+            2 => 'admin.dashboard',
+            6 => 'system-admin.dashboard',
+            default => 'dashboard',
+        };
+    }
+
     public function show(Request $request)
     {
-        // Extra guard: if the flag is already cleared, send them to their dashboard.
         if (! $request->user()->must_change_password) {
-            return redirect()->intended(route('dashboard'));
+            return redirect()->intended(route($this->dashboardRouteFor($request->user())));
         }
 
         return response()
@@ -27,23 +33,12 @@ class ForcePasswordChangeController extends Controller
             ->header('Pragma', 'no-cache');
     }
 
-    /**
-     * Process the new password.
-     * OWASP checklist:
-     *  A01 — must_change_password flag gates access via middleware
-     *  A02 — bcrypt via Laravel Hash::make, never plaintext stored
-     *  A03 — Eloquent ORM, no raw SQL
-     *  A07 — Strong password policy, rate-limited route (throttle:5,1),
-     *         session regenerated after change, cannot reuse the same password
-     *  A09 — Audit log recorded
-     */
     public function update(Request $request)
     {
         $user = $request->user();
 
-        // Belt-and-suspenders: still guard even if middleware is misconfigured.
         if (! $user->must_change_password) {
-            return redirect()->intended(route('dashboard'));
+            return redirect()->intended(route($this->dashboardRouteFor($user)));
         }
 
         $request->validate([
@@ -63,7 +58,6 @@ class ForcePasswordChangeController extends Controller
             'password.min'          => 'Password must be at least 12 characters.',
         ]);
 
-        // A07 — Prevent reuse of the same password the admin assigned.
         if (Hash::check($request->password, $user->password)) {
             return back()->withErrors([
                 'password' => 'Your new password cannot be the same as your current password.',
@@ -74,10 +68,16 @@ class ForcePasswordChangeController extends Controller
         $user->must_change_password = false;
         $user->save();
 
-        // A07 — Regenerate session ID to prevent session fixation.
+        $user->tokens()->delete();
         $request->session()->regenerate();
 
-        // A09 — Audit trail.
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $user->id)
+                ->where('id', '!=', $request->session()->getId())
+                ->delete();
+        }
+
         AuditLog::create([
             'user_id'     => $user->id,
             'action'      => 'password_changed',
@@ -86,7 +86,7 @@ class ForcePasswordChangeController extends Controller
             'description' => 'User changed their password on first login.',
         ]);
 
-        return redirect()->intended(route('dashboard'))
+        return redirect()->intended(route($this->dashboardRouteFor($user)))
             ->with('status', 'Your password has been updated successfully.');
     }
 }

@@ -5,9 +5,28 @@ use App\Models\User;
 
 function seedManagedRoles(): void
 {
-    Role::firstOrCreate(['id' => 1], ['name' => 'Super Admin']);
-    Role::firstOrCreate(['id' => 2], ['name' => 'Dispatcher']);
-    Role::firstOrCreate(['id' => 3], ['name' => 'Team Leader']);
+    pinRole(1, 'Owner');
+    pinRole(2, 'Dispatcher');
+    pinRole(3, 'Team Leader');
+    pinRole(6, 'System Admin');
+}
+
+function pinRole(int $id, string $name): Role
+{
+    if ($existing = Role::find($id)) {
+        return $existing;
+    }
+
+    $role = tap(new Role(['name' => $name]), function ($role) use ($id) {
+        $role->id = $id;
+        $role->save();
+    });
+
+    if (\Illuminate\Support\Facades\DB::connection()->getDriverName() === 'pgsql') {
+        \Illuminate\Support\Facades\DB::statement("SELECT setval(pg_get_serial_sequence('roles', 'id'), GREATEST((SELECT MAX(id) FROM roles), 1))");
+    }
+
+    return $role;
 }
 
 test('forgot password request screen can be rendered', function () {
@@ -16,26 +35,16 @@ test('forgot password request screen can be rendered', function () {
     $response->assertStatus(200);
 });
 
-// Password recovery is now self-service only via the OTP flow
-// (StaffPasswordResetController — see StaffPasswordResetTest.php). The old
-// manual "account access request" workflow (Owner reviewing/approving a
-// request, setDefaultPassword(), resolvePasswordRequest()) has been fully
-// retired: no route can submit one, and the Owner's Users index no longer
-// shows an "Account Access Requests" panel or any per-row pending badge.
-// The historical users.password_request_* columns are left untouched as
-// legacy data — nothing reads or writes them in the live application anymore.
-
 test('no route exists to submit a manual account access request anymore', function () {
-    expect(\Illuminate\Support\Facades\Route::has('superadmin.users.password-request.set-password'))->toBeFalse();
-    expect(\Illuminate\Support\Facades\Route::has('superadmin.users.password-request.resolve'))->toBeFalse();
+    expect(\Illuminate\Support\Facades\Route::has('system-admin.users.password-request.set-password'))->toBeFalse();
+    expect(\Illuminate\Support\Facades\Route::has('system-admin.users.password-request.resolve'))->toBeFalse();
 });
 
 test('the Users index no longer shows the Account Access Requests panel', function () {
     seedManagedRoles();
 
-    $superAdmin = User::factory()->create(['role_id' => 1]);
+    $systemAdmin = User::factory()->create(['role_id' => 6, 'status' => 'active']);
 
-    // A historical pending row is preserved data, not something the UI acts on anymore.
     User::factory()->create([
         'role_id' => 2,
         'password_request_status' => 'pending',
@@ -43,8 +52,8 @@ test('the Users index no longer shows the Account Access Requests panel', functi
         'password_request_note' => 'Historical, pre-cleanup request.',
     ]);
 
-    $this->actingAs($superAdmin)
-        ->get(route('superadmin.users.index'))
+    $this->actingAs($systemAdmin)
+        ->get(route('system-admin.users.index'))
         ->assertOk()
         ->assertDontSeeText('Account Access Requests')
         ->assertDontSeeText('Password request pending');

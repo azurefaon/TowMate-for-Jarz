@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
+use App\Http\Controllers\Auth\LoginUnlockController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\StaffPasswordResetController;
@@ -25,6 +26,9 @@ Route::middleware('guest')->group(function () {
 
     Route::get('teamleader/login', [AuthenticatedSessionController::class, 'createTeamLeader'])
         ->name('teamleader.login');
+
+    Route::get('system-admin/login', [AuthenticatedSessionController::class, 'createSystemAdmin'])
+        ->name('system-admin.login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
@@ -55,6 +59,27 @@ Route::middleware('guest')->group(function () {
 
     Route::get('reset-password/success', [StaffPasswordResetController::class, 'success'])
         ->name('password.reset.success');
+
+    Route::get('login/recover', [LoginUnlockController::class, 'create'])
+        ->name('login.recover');
+
+    Route::post('login/recover', [LoginUnlockController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('login.recover.send');
+
+    Route::get('login/recover/verify', [LoginUnlockController::class, 'showVerify'])
+        ->name('login.recover.verify');
+
+    Route::post('login/recover/verify', [LoginUnlockController::class, 'verify'])
+        ->middleware('throttle:10,1')
+        ->name('login.recover.verify.submit');
+
+    Route::post('login/recover/resend', [LoginUnlockController::class, 'resend'])
+        ->middleware('throttle:6,1')
+        ->name('login.recover.resend');
+
+    Route::get('login/recover/success', [LoginUnlockController::class, 'success'])
+        ->name('login.recover.success');
 });
 
 Route::middleware('auth')->group(function () {

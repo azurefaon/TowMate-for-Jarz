@@ -447,7 +447,6 @@ class ControlCenterService
                     'value' => User::query()->whereNotNull('archived_at')->count(),
                     'description' => 'Users archived for compliance or inactivity.',
                     'tone' => 'info',
-                    'url' => route('superadmin.users.archived'),
                 ],
                 [
                     'label' => 'Completed Bookings',
@@ -548,18 +547,6 @@ class ControlCenterService
 
         if ((int) $user->role_id === 1) {
             return array_merge($commonLinks, [
-                [
-                    'label' => 'Manage Users',
-                    'description' => 'Review roles, status, archives, and access requests.',
-                    'url' => route('superadmin.users.index'),
-                    'icon' => 'users',
-                ],
-                [
-                    'label' => 'Protection Center',
-                    'description' => 'Inspect backups, archive totals, and retention tools.',
-                    'url' => route('superadmin.backups.index'),
-                    'icon' => 'shield-check',
-                ],
                 [
                     'label' => 'Audit Logs',
                     'description' => 'Inspect system events and administrative actions.',

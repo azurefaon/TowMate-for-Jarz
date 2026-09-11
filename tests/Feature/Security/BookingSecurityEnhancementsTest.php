@@ -13,6 +13,24 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
+function pinnedSecurityRole(int $id, string $name): Role
+{
+    if ($existing = Role::find($id)) {
+        return $existing;
+    }
+
+    $role = tap(new Role(['name' => $name]), function ($role) use ($id) {
+        $role->id = $id;
+        $role->save();
+    });
+
+    if (\Illuminate\Support\Facades\DB::connection()->getDriverName() === 'pgsql') {
+        \Illuminate\Support\Facades\DB::statement("SELECT setval(pg_get_serial_sequence('roles', 'id'), GREATEST((SELECT MAX(id) FROM roles), 1))");
+    }
+
+    return $role;
+}
+
 it('stores booking names in structured fields, normalizes philippine phone numbers, and computes pricing dynamically', function () {
     Storage::fake('public');
 
@@ -70,14 +88,15 @@ it('stores booking names in structured fields, normalizes philippine phone numbe
     Storage::disk('public')->assertExists($booking->vehicle_image_path);
 });
 
-it('prevents super admin from changing an existing user role', function () {
-    $superAdminRole = Role::firstOrCreate(['name' => 'Super Admin'], ['description' => 'Super Admin']);
+it('prevents system admin from changing an existing user role', function () {
+    $systemAdminRole = pinnedSecurityRole(6, 'System Admin');
     $dispatcherRole = Role::firstOrCreate(['name' => 'Dispatcher'], ['description' => 'Dispatcher']);
     $teamLeaderRole = Role::firstOrCreate(['name' => 'Team Leader'], ['description' => 'Team Leader']);
 
-    $superAdmin = User::factory()->create([
-        'role_id' => $superAdminRole->id,
-        'email' => 'superadmin@gmail.com',
+    $systemAdmin = User::factory()->create([
+        'role_id' => $systemAdminRole->id,
+        'email' => 'systemadmin@gmail.com',
+        'status' => 'active',
     ]);
 
     $user = User::factory()->create([
@@ -85,8 +104,8 @@ it('prevents super admin from changing an existing user role', function () {
         'email' => 'dispatcher@gmail.com',
     ]);
 
-    $response = $this->actingAs($superAdmin)
-        ->putJson(route('superadmin.users.update', $user), [
+    $response = $this->actingAs($systemAdmin)
+        ->putJson(route('system-admin.users.update', $user), [
             'first_name' => 'Updated',
             'last_name' => 'User',
             'email' => 'dispatcher@gmail.com',

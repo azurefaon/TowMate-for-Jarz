@@ -23,6 +23,7 @@ class User extends Authenticatable
         'first_name',
         'middle_name',
         'last_name',
+        'profile_image',
         'username',
         'email',
         'phone',
@@ -49,6 +50,9 @@ class User extends Authenticatable
         'must_change_password',
         'last_ping_at',
         'last_login_at',
+        'failed_login_attempts',
+        'last_failed_login_at',
+        'locked_until',
     ];
 
     protected static function booted(): void
@@ -154,6 +158,9 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'last_ping_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'failed_login_attempts' => 'integer',
+            'last_failed_login_at' => 'datetime',
+            'locked_until' => 'datetime',
         ];
     }
 }

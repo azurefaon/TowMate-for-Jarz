@@ -1,12 +1,13 @@
 <?php
 
-namespace App\Http\Controllers\SuperAdmin;
+namespace App\Http\Controllers\SystemAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\User;
 use App\Services\DataBackupService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -31,7 +32,34 @@ class DataProtectionController extends Controller
             'cancelled_bookings' => Booking::where('status', 'cancelled')->count(),
         ];
 
-        return view('superadmin.protection.index', compact('datasets', 'backups', 'archiveSummary'));
+        $systemInfo = [
+            'environment' => app()->environment(),
+            'laravel_version' => app()->version(),
+            'php_version' => PHP_VERSION,
+            'database_available' => $this->databaseAvailable(),
+            'storage_writable' => $this->storageWritable(),
+        ];
+
+        return view('system-admin.maintenance.index', compact('datasets', 'backups', 'archiveSummary', 'systemInfo'));
+    }
+
+    protected function databaseAvailable(): bool
+    {
+        try {
+            DB::connection()->getPdo();
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    protected function storageWritable(): bool
+    {
+        try {
+            return Storage::disk('local')->exists('') || is_writable(storage_path('app'));
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     public function store(Request $request)
@@ -43,7 +71,7 @@ class DataProtectionController extends Controller
         $this->backupService->generate($validated['dataset'], $request->user());
 
         return redirect()
-            ->route('superadmin.backups.index')
+            ->route('system-admin.maintenance.index')
             ->with('success', 'Encrypted backup created successfully.');
     }
 

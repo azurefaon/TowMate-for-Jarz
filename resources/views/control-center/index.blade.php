@@ -107,10 +107,6 @@
                     <i data-lucide="activity"></i>
                     <span>Monitoring</span>
                 </a>
-                <a href="{{ route('superadmin.users.index') }}" class="quick-link-btn">
-                    <i data-lucide="users"></i>
-                    <span>Users</span>
-                </a>
                 <a href="{{ route('superadmin.unit-truck.index') }}" class="quick-link-btn">
                     <i data-lucide="truck"></i>
                     <span>Units</span>

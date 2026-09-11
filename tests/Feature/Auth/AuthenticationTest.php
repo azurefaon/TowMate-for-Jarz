@@ -53,35 +53,31 @@ test('seeded super admin can authenticate through the super admin flow', functio
     $response->assertRedirect(route('superadmin.dashboard', absolute: false));
 });
 
-test('super admin manage user page hides validation until submit', function () {
-    ensureAuthRole(1, 'Super Admin');
+test('system admin add user page does not present driver or customer roles', function () {
+    ensureAuthRole(6, 'System Admin');
 
     $admin = User::factory()->create([
-        'role_id' => 1,
+        'role_id' => 6,
         'status' => 'active',
     ]);
 
     $this->actingAs($admin)
-        ->get(route('superadmin.users.create'))
+        ->get(route('system-admin.users.create'))
         ->assertOk()
-        ->assertSee('Optional')
-        ->assertSee('Password Requirements')
-        ->assertDontSee('Email must be valid')
-        ->assertDontSee('Password must be at least 12 characters')
         ->assertDontSee('>Driver<', false)
         ->assertDontSee('>Customer<', false);
 });
 
-test('super admin can create a managed user from the add user form', function () {
-    ensureAuthRole(1, 'Super Admin');
+test('system admin can create a managed user from the add user form', function () {
+    ensureAuthRole(6, 'System Admin');
     ensureAuthRole(2, 'Admin');
 
     $admin = User::factory()->create([
-        'role_id' => 1,
+        'role_id' => 6,
         'status' => 'active',
     ]);
 
-    $response = $this->actingAs($admin)->post(route('superadmin.users.store'), [
+    $response = $this->actingAs($admin)->post(route('system-admin.users.store'), [
         'first_name' => 'Taylor',
         'middle_name' => 'Anne',
         'last_name' => 'Jones',
@@ -92,7 +88,7 @@ test('super admin can create a managed user from the add user form', function ()
         'status' => 'active',
     ]);
 
-    $response->assertRedirect(route('superadmin.users.index'));
+    $response->assertRedirect(route('system-admin.users.index'));
 
     $this->assertDatabaseHas('users', [
         'email' => 'taylor.jones@example.com',
@@ -163,7 +159,7 @@ test('team leader can authenticate through the team leader login page', function
     $response->assertRedirect(route('teamleader.dashboard', absolute: false));
 });
 
-test('team leader login does not hit a raw too many attempts lockout during normal retries', function () {
+test('a third consecutive failed login attempt locks the account without hitting the raw rate-limit lockout', function () {
     ensureAuthRole(3, 'Team Leader');
 
     $teamLeader = User::factory()->create([
@@ -171,7 +167,13 @@ test('team leader login does not hit a raw too many attempts lockout during norm
         'status' => 'active',
     ]);
 
-    foreach (range(1, 6) as $attempt) {
+    foreach (range(1, 2) as $attempt) {
+        // The existing TokenBucketRateLimiter uses real wall-clock time
+        // (microtime()), not Carbon — a real sleep is required between
+        // attempts so this test exercises the new account-level lock
+        // instead of tripping the unrelated burst limiter.
+        sleep(11);
+
         $response = $this->from('/teamleader/login')->post('/login', [
             'role' => 'teamleader',
             'login_method' => 'password',
@@ -180,17 +182,40 @@ test('team leader login does not hit a raw too many attempts lockout during norm
         ]);
 
         expect($response->getStatusCode())->not->toBe(429);
+        $response->assertSessionHasErrorsIn('login', ['auth']);
     }
 
-    $response = $this->post('/login', [
+    $teamLeader->refresh();
+    expect((int) $teamLeader->failed_login_attempts)->toBe(2);
+    expect($teamLeader->locked_until)->toBeNull();
+
+    sleep(11);
+
+    $lockingResponse = $this->from('/teamleader/login')->post('/login', [
+        'role' => 'teamleader',
+        'login_method' => 'password',
+        'email' => $teamLeader->email,
+        'password' => 'wrong-password',
+    ]);
+
+    $lockingResponse->assertSessionHasErrorsIn('login', ['auth']);
+    $lockingResponse->assertSessionHas('login_locked', true);
+
+    $teamLeader->refresh();
+    expect((int) $teamLeader->failed_login_attempts)->toBe(3);
+    expect($teamLeader->locked_until)->not->toBeNull();
+
+    sleep(11);
+
+    $response = $this->from('/teamleader/login')->post('/login', [
         'role' => 'teamleader',
         'login_method' => 'password',
         'email' => $teamLeader->email,
         'password' => 'password',
     ]);
 
-    $this->assertAuthenticated('teamleader');
-    $response->assertRedirect(route('teamleader.dashboard', absolute: false));
+    $this->assertGuest('teamleader');
+    $response->assertSessionHasErrorsIn('login', ['auth']);
 });
 
 test('users can logout securely from all sessions', function () {

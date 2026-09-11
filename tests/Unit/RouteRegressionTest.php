@@ -25,9 +25,13 @@ it('uses a non-conflicting superadmin dashboard path', function () {
 });
 
 it('registers the user archive management routes', function () {
-    expect(Route::has('superadmin.users.archived'))->toBeTrue()
-        ->and(Route::has('superadmin.users.archive'))->toBeTrue()
-        ->and(Route::has('superadmin.users.restore'))->toBeTrue();
+    expect(Route::has('system-admin.users.archived'))->toBeTrue()
+        ->and(Route::has('system-admin.users.archive'))->toBeTrue()
+        ->and(Route::has('system-admin.users.restore'))->toBeTrue();
+});
+
+it('uses a non-conflicting system admin dashboard path', function () {
+    expect(route('system-admin.dashboard', absolute: false))->toBe('/system-admin/dashboard');
 });
 
 it('includes the dispatcher sidebar partial required by the admin layout', function () {

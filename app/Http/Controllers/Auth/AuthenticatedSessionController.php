@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\TeamLeaderAvailabilityService;
@@ -31,32 +32,37 @@ class AuthenticatedSessionController extends Controller
         return $this->renderLogin('teamleader');
     }
 
+    public function createSystemAdmin(): View
+    {
+        return $this->renderLogin('systemadmin');
+    }
+
     protected function renderLogin(string $role): View
     {
         $loginConfig = match ($role) {
             'dispatcher' => [
                 'role' => 'dispatcher',
-                'pageTitle' => 'Jarz Towing | Dispatcher',
+                'pageTitle' => 'Jarz Towing | Dispatcher Sign In',
                 'heading' => 'Welcome back',
-                'subtitle' => 'Sign in to continue.',
-                'panelTitle' => 'Dispatcher Portal',
-                'panelText' => 'Sign in to continue.',
+                'subtitle' => 'Sign in to manage dispatch operations.',
             ],
             'teamleader' => [
                 'role' => 'teamleader',
-                'pageTitle' => 'Jarz Towing | Team Leader',
+                'pageTitle' => 'Jarz Towing | Team Leader Sign In',
                 'heading' => 'Welcome back',
-                'subtitle' => 'Sign in to continue.',
-                'panelTitle' => 'Team Leader Portal',
-                'panelText' => 'Sign in to continue.',
+                'subtitle' => 'Sign in to manage your assignments.',
+            ],
+            'systemadmin' => [
+                'role' => 'systemadmin',
+                'pageTitle' => 'Jarz Towing | System Admin Sign In',
+                'heading' => 'Welcome back',
+                'subtitle' => 'Sign in to manage system administration.',
             ],
             default => [
                 'role' => 'superadmin',
-                'pageTitle' => 'Jarz Towing | Admin',
+                'pageTitle' => 'Jarz Towing | Admin Sign In',
                 'heading' => 'Welcome back',
-                'subtitle' => 'Sign in to continue.',
-                'panelTitle' => 'Admin Portal',
-                'panelText' => 'Sign in to continue.',
+                'subtitle' => 'Sign in to manage TowMate operations.',
             ],
         };
 
@@ -64,7 +70,9 @@ class AuthenticatedSessionController extends Controller
         $apkExists = file_exists($apkPath);
         $apkUrl    = $apkExists ? asset('downloads/towmate.apk') : null;
 
-        return view('auth.login', compact('loginConfig', 'apkExists', 'apkUrl'));
+        $iosDistributionUrl = null;
+
+        return view('auth.login', compact('loginConfig', 'apkExists', 'apkUrl', 'iosDistributionUrl'));
     }
 
     public function store(LoginRequest $request): RedirectResponse
@@ -72,7 +80,7 @@ class AuthenticatedSessionController extends Controller
         try {
             $user = $request->authenticate();
         } catch (ValidationException $e) {
-            $message = $e->errors()['auth'][0] ?? 'Invalid credentials';
+            $message = $e->errors()['auth'][0] ?? 'Unable to sign in with the provided credentials.';
 
             throw ValidationException::withMessages([
                 'auth' => $message,
@@ -82,7 +90,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
         $request->session()->forget('url.intended');
 
-        foreach (['superadmin', 'dispatcher', 'teamleader'] as $guard) {
+        foreach (['superadmin', 'dispatcher', 'teamleader', 'systemadmin'] as $guard) {
             if ($guard === $request->selectedGuard()) {
                 Auth::guard($guard)->login($user, $request->boolean('remember'));
                 Auth::shouldUse($guard);
@@ -100,12 +108,44 @@ class AuthenticatedSessionController extends Controller
 
         app(AuditLogService::class)->logLogin($user, $request, $request->selectedGuard());
 
+        $this->auditRecoveredLoginIfApplicable($user, $request);
+
         return redirect()->route($request->redirectRoute());
+    }
+
+    protected function auditRecoveredLoginIfApplicable(User $user, Request $request): void
+    {
+        $recoveredEmail = $request->session()->pull('login_recovered_email');
+        $recoveredUntil = $request->session()->pull('login_recovered_until');
+
+        if (! $recoveredEmail || ! $recoveredUntil) {
+            return;
+        }
+
+        if (strtolower($recoveredEmail) !== strtolower((string) $user->email) || now()->isAfter($recoveredUntil)) {
+            return;
+        }
+
+        try {
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'login_success_after_recovery',
+                'category' => 'security',
+                'entity_type' => 'User',
+                'entity_id' => $user->id,
+                'description' => 'First successful sign-in after account-recovery verification.',
+            ]);
+        } catch (\Throwable) {
+        }
     }
 
     public function destroy(Request $request): RedirectResponse
     {
-        $user = $request->user() ?: Auth::guard('teamleader')->user() ?: Auth::guard('dispatcher')->user() ?: Auth::guard('superadmin')->user();
+        $user = $request->user()
+            ?: Auth::guard('teamleader')->user()
+            ?: Auth::guard('dispatcher')->user()
+            ?: Auth::guard('superadmin')->user()
+            ?: Auth::guard('systemadmin')->user();
 
         if ((int) optional($user)->role_id === 3) {
             app(TeamLeaderAvailabilityService::class)->markOffline($user);
@@ -117,7 +157,7 @@ class AuthenticatedSessionController extends Controller
             app(AuditLogService::class)->logLogout($user, $request);
         }
 
-        foreach (['web', 'superadmin', 'dispatcher', 'teamleader'] as $guard) {
+        foreach (['web', 'superadmin', 'dispatcher', 'teamleader', 'systemadmin'] as $guard) {
             Auth::guard($guard)->logout();
         }
 

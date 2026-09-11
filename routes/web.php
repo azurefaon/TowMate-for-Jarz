@@ -35,14 +35,20 @@ use App\Http\Controllers\PublicTrackController;
 
 use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingController;
 use App\Http\Controllers\SuperAdmin\CustomerAppContentController;
-use App\Http\Controllers\SuperAdmin\DataProtectionController;
 use App\Http\Controllers\SuperAdmin\MonitoringController;
 use App\Http\Controllers\SuperAdmin\ReportsController;
 use App\Http\Controllers\SuperAdmin\SystemSettingsController;
 use App\Http\Controllers\SuperAdmin\TruckTypeController;
 use App\Http\Controllers\SuperAdmin\UnitController;
-use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\VehicleTypeController;
+
+use App\Http\Controllers\SystemAdmin\AuditLogController as SystemAdminAuditLogController;
+use App\Http\Controllers\SystemAdmin\DashboardController as SystemAdminDashboardController;
+use App\Http\Controllers\SystemAdmin\DataProtectionController;
+use App\Http\Controllers\SystemAdmin\ProfileController as SystemAdminProfileController;
+use App\Http\Controllers\SystemAdmin\SecurityMonitorController;
+use App\Http\Controllers\SystemAdmin\SystemSettingsController as SystemAdminSystemSettingsController;
+use App\Http\Controllers\SystemAdmin\UserManagementController;
 
 Route::redirect('/', '/login')->name('landing');
 
@@ -113,9 +119,10 @@ Route::get('/dashboard', function () {
     return match ($role) {
         1 => redirect('/superadmin/dashboard'),
         2 => redirect('/admin-dashboard'),
-        3 => redirect('/login'), // teamleader UI archived
+        3 => redirect('/login'),
         4 => redirect('/driver'),
         5 => redirect('/customer/dashboard'),
+        6 => redirect()->route('system-admin.dashboard'),
         default => view('dashboard'),
     };
 })->middleware(['auth'])->name('dashboard');
@@ -232,31 +239,7 @@ Route::prefix('superadmin')
         Route::get('/reports/activity/export', [ReportsController::class, 'exportActivityPdf'])->name('reports.activity.export');
         Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
         Route::get('/monitoring/live', [MonitoringController::class, 'live'])->name('monitoring.live');
-        Route::get('/protection', [DataProtectionController::class, 'index'])->name('backups.index');
-        Route::post('/protection/backups', [DataProtectionController::class, 'store'])->name('backups.store');
-        Route::get('/protection/backups/download', [DataProtectionController::class, 'download'])->name('backups.download');
 
-        Route::get('users/archived', [UserManagementController::class, 'archived'])->name('users.archived');
-        Route::get('users/deleted', [UserManagementController::class, 'deleted'])->name('users.deleted');
-        Route::patch('users/{user}/archive', [UserManagementController::class, 'archive'])->name('users.archive');
-        Route::patch('users/{id}/restore', [UserManagementController::class, 'restore'])->name('users.restore');
-        Route::delete('users/{id}/queue-for-deletion', [UserManagementController::class, 'queueForDeletion'])->name('users.queue-for-deletion');
-        Route::patch('users/{id}/restore-from-deleted', [UserManagementController::class, 'restoreFromDeleted'])->name('users.restore-from-deleted');
-        Route::delete('users/{id}/purge-now', [UserManagementController::class, 'purgeNow'])->name('users.purge-now');
-        // Manual access-request routes (users.password-request.*) retired — password
-        // recovery is now self-service only via the OTP flow (routes/auth.php).
-        Route::resource('users', UserManagementController::class)->except(['show']);
-
-        // Route::get('/superadmin/users/{id}/edit', [UserController::class, 'edit'])
-        //     ->name('superadmin.users.edit');
-
-
-        // RouteL::put('/users/{id}', [UserManagementController::class, 'update'])->name('users.update');
-
-        // Route::put('/superadmin/users/{id}', [UserController::class, 'update'])
-        //     ->name('superadmin.users.update');
-
-        Route::patch('users/{id}/toggle', [UserManagementController::class, 'toggleStatus'])->name('users.toggle');
         Route::patch('users/{id}/unlock', [UserManagementController::class, 'unlockCustomer'])->name('users.unlock');
 
         Route::resource('truck-types', TruckTypeController::class);
@@ -350,6 +333,40 @@ Route::get('/settings', [SystemSettingsController::class, 'index'])->name('setti
                 'weekBookings'    => $weekBookings,
             ]);
         })->name('dashboard.stats');
+    });
+
+Route::prefix('system-admin')
+    ->name('system-admin.')
+    ->middleware(['auth', 'role:6', 'force.password.change'])
+    ->group(function () {
+        Route::get('/dashboard', [SystemAdminDashboardController::class, 'index'])->name('dashboard');
+
+        Route::get('/profile', [SystemAdminProfileController::class, 'edit'])->name('profile.edit');
+        Route::patch('/profile', [SystemAdminProfileController::class, 'update'])->name('profile.update');
+        Route::get('/profile/password', [SystemAdminProfileController::class, 'editPassword'])->name('profile.password.edit');
+        Route::put('/profile/password', [SystemAdminProfileController::class, 'updatePassword'])->name('profile.password.update');
+
+        Route::get('users/archived', [UserManagementController::class, 'archived'])->name('users.archived');
+        Route::get('users/deleted', [UserManagementController::class, 'deleted'])->name('users.deleted');
+        Route::patch('users/{user}/archive', [UserManagementController::class, 'archive'])->name('users.archive');
+        Route::patch('users/{id}/restore', [UserManagementController::class, 'restore'])->name('users.restore');
+        Route::delete('users/{id}/queue-for-deletion', [UserManagementController::class, 'queueForDeletion'])->name('users.queue-for-deletion');
+        Route::patch('users/{id}/restore-from-deleted', [UserManagementController::class, 'restoreFromDeleted'])->name('users.restore-from-deleted');
+        Route::delete('users/{id}/purge-now', [UserManagementController::class, 'purgeNow'])->name('users.purge-now');
+        Route::patch('users/{id}/toggle', [UserManagementController::class, 'toggleStatus'])->name('users.toggle');
+        Route::resource('users', UserManagementController::class)->except(['show']);
+
+        Route::get('/security/monitor', [SecurityMonitorController::class, 'index'])->name('security.monitor');
+
+        Route::get('/audit-logs', [SystemAdminAuditLogController::class, 'index'])->name('audit-logs.index');
+
+        Route::get('/settings', [SystemAdminSystemSettingsController::class, 'index'])->name('settings.index');
+        Route::post('/settings/update', [SystemAdminSystemSettingsController::class, 'update'])->name('settings.update');
+        Route::post('/settings/upload-apk', [SystemAdminSystemSettingsController::class, 'uploadApk'])->name('settings.upload-apk');
+
+        Route::get('/maintenance', [DataProtectionController::class, 'index'])->name('maintenance.index');
+        Route::post('/maintenance/backups', [DataProtectionController::class, 'store'])->name('maintenance.backups.store');
+        Route::get('/maintenance/backups/download', [DataProtectionController::class, 'download'])->name('maintenance.backups.download');
     });
 
 Route::middleware(['auth', 'role:5'])
