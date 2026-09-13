@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\TruckType;
+use App\Models\VehicleType;
 use App\Services\BookingService;
 use App\Services\QuotationService;
 use Illuminate\Http\JsonResponse;
@@ -127,8 +128,8 @@ class CustomerBookingController extends Controller
     public function createBooking(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'truck_type_id'                    => 'required|integer|exists:truck_types,id',
-            'vehicle_type_id'                  => 'nullable|integer|exists:vehicle_types,id',
+            'truck_type_id'                    => 'nullable|integer|exists:truck_types,id',
+            'vehicle_type_id'                  => 'required|integer|exists:vehicle_types,id',
             'pickup_address'                   => 'required|string|max:255',
             'pickup_lat'                       => 'required|numeric|between:-90,90',
             'pickup_lng'                       => 'required|numeric|between:-180,180',
@@ -165,6 +166,17 @@ class CustomerBookingController extends Controller
             return response()->json(['message' => 'You already have an active booking. Please wait for it to complete.'], 422);
         }
 
+        $vehicleType = VehicleType::findOrFail($validated['vehicle_type_id']);
+
+        if (! $vehicleType->required_truck_type_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This vehicle type is not yet configured for booking. Please contact support.',
+            ], 422);
+        }
+
+        $validated['truck_type_id'] = $vehicleType->required_truck_type_id;
+
         $truckType     = TruckType::findOrFail($validated['truck_type_id']);
         $distanceKm    = (float) $validated['distance_km'];
         $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm, (float) $truckType->per_km_rate);
@@ -187,15 +199,27 @@ class CustomerBookingController extends Controller
                 if (count($decoded) > 5) {
                     return response()->json(['success' => false, 'message' => 'Maximum 6 vehicles per booking.'], 422);
                 }
-                $extraIds = array_filter(array_column($decoded, 'truck_type_id'));
-                if (count($extraIds) !== count($decoded)) {
-                    return response()->json(['success' => false, 'message' => 'Each additional vehicle must have a truck type selected.'], 422);
+
+                $extraVehicleTypeIds = array_filter(array_column($decoded, 'vehicle_type_id'));
+                if (count($extraVehicleTypeIds) !== count($decoded)) {
+                    return response()->json(['success' => false, 'message' => 'Each additional vehicle must have a vehicle type selected.'], 422);
                 }
-                $foundIds = TruckType::whereIn('id', $extraIds)->pluck('id')->all();
-                $missing  = array_diff($extraIds, $foundIds);
-                if (!empty($missing)) {
-                    return response()->json(['success' => false, 'message' => 'One or more additional vehicles have an invalid truck type.'], 422);
+
+                $extraVehicleTypes = VehicleType::whereIn('id', $extraVehicleTypeIds)->get()->keyBy('id');
+                $missingVehicleTypes = array_diff($extraVehicleTypeIds, $extraVehicleTypes->keys()->all());
+                if (!empty($missingVehicleTypes)) {
+                    return response()->json(['success' => false, 'message' => 'One or more additional vehicles have an invalid vehicle type.'], 422);
                 }
+
+                foreach ($decoded as &$ev) {
+                    $evVehicleType = $extraVehicleTypes->get($ev['vehicle_type_id']);
+                    if (! $evVehicleType->required_truck_type_id) {
+                        return response()->json(['success' => false, 'message' => 'One or more additional vehicles are not yet configured for booking.'], 422);
+                    }
+                    $ev['truck_type_id'] = $evVehicleType->required_truck_type_id;
+                }
+                unset($ev);
+
                 $allExtraVehicles = $decoded;
             }
         }

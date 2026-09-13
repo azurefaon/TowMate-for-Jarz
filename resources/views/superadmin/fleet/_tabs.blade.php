@@ -37,4 +37,12 @@
         class="{{ request()->routeIs('superadmin.vehicle-types.*') ? 'is-active' : '' }}">
         Vehicle Types
     </a>
+    <a href="{{ route('superadmin.personnel.index') }}"
+        class="{{ request()->routeIs('superadmin.personnel.*') ? 'is-active' : '' }}">
+        Personnel
+    </a>
+    <a href="{{ route('superadmin.home-assignments.index') }}"
+        class="{{ request()->routeIs('superadmin.home-assignments.*') ? 'is-active' : '' }}">
+        Home Assignments
+    </a>
 </div>

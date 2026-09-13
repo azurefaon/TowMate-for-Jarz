@@ -160,6 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("editVcCategory").value = trigger.dataset.category || "";
         document.getElementById("editVcWeight").value = trigger.dataset.weight || "";
         document.getElementById("editVcDescription").value = trigger.dataset.description || "";
+        document.getElementById("editVcRequiredTruckType").value = trigger.dataset.requiredTruckTypeId || "";
 
         const truckIds = (trigger.dataset.truckIds || "")
             .split(",")

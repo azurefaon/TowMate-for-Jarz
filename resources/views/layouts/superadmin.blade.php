@@ -302,7 +302,9 @@
         $fleetGroupActive = request()->routeIs('superadmin.unit-truck.*')
             || request()->routeIs('superadmin.units.*')
             || request()->routeIs('superadmin.truck-types.*')
-            || request()->routeIs('superadmin.vehicle-types.*');
+            || request()->routeIs('superadmin.vehicle-types.*')
+            || request()->routeIs('superadmin.personnel.*')
+            || request()->routeIs('superadmin.home-assignments.*');
 
         $oversightGroupActive = request()->routeIs('superadmin.monitoring.*')
             || request()->routeIs('superadmin.reports.activity*');

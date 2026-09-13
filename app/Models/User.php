@@ -12,11 +12,6 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, GeneratesPublicCode;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'user_code',
         'name',
@@ -29,6 +24,8 @@ class User extends Authenticatable
         'phone',
         'password',
         'role_id',
+        'home_unit_id',
+        'personnel_enabled',
         'duty_class',
         'duty_status',
         'driver_first_name',
@@ -86,11 +83,6 @@ class User extends Authenticatable
 
     public function scopeVisibleToOperations($query)
     {
-        // Anonymized accounts are a permanent, irreversible deletion (kept only
-        // because receipt/booking history references the row) — they must never
-        // appear in any live operational UI (dispatch, monitoring, assignment
-        // pickers, login), only in historical records that already store the
-        // name/reference as plain text rather than a live relation.
         return $query->whereNull('archived_at')->whereNull('anonymized_at');
     }
 
@@ -99,13 +91,6 @@ class User extends Authenticatable
         return $this->belongsTo(\App\Models\Role::class, 'role_id');
     }
 
-    /**
-     * Duty — Dispatcher-set operational attendance, separate from Presence
-     * (last_ping_at mobile heartbeat) and Workload (derived from active
-     * Booking status). Null means "available" (the default assumption for
-     * a Team Leader nobody has ever explicitly marked unavailable) — see
-     * UnitAvailabilityService, the single place this should be read from.
-     */
     public function dutyStatus(): string
     {
         return $this->duty_status === 'unavailable' ? 'unavailable' : 'available';
@@ -121,26 +106,26 @@ class User extends Authenticatable
         return $this->hasOne(\App\Models\Unit::class, 'team_leader_id');
     }
 
+    public function driverUnit()
+    {
+        return $this->hasOne(\App\Models\Unit::class, 'driver_id');
+    }
+
+    public function homeUnit()
+    {
+        return $this->belongsTo(\App\Models\Unit::class, 'home_unit_id');
+    }
+
     public function user()
     {
         return $this->belongsTo(\App\Models\User::class);
     }
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -156,6 +141,7 @@ class User extends Authenticatable
             'password_reset_token_expires_at' => 'datetime',
             'password' => 'hashed',
             'must_change_password' => 'boolean',
+            'personnel_enabled' => 'boolean',
             'last_ping_at' => 'datetime',
             'last_login_at' => 'datetime',
             'failed_login_attempts' => 'integer',

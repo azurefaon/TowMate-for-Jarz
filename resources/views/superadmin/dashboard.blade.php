@@ -36,8 +36,9 @@
         </div>
 
         <div class="owner-kpi">
-            <span class="owner-kpi-label">Fleet Utilization</span>
+            <span class="owner-kpi-label">Current Fleet Utilization</span>
             <div class="owner-kpi-value">{{ number_format($fleetUtilization, 1) }}%</div>
+            <span class="owner-kpi-note">Live — not affected by the selected period</span>
         </div>
     </div>
 

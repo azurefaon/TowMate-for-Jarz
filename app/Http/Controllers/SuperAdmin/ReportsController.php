@@ -8,6 +8,7 @@ use App\Models\Booking;
 use App\Models\TruckType;
 use App\Models\User;
 use App\Services\DocumentGenerationService;
+use App\Services\ReportMetricsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -49,7 +50,7 @@ class ReportsController extends Controller
 
     protected const SECURITY_CATEGORIES = ['login', 'logout', 'login_failed', 'security'];
 
-    public function __construct(protected DocumentGenerationService $documents)
+    public function __construct(protected DocumentGenerationService $documents, protected ReportMetricsService $metrics)
     {
     }
 
@@ -167,20 +168,8 @@ class ReportsController extends Controller
 
         $summary = $this->buildSummary($start, $end, $filters);
 
-        $revenueByTruckType = Booking::query()
-            ->whereBetween('created_at', [$start, $end])
-            ->where('status', 'completed')
-            ->whereNotNull('truck_type_id')
-            ->with('truckType')
-            ->selectRaw('truck_type_id, count(*) as trips, sum(final_total) as revenue')
-            ->groupBy('truck_type_id')
-            ->orderByDesc('revenue')
-            ->get()
-            ->map(fn ($row) => [
-                'truck_type_name' => $row->truckType->name ?? 'Truck Type #' . $row->truck_type_id,
-                'trips' => (int) $row->trips,
-                'revenue' => (float) $row->revenue,
-            ]);
+        $revenueByTruckType = $this->metrics->revenueByTruckType($start, $end, $filters)
+            ->map(fn (array $row) => ['truck_type_name' => $row['truck_type_name'], 'trips' => $row['jobs'], 'revenue' => $row['revenue']]);
 
         $revenueTrend = $this->buildRevenueTrend($start, $end, $filters);
 
@@ -621,7 +610,7 @@ class ReportsController extends Controller
             'additionalFees' => (float) $base()->where('status', 'completed')->sum('additional_fee'),
             'vatCollected' => (float) $base()->where('status', 'completed')->sum('vat_amount'),
             'cashReceived' => (float) $base()->where('status', 'completed')->sum('cash_received'),
-            'averagePerBooking' => $completedCount > 0 ? $totalRevenue / $completedCount : 0.0,
+            'averagePerBooking' => $this->metrics->averageRevenuePerJob($start, $end, $filters)['average'],
         ];
 
         return [

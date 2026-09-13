@@ -110,6 +110,7 @@
                                                 data-category="{{ $type->category }}"
                                                 data-weight="{{ $type->weight_kg }}"
                                                 data-description="{{ $type->description }}"
+                                                data-required-truck-type-id="{{ $type->required_truck_type_id }}"
                                                 data-truck-ids="{{ $type->truckTypes->pluck('id')->join(',') }}">
                                                 <i data-lucide="pencil"></i>
                                                 <span>Edit Vehicle Type</span>
@@ -211,6 +212,17 @@
                     <textarea name="description" id="addVcDescription" placeholder="Short note about this vehicle type"></textarea>
                 </div>
 
+                <div class="vc-form-group">
+                    <label for="addVcRequiredTruckType">Required Truck Type<span class="vc-required" aria-hidden="true">*</span></label>
+                    <span class="vc-form-hint">The one Truck Type every booking with this Vehicle Type must use for pricing and unit eligibility.</span>
+                    <select name="required_truck_type_id" id="addVcRequiredTruckType" required>
+                        <option value="">Select required truck type</option>
+                        @foreach ($truckTypes as $truck)
+                            <option value="{{ $truck->id }}">{{ $truck->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <div class="vc-form-group vc-compat-section">
                     <label>Compatible Truck Types</label>
                     <span class="vc-form-hint">Only Truck Types compatible with the entered weight can be selected.</span>
@@ -277,6 +289,17 @@
                 <div class="vc-form-group">
                     <label for="editVcDescription">Description <span>(optional)</span></label>
                     <textarea name="description" id="editVcDescription"></textarea>
+                </div>
+
+                <div class="vc-form-group">
+                    <label for="editVcRequiredTruckType">Required Truck Type<span class="vc-required" aria-hidden="true">*</span></label>
+                    <span class="vc-form-hint">The one Truck Type every booking with this Vehicle Type must use for pricing and unit eligibility.</span>
+                    <select name="required_truck_type_id" id="editVcRequiredTruckType" required>
+                        <option value="">Select required truck type</option>
+                        @foreach ($truckTypes as $truck)
+                            <option value="{{ $truck->id }}">{{ $truck->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
 
                 <div class="vc-form-group vc-compat-section">

@@ -12,9 +12,6 @@ use Illuminate\Validation\Rule;
 
 class ActiveBookingsController extends Controller
 {
-    /**
-     * Display all active bookings with live tracking capabilities
-     */
     public function index()
     {
         $activeBookings = Booking::with([
@@ -38,7 +35,6 @@ class ActiveBookingsController extends Controller
             ->orderByDesc('updated_at')
             ->paginate(20);
 
-        // Get all zones for dropdown/filtering
         $zones = Zone::orderBy('name')->get();
 
         return view('admin-dashboard.pages.active-bookings.index', compact(
@@ -47,9 +43,6 @@ class ActiveBookingsController extends Controller
         ));
     }
 
-    /**
-     * Update booking status in real-time
-     */
     public function updateStatus(Request $request, Booking $booking)
     {
         $validated = $request->validate([
@@ -66,9 +59,10 @@ class ActiveBookingsController extends Controller
                     'on_job',
                     'arrived_dropoff',
                     'waiting_verification',
-                    'completed',
                 ]),
             ],
+        ], [
+            'status.in' => 'A booking can only be marked completed through the payment confirmation flow.',
         ]);
 
         $previousStatus = $booking->status;
@@ -95,9 +89,6 @@ class ActiveBookingsController extends Controller
         return back()->with('success', "Booking status updated to {$validated['status']}");
     }
 
-    /**
-     * Update booking route/location info
-     */
     public function updateRoute(Request $request, Booking $booking)
     {
         $validated = $request->validate([
@@ -126,9 +117,6 @@ class ActiveBookingsController extends Controller
         return back()->with('success', 'Booking route updated');
     }
 
-    /**
-     * Update booking pricing/details
-     */
     public function updatePricing(Request $request, Booking $booking)
     {
         $validated = $request->validate([
@@ -163,9 +151,6 @@ class ActiveBookingsController extends Controller
         return back()->with('success', 'Booking pricing updated');
     }
 
-    /**
-     * Get booking details for AJAX modal
-     */
     public function show(Request $request, Booking $booking)
     {
         $booking->load(['customer', 'truckType', 'unit.teamLeader', 'unit.zone']);

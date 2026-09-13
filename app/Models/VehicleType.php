@@ -10,6 +10,7 @@ class VehicleType extends Model
         'name',
         'category',
         'weight_kg',
+        'required_truck_type_id',
         'description',
         'icon_path',
         'display_order',
@@ -28,6 +29,11 @@ class VehicleType extends Model
     public function truckTypes()
     {
         return $this->belongsToMany(TruckType::class, 'vehicle_type_truck_type');
+    }
+
+    public function requiredTruckType()
+    {
+        return $this->belongsTo(TruckType::class, 'required_truck_type_id');
     }
 
     public function bookings()

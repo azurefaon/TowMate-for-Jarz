@@ -273,6 +273,15 @@ Route::prefix('superadmin')
         Route::patch('/units/{id}/restore',      [UnitController::class, 'restore'])->name('units.restore');
         Route::delete('/units/{id}/force-delete', [UnitController::class, 'forceDelete'])->name('units.force-delete');
 
+        Route::get('/personnel', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'index'])->name('personnel.index');
+        Route::patch('/personnel/{person}/home-unit', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'updateHomeUnit'])->name('personnel.home-unit');
+        Route::patch('/personnel/{person}/toggle', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'toggleEnabled'])->name('personnel.toggle');
+        Route::post('/personnel-records', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'store'])->name('personnel-records.store');
+        Route::put('/personnel-records/{record}', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'update'])->name('personnel-records.update');
+        Route::patch('/personnel-records/{record}/home-unit', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'updateRecordHomeUnit'])->name('personnel-records.home-unit');
+        Route::patch('/personnel-records/{record}/toggle', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'toggleRecordStatus'])->name('personnel-records.toggle');
+        Route::get('/home-assignments', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'homeAssignments'])->name('home-assignments.index');
+
         Route::get('/bookings', [SuperAdminBookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{id}', [SuperAdminBookingController::class, 'show'])->name('bookings.show');
 

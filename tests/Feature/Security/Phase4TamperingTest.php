@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\VehicleType;
 use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
 
@@ -36,6 +37,16 @@ function p4tTruckType(): TruckType
         'name' => 'P4T Truck ' . fake()->unique()->word(),
         'base_rate' => 1500,
         'per_km_rate' => 60,
+        'status' => 'active',
+    ]);
+}
+
+function p4tVehicleType(TruckType $truckType): VehicleType
+{
+    return VehicleType::create([
+        'name' => 'P4T Vehicle ' . fake()->unique()->word(),
+        'category' => '4_wheeler',
+        'required_truck_type_id' => $truckType->id,
         'status' => 'active',
     ]);
 }
@@ -88,10 +99,12 @@ it('customer cannot mark their own booking as completed or assign a unit/team le
         'status' => 'available',
     ]);
     $tl = User::factory()->create(['role_id' => p4tRole(3, 'Team Leader')->id]);
+    $vehicleType = p4tVehicleType($truckType);
     Sanctum::actingAs($user, ['*']);
 
     $response = test()->postJson('/api/v1/bookings', [
         'truck_type_id' => $truckType->id,
+        'vehicle_type_id' => $vehicleType->id,
         'pickup_address' => 'Origin',
         'pickup_lat' => 14.5,
         'pickup_lng' => 121.0,
@@ -121,10 +134,12 @@ it('customer cannot mark their own booking as completed or assign a unit/team le
 it('customer cannot forge distance/pricing fields on booking creation — server recomputes from truck type', function () {
     [$user, $customer] = p4tCustomer();
     $truckType = p4tTruckType();
+    $vehicleType = p4tVehicleType($truckType);
     Sanctum::actingAs($user, ['*']);
 
     $response = test()->postJson('/api/v1/bookings', [
         'truck_type_id' => $truckType->id,
+        'vehicle_type_id' => $vehicleType->id,
         'pickup_address' => 'Origin',
         'pickup_lat' => 14.5,
         'pickup_lng' => 121.0,

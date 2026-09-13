@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\VehicleType;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
@@ -31,6 +32,16 @@ function p5CustomerWithBooking(): array
     $truckType = TruckType::create(['name' => 'P5 Truck ' . fake()->unique()->word(), 'base_rate' => 1500, 'per_km_rate' => 60]);
 
     return [$user, $customer, $truckType];
+}
+
+function p5VehicleTypeFor(TruckType $truckType): VehicleType
+{
+    return VehicleType::create([
+        'name' => 'P5 Vehicle ' . fake()->unique()->word(),
+        'category' => '4_wheeler',
+        'required_truck_type_id' => $truckType->id,
+        'status' => 'active',
+    ]);
 }
 
 function p5TlWithBooking(): array
@@ -60,10 +71,12 @@ function p5TlWithBooking(): array
 
 it('1: a newly uploaded vehicle image is stored on the private disk, not the public disk', function () {
     [$user, $customer, $truckType] = p5CustomerWithBooking();
+    $vehicleType = p5VehicleTypeFor($truckType);
     Sanctum::actingAs($user, ['*']);
 
     $response = test()->postJson('/api/v1/bookings', [
         'truck_type_id' => $truckType->id,
+        'vehicle_type_id' => $vehicleType->id,
         'pickup_address' => 'Origin',
         'pickup_lat' => 14.5,
         'pickup_lng' => 121.0,
@@ -87,10 +100,12 @@ it('1: a newly uploaded vehicle image is stored on the private disk, not the pub
 
 it('2: the raw /storage path cannot retrieve the newly uploaded vehicle image', function () {
     [$user, $customer, $truckType] = p5CustomerWithBooking();
+    $vehicleType = p5VehicleTypeFor($truckType);
     Sanctum::actingAs($user, ['*']);
 
     test()->postJson('/api/v1/bookings', [
         'truck_type_id' => $truckType->id,
+        'vehicle_type_id' => $vehicleType->id,
         'pickup_address' => 'Origin', 'pickup_lat' => 14.5, 'pickup_lng' => 121.0,
         'dropoff_address' => 'Destination', 'dropoff_lat' => 14.6, 'dropoff_lng' => 121.1,
         'distance_km' => 5,
@@ -105,10 +120,12 @@ it('2: the raw /storage path cannot retrieve the newly uploaded vehicle image', 
 
 it('3: the owning Customer receives a working signed URL for their own vehicle image via booking detail', function () {
     [$user, $customer, $truckType] = p5CustomerWithBooking();
+    $vehicleType = p5VehicleTypeFor($truckType);
     Sanctum::actingAs($user, ['*']);
 
     test()->postJson('/api/v1/bookings', [
         'truck_type_id' => $truckType->id,
+        'vehicle_type_id' => $vehicleType->id,
         'pickup_address' => 'Origin', 'pickup_lat' => 14.5, 'pickup_lng' => 121.0,
         'dropoff_address' => 'Destination', 'dropoff_lat' => 14.6, 'dropoff_lng' => 121.1,
         'distance_km' => 5,
@@ -126,9 +143,11 @@ it('3: the owning Customer receives a working signed URL for their own vehicle i
 it('4: Customer A cannot derive or use a working signed URL for Customer B vehicle image without going through Customer B booking access', function () {
     [$userA] = p5CustomerWithBooking();
     [$userB, $customerB, $truckTypeB] = p5CustomerWithBooking();
+    $vehicleTypeB = p5VehicleTypeFor($truckTypeB);
     Sanctum::actingAs($userB, ['*']);
     test()->postJson('/api/v1/bookings', [
         'truck_type_id' => $truckTypeB->id,
+        'vehicle_type_id' => $vehicleTypeB->id,
         'pickup_address' => 'Origin', 'pickup_lat' => 14.5, 'pickup_lng' => 121.0,
         'dropoff_address' => 'Destination', 'dropoff_lat' => 14.6, 'dropoff_lng' => 121.1,
         'distance_km' => 5,

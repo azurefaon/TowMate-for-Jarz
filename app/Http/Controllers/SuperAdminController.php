@@ -3,32 +3,30 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\Unit;
 use App\Models\Booking;
+use App\Services\ReportMetricsService;
 
 class SuperAdminController extends Controller
 {
+    public function __construct(protected ReportMetricsService $metrics)
+    {
+    }
+
     public function index()
     {
         $periodStart = now()->startOfMonth();
         $periodEnd = now()->endOfMonth();
 
-        $completedThisMonth = Booking::where('status', 'completed')
-            ->whereBetween('completed_at', [$periodStart, $periodEnd]);
+        $revenueMetrics = $this->metrics->averageRevenuePerJob($periodStart, $periodEnd);
+        $revenueThisMonth = $revenueMetrics['revenue'];
+        $completedJobsCount = $revenueMetrics['completed_jobs'];
+        $averageRevenuePerJob = $revenueMetrics['average'];
 
-        $revenueThisMonth = (float) (clone $completedThisMonth)->sum('final_total');
-        $completedJobsCount = (clone $completedThisMonth)->count();
-        $averageRevenuePerJob = $completedJobsCount > 0 ? $revenueThisMonth / $completedJobsCount : 0.0;
+        $cancellationMetrics = $this->metrics->cancellationRate($periodStart, $periodEnd);
+        $cancellationRate = $cancellationMetrics['rate'];
 
-        $totalBookingsThisMonth = Booking::whereBetween('created_at', [$periodStart, $periodEnd])->count();
-        $cancelledThisMonth = Booking::where('status', 'cancelled')
-            ->whereBetween('created_at', [$periodStart, $periodEnd])
-            ->count();
-        $cancellationRate = $totalBookingsThisMonth > 0 ? ($cancelledThisMonth / $totalBookingsThisMonth) * 100 : 0.0;
-
-        $totalUnits = Unit::whereNull('archived_at')->count();
-        $unitsInUse = Unit::where('status', 'on_job')->count();
-        $fleetUtilization = $totalUnits > 0 ? ($unitsInUse / $totalUnits) * 100 : 0.0;
+        $fleetMetrics = $this->metrics->currentFleetUtilization();
+        $fleetUtilization = $fleetMetrics['rate'];
 
         $todayBookings = Booking::whereDate('created_at', today())->count();
         $pendingBookings = Booking::where('status', 'requested')->count();
@@ -55,36 +53,11 @@ class SuperAdminController extends Controller
                 ->sum('final_total');
         }
 
-        $revenueByTruckType = Booking::query()
-            ->whereBetween('completed_at', [$periodStart, $periodEnd])
-            ->where('status', 'completed')
-            ->whereNotNull('truck_type_id')
-            ->with('truckType')
-            ->selectRaw('truck_type_id, sum(final_total) as revenue')
-            ->groupBy('truck_type_id')
-            ->orderByDesc('revenue')
-            ->take(5)
-            ->get()
-            ->map(fn ($row) => [
-                'name' => $row->truckType->name ?? 'Truck Type #' . $row->truck_type_id,
-                'revenue' => (float) $row->revenue,
-            ]);
+        $revenueByTruckType = $this->metrics->revenueByTruckType($periodStart, $periodEnd, [], 5)
+            ->map(fn (array $row) => ['name' => $row['truck_type_name'], 'revenue' => $row['revenue']]);
 
-        $topUnits = Booking::query()
-            ->whereBetween('completed_at', [$periodStart, $periodEnd])
-            ->where('status', 'completed')
-            ->whereNotNull('assigned_unit_id')
-            ->with('unit')
-            ->selectRaw('assigned_unit_id, count(*) as trips, sum(final_total) as revenue')
-            ->groupBy('assigned_unit_id')
-            ->orderByDesc('revenue')
-            ->take(5)
-            ->get()
-            ->map(fn ($row) => [
-                'name' => $row->unit->name ?? 'Unit #' . $row->assigned_unit_id,
-                'trips' => (int) $row->trips,
-                'revenue' => (float) $row->revenue,
-            ]);
+        $topUnits = $this->metrics->unitPerformance($periodStart, $periodEnd, [], 5)
+            ->map(fn (array $row) => ['name' => $row['unit_name'], 'trips' => $row['completed_jobs'], 'revenue' => $row['revenue']]);
 
         return view('superadmin.dashboard', [
             'periodLabel' => $periodStart->format('F Y'),

@@ -15,11 +15,6 @@ use Illuminate\Support\Str;
 
 class AuditLogService
 {
-    /**
-     * Fields on auditable models that are never logged, either because they
-     * are secrets or because they change too often to be meaningful (GPS
-     * pings, presence heartbeats).
-     */
     protected const GLOBAL_IGNORED_FIELDS = [
         'updated_at',
         'remember_token',
@@ -61,10 +56,6 @@ class AuditLogService
         'dispatcher_status' => 'dispatcher status',
     ];
 
-    /**
-     * Resolves a foreign-key-style field to a related model class + the
-     * attribute to display instead of the raw id.
-     */
     protected const FIELD_RELATIONS = [
         'assigned_unit_id' => [Unit::class, 'name'],
         'team_leader_id' => [User::class, 'full_name'],
@@ -76,6 +67,16 @@ class AuditLogService
         'vehicle_type_id' => [VehicleType::class, 'name'],
         'zone_id' => [Zone::class, 'name'],
     ];
+
+    public const BUSINESS_ACTIONS = [
+        'personnel_created', 'personnel_updated', 'personnel_activated',
+        'personnel_deactivated', 'personnel_home_unit_changed',
+    ];
+
+    public static function isBusinessAction(string $action): bool
+    {
+        return in_array($action, self::BUSINESS_ACTIONS, true);
+    }
 
     public static function categoryForAction(string $action): string
     {
@@ -104,15 +105,6 @@ class AuditLogService
         return array_merge(self::GLOBAL_IGNORED_FIELDS, self::MODEL_IGNORED_FIELDS[$modelBasename] ?? []);
     }
 
-    /**
-     * Request-scoped registry of entity => AuditLog id, populated whenever an
-     * AuditLog row is inserted (manual call site or our own observer). Lets
-     * AuditObserver::flush() tell whether a manual AuditLog::create() already
-     * fired this request for a given entity, so it enriches that row instead
-     * of inserting a duplicate.
-     *
-     * @var array<string,int>
-     */
     protected static array $loggedEntities = [];
 
     public static function rememberLoggedEntity(?string $entityType, mixed $entityId, int $logId): void
@@ -185,7 +177,6 @@ class AuditLogService
         if (isset(self::FIELD_RELATIONS[$field])) {
             [$relatedClass, $attribute] = self::FIELD_RELATIONS[$field];
 
-            /** @var Model|null $related */
             $related = $relatedClass::find($raw);
 
             return $related?->{$attribute} ?? "#{$raw}";
@@ -223,16 +214,6 @@ class AuditLogService
         return (bool) preg_match('/^\d{4}-\d{2}-\d{2}/', $raw);
     }
 
-    /**
-     * Builds the human-readable sentence(s) describing a model change, and
-     * derives the semantic category (status_change / assignment_change /
-     * quotation_change / archive / restore / update) from the fields that
-     * actually changed rather than needing a bespoke call site per action.
-     *
-     * @param  array<string,mixed>  $changed  new values, keyed by field
-     * @param  array<string,mixed>  $original  old values, keyed by field
-     * @return array{category:string,description:string}
-     */
     public function describeChanges(Model $model, array $changed, array $original, string $actorName): array
     {
         $modelLabel = method_exists($model, 'auditLabel') ? $model->auditLabel() : class_basename($model) . ' #' . $model->getKey();
@@ -256,9 +237,6 @@ class AuditLogService
         ];
     }
 
-    /**
-     * @return array{category:string,description:string}
-     */
     public function describeCreate(Model $model, string $actorName): array
     {
         $modelLabel = method_exists($model, 'auditLabel') ? $model->auditLabel() : class_basename($model) . ' #' . $model->getKey();
@@ -269,9 +247,6 @@ class AuditLogService
         ];
     }
 
-    /**
-     * @return array{category:string,description:string}
-     */
     public function describeDelete(Model $model, string $actorName): array
     {
         $modelLabel = method_exists($model, 'auditLabel') ? $model->auditLabel() : class_basename($model) . ' #' . $model->getKey();
@@ -282,10 +257,6 @@ class AuditLogService
         ];
     }
 
-    /**
-     * @param  array<string,mixed>  $changed
-     * @param  array<string,mixed>  $original
-     */
     protected function categoryFor(Model $model, array $changed, array $original): string
     {
         if (array_key_exists('archived_at', $changed)) {
