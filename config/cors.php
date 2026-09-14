@@ -11,7 +11,9 @@ return [
         explode(',', (string) env('CORS_ALLOWED_ORIGINS', ''))
     ))),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => env('APP_ENV') === 'local'
+        ? ['#^https?://(localhost|127\.0\.0\.1)(:\d+)?$#']
+        : [],
 
     'allowed_headers' => ['*'],
 

@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -13,17 +12,10 @@ import '../models/quotation_model.dart';
 import '../models/truck_type_model.dart';
 
 class ApiService {
-  // static String get baseUrl {
-  //   if (kIsWeb) return 'http://127.0.0.1:8000/api';
-  //   if (defaultTargetPlatform == TargetPlatform.android) {
-  //     return 'http://10.0.2.2:8000/api';
-  //   }
-  //   return 'http://127.0.0.1:8000/api';
-  // }
-
-  static const String baseUrl = 'https://jarztowing.up.railway.app/api';
-  // static const String baseUrl = 'http://192.168.254.100:8000/api';
-  // static const String baseUrl = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://127.0.0.1:8000/api',
+  );
 
   static const _secure = FlutterSecureStorage(
     aOptions: AndroidOptions(
@@ -499,9 +491,6 @@ class ApiService {
     }
   }
 
-  // Returns null on failure (network error, timeout, non-200) so the caller
-  // can leave existing state untouched instead of overwriting it with a
-  // misleading default.
   static Future<Map<String, dynamic>?> fetchAvailability() async {
     try {
       final token = await getToken();
@@ -517,6 +506,41 @@ class ApiService {
       return null;
     } catch (_) {
       return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> fetchCustomerContent() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/v1/customer/content'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchVehicleTypesByCategory(
+    String category,
+  ) async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/vehicle-types/by-category/$category'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final list = data['vehicleTypes'] as List? ?? [];
+        return list.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (_) {
+      return [];
     }
   }
 
@@ -559,10 +583,6 @@ class ApiService {
     }
   }
 
-  // Places Autocomplete (proxied through Laravel so the Google key never
-  // ships to the client). Suggestions may include coordinates directly
-  // (Nominatim fallback) or a place_id needing a follow-up resolvePlaceDetails
-  // call (Google path) — check which fields are present before using either.
   static Future<List<Map<String, dynamic>>> autocompleteAddress(
     String query,
   ) async {
@@ -631,7 +651,7 @@ class ApiService {
     }
   }
 
-  static Future<bool> cancelBooking(String code) async {
+  static Future<Map<String, dynamic>> cancelBooking(String code) async {
     try {
       final token = await getToken();
       final response = await http
@@ -640,9 +660,13 @@ class ApiService {
             headers: {..._headers, 'Authorization': 'Bearer $token'},
           )
           .timeout(const Duration(seconds: 15));
-      return response.statusCode == 200;
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': response.statusCode == 200 && body['success'] == true,
+        'message': body['message'] ?? '',
+      };
     } catch (_) {
-      return false;
+      return {'success': false, 'message': 'Network error. Please try again.'};
     }
   }
 
@@ -807,15 +831,12 @@ class ApiService {
     }
   }
 
-  // Call OSRM directly from the device so Railway cloud IPs don't get rate-limited.
-  // Falls back to the backend proxy if OSRM is unreachable.
   static Future<Map<String, dynamic>> calculateRoute(
     double lat1,
     double lng1,
     double lat2,
     double lng2,
   ) async {
-    // 1) Try OSRM directly (device IP → no cloud rate-limit)
     try {
       final url =
           'https://router.project-osrm.org/route/v1/driving/$lng1,$lat1;$lng2,$lat2'
@@ -841,11 +862,8 @@ class ApiService {
           }
         }
       }
-    } catch (_) {
-      // OSRM unreachable — fall through to backend
-    }
+    } catch (_) {}
 
-    // 2) Fall back to backend proxy
     try {
       final token = await getToken();
       final response = await http
@@ -863,7 +881,6 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
-        // Treat backend straight-line fallback as failure so Flutter uses Haversine
         if (body['is_fallback'] == true) {
           return {'success': false};
         }
@@ -986,6 +1003,29 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> requestPriceReview(
+    int id,
+    String reason,
+  ) async {
+    try {
+      final token = await getToken();
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/v1/quotations/$id/request-price-review'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({'reason': reason}),
+          )
+          .timeout(const Duration(seconds: 15));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return {
+        'success': res.statusCode == 200 && body['success'] == true,
+        'message': body['message'] ?? '',
+      };
+    } catch (_) {
+      return {'success': false, 'message': 'Network error. Please try again.'};
+    }
+  }
+
   static Future<Map<String, dynamic>> sendQuotationInquiry(
     int id,
     String message,
@@ -1008,8 +1048,6 @@ class ApiService {
       return {'success': false, 'message': 'Network error. Please try again.'};
     }
   }
-
-  // ── Registration OTP ───────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> sendRegistrationOtp(String email) async {
     try {
@@ -1059,8 +1097,6 @@ class ApiService {
       return {'success': false, 'message': 'Network error. Please try again.'};
     }
   }
-
-  // ── Password Reset ─────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> sendResetOtp(String email) async {
     try {
@@ -1138,8 +1174,6 @@ class ApiService {
       return {'success': false, 'message': 'Network error. Please try again.'};
     }
   }
-
-  // ── Notifications ─────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> fetchNotifications() async {
     try {

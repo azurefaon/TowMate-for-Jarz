@@ -29,6 +29,8 @@ Route::post('/password/verify-otp', [PasswordResetController::class, 'verifyOtp'
 Route::post('/password/reset',      [PasswordResetController::class, 'resetPassword'])->middleware('throttle:customer-password-reset-submit');
 
 Route::get('/v1/customer/content', [CustomerContentController::class, 'index']);
+Route::get('/media/mobile/{filename}', [CustomerContentController::class, 'media'])
+    ->where('filename', '[A-Za-z0-9._-]+');
 
 Route::middleware('auth:sanctum')->group(function () {
 

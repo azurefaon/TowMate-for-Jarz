@@ -13,13 +13,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-/**
- * Owner-only content management for the Customer Flutter app's
- * informational screens (Home announcement, Services, About, How It
- * Works, Coverage Areas). Lives under System Settings -> Customer App
- * Content in the UI; never touches booking/quotation/dispatch/payment
- * logic or pricing.
- */
 class CustomerAppContentController extends Controller
 {
     private function clean(?string $value): ?string
@@ -27,12 +20,6 @@ class CustomerAppContentController extends Controller
         return $value === null ? null : trim(strip_tags($value));
     }
 
-    /**
-     * Swaps display_order between $model and its immediate neighbor (by
-     * display_order, id) in $direction. No-ops silently at either end of
-     * the list. Reuses the model's own class for the sibling query, so this
-     * is generic across MobileService/MobileHowItWorksStep/MobileCoverageArea.
-     */
     private function moveInOrder($model, string $direction): void
     {
         $query = $model::query();
@@ -60,7 +47,7 @@ class CustomerAppContentController extends Controller
         }
 
         if (! $sibling) {
-            return; // already at that end of the list
+            return;
         }
 
         $modelOrder = $model->display_order;
@@ -69,8 +56,6 @@ class CustomerAppContentController extends Controller
         $model->update(['display_order' => $siblingOrder]);
         $sibling->update(['display_order' => $modelOrder]);
     }
-
-    // ── Announcements ───────────────────────────────────────────────────
 
     public function announcementStore(Request $request): RedirectResponse
     {
@@ -153,8 +138,6 @@ class CustomerAppContentController extends Controller
         ]);
     }
 
-    // ── Services ─────────────────────────────────────────────────────────
-
     public function serviceStore(Request $request): RedirectResponse
     {
         $validated = $this->validateService($request);
@@ -162,6 +145,7 @@ class CustomerAppContentController extends Controller
         $service = MobileService::create([
             'title' => $this->clean($validated['title']),
             'description' => $this->clean($validated['description']),
+            'image_path' => $request->hasFile('image') ? $request->file('image')->store('mobile', 'public') : null,
             'category' => $this->clean($validated['category'] ?? null),
             'availability_note' => $this->clean($validated['availability_note'] ?? null),
             'display_order' => $validated['display_order'] ?? ((int) MobileService::max('display_order') + 1),
@@ -203,11 +187,13 @@ class CustomerAppContentController extends Controller
             && $this->clean($validated['title']) === $service->title
             && $this->clean($validated['description']) === $service->description
             && $this->clean($validated['category'] ?? null) === $service->category
-            && $this->clean($validated['availability_note'] ?? null) === $service->availability_note;
+            && $this->clean($validated['availability_note'] ?? null) === $service->availability_note
+            && ! $request->hasFile('image');
 
         $service->update([
             'title' => $this->clean($validated['title']),
             'description' => $this->clean($validated['description']),
+            'image_path' => $request->hasFile('image') ? $request->file('image')->store('mobile', 'public') : $service->image_path,
             'category' => $this->clean($validated['category'] ?? null),
             'availability_note' => $this->clean($validated['availability_note'] ?? null),
             'display_order' => $validated['display_order'] ?? $service->display_order,
@@ -245,13 +231,12 @@ class CustomerAppContentController extends Controller
         return $request->validate([
             'title' => ['required', 'string', 'max:150'],
             'description' => ['required', 'string', 'max:2000'],
+            'image' => ['nullable', 'image', 'max:2048'],
             'category' => ['nullable', 'string', 'max:100'],
             'availability_note' => ['nullable', 'string', 'max:255'],
             'display_order' => ['nullable', 'integer', 'min:0'],
         ]);
     }
-
-    // ── How It Works ─────────────────────────────────────────────────────
 
     public function howItWorksStore(Request $request): RedirectResponse
     {
@@ -341,8 +326,6 @@ class CustomerAppContentController extends Controller
         ]);
     }
 
-    // ── Coverage Areas ───────────────────────────────────────────────────
-
     public function coverageAreaStore(Request $request): RedirectResponse
     {
         $validated = $this->validateCoverageArea($request);
@@ -427,8 +410,6 @@ class CustomerAppContentController extends Controller
         ]);
     }
 
-    // ── About & Support (singleton SystemSetting keys) ──────────────────
-
     public function aboutUpdate(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -445,6 +426,31 @@ class CustomerAppContentController extends Controller
         ]);
 
         return back()->with('success', 'About content updated.');
+    }
+
+    public function imagesUpdate(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'mobile_hero_image' => ['nullable', 'image', 'max:2048'],
+            'mobile_services_image' => ['nullable', 'image', 'max:2048'],
+            'mobile_emergency_image' => ['nullable', 'image', 'max:2048'],
+            'mobile_about_image' => ['nullable', 'image', 'max:2048'],
+        ]);
+
+        foreach (['mobile_hero_image', 'mobile_services_image', 'mobile_emergency_image', 'mobile_about_image'] as $key) {
+            if ($request->hasFile($key)) {
+                SystemSetting::setValue($key, $request->file($key)->store('mobile', 'public'));
+            }
+        }
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'mobile_about_updated',
+            'entity_type' => 'SystemSetting',
+            'reference' => 'mobile_hero_image/mobile_services_image/mobile_emergency_image/mobile_about_image',
+        ]);
+
+        return back()->with('success', 'App images updated.');
     }
 
     public function supportUpdate(Request $request): RedirectResponse

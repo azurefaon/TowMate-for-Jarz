@@ -107,6 +107,7 @@
                 <button class="mc-subnav-btn" data-mc-section="mc-about-support">About &amp; Support</button>
                 <button class="mc-subnav-btn" data-mc-section="mc-how-it-works">How It Works</button>
                 <button class="mc-subnav-btn" data-mc-section="mc-coverage-areas">Coverage Areas</button>
+                <button class="mc-subnav-btn" data-mc-section="mc-app-images">App Images</button>
             </div>
 
             <div class="mc-section active" id="mc-announcements">
@@ -203,7 +204,7 @@
                     <div class="mc-list">
                         @foreach ($mobileServices as $index => $service)
                             <div class="mc-row">
-                                <form method="POST" action="{{ route('superadmin.settings.customer-content.services.update', $service) }}" class="mc-row-form">
+                                <form method="POST" action="{{ route('superadmin.settings.customer-content.services.update', $service) }}" class="mc-row-form" enctype="multipart/form-data">
                                     @csrf
                                     @method('PATCH')
                                     <input type="hidden" name="display_order" value="{{ $service->display_order }}">
@@ -223,6 +224,13 @@
                                         <div class="settings-field" style="grid-column: 1 / -1;">
                                             <label>Description</label>
                                             <textarea name="description" maxlength="2000" required>{{ $service->description }}</textarea>
+                                        </div>
+                                        <div class="settings-field" style="grid-column: 1 / -1;">
+                                            <label>Image</label>
+                                            @if ($service->image_path)
+                                                <img src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($service->image_path) }}" alt="" style="width:96px;height:64px;object-fit:cover;border-radius:6px;margin-bottom:6px;display:block;">
+                                            @endif
+                                            <input type="file" name="image" accept="image/*">
                                         </div>
                                     </div>
                                     <div class="mc-row-actions">
@@ -257,7 +265,7 @@
                 <hr class="settings-divider">
 
                 <h4 class="mc-subheading">Add Service</h4>
-                <form method="POST" action="{{ route('superadmin.settings.customer-content.services.store') }}">
+                <form method="POST" action="{{ route('superadmin.settings.customer-content.services.store') }}" enctype="multipart/form-data">
                     @csrf
                     <div class="settings-grid">
                         <div class="settings-field">
@@ -275,6 +283,10 @@
                         <div class="settings-field" style="grid-column: 1 / -1;">
                             <label>Description</label>
                             <textarea name="description" maxlength="2000" placeholder="Informational description shown to customers" required></textarea>
+                        </div>
+                        <div class="settings-field" style="grid-column: 1 / -1;">
+                            <label>Image</label>
+                            <input type="file" name="image" accept="image/*">
                         </div>
                     </div>
                     <div class="settings-actions">
@@ -478,6 +490,54 @@
                         <input type="text" name="name" maxlength="150" placeholder="e.g. Quezon City" required>
                     </div>
                     <button type="submit" class="settings-save">Add Coverage Area</button>
+                </form>
+            </div>
+
+            <div class="mc-section" id="mc-app-images">
+                <div class="mc-section-intro">
+                    <h3>App Images</h3>
+                    <p>Photos shown on the Customer app's public Home and About pages.</p>
+                </div>
+
+                <form method="POST" action="{{ route('superadmin.settings.customer-content.images.update') }}" enctype="multipart/form-data">
+                    @csrf
+                    <div class="settings-grid">
+                        <div class="settings-field">
+                            <label>Home / Hero</label>
+                            @if (!empty($settings['mobile_hero_image']))
+                                <img class="preview-img" src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($settings['mobile_hero_image']) }}" alt="">
+                            @endif
+                            <input type="file" name="mobile_hero_image" accept="image/*">
+                            <p class="field-help">Shown on the public Home hero section.</p>
+                        </div>
+                        <div class="settings-field">
+                            <label>Services / Page</label>
+                            @if (!empty($settings['mobile_services_image']))
+                                <img class="preview-img" src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($settings['mobile_services_image']) }}" alt="">
+                            @endif
+                            <input type="file" name="mobile_services_image" accept="image/*">
+                            <p class="field-help">Shown on the public Services page.</p>
+                        </div>
+                        <div class="settings-field">
+                            <label>Emergency / Booking</label>
+                            @if (!empty($settings['mobile_emergency_image']))
+                                <img class="preview-img" src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($settings['mobile_emergency_image']) }}" alt="">
+                            @endif
+                            <input type="file" name="mobile_emergency_image" accept="image/*">
+                            <p class="field-help">Shown on the Emergency Towing call-to-action.</p>
+                        </div>
+                        <div class="settings-field">
+                            <label>About / Company</label>
+                            @if (!empty($settings['mobile_about_image']))
+                                <img class="preview-img" src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($settings['mobile_about_image']) }}" alt="">
+                            @endif
+                            <input type="file" name="mobile_about_image" accept="image/*">
+                            <p class="field-help">Shown on the About page.</p>
+                        </div>
+                    </div>
+                    <div class="settings-actions">
+                        <button type="submit" class="settings-save">Save Images</button>
+                    </div>
                 </form>
             </div>
 

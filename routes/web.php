@@ -313,6 +313,7 @@ Route::get('/settings', [SystemSettingsController::class, 'index'])->name('setti
 
             Route::post('/about', [CustomerAppContentController::class, 'aboutUpdate'])->name('about.update');
             Route::post('/support', [CustomerAppContentController::class, 'supportUpdate'])->name('support.update');
+            Route::post('/images', [CustomerAppContentController::class, 'imagesUpdate'])->name('images.update');
         });
 
         Route::get('/dashboard-stats', function () {

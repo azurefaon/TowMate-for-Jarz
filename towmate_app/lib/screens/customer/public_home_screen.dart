@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
+import '../../models/service.dart';
 import '../../services/api_service.dart';
 import '../../widgets/tm_drawer.dart';
 import '../../widgets/tm_button.dart';
+import '../../widgets/cms_image.dart';
+import '../../widgets/skeleton_box.dart';
+import '../../widgets/auth_gate_sheet.dart';
 
 class PublicHomeScreen extends StatefulWidget {
   const PublicHomeScreen({super.key});
@@ -13,10 +17,14 @@ class PublicHomeScreen extends StatefulWidget {
 }
 
 class _PublicHomeScreenState extends State<PublicHomeScreen> {
+  Map<String, dynamic>? _content;
+  bool _loading = true;
+
   @override
   void initState() {
     super.initState();
     _checkAuth();
+    _loadContent();
   }
 
   Future<void> _checkAuth() async {
@@ -32,8 +40,32 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
     }
   }
 
+  Future<void> _loadContent() async {
+    final content = await ApiService.fetchCustomerContent();
+    if (!mounted) return;
+    setState(() {
+      _content = content;
+      _loading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final heroImageUrl = _content?['hero_image_url'] as String?;
+    final emergencyImageUrl = _content?['emergency_image_url'] as String?;
+    final rawServices = (_content?['services'] as List<dynamic>?) ?? [];
+    final services = rawServices
+        .map((s) => Service.fromJson(s as Map<String, dynamic>))
+        .take(3)
+        .toList();
+    final howItWorks = (_content?['how_it_works'] as List<dynamic>?) ?? [];
+    final coverageAreas =
+        (_content?['coverage_areas'] as List<dynamic>?) ?? [];
+    final supportHours =
+        (_content?['support']?['hours'] as String?)?.trim();
+    final supportPhone = (_content?['support']?['phone'] as String?)?.trim();
+    final supportEmail = (_content?['support']?['email'] as String?)?.trim();
+
     return Scaffold(
       backgroundColor: context.bg,
       drawer: const TmDrawer(currentRoute: '/'),
@@ -41,28 +73,35 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
         builder: (context) => SafeArea(
           child: Column(
             children: [
-              _TopBar(
-                onMenuTap: () => Scaffold.of(context).openDrawer(),
-              ),
+              _TopBar(onMenuTap: () => Scaffold.of(context).openDrawer()),
               Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _HeroSection(
-                        onGetStarted: () =>
-                            Navigator.pushNamed(context, '/signup'),
-                        onExplore: () =>
-                            Navigator.pushNamed(context, '/services'),
+                child: _loading
+                    ? const SingleChildScrollView(child: _HomeSkeleton())
+                    : SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _HeroSection(
+                              imageUrl: heroImageUrl,
+                              onGetStarted: () => showAuthGateSheet(context),
+                              onExplore: () =>
+                                  Navigator.pushNamed(context, '/services'),
+                            ),
+                            const _TrustSection(),
+                            if (services.isNotEmpty)
+                              _ServicesPreview(services: services),
+                            _EmergencySection(
+                              imageUrl: emergencyImageUrl,
+                              hours: supportHours,
+                            ),
+                            if (howItWorks.isNotEmpty)
+                              _HowItWorksSection(steps: howItWorks),
+                            if (coverageAreas.isNotEmpty)
+                              _CoverageSection(areas: coverageAreas),
+                            _Footer(phone: supportPhone, email: supportEmail),
+                          ],
+                        ),
                       ),
-                      _ServicesGrid(),
-                      const _FeaturedCard(),
-                      _VehicleChips(),
-                      const _PromoSection(),
-                      _Footer(),
-                    ],
-                  ),
-                ),
               ),
             ],
           ),
@@ -72,8 +111,6 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
   }
 }
 
-// ─── Top bar ───────────────────────────────────────────────────────────────
-
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.onMenuTap});
   final VoidCallback onMenuTap;
@@ -81,28 +118,39 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
+        color: context.bg,
+        border: Border(
+          bottom: BorderSide(
+            color: context.divider.withValues(alpha: 0.6),
+            width: 0.5,
+          ),
+        ),
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: Icon(Icons.menu_rounded, color: context.textTertiary),
-            onPressed: onMenuTap,
-            tooltip: 'Menu',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: IconButton(
+              icon: Icon(Icons.menu_rounded, color: context.textTertiary, size: 22),
+              onPressed: onMenuTap,
+              tooltip: 'Menu',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
           ),
-          const SizedBox(width: 8),
           Expanded(
             child: Center(
               child: Text(
                 'TowMate',
                 style: GoogleFonts.inter(
                   color: TmColors.yellow,
-                  fontSize: 22,
-                  letterSpacing: -0.8,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5,
                 ),
               ),
             ),
@@ -114,234 +162,414 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ─── Hero section ──────────────────────────────────────────────────────────
+class _HomeSkeleton extends StatelessWidget {
+  const _HomeSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 440,
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SkeletonBox(width: 220, height: 30),
+                const SizedBox(height: 8),
+                const SkeletonBox(width: 180, height: 30),
+                const SizedBox(height: 14),
+                SkeletonBox(width: MediaQuery.of(context).size.width - 48, height: 14),
+                const SizedBox(height: 8),
+                const SkeletonBox(width: 240, height: 14),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SkeletonBox(
+                        height: 52,
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SkeletonBox(
+                        height: 52,
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Row(
+            children: const [
+              Expanded(child: _SkeletonTrustItem()),
+              Expanded(child: _SkeletonTrustItem()),
+              Expanded(child: _SkeletonTrustItem()),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SkeletonBox(width: 160, height: 20),
+              const SizedBox(height: 16),
+              for (var i = 0; i < 3; i++) ...[
+                SkeletonBox(
+                  height: 76,
+                  width: double.infinity,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          child: SkeletonBox(
+            height: 208,
+            width: double.infinity,
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SkeletonBox(width: 140, height: 20),
+              const SizedBox(height: 16),
+              for (var i = 0; i < 3; i++) ...[
+                if (i > 0) const SizedBox(height: 14),
+                const _SkeletonStepRow(),
+              ],
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SkeletonBox(width: 120, height: 20),
+              const SizedBox(height: 16),
+              SkeletonBox(
+                height: 64,
+                width: double.infinity,
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SkeletonTrustItem extends StatelessWidget {
+  const _SkeletonTrustItem();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: [
+        SkeletonBox(width: 24, height: 24, borderRadius: BorderRadius.all(Radius.circular(6))),
+        SizedBox(height: 10),
+        SkeletonBox(width: 64, height: 10),
+      ],
+    );
+  }
+}
+
+class _SkeletonStepRow extends StatelessWidget {
+  const _SkeletonStepRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SkeletonBox(width: 20, height: 16),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              SkeletonBox(width: 140, height: 15),
+              SizedBox(height: 6),
+              SkeletonBox(width: double.infinity, height: 13),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _HeroSection extends StatelessWidget {
   const _HeroSection({
+    required this.imageUrl,
     required this.onGetStarted,
     required this.onExplore,
   });
 
+  final String? imageUrl;
   final VoidCallback onGetStarted;
   final VoidCallback onExplore;
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 900),
-      curve: Curves.easeOutCubic,
-      builder: (_, value, child) => Opacity(
-        opacity: value,
-        child: Transform.translate(
-          offset: Offset(0, (1 - value) * 24),
-          child: child,
-        ),
-      ),
-      child: Container(
-        width: double.infinity,
-        color: TmColors.black,
-        padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Fast.\nReliable.\nAnytime.',
-              style: GoogleFonts.inter(
-                color: TmColors.white,
-                fontSize: 40,
-                letterSpacing: -1.4,
-                height: 1.1,
+    return SizedBox(
+      height: 440,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.local_shipping_rounded),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  TmColors.black.withValues(alpha: 0.15),
+                  TmColors.black.withValues(alpha: 0.78),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 3,
-              decoration: BoxDecoration(
-                color: TmColors.yellow,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Professional towing and roadside\nassistance across Metro Manila and beyond.',
-              style: GoogleFonts.inter(
-                color: TmColors.grey500,
-                fontSize: 14,
-                letterSpacing: 0.1,
-                height: 1.6,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Row(
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TmButton.yellowPrimary('Get Started', onGetStarted),
+                Text(
+                  'On the road,\nalways with you.',
+                  style: GoogleFonts.inter(
+                    color: TmColors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -1.0,
+                    height: 1.14,
+                  ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TmButton.ghost('Explore Services', onExplore),
+                const SizedBox(height: 10),
+                Text(
+                  'Professional towing and roadside assistance, ready when your trip does not go as planned.',
+                  style: GoogleFonts.inter(
+                    color: TmColors.grey300,
+                    fontSize: 14,
+                    letterSpacing: 0.1,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TmButton.yellowPrimary('Get Started', onGetStarted),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TmButton.ghost('Explore Services', onExplore),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ─── Services grid ─────────────────────────────────────────────────────────
+class _TrustSection extends StatelessWidget {
+  const _TrustSection();
 
-class _ServicesGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
       color: context.bg,
-      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: const Row(
+        children: [
+          Expanded(
+            child: _TrustItem(
+              icon: Icons.bolt_rounded,
+              label: 'Fast Response',
+            ),
+          ),
+          Expanded(
+            child: _TrustItem(
+              icon: Icons.verified_user_outlined,
+              label: 'Trusted Professionals',
+            ),
+          ),
+          Expanded(
+            child: _TrustItem(
+              icon: Icons.map_outlined,
+              label: 'Wide Coverage',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrustItem extends StatelessWidget {
+  const _TrustItem({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, color: context.textPrimary, size: 22),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            color: context.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.1,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ServicesPreview extends StatelessWidget {
+  const _ServicesPreview({required this.services});
+  final List<Service> services;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: context.surface,
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Our Services',
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 24,
-              letterSpacing: -0.8,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Towing Services',
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -0.6,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/services'),
+                child: Text(
+                  'View all',
+                  style: GoogleFonts.inter(
+                    color: TmColors.yellow,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Solutions for every situation',
+            'Choose the towing support that fits your vehicle.',
             style: GoogleFonts.inter(
               color: context.textSecondary,
               fontSize: 13,
               letterSpacing: 0.1,
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _ServiceChip(
-                  icon: Icons.local_shipping_rounded,
-                  label: 'Towing',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ServiceChip(
-                  icon: Icons.build_rounded,
-                  label: 'Roadside Help',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ServiceChip(
-                  icon: Icons.car_repair_rounded,
-                  label: 'Recovery',
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ServiceChip extends StatelessWidget {
-  const _ServiceChip({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-        color: context.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: TmColors.yellow, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 12,
-              letterSpacing: 0.1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Featured card ─────────────────────────────────────────────────────────
-
-class _FeaturedCard extends StatelessWidget {
-  const _FeaturedCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: context.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: TmColors.black,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: TmColors.yellow,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'FEATURED',
-                style: GoogleFonts.inter(
-                  color: TmColors.black,
-                  fontSize: 10,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Emergency Towing\nAvailable 24 / 7',
-              style: GoogleFonts.inter(
-                color: TmColors.white,
-                fontSize: 24,
-                letterSpacing: -0.6,
-                height: 1.2,
-              ),
-            ),
+          const SizedBox(height: 16),
+          for (final service in services) ...[
+            _ServicePreviewCard(service: service),
             const SizedBox(height: 10),
-            Text(
-              'Our fastest response fleet is always on standby. Call now or book through the app and we dispatch immediately.',
-              style: GoogleFonts.inter(
-                color: TmColors.grey500,
-                fontSize: 13,
-                letterSpacing: 0.1,
-                height: 1.6,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ServicePreviewCard extends StatelessWidget {
+  const _ServicePreviewCard({required this.service});
+  final Service service;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, '/services'),
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.divider),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 76,
+              height: 76,
+              child: CmsImage(imageUrl: service.imageUrl),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      service.title,
+                      style: GoogleFonts.inter(
+                        color: context.textPrimary,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      service.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: context.textSecondary,
+                        fontSize: 12,
+                        letterSpacing: 0.1,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
-            TmButton.yellowPrimary(
-              'Book Emergency Towing',
-              () => Navigator.pushNamed(context, '/login'),
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Icon(Icons.chevron_right_rounded, color: context.textTertiary, size: 20),
             ),
           ],
         ),
@@ -350,145 +578,274 @@ class _FeaturedCard extends StatelessWidget {
   }
 }
 
-// ─── Vehicle chips ─────────────────────────────────────────────────────────
+class _EmergencySection extends StatelessWidget {
+  const _EmergencySection({required this.imageUrl, required this.hours});
+  final String? imageUrl;
+  final String? hours;
 
-class _VehicleChips extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final availability = (hours != null && hours!.isNotEmpty)
+        ? hours!
+        : 'Ready when you need us';
+
+    return Container(
+      color: context.bg,
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: SizedBox(
+          height: 208,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.local_shipping_rounded),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: TmColors.black.withValues(alpha: 0.72),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Emergency Towing',
+                      style: GoogleFonts.inter(
+                        color: TmColors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      availability,
+                      style: GoogleFonts.inter(
+                        color: TmColors.yellow,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: 200,
+                      child: TmButton.yellowPrimary(
+                        'Request Towing',
+                        () => showAuthGateSheet(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HowItWorksSection extends StatelessWidget {
+  const _HowItWorksSection({required this.steps});
+  final List<dynamic> steps;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: context.surface,
-      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
+      color: context.bg,
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Vehicle Assistance',
+            'How It Works',
             style: GoogleFonts.inter(
               color: context.textPrimary,
-              fontSize: 24,
-              letterSpacing: -0.8,
+              fontSize: 22,
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.6,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'We tow any type of vehicle',
+          const SizedBox(height: 16),
+          for (var i = 0; i < steps.length && i < 3; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            _StepRow(
+              number: (i + 1).toString().padLeft(2, '0'),
+              title: (steps[i]['title'] as String?) ?? '',
+              description: (steps[i]['description'] as String?) ?? '',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  const _StepRow({
+    required this.number,
+    required this.title,
+    required this.description,
+  });
+
+  final String number;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 36,
+          child: Text(
+            number,
             style: GoogleFonts.inter(
-              color: context.textSecondary,
-              fontSize: 13,
-              letterSpacing: 0.1,
+              color: TmColors.yellow,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.4,
             ),
           ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: const [
-              _VehicleChip(icon: Icons.directions_car_rounded, label: 'Sedan / Hatchback'),
-              _VehicleChip(icon: Icons.directions_car_filled_rounded, label: 'SUV / Crossover'),
-              _VehicleChip(icon: Icons.local_shipping_outlined, label: 'Pickup Truck'),
-              _VehicleChip(icon: Icons.airport_shuttle_rounded, label: 'Van / MPV'),
-              _VehicleChip(icon: Icons.two_wheeler_rounded, label: 'Motorcycle'),
-              _VehicleChip(icon: Icons.directions_bus_rounded, label: 'Bus'),
-              _VehicleChip(icon: Icons.local_shipping_rounded, label: 'Cargo Truck'),
-              _VehicleChip(icon: Icons.directions_bus_filled_rounded, label: 'Jeepney'),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 13,
+                  letterSpacing: 0.1,
+                  height: 1.5,
+                ),
+              ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _VehicleChip extends StatelessWidget {
-  const _VehicleChip({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: context.bg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: context.divider),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: context.textTertiary, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              color: context.textTertiary,
-              fontSize: 12,
-              letterSpacing: 0.1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+String _naturalJoin(List<String> items) {
+  if (items.isEmpty) return '';
+  if (items.length == 1) return items.first;
+  if (items.length == 2) return '${items[0]} and ${items[1]}';
+  return '${items.sublist(0, items.length - 1).join(', ')}, and ${items.last}';
 }
 
-// ─── Promo section ─────────────────────────────────────────────────────────
-
-class _PromoSection extends StatelessWidget {
-  const _PromoSection();
+class _CoverageSection extends StatelessWidget {
+  const _CoverageSection({required this.areas});
+  final List<dynamic> areas;
 
   @override
   Widget build(BuildContext context) {
+    final names = areas
+        .map((a) => (a['name'] as String?) ?? '')
+        .where((n) => n.isNotEmpty)
+        .toList();
+    if (names.isEmpty) return const SizedBox.shrink();
+
+    final summary = names.length <= 4
+        ? _naturalJoin(names)
+        : '${names.take(3).join(', ')}, and ${names.length - 3} more areas';
+
     return Container(
-      color: TmColors.black,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 56),
+      color: context.bg,
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Ready when you need us.',
-            textAlign: TextAlign.center,
+            'Coverage',
             style: GoogleFonts.inter(
-              color: TmColors.white,
-              fontSize: 28,
-              letterSpacing: -0.8,
-              height: 1.15,
+              color: context.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.6,
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Create a free account and get access to instant booking, live tracking, and 24/7 support.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              color: TmColors.grey500,
-              fontSize: 14,
-              letterSpacing: 0.1,
-              height: 1.6,
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/about'),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: context.surface,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.map_outlined, color: context.textPrimary, size: 22),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Serving $summary',
+                          style: GoogleFonts.inter(
+                            color: context.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'See full coverage',
+                          style: GoogleFonts.inter(
+                            color: context.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: context.textTertiary),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 32),
-          TmButton.yellowPrimary(
-            'Create Free Account',
-            () => Navigator.pushNamed(context, '/signup'),
-          ),
-          const SizedBox(height: 12),
-          TmButton.ghost(
-            'Login',
-            () => Navigator.pushNamed(context, '/login'),
           ),
         ],
       ),
     );
   }
 }
-
-// ─── Footer ────────────────────────────────────────────────────────────────
 
 class _Footer extends StatelessWidget {
+  const _Footer({this.phone, this.email});
+  final String? phone;
+  final String? email;
+
   @override
   Widget build(BuildContext context) {
+    final contact = (phone != null && phone!.isNotEmpty)
+        ? phone
+        : (email != null && email!.isNotEmpty)
+        ? email
+        : null;
+
     return Container(
-      color: context.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      color: context.bg,
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -496,23 +853,34 @@ class _Footer extends StatelessWidget {
             'TowMate',
             style: GoogleFonts.inter(
               color: context.textPrimary,
-              fontSize: 18,
-              letterSpacing: -0.6,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.4,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 3),
           Text(
-            'Fast, reliable towing and roadside assistance\nacross Metro Manila and surrounding areas.',
+            'Towing and roadside assistance you can rely on.',
             style: GoogleFonts.inter(
               color: context.textSecondary,
               fontSize: 12,
               letterSpacing: 0.1,
-              height: 1.6,
             ),
           ),
-          const SizedBox(height: 24),
-          Container(height: 1, color: context.divider),
-          const SizedBox(height: 16),
+          if (contact != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              contact,
+              style: GoogleFonts.inter(
+                color: context.textSecondary,
+                fontSize: 12,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Container(height: 1, color: context.divider.withValues(alpha: 0.7)),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -521,7 +889,6 @@ class _Footer extends StatelessWidget {
                 style: GoogleFonts.inter(
                   color: context.textSecondary,
                   fontSize: 11,
-                  letterSpacing: 0.3,
                 ),
               ),
               Row(
@@ -559,9 +926,7 @@ class _FooterLink extends StatelessWidget {
         style: GoogleFonts.inter(
           color: context.textTertiary,
           fontSize: 12,
-          letterSpacing: 0.2,
-          decoration: TextDecoration.underline,
-          decorationColor: context.textTertiary,
+          letterSpacing: 0.1,
         ),
       ),
     );

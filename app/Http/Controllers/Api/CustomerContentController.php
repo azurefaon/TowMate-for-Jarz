@@ -9,16 +9,27 @@ use App\Models\MobileHowItWorksStep;
 use App\Models\MobileService;
 use App\Models\SystemSetting;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Public, read-only informational content for the Customer Flutter app
- * (Home announcement, About, How It Works, Support, Coverage Areas,
- * Services). Never touches booking/quotation/dispatch/payment logic or
- * pricing. Must never fail in a way that blocks any other customer
- * feature — this endpoint is purely additive/informational.
- */
 class CustomerContentController extends Controller
 {
+    private function imageUrl(?string $path): ?string
+    {
+        return filled($path) ? url('/api/media/mobile/'.basename($path)) : null;
+    }
+
+    public function media(string $filename): StreamedResponse
+    {
+        $path = 'mobile/'.$filename;
+
+        if (! Storage::disk('public')->exists($path)) {
+            abort(404);
+        }
+
+        return Storage::disk('public')->response($path);
+    }
+
     public function index(): JsonResponse
     {
         $announcement = MobileAnnouncement::current();
@@ -40,7 +51,14 @@ class CustomerContentController extends Controller
 
             'about' => [
                 'text' => SystemSetting::getValue('mobile_about_text'),
+                'image_url' => $this->imageUrl(SystemSetting::getValue('mobile_about_image')),
             ],
+
+            'hero_image_url' => $this->imageUrl(SystemSetting::getValue('mobile_hero_image')),
+
+            'services_image_url' => $this->imageUrl(SystemSetting::getValue('mobile_services_image')),
+
+            'emergency_image_url' => $this->imageUrl(SystemSetting::getValue('mobile_emergency_image')),
 
             'how_it_works' => MobileHowItWorksStep::query()
                 ->where('is_active', true)
@@ -57,7 +75,14 @@ class CustomerContentController extends Controller
                 ->where('is_active', true)
                 ->orderBy('display_order')
                 ->orderBy('id')
-                ->get(['title', 'description', 'category', 'availability_note'])
+                ->get(['title', 'description', 'image_path', 'category', 'availability_note'])
+                ->map(fn ($service) => [
+                    'title' => $service->title,
+                    'description' => $service->description,
+                    'image_url' => $this->imageUrl($service->image_path),
+                    'category' => $service->category,
+                    'availability_note' => $service->availability_note,
+                ])
                 ->values(),
 
             'coverage_areas' => MobileCoverageArea::query()

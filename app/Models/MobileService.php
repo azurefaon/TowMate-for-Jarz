@@ -9,6 +9,7 @@ class MobileService extends Model
     protected $fillable = [
         'title',
         'description',
+        'image_path',
         'category',
         'availability_note',
         'display_order',

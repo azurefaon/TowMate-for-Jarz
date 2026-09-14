@@ -19,7 +19,6 @@ class TmDrawer extends StatelessWidget {
     final nav = Navigator.of(context);
     nav.pop();
     if (route == currentRoute) return;
-    // These routes sit on top of the current screen; back returns to where you came from
     const pushRoutes = {'/login', '/signup', '/profile'};
     if (pushRoutes.contains(route)) {
       nav.pushNamed(route);
@@ -91,7 +90,6 @@ class TmDrawer extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ────────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
               child: Column(
@@ -120,7 +118,6 @@ class TmDrawer extends StatelessWidget {
               ),
             ),
 
-            // ── Divider ───────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(height: 1, color: context.divider),
@@ -211,7 +208,7 @@ class TmDrawer extends StatelessWidget {
               ),
               _TmDrawerItem(
                 icon: Icons.person_add_outlined,
-                label: 'Sign up',
+                label: 'Create Account',
                 route: '/signup',
                 currentRoute: currentRoute,
                 onTap: () => _navigate(context, '/signup'),
