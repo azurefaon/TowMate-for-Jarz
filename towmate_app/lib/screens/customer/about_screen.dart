@@ -102,7 +102,7 @@ class _TopBar extends StatelessWidget {
             width: 40,
             height: 40,
             child: IconButton(
-              icon: Icon(Icons.menu_rounded, color: context.textTertiary, size: 22),
+              icon: Icon(Icons.menu, color: context.textTertiary, size: 22),
               onPressed: onMenuTap,
               tooltip: 'Menu',
               padding: EdgeInsets.zero,
@@ -140,7 +140,7 @@ class _AboutHeader extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.groups_outlined),
+          CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.groups),
           DecoratedBox(
             decoration: BoxDecoration(color: TmColors.black.withValues(alpha: 0.68)),
           ),
@@ -216,10 +216,10 @@ class _WhyChooseUsSection extends StatelessWidget {
   const _WhyChooseUsSection();
 
   static const _points = [
-    {'icon': Icons.badge_outlined, 'label': 'Professional Team'},
-    {'icon': Icons.local_shipping_outlined, 'label': 'Modern Fleet'},
-    {'icon': Icons.support_agent_outlined, 'label': 'Reliable Assistance'},
-    {'icon': Icons.map_outlined, 'label': 'Local Service Coverage'},
+    {'icon': Icons.badge, 'label': 'Professional Team'},
+    {'icon': Icons.local_shipping, 'label': 'Modern Fleet'},
+    {'icon': Icons.support_agent, 'label': 'Reliable Assistance'},
+    {'icon': Icons.map, 'label': 'Local Service Coverage'},
   ];
 
   @override
@@ -432,7 +432,7 @@ class _CoverageRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.location_on_outlined, size: 16, color: context.textTertiary),
+          Icon(Icons.location_on, size: 16, color: context.textTertiary),
           const SizedBox(width: 8),
           Text(
             area,

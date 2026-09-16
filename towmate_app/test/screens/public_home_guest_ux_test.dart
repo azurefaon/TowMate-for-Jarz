@@ -27,7 +27,9 @@ void main() {
       expect(topBarMatch, isNotNull);
       final topBarSource = topBarMatch!.group(0)!;
 
-      expect(topBarSource.contains('Icons.menu_rounded'), isTrue);
+      expect(topBarSource.contains('Icons.menu'), isTrue);
+      expect(topBarSource.contains('Icons.menu_rounded'), isFalse);
+      expect(topBarSource.contains('Icons.menu_outlined'), isFalse);
       expect(topBarSource.contains('Icons.person'), isFalse);
       expect(topBarSource.contains('Icons.account_circle'), isFalse);
       expect(topBarSource.contains('Icons.call'), isFalse);

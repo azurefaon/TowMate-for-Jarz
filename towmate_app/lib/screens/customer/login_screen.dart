@@ -5,7 +5,10 @@ import '../../core/theme.dart';
 import '../../core/validators.dart';
 import '../../core/security_utils.dart';
 import '../../services/api_service.dart';
+import '../../services/google_auth_service.dart';
+import '../../widgets/google_signin_button.dart';
 import 'forgot_password_screen.dart';
+import 'google_phone_completion_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _apiError;
   bool _rateLocked = false;
   Duration _remainingCooldown = Duration.zero;
@@ -119,72 +123,130 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<void> _onGoogleSignIn() async {
+    if (_isGoogleLoading || _isLoading) return;
+
+    setState(() {
+      _isGoogleLoading = true;
+      _apiError = null;
+    });
+
+    final result = await GoogleAuthService.signIn();
+    await _handleGoogleResult(result);
+  }
+
+  void _onWebGoogleResult(GoogleAuthResult result) {
+    if (_isLoading) return;
+    setState(() {
+      _isGoogleLoading = true;
+      _apiError = null;
+    });
+    _handleGoogleResult(result);
+  }
+
+  Future<void> _handleGoogleResult(GoogleAuthResult result) async {
+    if (!mounted) return;
+
+    if (result.outcome == GoogleAuthOutcome.cancelled) {
+      setState(() => _isGoogleLoading = false);
+      return;
+    }
+
+    if (result.outcome == GoogleAuthOutcome.unavailable || result.idToken == null) {
+      setState(() {
+        _isGoogleLoading = false;
+        _apiError = 'Google sign-in is unavailable right now. Please try again.';
+      });
+      return;
+    }
+
+    final res = await ApiService.loginWithGoogle(result.idToken!, _csrfToken);
+
+    if (!mounted) return;
+
+    if (res['success'] == true && res['needsPhone'] == true) {
+      setState(() => _isGoogleLoading = false);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GooglePhoneCompletionScreen(
+            completionToken: res['completionToken'] as String,
+            firstName: res['firstName'] as String? ?? '',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (res['success'] == true) {
+      final role = res['role'] as String? ?? 'Customer';
+      Navigator.pushReplacementNamed(context, role == 'Team Leader' ? '/tl-home' : '/home');
+      return;
+    }
+
+    setState(() {
+      _isGoogleLoading = false;
+      _apiError = res['message'] as String? ?? 'Google sign-in failed. Please try again.';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.bg,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 72),
-
-                // ── Two-tone title ────────────────────────
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Tow',
-                        style: GoogleFonts.inter(
-                          color: context.textPrimary,
-                          fontSize: 34,
-                          letterSpacing: -0.8,
-                        ),
-                      ),
-                      TextSpan(
-                        text: 'Mate',
-                        style: GoogleFonts.inter(
-                          color: TmColors.yellow,
-                          fontSize: 34,
-                          letterSpacing: -0.8,
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 28),
+                Center(
+                  child: Text(
+                    'TowMate',
+                    style: GoogleFonts.inter(
+                      color: TmColors.yellow,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  'Welcome back',
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.6,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Your Tow, Our Mission.',
+                  'Sign in to continue with TowMate.',
                   style: GoogleFonts.inter(
                     color: context.textSecondary,
                     fontSize: 14,
-                    letterSpacing: 0.2,
+                    letterSpacing: 0.1,
                   ),
                 ),
-                const SizedBox(height: 48),
-
-                // ── Email field ───────────────────────────
-                _LabeledField(
+                const SizedBox(height: 24),
+                _AuthField(
                   controller: _emailController,
-                  label: 'Email Address',
+                  label: 'Email',
                   hint: 'Enter your email',
-                  prefixIconData: Icons.mail_outline_rounded,
                   keyboardType: TextInputType.emailAddress,
                   validator: Validators.email,
                   textInputAction: TextInputAction.next,
                 ),
-                const SizedBox(height: 20),
-
-                // ── Password field ────────────────────────
-                _LabeledField(
+                const SizedBox(height: 16),
+                _AuthField(
                   controller: _passwordController,
                   label: 'Password',
                   hint: 'Enter your password',
-                  prefixIconData: Icons.lock_outline_rounded,
                   obscureText: true,
                   autofillEnabled: false,
                   validator: (v) =>
@@ -192,73 +254,77 @@ class _LoginScreenState extends State<LoginScreen> {
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _submit(),
                 ),
-                const SizedBox(height: 10),
-
-                // ── Forgot password ───────────────────────
                 Align(
                   alignment: Alignment.centerRight,
-                  child: GestureDetector(
-                    onTap: _onForgotPassword,
+                  child: TextButton(
+                    onPressed: _onForgotPassword,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                      minimumSize: const Size(44, 40),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                     child: Text(
-                      'Forgot Password?',
+                      'Forgot password?',
                       style: GoogleFonts.inter(
                         color: TmColors.yellow,
                         fontSize: 13,
-                        letterSpacing: 0.1,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // ── Error banners ─────────────────────────
                 if (_apiError != null) ...[
-                  _ErrorBanner(message: _apiError!),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+                  _InlineBanner(message: _apiError!, isError: true),
                 ],
                 if (_rateLocked) ...[
-                  _RateLockBanner(remaining: _remainingCooldown),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+                  _InlineBanner(
+                    message:
+                        'Too many attempts. Try again in ${_remainingCooldown.inSeconds}s.',
+                    isError: false,
+                  ),
                 ],
-
-                // ── Login button ──────────────────────────
-                _LoginButton(
+                const SizedBox(height: 24),
+                _PrimaryButton(
+                  label: 'Sign in',
                   isLoading: _isLoading,
                   onPressed: _isLoading ? null : _submit,
                 ),
-                const SizedBox(height: 32),
-
-                // ── Or divider ────────────────────────────
-                _OrDivider(),
-                const SizedBox(height: 28),
-
-                // ── Sign up link ──────────────────────────
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                const SizedBox(height: 24),
+                const OrContinueDivider(),
+                const SizedBox(height: 16),
+                GoogleSignInButton(
+                  isLoading: _isGoogleLoading,
+                  onPressed: _onGoogleSignIn,
+                  onWebResult: _onWebGoogleResult,
+                ),
+                const SizedBox(height: 24),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
-                      "Don't have an account?  ",
+                      "Don't have an account? ",
                       style: GoogleFonts.inter(
-                        color: context.textTertiary,
+                        color: context.textSecondary,
                         fontSize: 14,
                       ),
                     ),
                     GestureDetector(
-                      onTap: () =>
-                          Navigator.pushNamed(context, '/signup'),
+                      onTap: () => Navigator.pushNamed(context, '/signup'),
                       child: Text(
-                        'Sign up',
+                        'Create Account',
                         style: GoogleFonts.inter(
-                          color: TmColors.yellow,
+                          color: context.textPrimary,
                           fontSize: 14,
-                          decoration: TextDecoration.underline,
-                          decorationColor: TmColors.yellow,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 40),
               ],
             ),
           ),
@@ -268,14 +334,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ─── Labeled pill field ────────────────────────────────────────────────────
-
-class _LabeledField extends StatefulWidget {
-  const _LabeledField({
+class _AuthField extends StatefulWidget {
+  const _AuthField({
     required this.controller,
     required this.label,
     required this.hint,
-    required this.prefixIconData,
     this.obscureText = false,
     this.autofillEnabled = true,
     this.keyboardType,
@@ -287,7 +350,6 @@ class _LabeledField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final String hint;
-  final IconData prefixIconData;
   final bool obscureText;
   final bool autofillEnabled;
   final TextInputType? keyboardType;
@@ -296,10 +358,10 @@ class _LabeledField extends StatefulWidget {
   final void Function(String)? onFieldSubmitted;
 
   @override
-  State<_LabeledField> createState() => _LabeledFieldState();
+  State<_AuthField> createState() => _AuthFieldState();
 }
 
-class _LabeledFieldState extends State<_LabeledField> {
+class _AuthFieldState extends State<_AuthField> {
   late bool _obscure;
 
   @override
@@ -318,91 +380,60 @@ class _LabeledFieldState extends State<_LabeledField> {
           style: GoogleFonts.inter(
             color: context.textPrimary,
             fontSize: 14,
-            letterSpacing: 0.1,
+            fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.07),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: TextFormField(
-            controller: widget.controller,
-            obscureText: _obscure,
-            keyboardType: widget.keyboardType,
-            validator: widget.validator,
-            textInputAction: widget.textInputAction,
-            onFieldSubmitted: widget.onFieldSubmitted,
-            autocorrect: !widget.obscureText,
-            enableSuggestions: !widget.obscureText,
-            autofillHints: widget.autofillEnabled && !widget.obscureText
-                ? const [AutofillHints.email]
-                : const [],
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 14,
+        TextFormField(
+          controller: widget.controller,
+          obscureText: _obscure,
+          keyboardType: widget.keyboardType,
+          validator: widget.validator,
+          textInputAction: widget.textInputAction,
+          onFieldSubmitted: widget.onFieldSubmitted,
+          autocorrect: !widget.obscureText,
+          enableSuggestions: !widget.obscureText,
+          autofillHints: widget.autofillEnabled && !widget.obscureText
+              ? const [AutofillHints.email]
+              : const [],
+          style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            hintStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 15),
+            filled: true,
+            fillColor: context.surface,
+            suffixIcon: widget.obscureText
+                ? GestureDetector(
+                    onTap: () => setState(() => _obscure = !_obscure),
+                    child: Icon(
+                      _obscure ? Icons.visibility : Icons.visibility_off,
+                      color: context.textTertiary,
+                      size: 20,
+                    ),
+                  )
+                : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: context.divider),
             ),
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              hintStyle: GoogleFonts.inter(
-                color: context.textSecondary,
-                fontSize: 14,
-              ),
-              filled: true,
-              fillColor: context.surface,
-              prefixIcon: Icon(
-                widget.prefixIconData,
-                color: TmColors.yellow,
-                size: 20,
-              ),
-              suffixIcon: widget.obscureText
-                  ? GestureDetector(
-                      onTap: () => setState(() => _obscure = !_obscure),
-                      child: Icon(
-                        _obscure
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                        color: context.textSecondary,
-                        size: 20,
-                      ),
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide:
-                    const BorderSide(color: TmColors.yellow, width: 1.5),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide:
-                    const BorderSide(color: TmColors.error, width: 1.5),
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: TmColors.error, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20, vertical: 16),
-              errorStyle: GoogleFonts.inter(
-                color: TmColors.error,
-                fontSize: 12,
-              ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: context.divider),
             ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: context.textTertiary, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: TmColors.error, width: 1.5),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: TmColors.error, width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            errorStyle: GoogleFonts.inter(color: TmColors.error, fontSize: 12),
           ),
         ),
       ],
@@ -410,14 +441,14 @@ class _LabeledFieldState extends State<_LabeledField> {
   }
 }
 
-// ─── Yellow pill login button ───────────────────────────────────────────────
-
-class _LoginButton extends StatelessWidget {
-  const _LoginButton({
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.label,
     required this.isLoading,
     required this.onPressed,
   });
 
+  final String label;
   final bool isLoading;
   final VoidCallback? onPressed;
 
@@ -425,7 +456,7 @@ class _LoginButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: 52,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
@@ -439,111 +470,40 @@ class _LoginButton extends StatelessWidget {
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(
-                  color: TmColors.black,
-                  strokeWidth: 2,
-                ),
+                child: CircularProgressIndicator(color: TmColors.black, strokeWidth: 2),
               )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.arrow_forward_rounded,
-                    color: TmColors.black,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Login',
-                    style: GoogleFonts.inter(
-                      color: TmColors.black,
-                      fontSize: 16,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ],
+            : Text(
+                label,
+                style: GoogleFonts.inter(
+                  color: TmColors.black,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.1,
+                ),
               ),
       ),
     );
   }
 }
 
-// ─── Or divider ────────────────────────────────────────────────────────────
-
-class _OrDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: Divider(color: context.divider)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'or',
-            style: GoogleFonts.inter(
-              color: context.textSecondary,
-              fontSize: 13,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ),
-        Expanded(child: Divider(color: context.divider)),
-      ],
-    );
-  }
-}
-
-// ─── Error / rate lock banners ─────────────────────────────────────────────
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
+class _InlineBanner extends StatelessWidget {
+  const _InlineBanner({required this.message, required this.isError});
   final String message;
+  final bool isError;
 
   @override
   Widget build(BuildContext context) {
+    final color = isError ? TmColors.error : context.textTertiary;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: TmColors.error.withValues(alpha: 0.08),
+        color: isError ? TmColors.error.withValues(alpha: 0.08) : context.surface,
         borderRadius: BorderRadius.circular(12),
-        border: const Border(
-          left: BorderSide(color: TmColors.error, width: 3),
-        ),
       ),
       child: Text(
         message,
-        style: GoogleFonts.inter(
-          color: TmColors.error,
-          fontSize: 13,
-          letterSpacing: 0.1,
-        ),
-      ),
-    );
-  }
-}
-
-class _RateLockBanner extends StatelessWidget {
-  const _RateLockBanner({required this.remaining});
-  final Duration remaining;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: context.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: context.divider),
-      ),
-      child: Text(
-        'Too many attempts. Try again in ${remaining.inSeconds}s.',
-        style: GoogleFonts.inter(
-          color: context.textTertiary,
-          fontSize: 13,
-          letterSpacing: 0.1,
-        ),
+        style: GoogleFonts.inter(color: color, fontSize: 13, letterSpacing: 0.1),
       ),
     );
   }

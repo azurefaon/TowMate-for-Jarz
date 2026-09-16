@@ -23,6 +23,8 @@ class User extends Authenticatable
         'email',
         'phone',
         'password',
+        'auth_provider',
+        'google_sub',
         'role_id',
         'home_unit_id',
         'personnel_enabled',
@@ -74,6 +76,11 @@ class User extends Authenticatable
     public function getFullNameAttribute(): string
     {
         return build_full_name($this->first_name, $this->middle_name, $this->last_name) ?: (string) $this->name;
+    }
+
+    public function isGoogleAccount(): bool
+    {
+        return $this->auth_provider === 'google';
     }
 
     public function auditLabel(): string

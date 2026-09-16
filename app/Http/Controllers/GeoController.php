@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\TruckType;
 use App\Services\BookingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -85,11 +86,6 @@ class GeoController extends Controller
         return response()->json(['address' => $nominatim ?: 'Unknown location']);
     }
 
-    // Requires GOOGLE_MAPS_SERVER_KEY to be set on whatever environment this
-    // deploys to — a Railway "Redeploy" only restarts the existing image and
-    // will NOT pick up a variable added after that image was built; a fresh
-    // build (new git push, or an explicit rebuild) is required for it to
-    // actually reach this controller.
     public function autocomplete(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -106,8 +102,6 @@ class GeoController extends Controller
             \Illuminate\Support\Facades\Log::warning('GeoController::autocomplete — GOOGLE_MAPS_SERVER_KEY is not configured, falling back to Nominatim.');
         }
 
-        // Fallback — Nominatim results already carry coordinates, so the
-        // client can use them directly without a follow-up details call.
         $fallback = $this->resolveNominatimSearchResults($validated['q']);
 
         if (empty($fallback)) {
@@ -168,7 +162,8 @@ class GeoController extends Controller
     public function pricingPreview(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'truck_type_id' => ['required', 'integer', 'exists:truck_types,id,status,active'],
+            'truck_type_id' => ['required_without:vehicle_type_id', 'nullable', 'integer', 'exists:truck_types,id,status,active'],
+            'vehicle_type_id' => ['required_without:truck_type_id', 'nullable', 'integer', 'exists:vehicle_types,id'],
             'pickup_lat' => ['required', 'numeric', 'between:-90,90'],
             'pickup_lng' => ['required', 'numeric', 'between:-180,180'],
             'drop_lat' => ['required', 'numeric', 'between:-90,90'],
@@ -177,14 +172,47 @@ class GeoController extends Controller
             'vehicle_category' => ['nullable', 'in:2_wheeler,3_wheeler,4_wheeler,heavy_vehicle,other'],
             'service_type' => ['nullable', 'in:book_now,schedule'],
             'discount_code' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9\-\s]+$/'],
+            'extra_vehicles' => ['nullable', 'array'],
+            'extra_vehicles.*.truck_type_id' => ['required_without:extra_vehicles.*.vehicle_type_id', 'nullable', 'integer', 'exists:truck_types,id,status,active'],
+            'extra_vehicles.*.vehicle_type_id' => ['required_without:extra_vehicles.*.truck_type_id', 'nullable', 'integer', 'exists:vehicle_types,id'],
+            'extra_vehicles.*.service_type' => ['nullable', 'in:book_now,schedule'],
         ]);
 
-        if ($this->bookingService->estimateDirectDistanceKm(
+        if (! empty($validated['vehicle_type_id'])) {
+            [$derivedTruckType, $derivationError] = $this->bookingService->resolveRequiredTruckType((int) $validated['vehicle_type_id']);
+            if ($derivationError !== null) {
+                return response()->json([
+                    'message' => $derivationError,
+                    'errors' => ['vehicle_type_id' => [$derivationError]],
+                ], 422);
+            }
+            $validated['truck_type_id'] = $derivedTruckType->id;
+        }
+
+        if (! empty($validated['extra_vehicles'])) {
+            foreach ($validated['extra_vehicles'] as $index => $ev) {
+                if (empty($ev['vehicle_type_id'])) {
+                    continue;
+                }
+                [$derivedExtraTruckType, $extraDerivationError] = $this->bookingService->resolveRequiredTruckType((int) $ev['vehicle_type_id']);
+                if ($extraDerivationError !== null) {
+                    return response()->json([
+                        'message' => $extraDerivationError,
+                        'errors' => ["extra_vehicles.$index.vehicle_type_id" => [$extraDerivationError]],
+                    ], 422);
+                }
+                $validated['extra_vehicles'][$index]['truck_type_id'] = $derivedExtraTruckType->id;
+            }
+        }
+
+        $authoritativeDistanceKm = $this->bookingService->estimateDirectDistanceKm(
             (float) $validated['pickup_lat'],
             (float) $validated['pickup_lng'],
             (float) $validated['drop_lat'],
             (float) $validated['drop_lng'],
-        ) <= 0.05) {
+        );
+
+        if ($authoritativeDistanceKm <= 0.05) {
             return response()->json([
                 'message' => 'Pickup and dropoff must be different points to calculate the fare preview.',
                 'errors' => [
@@ -200,10 +228,32 @@ class GeoController extends Controller
             (float) $validated['drop_lng'],
         );
 
+        $requestServiceType = $validated['service_type'] ?? 'book_now';
+        $extraVehicles = $validated['extra_vehicles'] ?? [];
+        $bookNowExtras = $requestServiceType === 'book_now' ? $extraVehicles : [];
+        $scheduleExtras = $requestServiceType === 'schedule' ? $extraVehicles : [];
+
         $pricing = $this->bookingService->calculatePricing([
             ...$validated,
-            'distance_km' => $route['distance_km'],
+            'distance_km' => $authoritativeDistanceKm,
+            'extra_vehicles' => $bookNowExtras,
         ]);
+
+        $scheduledExtraPreviews = array_map(function (array $ev) use ($authoritativeDistanceKm) {
+            $truckType = TruckType::find($ev['truck_type_id']);
+            $baseRate = (float) ($truckType?->base_rate ?? 0);
+            $distanceFee = $this->bookingService->distanceFeeFor($authoritativeDistanceKm, (float) ($truckType?->per_km_rate ?? 0));
+            $subtotal = round($baseRate + $distanceFee, 2);
+            $vatAmount = round($subtotal * 0.12, 2);
+            return [
+                'truck_type_id' => (int) $ev['truck_type_id'],
+                'vehicle_type_id' => (int) ($ev['vehicle_type_id'] ?? 0),
+                'base_rate' => $baseRate,
+                'distance_fee' => $distanceFee,
+                'vat_amount' => $vatAmount,
+                'final_total' => round($subtotal + $vatAmount, 2),
+            ];
+        }, $scheduleExtras);
 
         return response()->json([
             'route' => $route,
@@ -211,6 +261,7 @@ class GeoController extends Controller
                 'distance_km'         => (float) $pricing['distance_km'],
                 'extra_distance'      => (float) $pricing['extra_distance'],
                 'base_rate'           => (float) $pricing['base_rate'],
+                'base_rate_total'     => (float) $pricing['base_rate_total'],
                 'per_km_rate'         => (float) $pricing['per_km_rate'],
                 'distance_fee'        => (float) $pricing['distance_fee'],
                 'computed_total'      => (float) $pricing['computed_total'],
@@ -221,6 +272,7 @@ class GeoController extends Controller
                 'vat_amount'          => (float) $pricing['vat_amount'],
                 'final_total'         => (float) $pricing['final_total'],
             ],
+            'scheduled_extra_previews' => $scheduledExtraPreviews,
             'availability' => $this->bookingService->dispatchAvailability(),
         ]);
     }
@@ -379,12 +431,6 @@ class GeoController extends Controller
                 ->post($this->googlePlacesAutocompleteUrl(), [
                     'input' => $query,
                     'includedRegionCodes' => ['ph'],
-                    // Without an explicit bias, Google falls back to biasing
-                    // results by the *requester's* IP address — fine for local
-                    // dev (a PH residential IP) but produces different, less
-                    // relevant results from Railway's server IP. Pin it to the
-                    // Metro Manila service area (same center dispatch.js uses)
-                    // so results are consistent regardless of server location.
                     'locationBias' => [
                         'circle' => [
                             'center' => ['latitude' => 14.5995, 'longitude' => 120.9842],

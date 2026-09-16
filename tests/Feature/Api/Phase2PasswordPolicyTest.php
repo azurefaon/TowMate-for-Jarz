@@ -14,7 +14,6 @@ function passwordPolicyCustomerRole(): Role
     });
 }
 
-// 18 — customer registration requires the final selected policy ─────────────
 it('18: customer registration rejects a password below the final policy', function () {
     passwordPolicyCustomerRole();
     $email = 'policy18@example.com';
@@ -24,8 +23,8 @@ it('18: customer registration rejects a password below the final policy', functi
         'first_name' => 'Policy',
         'last_name'  => 'Test',
         'email'      => $email,
-        'phone'      => '09171234567',
-        'password'   => 'short8ok', // 8 chars, no symbol/uppercase — passes the OLD rule, fails the new one
+        'phone'      => '+639171234567',
+        'password'   => 'short8ok',
         'password_confirmation' => 'short8ok',
     ])->assertStatus(422)->assertJsonPath('success', false);
 
@@ -41,7 +40,7 @@ it('18b: customer registration accepts a password meeting the final policy', fun
         'first_name' => 'Policy',
         'last_name'  => 'Test',
         'email'      => $email,
-        'phone'      => '09171234568',
+        'phone'      => '+639171234568',
         'password'   => 'Xk7!TowMateSecure91',
         'password_confirmation' => 'Xk7!TowMateSecure91',
     ])->assertCreated()->assertJsonPath('success', true);
@@ -49,7 +48,6 @@ it('18b: customer registration accepts a password meeting the final policy', fun
     expect(User::where('email', $email)->exists())->toBeTrue();
 });
 
-// 19 — customer change-password requires the final selected policy ──────────
 it('19: customer change-password rejects a new password below the final policy', function () {
     $user = User::factory()->create(['role_id' => passwordPolicyCustomerRole()->id, 'password' => Hash::make('CurrentPass123!')]);
     Sanctum::actingAs($user, ['*']);

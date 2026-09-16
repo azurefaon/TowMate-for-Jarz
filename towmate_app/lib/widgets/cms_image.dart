@@ -6,7 +6,7 @@ class CmsImage extends StatelessWidget {
     super.key,
     required this.imageUrl,
     this.borderRadius = BorderRadius.zero,
-    this.fallbackIcon = Icons.local_shipping_outlined,
+    this.fallbackIcon = Icons.local_shipping,
   });
 
   final String? imageUrl;

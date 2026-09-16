@@ -214,9 +214,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               suffixIcon: GestureDetector(
                 onTap: onToggle,
                 child: Icon(
-                  obscure
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
+                  obscure ? Icons.visibility : Icons.visibility_off,
                   color: TmColors.grey500,
                   size: 20,
                 ),

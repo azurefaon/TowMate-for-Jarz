@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInputFormatter;
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../core/validators.dart';
 import '../../core/security_utils.dart';
 import '../../services/api_service.dart';
-import '../../widgets/tm_button.dart';
+import '../../services/google_auth_service.dart';
+import '../../widgets/google_signin_button.dart';
 import '../../widgets/password_strength_bar.dart';
 import 'email_otp_screen.dart';
+import 'google_phone_completion_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -25,10 +28,21 @@ class _SignupScreenState extends State<SignupScreen> {
   final _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _apiError;
   String _passwordValue = '';
-  bool _success = false;
+  bool _submitted = false;
+  final Set<String> _touched = {};
   late String _csrfToken;
+
+  void _touch(String field) {
+    if (_touched.add(field)) setState(() {});
+  }
+
+  String? _gated(String field, String? Function() validate) {
+    if (!_submitted && !_touched.contains(field)) return null;
+    return validate();
+  }
 
   @override
   void initState() {
@@ -57,6 +71,7 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _submit() async {
+    setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -102,41 +117,124 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
+  Future<void> _onGoogleSignIn() async {
+    if (_isGoogleLoading || _isLoading) return;
+
+    setState(() {
+      _isGoogleLoading = true;
+      _apiError = null;
+    });
+
+    final result = await GoogleAuthService.signIn();
+    await _handleGoogleResult(result);
+  }
+
+  void _onWebGoogleResult(GoogleAuthResult result) {
+    if (_isLoading) return;
+    setState(() {
+      _isGoogleLoading = true;
+      _apiError = null;
+    });
+    _handleGoogleResult(result);
+  }
+
+  Future<void> _handleGoogleResult(GoogleAuthResult result) async {
+    if (!mounted) return;
+
+    if (result.outcome == GoogleAuthOutcome.cancelled) {
+      setState(() => _isGoogleLoading = false);
+      return;
+    }
+
+    if (result.outcome == GoogleAuthOutcome.unavailable || result.idToken == null) {
+      setState(() {
+        _isGoogleLoading = false;
+        _apiError = 'Google sign-in is unavailable right now. Please try again.';
+      });
+      return;
+    }
+
+    final res = await ApiService.loginWithGoogle(result.idToken!, _csrfToken);
+
+    if (!mounted) return;
+
+    if (res['success'] == true && res['needsPhone'] == true) {
+      setState(() => _isGoogleLoading = false);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GooglePhoneCompletionScreen(
+            completionToken: res['completionToken'] as String,
+            firstName: res['firstName'] as String? ?? '',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (res['success'] == true) {
+      Navigator.pushReplacementNamed(context, '/home');
+      return;
+    }
+
+    setState(() {
+      _isGoogleLoading = false;
+      _apiError = res['message'] as String? ?? 'Google sign-in failed. Please try again.';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_success) return _SuccessView(onGoToLogin: _goToLogin);
-
     return Scaffold(
       backgroundColor: context.bg,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 48),
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TmButton.text('← Back to login', _goToLogin),
-              const SizedBox(height: 32),
-              Text(
-                'Create account',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 28,
-                  letterSpacing: -0.8,
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: TextButton(
+                  onPressed: _goToLogin,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(44, 36),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    alignment: Alignment.centerLeft,
+                  ),
+                  child: Text(
+                    '← Back to sign in',
+                    style: GoogleFonts.inter(
+                      color: context.textTertiary,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               Text(
-                'Fill in your details below',
+                'Create your account',
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.6,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Request and track towing services with TowMate.',
                 style: GoogleFonts.inter(
                   color: context.textSecondary,
-                  fontSize: 15,
+                  fontSize: 14,
                   letterSpacing: 0.1,
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 18),
               Form(
                 key: _formKey,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -147,9 +245,10 @@ class _SignupScreenState extends State<SignupScreen> {
                           child: _Field(
                             controller: _firstNameController,
                             label: 'First name',
-                            icon: Icons.person_outline_rounded,
-                            validator: (v) => Validators.name(v, 'First name'),
+                            validator: (v) =>
+                                _gated('firstName', () => Validators.name(v, 'First name')),
                             textInputAction: TextInputAction.next,
+                            onChanged: (_) => _touch('firstName'),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -157,75 +256,76 @@ class _SignupScreenState extends State<SignupScreen> {
                           child: _Field(
                             controller: _lastNameController,
                             label: 'Last name',
-                            icon: Icons.person_outline_rounded,
-                            validator: (v) => Validators.name(v, 'Last name'),
+                            validator: (v) =>
+                                _gated('lastName', () => Validators.name(v, 'Last name')),
                             textInputAction: TextInputAction.next,
+                            onChanged: (_) => _touch('lastName'),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _Field(
                       controller: _emailController,
                       label: 'Email',
-                      icon: Icons.mail_outline_rounded,
                       keyboardType: TextInputType.emailAddress,
-                      validator: Validators.email,
+                      validator: (v) => _gated('email', () => Validators.email(v)),
                       textInputAction: TextInputAction.next,
+                      onChanged: (_) => _touch('email'),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _Field(
                       controller: _phoneController,
                       label: 'Phone number',
-                      icon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
-                      prefixText: '+63 ',
-                      hintText: '9XXXXXXXXX',
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Phone number is required';
-                        }
-                        if (!RegExp(r'^9\d{9}$').hasMatch(v.trim())) {
-                          return 'Enter 10 digits starting with 9 (e.g. 9171234567)';
-                        }
-                        return null;
-                      },
+                      fixedPrefix: '+63',
+                      hintText: '917 123 4567',
+                      inputFormatters: PhMobilePhone.formatters,
+                      validator: (v) => _gated(
+                        'phone',
+                        () => PhMobilePhone.validateLocal(v, showIncomplete: _submitted),
+                      ),
                       textInputAction: TextInputAction.next,
+                      onChanged: (_) => _touch('phone'),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _Field(
                       controller: _passwordController,
                       label: 'Password',
-                      icon: Icons.lock_outline_rounded,
                       obscureText: true,
-                      validator: Validators.password,
+                      validator: (v) => _gated('password', () => Validators.password(v)),
                       textInputAction: TextInputAction.next,
-                      onChanged: (v) => setState(() => _passwordValue = v),
+                      onChanged: (v) {
+                        _touch('password');
+                        setState(() => _passwordValue = v);
+                      },
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     PasswordStrengthBar(password: _passwordValue),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _Field(
                       controller: _confirmPasswordController,
                       label: 'Confirm password',
-                      icon: Icons.lock_outline_rounded,
                       obscureText: true,
-                      validator: (v) =>
-                          Validators.confirmPassword(v, _passwordValue),
+                      validator: (v) => _gated(
+                        'confirmPassword',
+                        () => Validators.confirmPassword(v, _passwordValue),
+                      ),
                       textInputAction: TextInputAction.done,
+                      onChanged: (_) => _touch('confirmPassword'),
                       onFieldSubmitted: (_) => _submit(),
                     ),
                     if (_apiError != null) ...[
                       const SizedBox(height: 16),
-                      _ErrorBanner(message: _apiError!),
+                      _InlineBanner(message: _apiError!),
                     ],
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
-                height: 56,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
@@ -249,29 +349,49 @@ class _SignupScreenState extends State<SignupScreen> {
                           'Create account',
                           style: GoogleFonts.inter(
                             color: TmColors.black,
-                            fontSize: 16,
-                            letterSpacing: 0.2,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
                           ),
                         ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
+              const OrContinueDivider(label: 'or sign up with'),
+              const SizedBox(height: 14),
+              GoogleSignInButton(
+                isLoading: _isGoogleLoading,
+                onPressed: _onGoogleSignIn,
+                onWebResult: _onWebGoogleResult,
+                label: 'Sign up with Google',
+                webText: GoogleButtonText.signUp,
+              ),
+              const SizedBox(height: 18),
               Wrap(
                 alignment: WrapAlignment.center,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
-                    'Already have an account?',
+                    'Already have an account? ',
                     style: GoogleFonts.inter(
-                      color: context.textTertiary,
+                      color: context.textSecondary,
                       fontSize: 14,
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  TmButton.text('Sign in', _goToLogin),
+                  GestureDetector(
+                    onTap: _goToLogin,
+                    child: Text(
+                      'Sign in',
+                      style: GoogleFonts.inter(
+                        color: context.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -280,34 +400,32 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 }
 
-// ─── Pill-shaped form field (matches login screen style) ───────────────────
-
 class _Field extends StatefulWidget {
   const _Field({
     required this.controller,
     required this.label,
-    required this.icon,
     this.obscureText = false,
     this.keyboardType,
     this.validator,
     this.textInputAction,
     this.onChanged,
     this.onFieldSubmitted,
-    this.prefixText,
+    this.fixedPrefix,
     this.hintText,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
   final String label;
-  final IconData icon;
   final bool obscureText;
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
   final TextInputAction? textInputAction;
   final void Function(String)? onChanged;
   final void Function(String)? onFieldSubmitted;
-  final String? prefixText;
+  final String? fixedPrefix;
   final String? hintText;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   State<_Field> createState() => _FieldState();
@@ -332,83 +450,80 @@ class _FieldState extends State<_Field> {
           style: GoogleFonts.inter(
             color: context.textPrimary,
             fontSize: 14,
-            letterSpacing: 0.1,
+            fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.07),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: TextFormField(
-            controller: widget.controller,
-            obscureText: _obscure,
-            keyboardType: widget.keyboardType,
-            validator: widget.validator,
-            textInputAction: widget.textInputAction,
-            onChanged: widget.onChanged,
-            onFieldSubmitted: widget.onFieldSubmitted,
-            autocorrect: !widget.obscureText,
-            enableSuggestions: !widget.obscureText,
-            autofillHints: widget.obscureText ? const [] : null,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: widget.hintText ?? widget.label,
-              hintStyle: GoogleFonts.inter(
-                color: context.textSecondary,
-                fontSize: 14,
-              ),
-              filled: true,
-              fillColor: context.surface,
-              prefixIcon: Icon(widget.icon, color: TmColors.yellow, size: 20),
-              prefixText: widget.prefixText,
-              prefixStyle: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 14,
-              ),
-              suffixIcon: widget.obscureText
-                  ? GestureDetector(
-                      onTap: () => setState(() => _obscure = !_obscure),
-                      child: Icon(
-                        _obscure
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                        color: context.textSecondary,
-                        size: 20,
-                      ),
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: TmColors.yellow, width: 1.5),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: TmColors.error, width: 1.5),
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: TmColors.error, width: 2),
-              ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              errorStyle: GoogleFonts.inter(color: TmColors.error, fontSize: 12),
+        TextFormField(
+          controller: widget.controller,
+          obscureText: _obscure,
+          keyboardType: widget.keyboardType,
+          validator: widget.validator,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          textInputAction: widget.textInputAction,
+          onChanged: widget.onChanged,
+          onFieldSubmitted: widget.onFieldSubmitted,
+          inputFormatters: widget.inputFormatters,
+          autocorrect: !widget.obscureText,
+          enableSuggestions: !widget.obscureText,
+          autofillHints: widget.obscureText ? const [] : null,
+          style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: widget.hintText ?? widget.label,
+            hintStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 15),
+            filled: true,
+            fillColor: context.surface,
+            prefixIcon: widget.fixedPrefix == null
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(left: 16, right: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.fixedPrefix!,
+                          style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(width: 1, height: 18, color: context.divider),
+                      ],
+                    ),
+                  ),
+            prefixIconConstraints: widget.fixedPrefix == null
+                ? null
+                : const BoxConstraints(minWidth: 0, minHeight: 0),
+            suffixIcon: widget.obscureText
+                ? GestureDetector(
+                    onTap: () => setState(() => _obscure = !_obscure),
+                    child: Icon(
+                      _obscure ? Icons.visibility : Icons.visibility_off,
+                      color: context.textTertiary,
+                      size: 20,
+                    ),
+                  )
+                : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: context.divider),
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: context.divider),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: context.textTertiary, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: TmColors.error, width: 1.5),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: TmColors.error, width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            errorStyle: GoogleFonts.inter(color: TmColors.error, fontSize: 12),
           ),
         ),
       ],
@@ -416,100 +531,22 @@ class _FieldState extends State<_Field> {
   }
 }
 
-// ─── Success view ──────────────────────────────────────────────────────────
-
-class _SuccessView extends StatelessWidget {
-  const _SuccessView({required this.onGoToLogin});
-  final VoidCallback onGoToLogin;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.bg,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                color: TmColors.success,
-                size: 64,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Account created!',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 26,
-                  letterSpacing: -0.6,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'You can now sign in with your credentials.',
-                style: GoogleFonts.inter(
-                  color: context.textTertiary,
-                  fontSize: 15,
-                  letterSpacing: 0.1,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: onGoToLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: TmColors.yellow,
-                    foregroundColor: TmColors.black,
-                    shape: const StadiumBorder(),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Go to login',
-                    style: GoogleFonts.inter(
-                      color: TmColors.black,
-                      fontSize: 16,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Error banner ──────────────────────────────────────────────────────────
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
+class _InlineBanner extends StatelessWidget {
+  const _InlineBanner({required this.message});
   final String message;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: TmColors.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: const Border(left: BorderSide(color: TmColors.error, width: 3)),
       ),
       child: Text(
         message,
-        style: GoogleFonts.inter(
-          color: TmColors.error,
-          fontSize: 13,
-          letterSpacing: 0.1,
-        ),
+        style: GoogleFonts.inter(color: TmColors.error, fontSize: 13, letterSpacing: 0.1),
       ),
     );
   }

@@ -17,7 +17,7 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.local_shipping_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.local_shipping), findsOneWidget);
       expect(find.byType(Image), findsNothing);
     });
 
@@ -34,7 +34,7 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.local_shipping_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.local_shipping), findsOneWidget);
     });
 
     testWidgets('uses the provided fallbackIcon', (tester) async {
@@ -44,13 +44,31 @@ void main() {
             body: SizedBox(
               width: 200,
               height: 200,
-              child: CmsImage(imageUrl: null, fallbackIcon: Icons.groups_outlined),
+              child: CmsImage(imageUrl: null, fallbackIcon: Icons.groups),
             ),
           ),
         ),
       );
 
-      expect(find.byIcon(Icons.groups_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.groups), findsOneWidget);
+    });
+
+    testWidgets('the default fallback icon is a real Flutter Icon widget, not a text/emoji glyph', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 200,
+              height: 200,
+              child: CmsImage(imageUrl: null),
+            ),
+          ),
+        ),
+      );
+
+      final icon = tester.widget<Icon>(find.byType(Icon));
+      expect(icon.icon, Icons.local_shipping);
+      expect(find.byType(Text), findsNothing);
     });
 
     testWidgets('attempts to load a network image when imageUrl is set', (tester) async {
@@ -85,7 +103,7 @@ void main() {
       );
 
       expect(find.byType(Image), findsOneWidget);
-      expect(find.byIcon(Icons.local_shipping_outlined), findsNothing);
+      expect(find.byIcon(Icons.local_shipping), findsNothing);
     });
   });
 }

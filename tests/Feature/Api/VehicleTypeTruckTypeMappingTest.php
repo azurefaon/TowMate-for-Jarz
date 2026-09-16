@@ -51,6 +51,20 @@ function vttVehicleType(?int $requiredTruckTypeId = null): VehicleType
     ]);
 }
 
+function vttReadyUnit(TruckType $truckType): Unit
+{
+    $leader = User::factory()->create(['role_id' => vttRole(3, 'Team Leader')->id]);
+
+    return Unit::create([
+        'name' => 'VT Ready Unit ' . fake()->unique()->word(),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+        'team_leader_id' => $leader->id,
+        'driver_name' => 'VT Ready Driver',
+    ]);
+}
+
 function vttBookingPayload(array $overrides = []): array
 {
     return array_merge([
@@ -69,6 +83,7 @@ it('accepts a booking when the submitted truck type matches the vehicle type req
     [$user] = vttCustomer();
     $truckType = vttTruckType('Matching');
     $vehicleType = vttVehicleType($truckType->id);
+    vttReadyUnit($truckType);
     Sanctum::actingAs($user, ['*']);
 
     $response = test()->postJson('/api/v1/bookings', vttBookingPayload([
@@ -84,6 +99,7 @@ it('derives and overwrites the truck type server-side instead of trusting a mism
     $lightTruck = vttTruckType('Light');
     $heavyTruck = vttTruckType('Heavy');
     $sedan = vttVehicleType($lightTruck->id);
+    vttReadyUnit($lightTruck);
     Sanctum::actingAs($user, ['*']);
 
     $response = test()->postJson('/api/v1/bookings', vttBookingPayload([
@@ -105,6 +121,7 @@ it('cannot spoof a cheaper truck type by submitting a mismatched vehicle_type_id
     $expensiveTruck = vttTruckType('Expensive');
     $expensiveTruck->update(['base_rate' => 9000, 'per_km_rate' => 500]);
     $heavyVehicle = vttVehicleType($expensiveTruck->id);
+    vttReadyUnit($expensiveTruck);
     Sanctum::actingAs($user, ['*']);
 
     $response = test()->postJson('/api/v1/bookings', vttBookingPayload([
@@ -192,6 +209,7 @@ it('freezes the booking own base_rate and per_km_rate even if the truck type rat
     [$user, $customer] = vttCustomer();
     $truckType = vttTruckType('RateChange');
     $vehicleType = vttVehicleType($truckType->id);
+    vttReadyUnit($truckType);
     Sanctum::actingAs($user, ['*']);
 
     test()->postJson('/api/v1/bookings', vttBookingPayload([
@@ -261,6 +279,8 @@ it('derives the extra vehicle truck type from its vehicle type instead of trusti
     $extraLightTruck = vttTruckType('ExtraLight');
     $extraLightVehicle = vttVehicleType($extraLightTruck->id);
     $extraHeavyTruck = vttTruckType('ExtraHeavy');
+    vttReadyUnit($primaryTruck);
+    vttReadyUnit($extraLightTruck);
 
     Sanctum::actingAs($user, ['*']);
 
@@ -273,6 +293,7 @@ it('derives the extra vehicle truck type from its vehicle type instead of trusti
                 'service_type' => 'book_now',
             ],
         ]),
+        'extra_vehicle_images' => [0 => [UploadedFile::fake()->image('extra.jpg')]],
     ]));
 
     $response->assertCreated();
@@ -295,6 +316,8 @@ it('uses the mapped extra vehicle rate server-side, ignoring a spoofed cheaper t
     $expensiveTruck = vttTruckType('ExtraExpensive');
     $expensiveTruck->update(['base_rate' => 8000, 'per_km_rate' => 400]);
     $expensiveVehicle = vttVehicleType($expensiveTruck->id);
+    vttReadyUnit($primaryTruck);
+    vttReadyUnit($expensiveTruck);
 
     Sanctum::actingAs($user, ['*']);
 
@@ -307,6 +330,7 @@ it('uses the mapped extra vehicle rate server-side, ignoring a spoofed cheaper t
                 'service_type' => 'book_now',
             ],
         ]),
+        'extra_vehicle_images' => [0 => [UploadedFile::fake()->image('extra.jpg')]],
     ]));
 
     $response->assertCreated();
@@ -333,15 +357,16 @@ it('does not let a tampered cheaper extra vehicle truck type reduce the sibling 
 
     $response = test()->postJson('/api/v1/bookings', vttBookingPayload([
         'vehicle_type_id' => $primaryVehicle->id,
+        'service_type' => 'schedule',
+        'scheduled_date' => now()->addDay()->toDateString(),
+        'scheduled_time' => '10:00',
         'extra_vehicles' => json_encode([
             [
                 'vehicle_type_id' => $expensiveVehicle->id,
                 'truck_type_id' => $cheapTruck->id,
-                'service_type' => 'schedule',
-                'scheduled_date' => now()->addDay()->toDateString(),
-                'scheduled_time' => '10:00',
             ],
         ]),
+        'extra_vehicle_images' => [0 => [UploadedFile::fake()->image('extra.jpg')]],
     ]));
 
     $response->assertCreated();

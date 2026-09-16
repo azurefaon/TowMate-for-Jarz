@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
+import '../../widgets/tm_bottom_nav.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -98,6 +99,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
         ],
       ),
+      bottomNavigationBar: const TmBottomNav(currentRoute: '/notifications'),
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(color: TmColors.yellow),

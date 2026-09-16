@@ -51,6 +51,20 @@ function p4tVehicleType(TruckType $truckType): VehicleType
     ]);
 }
 
+function p4tReadyUnit(TruckType $truckType): Unit
+{
+    $leader = User::factory()->create(['role_id' => p4tRole(3, 'Team Leader')->id]);
+
+    return Unit::create([
+        'name' => 'P4T Ready Unit ' . fake()->unique()->word(),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+        'team_leader_id' => $leader->id,
+        'driver_name' => 'P4T Ready Driver',
+    ]);
+}
+
 function p4tTlWithBooking(): array
 {
     $tl = User::factory()->create(['role_id' => p4tRole(3, 'Team Leader')->id, 'must_change_password' => false]);
@@ -100,6 +114,7 @@ it('customer cannot mark their own booking as completed or assign a unit/team le
     ]);
     $tl = User::factory()->create(['role_id' => p4tRole(3, 'Team Leader')->id]);
     $vehicleType = p4tVehicleType($truckType);
+    p4tReadyUnit($truckType);
     Sanctum::actingAs($user, ['*']);
 
     $response = test()->postJson('/api/v1/bookings', [
@@ -135,6 +150,7 @@ it('customer cannot forge distance/pricing fields on booking creation — server
     [$user, $customer] = p4tCustomer();
     $truckType = p4tTruckType();
     $vehicleType = p4tVehicleType($truckType);
+    p4tReadyUnit($truckType);
     Sanctum::actingAs($user, ['*']);
 
     $response = test()->postJson('/api/v1/bookings', [

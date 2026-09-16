@@ -9,17 +9,16 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
-import '../../models/truck_type_model.dart';
+import '../../models/booking_model.dart';
 import '../../models/vehicle_type_model.dart';
 import '../../services/api_service.dart';
-import '../../widgets/tm_drawer.dart';
+import '../../widgets/quotation_price_cards.dart';
+import '../../widgets/skeleton_box.dart';
 
 class _ExtraVehicleData {
-  TruckTypeModel? truck;
   VehicleTypeModel? vehicle;
-  String serviceType = 'book_now'; // 'book_now' | 'schedule'
-  DateTime? scheduledDate;
-  TimeOfDay? scheduledTime;
+  final List<XFile> images = [];
+  bool imageError = false;
 }
 
 class BookNowScreen extends StatefulWidget {
@@ -30,58 +29,49 @@ class BookNowScreen extends StatefulWidget {
 }
 
 class _BookNowScreenState extends State<BookNowScreen> {
-  // Booking mode
   String _serviceType = 'book_now';
   DateTime? _scheduledDate;
   TimeOfDay? _scheduledTime;
 
-  // Vehicle selection (primary)
-  List<TruckTypeModel> _truckTypes = [];
-  TruckTypeModel? _selectedTruckType;
+  List<VehicleTypeModel> _vehicleTypes = [];
   VehicleTypeModel? _selectedVehicleType;
   bool _loadingTypes = true;
 
-  // Availability
   bool _bookNowEnabled = true;
   String? _availabilityMessage;
-  Map<String, int> _readyByClass = {};
-  int _readyUnitsCount = 0;
+  Set<int> _readyTruckTypeIds = {};
 
-  // Location (set by _LocationSection callbacks)
   LatLng? _pickupLatLng;
   LatLng? _dropoffLatLng;
   String _pickupAddress = '';
   String _dropoffAddress = '';
 
-  // Route
   List<LatLng> _routePoints = [];
   double? _distanceKm;
   double? _durationMin;
   bool _loadingRoute = false;
-  bool _routeFallback = false; // true when using straight-line fallback distance
+  bool _routeFallback = false;
 
-  // Vehicle images
   final List<XFile> _vehicleImages = [];
   bool _imageError = false;
   final _picker = ImagePicker();
 
-  // Extra vehicles (up to 5 additional = 6 total)
   final List<_ExtraVehicleData> _extraVehicles = [];
   static final _priceFmt = NumberFormat('#,##0.00', 'en_PH');
 
-  // Notes
+  Map<String, dynamic>? _pricingPreview;
+  bool _loadingPricing = false;
+  String? _pricingError;
+
   final _notesCtrl = TextEditingController();
 
-  // Booking submission
   bool _submitting = false;
   String? _bookingError;
 
-  // Pre-fill state from "Book same trip" args
   bool _prefillApplied = false;
   String? _prefillPickupAddress;
   String? _prefillDropoffAddress;
 
-  // Wizard step: 0 = Location, 1 = Vehicle, 2 = Review
   int _step = 0;
 
   Timer? _availabilityPollTimer;
@@ -133,63 +123,53 @@ class _BookNowScreenState extends State<BookNowScreen> {
   Future<void> _loadData() async {
     if (mounted) setState(() => _loadingTypes = true);
 
-    // Start both fetches concurrently but don't block the picker on availability.
-    final typeFuture = ApiService.fetchTruckTypes();
+    final typeFuture = ApiService.fetchVehicleTypes();
     final availFuture = _refreshAvailability();
 
-    // Show the picker as soon as truck types arrive.
     final types = await typeFuture;
     if (!mounted) return;
     setState(() {
-      _truckTypes = types;
+      _vehicleTypes = types;
       _loadingTypes = false;
     });
 
-    // Availability result comes in afterwards (already in-flight).
     await availFuture;
   }
 
-  // Re-checks tow-class availability without touching the truck-type catalog
-  // (which doesn't change live). Called once from _loadData() and repeatedly
-  // by _availabilityPollTimer while the customer is on the vehicle step.
   Future<void> _refreshAvailability() async {
     final avail = await ApiService.fetchAvailability();
-    if (!mounted || avail == null) return; // failed fetch — leave state as-is
+    if (!mounted || avail == null) return;
     setState(() {
       _bookNowEnabled = avail['book_now_enabled'] as bool? ?? true;
-      _readyUnitsCount = (avail['ready_units_count'] as num? ?? 0).toInt();
       _availabilityMessage = _bookNowEnabled
           ? null
           : (avail['message'] as String? ??
                 'No tow trucks are currently available for immediate dispatch.');
-      final byClass = avail['ready_by_class'];
-      _readyByClass = byClass is Map
-          ? byClass.map(
-              (k, v) =>
-                  MapEntry(k.toString().toLowerCase(), (v as num? ?? 0).toInt()),
-            )
-          : <String, int>{};
+      final readyIds = avail['ready_truck_type_ids'];
+      _readyTruckTypeIds = readyIds is List
+          ? readyIds.map((e) => (e as num).toInt()).toSet()
+          : <int>{};
     });
   }
 
-  void _resetVehicle() {
-    setState(() {
-      _selectedTruckType = null;
-      _selectedVehicleType = null;
-    });
+  bool _isExactlyAvailable(VehicleTypeModel vehicle) {
+    if (_readyTruckTypeIds.isEmpty) return _bookNowEnabled;
+    return _readyTruckTypeIds.contains(vehicle.requiredTruckTypeId);
   }
 
-  void _selectVehicle(TruckTypeModel truck, VehicleTypeModel vehicle) {
+  void _selectVehicle(VehicleTypeModel vehicle) {
+    final isDifferentVehicle = _selectedVehicleType?.id != vehicle.id;
     setState(() {
-      _selectedTruckType = truck;
       _selectedVehicleType = vehicle;
+      if (isDifferentVehicle) {
+        _serviceType = 'book_now';
+        _scheduledDate = null;
+        _scheduledTime = null;
+      }
     });
 
-    // Per-class availability gate: only fire if we have real data and this
-    // specific class has no ready units, and we're in Book Now mode.
-    if (_serviceType == 'book_now' && _readyByClass.isNotEmpty) {
-      final available = _readyByClass[truck.truckClass.toLowerCase()] ?? 0;
-      if (available == 0) _showNoUnitsModal();
+    if (_serviceType == 'book_now' && !_isExactlyAvailable(vehicle)) {
+      _showNoUnitsModal();
     }
   }
 
@@ -211,6 +191,26 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _distanceKm = null;
     });
     if (_pickupLatLng != null) _calculateRoute();
+  }
+
+  void _onPickupCleared() {
+    setState(() {
+      _pickupLatLng = null;
+      _pickupAddress = '';
+      _routePoints = [];
+      _distanceKm = null;
+      _routeFallback = false;
+    });
+  }
+
+  void _onDropoffCleared() {
+    setState(() {
+      _dropoffLatLng = null;
+      _dropoffAddress = '';
+      _routePoints = [];
+      _distanceKm = null;
+      _routeFallback = false;
+    });
   }
 
   void _resetLocations() {
@@ -269,7 +269,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
         _routeFallback = false;
       });
     } else {
-      // Route API failed — use straight-line distance so the user isn't stuck
       final fallback = _haversineKm(_pickupLatLng!, _dropoffLatLng!);
       setState(() {
         _routePoints = [_pickupLatLng!, _dropoffLatLng!];
@@ -279,6 +278,44 @@ class _BookNowScreenState extends State<BookNowScreen> {
         _routeFallback = true;
       });
     }
+  }
+
+  Future<void> _fetchPricingPreview() async {
+    if (_selectedVehicleType == null ||
+        _pickupLatLng == null ||
+        _dropoffLatLng == null) {
+      return;
+    }
+    setState(() {
+      _loadingPricing = true;
+      _pricingError = null;
+    });
+
+    final extraPayload = _extraVehicles
+        .where((v) => v.vehicle != null)
+        .map((v) => {'vehicle_type_id': v.vehicle!.id})
+        .toList();
+
+    final result = await ApiService.fetchPricingPreview(
+      vehicleTypeId: _selectedVehicleType!.id,
+      pickupLat: _pickupLatLng!.latitude,
+      pickupLng: _pickupLatLng!.longitude,
+      dropoffLat: _dropoffLatLng!.latitude,
+      dropoffLng: _dropoffLatLng!.longitude,
+      serviceType: _serviceType,
+      extraVehicles: extraPayload,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _loadingPricing = false;
+      if (result != null && result['pricing'] != null) {
+        _pricingPreview = result;
+      } else {
+        _pricingPreview = null;
+        _pricingError = 'Unable to load pricing. Please try again.';
+      }
+    });
   }
 
   static const _allowedExts = {'jpg', 'jpeg', 'png'};
@@ -320,6 +357,44 @@ class _BookNowScreenState extends State<BookNowScreen> {
     setState(() => _vehicleImages.removeAt(index));
   }
 
+  Future<void> _pickExtraImage(int index, ImageSource source) async {
+    final data = _extraVehicles[index];
+    if (data.images.length >= 5) return;
+    final picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 70,
+      maxWidth: 1280,
+      maxHeight: 1280,
+    );
+    if (picked == null || !mounted) return;
+
+    final ext = picked.name.split('.').last.toLowerCase();
+    if (!_allowedExts.contains(ext)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Only JPG and PNG images are accepted.',
+            style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+          ),
+          backgroundColor: TmColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      data.images.add(picked);
+      data.imageError = false;
+    });
+  }
+
+  void _removeExtraImage(int index, int photoIndex) {
+    setState(() => _extraVehicles[index].images.removeAt(photoIndex));
+  }
+
   void _addExtraVehicle() {
     if (_extraVehicles.length >= 5) return;
     setState(() => _extraVehicles.add(_ExtraVehicleData()));
@@ -329,39 +404,16 @@ class _BookNowScreenState extends State<BookNowScreen> {
     setState(() => _extraVehicles.removeAt(index));
   }
 
-  void _setExtraVehicle(
-    int index,
-    TruckTypeModel truck,
-    VehicleTypeModel vehicle,
-  ) {
-    setState(() {
-      _extraVehicles[index].truck = truck;
-      _extraVehicles[index].vehicle = vehicle;
-      _extraVehicles[index].serviceType = 'book_now';
-      _extraVehicles[index].scheduledDate = null;
-      _extraVehicles[index].scheduledTime = null;
-    });
+  void _setExtraVehicle(int index, VehicleTypeModel vehicle) {
+    setState(() => _extraVehicles[index].vehicle = vehicle);
   }
 
-  void _setExtraVehicleScheduled(
-    int index,
-    TruckTypeModel truck,
-    VehicleTypeModel vehicle,
-    DateTime date,
-    TimeOfDay time,
-  ) {
-    setState(() {
-      _extraVehicles[index].truck = truck;
-      _extraVehicles[index].vehicle = vehicle;
-      _extraVehicles[index].serviceType = 'schedule';
-      _extraVehicles[index].scheduledDate = date;
-      _extraVehicles[index].scheduledTime = time;
-    });
+  void _scheduleEntireRequest() {
+    setState(() => _serviceType = 'schedule');
   }
 
   Future<void> _showNoUnitsModal() async {
     final tomorrow = DateTime.now().add(const Duration(days: 1));
-    // Skip to Monday if tomorrow is Sunday
     final suggested = tomorrow.weekday == DateTime.sunday
         ? tomorrow.add(const Duration(days: 1))
         : tomorrow;
@@ -435,10 +487,10 @@ class _BookNowScreenState extends State<BookNowScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              setState(() => _serviceType = 'schedule');
+              _scheduleEntireRequest();
             },
             child: Text(
-              'Schedule Instead',
+              'Schedule entire request',
               style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14),
             ),
           ),
@@ -448,6 +500,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
   }
 
   Future<void> _submitBooking() async {
+    if (_submitting) return;
+
     if (!_bookNowEnabled && _serviceType == 'book_now') {
       await _showNoUnitsModal();
       return;
@@ -472,29 +526,17 @@ class _BookNowScreenState extends State<BookNowScreen> {
           '${_scheduledTime!.minute.toString().padLeft(2, '0')}';
     }
 
-    final extraList = _extraVehicles
-        .where((v) => v.truck != null && v.vehicle != null)
-        .map((v) {
-          final m = <String, dynamic>{
-            'truck_type_id': v.truck!.id,
-            'vehicle_type_id': v.vehicle!.id,
-            'service_type': v.serviceType,
-          };
-          if (v.serviceType == 'schedule' &&
-              v.scheduledDate != null &&
-              v.scheduledTime != null) {
-            m['scheduled_date'] = DateFormat(
-              'yyyy-MM-dd',
-            ).format(v.scheduledDate!);
-            m['scheduled_time'] =
-                '${v.scheduledTime!.hour.toString().padLeft(2, '0')}:${v.scheduledTime!.minute.toString().padLeft(2, '0')}';
-          }
-          return m;
-        })
-        .toList();
+    final validExtras = _extraVehicles.where((v) => v.vehicle != null).toList();
+    final extraList = <Map<String, dynamic>>[];
+    final extraVehicleImagePaths = <int, List<String>>{};
+    for (int i = 0; i < validExtras.length; i++) {
+      final v = validExtras[i];
+      extraList.add({'vehicle_type_id': v.vehicle!.id});
+      extraVehicleImagePaths[i] = v.images.map((x) => x.path).toList();
+    }
 
     final result = await ApiService.createBooking(
-      truckTypeId: _selectedTruckType!.id,
+      truckTypeId: _selectedVehicleType!.requiredTruckTypeId ?? 0,
       vehicleTypeId: _selectedVehicleType!.id,
       pickupAddress: _pickupAddress,
       pickupLat: _pickupLatLng!.latitude,
@@ -509,24 +551,18 @@ class _BookNowScreenState extends State<BookNowScreen> {
       scheduledTime: scheduledTimeStr,
       vehicleImagePaths: _vehicleImages.map((x) => x.path).toList(),
       extraVehicles: extraList,
+      extraVehicleImagePaths: extraVehicleImagePaths,
     );
 
     if (!mounted) return;
 
     if (result['success'] == true) {
-      final code = result['booking_code'] as String? ?? '';
-      Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Booking $code submitted.',
-            style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
-          ),
-          backgroundColor: TmColors.black,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          margin: const EdgeInsets.all(16),
-        ),
+      final bookings = result['bookings'] as List<BookingGroupSibling>? ?? const [];
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/booking-success',
+        (_) => false,
+        arguments: bookings,
       );
     } else {
       setState(() {
@@ -537,7 +573,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
     }
   }
 
-  // ── Wizard helpers ────────────────────────────────────────────────────────
 
   bool get _canProceedStep1 =>
       _pickupLatLng != null &&
@@ -546,14 +581,23 @@ class _BookNowScreenState extends State<BookNowScreen> {
       !_loadingRoute;
 
   bool get _canProceedStep2 {
-    if (_selectedTruckType == null || _selectedVehicleType == null)
-      return false;
+    if (_selectedVehicleType == null) return false;
     if (_vehicleImages.isEmpty) return false;
+    if (_serviceType == 'book_now' && !_isExactlyAvailable(_selectedVehicleType!)) {
+      return false;
+    }
     if (_serviceType == 'schedule' &&
-        (_scheduledDate == null || _scheduledTime == null))
+        (_scheduledDate == null || _scheduledTime == null)) {
       return false;
-    if (_extraVehicles.any((v) => v.truck == null || v.vehicle == null))
+    }
+    if (_extraVehicles.any((v) {
+      if (v.vehicle == null) return true;
+      if (v.images.isEmpty) return true;
+      if (_serviceType == 'book_now' && !_isExactlyAvailable(v.vehicle!)) return true;
       return false;
+    })) {
+      return false;
+    }
     return true;
   }
 
@@ -568,9 +612,12 @@ class _BookNowScreenState extends State<BookNowScreen> {
         children: [
           if (_step == 0)
             IconButton(
-              icon: Icon(Icons.menu_rounded, color: ctx.textPrimary),
-              onPressed: () => Scaffold.of(ctx).openDrawer(),
-              tooltip: 'Menu',
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: ctx.textPrimary,
+                size: 20,
+              ),
+              onPressed: () => Navigator.pop(ctx),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             )
@@ -631,6 +678,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
           loadingRoute: _loadingRoute,
           onPickupSelected: _onPickupSelected,
           onDropoffSelected: _onDropoffSelected,
+          onPickupCleared: _onPickupCleared,
+          onDropoffCleared: _onDropoffCleared,
           onReset: _resetLocations,
           initialPickupAddress: _prefillPickupAddress,
           initialDropoffAddress: _prefillDropoffAddress,
@@ -683,62 +732,71 @@ class _BookNowScreenState extends State<BookNowScreen> {
               ),
             ),
           ),
-        _VehicleSection(
-          truckTypes: _truckTypes,
+        _VehicleTypeSection(
+          vehicleTypes: _vehicleTypes,
           loading: _loadingTypes,
-          selectedTruck: _selectedTruckType,
           selectedVehicle: _selectedVehicleType,
-          readyByClass: _readyByClass,
+          readyTruckTypeIds: _readyTruckTypeIds,
           bookNowEnabled: _bookNowEnabled,
           serviceType: _serviceType,
+          scheduledDate: _scheduledDate,
+          scheduledTime: _scheduledTime,
           onSelect: _selectVehicle,
           onRetry: _loadData,
-          onReset: _resetVehicle,
+          onDateConfirmed: (d) => setState(() => _scheduledDate = d),
+          onTimeConfirmed: (t) => setState(() => _scheduledTime = t),
+          onScheduleEntireRequest: _scheduleEntireRequest,
         ),
         const SizedBox(height: 20),
         _VehicleImageSection(
           images: _vehicleImages,
           hasError: _imageError,
-          onAddTap: _showImageSourceSheet,
+          onAddTap: () => _showImageSourceSheet(onPick: _pickImage),
           onRemove: _removeImage,
         ),
-        if (_truckTypes.isNotEmpty) ...[
+        if (_vehicleTypes.isNotEmpty) ...[
           const SizedBox(height: 20),
           _ExtraVehiclesSection(
             extraVehicles: _extraVehicles,
-            truckTypes: _truckTypes,
+            vehicleTypes: _vehicleTypes,
             canAdd: _extraVehicles.length < 5,
             vehicleCount: _extraVehicles.length + 1,
+            readyTruckTypeIds: _readyTruckTypeIds,
+            requestServiceType: _serviceType,
             onAdd: _addExtraVehicle,
             onRemove: _removeExtraVehicle,
             onVehicleSet: _setExtraVehicle,
-            onScheduleVehicleSet: _setExtraVehicleScheduled,
-            readyByClass: _readyByClass,
-            readyUnitsCount: _readyUnitsCount,
-            serviceType: _serviceType,
-            usedClassCounts: {
-              if (_selectedTruckType != null && _serviceType == 'book_now')
-                _selectedTruckType!.truckClass.toLowerCase(): 1,
-              for (final ev in _extraVehicles)
-                if (ev.truck != null && ev.serviceType == 'book_now')
-                  ev.truck!.truckClass.toLowerCase():
-                      (_extraVehicles
-                          .where(
-                            (e) =>
-                                e.truck != null &&
-                                e.serviceType == 'book_now' &&
-                                e.truck!.truckClass.toLowerCase() ==
-                                    ev.truck!.truckClass.toLowerCase(),
-                          )
-                          .length +
-                      (_selectedTruckType?.truckClass.toLowerCase() ==
-                              ev.truck!.truckClass.toLowerCase()
-                          ? 1
-                          : 0)),
-            },
+            onScheduleEntireRequest: _scheduleEntireRequest,
+            onAddPhotoTap: (index) => _showImageSourceSheet(
+              onPick: (src) => _pickExtraImage(index, src),
+            ),
+            onRemovePhoto: _removeExtraImage,
           ),
         ],
         const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _sectionHeaderWithEdit(String label, VoidCallback onEdit) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: sectionEyebrowStyle(context)),
+        GestureDetector(
+          onTap: onEdit,
+          behavior: HitTestBehavior.opaque,
+          child: Text(
+            'Edit',
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              decoration: TextDecoration.underline,
+              decorationColor: context.divider,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -763,6 +821,34 @@ class _BookNowScreenState extends State<BookNowScreen> {
       timeStr = '$h:$m $period';
     }
 
+    final pricingMap = _pricingPreview?['pricing'] as Map<String, dynamic>?;
+    final canonicalDistanceKm = pricingMap != null
+        ? (pricingMap['distance_km'] as num?)?.toDouble()
+        : null;
+    final bool distanceDiffers = _distanceKm != null &&
+        canonicalDistanceKm != null &&
+        (_distanceKm! - canonicalDistanceKm).abs() > 0.05;
+
+    final List<_ReviewVehicle> allVehicles = [
+      (
+        label: 'Vehicle 1',
+        vehicleName: _selectedVehicleType?.name ?? '—',
+        serviceType: _serviceType,
+        scheduledDate: _scheduledDate,
+        scheduledTime: _scheduledTime,
+        images: _vehicleImages,
+      ),
+      for (int i = 0; i < _extraVehicles.length; i++)
+        (
+          label: 'Vehicle ${i + 2}',
+          vehicleName: _extraVehicles[i].vehicle?.name ?? '—',
+          serviceType: _serviceType,
+          scheduledDate: _scheduledDate,
+          scheduledTime: _scheduledTime,
+          images: _extraVehicles[i].images,
+        ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -771,105 +857,65 @@ class _BookNowScreenState extends State<BookNowScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'TRIP',
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 11,
-                  letterSpacing: 0.8,
+              _sectionHeaderWithEdit('TRIP', () => setState(() => _step = 0)),
+              const SizedBox(height: 14),
+              _ReviewRow(label: 'Pickup', value: _pickupAddress),
+              const SizedBox(height: 14),
+              Container(height: 1, color: context.divider),
+              const SizedBox(height: 14),
+              _ReviewRow(label: 'Drop-off', value: _dropoffAddress),
+              if (_distanceKm != null) ...[
+                const SizedBox(height: 14),
+                Container(height: 1, color: context.divider),
+                const SizedBox(height: 14),
+                _ReviewRow(
+                  label: 'Distance',
+                  value:
+                      '${_distanceKm!.toStringAsFixed(2)} km'
+                      '${_durationMin != null ? ' · ${_durationMin!.toInt()} min' : ''}',
+                  caption: distanceDiffers
+                      ? 'Driving distance for map & ETA. Billed distance is '
+                            '${canonicalDistanceKm.toStringAsFixed(2)} km — see Price Summary.'
+                      : (_routeFallback ? 'Estimated distance (route unavailable)' : null),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: context.surface,
-                  borderRadius: BorderRadius.circular(8),
+              ],
+              if (hasSchedule && dateStr != null) ...[
+                const SizedBox(height: 14),
+                Container(height: 1, color: context.divider),
+                const SizedBox(height: 14),
+                _ReviewRow(
+                  label: 'Scheduled',
+                  value: '$dateStr${timeStr != null ? ' at $timeStr' : ''}',
                 ),
-                child: Column(
-                  children: [
-                    _ReviewRow(label: 'Pickup', value: _pickupAddress),
-                    const SizedBox(height: 8),
-                    _ReviewRow(label: 'Drop-off', value: _dropoffAddress),
-                    if (_distanceKm != null) ...[
-                      const SizedBox(height: 8),
-                      _ReviewRow(
-                        label: 'Distance',
-                        value:
-                            '${_distanceKm!.toStringAsFixed(2)} km'
-                            '${_durationMin != null ? ' · ${_durationMin!.toInt()} min' : ''}',
-                      ),
-                    ],
-                    if (hasSchedule && dateStr != null) ...[
-                      const SizedBox(height: 8),
-                      _ReviewRow(
-                        label: 'Scheduled',
-                        value:
-                            '$dateStr${timeStr != null ? ' at $timeStr' : ''}',
-                      ),
-                    ],
-                  ],
+              ],
+              const SizedBox(height: 28),
+              _sectionHeaderWithEdit('VEHICLES', () => setState(() => _step = 1)),
+              const SizedBox(height: 14),
+              for (int i = 0; i < allVehicles.length; i++) ...[
+                if (i > 0) ...[
+                  const SizedBox(height: 16),
+                  Container(height: 1, color: context.divider),
+                  const SizedBox(height: 16),
+                ],
+                _VehicleReviewEntry(vehicle: allVehicles[i]),
+              ],
+              const SizedBox(height: 28),
+              Text('PRICE SUMMARY', style: sectionEyebrowStyle(context)),
+              const SizedBox(height: 14),
+              _buildPricingBody(),
+              if (allVehicles.length > 1) ...[
+                const SizedBox(height: 20),
+                Text(
+                  'You\'re confirming one request for ${allVehicles.length} vehicle${allVehicles.length == 1 ? '' : 's'}. '
+                  'Each vehicle will be handled and billed as a separate booking.',
+                  style: GoogleFonts.inter(
+                    color: secondaryTextColor(context),
+                    fontSize: 12,
+                    letterSpacing: 0.1,
+                    height: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'VEHICLE',
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 11,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: context.surface,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    _ReviewRow(
-                      label: 'Tow class',
-                      value: _selectedTruckType!.name,
-                    ),
-                    const SizedBox(height: 8),
-                    _ReviewRow(
-                      label: 'Vehicle',
-                      value: _selectedVehicleType!.name,
-                    ),
-                    const SizedBox(height: 8),
-                    _ReviewRow(
-                      label: 'Photos',
-                      value: '${_vehicleImages.length} uploaded',
-                    ),
-                    if (_extraVehicles.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      _ReviewRow(
-                        label: 'Extra',
-                        value:
-                            '+${_extraVehicles.length} vehicle${_extraVehicles.length > 1 ? 's' : ''}',
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'PRICING',
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 11,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _PriceBreakdown(
-                truckType: _selectedTruckType!,
-                distanceKm: _distanceKm ?? 0,
-                extraVehicles: _extraVehicles,
-                priceFmt: _priceFmt,
-              ),
+              ],
             ],
           ),
         ),
@@ -877,28 +923,99 @@ class _BookNowScreenState extends State<BookNowScreen> {
         if (_bookingError != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: TmColors.error.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(6),
-                border: const Border(
-                  left: BorderSide(color: TmColors.error, width: 3),
-                ),
-              ),
-              child: Text(
-                _bookingError!,
-                style: GoogleFonts.inter(
-                  color: TmColors.error,
-                  fontSize: 13,
-                  letterSpacing: 0.1,
-                ),
+            child: Text(
+              _bookingError!,
+              style: GoogleFonts.inter(
+                color: TmColors.destructive,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
               ),
             ),
           ),
         const SizedBox(height: 24),
       ],
+    );
+  }
+
+  Widget _buildPricingBody() {
+    if (_loadingPricing) {
+      return const Column(
+        children: [
+          SkeletonBox(
+            width: double.infinity,
+            height: 22,
+            borderRadius: BorderRadius.all(Radius.circular(6)),
+          ),
+          SizedBox(height: 12),
+          SkeletonBox(
+            width: double.infinity,
+            height: 22,
+            borderRadius: BorderRadius.all(Radius.circular(6)),
+          ),
+          SizedBox(height: 12),
+          SkeletonBox(
+            width: double.infinity,
+            height: 22,
+            borderRadius: BorderRadius.all(Radius.circular(6)),
+          ),
+          SizedBox(height: 16),
+          SkeletonBox(
+            width: double.infinity,
+            height: 30,
+            borderRadius: BorderRadius.all(Radius.circular(6)),
+          ),
+        ],
+      );
+    }
+
+    final preview = _pricingPreview;
+    if (preview == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _pricingError ?? 'Unable to load pricing.',
+            style: GoogleFonts.inter(
+              color: TmColors.destructive,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: _fetchPricingPreview,
+            child: Text(
+              'Retry',
+              style: GoogleFonts.inter(
+                color: context.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                decoration: TextDecoration.underline,
+                decorationColor: context.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final pricing = preview['pricing'] as Map<String, dynamic>? ?? {};
+    final scheduledExtraPreviews = (preview['scheduled_extra_previews'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
+    final bookNowVehicleCount = _serviceType == 'book_now'
+        ? 1 + _extraVehicles.where((v) => v.vehicle != null).length
+        : 1;
+
+    return _PriceBreakdown(
+      pricing: pricing,
+      scheduledExtraPreviews: scheduledExtraPreviews,
+      vehicleTypes: _vehicleTypes,
+      bookNowVehicleCount: bookNowVehicleCount,
+      priceFmt: _priceFmt,
+      serviceType: _serviceType,
+      primaryVehicleName: _selectedVehicleType?.name ?? 'Vehicle',
     );
   }
 
@@ -922,21 +1039,39 @@ class _BookNowScreenState extends State<BookNowScreen> {
       }
       onTap = _canProceedStep1 ? () => setState(() => _step = 1) : null;
     } else if (_step == 1) {
-      if (_selectedTruckType == null || _selectedVehicleType == null) {
-        hint = 'Select a vehicle type to continue';
+      if (_selectedVehicleType == null) {
+        hint = 'Select a vehicle type for Vehicle 1 to continue';
       } else if (_vehicleImages.isEmpty) {
-        hint = 'Add at least 1 vehicle photo to continue';
-      } else if (_serviceType == 'schedule' &&
-          (_scheduledDate == null || _scheduledTime == null)) {
-        hint = 'Choose a scheduled date and time';
+        hint = 'Add at least 1 photo for Vehicle 1 to continue';
+      } else if (_serviceType == 'book_now' && !_isExactlyAvailable(_selectedVehicleType!)) {
+        hint = 'Vehicle 1 is not available for Book Now';
+      } else if (_serviceType == 'schedule' && _scheduledDate == null) {
+        hint = 'Select a preferred date for Vehicle 1 to continue';
+      } else if (_serviceType == 'schedule' && _scheduledTime == null) {
+        hint = 'Select a preferred time for Vehicle 1 to continue';
+      } else {
+        for (int i = 0; i < _extraVehicles.length; i++) {
+          final v = _extraVehicles[i];
+          final label = 'Vehicle ${i + 2}';
+          if (v.vehicle == null) {
+            hint = 'Select a vehicle type for $label to continue';
+          } else if (v.images.isEmpty) {
+            hint = 'Add at least 1 photo for $label to continue';
+          } else if (_serviceType == 'book_now' && !_isExactlyAvailable(v.vehicle!)) {
+            hint = '$label is not available for Book Now';
+          }
+          if (hint != null) break;
+        }
       }
       onTap = () {
         if (_vehicleImages.isEmpty) setState(() => _imageError = true);
         if (!_canProceedStep2) return;
         setState(() => _step = 2);
+        _fetchPricingPreview();
       };
     } else {
-      onTap = _submitting ? null : _submitBooking;
+      final bool pricingReady = !_loadingPricing && _pricingPreview != null;
+      onTap = (_submitting || !pricingReady) ? null : _submitBooking;
     }
 
     final bool busy = loading || (_step == 2 && _submitting);
@@ -956,9 +1091,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
               child: Text(
                 hint,
                 style: GoogleFonts.inter(
-                  color: context.textPrimary,
+                  color: _step == 1 ? TmColors.destructive : context.textPrimary,
                   fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: 0.1,
                 ),
                 textAlign: TextAlign.center,
@@ -970,9 +1105,10 @@ class _BookNowScreenState extends State<BookNowScreen> {
             child: ElevatedButton(
               onPressed: busy ? null : onTap,
               style: ElevatedButton.styleFrom(
-                backgroundColor: isConfirm ? TmColors.yellow : TmColors.black,
-                foregroundColor: isConfirm ? TmColors.black : TmColors.white,
+                backgroundColor: TmColors.yellow,
+                foregroundColor: TmColors.black,
                 disabledBackgroundColor: TmColors.grey300,
+                disabledForegroundColor: TmColors.grey700,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -990,7 +1126,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                   : Text(
                       label,
                       style: GoogleFonts.inter(
-                        color: isConfirm ? TmColors.black : TmColors.white,
+                        color: TmColors.black,
                         fontSize: 15,
                         letterSpacing: 0.2,
                       ),
@@ -1002,7 +1138,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
     );
   }
 
-  void _showImageSourceSheet() {
+  void _showImageSourceSheet({required void Function(ImageSource) onPick}) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: context.card,
@@ -1038,7 +1174,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             GestureDetector(
               onTap: () {
                 Navigator.pop(ctx);
-                _pickImage(ImageSource.camera);
+                onPick(ImageSource.camera);
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1056,7 +1192,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
             GestureDetector(
               onTap: () {
                 Navigator.pop(ctx);
-                _pickImage(ImageSource.gallery);
+                onPick(ImageSource.gallery);
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1085,9 +1221,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
       },
       child: Scaffold(
         backgroundColor: context.bg,
-        drawer: _step == 0
-            ? const TmDrawer(currentRoute: '/book-now', isLoggedIn: true)
-            : null,
         body: Builder(
           builder: (ctx) => SafeArea(
             child: Column(
@@ -1105,7 +1238,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
   }
 }
 
-// ─── Section 1: Booking mode ───────────────────────────────────────────────
 
 class _BookingModeSection extends StatelessWidget {
   const _BookingModeSection({
@@ -1137,7 +1269,7 @@ class _BookingModeSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1154,100 +1286,105 @@ class _BookingModeSection extends StatelessWidget {
           Text(
             'Choose a booking mode, set your locations, and confirm.',
             style: GoogleFonts.inter(
-              color: context.textTertiary,
+              color: secondaryTextColor(context),
               fontSize: 13,
               letterSpacing: 0.1,
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 20),
-          Text(
-            'BOOKING MODE',
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
+          const SizedBox(height: 22),
+          Text('BOOKING MODE', style: sectionEyebrowStyle(context)),
           const SizedBox(height: 10),
           Row(
             children: [
-              _ModeChip(
-                label: 'Book Now',
-                selected: serviceType == 'book_now',
-                onTap: () => onServiceTypeChanged('book_now'),
+              Expanded(
+                child: _ModeChip(
+                  label: 'Book Now',
+                  subtitle: 'Get a unit as soon as possible',
+                  selected: serviceType == 'book_now',
+                  onTap: () => onServiceTypeChanged('book_now'),
+                ),
               ),
-              const SizedBox(width: 8),
-              _ModeChip(
-                label: 'Schedule Later',
-                selected: serviceType == 'schedule',
-                onTap: () => onServiceTypeChanged('schedule'),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ModeChip(
+                  label: 'Schedule Later',
+                  subtitle: 'Choose a date and time',
+                  selected: serviceType == 'schedule',
+                  onTap: () => onServiceTypeChanged('schedule'),
+                ),
               ),
             ],
           ),
-          if (serviceType == 'schedule') ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _DateTimeField(
-                    label: 'Preferred Date',
-                    value: scheduledDate != null
-                        ? _formatDate(scheduledDate!)
-                        : null,
-                    placeholder: 'Select date',
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now().add(
-                          const Duration(days: 1),
-                        ),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 90)),
-                        builder: (ctx, child) => Theme(
-                          data: Theme.of(ctx).copyWith(
-                            colorScheme: const ColorScheme.light(
-                              primary: TmColors.black,
-                              onPrimary: TmColors.white,
-                            ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: serviceType == 'schedule'
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _DateTimeField(
+                            label: 'Preferred Date',
+                            value: scheduledDate != null
+                                ? _formatDate(scheduledDate!)
+                                : null,
+                            placeholder: 'Select date',
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now().add(
+                                  const Duration(days: 1),
+                                ),
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime.now().add(const Duration(days: 90)),
+                                builder: (ctx, child) => Theme(
+                                  data: Theme.of(ctx).copyWith(
+                                    colorScheme: const ColorScheme.light(
+                                      primary: TmColors.black,
+                                      onPrimary: TmColors.white,
+                                    ),
+                                  ),
+                                  child: child!,
+                                ),
+                              );
+                              if (picked != null) onDateChanged(picked);
+                            },
                           ),
-                          child: child!,
                         ),
-                      );
-                      if (picked != null) onDateChanged(picked);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _DateTimeField(
-                    label: 'Preferred Time',
-                    value: scheduledTime != null
-                        ? _formatTime(scheduledTime!)
-                        : null,
-                    placeholder: 'Select time',
-                    onTap: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now(),
-                        builder: (ctx, child) => Theme(
-                          data: Theme.of(ctx).copyWith(
-                            colorScheme: const ColorScheme.light(
-                              primary: TmColors.black,
-                              onPrimary: TmColors.white,
-                            ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _DateTimeField(
+                            label: 'Preferred Time',
+                            value: scheduledTime != null
+                                ? _formatTime(scheduledTime!)
+                                : null,
+                            placeholder: 'Select time',
+                            onTap: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: scheduledTime ?? TimeOfDay.now(),
+                                builder: (ctx, child) => Theme(
+                                  data: Theme.of(ctx).copyWith(
+                                    colorScheme: const ColorScheme.light(
+                                      primary: TmColors.black,
+                                      onPrimary: TmColors.white,
+                                    ),
+                                  ),
+                                  child: child!,
+                                ),
+                              );
+                              if (picked != null) onTimeChanged(picked);
+                            },
                           ),
-                          child: child!,
                         ),
-                      );
-                      if (picked != null) onTimeChanged(picked);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
+                      ],
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
         ],
       ),
     );
@@ -1257,10 +1394,12 @@ class _BookingModeSection extends StatelessWidget {
 class _ModeChip extends StatelessWidget {
   const _ModeChip({
     required this.label,
+    required this.subtitle,
     required this.selected,
     required this.onTap,
   });
   final String label;
+  final String subtitle;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1270,23 +1409,34 @@ class _ModeChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? TmColors.yellow : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: selected ? TmColors.yellow : context.textPrimary,
-            width: 1.5,
-          ),
+          color: selected ? TmColors.yellow : context.surface,
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            color: selected ? TmColors.black : context.textPrimary,
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            letterSpacing: 0.1,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                color: selected ? TmColors.black : context.textPrimary,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.1,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: GoogleFonts.inter(
+                color: selected ? TmColors.black : secondaryTextColor(context),
+                fontSize: 11,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1299,11 +1449,13 @@ class _DateTimeField extends StatelessWidget {
     required this.value,
     required this.placeholder,
     required this.onTap,
+    this.icon = Icons.calendar_today_rounded,
   });
   final String label;
   final String? value;
   final String placeholder;
   final VoidCallback onTap;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -1311,25 +1463,23 @@ class _DateTimeField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label.toUpperCase(),
+          label,
           style: GoogleFonts.inter(
             color: context.textPrimary,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.0,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.1,
           ),
         ),
         const SizedBox(height: 6),
         GestureDetector(
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             decoration: BoxDecoration(
-              border: Border.all(
-                color: value != null ? TmColors.yellow : context.textPrimary,
-                width: value != null ? 2.0 : 1.5,
-              ),
-              borderRadius: BorderRadius.circular(6),
+              color: context.surface,
+              border: Border.all(color: context.divider),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
@@ -1339,7 +1489,7 @@ class _DateTimeField extends StatelessWidget {
                     style: GoogleFonts.inter(
                       color: value != null
                           ? context.textPrimary
-                          : context.textTertiary,
+                          : secondaryTextColor(context),
                       fontSize: 13,
                       fontWeight: value != null ? FontWeight.w600 : FontWeight.w400,
                       letterSpacing: 0.1,
@@ -1347,9 +1497,9 @@ class _DateTimeField extends StatelessWidget {
                   ),
                 ),
                 Icon(
-                  Icons.calendar_today_rounded,
+                  icon,
                   size: 14,
-                  color: value != null ? TmColors.yellow : context.textTertiary,
+                  color: secondaryTextColor(context),
                 ),
               ],
             ),
@@ -1360,7 +1510,83 @@ class _DateTimeField extends StatelessWidget {
   }
 }
 
-// ─── Section 2: Location with search + map ─────────────────────────────────
+class _SchedulePickerFields extends StatelessWidget {
+  const _SchedulePickerFields({
+    required this.scheduledDate,
+    required this.scheduledTime,
+    required this.onDateConfirmed,
+    required this.onTimeConfirmed,
+  });
+
+  final DateTime? scheduledDate;
+  final TimeOfDay? scheduledTime;
+  final void Function(DateTime) onDateConfirmed;
+  final void Function(TimeOfDay) onTimeConfirmed;
+
+  String _formatDate(DateTime d) =>
+      '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
+
+  String _formatTime(TimeOfDay t) {
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    final period = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$h:$m $period';
+  }
+
+  Future<void> _pickDate(BuildContext context) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: scheduledDate ?? today.add(const Duration(days: 1)),
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 90)),
+    );
+    if (picked != null) onDateConfirmed(picked);
+  }
+
+  Future<void> _pickTime(BuildContext context) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: scheduledTime ?? TimeOfDay.now(),
+    );
+    if (picked != null) onTimeConfirmed(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('SCHEDULE', style: sectionEyebrowStyle(context)),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _DateTimeField(
+                label: 'Preferred Date',
+                value: scheduledDate != null ? _formatDate(scheduledDate!) : null,
+                placeholder: 'Select date',
+                onTap: () => _pickDate(context),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _DateTimeField(
+                label: 'Preferred Time',
+                value: scheduledTime != null ? _formatTime(scheduledTime!) : null,
+                placeholder: 'Select time',
+                icon: Icons.access_time_rounded,
+                onTap: () => _pickTime(context),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
 
 class _LocationSection extends StatefulWidget {
   const _LocationSection({
@@ -1370,6 +1596,8 @@ class _LocationSection extends StatefulWidget {
     required this.loadingRoute,
     required this.onPickupSelected,
     required this.onDropoffSelected,
+    required this.onPickupCleared,
+    required this.onDropoffCleared,
     required this.onReset,
     this.initialPickupAddress,
     this.initialDropoffAddress,
@@ -1381,6 +1609,8 @@ class _LocationSection extends StatefulWidget {
   final bool loadingRoute;
   final void Function(LatLng, String) onPickupSelected;
   final void Function(LatLng, String) onDropoffSelected;
+  final VoidCallback onPickupCleared;
+  final VoidCallback onDropoffCleared;
   final VoidCallback onReset;
   final String? initialPickupAddress;
   final String? initialDropoffAddress;
@@ -1394,6 +1624,10 @@ class _LocationSectionState extends State<_LocationSection> {
   late final TextEditingController _dropoffCtrl;
   final _pickupFocus = FocusNode();
   final _dropoffFocus = FocusNode();
+  final _pickupLink = LayerLink();
+  final _dropoffLink = LayerLink();
+  OverlayEntry? _pickupOverlay;
+  OverlayEntry? _dropoffOverlay;
   GoogleMapController? _mapController;
 
   List<Map<String, dynamic>> _pickupSuggestions = [];
@@ -1402,15 +1636,6 @@ class _LocationSectionState extends State<_LocationSection> {
   bool _dropoffSearching = false;
   bool _locating = false;
   Timer? _debounce;
-
-  static const _shortcuts = [
-    'Gas Station',
-    'Hospital',
-    'Police Station',
-    'NAIA Airport',
-    'SM Mall',
-    'LRT Station',
-  ];
 
   @override
   void initState() {
@@ -1425,6 +1650,8 @@ class _LocationSectionState extends State<_LocationSection> {
 
   @override
   void dispose() {
+    _pickupOverlay?.remove();
+    _dropoffOverlay?.remove();
     _pickupCtrl.dispose();
     _dropoffCtrl.dispose();
     _pickupFocus.dispose();
@@ -1438,7 +1665,6 @@ class _LocationSectionState extends State<_LocationSection> {
   void didUpdateWidget(_LocationSection old) {
     super.didUpdateWidget(old);
 
-    // Route arrived → fit camera so the entire route is visible (Grab/Uber style)
     if (widget.routePoints.isNotEmpty && old.routePoints.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -1448,7 +1674,6 @@ class _LocationSectionState extends State<_LocationSection> {
         widget.dropoffLatLng != null &&
         widget.routePoints.isEmpty &&
         (old.pickupLatLng == null || old.dropoffLatLng == null)) {
-      // Both pins just set but route not ready yet → fit to 2-point bounds
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _fitRoute([widget.pickupLatLng!, widget.dropoffLatLng!]);
@@ -1462,7 +1687,73 @@ class _LocationSectionState extends State<_LocationSection> {
         _pickupSuggestions = [];
         _dropoffSuggestions = [];
       });
+      _syncOverlay(isPickup: true);
+      _syncOverlay(isPickup: false);
     }
+  }
+
+  void _syncOverlay({required bool isPickup}) {
+    final suggestions = isPickup ? _pickupSuggestions : _dropoffSuggestions;
+    final entry = isPickup ? _pickupOverlay : _dropoffOverlay;
+
+    if (suggestions.isEmpty) {
+      entry?.remove();
+      if (isPickup) {
+        _pickupOverlay = null;
+      } else {
+        _dropoffOverlay = null;
+      }
+      return;
+    }
+
+    if (entry != null) {
+      entry.markNeedsBuild();
+      return;
+    }
+
+    final newEntry = OverlayEntry(builder: (_) => _buildSuggestionOverlay(isPickup));
+    Overlay.of(context).insert(newEntry);
+    if (isPickup) {
+      _pickupOverlay = newEntry;
+    } else {
+      _dropoffOverlay = newEntry;
+    }
+  }
+
+  Widget _buildSuggestionOverlay(bool isPickup) {
+    final link = isPickup ? _pickupLink : _dropoffLink;
+    final suggestions = isPickup ? _pickupSuggestions : _dropoffSuggestions;
+    final onSelect = isPickup ? _selectPickup : _selectDropoff;
+    final width = MediaQuery.of(context).size.width - 48;
+
+    return Positioned(
+      left: 0,
+      top: 0,
+      width: width,
+      child: CompositedTransformFollower(
+        link: link,
+        showWhenUnlinked: false,
+        targetAnchor: Alignment.bottomLeft,
+        followerAnchor: Alignment.topLeft,
+        offset: const Offset(0, 6),
+        child: Material(
+          color: Colors.transparent,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOut,
+            builder: (context, t, child) => Opacity(
+              opacity: t,
+              child: Transform.translate(
+                offset: Offset(0, (1 - t) * -6),
+                child: child,
+              ),
+            ),
+            child: _SuggestionList(suggestions: suggestions, onSelect: onSelect),
+          ),
+        ),
+      ),
+    );
   }
 
   void _fitRoute(List<LatLng> points) {
@@ -1490,6 +1781,7 @@ class _LocationSectionState extends State<_LocationSection> {
       setState(
         () => isPickup ? _pickupSuggestions = [] : _dropoffSuggestions = [],
       );
+      _syncOverlay(isPickup: isPickup);
       return;
     }
     setState(
@@ -1507,12 +1799,10 @@ class _LocationSectionState extends State<_LocationSection> {
           _dropoffSearching = false;
         }
       });
+      _syncOverlay(isPickup: isPickup);
     });
   }
 
-  // Resolves a suggestion to {lat, lng, label} — either the coordinates are
-  // already attached (Nominatim fallback) or a place_id needs a follow-up
-  // Place Details call (Google Places path).
   Future<Map<String, dynamic>?> _resolveFeature(
     Map<String, dynamic> feature,
   ) async {
@@ -1545,6 +1835,7 @@ class _LocationSectionState extends State<_LocationSection> {
       _pickupSuggestions = [];
       _pickupSearching = true;
     });
+    _syncOverlay(isPickup: true);
     final resolved = await _resolveFeature(feature);
     if (!mounted) return;
     setState(() => _pickupSearching = false);
@@ -1566,6 +1857,7 @@ class _LocationSectionState extends State<_LocationSection> {
       _dropoffSuggestions = [];
       _dropoffSearching = true;
     });
+    _syncOverlay(isPickup: false);
     final resolved = await _resolveFeature(feature);
     if (!mounted) return;
     setState(() => _dropoffSearching = false);
@@ -1581,6 +1873,20 @@ class _LocationSectionState extends State<_LocationSection> {
     widget.onDropoffSelected(LatLng(lat, lng), label);
   }
 
+  void _clearPickup() {
+    _pickupCtrl.clear();
+    setState(() => _pickupSuggestions = []);
+    _syncOverlay(isPickup: true);
+    widget.onPickupCleared();
+  }
+
+  void _clearDropoff() {
+    _dropoffCtrl.clear();
+    setState(() => _dropoffSuggestions = []);
+    _syncOverlay(isPickup: false);
+    widget.onDropoffCleared();
+  }
+
   void _reset() {
     _pickupCtrl.clear();
     _dropoffCtrl.clear();
@@ -1588,18 +1894,9 @@ class _LocationSectionState extends State<_LocationSection> {
       _pickupSuggestions = [];
       _dropoffSuggestions = [];
     });
+    _syncOverlay(isPickup: true);
+    _syncOverlay(isPickup: false);
     widget.onReset();
-  }
-
-  void _applyShortcut(String text) {
-    if (_dropoffFocus.hasFocus) {
-      _dropoffCtrl.text = text;
-      _search(text, false);
-    } else {
-      _pickupCtrl.text = text;
-      _pickupFocus.requestFocus();
-      _search(text, true);
-    }
   }
 
   Future<void> _useCurrentLocation() async {
@@ -1607,7 +1904,6 @@ class _LocationSectionState extends State<_LocationSection> {
     setState(() => _locating = true);
 
     try {
-      // Check if location services are enabled
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted) {
@@ -1629,7 +1925,6 @@ class _LocationSectionState extends State<_LocationSection> {
         return;
       }
 
-      // Request permission
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -1655,7 +1950,6 @@ class _LocationSectionState extends State<_LocationSection> {
         return;
       }
 
-      // Get position
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -1698,59 +1992,35 @@ class _LocationSectionState extends State<_LocationSection> {
     }
   }
 
-  Future<void> _onMapTap(LatLng point) async {
-    if (widget.pickupLatLng == null) {
-      final address = await ApiService.reverseGeocode(
-        point.latitude,
-        point.longitude,
-      );
-      if (!mounted) return;
-      _pickupCtrl.text = address;
-      widget.onPickupSelected(point, address);
-    } else if (widget.dropoffLatLng == null) {
-      final address = await ApiService.reverseGeocode(
-        point.latitude,
-        point.longitude,
-      );
-      if (!mounted) return;
-      _dropoffCtrl.text = address;
-      widget.onDropoffSelected(point, address);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final bothSet = widget.pickupLatLng != null && widget.dropoffLatLng != null;
     final anyPin = widget.pickupLatLng != null || widget.dropoffLatLng != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Header ──────────────────────────────────────────────────────────
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+          padding: const EdgeInsets.fromLTRB(24, 26, 24, 0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'PICKUP & DROP-OFF',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.0,
-                ),
-              ),
+              Text('PICKUP & DROP-OFF', style: sectionEyebrowStyle(context)),
               if (widget.pickupLatLng != null)
                 GestureDetector(
                   onTap: _reset,
-                  child: Text(
-                    'Reset',
-                    style: GoogleFonts.inter(
-                      color: TmColors.yellow,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.1,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      'Reset',
+                      style: GoogleFonts.inter(
+                        color: context.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.1,
+                        decoration: TextDecoration.underline,
+                        decorationColor: context.divider,
+                      ),
                     ),
                   ),
                 ),
@@ -1759,59 +2029,57 @@ class _LocationSectionState extends State<_LocationSection> {
         ),
         const SizedBox(height: 12),
 
-        // ── Pickup search field ──────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _FieldLabel(text: 'Pickup Location'),
+              _FieldLabel(text: 'Pickup location'),
               const SizedBox(height: 6),
-              _SearchField(
-                controller: _pickupCtrl,
-                focusNode: _pickupFocus,
-                placeholder: 'Where should we pick you up?',
-                confirmed: widget.pickupLatLng != null,
-                searching: _pickupSearching,
-                onChanged: (v) => _search(v, true),
-              ),
-              if (_pickupSuggestions.isNotEmpty)
-                _SuggestionList(
-                  suggestions: _pickupSuggestions,
-                  onSelect: _selectPickup,
+              CompositedTransformTarget(
+                link: _pickupLink,
+                child: _SearchField(
+                  controller: _pickupCtrl,
+                  focusNode: _pickupFocus,
+                  placeholder: 'Search pickup location',
+                  searching: _pickupSearching,
+                  onChanged: (v) => _search(v, true),
+                  onClear: _clearPickup,
                 ),
+              ),
               if (widget.pickupLatLng == null) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 GestureDetector(
                   onTap: _locating ? null : _useCurrentLocation,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _locating
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: TmColors.yellow,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _locating
+                            ? const SkeletonBox(
+                                width: 14,
+                                height: 14,
+                                borderRadius: BorderRadius.all(Radius.circular(7)),
+                              )
+                            : Icon(
+                                Icons.my_location_rounded,
+                                size: 14,
+                                color: context.textPrimary,
                               ),
-                            )
-                          : const Icon(
-                              Icons.my_location_rounded,
-                              size: 14,
-                              color: TmColors.yellow,
-                            ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _locating ? 'Getting location...' : 'Use current location',
-                        style: GoogleFonts.inter(
-                          color: TmColors.yellow,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.1,
+                        const SizedBox(width: 6),
+                        Text(
+                          _locating ? 'Getting location...' : 'Use current location',
+                          style: GoogleFonts.inter(
+                            color: context.textPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -1820,176 +2088,115 @@ class _LocationSectionState extends State<_LocationSection> {
         ),
         const SizedBox(height: 12),
 
-        // ── Dropoff search field ─────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _FieldLabel(text: 'Drop-off Location'),
+              _FieldLabel(text: 'Drop-off location'),
               const SizedBox(height: 6),
-              _SearchField(
-                controller: _dropoffCtrl,
-                focusNode: _dropoffFocus,
-                placeholder: 'Where are you headed?',
-                confirmed: widget.dropoffLatLng != null,
-                searching: _dropoffSearching,
-                onChanged: (v) => _search(v, false),
-              ),
-              if (_dropoffSuggestions.isNotEmpty)
-                _SuggestionList(
-                  suggestions: _dropoffSuggestions,
-                  onSelect: _selectDropoff,
+              CompositedTransformTarget(
+                link: _dropoffLink,
+                child: _SearchField(
+                  controller: _dropoffCtrl,
+                  focusNode: _dropoffFocus,
+                  placeholder: 'Search drop-off location',
+                  searching: _dropoffSearching,
+                  onChanged: (v) => _search(v, false),
+                  onClear: _clearDropoff,
                 ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // ── Quick-search shortcuts ───────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'QUICK SEARCH',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.0,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: _shortcuts.map((s) {
-                  return GestureDetector(
-                    onTap: () => _applyShortcut(s),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: context.textPrimary,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        s,
-                        style: GoogleFonts.inter(
-                          color: context.bg,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.1,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
 
-        // ── Map (280px, auto-fits route when both pins placed) ──────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            'LIVE ROUTE PREVIEW',
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
+          child: Text('Route', style: sectionEyebrowStyle(context)),
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 280,
-          child: Stack(
-            children: [
-              // GoogleMap is always in the tree so the controller is always ready
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: context.divider, width: 0.5),
-                      bottom: BorderSide(color: context.divider, width: 0.5),
-                    ),
-                  ),
-                  child: GoogleMap(
-                    initialCameraPosition: const CameraPosition(
-                      target: LatLng(14.5995, 120.9842),
-                      zoom: 13,
-                    ),
-                    onMapCreated: (controller) => _mapController = controller,
-                    onTap: bothSet ? null : (pt) => _onMapTap(pt),
-                    zoomControlsEnabled: false,
-                    myLocationButtonEnabled: false,
-                    polylines: {
-                      if (widget.routePoints.isNotEmpty)
-                        Polyline(
-                          polylineId: const PolylineId('route'),
-                          points: widget.routePoints,
-                          color: Colors.black,
-                          width: 3,
-                        ),
-                    },
-                    markers: {
-                      if (widget.pickupLatLng != null)
-                        Marker(
-                          markerId: const MarkerId('pickup'),
-                          position: widget.pickupLatLng!,
-                          icon: BitmapDescriptor.defaultMarkerWithHue(
-                              BitmapDescriptor.hueViolet),
-                          infoWindow: const InfoWindow(title: 'Pickup'),
-                        ),
-                      if (widget.dropoffLatLng != null)
-                        Marker(
-                          markerId: const MarkerId('dropoff'),
-                          position: widget.dropoffLatLng!,
-                          icon: BitmapDescriptor.defaultMarkerWithHue(
-                              BitmapDescriptor.hueYellow),
-                          infoWindow: const InfoWindow(title: 'Drop-off'),
-                        ),
-                    },
-                  ),
-                ),
-              ),
-              // Overlay hides map until first pin is placed
-              if (!anyPin)
-                Positioned.fill(
-                  child: Container(
-                    color: context.textPrimary.withValues(alpha: 0.85),
-                    alignment: Alignment.center,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.location_on_rounded,
-                          color: TmColors.yellow,
-                          size: 28,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Set pickup location to see map',
-                          style: GoogleFonts.inter(
-                            color: TmColors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.1,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              height: 260,
+              decoration: BoxDecoration(border: Border.all(color: context.divider)),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: GoogleMap(
+                      initialCameraPosition: const CameraPosition(
+                        target: LatLng(14.5995, 120.9842),
+                        zoom: 13,
+                      ),
+                      onMapCreated: (controller) => _mapController = controller,
+                      zoomControlsEnabled: false,
+                      myLocationButtonEnabled: false,
+                      scrollGesturesEnabled: false,
+                      zoomGesturesEnabled: false,
+                      rotateGesturesEnabled: false,
+                      tiltGesturesEnabled: false,
+                      polylines: {
+                        if (widget.routePoints.isNotEmpty)
+                          Polyline(
+                            polylineId: const PolylineId('route'),
+                            points: widget.routePoints,
+                            color: Colors.black,
+                            width: 3,
                           ),
-                        ),
-                      ],
+                      },
+                      markers: {
+                        if (widget.pickupLatLng != null)
+                          Marker(
+                            markerId: const MarkerId('pickup'),
+                            position: widget.pickupLatLng!,
+                            icon: BitmapDescriptor.defaultMarkerWithHue(
+                                BitmapDescriptor.hueViolet),
+                            infoWindow: const InfoWindow(title: 'Pickup'),
+                          ),
+                        if (widget.dropoffLatLng != null)
+                          Marker(
+                            markerId: const MarkerId('dropoff'),
+                            position: widget.dropoffLatLng!,
+                            icon: BitmapDescriptor.defaultMarkerWithHue(
+                                BitmapDescriptor.hueYellow),
+                            infoWindow: const InfoWindow(title: 'Drop-off'),
+                          ),
+                      },
                     ),
                   ),
-                ),
-            ],
+                  if (!anyPin)
+                    Positioned.fill(
+                      child: Container(
+                        color: context.textPrimary.withValues(alpha: 0.85),
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.location_on_rounded,
+                              color: TmColors.yellow,
+                              size: 28,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Select your locations to see the route.',
+                              style: GoogleFonts.inter(
+                                color: TmColors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
 
@@ -1998,13 +2205,10 @@ class _LocationSectionState extends State<_LocationSection> {
             padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
             child: Row(
               children: [
-                const SizedBox(
+                const SkeletonBox(
                   width: 12,
                   height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: TmColors.yellow,
-                  ),
+                  borderRadius: BorderRadius.all(Radius.circular(6)),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -2024,7 +2228,6 @@ class _LocationSectionState extends State<_LocationSection> {
   }
 }
 
-// ─── Search field ───────────────────────────────────────────────────────────
 
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel({required this.text});
@@ -2033,12 +2236,12 @@ class _FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      text.toUpperCase(),
+      text,
       style: GoogleFonts.inter(
         color: context.textPrimary,
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.0,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.1,
       ),
     );
   }
@@ -2049,28 +2252,27 @@ class _SearchField extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.placeholder,
-    required this.confirmed,
     required this.searching,
     required this.onChanged,
+    required this.onClear,
+    this.icon = Icons.location_on_outlined,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final String placeholder;
-  final bool confirmed;
   final bool searching;
   final void Function(String) onChanged;
+  final VoidCallback onClear;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(
-          color: confirmed ? TmColors.yellow : context.textPrimary,
-          width: confirmed ? 2.0 : 1.5,
-        ),
-        borderRadius: BorderRadius.circular(6),
-        color: context.bg,
+        border: Border.all(color: context.divider),
+        borderRadius: BorderRadius.circular(12),
+        color: context.surface,
       ),
       child: TextField(
         controller: controller,
@@ -2085,7 +2287,7 @@ class _SearchField extends StatelessWidget {
         decoration: InputDecoration(
           hintText: placeholder,
           hintStyle: GoogleFonts.inter(
-            color: context.textTertiary,
+            color: secondaryTextColor(context),
             fontSize: 14,
             letterSpacing: 0.1,
           ),
@@ -2094,22 +2296,31 @@ class _SearchField extends StatelessWidget {
             vertical: 13,
           ),
           border: InputBorder.none,
+          prefixIcon: Icon(
+            icon,
+            size: 18,
+            color: secondaryTextColor(context),
+          ),
           suffixIcon: searching
-              ? Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: SizedBox(
+              ? const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: SkeletonBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                    borderRadius: BorderRadius.all(Radius.circular(7)),
+                  ),
+                )
+              : controller.text.isNotEmpty
+              ? GestureDetector(
+                  onTap: onClear,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 18,
                       color: context.textPrimary,
                     ),
                   ),
-                )
-              : confirmed
-              ? const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: Icon(Icons.check_circle_rounded, size: 18, color: TmColors.yellow),
                 )
               : null,
         ),
@@ -2118,7 +2329,6 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-// ─── Suggestion list ────────────────────────────────────────────────────────
 
 class _SuggestionList extends StatelessWidget {
   const _SuggestionList({required this.suggestions, required this.onSelect});
@@ -2128,11 +2338,11 @@ class _SuggestionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(top: 2),
+      margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
-        border: Border.all(color: context.textPrimary, width: 1.5),
-        borderRadius: BorderRadius.circular(6),
-        color: context.bg,
+        border: Border.all(color: context.divider),
+        borderRadius: BorderRadius.circular(12),
+        color: context.surface,
       ),
       child: Column(
         children: List.generate(suggestions.length, (i) {
@@ -2149,12 +2359,7 @@ class _SuggestionList extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 border: i > 0
-                    ? Border(
-                        top: BorderSide(
-                          color: context.textPrimary.withValues(alpha: 0.1),
-                          width: 1,
-                        ),
-                      )
+                    ? Border(top: BorderSide(color: context.divider))
                     : null,
               ),
               child: Column(
@@ -2174,7 +2379,7 @@ class _SuggestionList extends StatelessWidget {
                     Text(
                       detail,
                       style: GoogleFonts.inter(
-                        color: context.textTertiary,
+                        color: secondaryTextColor(context),
                         fontSize: 11,
                         letterSpacing: 0.1,
                       ),
@@ -2192,99 +2397,310 @@ class _SuggestionList extends StatelessWidget {
   }
 }
 
-// ─── Section 3a: Primary vehicle selection ─────────────────────────────────
 
-class _VehicleSection extends StatefulWidget {
-  const _VehicleSection({
-    required this.truckTypes,
-    required this.loading,
-    required this.selectedTruck,
-    required this.selectedVehicle,
-    required this.readyByClass,
-    required this.bookNowEnabled,
-    required this.serviceType,
-    required this.onSelect,
-    this.onRetry,
-    this.onReset,
-  });
-
-  final List<TruckTypeModel> truckTypes;
-  final bool loading;
-  final TruckTypeModel? selectedTruck;
-  final VehicleTypeModel? selectedVehicle;
-  final Map<String, int> readyByClass;
-  final bool bookNowEnabled;
-  final String serviceType;
-  final void Function(TruckTypeModel, VehicleTypeModel) onSelect;
-  final VoidCallback? onRetry;
-  final VoidCallback? onReset;
-
-  @override
-  State<_VehicleSection> createState() => _VehicleSectionState();
+IconData _vehicleCategoryIcon(String category) {
+  switch (category) {
+    case '2_wheeler':
+      return Icons.two_wheeler_rounded;
+    case 'heavy_vehicle':
+      return Icons.local_shipping_rounded;
+    default:
+      return Icons.directions_car_rounded;
+  }
 }
 
-class _VehicleSectionState extends State<_VehicleSection> {
-  TruckTypeModel? _focusedTruck;
+List<VehicleTypeModel> _filterVehicleTypes(List<VehicleTypeModel> all, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return all;
+  return all.where((v) => v.name.toLowerCase().contains(q)).toList();
+}
+
+class _NoVehicleTypesFound extends StatelessWidget {
+  const _NoVehicleTypesFound({this.onBrowseAll});
+
+  final VoidCallback? onBrowseAll;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.truckTypes.isNotEmpty) {
-      _focusedTruck = widget.selectedTruck ?? widget.truckTypes.first;
-    }
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'No vehicle types found.',
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+            ),
+          ),
+          if (onBrowseAll != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Try a different keyword or browse all vehicle types.',
+              style: GoogleFonts.inter(
+                color: secondaryTextColor(context),
+                fontSize: 12.5,
+                letterSpacing: 0.1,
+              ),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: onBrowseAll,
+              behavior: HitTestBehavior.opaque,
+              child: Text(
+                'Browse all vehicle types',
+                style: GoogleFonts.inter(
+                  color: TmColors.yellow,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                  decorationColor: TmColors.yellow,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _VehicleTypeSection extends StatefulWidget {
+  const _VehicleTypeSection({
+    required this.vehicleTypes,
+    required this.loading,
+    required this.selectedVehicle,
+    required this.readyTruckTypeIds,
+    required this.bookNowEnabled,
+    required this.serviceType,
+    required this.scheduledDate,
+    required this.scheduledTime,
+    required this.onSelect,
+    required this.onDateConfirmed,
+    required this.onTimeConfirmed,
+    required this.onScheduleEntireRequest,
+    this.onRetry,
+  });
+
+  final List<VehicleTypeModel> vehicleTypes;
+  final bool loading;
+  final VehicleTypeModel? selectedVehicle;
+  final Set<int> readyTruckTypeIds;
+  final bool bookNowEnabled;
+  final String serviceType;
+  final DateTime? scheduledDate;
+  final TimeOfDay? scheduledTime;
+  final void Function(VehicleTypeModel) onSelect;
+  final void Function(DateTime) onDateConfirmed;
+  final void Function(TimeOfDay) onTimeConfirmed;
+  final VoidCallback onScheduleEntireRequest;
+  final VoidCallback? onRetry;
+
+  @override
+  State<_VehicleTypeSection> createState() => _VehicleTypeSectionState();
+}
+
+class _VehicleTypeSectionState extends State<_VehicleTypeSection> {
+  static const _defaultRowLimit = 5;
+
+  final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
+  bool _changing = false;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
   }
 
-  @override
-  void didUpdateWidget(_VehicleSection old) {
-    super.didUpdateWidget(old);
-    if (old.truckTypes.isEmpty &&
-        widget.truckTypes.isNotEmpty &&
-        _focusedTruck == null) {
-      setState(() {
-        _focusedTruck = widget.selectedTruck ?? widget.truckTypes.first;
-      });
-    }
+  bool get _isSelectedAvailable {
+    final vehicle = widget.selectedVehicle;
+    if (vehicle == null) return true;
+    if (widget.readyTruckTypeIds.isEmpty) return widget.bookNowEnabled;
+    return widget.readyTruckTypeIds.contains(vehicle.requiredTruckTypeId);
+  }
+
+  void _handleSelect(VehicleTypeModel vehicle) {
+    widget.onSelect(vehicle);
+    setState(() => _changing = false);
+  }
+
+  void _showAllTypesSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => _AllVehicleTypesSheet(
+        vehicleTypes: widget.vehicleTypes,
+        selectedId: widget.selectedVehicle?.id,
+        onSelect: (v) {
+          Navigator.pop(ctx);
+          _handleSelect(v);
+        },
+      ),
+    );
+  }
+
+  Widget _vehicleTypeHeading(BuildContext context) {
+    final labelStyle = sectionEyebrowStyle(context);
+    final linkStyle = GoogleFonts.inter(
+      color: TmColors.yellow,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w600,
+      decoration: TextDecoration.underline,
+      decorationColor: TmColors.yellow,
+    );
+    final label = Text('VEHICLE TYPE', style: labelStyle);
+    final link = GestureDetector(
+      onTap: () => _showHelpSheet(context),
+      behavior: HitTestBehavior.opaque,
+      child: Text('Not sure what to choose?', style: linkStyle),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dir = Directionality.of(context);
+        final labelWidth = (TextPainter(
+          text: TextSpan(text: 'VEHICLE TYPE', style: labelStyle),
+          textDirection: dir,
+        )..layout()).width;
+        final linkWidth = (TextPainter(
+          text: TextSpan(text: 'Not sure what to choose?', style: linkStyle),
+          textDirection: dir,
+        )..layout()).width;
+        final fitsOneLine = labelWidth + 16 + linkWidth <= constraints.maxWidth;
+        return fitsOneLine
+            ? Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [label, link])
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [label, const SizedBox(height: 8), link],
+              );
+      },
+    );
+  }
+
+  void _showHelpSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ctx.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Choosing a vehicle type',
+                style: GoogleFonts.inter(
+                  color: ctx.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Pick the option closest to your vehicle.',
+                style: GoogleFonts.inter(
+                  color: secondaryTextColor(ctx),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.separated(
+                  controller: scrollController,
+                  itemCount: widget.vehicleTypes.length,
+                  separatorBuilder: (_, _) => Container(height: 0.5, color: ctx.divider),
+                  itemBuilder: (_, i) {
+                    final v = widget.vehicleTypes[i];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(_vehicleCategoryIcon(v.category), size: 20, color: ctx.textPrimary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  v.name,
+                                  style: GoogleFonts.inter(
+                                    color: ctx.textPrimary,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (v.description != null && v.description!.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    v.description!,
+                                    style: GoogleFonts.inter(
+                                      color: secondaryTextColor(ctx),
+                                      fontSize: 12.5,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final trucks = widget.truckTypes;
+    final filtered = _filterVehicleTypes(widget.vehicleTypes, _searchCtrl.text);
+    final bool searching = _searchCtrl.text.trim().isNotEmpty;
+    final bool showSelected = widget.selectedVehicle != null && !_changing;
+    final visibleRows = searching ? filtered : filtered.take(_defaultRowLimit).toList();
+    final bool hasMore = !searching && filtered.length > _defaultRowLimit;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'VEHICLE TO TOW',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.0,
-                ),
-              ),
-              if (widget.selectedTruck != null && widget.onReset != null)
-                GestureDetector(
-                  onTap: widget.onReset,
-                  child: Text(
-                    'Clear',
-                    style: GoogleFonts.inter(
-                      color: TmColors.yellow,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.1,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
           Text(
-            'What type of vehicle needs to be towed?',
+            'What vehicle are we towing?',
             style: GoogleFonts.inter(
               color: context.textPrimary,
               fontSize: 18,
@@ -2294,35 +2710,20 @@ class _VehicleSectionState extends State<_VehicleSection> {
           ),
           const SizedBox(height: 20),
           if (widget.loading)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border.all(color: context.textPrimary.withValues(alpha: 0.15), width: 1.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: TmColors.yellow,
-                    ),
+            Column(
+              children: List.generate(
+                3,
+                (_) => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: SkeletonBox(
+                    width: double.infinity,
+                    height: 44,
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Loading vehicle types...',
-                    style: GoogleFonts.inter(
-                      color: context.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
+                ),
               ),
             )
-          else if (trucks.isEmpty)
+          else if (widget.vehicleTypes.isEmpty)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -2360,81 +2761,86 @@ class _VehicleSectionState extends State<_VehicleSection> {
               ),
             )
           else ...[
-            // ── Step 1: Select Tow Class ──────────────────────────────────
-            Text(
-              '1. SELECT TOW CLASS',
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.0,
+            if (showSelected) ...[
+              Text('VEHICLE TYPE', style: sectionEyebrowStyle(context)),
+              const SizedBox(height: 8),
+              _SelectedVehicleTypeRow(
+                vehicle: widget.selectedVehicle!,
+                onChange: () => setState(() => _changing = true),
               ),
-            ),
-            const SizedBox(height: 10),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: trucks.map((truck) {
-                  final isAvailable = widget.serviceType == 'schedule'
-                      ? true
-                      : widget.readyByClass.isNotEmpty
-                          ? (widget.readyByClass[truck.truckClass.toLowerCase()] ?? 0) > 0
-                          : widget.bookNowEnabled;
-                  return _ClassPickerCard(
-                    truck: truck,
-                    isFocused: _focusedTruck?.id == truck.id,
-                    isSelected: widget.selectedTruck?.id == truck.id,
-                    isAvailable: isAvailable,
-                    onTap: () => setState(() => _focusedTruck = truck),
-                  );
-                }).toList(),
-              ),
-            ),
-            // ── Step 2: Select Vehicle Type ───────────────────────────────
-            if (_focusedTruck != null) ...[
-              const SizedBox(height: 24),
-              Text(
-                '2. SELECT VEHICLE TYPE',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.0,
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (_focusedTruck!.vehicleTypes.isNotEmpty) ...[
-                Builder(
-                  builder: (context) {
-                    final isAvailable = widget.serviceType == 'schedule'
-                        ? true
-                        : widget.readyByClass.isNotEmpty
-                            ? (widget.readyByClass[_focusedTruck!.truckClass.toLowerCase()] ?? 0) > 0
-                            : widget.bookNowEnabled;
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _focusedTruck!.vehicleTypes.map((v) {
-                        return _VehicleChip(
-                          label: v.name,
-                          selected:
-                              widget.selectedTruck?.id == _focusedTruck!.id &&
-                              widget.selectedVehicle?.id == v.id,
-                          muted: !isAvailable,
-                          onTap: () => widget.onSelect(_focusedTruck!, v),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-              ] else
-                Text(
-                  'No vehicle types configured for this class.',
-                  style: GoogleFonts.inter(
-                    color: context.textSecondary,
-                    fontSize: 13,
+              if (widget.serviceType == 'book_now') ...[
+                const SizedBox(height: 16),
+                _AvailabilityStatusCard(available: _isSelectedAvailable),
+                if (!_isSelectedAvailable) ...[
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: widget.onScheduleEntireRequest,
+                    behavior: HitTestBehavior.opaque,
+                    child: Text(
+                      'Schedule entire request',
+                      style: GoogleFonts.inter(
+                        color: TmColors.yellow,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                        decorationColor: TmColors.yellow,
+                      ),
+                    ),
                   ),
+                ],
+              ] else if (widget.serviceType == 'schedule') ...[
+                const SizedBox(height: 16),
+                _SchedulePickerFields(
+                  scheduledDate: widget.scheduledDate,
+                  scheduledTime: widget.scheduledTime,
+                  onDateConfirmed: widget.onDateConfirmed,
+                  onTimeConfirmed: widget.onTimeConfirmed,
                 ),
+              ],
+            ] else ...[
+              _vehicleTypeHeading(context),
+              const SizedBox(height: 8),
+              _SearchField(
+                controller: _searchCtrl,
+                focusNode: _searchFocus,
+                placeholder: 'Search vehicle type',
+                searching: false,
+                icon: Icons.search_rounded,
+                onChanged: (_) => setState(() {}),
+                onClear: () => setState(_searchCtrl.clear),
+              ),
+              const SizedBox(height: 4),
+              if (filtered.isEmpty)
+                _NoVehicleTypesFound(onBrowseAll: () => _showAllTypesSheet(context))
+              else ...[
+                Column(
+                  children: visibleRows.map((v) {
+                    return _VehicleTypeRow(
+                      vehicle: v,
+                      selected: widget.selectedVehicle?.id == v.id,
+                      onTap: () => _handleSelect(v),
+                    );
+                  }).toList(),
+                ),
+                if (hasMore)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: GestureDetector(
+                      onTap: () => _showAllTypesSheet(context),
+                      behavior: HitTestBehavior.opaque,
+                      child: Text(
+                        'View more',
+                        style: GoogleFonts.inter(
+                          color: TmColors.yellow,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline,
+                          decorationColor: TmColors.yellow,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ],
           ],
         ],
@@ -2443,124 +2849,94 @@ class _VehicleSectionState extends State<_VehicleSection> {
   }
 }
 
-class _ClassPickerCard extends StatelessWidget {
-  const _ClassPickerCard({
-    required this.truck,
-    required this.isFocused,
-    required this.isSelected,
-    required this.isAvailable,
-    required this.onTap,
+class _AllVehicleTypesSheet extends StatefulWidget {
+  const _AllVehicleTypesSheet({
+    required this.vehicleTypes,
+    required this.selectedId,
+    required this.onSelect,
   });
 
-  final TruckTypeModel truck;
-  final bool isFocused;
-  final bool isSelected;
-  final bool isAvailable;
-  final VoidCallback onTap;
+  final List<VehicleTypeModel> vehicleTypes;
+  final int? selectedId;
+  final void Function(VehicleTypeModel) onSelect;
+
+  @override
+  State<_AllVehicleTypesSheet> createState() => _AllVehicleTypesSheetState();
+}
+
+class _AllVehicleTypesSheetState extends State<_AllVehicleTypesSheet> {
+  final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final Color bg = isSelected
-        ? TmColors.yellow
-        : isFocused
-        ? context.textPrimary
-        : context.bg;
-    final Color borderColor = isSelected
-        ? TmColors.yellow
-        : isFocused
-        ? context.textPrimary
-        : context.textPrimary.withValues(alpha: 0.25);
-    final double borderWidth = (isSelected || isFocused) ? 2.0 : 1.5;
-    final Color nameColor = isSelected
-        ? TmColors.black
-        : isFocused
-        ? TmColors.white
-        : isAvailable
-        ? context.textPrimary
-        : context.textTertiary;
-    final Color metaColor = isSelected
-        ? TmColors.black.withValues(alpha: 0.65)
-        : isFocused
-        ? TmColors.white.withValues(alpha: 0.6)
-        : context.textTertiary;
-    final Color classBg = isSelected
-        ? TmColors.black.withValues(alpha: 0.12)
-        : isFocused
-        ? TmColors.white.withValues(alpha: 0.12)
-        : TmColors.yellow.withValues(alpha: 0.15);
-    final Color classText = isSelected
-        ? TmColors.black
-        : isFocused
-        ? TmColors.white
-        : TmColors.yellow;
-    final String availText = isAvailable ? 'Available' : 'Unavailable';
-    final Color availColor = isSelected
-        ? TmColors.black.withValues(alpha: 0.5)
-        : isFocused
-        ? TmColors.white.withValues(alpha: 0.5)
-        : isAvailable
-        ? TmColors.success
-        : context.textTertiary;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 148,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        margin: const EdgeInsets.only(right: 10),
-        decoration: BoxDecoration(
-          color: bg,
-          border: Border.all(color: borderColor, width: borderWidth),
-          borderRadius: BorderRadius.circular(10),
-        ),
+    final filtered = _filterVehicleTypes(widget.vehicleTypes, _searchCtrl.text);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollController) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: classBg,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                truck.truckClass.toUpperCase(),
-                style: GoogleFonts.inter(
-                  color: classText,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: ctx.divider,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 16),
             Text(
-              truck.name,
+              'All Vehicle Types',
               style: GoogleFonts.inter(
-                color: nameColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.1,
+                color: ctx.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '₱${NumberFormat('#,##0', 'en_PH').format(truck.baseRate)} base',
-              style: GoogleFonts.inter(
-                color: metaColor,
-                fontSize: 12,
-                letterSpacing: 0.1,
-              ),
+            const SizedBox(height: 12),
+            _SearchField(
+              controller: _searchCtrl,
+              focusNode: _searchFocus,
+              placeholder: 'Search vehicle type',
+              searching: false,
+              icon: Icons.search_rounded,
+              onChanged: (_) => setState(() {}),
+              onClear: () => setState(_searchCtrl.clear),
             ),
-            const SizedBox(height: 4),
-            Text(
-              availText,
-              style: GoogleFonts.inter(
-                color: availColor,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.1,
-              ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: filtered.isEmpty
+                  ? SingleChildScrollView(
+                      controller: scrollController,
+                      child: const _NoVehicleTypesFound(),
+                    )
+                  : ListView.builder(
+                      controller: scrollController,
+                      itemCount: filtered.length,
+                      itemBuilder: (_, i) {
+                        final v = filtered[i];
+                        return _VehicleTypeRow(
+                          vehicle: v,
+                          selected: widget.selectedId == v.id,
+                          onTap: () => widget.onSelect(v),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -2569,61 +2945,196 @@ class _ClassPickerCard extends StatelessWidget {
   }
 }
 
-class _VehicleChip extends StatelessWidget {
-  const _VehicleChip({
-    required this.label,
+String _vehicleCategoryLabel(String category) {
+  switch (category) {
+    case '2_wheeler':
+      return '2-Wheeler';
+    case 'heavy_vehicle':
+      return 'Heavy Vehicle';
+    case '4_wheeler':
+      return '4-Wheeler';
+    default:
+      return '';
+  }
+}
+
+class _VehicleTypeRow extends StatelessWidget {
+  const _VehicleTypeRow({
+    required this.vehicle,
     required this.selected,
     required this.onTap,
-    this.muted = false,
   });
 
-  final String label;
+  final VehicleTypeModel vehicle;
   final bool selected;
   final VoidCallback onTap;
-  final bool muted;
 
   @override
   Widget build(BuildContext context) {
-    final Color bg = selected
-        ? TmColors.yellow
-        : context.bg;
-    final Color borderColor = selected
-        ? TmColors.yellow
-        : muted
-        ? context.textPrimary.withValues(alpha: 0.2)
-        : context.textPrimary;
-    final double borderWidth = selected ? 2.0 : 1.5;
-    final Color textColor = selected
-        ? TmColors.black
-        : muted
-        ? context.textTertiary
-        : context.textPrimary;
-
+    final categoryLabel = _vehicleCategoryLabel(vehicle.category);
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: borderColor, width: borderWidth),
+          border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            color: textColor,
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            letterSpacing: 0.1,
-          ),
+        child: Row(
+          children: [
+            Icon(
+              _vehicleCategoryIcon(vehicle.category),
+              size: 20,
+              color: selected ? TmColors.yellow : context.textPrimary,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    vehicle.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                  if (categoryLabel.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      categoryLabel,
+                      style: GoogleFonts.inter(
+                        color: secondaryTextColor(context),
+                        fontSize: 12,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (selected)
+              const Icon(Icons.check_circle_rounded, size: 20, color: TmColors.yellow)
+            else
+              Icon(Icons.chevron_right_rounded, size: 20, color: secondaryTextColor(context)),
+          ],
         ),
       ),
     );
   }
 }
 
-// ─── Section 3b: Vehicle image upload ──────────────────────────────────────
+class _AvailabilityStatusCard extends StatelessWidget {
+  const _AvailabilityStatusCard({required this.available});
+
+  final bool available;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = available ? TmColors.success : secondaryTextColor(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.surface,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            available ? Icons.check_circle_rounded : Icons.remove_circle_outline_rounded,
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  available ? 'Available for Book Now' : 'Not available for Book Now',
+                  style: GoogleFonts.inter(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  available
+                      ? 'A suitable towing unit is currently available.'
+                      : 'No suitable towing unit is available right now.',
+                  style: GoogleFonts.inter(
+                    color: secondaryTextColor(context),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SelectedVehicleTypeRow extends StatelessWidget {
+  const _SelectedVehicleTypeRow({required this.vehicle, required this.onChange});
+
+  final VehicleTypeModel vehicle;
+  final VoidCallback onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.card,
+        border: Border.all(color: context.divider),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(_vehicleCategoryIcon(vehicle.category), size: 18, color: context.textPrimary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              vehicle.name,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                color: context.textPrimary,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.1,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: onChange,
+            behavior: HitTestBehavior.opaque,
+            child: Text(
+              'Change',
+              style: GoogleFonts.inter(
+                color: context.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
+                decoration: TextDecoration.underline,
+                decorationColor: context.divider,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _VehicleImageSection extends StatelessWidget {
   const _VehicleImageSection({
@@ -2640,77 +3151,130 @@ class _VehicleImageSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool showError = hasError && images.isEmpty;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'VEHICLE PHOTOS  (1–5 required)',
-            style: GoogleFonts.inter(
-              color: hasError && images.isEmpty
-                  ? TmColors.error
-                  : context.textPrimary,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              ...List.generate(
-                images.length,
-                (i) =>
-                    _ImageThumb(file: images[i], onRemove: () => onRemove(i)),
-              ),
-              if (images.length < 5)
-                GestureDetector(
-                  onTap: onAddTap,
-                  child: Container(
-                    width: 88,
-                    height: 88,
-                    decoration: BoxDecoration(
-                      color: context.bg,
-                      border: Border.all(
-                        color: hasError && images.isEmpty
-                            ? TmColors.error
-                            : context.textPrimary,
-                        width: 1.5,
-                      ),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.add_photo_alternate_rounded,
-                          size: 22,
-                          color: hasError && images.isEmpty
-                              ? TmColors.error
-                              : context.textPrimary,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Photo',
-                          style: GoogleFonts.inter(
-                            color: hasError && images.isEmpty
-                                ? TmColors.error
-                                : context.textPrimary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ],
-                    ),
+              Text('VEHICLE PHOTOS', style: sectionEyebrowStyle(context)),
+              if (images.isNotEmpty)
+                Text(
+                  '${images.length} / 5 photos',
+                  style: GoogleFonts.inter(
+                    color: secondaryTextColor(context),
+                    fontSize: 12,
+                    letterSpacing: 0.1,
                   ),
                 ),
             ],
           ),
-          if (hasError && images.isEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            'At least 1 photo required · Up to 5 photos',
+            style: GoogleFonts.inter(
+              color: secondaryTextColor(context),
+              fontSize: 12.5,
+              letterSpacing: 0.1,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (images.isEmpty)
+            GestureDetector(
+              onTap: onAddTap,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: context.surface,
+                  border: Border.all(
+                    color: showError ? TmColors.error : context.divider,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.add_a_photo_rounded,
+                      size: 26,
+                      color: showError ? TmColors.error : context.textPrimary,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Add vehicle photos',
+                            style: GoogleFonts.inter(
+                              color: showError ? TmColors.error : context.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Take a photo or choose from gallery',
+                            style: GoogleFonts.inter(
+                              color: secondaryTextColor(context),
+                              fontSize: 12.5,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...List.generate(
+                  images.length,
+                  (i) =>
+                      _ImageThumb(file: images[i], onRemove: () => onRemove(i)),
+                ),
+                if (images.length < 5)
+                  GestureDetector(
+                    onTap: onAddTap,
+                    child: Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: context.surface,
+                        border: Border.all(color: context.divider, width: 1.5),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_rounded, size: 22, color: context.textPrimary),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Add more',
+                            style: GoogleFonts.inter(
+                              color: context.textPrimary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          if (showError) ...[
             const SizedBox(height: 6),
             Text(
               'At least 1 vehicle photo is required.',
@@ -2734,87 +3298,115 @@ class _ImageThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 88,
-      height: 88,
-      child: Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: kIsWeb
-                ? Image.network(
-                    file.path,
-                    width: 88,
-                    height: 88,
-                    fit: BoxFit.cover,
-                  )
-                : Image.file(
-                    File(file.path),
-                    width: 88,
-                    height: 88,
-                    fit: BoxFit.cover,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      builder: (context, t, child) => Opacity(opacity: t, child: child),
+      child: SizedBox(
+        width: 88,
+        height: 88,
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: kIsWeb
+                  ? Image.network(
+                      file.path,
+                      width: 88,
+                      height: 88,
+                      fit: BoxFit.cover,
+                    )
+                  : Image.file(
+                      File(file.path),
+                      width: 88,
+                      height: 88,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: onRemove,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: TmColors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(11),
                   ),
-          ),
-          Positioned(
-            top: 4,
-            right: 4,
-            child: GestureDetector(
-              onTap: onRemove,
-              child: Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: TmColors.black.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '×',
-                  style: GoogleFonts.inter(
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.close_rounded,
                     color: TmColors.white,
-                    fontSize: 14,
-                    height: 1.0,
+                    size: 14,
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-// ─── Section 3c: Extra vehicles ─────────────────────────────────────────────
 
-class _ExtraVehiclesSection extends StatelessWidget {
+class _ExtraVehiclesSection extends StatefulWidget {
   const _ExtraVehiclesSection({
     required this.extraVehicles,
-    required this.truckTypes,
+    required this.vehicleTypes,
     required this.canAdd,
     required this.vehicleCount,
+    required this.readyTruckTypeIds,
+    required this.requestServiceType,
     required this.onAdd,
     required this.onRemove,
     required this.onVehicleSet,
-    required this.onScheduleVehicleSet,
-    required this.readyByClass,
-    required this.readyUnitsCount,
-    required this.serviceType,
-    required this.usedClassCounts,
+    required this.onScheduleEntireRequest,
+    required this.onAddPhotoTap,
+    required this.onRemovePhoto,
   });
 
   final List<_ExtraVehicleData> extraVehicles;
-  final List<TruckTypeModel> truckTypes;
+  final List<VehicleTypeModel> vehicleTypes;
   final bool canAdd;
   final int vehicleCount;
+  final Set<int> readyTruckTypeIds;
+  final String requestServiceType;
   final VoidCallback onAdd;
   final void Function(int) onRemove;
-  final void Function(int, TruckTypeModel, VehicleTypeModel) onVehicleSet;
-  final void Function(int, TruckTypeModel, VehicleTypeModel, DateTime, TimeOfDay) onScheduleVehicleSet;
-  final Map<String, int> readyByClass;
-  final int readyUnitsCount;
-  final String serviceType;
-  final Map<String, int> usedClassCounts;
+  final void Function(int, VehicleTypeModel) onVehicleSet;
+  final VoidCallback onScheduleEntireRequest;
+  final void Function(int) onAddPhotoTap;
+  final void Function(int, int) onRemovePhoto;
+
+  @override
+  State<_ExtraVehiclesSection> createState() => _ExtraVehiclesSectionState();
+}
+
+class _ExtraVehiclesSectionState extends State<_ExtraVehiclesSection> {
+  _ExtraVehicleData? _expanded;
+  late int _lastCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastCount = widget.extraVehicles.length;
+  }
+
+  @override
+  void didUpdateWidget(_ExtraVehiclesSection old) {
+    super.didUpdateWidget(old);
+    final currentCount = widget.extraVehicles.length;
+    if (currentCount > _lastCount) {
+      _expanded = widget.extraVehicles.last;
+    } else if (_expanded != null && !widget.extraVehicles.contains(_expanded)) {
+      _expanded = null;
+    }
+    _lastCount = currentCount;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2826,73 +3418,95 @@ class _ExtraVehiclesSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'ADDITIONAL VEHICLES',
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 11,
-                  letterSpacing: 0.8,
+              Flexible(
+                child: Text(
+                  'ADDITIONAL VEHICLES',
+                  overflow: TextOverflow.ellipsis,
+                  style: sectionEyebrowStyle(context),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
-                '$vehicleCount / 6 vehicles',
+                '${widget.vehicleCount} of 6 vehicles',
                 style: GoogleFonts.inter(
-                  color: vehicleCount >= 6 ? TmColors.error : context.textSecondary,
+                  color: widget.vehicleCount >= 6 ? TmColors.error : secondaryTextColor(context),
                   fontSize: 11,
                   letterSpacing: 0.4,
                 ),
               ),
             ],
           ),
-          ...List.generate(
-            extraVehicles.length,
-            (i) => _ExtraVehicleSlot(
-              index: i,
-              data: extraVehicles[i],
-              truckTypes: truckTypes,
-              onRemove: () => onRemove(i),
-              onVehicleSet: (truck, vehicle) => onVehicleSet(i, truck, vehicle),
-              onScheduleVehicleSet: onScheduleVehicleSet,
-              usedClassCounts: usedClassCounts,
-              readyByClass: readyByClass,
-              readyUnitsCount: readyUnitsCount,
-              serviceType: serviceType,
+          const SizedBox(height: 4),
+          Text(
+            'You can add up to 5 more vehicles to tow.',
+            style: GoogleFonts.inter(
+              color: secondaryTextColor(context),
+              fontSize: 12.5,
+              letterSpacing: 0.1,
             ),
           ),
+          ...List.generate(widget.extraVehicles.length, (i) {
+            final data = widget.extraVehicles[i];
+            return _ExtraVehicleSlot(
+              key: ObjectKey(data),
+              index: i,
+              data: data,
+              vehicleTypes: widget.vehicleTypes,
+              expanded: identical(_expanded, data),
+              onToggleExpand: () => setState(() {
+                _expanded = identical(_expanded, data) ? null : data;
+              }),
+              onRemove: () => widget.onRemove(i),
+              onVehicleSet: (vehicle) => widget.onVehicleSet(i, vehicle),
+              onScheduleEntireRequest: widget.onScheduleEntireRequest,
+              readyTruckTypeIds: widget.readyTruckTypeIds,
+              requestServiceType: widget.requestServiceType,
+              onAddPhotoTap: () => widget.onAddPhotoTap(i),
+              onRemovePhoto: (photoIndex) => widget.onRemovePhoto(i, photoIndex),
+            );
+          }),
           const SizedBox(height: 14),
-          if (canAdd)
+          if (widget.canAdd)
             GestureDetector(
-              onTap: onAdd,
+              onTap: widget.onAdd,
+              behavior: HitTestBehavior.opaque,
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 13),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  border: Border.all(color: context.divider),
-                  borderRadius: BorderRadius.circular(6),
+                  color: context.surface,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
-                  '+ Add another vehicle',
-                  style: GoogleFonts.inter(
-                    color: context.textSecondary,
-                    fontSize: 13,
-                    letterSpacing: 0.1,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_rounded, size: 16, color: context.textPrimary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Add another vehicle',
+                      style: GoogleFonts.inter(
+                        color: context.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
           else
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 13),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: context.surface,
-                border: Border.all(color: context.divider),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 'Maximum 6 vehicles reached',
                 style: GoogleFonts.inter(
-                  color: context.textSecondary,
+                  color: secondaryTextColor(context),
                   fontSize: 13,
                   letterSpacing: 0.1,
                 ),
@@ -2904,215 +3518,402 @@ class _ExtraVehiclesSection extends StatelessWidget {
   }
 }
 
-class _ExtraVehicleSlot extends StatelessWidget {
+class _ExtraVehicleSlot extends StatefulWidget {
   const _ExtraVehicleSlot({
+    super.key,
     required this.index,
     required this.data,
-    required this.truckTypes,
+    required this.vehicleTypes,
+    required this.expanded,
+    required this.onToggleExpand,
     required this.onRemove,
     required this.onVehicleSet,
-    required this.onScheduleVehicleSet,
-    required this.usedClassCounts,
-    required this.readyByClass,
-    required this.readyUnitsCount,
-    required this.serviceType,
+    required this.onScheduleEntireRequest,
+    required this.readyTruckTypeIds,
+    required this.requestServiceType,
+    required this.onAddPhotoTap,
+    required this.onRemovePhoto,
   });
 
   final int index;
   final _ExtraVehicleData data;
-  final List<TruckTypeModel> truckTypes;
+  final List<VehicleTypeModel> vehicleTypes;
+  final bool expanded;
+  final VoidCallback onToggleExpand;
   final VoidCallback onRemove;
-  final void Function(TruckTypeModel, VehicleTypeModel) onVehicleSet;
-  final void Function(int, TruckTypeModel, VehicleTypeModel, DateTime, TimeOfDay) onScheduleVehicleSet;
-  final Map<String, int> usedClassCounts;
-  final Map<String, int> readyByClass;
-  final int readyUnitsCount;
-  final String serviceType;
+  final void Function(VehicleTypeModel) onVehicleSet;
+  final VoidCallback onScheduleEntireRequest;
+  final Set<int> readyTruckTypeIds;
+  final String requestServiceType;
+  final VoidCallback onAddPhotoTap;
+  final void Function(int) onRemovePhoto;
+
+  @override
+  State<_ExtraVehicleSlot> createState() => _ExtraVehicleSlotState();
+}
+
+class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
+  final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
+  bool _changing = false;
+  bool _browsingAll = false;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  bool _isAvailable(VehicleTypeModel vehicle) {
+    if (widget.readyTruckTypeIds.isEmpty) return true;
+    return widget.readyTruckTypeIds.contains(vehicle.requiredTruckTypeId);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final hasSelection = data.truck != null && data.vehicle != null;
+    final index = widget.index;
+    final data = widget.data;
+    final vehicleTypes = widget.vehicleTypes;
+    final expanded = widget.expanded;
+    final onToggleExpand = widget.onToggleExpand;
+    final onRemove = widget.onRemove;
+    final onVehicleSet = widget.onVehicleSet;
+    final onAddPhotoTap = widget.onAddPhotoTap;
+    final onRemovePhoto = widget.onRemovePhoto;
+    final hasVehicle = data.vehicle != null;
+    final hasPhotos = data.images.isNotEmpty;
+    final bool isAvailableForBookNow = hasVehicle && _isAvailable(data.vehicle!);
+    final bool bookingReady = widget.requestServiceType == 'schedule' ? true : isAvailableForBookNow;
+    final bool isComplete = hasVehicle && hasPhotos && bookingReady;
+    final String statusLabel = !hasVehicle
+        ? 'Vehicle type required'
+        : !hasPhotos
+        ? 'Photo required'
+        : !bookingReady
+        ? 'Unavailable'
+        : 'Complete';
+    final String subtitle = !hasVehicle
+        ? 'Tap to add vehicle type & photos'
+        : '${data.vehicle!.name} / '
+              '${data.images.length} photo${data.images.length == 1 ? '' : 's'} / '
+              '$statusLabel';
 
-    void showScheduleDialog(TruckTypeModel truck, VehicleTypeModel v) async {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final date = await showDatePicker(
-        context: context,
-        initialDate: today,
-        firstDate: today,
-        lastDate: today.add(const Duration(days: 30)),
-      );
-      if (date == null || !context.mounted) return;
-
-      final time = await showTimePicker(
-        context: context,
-        initialTime: const TimeOfDay(hour: 8, minute: 0),
-      );
-      if (time == null) return;
-
-      onScheduleVehicleSet(index, truck, v, date, time);
+    void handleVehicleTap(VehicleTypeModel v) {
+      onVehicleSet(v);
+      setState(() {
+        _changing = false;
+        _browsingAll = false;
+      });
     }
 
     return Container(
-      margin: const EdgeInsets.only(top: 14),
+      margin: const EdgeInsets.only(top: 12),
       decoration: BoxDecoration(
-        border: Border.all(
-          color: hasSelection ? context.textPrimary : context.divider,
-          width: hasSelection ? 1.5 : 1.0,
-        ),
-        borderRadius: BorderRadius.circular(8),
+        color: context.surface,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Vehicle ${index + 2}',
-                  style: GoogleFonts.inter(
-                    color: context.textSecondary,
-                    fontSize: 13,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: onRemove,
-                  child: Text(
-                    'Remove',
-                    style: GoogleFonts.inter(
-                      color: context.textTertiary,
-                      fontSize: 12,
-                      letterSpacing: 0.1,
+          GestureDetector(
+            onTap: onToggleExpand,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Vehicle ${index + 2}',
+                          style: GoogleFonts.inter(
+                            color: context.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: GoogleFonts.inter(
+                            color: !hasVehicle
+                                ? secondaryTextColor(context)
+                                : isComplete
+                                ? TmColors.success
+                                : TmColors.destructive,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (hasSelection) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
-              child: Text(
-                '${data.truck!.name}  ·  ${data.vehicle!.name}',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 12,
-                  letterSpacing: 0.1,
-                ),
-              ),
-            ),
-            if (data.serviceType == 'schedule' && data.scheduledDate != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 3, 14, 0),
-                child: Text(
-                  'Scheduled: ${DateFormat('EEE, MMM d').format(data.scheduledDate!)}'
-                  ' at ${data.scheduledTime!.format(context)}',
-                  style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 11),
-                ),
-              ),
-          ],
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Container(height: 0.5, color: context.divider),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Text(
-              'SELECT TOW CLASS & VEHICLE TYPE',
-              style: GoogleFonts.inter(
-                color: context.textSecondary,
-                fontSize: 10,
-                letterSpacing: 0.6,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Each truck class as a sub-section
-          Builder(builder: (context) {
-            final bool isBookNow = serviceType == 'book_now';
-            final int totalBookNowUsed =
-                usedClassCounts.values.fold(0, (a, b) => a + b);
-            final int totalAvailable = readyByClass.isEmpty
-                ? readyUnitsCount
-                : readyByClass.values.fold(0, (a, b) => a + b);
-            final bool allUnitsTaken =
-                isBookNow && totalAvailable > 0 && totalBookNowUsed >= totalAvailable;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (allUnitsTaken)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                    child: Text(
-                      'No available units — tap any vehicle to schedule instead',
-                      style: GoogleFonts.inter(
-                          color: TmColors.grey500, fontSize: 10),
-                    ),
-                  ),
-                ...truckTypes.where((t) => t.vehicleTypes.isNotEmpty).map((truck) {
-                  final String cls = truck.truckClass.toLowerCase();
-                  final int available = readyByClass[cls] ?? 0;
-                  final bool classGrayed =
-                      isBookNow && readyByClass.isNotEmpty && available == 0;
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                    child: Opacity(
-                      opacity: classGrayed ? 0.35 : 1.0,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            truck.name,
-                            style: GoogleFonts.inter(
-                              color: context.textTertiary,
-                              fontSize: 11,
-                              letterSpacing: 0.4,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: truck.vehicleTypes.map((v) {
-                              final selected =
-                                  data.vehicle?.id == v.id &&
-                                  data.truck?.id == truck.id;
-                              return _VehicleChip(
-                                label: v.name,
-                                selected: selected,
-                                onTap: classGrayed
-                                    ? () {}
-                                    : () {
-                                        if (allUnitsTaken) {
-                                          showScheduleDialog(truck, v);
-                                        } else {
-                                          onVehicleSet(truck, v);
-                                        }
-                                      },
-                              );
-                            }).toList(),
-                          ),
-                        ],
+                  GestureDetector(
+                    onTap: onRemove,
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      child: Text(
+                        'Remove',
+                        style: GoogleFonts.inter(
+                          color: TmColors.destructive,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.1,
+                        ),
                       ),
                     ),
-                  );
-                }),
-              ],
-            );
-          }),
+                  ),
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: Icon(
+                      Icons.expand_more_rounded,
+                      size: 20,
+                      color: secondaryTextColor(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: expanded
+                ? Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Container(height: 0.5, color: context.divider),
+                        ),
+                        const SizedBox(height: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Text('VEHICLE TYPE', style: sectionEyebrowStyle(context)),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: (hasVehicle && !_changing)
+                              ? _SelectedVehicleTypeRow(
+                                  vehicle: data.vehicle!,
+                                  onChange: () => setState(() {
+                                    _changing = true;
+                                    _browsingAll = false;
+                                  }),
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _SearchField(
+                                      controller: _searchCtrl,
+                                      focusNode: _searchFocus,
+                                      placeholder: 'Search vehicle type',
+                                      searching: false,
+                                      icon: Icons.search_rounded,
+                                      onChanged: (_) => setState(() {}),
+                                      onClear: () => setState(_searchCtrl.clear),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    if (_searchCtrl.text.trim().isEmpty && !_browsingAll)
+                                      GestureDetector(
+                                        onTap: () => setState(() => _browsingAll = true),
+                                        behavior: HitTestBehavior.opaque,
+                                        child: Text(
+                                          'Browse all vehicle types',
+                                          style: GoogleFonts.inter(
+                                            color: TmColors.yellow,
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w600,
+                                            decoration: TextDecoration.underline,
+                                            decorationColor: TmColors.yellow,
+                                          ),
+                                        ),
+                                      )
+                                    else if (_filterVehicleTypes(vehicleTypes, _searchCtrl.text).isEmpty)
+                                      _NoVehicleTypesFound(
+                                        onBrowseAll: () => setState(() => _browsingAll = true),
+                                      )
+                                    else
+                                      Column(
+                                        children: _filterVehicleTypes(vehicleTypes, _searchCtrl.text).map((v) {
+                                          return _VehicleTypeRow(
+                                            vehicle: v,
+                                            selected: data.vehicle?.id == v.id,
+                                            onTap: () => handleVehicleTap(v),
+                                          );
+                                        }).toList(),
+                                      ),
+                                  ],
+                                ),
+                        ),
+                        if (hasVehicle && !_changing) ...[
+                          const SizedBox(height: 12),
+                          if (widget.requestServiceType == 'book_now') ...[
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _AvailabilityStatusCard(
+                                    available: _isAvailable(data.vehicle!),
+                                  ),
+                                  if (!_isAvailable(data.vehicle!)) ...[
+                                    const SizedBox(height: 10),
+                                    GestureDetector(
+                                      onTap: widget.onScheduleEntireRequest,
+                                      behavior: HitTestBehavior.opaque,
+                                      child: Text(
+                                        'Schedule entire request',
+                                        style: GoogleFonts.inter(
+                                          color: TmColors.yellow,
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w700,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: TmColors.yellow,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ] else
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              child: Text(
+                                'This vehicle will be scheduled with the rest of your request.',
+                                style: GoogleFonts.inter(
+                                  color: secondaryTextColor(context),
+                                  fontSize: 12.5,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                        ],
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('VEHICLE PHOTOS', style: sectionEyebrowStyle(context)),
+                              if (data.images.isNotEmpty)
+                                Text(
+                                  '${data.images.length} / 5 photos',
+                                  style: GoogleFonts.inter(
+                                    color: secondaryTextColor(context),
+                                    fontSize: 12,
+                                    letterSpacing: 0.1,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: data.images.isEmpty
+                              ? GestureDetector(
+                                  onTap: onAddPhotoTap,
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: context.card,
+                                      border: Border.all(
+                                        color: data.imageError ? TmColors.error : context.divider,
+                                        width: 1.5,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.add_a_photo_rounded,
+                                          size: 22,
+                                          color: data.imageError ? TmColors.error : context.textPrimary,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            'Add vehicle photos',
+                                            style: GoogleFonts.inter(
+                                              color: data.imageError ? TmColors.error : context.textPrimary,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.1,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    ...List.generate(
+                                      data.images.length,
+                                      (i) => _ImageThumb(
+                                        file: data.images[i],
+                                        onRemove: () => onRemovePhoto(i),
+                                      ),
+                                    ),
+                                    if (data.images.length < 5)
+                                      GestureDetector(
+                                        onTap: onAddPhotoTap,
+                                        child: Container(
+                                          width: 88,
+                                          height: 88,
+                                          decoration: BoxDecoration(
+                                            color: context.card,
+                                            border: Border.all(color: context.divider, width: 1.5),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.add_rounded, size: 22, color: context.textPrimary),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Add more',
+                                                style: GoogleFonts.inter(
+                                                  color: context.textPrimary,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: 0.1,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
         ],
       ),
     );
   }
 }
 
-// ─── Section 4: Notes ──────────────────────────────────────────────────────
 
 class _NotesSection extends StatelessWidget {
   const _NotesSection({required this.controller});
@@ -3125,14 +3926,7 @@ class _NotesSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'SPECIAL NOTES',
-            style: GoogleFonts.inter(
-              color: context.textSecondary,
-              fontSize: 11,
-              letterSpacing: 0.8,
-            ),
-          ),
+          Text('SPECIAL NOTES', style: sectionEyebrowStyle(context)),
           const SizedBox(height: 10),
           Container(
             decoration: BoxDecoration(
@@ -3141,17 +3935,17 @@ class _NotesSection extends StatelessWidget {
             ),
             child: TextField(
               controller: controller,
-              minLines: 3,
-              maxLines: 6,
+              minLines: 2,
+              maxLines: 5,
               style: GoogleFonts.inter(
                 color: context.textPrimary,
                 fontSize: 14,
                 letterSpacing: 0.1,
               ),
               decoration: InputDecoration(
-                hintText: 'Any special instructions or notes...',
+                hintText: 'Add instructions for the towing team',
                 hintStyle: GoogleFonts.inter(
-                  color: context.textSecondary,
+                  color: secondaryTextColor(context),
                   fontSize: 14,
                   letterSpacing: 0.1,
                 ),
@@ -3166,7 +3960,6 @@ class _NotesSection extends StatelessWidget {
   }
 }
 
-// ─── Wizard step indicator ──────────────────────────────────────────────────
 
 class _StepIndicator extends StatelessWidget {
   const _StepIndicator({required this.step});
@@ -3215,10 +4008,10 @@ class _StepDot extends StatelessWidget {
                 ? TmColors.yellow
                 : done
                 ? context.textPrimary
-                : Colors.transparent,
+                : context.surface,
             shape: BoxShape.circle,
             border: (!active && !done)
-                ? Border.all(color: context.textPrimary.withValues(alpha: 0.25), width: 1.5)
+                ? Border.all(color: context.divider, width: 1.5)
                 : null,
           ),
           child: Center(
@@ -3227,9 +4020,7 @@ class _StepDot extends StatelessWidget {
                 : Text(
                     '${index + 1}',
                     style: GoogleFonts.inter(
-                      color: active
-                          ? TmColors.black
-                          : context.textPrimary.withValues(alpha: 0.35),
+                      color: active ? TmColors.black : secondaryTextColor(context),
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.1,
@@ -3241,9 +4032,9 @@ class _StepDot extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: active ? context.textPrimary : context.textTertiary,
+            color: active ? context.textPrimary : secondaryTextColor(context),
             fontSize: 10,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
             letterSpacing: 0.3,
           ),
         ),
@@ -3262,171 +4053,404 @@ class _StepLine extends StatelessWidget {
       child: Container(
         height: 2,
         margin: const EdgeInsets.only(bottom: 20, left: 4, right: 4),
-        color: done ? TmColors.yellow : context.textPrimary.withValues(alpha: 0.15),
+        color: done ? context.textPrimary : context.divider,
       ),
     );
   }
 }
 
-// ─── Price breakdown card ────────────────────────────────────────────────────
 
 class _PriceBreakdown extends StatelessWidget {
   const _PriceBreakdown({
-    required this.truckType,
-    required this.distanceKm,
-    required this.extraVehicles,
+    required this.pricing,
+    required this.scheduledExtraPreviews,
+    required this.vehicleTypes,
+    required this.bookNowVehicleCount,
     required this.priceFmt,
+    required this.serviceType,
+    required this.primaryVehicleName,
   });
 
-  final TruckTypeModel truckType;
-  final double distanceKm;
-  final List<_ExtraVehicleData> extraVehicles;
+  final Map<String, dynamic> pricing;
+  final List<Map<String, dynamic>> scheduledExtraPreviews;
+  final List<VehicleTypeModel> vehicleTypes;
+  final int bookNowVehicleCount;
   final NumberFormat priceFmt;
+  final String serviceType;
+  final String primaryVehicleName;
+
+  static double _num(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
+
+  String _vehicleName(int vehicleTypeId) {
+    for (final v in vehicleTypes) {
+      if (v.id == vehicleTypeId) return v.name;
+    }
+    return 'Vehicle';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final double extraDist = distanceKm > 1.0 ? distanceKm - 1.0 : 0.0;
-    final double distanceFee = extraDist * 300.0;
-    double bases = truckType.baseRate;
-    final filledExtras = extraVehicles.where((ev) => ev.truck != null).toList();
-    for (final ev in filledExtras) {
-      bases += ev.truck!.baseRate;
+    if (serviceType == 'schedule') {
+      return _buildScheduledBreakdown(context);
     }
-    final double subtotal = bases + distanceFee;
-    final double vatAmount = subtotal * 0.12;
-    final double total = subtotal + vatAmount;
+    return _buildBookNowBreakdown(context);
+  }
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: context.divider),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
+  Widget _buildBookNowBreakdown(BuildContext context) {
+    final baseRate = _num(pricing['base_rate']);
+    final baseRateTotal = _num(pricing['base_rate_total']);
+    final distanceFee = _num(pricing['distance_fee']);
+    final additionalFee = _num(pricing['additional_fee']);
+    final discountAmount = _num(pricing['discount_amount']);
+    final vatAmount = _num(pricing['vat_amount']);
+    final finalTotal = _num(pricing['final_total']);
+    final bool combinedBaseRate = bookNowVehicleCount > 1 && baseRateTotal > 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _BRow(
+          label: combinedBaseRate ? 'Base Rate ($bookNowVehicleCount vehicles)' : 'Base Rate',
+          value: '₱${priceFmt.format(combinedBaseRate ? baseRateTotal : baseRate)}',
+        ),
+        _BRow(
+          label: 'Distance Fee',
+          value: '₱${priceFmt.format(distanceFee)}',
+          caption: 'First 4 km included.',
+        ),
+        if (discountAmount > 0)
           _BRow(
-            label: 'Base rate — ${truckType.name}',
-            value: '₱${priceFmt.format(truckType.baseRate)}',
+            label: 'Discount',
+            value: '-₱${priceFmt.format(discountAmount)}',
           ),
-          for (final ev in filledExtras)
-            _BRow(
-              label: 'Extra vehicle — ${ev.truck!.name}',
-              value: '₱${priceFmt.format(ev.truck!.baseRate)}',
-            ),
+        if (additionalFee != 0)
           _BRow(
-            label: distanceKm > 1.0
-                ? '${extraDist.toStringAsFixed(2)} km × ₱300'
-                : '${distanceKm.toStringAsFixed(2)} km (first 1 km free)',
-            value: distanceKm > 1.0 ? '₱${priceFmt.format(distanceFee)}' : 'Free',
+            label: 'Additional Fee',
+            value: '₱${priceFmt.format(additionalFee)}',
           ),
-          Container(height: 0.5, color: context.divider),
-          _BRow(
-            label: 'Subtotal',
-            value: '₱${priceFmt.format(subtotal)}',
-            bold: true,
-          ),
-          _BRow(label: 'VAT (12%)', value: '₱${priceFmt.format(vatAmount)}'),
-          Container(height: 1, color: context.textPrimary),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total',
-                  style: GoogleFonts.inter(
-                    color: context.textPrimary,
-                    fontSize: 15,
-                    letterSpacing: -0.1,
-                  ),
+        _BRow(label: 'VAT (12%)', value: '₱${priceFmt.format(vatAmount)}'),
+        const SizedBox(height: 4),
+        Container(height: 1, color: context.divider),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                'Total',
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.1,
                 ),
-                Text(
-                  '₱${priceFmt.format(total)}',
-                  style: GoogleFonts.inter(
-                    color: context.textPrimary,
-                    fontSize: 18,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-              ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '₱${priceFmt.format(finalTotal)}',
+              style: GoogleFonts.inter(
+                color: context.textPrimary,
+                fontSize: 19,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScheduledBreakdown(BuildContext context) {
+    final names = <String>[
+      primaryVehicleName,
+      for (final ev in scheduledExtraPreviews) _vehicleName((ev['vehicle_type_id'] as num? ?? 0).toInt()),
+    ];
+    final baseRates = <double>[
+      _num(pricing['base_rate']),
+      for (final ev in scheduledExtraPreviews) _num(ev['base_rate']),
+    ];
+    final distanceFees = <double>[
+      _num(pricing['distance_fee']),
+      for (final ev in scheduledExtraPreviews) _num(ev['distance_fee']),
+    ];
+    final vatAmounts = <double>[
+      _num(pricing['vat_amount']),
+      for (final ev in scheduledExtraPreviews) _num(ev['vat_amount']),
+    ];
+    final finalTotals = <double>[
+      _num(pricing['final_total']),
+      for (final ev in scheduledExtraPreviews) _num(ev['final_total']),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < names.length; i++) ...[
+          if (i > 0) ...[
+            const SizedBox(height: 18),
+            Container(height: 1, color: context.divider),
+            const SizedBox(height: 14),
+          ],
+          Text('VEHICLE ${i + 1}', style: sectionEyebrowStyle(context)),
+          const SizedBox(height: 4),
+          Text(
+            names[i],
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.1,
             ),
           ),
+          const SizedBox(height: 8),
+          _BRow(label: 'Estimated Base Rate', value: '₱${priceFmt.format(baseRates[i])}'),
+          _BRow(label: 'Estimated Distance Fee', value: '₱${priceFmt.format(distanceFees[i])}'),
+          _BRow(label: 'Estimated VAT', value: '₱${priceFmt.format(vatAmounts[i])}'),
+          _BRow(label: 'Estimated Total', value: '₱${priceFmt.format(finalTotals[i])}'),
         ],
-      ),
+        const SizedBox(height: 14),
+        Container(height: 1, color: context.divider),
+        const SizedBox(height: 12),
+        Text(
+          'Scheduled pricing may change after quotation review.',
+          style: GoogleFonts.inter(
+            color: secondaryTextColor(context),
+            fontSize: 11.5,
+            letterSpacing: 0.1,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Each vehicle will be quoted and billed separately.',
+          style: GoogleFonts.inter(
+            color: secondaryTextColor(context),
+            fontSize: 11.5,
+            letterSpacing: 0.1,
+            height: 1.4,
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _BRow extends StatelessWidget {
-  const _BRow({required this.label, required this.value, this.bold = false});
+  const _BRow({required this.label, required this.value, this.caption});
   final String label;
   final String value;
-  final bool bold;
+  final String? caption;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              label,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 14,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ],
+          ),
+          if (caption != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              caption!,
               style: GoogleFonts.inter(
-                color: bold ? context.textSecondary : context.textTertiary,
-                fontSize: 13,
+                color: secondaryTextColor(context),
+                fontSize: 11.5,
                 letterSpacing: 0.1,
               ),
             ),
-          ),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 13,
-              letterSpacing: 0.1,
-            ),
-          ),
+          ],
         ],
       ),
     );
   }
 }
 
-// ─── Review summary row ─────────────────────────────────────────────────────
 
 class _ReviewRow extends StatelessWidget {
-  const _ReviewRow({required this.label, required this.value});
+  const _ReviewRow({required this.label, required this.value, this.caption});
   final String label;
   final String value;
+  final String? caption;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 72,
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              color: context.textSecondary,
-              fontSize: 12,
-              letterSpacing: 0.1,
-            ),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: secondaryTextColor(context),
+            fontSize: 12,
+            letterSpacing: 0.1,
           ),
         ),
-        Expanded(
-          child: Text(
-            value,
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            color: context.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+            height: 1.4,
+          ),
+        ),
+        if (caption != null) ...[
+          const SizedBox(height: 3),
+          Text(
+            caption!,
             style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 13,
+              color: secondaryTextColor(context),
+              fontSize: 11.5,
               letterSpacing: 0.1,
               height: 1.4,
             ),
           ),
+        ],
+      ],
+    );
+  }
+}
+
+typedef _ReviewVehicle = ({
+  String label,
+  String vehicleName,
+  String serviceType,
+  DateTime? scheduledDate,
+  TimeOfDay? scheduledTime,
+  List<XFile> images,
+});
+
+class _VehicleReviewEntry extends StatelessWidget {
+  const _VehicleReviewEntry({required this.vehicle});
+
+  final _ReviewVehicle vehicle;
+
+  String _formatSchedule() {
+    final scheduledDate = vehicle.scheduledDate;
+    final scheduledTime = vehicle.scheduledTime;
+    if (scheduledDate == null) return 'Scheduled';
+    final date = DateFormat('MMM d, yyyy').format(scheduledDate);
+    if (scheduledTime == null) return date;
+    final h = scheduledTime.hourOfPeriod == 0 ? 12 : scheduledTime.hourOfPeriod;
+    final m = scheduledTime.minute.toString().padLeft(2, '0');
+    final period = scheduledTime.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$date · $h:$m $period';
+  }
+
+  Widget _identity(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          vehicle.label,
+          style: GoogleFonts.inter(
+            color: secondaryTextColor(context),
+            fontSize: 12,
+            letterSpacing: 0.1,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          vehicle.vehicleName,
+          style: GoogleFonts.inter(
+            color: context.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.1,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          vehicle.serviceType == 'schedule' ? _formatSchedule() : 'Book Now',
+          style: GoogleFonts.inter(
+            color: secondaryTextColor(context),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.1,
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _photos() {
+    if (vehicle.images.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: vehicle.images.map((f) => _ReviewPhotoThumb(file: f)).toList(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool wide = constraints.maxWidth >= 300 && vehicle.images.isNotEmpty;
+        if (!wide) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _identity(context),
+              if (vehicle.images.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _photos(),
+              ],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _identity(context)),
+            const SizedBox(width: 12),
+            _photos(),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ReviewPhotoThumb extends StatelessWidget {
+  const _ReviewPhotoThumb({required this.file});
+  final XFile file;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: kIsWeb
+          ? Image.network(file.path, width: 52, height: 52, fit: BoxFit.cover)
+          : Image.file(File(file.path), width: 52, height: 52, fit: BoxFit.cover),
     );
   }
 }

@@ -155,7 +155,7 @@ class _TopBar extends StatelessWidget {
             width: 40,
             height: 40,
             child: IconButton(
-              icon: Icon(Icons.menu_rounded, color: context.textTertiary, size: 22),
+              icon: Icon(Icons.menu, color: context.textTertiary, size: 22),
               onPressed: onMenuTap,
               tooltip: 'Menu',
               padding: EdgeInsets.zero,
@@ -193,7 +193,7 @@ class _ServicesHeader extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.build_rounded),
+          CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.build),
           DecoratedBox(
             decoration: BoxDecoration(color: TmColors.black.withValues(alpha: 0.68)),
           ),
@@ -376,7 +376,7 @@ class _ServiceCard extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: context.textTertiary, size: 20),
+            Icon(Icons.chevron_right, color: context.textTertiary, size: 20),
           ],
         ),
         const SizedBox(height: 4),
@@ -551,7 +551,7 @@ class _CoverageChips extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.location_on_outlined, size: 14, color: context.textTertiary),
+                      Icon(Icons.location_on, size: 14, color: context.textTertiary),
                       const SizedBox(width: 6),
                       Text(
                         name,
@@ -586,7 +586,7 @@ class _BottomCta extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.local_shipping_rounded),
+              CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.local_shipping),
               DecoratedBox(
                 decoration: BoxDecoration(color: TmColors.black.withValues(alpha: 0.72)),
               ),

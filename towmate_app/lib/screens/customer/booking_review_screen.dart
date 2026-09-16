@@ -93,8 +93,12 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
 
   static final _fmt = NumberFormat('#,##0.00', 'en_PH');
 
-  double get _extraDistance => widget.distanceKm > 1.0 ? widget.distanceKm - 1.0 : 0.0;
-  double get _distanceFee => _extraDistance * 300.0;
+  // First 4 km included in the base fee, then the truck type's own
+  // per_km_rate (SuperAdmin-editable) — must match
+  // BookingService::distanceFeeFor() exactly (the backend's single source
+  // of truth for this fee, which is what actually gets saved/charged).
+  double get _extraDistance => widget.distanceKm > 4.0 ? widget.distanceKm - 4.0 : 0.0;
+  double get _distanceFee => _extraDistance * widget.primaryTruck.perKmRate;
 
   double get _grossPrice {
     double bases = widget.primaryTruck.baseRate;
@@ -319,10 +323,10 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
                     }),
                     const SizedBox(height: 6),
                     _ReviewRow(
-                      label: widget.distanceKm > 1.0
-                          ? '${_extraDistance.toStringAsFixed(2)} km × ₱300'
-                          : '${widget.distanceKm.toStringAsFixed(2)} km (first 1 km free)',
-                      value: widget.distanceKm > 1.0
+                      label: widget.distanceKm > 4.0
+                          ? '${_extraDistance.toStringAsFixed(2)} km × ₱${widget.primaryTruck.perKmRate.toStringAsFixed(0)}'
+                          : '${widget.distanceKm.toStringAsFixed(2)} km (first 4 km free)',
+                      value: widget.distanceKm > 4.0
                           ? '₱${_fmt.format(_distanceFee)}'
                           : 'Free',
                     ),

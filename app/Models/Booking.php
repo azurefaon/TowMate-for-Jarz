@@ -24,6 +24,7 @@ class Booking extends Model
         'group_code',
         'customer_id',
         'truck_type_id',
+        'vehicle_type_id',
         'assigned_unit_id',
         'selected_unit_id',
         'assigned_team_leader_id',
@@ -450,6 +451,16 @@ class Booking extends Model
     public function vehicleType()
     {
         return $this->belongsTo(VehicleType::class);
+    }
+
+    public function vehiclePhotos()
+    {
+        return $this->hasMany(BookingVehiclePhoto::class);
+    }
+
+    public function photosForSlot(int $slot)
+    {
+        return $this->vehiclePhotos->where('vehicle_slot', $slot)->values();
     }
 
     public function unit()

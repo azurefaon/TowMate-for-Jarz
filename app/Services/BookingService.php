@@ -9,6 +9,7 @@ use App\Exceptions\Booking\NoTruckTypeAvailableException;
 use App\Exceptions\Booking\ScheduledCapacityException;
 use App\Exceptions\Booking\SpamCooldownException;
 use App\Models\Booking;
+use App\Models\BookingVehiclePhoto;
 use App\Models\Customer;
 use App\Models\Quotation;
 use App\Models\Role;
@@ -16,6 +17,7 @@ use App\Models\SystemSetting;
 use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\VehicleType;
 use Carbon\Carbon;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\File;
@@ -290,15 +292,43 @@ class BookingService
         }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // File handling
-    // ──────────────────────────────────────────────────────────────
-
     public function storeVehicleImages(array $files): string
     {
-        $paths = array_map(fn ($file) => $this->storeVehicleImage($file), $files);
+        return json_encode($this->storeVehicleImagePaths($files));
+    }
 
-        return json_encode(array_values($paths));
+    public function storeVehicleImagePaths(array $files): array
+    {
+        return array_values(array_map(fn ($file) => $this->storeVehicleImage($file), $files));
+    }
+
+    public function validateVehiclePhotoFiles(array $files, string $subject = 'Vehicle', int $min = 1, int $max = 5): void
+    {
+        $count = count($files);
+        abort_unless($count >= $min, 422, "{$subject} requires at least {$min} photo.");
+        abort_unless($count <= $max, 422, "{$subject} allows at most {$max} photos.");
+
+        foreach ($files as $file) {
+            abort_unless($file instanceof UploadedFile && $file->isValid(), 422, "{$subject} has an invalid uploaded file.");
+            $imageInfo = @getimagesize($file->getRealPath());
+            abort_unless($imageInfo !== false, 422, "{$subject} has a file that is not a valid image.");
+            abort_unless(in_array($imageInfo[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true), 422, "{$subject} photos must be JPG or PNG.");
+        }
+    }
+
+    public function storeVehiclePhotosFor(Booking $booking, int $vehicleSlot, array $files): array
+    {
+        $paths = $this->storeVehicleImagePaths($files);
+
+        foreach ($paths as $path) {
+            BookingVehiclePhoto::create([
+                'booking_id' => $booking->id,
+                'vehicle_slot' => $vehicleSlot,
+                'path' => $path,
+            ]);
+        }
+
+        return $paths;
     }
 
     protected function storeVehicleImage(UploadedFile $file): string
@@ -599,14 +629,16 @@ class BookingService
         $discount      = $this->resolveBookingDiscount($data, $grossPrice, $customerType);
         $additionalFee = $this->parsePrice($data['additional_fee'] ?? null);
 
-        $discounted  = max(round($grossPrice - $discount['discount_amount'] + $additionalFee, 2), 0);
-        $actualPrice = round($discounted * 1.12, 2);   // VAT added on top (12%)
-        $vatAmount   = round($actualPrice - $discounted, 2);
+        $subtotal   = max(round($grossPrice - $discount['discount_amount'], 2), 0);
+        $vatAmount  = round($subtotal * 0.12, 2);
+        $baseTotal  = round($subtotal + $vatAmount, 2);
+        $actualPrice = max(round($baseTotal + $additionalFee, 2), 0);
 
         return [
             'distance_km'         => $distanceKm,
             'extra_distance'      => $extraDistance,
             'base_rate'           => $baseRate,
+            'base_rate_total'     => round($baseRate + $extraBaseRates, 2),
             'per_km_rate'         => (float) $truckType->per_km_rate,
             'distance_fee'        => $distanceFee,
             'computed_total'      => $grossPrice,
@@ -614,8 +646,11 @@ class BookingService
             'discount_reason'     => $discount['discount_reason'],
             'discount_amount'     => $discount['discount_amount'],
             'additional_fee'      => $additionalFee,
-            'discounted_total'    => $discounted,
+            'subtotal'            => $subtotal,
+            'discounted_total'    => $subtotal,
             'vat_amount'          => $vatAmount,
+            'base_total'          => $baseTotal,
+            'vat_exclusive_total' => $subtotal,
             'final_total'         => $actualPrice,
             'customer_type'       => $customerType,
         ];
@@ -659,17 +694,19 @@ class BookingService
             ? max(round((float) ($discountPercentage ?? ($booking->discount_percentage ?? 0)), 2), 0)
             : 0.0;
 
-        $discountAmount        = round($grossTotal * ($resolvedDiscountPercentage / 100), 2);
-        $resolvedAdditionalFee = $this->parsePrice($additionalFee);
+        $discountAmount = round($grossTotal * ($resolvedDiscountPercentage / 100), 2);
+        $subtotal       = max(round($grossTotal - $discountAmount, 2), 0);
+        $vatAmount      = round($subtotal * 0.12, 2);
+        $baseTotal      = round($subtotal + $vatAmount, 2);
 
-        if ($resolvedAdditionalFee <= 0 && filled($quotedTotal)) {
+        $resolvedAdditionalFee = $this->parseSignedPrice($additionalFee);
+
+        if ($resolvedAdditionalFee === 0.0 && filled($quotedTotal)) {
             $quotedAmount          = $this->parsePrice($quotedTotal);
-            $resolvedAdditionalFee = max(round($quotedAmount - ($grossTotal - $discountAmount), 2), 0);
+            $resolvedAdditionalFee = round($quotedAmount - $baseTotal, 2);
         }
 
-        $discounted  = max(round($grossTotal - $discountAmount + $resolvedAdditionalFee, 2), 0);
-        $finalTotal  = round($discounted * 1.12, 2);   // VAT added on top
-        $vatAmount   = round($finalTotal - $discounted, 2);
+        $finalTotal = max(round($baseTotal + $resolvedAdditionalFee, 2), 0);
 
         return [
             'distance_km'         => $resolvedDistanceKm,
@@ -681,9 +718,52 @@ class BookingService
             'discount_percentage' => $resolvedDiscountPercentage,
             'additional_fee'      => $resolvedAdditionalFee,
             'discount_amount'     => $discountAmount,
-            'discounted_total'    => $discounted,
+            'subtotal'            => $subtotal,
+            'discounted_total'    => $subtotal,
+            'base_total'          => $baseTotal,
+            'vat_exclusive_total' => $subtotal,
             'final_total'         => $finalTotal,
             'vat_amount'          => $vatAmount,
+        ];
+    }
+
+    public function resolveTaxableSubtotal(Booking $booking): float
+    {
+        $gross          = round((float) ($booking->computed_total ?? 0), 2);
+        $discountPct    = (float) ($booking->discount_percentage ?? 0);
+        $discountAmount = round($gross * ($discountPct / 100), 2);
+
+        return max(round($gross - $discountAmount, 2), 0);
+    }
+
+    public function recalculateTaxableSubtotal(Booking $booking): float
+    {
+        $distanceFee    = $this->distanceFeeFor((float) ($booking->distance_km ?? 0), (float) ($booking->per_km_rate ?? 0));
+        $gross          = round((float) ($booking->base_rate ?? 0) + $distanceFee, 2);
+        $discountPct    = (float) ($booking->discount_percentage ?? 0);
+        $discountAmount = round($gross * ($discountPct / 100), 2);
+
+        return max(round($gross - $discountAmount, 2), 0);
+    }
+
+    public function taxableSubtotalFor(Booking $booking, bool $isEditableDraft): float
+    {
+        return $isEditableDraft
+            ? $this->recalculateTaxableSubtotal($booking)
+            : $this->resolveTaxableSubtotal($booking);
+    }
+
+    public function applyVatAndAdjustment(float $subtotal, float $signedAdjustment): array
+    {
+        $vatAmount = round($subtotal * 0.12, 2);
+        $baseTotal = round($subtotal + $vatAmount, 2);
+        $finalTotal = max(round($baseTotal + $signedAdjustment, 2), 0);
+
+        return [
+            'subtotal'    => $subtotal,
+            'vat_amount'  => $vatAmount,
+            'base_total'  => $baseTotal,
+            'final_total' => $finalTotal,
         ];
     }
 
@@ -772,12 +852,6 @@ class BookingService
         return $base . '-' . now()->format('His');
     }
 
-    /**
-     * Delegates to UnitAvailabilityService, the shared availability engine
-     * also used by Dispatcher Units & Leaders and Scheduled dispatch, so
-     * there is a single "ready unit" formula. Requires a Unit to have both
-     * a Team Leader and a Driver with Duty available.
-     */
     public function dispatchAvailability(): array
     {
         $evaluated = $this->unitAvailability->evaluateAll();
@@ -806,6 +880,21 @@ class BookingService
         ];
     }
 
+    public function resolveRequiredTruckType(int $vehicleTypeId): array
+    {
+        $vehicleType = VehicleType::find($vehicleTypeId);
+        if (! $vehicleType || ! $vehicleType->required_truck_type_id) {
+            return [null, 'This vehicle type is not yet configured for booking. Please contact support.'];
+        }
+
+        $truckType = TruckType::where('status', 'active')->find($vehicleType->required_truck_type_id);
+        if (! $truckType) {
+            return [null, 'This vehicle type is not currently available for booking. Please contact support.'];
+        }
+
+        return [$truckType, null];
+    }
+
     public function estimateDirectDistanceKm(?float $pickupLat, ?float $pickupLng, ?float $dropLat, ?float $dropLng): float
     {
         if (! is_numeric($pickupLat) || ! is_numeric($pickupLng) || ! is_numeric($dropLat) || ! is_numeric($dropLng)) {
@@ -831,6 +920,14 @@ class BookingService
         $normalized = preg_replace('/[^\d.]/', '', (string) $price);
 
         return $normalized === '' ? 0.0 : (float) $normalized;
+    }
+
+    public function parseSignedPrice(?string $price): float
+    {
+        $isNegative = str_starts_with(trim((string) $price), '-');
+        $magnitude  = $this->parsePrice($price);
+
+        return $isNegative ? -$magnitude : $magnitude;
     }
 
     public function filterPayloadForTable(string $table, array $payload): array

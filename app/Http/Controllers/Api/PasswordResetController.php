@@ -199,7 +199,8 @@ class PasswordResetController extends Controller
         return in_array($user->status, ['active', 'locked'], true)
             && blank($user->archived_at)
             && blank($user->anonymized_at)
-            && blank($user->pending_delete_at);
+            && blank($user->pending_delete_at)
+            && !$user->isGoogleAccount();
     }
 
     private function clearOtpState(User $user): void

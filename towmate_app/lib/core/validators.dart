@@ -1,3 +1,32 @@
+import 'package:flutter/services.dart' show TextInputFormatter, FilteringTextInputFormatter, LengthLimitingTextInputFormatter;
+
+abstract final class PhMobilePhone {
+  static const String errorMessage = 'Enter a valid 10-digit mobile number starting with 9.';
+
+  static final RegExp localPattern = RegExp(r'^9\d{9}$');
+
+  static List<TextInputFormatter> get formatters => [
+    FilteringTextInputFormatter.digitsOnly,
+    LengthLimitingTextInputFormatter(10),
+  ];
+
+  static String? validateLocal(String? raw, {required bool showIncomplete}) {
+    final digits = raw?.trim() ?? '';
+    if (digits.isEmpty) {
+      return showIncomplete ? 'Phone number is required' : null;
+    }
+    if (digits.length < 10) {
+      return showIncomplete ? errorMessage : null;
+    }
+    if (!localPattern.hasMatch(digits)) {
+      return errorMessage;
+    }
+    return null;
+  }
+
+  static String toCanonical(String localDigits) => '+63$localDigits';
+}
+
 abstract final class Validators {
   static String? email(String? v) {
     if (v == null || v.trim().isEmpty) return 'Email is required';

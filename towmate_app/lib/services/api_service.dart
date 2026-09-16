@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/booking_model.dart';
 import '../models/quotation_model.dart';
 import '../models/truck_type_model.dart';
+import '../models/vehicle_type_model.dart';
 
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
@@ -50,7 +51,7 @@ class ApiService {
     } catch (_) {}
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', token);
+    await prefs.remove('auth_token');
     await prefs.setString('user_role', role);
     await prefs.setString('user_name', name);
     await prefs.setInt('user_id', userId);
@@ -78,6 +79,7 @@ class ApiService {
     await prefs.remove('user_id');
     await prefs.remove('must_change_password');
     await prefs.remove('duty_class');
+    await prefs.remove('user_auth_provider');
   }
 
   static Future<bool> getMustChangePassword() async {
@@ -272,8 +274,10 @@ class ApiService {
   static Map<String, dynamic> _networkError(Object e) {
     final msg = e.toString().toLowerCase();
     if (e is SocketException ||
+        e is http.ClientException ||
         msg.contains('connection refused') ||
         msg.contains('failed host lookup') ||
+        msg.contains('failed to fetch') ||
         msg.contains('network') ||
         msg.contains('os error')) {
       return {
@@ -342,6 +346,124 @@ class ApiService {
         'message':
             body['message'] as String? ??
             'Login failed. Check your credentials.',
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'Request timed out. Please try again.',
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> loginWithGoogle(
+    String idToken,
+    String csrfToken,
+  ) async {
+    http.Response? response;
+    try {
+      response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/google'),
+            headers: {..._headers, 'X-CSRF-Token': csrfToken},
+            body: jsonEncode({'id_token': idToken}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+
+      if (response.statusCode == 200 && body['success'] == true) {
+        final data = body['data'] as Map<String, dynamic>;
+        final user = data['user'] as Map<String, dynamic>;
+
+        await saveSession(
+          token: data['token'] as String,
+          role: user['role'] as String? ?? 'Customer',
+          name: user['name'] as String? ?? '',
+          userId: (user['id'] as num?)?.toInt() ?? 0,
+          email: user['email'] as String?,
+          phone: user['phone'] as String?,
+          dutyClass: user['duty_class'] as String?,
+        );
+
+        return {
+          'success': true,
+          'needsPhone': false,
+          'role': user['role'] as String? ?? 'Customer',
+        };
+      }
+
+      if (response.statusCode == 202 && body['needs_phone'] == true) {
+        return {
+          'success': true,
+          'needsPhone': true,
+          'completionToken': body['completion_token'] as String,
+          'firstName': body['first_name'] as String? ?? '',
+          'lastName': body['last_name'] as String? ?? '',
+        };
+      }
+
+      return {
+        'success': false,
+        'message': body['message'] as String? ?? 'Google sign-in failed.',
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'Request timed out. Please try again.',
+      };
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '[GoogleAuth] loginWithGoogle failed: ${e.runtimeType}, '
+          'idTokenPresent=${idToken.isNotEmpty}, '
+          'httpStatus=${response?.statusCode ?? 'no response'}',
+        );
+      }
+      return _networkError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> completeGoogleSignup({
+    required String completionToken,
+    required String phone,
+    required String csrfToken,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/google/complete'),
+            headers: {..._headers, 'X-CSRF-Token': csrfToken},
+            body: jsonEncode({
+              'completion_token': completionToken,
+              'phone': phone,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+
+      if (response.statusCode == 201 && body['success'] == true) {
+        final data = body['data'] as Map<String, dynamic>;
+        final user = data['user'] as Map<String, dynamic>;
+
+        await saveSession(
+          token: data['token'] as String,
+          role: user['role'] as String? ?? 'Customer',
+          name: user['name'] as String? ?? '',
+          userId: (user['id'] as num?)?.toInt() ?? 0,
+          email: user['email'] as String?,
+          phone: user['phone'] as String?,
+          dutyClass: user['duty_class'] as String?,
+        );
+
+        return {'success': true, 'role': user['role'] as String? ?? 'Customer'};
+      }
+
+      return {
+        'success': false,
+        'message': body['message'] as String? ?? 'Could not complete sign-up.',
       };
     } on TimeoutException {
       return {
@@ -464,9 +586,20 @@ class ApiService {
               value: data['phone'] as String,
             );
           }
+          if (data['auth_provider'] != null) {
+            await prefs.setString(
+              'user_auth_provider',
+              data['auth_provider'] as String,
+            );
+          }
         }
       }
     } catch (_) {}
+  }
+
+  static Future<String?> getUserAuthProvider() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('user_auth_provider');
   }
 
   static Future<List<TruckTypeModel>> fetchTruckTypes() async {
@@ -491,6 +624,63 @@ class ApiService {
     }
   }
 
+  static Future<List<VehicleTypeModel>> fetchVehicleTypes() async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/v1/vehicle-types'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List;
+        return list
+            .map((j) => VehicleTypeModel.fromJson(j as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> fetchPricingPreview({
+    required int vehicleTypeId,
+    required double pickupLat,
+    required double pickupLng,
+    required double dropoffLat,
+    required double dropoffLng,
+    required String serviceType,
+    List<Map<String, dynamic>> extraVehicles = const [],
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/v1/geo/pricing-preview'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({
+              'vehicle_type_id': vehicleTypeId,
+              'pickup_lat': pickupLat,
+              'pickup_lng': pickupLng,
+              'drop_lat': dropoffLat,
+              'drop_lng': dropoffLng,
+              'service_type': serviceType,
+              if (extraVehicles.isNotEmpty) 'extra_vehicles': extraVehicles,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<Map<String, dynamic>?> fetchAvailability() async {
     try {
       final token = await getToken();
@@ -510,15 +700,17 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>?> fetchCustomerContent() async {
+    final uri = Uri.parse('$baseUrl/v1/customer/content');
+    http.Response? res;
     try {
-      final res = await http
-          .get(Uri.parse('$baseUrl/v1/customer/content'), headers: _headers)
-          .timeout(const Duration(seconds: 10));
+      res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
+      _debugFetchFailure('fetchCustomerContent', uri, null, res.statusCode);
       return null;
-    } catch (_) {
+    } catch (e) {
+      _debugFetchFailure('fetchCustomerContent', uri, e, res?.statusCode);
       return null;
     }
   }
@@ -526,22 +718,31 @@ class ApiService {
   static Future<List<Map<String, dynamic>>> fetchVehicleTypesByCategory(
     String category,
   ) async {
+    final uri = Uri.parse('$baseUrl/v1/vehicle-types/by-category/$category');
+    http.Response? res;
     try {
-      final res = await http
-          .get(
-            Uri.parse('$baseUrl/vehicle-types/by-category/$category'),
-            headers: _headers,
-          )
-          .timeout(const Duration(seconds: 10));
+      res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final list = data['vehicleTypes'] as List? ?? [];
         return list.cast<Map<String, dynamic>>();
       }
+      _debugFetchFailure('fetchVehicleTypesByCategory', uri, null, res.statusCode);
       return [];
-    } catch (_) {
+    } catch (e) {
+      _debugFetchFailure('fetchVehicleTypesByCategory', uri, e, res?.statusCode);
       return [];
     }
+  }
+
+  static void _debugFetchFailure(String stage, Uri uri, Object? error, int? statusCode) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[ApiService] $stage failed: '
+      'host=${uri.host}:${uri.port}, path=${uri.path}, method=GET, '
+      'responseReceived=${statusCode != null}, httpStatus=${statusCode ?? 'none'}, '
+      'exceptionType=${error?.runtimeType ?? 'none'}',
+    );
   }
 
   static Future<List<Map<String, dynamic>>> searchAddress(String query) async {
@@ -750,6 +951,7 @@ class ApiService {
     String? scheduledTime,
     List<String> vehicleImagePaths = const [],
     List<Map<String, dynamic>> extraVehicles = const [],
+    Map<int, List<String>> extraVehicleImagePaths = const {},
   }) async {
     try {
       final token = await getToken();
@@ -800,6 +1002,35 @@ class ApiService {
         );
       }
 
+      for (final entry in extraVehicleImagePaths.entries) {
+        final slotIndex = entry.key;
+        final paths = entry.value;
+        for (int i = 0; i < paths.length; i++) {
+          final path = paths[i];
+          List<int> bytes;
+          if (kIsWeb) {
+            bytes = await XFile(path).readAsBytes();
+          } else {
+            final compressed = await FlutterImageCompress.compressWithFile(
+              path,
+              quality: 70,
+              minWidth: 1280,
+              minHeight: 1280,
+              keepExif: false,
+            );
+            bytes = compressed ?? await XFile(path).readAsBytes();
+          }
+          req.files.add(
+            http.MultipartFile.fromBytes(
+              'extra_vehicle_images[$slotIndex][]',
+              bytes,
+              filename: 'extra_${slotIndex}_$i.jpg',
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+        }
+      }
+
       final streamed = await req.send().timeout(const Duration(seconds: 30));
       final response = await http.Response.fromStream(streamed);
 
@@ -814,7 +1045,16 @@ class ApiService {
       }
 
       if (response.statusCode == 201 && body['success'] == true) {
-        return {'success': true, 'booking_code': body['booking_code']};
+        final bookings = (body['bookings'] as List?)
+                ?.map((e) => BookingGroupSibling.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const <BookingGroupSibling>[];
+        return {
+          'success': true,
+          'booking_code': body['booking_code'],
+          'group_code': body['group_code'],
+          'bookings': bookings,
+        };
       }
       return {
         'success': false,

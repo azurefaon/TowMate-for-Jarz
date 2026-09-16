@@ -1,9 +1,47 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/quotation_model.dart';
 import '../../services/api_service.dart';
+import '../../widgets/quotation_price_cards.dart';
+
+String _peso(double v) => formatPeso(v);
+
+/// Shared content for the three bottom action buttons — swaps to a spinner
+/// while its own action is in flight, otherwise a leading icon + label.
+Widget _actionButtonContent({
+  required bool loading,
+  required Color loadingColor,
+  required IconData icon,
+  required String label,
+  required Color textColor,
+}) {
+  if (loading) {
+    return SizedBox(
+      width: 20,
+      height: 20,
+      child: CircularProgressIndicator(color: loadingColor, strokeWidth: 2),
+    );
+  }
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Icon(icon, size: 18, color: textColor),
+      const SizedBox(width: 8),
+      Text(
+        label,
+        style: GoogleFonts.inter(
+          color: textColor,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ],
+  );
+}
 
 class CustomerQuotationScreen extends StatefulWidget {
   const CustomerQuotationScreen({super.key});
@@ -15,11 +53,36 @@ class CustomerQuotationScreen extends StatefulWidget {
 class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
   bool _accepting = false;
   bool _declining = false;
+  bool _requestingReview = false;
+
+  Timer? _tickTimer;
+  bool _timerStarted = false;
 
   QuotationModel? get _quotationOrNull =>
       ModalRoute.of(context)?.settings.arguments as QuotationModel?;
 
   QuotationModel get _quotation => _quotationOrNull!;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Route arguments aren't reliably available in initState(), and this
+    // only needs to run once per screen instance.
+    if (_timerStarted) return;
+    _timerStarted = true;
+    final remaining = _quotationOrNull?.timeRemaining;
+    if (remaining != null && remaining != Duration.zero) {
+      _tickTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _tickTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _accept() async {
     setState(() => _accepting = true);
@@ -117,6 +180,112 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
     }
   }
 
+  Future<void> _requestPriceReview() async {
+    final controller = TextEditingController();
+    bool showReasonError = false;
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            backgroundColor: ctx.card,
+            title: Text(
+              'Request price review',
+              style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16, letterSpacing: -0.2),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'You may ask the dispatcher to review your quotation. A review request does not guarantee that the price will be changed.',
+                  style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 13, height: 1.5),
+                ),
+                const SizedBox(height: 14),
+                RichText(
+                  text: TextSpan(
+                    style: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 12, letterSpacing: 0.2),
+                    children: [
+                      const TextSpan(text: 'Reason for review'),
+                      TextSpan(text: ' *', style: GoogleFonts.inter(color: TmColors.error, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  onChanged: (value) {
+                    if (showReasonError && value.trim().isNotEmpty) {
+                      setDialogState(() => showReasonError = false);
+                    }
+                  },
+                  style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Tell us why you would like the quotation reviewed.',
+                    hintStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 13),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: ctx.divider),
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                if (showReasonError) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'A reason is required to request a price review.',
+                    style: GoogleFonts.inter(color: TmColors.error, fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancel', style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14)),
+              ),
+              TextButton(
+                onPressed: () {
+                  final trimmed = controller.text.trim();
+                  if (trimmed.isEmpty) {
+                    setDialogState(() => showReasonError = true);
+                    return;
+                  }
+                  Navigator.pop(ctx, trimmed);
+                },
+                child: Text('Submit', style: GoogleFonts.inter(color: TmColors.yellow, fontSize: 14)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (reason == null || reason.isEmpty) return;
+
+    setState(() => _requestingReview = true);
+    final result = await ApiService.requestPriceReview(_quotation.id, reason);
+    if (!mounted) return;
+    setState(() => _requestingReview = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['success'] == true
+              ? 'Your request has been sent. We will review the price and follow up shortly.'
+              : (result['message'] as String? ?? 'Failed to send your request. Please try again.'),
+          style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+        ),
+        backgroundColor: TmColors.black,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+    if (result['success'] == true) {
+      Navigator.pop(context);
+    }
+  }
+
   String _formatExpiry(Duration? remaining) {
     if (remaining == null || remaining == Duration.zero) return 'Expired';
     final h = remaining.inHours;
@@ -152,18 +321,25 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Center(
-                      child: Text(
-                        'TowMate',
-                        style: GoogleFonts.inter(
-                          color: TmColors.yellow,
-                          fontSize: 22,
-                          letterSpacing: -0.8,
-                        ),
+                    child: Text(
+                      'Quotation Details',
+                      style: GoogleFonts.inter(
+                        color: context.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 40),
+                  Text(
+                    'TowMate',
+                    style: GoogleFonts.inter(
+                      color: TmColors.yellow,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -175,78 +351,58 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _StatusBanner(
+                      status: quotation.status,
+                      quotationNumber: quotation.quotationNumber,
+                      countdownText: remaining != null ? _formatExpiry(remaining) : null,
+                      isUrgent: isUrgent,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ── Total amount ───────────────────────────────────
                     Text(
-                      'QUOTATION READY',
+                      'Total Amount',
                       style: GoogleFonts.inter(
                         color: context.textSecondary,
-                        fontSize: 11,
-                        letterSpacing: 0.8,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      quotation.quotationNumber,
+                      _peso(quotation.estimatedPrice),
                       style: GoogleFonts.inter(
-                        color: context.textSecondary,
-                        fontSize: 12,
-                        letterSpacing: 0.4,
+                        color: context.textPrimary,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.6,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 18),
 
-                    // ── Price breakdown ───────────────────────────────────
-                    _PriceBreakdown(quotation: quotation),
-                    const SizedBox(height: 20),
-
-                    Container(height: 1, color: context.divider),
-                    const SizedBox(height: 20),
-
-                    // ── Addresses ─────────────────────────────────────────
-                    _AddressRow(label: 'Pickup', address: quotation.pickupAddress),
-                    const SizedBox(height: 8),
-                    _AddressRow(label: 'Dropoff', address: quotation.dropoffAddress),
-                    const SizedBox(height: 16),
-
-                    // ── Details ───────────────────────────────────────────
-                    Row(
-                      children: [
-                        Icon(Icons.local_shipping_outlined,
-                            size: 16, color: context.textSecondary),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${quotation.truckTypeName}  ·  ${quotation.distanceKm.toStringAsFixed(1)} km',
-                          style: GoogleFonts.inter(
-                            color: context.textTertiary,
-                            fontSize: 13,
-                            letterSpacing: 0.1,
-                          ),
-                        ),
-                      ],
+                    // ── Price breakdown ────────────────────────────────
+                    PriceBreakdownCard(
+                      baseRate: quotation.baseRate,
+                      distanceFee: quotation.distanceFee,
+                      distanceKm: quotation.distanceKm,
+                      vatAmount: quotation.vatAmount,
+                      additionalFee: quotation.additionalFee,
+                      additionalFeeNote: quotation.additionalFeeNote,
                     ),
+                    const SizedBox(height: 20),
 
-                    if (remaining != null) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.access_time_rounded,
-                              size: 16,
-                              color: isUrgent ? TmColors.yellow : context.textSecondary),
-                          const SizedBox(width: 6),
-                          Text(
-                            _formatExpiry(remaining),
-                            style: GoogleFonts.inter(
-                              color: isUrgent ? TmColors.yellow : context.textSecondary,
-                              fontSize: 12,
-                              letterSpacing: 0.1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    // ── Trip details ───────────────────────────────────
+                    TripDetailsSection(
+                      pickupAddress: quotation.pickupAddress,
+                      dropoffAddress: quotation.dropoffAddress,
+                      truckTypeName: quotation.truckTypeName,
+                      distanceKm: quotation.distanceKm,
+                    ),
 
                     if (quotation.pickupNotes != null &&
                         quotation.pickupNotes!.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Text(
                         'Notes: ${quotation.pickupNotes}',
                         style: GoogleFonts.inter(
@@ -258,76 +414,141 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                       ),
                     ],
 
-                    // ── Price history ─────────────────────────────────────
+                    // ── Price history ──────────────────────────────────
                     if (quotation.priceChangeLog != null &&
                         quotation.priceChangeLog!.isNotEmpty) ...[
                       const SizedBox(height: 20),
-                      Container(height: 1, color: context.divider),
-                      const SizedBox(height: 16),
                       _PriceHistorySection(log: quotation.priceChangeLog!),
                     ],
 
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 28),
 
-                    // ── Accept button ─────────────────────────────────────
-                    ElevatedButton(
-                      onPressed: _accepting || _declining ? null : _accept,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: TmColors.yellow,
-                        foregroundColor: TmColors.black,
-                        disabledBackgroundColor: TmColors.grey300,
-                        minimumSize: const Size(double.infinity, 52),
-                        shape: const StadiumBorder(),
-                        elevation: 0,
-                      ),
-                      child: _accepting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: TmColors.black,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Text(
-                              'Accept Quotation',
+                    if (quotation.isPriceReviewRequested) ...[
+                      // ── Waiting for dispatcher ──────────────────────────
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: context.card,
+                          border: Border.all(color: context.divider),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.hourglass_top_rounded,
+                                    size: 18, color: TmColors.yellow),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Price Review Requested',
+                                  style: GoogleFonts.inter(
+                                    color: context.textPrimary,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: -0.1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'We\'re reviewing your request. You\'ll be notified once it\'s resolved.',
                               style: GoogleFonts.inter(
-                                color: TmColors.black,
-                                fontSize: 15,
+                                color: context.textSecondary,
+                                fontSize: 13,
+                                height: 1.5,
                               ),
                             ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // ── Decline button ────────────────────────────────────
-                    OutlinedButton(
-                      onPressed: _accepting || _declining ? null : _decline,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: context.textTertiary,
-                        minimumSize: const Size(double.infinity, 52),
-                        side: BorderSide(color: context.divider),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
+                            if (quotation.responseNote != null &&
+                                quotation.responseNote!.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Text(
+                                'Your reason: ${quotation.responseNote}',
+                                style: GoogleFonts.inter(
+                                  color: context.textTertiary,
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      child: _declining
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: context.textTertiary,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Text(
-                              'Decline',
-                              style: GoogleFonts.inter(
-                                color: context.textTertiary,
-                                fontSize: 15,
-                              ),
-                            ),
-                    ),
+                    ] else ...[
+                      // ── Accept button ─────────────────────────────────
+                      ElevatedButton(
+                        onPressed: _accepting || _declining || _requestingReview
+                            ? null
+                            : _accept,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: TmColors.yellow,
+                          foregroundColor: TmColors.black,
+                          disabledBackgroundColor: TmColors.grey300,
+                          minimumSize: const Size(double.infinity, 52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: _actionButtonContent(
+                          loading: _accepting,
+                          loadingColor: TmColors.black,
+                          icon: Icons.check_circle_outline_rounded,
+                          label: 'Accept & Confirm',
+                          textColor: TmColors.black,
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // ── Request Price Review button ───────────────────
+                      OutlinedButton(
+                        onPressed: _accepting || _declining || _requestingReview
+                            ? null
+                            : _requestPriceReview,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: context.textPrimary,
+                          minimumSize: const Size(double.infinity, 52),
+                          side: BorderSide(color: context.divider, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: _actionButtonContent(
+                          loading: _requestingReview,
+                          loadingColor: context.textPrimary,
+                          icon: Icons.chat_bubble_outline_rounded,
+                          label: 'Request Price Review',
+                          textColor: context.textPrimary,
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // ── Decline button ─────────────────────────────────
+                      OutlinedButton(
+                        onPressed: _accepting || _declining || _requestingReview
+                            ? null
+                            : _decline,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: TmColors.error,
+                          minimumSize: const Size(double.infinity, 52),
+                          side: const BorderSide(color: TmColors.error, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: _actionButtonContent(
+                          loading: _declining,
+                          loadingColor: TmColors.error,
+                          icon: Icons.cancel_outlined,
+                          label: 'Decline',
+                          textColor: TmColors.error,
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 24),
                   ],
@@ -341,176 +562,122 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
   }
 }
 
-class _PriceBreakdown extends StatelessWidget {
-  const _PriceBreakdown({required this.quotation});
-  final QuotationModel quotation;
+/// Colored status card: icon + status label + quotation number, with an
+/// optional countdown pinned to the right — replaces the old plain grey
+/// eyebrow text.
+class _StatusBanner extends StatelessWidget {
+  const _StatusBanner({
+    required this.status,
+    required this.quotationNumber,
+    required this.countdownText,
+    required this.isUrgent,
+  });
 
-  static final _fmt = NumberFormat('#,##0.00', 'en_PH');
-  String _p(double v) => '₱${_fmt.format(v)}';
+  final String status;
+  final String quotationNumber;
+  final String? countdownText;
+  final bool isUrgent;
+
+  String _humanizeStatus(String s) => s
+      .split('_')
+      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
 
   @override
   Widget build(BuildContext context) {
-    final hasBase       = quotation.baseRate > 0;
-    final hasDist       = quotation.distanceFee > 0;
-    final hasVat        = quotation.vatAmount > 0;
-    final hasAdditional = quotation.additionalFee != 0;
-    final hasBreakdown  = hasBase || hasDist || hasVat;
+    final isSent = status == 'sent';
+    final isReview = status == 'price_review_requested';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'QUOTATION TOTAL',
-          style: GoogleFonts.inter(
-            color: context.textSecondary,
-            fontSize: 11,
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          _p(quotation.estimatedPrice),
-          style: GoogleFonts.inter(
-            color: context.textPrimary,
-            fontSize: 32,
-            letterSpacing: -0.6,
-          ),
-        ),
-        if (hasBreakdown || hasAdditional) ...[
-          const SizedBox(height: 14),
+    final Color bannerBg;
+    final Color iconBg;
+    final Color iconColor;
+    final IconData icon;
+    final Color labelColor;
+    final String label;
+
+    if (isSent) {
+      bannerBg = TmColors.success.withValues(alpha: 0.08);
+      iconBg = TmColors.success;
+      iconColor = TmColors.white;
+      icon = Icons.check_circle_rounded;
+      labelColor = TmColors.success;
+      label = 'Quotation Ready';
+    } else if (isReview) {
+      bannerBg = TmColors.yellow.withValues(alpha: 0.12);
+      iconBg = TmColors.yellow;
+      iconColor = TmColors.black;
+      icon = Icons.hourglass_top_rounded;
+      labelColor = context.textPrimary;
+      label = 'Price Review Requested';
+    } else {
+      bannerBg = context.surface;
+      iconBg = context.divider;
+      iconColor = context.textSecondary;
+      icon = Icons.info_outline_rounded;
+      labelColor = context.textPrimary;
+      label = _humanizeStatus(status);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bannerBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
           Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              border: Border.all(color: context.divider),
-              borderRadius: BorderRadius.circular(12),
-            ),
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            child: Icon(icon, size: 17, color: iconColor),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (hasBase)
-                  _PriceLine(label: 'Base Rate', amount: _p(quotation.baseRate)),
-                if (hasDist)
-                  _PriceLine(
-                    label: 'Distance Fee (${quotation.distanceKm.toStringAsFixed(1)} km)',
-                    amount: _p(quotation.distanceFee),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    color: labelColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.1,
                   ),
-                if (hasVat)
-                  _PriceLine(label: 'VAT (12%)', amount: _p(quotation.vatAmount)),
-                if (hasAdditional) ...[
-                  if (hasBreakdown) ...[
-                    const SizedBox(height: 6),
-                    Divider(color: context.divider, height: 1),
-                    const SizedBox(height: 6),
-                  ],
-                  _PriceLine(
-                    label: 'Additional Fee',
-                    amount: _p(quotation.additionalFee),
-                    highlight: true,
-                  ),
-                  if (quotation.additionalFeeNote != null &&
-                      quotation.additionalFeeNote!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 3, left: 4),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('↳ ',
-                              style: GoogleFonts.inter(
-                                  color: context.textSecondary, fontSize: 11)),
-                          Expanded(
-                            child: Text(
-                              quotation.additionalFeeNote!,
-                              style: GoogleFonts.inter(
-                                color: context.textSecondary,
-                                fontSize: 12,
-                                height: 1.4,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  quotationNumber,
+                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11.5),
+                ),
               ],
             ),
           ),
-        ],
-      ],
-    );
-  }
-}
-
-class _PriceLine extends StatelessWidget {
-  const _PriceLine({
-    required this.label,
-    required this.amount,
-    this.highlight = false,
-  });
-  final String label;
-  final String amount;
-  final bool highlight;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              color: highlight ? context.textPrimary : context.textSecondary,
-              fontSize: 13,
-              letterSpacing: 0.1,
+          if (countdownText != null) ...[
+            const SizedBox(width: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.access_time_rounded,
+                  size: 14,
+                  color: isUrgent ? TmColors.yellow : context.textSecondary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  countdownText!,
+                  style: GoogleFonts.inter(
+                    color: isUrgent ? TmColors.yellow : context.textSecondary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-          ),
-          Text(
-            amount,
-            style: GoogleFonts.inter(
-              color: highlight ? TmColors.yellow : context.textSecondary,
-              fontSize: 13,
-              letterSpacing: 0.1,
-            ),
-          ),
+          ],
         ],
       ),
-    );
-  }
-}
-
-class _AddressRow extends StatelessWidget {
-  const _AddressRow({required this.label, required this.address});
-  final String label;
-  final String address;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 52,
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              color: context.textSecondary,
-              fontSize: 12,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            address,
-            style: GoogleFonts.inter(
-              color: context.textTertiary,
-              fontSize: 13,
-              letterSpacing: 0.1,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -525,7 +692,6 @@ class _PriceHistorySection extends StatefulWidget {
 
 class _PriceHistorySectionState extends State<_PriceHistorySection> {
   bool _expanded = false;
-  static final _fmt = NumberFormat('#,##0.00', 'en_PH');
 
   String _formatDate(String? iso) {
     if (iso == null) return '';
@@ -534,92 +700,117 @@ class _PriceHistorySectionState extends State<_PriceHistorySection> {
     return DateFormat('MMM d, yyyy h:mm a').format(dt.toLocal());
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Row(
+  Widget _priceHistoryRow(BuildContext context, Map<String, dynamic> entry) {
+    final oldPrice = (entry['old'] as num?)?.toDouble() ?? 0.0;
+    final newPrice = (entry['new'] as num?)?.toDouble() ?? 0.0;
+    final delta = newPrice - oldPrice;
+    final deltaSign = delta >= 0 ? '+' : '-';
+    final reason = entry['reason'] as String?;
+    final tsStr = _formatDate(entry['at'] as String?);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
               Text(
-                'Price History',
+                _peso(oldPrice),
                 style: GoogleFonts.inter(
                   color: context.textTertiary,
-                  fontSize: 13,
-                  letterSpacing: 0.2,
+                  fontSize: 12.5,
+                  decoration: TextDecoration.lineThrough,
                 ),
               ),
-              const SizedBox(width: 6),
-              Icon(
-                _expanded ? Icons.expand_less : Icons.expand_more,
-                color: context.textSecondary,
-                size: 18,
+              if (delta != 0)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  child: Text(
+                    '$deltaSign${_peso(delta.abs())}',
+                    style: GoogleFonts.inter(
+                      color: delta > 0 ? TmColors.success : TmColors.error,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  child: Icon(Icons.arrow_forward_rounded, size: 13, color: context.textTertiary),
+                ),
+              Text(
+                _peso(newPrice),
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
-        ),
-        if (_expanded) ...[
-          const SizedBox(height: 12),
-          ...widget.log.map((entry) {
-            final oldPrice = (entry['old'] as num?)?.toDouble() ?? 0.0;
-            final newPrice = (entry['new'] as num?)?.toDouble() ?? 0.0;
-            final reason = entry['reason'] as String?;
-            final by = entry['by'] as String?;
-            final at = entry['at'] as String?;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    margin: const EdgeInsets.only(top: 5, right: 10),
-                    decoration: const BoxDecoration(
-                      color: TmColors.yellow,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '₱${_fmt.format(oldPrice)}  →  ₱${_fmt.format(newPrice)}',
-                          style: GoogleFonts.inter(
-                            color: context.textPrimary,
-                            fontSize: 13,
-                            letterSpacing: 0.1,
-                          ),
-                        ),
-                        if (reason != null && reason.isNotEmpty)
-                          Text(
-                            reason,
-                            style: GoogleFonts.inter(
-                              color: context.textSecondary,
-                              fontSize: 12,
-                              height: 1.4,
-                            ),
-                          ),
-                        Text(
-                          [if (by != null) by, if (at != null) _formatDate(at)]
-                              .join(' · '),
-                          style: GoogleFonts.inter(
-                            color: context.textSecondary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+          if (reason != null && reason.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              '"$reason"',
+              style: GoogleFonts.inter(
+                color: context.textSecondary,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
               ),
-            );
-          }),
+            ),
+          ],
+          if (tsStr.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(tsStr, style: GoogleFonts.inter(color: context.textTertiary, fontSize: 11)),
+          ],
         ],
-      ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border.all(color: context.divider),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Price History',
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  color: context.textSecondary,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+          if (_expanded) ...[
+            const SizedBox(height: 10),
+            Divider(color: context.divider, height: 1),
+            const SizedBox(height: 10),
+            ...widget.log.map((entry) => _priceHistoryRow(context, entry)),
+          ],
+        ],
+      ),
     );
   }
 }

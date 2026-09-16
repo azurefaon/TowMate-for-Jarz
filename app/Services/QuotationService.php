@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\DB;
 
 class QuotationService
 {
+    private function bookingService(): BookingService
+    {
+        return app(BookingService::class);
+    }
+
     /**
      * Single authoritative cap on quotation expiry for a Scheduled booking:
      * expiry may never extend past 2 hours before the scheduled service time,
@@ -192,12 +197,14 @@ class QuotationService
 
             // If this quotation originated from a mobile booking, update that booking
             // rather than creating a duplicate.
-            $finalTotal   = (float) $quotation->estimated_price;
-            $vatExclusive = round($finalTotal / 1.12, 2);
-            $vatAmount    = round($finalTotal - $vatExclusive, 2);
-
             if ($quotation->source_booking_id) {
                 $primaryBooking = Booking::findOrFail($quotation->source_booking_id);
+
+                $finalTotal   = (float) $quotation->estimated_price;
+                $subtotal     = $this->bookingService()->resolveTaxableSubtotal($primaryBooking);
+                $vatAmount    = round($subtotal * 0.12, 2);
+                $vatExclusive = $subtotal;
+
                 $primaryBooking->update(array_merge([
                     'quotation_id'         => $quotation->id,
                     'final_total'          => $finalTotal,
@@ -213,6 +220,10 @@ class QuotationService
                     // selected_unit_id could have gotten onto the row.
                 ], $isScheduled ? ['selected_unit_id' => null] : []));
             } else {
+                $finalTotal   = (float) $quotation->estimated_price;
+                $vatExclusive = round($finalTotal / 1.12, 2);
+                $vatAmount    = round($finalTotal - $vatExclusive, 2);
+
                 $primaryBooking = Booking::create([
                     'quotation_id'        => $quotation->id,
                     'group_code'          => $groupCode,

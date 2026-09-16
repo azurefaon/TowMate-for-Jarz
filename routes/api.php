@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\CustomerBookingController;
 use App\Http\Controllers\Api\TeamLeader\TLAuthController;
 use App\Http\Controllers\Api\TeamLeader\TLPresenceController;
@@ -14,15 +15,19 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\CustomerContentController;
 use App\Http\Controllers\GeoController;
+use App\Http\Controllers\SuperAdmin\VehicleTypeController;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'API working']);
 });
 
-Route::post('/register',                [AuthController::class, 'register']);
+Route::post('/register',                [AuthController::class, 'register'])->middleware('throttle:customer-register');
 Route::post('/register/send-otp',       [AuthController::class, 'sendRegistrationOtp'])->middleware('throttle:customer-otp-send');
 Route::post('/register/verify-otp',     [AuthController::class, 'verifyRegistrationOtp'])->middleware('throttle:customer-otp-verify');
-Route::post('/login',                   [AuthController::class, 'login']);
+Route::post('/login',                   [AuthController::class, 'login'])->middleware('throttle:customer-login');
+
+Route::post('/auth/google',          [GoogleAuthController::class, 'authenticate'])->middleware('throttle:customer-google-auth');
+Route::post('/auth/google/complete', [GoogleAuthController::class, 'complete'])->middleware('throttle:customer-google-complete');
 
 Route::post('/password/forgot',     [PasswordResetController::class, 'sendOtp'])->middleware('throttle:customer-otp-send');
 Route::post('/password/verify-otp', [PasswordResetController::class, 'verifyOtp'])->middleware('throttle:customer-otp-verify');
@@ -31,6 +36,7 @@ Route::post('/password/reset',      [PasswordResetController::class, 'resetPassw
 Route::get('/v1/customer/content', [CustomerContentController::class, 'index']);
 Route::get('/media/mobile/{filename}', [CustomerContentController::class, 'media'])
     ->where('filename', '[A-Za-z0-9._-]+');
+Route::get('/v1/vehicle-types/by-category/{category}', [VehicleTypeController::class, 'getByCategory']);
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -48,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('v1')->group(function () {
         Route::get('truck-types',  [CustomerBookingController::class, 'truckTypes']);
+        Route::get('vehicle-types', [CustomerBookingController::class, 'vehicleTypes']);
         Route::get('availability', [CustomerBookingController::class, 'availability']);
         Route::get('bookings/current', [CustomerBookingController::class, 'currentBooking']);
         Route::get('bookings/history', [CustomerBookingController::class, 'bookingHistory']);
@@ -62,6 +69,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('geo/reverse', [GeoController::class, 'reverse']);
             Route::get('geo/autocomplete', [GeoController::class, 'autocomplete']);
             Route::get('geo/place-details', [GeoController::class, 'placeDetails']);
+            Route::post('geo/pricing-preview', [GeoController::class, 'pricingPreview']);
         });
 
         Route::middleware('throttle:customer-notifications')->group(function () {

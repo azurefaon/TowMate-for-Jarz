@@ -126,28 +126,28 @@ class TmDrawer extends StatelessWidget {
 
             if (isLoggedIn) ...[
               _TmDrawerItem(
-                icon: Icons.home_outlined,
+                icon: Icons.home,
                 label: 'Dashboard',
                 route: '/home',
                 currentRoute: currentRoute,
                 onTap: () => _navigate(context, '/home'),
               ),
               _TmDrawerItem(
-                icon: Icons.receipt_long_outlined,
+                icon: Icons.receipt_long,
                 label: 'My Bookings',
                 route: '/my-bookings',
                 currentRoute: currentRoute,
                 onTap: () => _navigate(context, '/my-bookings'),
               ),
               _TmDrawerItem(
-                icon: Icons.add_circle_outline_rounded,
+                icon: Icons.add_circle_outline,
                 label: 'Book Now',
                 route: '/book-now',
                 currentRoute: currentRoute,
                 onTap: () => _navigate(context, '/book-now'),
               ),
               _TmDrawerItem(
-                icon: Icons.person_outline_rounded,
+                icon: Icons.person_outline,
                 label: 'Profile',
                 route: '/profile',
                 currentRoute: currentRoute,
@@ -162,7 +162,7 @@ class TmDrawer extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               _TmDrawerItem(
-                icon: Icons.logout_rounded,
+                icon: Icons.logout,
                 label: 'Logout',
                 route: '',
                 currentRoute: currentRoute,
@@ -171,21 +171,21 @@ class TmDrawer extends StatelessWidget {
               ),
             ] else ...[
               _TmDrawerItem(
-                icon: Icons.home_outlined,
+                icon: Icons.home,
                 label: 'Home',
                 route: '/',
                 currentRoute: currentRoute,
                 onTap: () => _navigate(context, '/'),
               ),
               _TmDrawerItem(
-                icon: Icons.build_outlined,
+                icon: Icons.build,
                 label: 'Services',
                 route: '/services',
                 currentRoute: currentRoute,
                 onTap: () => _navigate(context, '/services'),
               ),
               _TmDrawerItem(
-                icon: Icons.info_outline_rounded,
+                icon: Icons.info_outline,
                 label: 'About',
                 route: '/about',
                 currentRoute: currentRoute,
@@ -200,14 +200,14 @@ class TmDrawer extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               _TmDrawerItem(
-                icon: Icons.login_rounded,
+                icon: Icons.login,
                 label: 'Login',
                 route: '/login',
                 currentRoute: currentRoute,
                 onTap: () => _navigate(context, '/login'),
               ),
               _TmDrawerItem(
-                icon: Icons.person_add_outlined,
+                icon: Icons.person_add,
                 label: 'Create Account',
                 route: '/signup',
                 currentRoute: currentRoute,

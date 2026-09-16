@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../core/validators.dart';
 import '../../main.dart' show themeModeNotifier;
 import '../../services/api_service.dart';
+import '../../widgets/tm_bottom_nav.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -19,6 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _lastName;
   String? _email;
   String? _phone;
+  String? _authProvider;
   bool _loading = true;
 
   @override
@@ -34,6 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final lastName = await ApiService.getUserLastName();
     final email = await ApiService.getUserEmail();
     final phone = await ApiService.getUserPhone();
+    final authProvider = await ApiService.getUserAuthProvider();
     if (!mounted) return;
     setState(() {
       _name  = name;
@@ -41,9 +44,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _lastName = lastName;
       _email = email;
       _phone = phone;
+      _authProvider = authProvider;
       _loading = false;
     });
   }
+
+  bool get _isGoogleAccount => _authProvider == 'google';
 
   String get _initials {
     final n = (_name ?? '').trim();
@@ -394,10 +400,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: context.bg,
+      bottomNavigationBar: const TmBottomNav(currentRoute: '/profile'),
       body: SafeArea(
         child: Column(
           children: [
-            // Top bar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               decoration: BoxDecoration(
@@ -438,7 +444,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // ── Avatar + name header ────────────────────────
                           Container(
                             width: double.infinity,
                             color: isDark ? TmColors.dark800 : TmColors.black,
@@ -477,7 +482,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
 
-                          // ── Account Settings ────────────────────────────
                           Padding(
                             padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
                             child: Text(
@@ -487,11 +491,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 12),
                           _SettingsRow(label: 'Name', value: _name ?? '—', onTap: _editName),
-                          _SettingsRow(label: 'Email', value: _email ?? '—', onTap: _editEmail),
+                          _SettingsRow(
+                            label: 'Email',
+                            value: _email ?? '—',
+                            onTap: _isGoogleAccount ? null : _editEmail,
+                            subtitle: _isGoogleAccount ? 'Managed by Google' : null,
+                          ),
                           _SettingsRow(label: 'Phone', value: _phone ?? '—', onTap: _editPhone),
-                          _SettingsRow(label: 'Password', value: '••••••••', onTap: _changePassword),
+                          _isGoogleAccount
+                              ? const _SettingsRow(
+                                  label: 'Password',
+                                  value: 'Signed in with Google',
+                                )
+                              : _SettingsRow(label: 'Password', value: '••••••••', onTap: _changePassword),
 
-                          // ── Appearance ──────────────────────────────────
                           Padding(
                             padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
                             child: Text(
@@ -551,10 +564,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({required this.label, required this.value, required this.onTap});
+  const _SettingsRow({required this.label, required this.value, this.onTap, this.subtitle});
   final String label;
   final String value;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -573,10 +587,21 @@ class _SettingsRow extends StatelessWidget {
                   style: GoogleFonts.inter(color: context.textSecondary, fontSize: 13, letterSpacing: 0.1)),
             ),
             Expanded(
-              child: Text(value,
-                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14, letterSpacing: 0.1)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value,
+                      style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14, letterSpacing: 0.1)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle!,
+                        style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11.5, letterSpacing: 0.1)),
+                  ],
+                ],
+              ),
             ),
-            Icon(Icons.chevron_right_rounded, color: context.textSecondary, size: 20),
+            if (onTap != null)
+              Icon(Icons.chevron_right_rounded, color: context.textSecondary, size: 20),
           ],
         ),
       ),
@@ -610,7 +635,7 @@ class _PwFieldState extends State<_PwField> {
         suffixIcon: GestureDetector(
           onTap: () => setState(() => _obscure = !_obscure),
           child: Icon(
-            _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            _obscure ? Icons.visibility_off : Icons.visibility,
             color: context.textSecondary,
             size: 18,
           ),

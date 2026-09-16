@@ -5,6 +5,7 @@ abstract final class TmColors {
   static const Color black   = Color(0xFF171717);
   static const Color white   = Color(0xFFFFFFFF);
   static const Color error   = Color(0xFFE53935);
+  static const Color destructive = Color(0xFFB91C1C);
   static const Color success = Color(0xFF43A047);
   static const Color grey100 = Color(0xFFF5F5F5);
   static const Color grey300 = Color(0xFFE5E5E5);

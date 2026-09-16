@@ -44,6 +44,20 @@ function p5VehicleTypeFor(TruckType $truckType): VehicleType
     ]);
 }
 
+function p5ReadyUnit(TruckType $truckType): Unit
+{
+    $leader = User::factory()->create(['role_id' => p5Role(3, 'Team Leader')->id]);
+
+    return Unit::create([
+        'name' => 'P5 Ready Unit ' . fake()->unique()->word(),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+        'team_leader_id' => $leader->id,
+        'driver_name' => 'P5 Ready Driver',
+    ]);
+}
+
 function p5TlWithBooking(): array
 {
     $tl = User::factory()->create(['role_id' => p5Role(3, 'Team Leader')->id, 'must_change_password' => false]);
@@ -72,6 +86,7 @@ function p5TlWithBooking(): array
 it('1: a newly uploaded vehicle image is stored on the private disk, not the public disk', function () {
     [$user, $customer, $truckType] = p5CustomerWithBooking();
     $vehicleType = p5VehicleTypeFor($truckType);
+    p5ReadyUnit($truckType);
     Sanctum::actingAs($user, ['*']);
 
     $response = test()->postJson('/api/v1/bookings', [
@@ -101,6 +116,7 @@ it('1: a newly uploaded vehicle image is stored on the private disk, not the pub
 it('2: the raw /storage path cannot retrieve the newly uploaded vehicle image', function () {
     [$user, $customer, $truckType] = p5CustomerWithBooking();
     $vehicleType = p5VehicleTypeFor($truckType);
+    p5ReadyUnit($truckType);
     Sanctum::actingAs($user, ['*']);
 
     test()->postJson('/api/v1/bookings', [
@@ -121,6 +137,7 @@ it('2: the raw /storage path cannot retrieve the newly uploaded vehicle image', 
 it('3: the owning Customer receives a working signed URL for their own vehicle image via booking detail', function () {
     [$user, $customer, $truckType] = p5CustomerWithBooking();
     $vehicleType = p5VehicleTypeFor($truckType);
+    p5ReadyUnit($truckType);
     Sanctum::actingAs($user, ['*']);
 
     test()->postJson('/api/v1/bookings', [
@@ -144,6 +161,7 @@ it('4: Customer A cannot derive or use a working signed URL for Customer B vehic
     [$userA] = p5CustomerWithBooking();
     [$userB, $customerB, $truckTypeB] = p5CustomerWithBooking();
     $vehicleTypeB = p5VehicleTypeFor($truckTypeB);
+    p5ReadyUnit($truckTypeB);
     Sanctum::actingAs($userB, ['*']);
     test()->postJson('/api/v1/bookings', [
         'truck_type_id' => $truckTypeB->id,

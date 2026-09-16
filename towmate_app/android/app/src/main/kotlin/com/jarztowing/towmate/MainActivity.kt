@@ -1,4 +1,4 @@
-package com.example.towmate_app
+package com.jarztowing.towmate
 
 import io.flutter.embedding.android.FlutterActivity
 

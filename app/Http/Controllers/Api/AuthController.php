@@ -33,7 +33,6 @@ class AuthController extends Controller
         $existing = Cache::get($cacheKey);
 
         if (is_array($existing) && now()->timestamp - (int) ($existing['last_sent_at'] ?? 0) < self::REGISTRATION_OTP_RESEND_COOLDOWN_SECONDS) {
-            // Resend cooldown still active — do not reset attempts or expiry.
             return $genericSent;
         }
 
@@ -96,7 +95,6 @@ class AuthController extends Controller
                     'description' => "Registration OTP locked for {$email} after too many failed attempts.",
                 ]);
             } else {
-                // Preserve the OTP's remaining lifetime rather than restarting it.
                 $remainingSeconds = max(1, self::REGISTRATION_OTP_TTL_MINUTES * 60 - (now()->timestamp - (int) ($record['last_sent_at'] ?? now()->timestamp)));
                 Cache::put($cacheKey, $record, $remainingSeconds);
 
@@ -129,7 +127,7 @@ class AuthController extends Controller
                 'first_name'            => 'required|string|max:100',
                 'last_name'             => 'required|string|max:100',
                 'email'                 => 'required|email|max:255|unique:users,email',
-                'phone'                 => 'required|string|max:30|unique:users,phone',
+                'phone'                 => ['required', 'string', 'regex:/^\+639\d{9}$/', 'unique:users,phone'],
                 'password'              => [
                     'required',
                     'string',
@@ -139,10 +137,6 @@ class AuthController extends Controller
                 'password_confirmation' => 'required|string',
             ]);
         } catch (ValidationException $e) {
-            // Flattened so the mobile client (which only reads a top-level
-            // "message" string) sees the actual rule that failed instead of
-            // Laravel's generic "The given data was invalid." envelope —
-            // same pattern as PasswordResetController::resetPassword().
             return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
         }
 
@@ -177,7 +171,6 @@ class AuthController extends Controller
                 'phone'      => $data['phone'],
             ]);
         } catch (\Throwable $e) {
-            // Profile creation failure is non-fatal for auth — log and continue
             \Illuminate\Support\Facades\Log::warning('Customer profile creation failed for user ' . $user->id . ': ' . $e->getMessage());
         }
 
@@ -212,7 +205,14 @@ class AuthController extends Controller
 
         $user = User::with('role')->where('email', $email)->first();
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        if (! $user || $user->password === null || ! Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid credentials.',
+            ], 401);
+        }
+
+        if (! in_array($user->role?->name, ['Customer', 'Team Leader'], true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials.',
@@ -271,6 +271,7 @@ class AuthController extends Controller
                 'phone'      => $user->phone,
                 'role'       => $user->role?->name ?? 'Customer',
                 'duty_class' => $user->duty_class,
+                'auth_provider' => $user->auth_provider,
             ],
         ]);
     }
@@ -399,6 +400,13 @@ class AuthController extends Controller
         }
 
         $user = $request->user();
+
+        if ($user->password === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This account signs in with Google and has no password to change.',
+            ], 422);
+        }
 
         if (!Hash::check($validated['current_password'], $user->password)) {
             return response()->json([

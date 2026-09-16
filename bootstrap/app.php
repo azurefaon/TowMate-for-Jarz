@@ -29,23 +29,42 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (\Throwable $e, Request $request) {
-            if (config('app.debug')) {
-                return null;
-            }
-
             if (! $request->is('api/*') && ! $request->expectsJson()) {
                 return null;
             }
 
-            $status = $e instanceof HttpExceptionInterface ? $e->getStatusCode() : 500;
-
-            if ($status !== 500) {
-                return null;
+            if ($e instanceof \Illuminate\Validation\ValidationException) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                    'errors' => $e->errors(),
+                ], $e->status);
             }
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Something went wrong. Please try again later.',
-            ], 500);
+            if ($e instanceof \Illuminate\Auth\AuthenticationException) {
+                return response()->json(['message' => $e->getMessage()], 401);
+            }
+
+            if ($e instanceof \Illuminate\Auth\Access\AuthorizationException) {
+                return response()->json(['message' => $e->getMessage()], $e->status ?? 403);
+            }
+
+            if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                return response()->json(['message' => 'Not found.'], 404);
+            }
+
+            if ($e instanceof HttpExceptionInterface) {
+                return response()->json([
+                    'message' => $e->getMessage() ?: 'Request failed.',
+                ], $e->getStatusCode(), $e->getHeaders());
+            }
+
+            if (! config('app.debug')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Something went wrong. Please try again later.',
+                ], 500);
+            }
+
+            return null;
         });
     })->create();

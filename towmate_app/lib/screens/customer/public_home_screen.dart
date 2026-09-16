@@ -135,7 +135,7 @@ class _TopBar extends StatelessWidget {
             width: 40,
             height: 40,
             child: IconButton(
-              icon: Icon(Icons.menu_rounded, color: context.textTertiary, size: 22),
+              icon: Icon(Icons.menu, color: context.textTertiary, size: 22),
               onPressed: onMenuTap,
               tooltip: 'Menu',
               padding: EdgeInsets.zero,
@@ -336,7 +336,7 @@ class _HeroSection extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.local_shipping_rounded),
+          CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.local_shipping),
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -408,19 +408,19 @@ class _TrustSection extends StatelessWidget {
         children: [
           Expanded(
             child: _TrustItem(
-              icon: Icons.bolt_rounded,
+              icon: Icons.bolt,
               label: 'Fast Response',
             ),
           ),
           Expanded(
             child: _TrustItem(
-              icon: Icons.verified_user_outlined,
+              icon: Icons.verified_user,
               label: 'Trusted Professionals',
             ),
           ),
           Expanded(
             child: _TrustItem(
-              icon: Icons.map_outlined,
+              icon: Icons.map,
               label: 'Wide Coverage',
             ),
           ),
@@ -569,7 +569,7 @@ class _ServicePreviewCard extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.only(right: 10),
-              child: Icon(Icons.chevron_right_rounded, color: context.textTertiary, size: 20),
+              child: Icon(Icons.chevron_right, color: context.textTertiary, size: 20),
             ),
           ],
         ),
@@ -599,7 +599,7 @@ class _EmergencySection extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.local_shipping_rounded),
+              CmsImage(imageUrl: imageUrl, fallbackIcon: Icons.local_shipping),
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: TmColors.black.withValues(alpha: 0.72),
@@ -793,7 +793,7 @@ class _CoverageSection extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.map_outlined, color: context.textPrimary, size: 22),
+                  Icon(Icons.map, color: context.textPrimary, size: 22),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -819,7 +819,7 @@ class _CoverageSection extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded, color: context.textTertiary),
+                  Icon(Icons.chevron_right, color: context.textTertiary),
                 ],
               ),
             ),

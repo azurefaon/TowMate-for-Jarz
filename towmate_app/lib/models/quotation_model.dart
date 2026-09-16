@@ -20,6 +20,7 @@ class QuotationModel {
     this.expiresAt,
     this.sentAt,
     this.priceChangeLog,
+    this.responseNote,
   });
 
   final int id;
@@ -42,8 +43,12 @@ class QuotationModel {
   final DateTime? expiresAt;
   final DateTime? sentAt;
   final List<Map<String, dynamic>>? priceChangeLog;
+  // Only meaningful while status == 'price_review_requested' — the
+  // customer's own submitted reason for the review.
+  final String? responseNote;
 
   bool get isExpired => expiresAt != null && expiresAt!.isBefore(DateTime.now());
+  bool get isPriceReviewRequested => status == 'price_review_requested';
 
   Duration? get timeRemaining {
     if (expiresAt == null) return null;
@@ -74,5 +79,6 @@ class QuotationModel {
         priceChangeLog: (j['price_change_log'] as List<dynamic>?)
             ?.map((e) => Map<String, dynamic>.from(e as Map))
             .toList(),
+        responseNote: j['response_note'] as String?,
       );
 }

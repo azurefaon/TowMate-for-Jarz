@@ -2,10 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'core/app_prefs.dart';
 import 'core/theme.dart';
+import 'models/booking_model.dart';
 import 'screens/customer/about_screen.dart';
 import 'screens/customer/book_now_screen.dart';
 import 'screens/customer/booking_detail_screen.dart';
+import 'screens/customer/booking_success_screen.dart';
 import 'screens/customer/customer_quotation_screen.dart';
+import 'screens/customer/customer_services_screen.dart';
+import 'screens/customer/customer_vehicle_types_screen.dart';
 import 'screens/customer/home_screen.dart';
 import 'screens/customer/login_screen.dart';
 import 'screens/customer/my_bookings_screen.dart';
@@ -53,6 +57,11 @@ class MyApp extends StatelessWidget {
             page = code is String && code.isNotEmpty
                 ? BookingDetailScreen(bookingCode: code)
                 : const MyBookingsScreen();
+          } else if (settings.name == '/booking-success') {
+            final bookings = settings.arguments;
+            page = bookings is List<BookingGroupSibling> && bookings.isNotEmpty
+                ? BookingSuccessScreen(bookings: bookings)
+                : const HomeScreen();
           } else {
             page = switch (settings.name) {
               '/public-home'       => const PublicHomeScreen(),
@@ -63,6 +72,8 @@ class MyApp extends StatelessWidget {
               '/my-bookings'       => const MyBookingsScreen(),
               '/quotation'         => const CustomerQuotationScreen(),
               '/services'          => const ServicesScreen(),
+              '/customer-services' => const CustomerServicesScreen(),
+              '/vehicle-types'     => const CustomerVehicleTypesScreen(),
               '/about'             => const AboutScreen(),
               '/tl-force-password' => const TlForcePasswordScreen(),
               '/tl-home'           => const TlHomeScreen(),

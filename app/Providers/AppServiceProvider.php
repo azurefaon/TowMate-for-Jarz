@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\GoogleIdTokenVerifier;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\DispatcherNotification;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Models\VehicleType;
 use App\Observers\AuditObserver;
 use App\Observers\DispatcherNotificationObserver;
+use App\Services\Auth\GoogleApiClientIdTokenVerifier;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
@@ -27,25 +29,11 @@ use Symfony\Component\Mailer\Transport\Dsn;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
-        //
+        $this->app->bind(GoogleIdTokenVerifier::class, GoogleApiClientIdTokenVerifier::class);
     }
 
-    /**
-     * Rate limiters for the customer mobile app's unauthenticated OTP/reset
-     * endpoints (registration OTP, password-reset OTP, password-reset
-     * submit) — see OWASP audit A07:2025 / API4:2023 (zero throttling was
-     * previously registered anywhere on routes/api.php).
-     *
-     * Keyed primarily by normalized email (not IP alone — shared NAT would
-     * otherwise let one customer's throttle collide with another's) plus a
-     * secondary, looser per-IP limit to blunt abuse spread across many
-     * emails from a single source.
-     */
     protected function registerCustomerOtpRateLimiters(): void
     {
         RateLimiter::for('customer-otp-send', function (Request $request) {
@@ -72,6 +60,36 @@ class AppServiceProvider extends ServiceProvider
             return [
                 Limit::perMinute(10)->by('pwreset-submit-email:' . $email),
                 Limit::perMinute(20)->by('pwreset-submit-ip:' . $request->ip()),
+            ];
+        });
+
+        RateLimiter::for('customer-login', function (Request $request) {
+            $email = strtolower(trim((string) $request->input('email')));
+
+            return [
+                Limit::perMinute(6)->by('login-email:' . $email),
+                Limit::perMinute(20)->by('login-ip:' . $request->ip()),
+            ];
+        });
+
+        RateLimiter::for('customer-register', function (Request $request) {
+            $email = strtolower(trim((string) $request->input('email')));
+
+            return [
+                Limit::perMinute(5)->by('register-email:' . $email),
+                Limit::perMinute(15)->by('register-ip:' . $request->ip()),
+            ];
+        });
+
+        RateLimiter::for('customer-google-auth', function (Request $request) {
+            return [
+                Limit::perMinute(10)->by('google-auth-ip:' . $request->ip()),
+            ];
+        });
+
+        RateLimiter::for('customer-google-complete', function (Request $request) {
+            return [
+                Limit::perMinute(10)->by('google-complete-ip:' . $request->ip()),
             ];
         });
     }

@@ -2,18 +2,6 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Third Party Services
-    |--------------------------------------------------------------------------
-    |
-    | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
-    |
-    */
-
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
@@ -44,8 +32,9 @@ return [
         'places_details_url' => env('GOOGLE_PLACES_DETAILS_URL', 'https://places.googleapis.com/v1/places'),
     ],
 
-    // GOOGLE_MAPS_API_KEY is reserved for the browser-facing dispatcher map
-    // (Websites/HTTP-referrer restricted) — never use it for server-side calls.
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+    ],
 
     'openrouteservice' => [
         'key' => env('OPENROUTESERVICE_API_KEY'),
