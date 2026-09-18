@@ -12,10 +12,9 @@
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 16px;">
         <tr>
             <td align="center">
-                <table width="480" cellpadding="0" cellspacing="0"
-                    style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(24,24,27,0.10);">
+                <table width="100%" cellpadding="0" cellspacing="0"
+                    style="width:480px;max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(24,24,27,0.10);">
 
-                    {{-- Header band --}}
                     <tr>
                         <td style="background:#18181b;padding:22px 28px;">
                             <table width="100%" cellpadding="0" cellspacing="0">
@@ -40,7 +39,6 @@
                         </td>
                     </tr>
 
-                    {{-- Greeting + reference --}}
                     <tr>
                         <td style="padding:24px 28px 0;">
                             <p style="margin:0 0 10px;font-size:15px;color:#3f3f46;line-height:1.5;">
@@ -53,7 +51,6 @@
                         </td>
                     </tr>
 
-                    {{-- Review notice --}}
                     <tr>
                         <td style="padding:20px 28px 0;">
                             <table width="100%" cellpadding="0" cellspacing="0">
@@ -70,7 +67,6 @@
                         </td>
                     </tr>
 
-                    {{-- Route card --}}
                     <tr>
                         <td style="padding:16px 28px 0;">
                             <table width="100%" cellpadding="0" cellspacing="0"
@@ -110,7 +106,6 @@
                         </td>
                     </tr>
 
-                    {{-- Price breakdown --}}
                     <tr>
                         <td style="padding:20px 28px 0;">
                             <table width="100%" cellpadding="0" cellspacing="0">
@@ -146,7 +141,6 @@
                         </td>
                     </tr>
 
-                    {{-- Total band --}}
                     <tr>
                         <td style="padding:16px 28px 0;">
                             <table width="100%" cellpadding="0" cellspacing="0"
@@ -168,7 +162,6 @@
                         </td>
                     </tr>
 
-                    {{-- Next step --}}
                     <tr>
                         <td align="center" style="padding:22px 28px 28px;">
                             <p style="margin:0;font-size:13.5px;color:#3f3f46;">

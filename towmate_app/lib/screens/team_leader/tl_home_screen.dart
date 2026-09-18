@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../services/api_service.dart';
 import '../../services/location_tracker.dart';
 import '../../services/team_leader_service.dart';
-import '../../widgets/tl_task_detail_card.dart';
-import '../../widgets/tl_drawer.dart';
+import '../../services/tl_presence_controller.dart';
+import '../../widgets/tl_bottom_nav.dart';
 
 class TlHomeScreen extends StatefulWidget {
   const TlHomeScreen({super.key});
@@ -24,9 +25,8 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   String? _name;
   String? _dutyClass;
   Timer? _pollTimer;
-  Timer? _presenceTimer;
   final LocationTracker _gps = LocationTracker();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  static final _money = NumberFormat('#,##0.00', 'en_PH');
 
   @override
   void initState() {
@@ -38,11 +38,9 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      TeamLeaderService.pingPresence();
       _gps.start();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      TeamLeaderService.markAway();
       _gps.stop();
     }
   }
@@ -50,7 +48,7 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   Future<void> _init() async {
     _name = await ApiService.getUserName();
     _dutyClass = await ApiService.getUserDutyClass();
-    TeamLeaderService.pingPresence();
+    TlPresenceController.start();
     _gps.start();
     await _fetchTask();
     if (!mounted) return;
@@ -58,27 +56,25 @@ class _TlHomeScreenState extends State<TlHomeScreen>
       const Duration(seconds: 15),
       (_) => _fetchTask(),
     );
-    _presenceTimer = Timer.periodic(
-      const Duration(seconds: 45),
-      (_) => TeamLeaderService.pingPresence(),
-    );
   }
 
   Future<void> _fetchTask() async {
     if (!mounted) return;
     setState(() => _loadingTask = true);
-    // Piggyback a presence ping on every poll so the 15s task poll also
-    // keeps the TL online, even when background-tab timer throttling delays
-    // the dedicated presence timer.
-    TeamLeaderService.pingPresence();
-    final task = await TeamLeaderService.getCurrentTask();
+    TaskModel? task;
+    try {
+      task = await TeamLeaderService.getCurrentTask();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingTask = false);
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _task = task;
       _loadingTask = false;
     });
 
-    // Statuses that belong to the active task shell — navigate there immediately.
     const tlActiveStatuses = {
       'accepted', 'on_the_way', 'arrived_pickup', 'in_progress',
       'loading_vehicle', 'on_job', 'arrived_dropoff',
@@ -92,8 +88,6 @@ class _TlHomeScreenState extends State<TlHomeScreen>
       return;
     }
 
-    // Completed/returned/cancelled tasks must not appear on the home screen.
-    // Only 'assigned' is shown here as an available task to accept.
     if (task != null && task.status != 'assigned') {
       setState(() {
         _task = null;
@@ -111,9 +105,6 @@ class _TlHomeScreenState extends State<TlHomeScreen>
     if (!mounted) return;
 
     if (res['success'] == true) {
-      // Route step merges 'accepted' + 'on_the_way' — start the en-route
-      // status immediately so the TL lands directly on the Route screen.
-      // If this second hop fails, TlEnRouteScreen resumes it on first tap.
       await TeamLeaderService.updateStatus(_task!.bookingCode, 'on_the_way');
       if (!mounted) return;
       _pollTimer?.cancel();
@@ -126,7 +117,6 @@ class _TlHomeScreenState extends State<TlHomeScreen>
           backgroundColor: TmColors.error,
         ),
       );
-      // Re-fetch to clear stale task card if it's no longer available
       setState(() => _accepting = false);
       await _fetchTask();
       _pollTimer ??= Timer.periodic(
@@ -140,148 +130,157 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
-    _presenceTimer?.cancel();
     _gps.stop();
     super.dispose();
+  }
+
+  String get _greeting {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: TmColors.grey100,
-      drawer: TlDrawer(currentRoute: '/tl-home', name: _name),
-      appBar: AppBar(
-        backgroundColor: TmColors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: TmColors.grey700),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          tooltip: 'Menu',
-        ),
-        title: RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: 'Tow',
-                style: GoogleFonts.inter(
-                  color: TmColors.black,
-                  fontSize: 20,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              TextSpan(
-                text: 'Mate',
-                style: GoogleFonts.inter(
-                  color: TmColors.yellow,
-                  fontSize: 20,
-                  letterSpacing: -0.4,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _fetchTask,
-        color: TmColors.yellow,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.all(20),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  // Greeting
-                  Text(
-                    'Hello, ${_name ?? 'Team Leader'}',
-                    style: GoogleFonts.inter(
-                      color: TmColors.black,
-                      fontSize: 20,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'You will be notified when a task is assigned.',
-                    style: GoogleFonts.inter(
-                      color: TmColors.grey500,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Status + duty class row
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    color: TmColors.white,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: TmColors.success,
-                            shape: BoxShape.circle,
-                          ),
+      backgroundColor: context.bg,
+      bottomNavigationBar: const TlBottomNav(currentRoute: '/tl-home'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _header(context),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _fetchTask,
+                color: TmColors.yellow,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$_greeting,',
+                        style: GoogleFonts.inter(
+                          color: context.textSecondary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Available',
-                          style: GoogleFonts.inter(
-                            color: TmColors.grey700,
-                            fontSize: 13,
-                          ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _name ?? 'Team Leader',
+                        style: GoogleFonts.inter(
+                          color: context.textPrimary,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.8,
                         ),
-                        if (_dutyClass != null) ...[
-                          const SizedBox(width: 10),
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
                           Container(
-                            width: 1,
-                            height: 12,
-                            color: TmColors.grey300,
+                            width: 9,
+                            height: 9,
+                            decoration: const BoxDecoration(
+                              color: TmColors.success,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            _dutyClassLabel(_dutyClass!),
+                            'Available',
                             style: GoogleFonts.inter(
-                              color: TmColors.grey500,
-                              fontSize: 12,
-                              letterSpacing: 0.2,
+                              color: context.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
+                          if (_dutyClass != null) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                '· ${_dutyClassLabel(_dutyClass!)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  color: context.textSecondary,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          if (_loadingTask)
+                            SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: TmColors.yellow.withValues(alpha: 0.8),
+                              ),
+                            ),
                         ],
-                        const Spacer(),
-                        if (_loadingTask)
-                          const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: TmColors.yellow,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                      ),
+                      const SizedBox(height: 22),
+                      Divider(height: 1, color: context.divider),
+                      const SizedBox(height: 22),
 
-                  if (_task == null && !_loadingTask) _idleCard(),
-                  if (_task != null) ...[
-                    _sectionLabel('Available Task'),
-                    const SizedBox(height: 12),
-                    TlTaskDetailCard(task: _task!),
-                    const SizedBox(height: 20),
-                    _acceptButton(),
-                  ],
-                ]),
+                      _sectionLabel(context, 'Current Task'),
+                      const SizedBox(height: 12),
+                      if (_task == null && !_loadingTask) _idleCard(context),
+                      if (_task != null) ...[
+                        _currentTaskCard(context, _task!),
+                        const SizedBox(height: 16),
+                        _acceptButton(),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _header(BuildContext context) {
+    return Container(
+      height: 64,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: context.card,
+        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: GoogleFonts.inter(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.8,
+          ),
+          children: [
+            TextSpan(text: 'Tow', style: TextStyle(color: context.textPrimary)),
+            const TextSpan(text: 'Mate', style: TextStyle(color: TmColors.yellow)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(BuildContext context, String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: context.textPrimary,
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.4,
       ),
     );
   }
@@ -293,43 +292,267 @@ class _TlHomeScreenState extends State<TlHomeScreen>
         _        => dc,
       };
 
-  Widget _idleCard() {
+  String _statusLabel(String status) => status
+      .split('_')
+      .where((w) => w.isNotEmpty)
+      .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+
+  Widget _idleCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
       decoration: BoxDecoration(
-        color: TmColors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: context.surface,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.inbox_outlined, size: 48, color: TmColors.grey300),
-          const SizedBox(height: 16),
           Text(
-            'No Task Assigned',
+            'No task assigned',
             style: GoogleFonts.inter(
-              color: TmColors.black,
-              fontSize: 16,
-              letterSpacing: -0.2,
+              color: context.textPrimary,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.1,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
-            'Pull down to refresh or wait — this screen checks automatically every 15 seconds.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13),
+            'New towing requests will appear here when assigned.',
+            style: GoogleFonts.inter(color: context.textTertiary, fontSize: 13),
           ),
         ],
       ),
     );
   }
 
-  Widget _sectionLabel(String text) {
+  Widget _currentTaskCard(BuildContext context, TaskModel task) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.card,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: context.divider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: context.isDark ? 0.24 : 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        task.bookingCode,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          color: context.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _statusPill(context, task.status),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  task.customerName,
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                if (task.customerPhone.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    task.customerPhone,
+                    style: GoogleFonts.inter(
+                      color: context.textSecondary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Divider(height: 1, color: context.divider),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _routeLabel(context, 'Pickup'),
+                const SizedBox(height: 6),
+                Text(
+                  task.pickupAddress,
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                ),
+                SizedBox(
+                  height: 44,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 2,
+                        height: double.infinity,
+                        child: ColoredBox(color: context.divider),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${task.distanceKm.toStringAsFixed(1)} km',
+                        style: GoogleFonts.inter(
+                          color: context.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _routeLabel(context, 'Drop-off'),
+                const SizedBox(height: 6),
+                Text(
+                  task.dropoffAddress,
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: context.divider),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    task.truckTypeName,
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  task.serviceType == 'book_now' ? 'Immediate' : 'Scheduled',
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Divider(height: 1, color: context.divider),
+          if (task.notes != null && task.notes!.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _routeLabel(context, 'Customer note'),
+                  const SizedBox(height: 6),
+                  Text(
+                    task.notes!,
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: context.divider),
+          ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Fare',
+                  style: GoogleFonts.inter(
+                    color: context.textSecondary,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '₱${_money.format(task.finalTotal)}',
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.8,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _routeLabel(BuildContext context, String text) {
     return Text(
-      text,
+      text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: TmColors.grey700,
-        fontSize: 12,
-        letterSpacing: 0.5,
+        color: context.textSecondary,
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.1,
+      ),
+    );
+  }
+
+  Widget _statusPill(BuildContext context, String status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: context.textPrimary,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        _statusLabel(status),
+        style: GoogleFonts.inter(
+          color: context.bg,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -337,14 +560,14 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   Widget _acceptButton() {
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: 56,
       child: ElevatedButton(
         onPressed: _accepting ? null : _accept,
         style: ElevatedButton.styleFrom(
           backgroundColor: TmColors.yellow,
           foregroundColor: TmColors.black,
           disabledBackgroundColor: TmColors.yellow.withValues(alpha: 0.6),
-          shape: const StadiumBorder(),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 0,
         ),
         child: _accepting
@@ -356,23 +579,13 @@ class _TlHomeScreenState extends State<TlHomeScreen>
                   strokeWidth: 2,
                 ),
               )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: TmColors.black,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Accept Task',
-                    style: GoogleFonts.inter(
-                      color: TmColors.black,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
+            : Text(
+                'Accept Task',
+                style: GoogleFonts.inter(
+                  color: TmColors.black,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
       ),
     );

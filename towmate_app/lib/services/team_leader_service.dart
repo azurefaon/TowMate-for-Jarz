@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,8 +19,6 @@ class TeamLeaderService {
     final token = await ApiService.getToken();
     return {..._baseHeaders, 'Authorization': 'Bearer $token'};
   }
-
-  // ── Password ───────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> changePassword({
     required String currentPassword,
@@ -59,24 +57,30 @@ class TeamLeaderService {
     }
   }
 
-  // ── Task ───────────────────────────────────────────────────────────────────
-
   static Future<TaskModel?> getCurrentTask() async {
-    try {
-      final response = await http
-          .get(Uri.parse('$_base/task'), headers: await _authHeaders())
-          .timeout(const Duration(seconds: 15));
+    Object? lastError;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final response = await http
+            .get(Uri.parse('$_base/task'), headers: await _authHeaders())
+            .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
+        if (response.statusCode != 200) {
+          throw Exception('Failed to load task: ${response.statusCode}');
+        }
+
         final body = jsonDecode(response.body) as Map<String, dynamic>;
         final data = body['data'];
         if (data == null) return null;
         return TaskModel.fromJson(data as Map<String, dynamic>);
+      } catch (e) {
+        lastError = e;
+        if (attempt < 2) {
+          await Future.delayed(const Duration(seconds: 2));
+        }
       }
-      return null;
-    } catch (_) {
-      return null;
     }
+    throw lastError!;
   }
 
   static Future<Map<String, dynamic>> getHistory({int page = 1}) async {
@@ -112,6 +116,7 @@ class TeamLeaderService {
     String status, {
     double? lat,
     double? lng,
+    bool isDemo = false,
   }) async {
     try {
       final response = await http
@@ -122,6 +127,7 @@ class TeamLeaderService {
               'status': status,
               if (lat != null) 'lat': lat,
               if (lng != null) 'lng': lng,
+              if (isDemo) 'is_demo': true,
             }),
           )
           .timeout(const Duration(seconds: 15));
@@ -200,7 +206,7 @@ class TeamLeaderService {
 
   static Future<Map<String, dynamic>> completeTask(
     String bookingCode,
-    File? signature,
+    Uint8List? signatureBytes,
     String paymentMethod, {
     String? cashReceived,
   }) async {
@@ -216,9 +222,9 @@ class TeamLeaderService {
         req.fields['cash_received'] = cashReceived;
       }
 
-      if (signature != null) {
+      if (signatureBytes != null) {
         req.files.add(
-          await http.MultipartFile.fromPath('signature', signature.path),
+          http.MultipartFile.fromBytes('signature', signatureBytes, filename: 'signature.png'),
         );
       }
 
@@ -232,16 +238,18 @@ class TeamLeaderService {
     }
   }
 
-  // ── Presence ───────────────────────────────────────────────────────────────
 
   static Future<void> pingPresence() async {
     try {
-      await http
+      final response = await http
           .post(
             Uri.parse('$_base/presence/ping'),
             headers: await _authHeaders(),
           )
           .timeout(const Duration(seconds: 10));
+      if (kDebugMode && (response.statusCode < 200 || response.statusCode >= 300)) {
+        debugPrint('TL presence ping failed: HTTP ${response.statusCode}');
+      }
     } catch (_) {}
   }
 
@@ -256,8 +264,6 @@ class TeamLeaderService {
     } catch (_) {}
   }
 
-  // Lightweight presence-only signal for app backgrounding/closing — unlike
-  // goOffline(), this does not release the TL's active job/unit assignment.
   static Future<void> markAway() async {
     try {
       await http
@@ -269,7 +275,6 @@ class TeamLeaderService {
     } catch (_) {}
   }
 
-  // ── Location ───────────────────────────────────────────────────────────────
 
   static Future<void> updateLocation(
     double lat,
@@ -292,7 +297,6 @@ class TeamLeaderService {
     } catch (_) {}
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> _post(
     String url, [

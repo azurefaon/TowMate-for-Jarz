@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../services/team_leader_service.dart';
-import '../../widgets/tl_drawer.dart';
+import '../../widgets/skeleton_box.dart';
+import '../../widgets/tl_bottom_nav.dart';
 
 class TlHistoryScreen extends StatefulWidget {
   const TlHistoryScreen({super.key});
@@ -12,7 +13,6 @@ class TlHistoryScreen extends StatefulWidget {
 }
 
 class _TlHistoryScreenState extends State<TlHistoryScreen> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final List<Map<String, dynamic>> _jobs = [];
   bool _loading = true;
   bool _loadingMore = false;
@@ -57,93 +57,113 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: TmColors.white,
-      drawer: TlDrawer(currentRoute: '/tl-history'),
-      appBar: AppBar(
-        backgroundColor: TmColors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: TmColors.black),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          tooltip: 'Menu',
+      backgroundColor: context.bg,
+      bottomNavigationBar: const TlBottomNav(currentRoute: '/tl-history'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _header(context),
+            Expanded(
+              child: _loading
+                  ? const _HistorySkeleton()
+                  : RefreshIndicator(
+                      onRefresh: () => _load(refresh: true),
+                      color: TmColors.yellow,
+                      child: _jobs.isEmpty
+                          ? _emptyState(context)
+                          : NotificationListener<ScrollNotification>(
+                              onNotification: (n) {
+                                if (n.metrics.pixels >=
+                                    n.metrics.maxScrollExtent - 200) {
+                                  _loadMore();
+                                }
+                                return false;
+                              },
+                              child: ListView.separated(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.all(20),
+                                itemCount: _jobs.length + (_loadingMore ? 1 : 0),
+                                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                                itemBuilder: (context, i) {
+                                  if (i >= _jobs.length) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 16),
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          color: TmColors.yellow,
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return _jobCard(context, _jobs[i]);
+                                },
+                              ),
+                            ),
+                    ),
+            ),
+          ],
         ),
-        title: Text(
-          'History',
-          style: GoogleFonts.inter(
-            color: TmColors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.3,
-          ),
-        ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => _load(refresh: true),
-        color: TmColors.yellow,
-        child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: TmColors.yellow),
-              )
-            : _jobs.isEmpty
-            ? _emptyState()
-            : NotificationListener<ScrollNotification>(
-                onNotification: (n) {
-                  if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
-                    _loadMore();
-                  }
-                  return false;
-                },
-                child: ListView.separated(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(20),
-                  itemCount: _jobs.length + (_loadingMore ? 1 : 0),
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, i) {
-                    if (i >= _jobs.length) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: TmColors.yellow,
-                            strokeWidth: 2,
-                          ),
-                        ),
-                      );
-                    }
-                    return _jobCard(_jobs[i]);
-                  },
-                ),
-              ),
       ),
     );
   }
 
-  Widget _emptyState() {
+  Widget _header(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
+      ),
+      child: Center(
+        child: RichText(
+          text: TextSpan(
+            style: GoogleFonts.inter(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
+            children: [
+              TextSpan(text: 'Tow', style: TextStyle(color: context.textPrimary)),
+              const TextSpan(text: 'Mate', style: TextStyle(color: TmColors.yellow)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
         child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
           child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+              decoration: BoxDecoration(
+                color: context.surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.history_rounded,
-                    size: 44,
-                    color: TmColors.black,
-                  ),
-                  const SizedBox(height: 14),
                   Text(
                     'No completed jobs yet',
                     style: GoogleFonts.inter(
-                      color: TmColors.black,
-                      fontSize: 15,
+                      color: context.textPrimary,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.1,
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Jobs you complete or return will show up here.',
+                    style: GoogleFonts.inter(color: context.textTertiary, fontSize: 13),
                   ),
                 ],
               ),
@@ -154,7 +174,7 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
     );
   }
 
-  Widget _jobCard(Map<String, dynamic> job) {
+  Widget _jobCard(BuildContext context, Map<String, dynamic> job) {
     final status = job['status'] as String? ?? '';
     final isCompleted = status == 'completed';
     final total = (job['final_total'] as num?)?.toDouble() ?? 0;
@@ -163,45 +183,38 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: TmColors.white,
+        color: context.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: TmColors.black, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: TmColors.black.withValues(alpha: 0.06),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: context.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(
-                job['booking_code'] as String? ?? '',
-                style: GoogleFonts.inter(
-                  color: TmColors.black,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  job['booking_code'] as String? ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isCompleted ? TmColors.black : TmColors.white,
-                  border: Border.all(color: TmColors.black, width: 1),
+                  color: isCompleted ? TmColors.success.withValues(alpha: 0.12) : context.surface,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   isCompleted ? 'Completed' : 'Returned',
                   style: GoogleFonts.inter(
-                    color: isCompleted ? TmColors.yellow : TmColors.black,
+                    color: isCompleted ? TmColors.success : context.textTertiary,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.3,
@@ -213,36 +226,34 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
           const SizedBox(height: 10),
           Text(
             job['customer_name'] as String? ?? '',
-            style: GoogleFonts.inter(color: TmColors.black, fontSize: 13),
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13),
           ),
           const SizedBox(height: 4),
           Text(
             '${job['pickup_address'] ?? ''} → ${job['dropoff_address'] ?? ''}',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(
-              color: TmColors.black.withValues(alpha: 0.65),
-              fontSize: 12,
-            ),
+            style: GoogleFonts.inter(color: context.textTertiary, fontSize: 12),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              Text(
-                '₱${total.toStringAsFixed(2)}',
-                style: GoogleFonts.inter(
-                  color: TmColors.black,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  '₱${total.toStringAsFixed(2)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 date,
-                style: GoogleFonts.inter(
-                  color: TmColors.black.withValues(alpha: 0.65),
-                  fontSize: 12,
-                ),
+                style: GoogleFonts.inter(color: context.textTertiary, fontSize: 12),
               ),
             ],
           ),
@@ -260,5 +271,64 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+}
+
+class _HistorySkeleton extends StatelessWidget {
+  const _HistorySkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(20),
+      itemCount: 4,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (_, _) => const _JobCardSkeleton(),
+    );
+  }
+}
+
+class _JobCardSkeleton extends StatelessWidget {
+  const _JobCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SkeletonBox(width: 90, height: 14),
+              const Spacer(),
+              SkeletonBox(
+                width: 70,
+                height: 18,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const SkeletonBox(width: 140, height: 13),
+          const SizedBox(height: 8),
+          const SkeletonBox(height: 12),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const SkeletonBox(width: 80, height: 15),
+              const Spacer(),
+              const SkeletonBox(width: 64, height: 12),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

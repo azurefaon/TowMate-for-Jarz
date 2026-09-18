@@ -7,141 +7,152 @@
     <title>Quotation {{ $quotation->quotation_number }} — TowMate</title>
 </head>
 
-<body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#000000;">
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b;">
 
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:32px 16px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 16px;">
         <tr>
             <td align="center">
-                <table width="480" cellpadding="0" cellspacing="0" style="border:1px solid #000000;">
+                <table width="100%" cellpadding="0" cellspacing="0"
+                    style="width:480px;max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(24,24,27,0.10);">
 
-                    {{-- Header: two logos + brand --}}
                     <tr>
-                        <td style="padding:20px 28px;border-bottom:1px solid #000000;">
+                        <td style="background:#18181b;padding:22px 28px;">
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
-                                    <td width="48" style="vertical-align:middle;">
-                                        <img src="{{ asset('customer/image/TowingLogo.png') }}" alt="Jarz Towing"
-                                            width="44" height="44" style="display:block;border:0;">
+                                    <td width="56" style="vertical-align:middle;">
+                                        <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path('customer/image/TowingLogo-email.png'))) }}"
+                                            alt="Jarz Towing" width="52" height="52" style="display:block;border:0;">
                                     </td>
                                     <td style="text-align:center;vertical-align:middle;">
-                                        <div style="font-size:14px;letter-spacing:0.12em;text-transform:uppercase;">
-                                            TowMate — Quotation</div>
+                                        <div style="font-size:13px;font-weight:bold;letter-spacing:0.14em;text-transform:uppercase;color:#ffffff;">
+                                            TowMate Quotation</div>
                                     </td>
-                                    <td width="48" style="vertical-align:middle;text-align:right;">
-                                        <img src="{{ asset('customer/image/accridetedlogo.png') }}"
-                                            alt="MMDA Accredited" width="44" height="44"
+                                    <td width="56" style="vertical-align:middle;text-align:right;">
+                                        <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path('customer/image/accridetedlogo-email.png'))) }}"
+                                            alt="MMDA Accredited" width="52" height="52"
                                             style="display:block;margin-left:auto;border:0;">
                                     </td>
                                 </tr>
                             </table>
-                            <p style="margin:14px 0 0;font-size:15px;">
-                                Hi {{ $quotation->customer->full_name }}, here is your quotation for review.
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:24px 28px 0;">
+                            <p style="margin:0 0 10px;font-size:15px;color:#3f3f46;line-height:1.5;">
+                                Hi <strong style="color:#18181b;">{{ $quotation->customer->full_name }}</strong>,
+                                thanks for choosing JARZ Towing — here's your quotation for review.
                             </p>
+                            <p style="margin:0;font-size:12.5px;font-weight:bold;letter-spacing:0.03em;color:#71717a;font-family:'Courier New',Courier,monospace;">
+                                {{ $quotation->quotation_number }}</p>
                         </td>
                     </tr>
 
-                    {{-- Reference --}}
                     <tr>
-                        <td style="padding:12px 28px;border-bottom:1px solid #000000;">
-                            <table width="100%" cellpadding="0" cellspacing="0">
+                        <td style="padding:20px 28px 0;">
+                            <table width="100%" cellpadding="0" cellspacing="0"
+                                style="background:#fafafa;border-radius:12px;">
                                 <tr>
-                                    <td style="font-size:13px;letter-spacing:0.07em;text-transform:uppercase;">Reference</td>
-                                    <td align="right" style="font-size:15px;font-family:'Courier New',Courier,monospace;">
-                                        {{ $quotation->quotation_number }}</td>
+                                    <td style="padding:16px 18px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="padding:3px 0;vertical-align:top;width:64px;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.06em;">
+                                                    From</td>
+                                                <td style="padding:3px 0;font-size:14px;color:#18181b;word-break:break-word;">
+                                                    {{ $quotation->pickup_address }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" style="padding:8px 0;">
+                                                    <div style="border-top:1px dashed #e4e4e7;"></div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding:3px 0;vertical-align:top;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.06em;">
+                                                    To</td>
+                                                <td style="padding:3px 0;font-size:14px;color:#18181b;word-break:break-word;">
+                                                    {{ $quotation->dropoff_address }}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+                                <tr>
+                                    <td style="font-size:12.5px;color:#71717a;">Vehicle: <strong
+                                            style="color:#18181b;">{{ $quotation->truckType->name }}</strong></td>
+                                    <td align="right" style="font-size:12.5px;color:#71717a;">Distance: <strong
+                                            style="color:#18181b;">{{ number_format($quotation->distance_km, 2) }}
+                                            km</strong></td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
 
-                    {{-- Service details --}}
                     <tr>
-                        <td style="padding:20px 28px;border-bottom:1px solid #000000;">
+                        <td style="padding:20px 28px 0;">
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
-                                    <td style="padding:5px 0;vertical-align:top;width:64px;font-size:13px;">From</td>
-                                    <td style="padding:5px 0;font-size:15px;">{{ $quotation->pickup_address }}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding:5px 0;vertical-align:top;font-size:13px;">To</td>
-                                    <td style="padding:5px 0;font-size:15px;">{{ $quotation->dropoff_address }}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding:5px 0;vertical-align:top;font-size:13px;">Vehicle</td>
-                                    <td style="padding:5px 0;font-size:15px;">{{ $quotation->truckType->name }}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding:5px 0;vertical-align:top;font-size:13px;">Distance</td>
-                                    <td style="padding:5px 0;font-size:15px;">
-                                        {{ number_format($quotation->distance_km, 2) }} km</td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-
-                    {{-- Price breakdown --}}
-                    <tr>
-                        <td style="padding:20px 28px;border-bottom:1px solid #000000;">
-                            <table width="100%" cellpadding="0" cellspacing="0">
-                                <tr>
-                                    <td style="padding:4px 0;font-size:15px;">Base rate</td>
-                                    <td align="right" style="padding:4px 0;font-size:15px;">
+                                    <td style="padding:4px 0;font-size:14px;color:#52525b;">Base rate</td>
+                                    <td align="right" style="padding:4px 0;font-size:14px;color:#18181b;">
                                         ₱{{ number_format($priceBreakdown['base_price'], 2) }}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding:4px 0;font-size:15px;">Distance fee</td>
-                                    <td align="right" style="padding:4px 0;font-size:15px;">
+                                    <td style="padding:4px 0;font-size:14px;color:#52525b;">Distance fee</td>
+                                    <td align="right" style="padding:4px 0;font-size:14px;color:#18181b;">
                                         ₱{{ number_format($priceBreakdown['distance_fee'], 2) }}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding:4px 0;font-size:15px;">VAT (12%)</td>
-                                    <td align="right" style="padding:4px 0;font-size:15px;">
+                                    <td style="padding:4px 0;font-size:14px;color:#52525b;">VAT (12%)</td>
+                                    <td align="right" style="padding:4px 0;font-size:14px;color:#18181b;">
                                         ₱{{ number_format($priceBreakdown['vat_amount'], 2) }}</td>
                                 </tr>
-                                @if ($priceBreakdown['additional_fee'] > 0)
+                                @if ($priceBreakdown['additional_fee'] != 0)
                                     <tr>
-                                        <td style="padding:4px 0;font-size:15px;">Additional fees</td>
-                                        <td align="right" style="padding:4px 0;font-size:15px;">
-                                            ₱{{ number_format($priceBreakdown['additional_fee'], 2) }}</td>
+                                        <td style="padding:4px 0;font-size:14px;color:#52525b;">
+                                            {{ $priceBreakdown['additional_fee'] < 0 ? 'Discount' : 'Additional fees' }}
+                                        </td>
+                                        <td align="right" style="padding:4px 0;font-size:14px;color:#18181b;">
+                                            {{ $priceBreakdown['additional_fee'] < 0 ? '−' : '' }}₱{{ number_format(abs($priceBreakdown['additional_fee']), 2) }}</td>
                                     </tr>
                                     @if (!empty($priceBreakdown['additional_fee_note']))
                                         <tr>
-                                            <td colspan="2" style="padding:0 0 4px;font-size:12px;color:#4b5563;">
+                                            <td colspan="2" style="padding:0 0 4px;font-size:12px;color:#a1a1aa;">
                                                 ↳ {{ $priceBreakdown['additional_fee_note'] }}</td>
                                         </tr>
                                     @endif
                                 @endif
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:16px 28px 0;">
+                            <table width="100%" cellpadding="0" cellspacing="0"
+                                style="background:#18181b;border-radius:12px;">
                                 <tr>
-                                    <td colspan="2" style="padding:8px 0 0;">
-                                        <hr style="border:none;border-top:1px solid #000000;margin:0;">
+                                    <td style="padding:16px 20px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="color:#a1a1aa;font-size:12.5px;vertical-align:middle;">
+                                                    Total (incl. VAT)</td>
+                                                <td align="right"
+                                                    style="color:#ffffff;font-size:22px;font-weight:bold;">
+                                                    ₱{{ number_format($priceBreakdown['total_amount'], 2) }}</td>
+                                            </tr>
+                                        </table>
                                     </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding:8px 0 0;font-size:17px;">Total</td>
-                                    <td align="right" style="padding:8px 0 0;font-size:19px;">
-                                        ₱{{ number_format($priceBreakdown['total_amount'], 2) }}</td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
 
-                    {{-- Next step --}}
                     <tr>
-                        <td align="center" style="padding:20px 28px;">
-                            <p style="margin:0;font-size:15px;">
+                        <td align="center" style="padding:22px 28px 28px;">
+                            <p style="margin:0;font-size:13.5px;color:#3f3f46;">
                                 Open the TowMate app to review and accept this quotation.
                             </p>
-                            <p style="margin:8px 0 0;font-size:14px;">
+                            <p style="margin:8px 0 0;font-size:12.5px;color:#a1a1aa;">
                                 Expires {{ $quotation->expires_at->format('M d, Y g:i A') }}
-                            </p>
-                        </td>
-                    </tr>
-
-                    {{-- Footer --}}
-                    <tr>
-                        <td style="padding:14px 28px;border-top:1px solid #000000;">
-                            <p style="margin:0;font-size:13px;line-height:1.6;">
-                                Questions? Call (123) 456-7890 or email support@towmate.com<br>
-                                Do not reply to this email — it is sent automatically.
                             </p>
                         </td>
                     </tr>

@@ -1,97 +1,205 @@
-@php
-    $baseRate = (float) ($booking->base_rate ?? 0);
-    $distanceKm = (float) ($booking->distance_km ?? 0);
-    $perKmRate = (float) ($booking->per_km_rate ?? 0);
-    $distanceFee = $distanceKm > 0 && $perKmRate > 0 ? $distanceKm * $perKmRate : 0;
-    $estimateTotal = (float) ($booking->computed_total ?? ($booking->final_total ?? $baseRate + $distanceFee));
-@endphp
+<!DOCTYPE html>
+<html>
 
-<div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
-    <div
-        style="max-width: 680px; margin: 0 auto; padding: 36px; background: #f8fafc; border-radius: 24px; border: 1px solid #e2e8f0;">
-        <div style="text-align: center; margin-bottom: 32px;">
-            <h1 style="margin: 0; font-size: 28px; color: #0f172a;">Booking Request Received</h1>
-            <p style="margin: 10px 0 0; color: #475569;">Thanks for choosing Jarz. This email serves as your booking
-                request receipt.</p>
-        </div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Request Received — TowMate</title>
+</head>
 
-        <div
-            style="background: #ffffff; border-radius: 20px; padding: 24px; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.05);">
-            <p style="margin: 0 0 12px; color: #64748b; font-weight: 600; letter-spacing: 0.02em;">Request status</p>
-            <h2 style="margin: 0 0 20px; font-size: 22px; color: #0f172a;">REQUESTED</h2>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b;">
+    @php
+        $baseRate = (float) ($booking->base_rate ?? 0);
+        $distanceKm = (float) ($booking->distance_km ?? 0);
+        $distanceFee = app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm, (float) ($booking->truckType?->per_km_rate ?? 0));
+        $additionalFee = (float) ($booking->additional_fee ?? 0);
+        $additionalFeeNote = $booking->dispatcher_note
+            ?? collect($booking->quotation?->price_change_log ?? [])->last()['reason']
+            ?? null;
+        $estimateTotal = (float) ($booking->computed_total ?? ($booking->final_total ?? $baseRate + $distanceFee + $additionalFee));
+    @endphp
 
-            <table style="width: 100%; border-collapse: collapse;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 16px;">
+    <tr>
+        <td align="center">
+            <table width="100%" cellpadding="0" cellspacing="0"
+                style="width:480px;max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(24,24,27,0.10);">
+
                 <tr>
-                    <td style="padding: 10px 0; color: #334155; font-weight: 600; width: 180px;">Booking #</td>
-                    <td style="padding: 10px 0; color: #475569;">{{ $booking->job_code }}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px 0; color: #334155; font-weight: 600;">Customer</td>
-                    <td style="padding: 10px 0; color: #475569;">{{ $booking->customer->full_name }}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px 0; color: #334155; font-weight: 600;">Phone</td>
-                    <td style="padding: 10px 0; color: #475569;">{{ $booking->customer->phone }}</td>
-                </tr>
-                @if ($booking->customer->email)
-                    <tr>
-                        <td style="padding: 10px 0; color: #334155; font-weight: 600;">Email</td>
-                        <td style="padding: 10px 0; color: #475569;">{{ $booking->customer->email }}</td>
-                    </tr>
-                @endif
-                <tr>
-                    <td style="padding: 10px 0; color: #334155; font-weight: 600;">Vehicle Type</td>
-                    <td style="padding: 10px 0; color: #475569;">{{ $booking->truckType->name ?? 'Towing Service' }}
+                    <td style="background:#18181b;padding:22px 28px;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td width="56" style="vertical-align:middle;">
+                                    <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path('customer/image/TowingLogo-email.png'))) }}"
+                                        alt="Jarz Towing" width="52" height="52" style="display:block;border:0;">
+                                </td>
+                                <td style="text-align:center;vertical-align:middle;">
+                                    <div
+                                        style="font-size:13px;font-weight:bold;letter-spacing:0.14em;text-transform:uppercase;color:#ffffff;">
+                                        TowMate Booking</div>
+                                </td>
+                                <td width="56" style="vertical-align:middle;text-align:right;">
+                                    <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path('customer/image/accridetedlogo-email.png'))) }}"
+                                        alt="MMDA Accredited" width="52" height="52"
+                                        style="display:block;margin-left:auto;border:0;">
+                                </td>
+                            </tr>
+                        </table>
                     </td>
                 </tr>
+
                 <tr>
-                    <td style="padding: 10px 0; color: #334155; font-weight: 600;">Pickup</td>
-                    <td style="padding: 10px 0; color: #475569;">{{ $booking->pickup_address }}</td>
+                    <td style="padding:24px 28px 0;">
+                        <p style="margin:0 0 10px;font-size:15px;color:#3f3f46;line-height:1.5;">
+                            Hi <strong style="color:#18181b;">{{ $booking->customer->full_name }}</strong>,
+                            thanks for choosing Jarz. This email serves as your booking request receipt.
+                        </p>
+                        <p
+                            style="margin:0;font-size:12.5px;font-weight:bold;letter-spacing:0.03em;color:#71717a;font-family:'Courier New',Courier,monospace;">
+                            {{ $booking->job_code }}</p>
+                    </td>
                 </tr>
+
                 <tr>
-                    <td style="padding: 10px 0; color: #334155; font-weight: 600;">Drop-off</td>
-                    <td style="padding: 10px 0; color: #475569;">{{ $booking->dropoff_address }}</td>
+                    <td style="padding:20px 28px 0;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="background:#fffbeb;border-radius:10px;padding:14px 18px;">
+                                    <p style="margin:0 0 4px;font-size:14px;font-weight:bold;color:#92400e;">
+                                        Booking Requested</p>
+                                    <p style="margin:0;font-size:13px;color:#b45309;line-height:1.5;">
+                                        Dispatch will continue reviewing your request and update the booking
+                                        using the details already submitted.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
                 </tr>
+
+                <tr>
+                    <td style="padding:16px 28px 0;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="font-size:12.5px;color:#71717a;padding:2px 0;">Customer: <strong
+                                        style="color:#18181b;">{{ $booking->customer->full_name }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td style="font-size:12.5px;color:#71717a;padding:2px 0;">Phone: <strong
+                                        style="color:#18181b;">{{ $booking->customer->phone }}</strong></td>
+                            </tr>
+                            @if ($booking->customer->email)
+                                <tr>
+                                    <td style="font-size:12.5px;color:#71717a;padding:2px 0;">Email: <strong
+                                            style="color:#18181b;">{{ $booking->customer->email }}</strong></td>
+                                </tr>
+                            @endif
+                        </table>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding:16px 28px 0;">
+                        <table width="100%" cellpadding="0" cellspacing="0"
+                            style="background:#fafafa;border-radius:12px;">
+                            <tr>
+                                <td style="padding:16px 18px;">
+                                    <table width="100%" cellpadding="0" cellspacing="0">
+                                        <tr>
+                                            <td
+                                                style="padding:3px 0;vertical-align:top;width:64px;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.06em;">
+                                                From</td>
+                                            <td style="padding:3px 0;font-size:14px;color:#18181b;">
+                                                {{ $booking->pickup_address }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="2" style="padding:8px 0;">
+                                                <div style="border-top:1px dashed #e4e4e7;"></div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td
+                                                style="padding:3px 0;vertical-align:top;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.06em;">
+                                                To</td>
+                                            <td style="padding:3px 0;font-size:14px;color:#18181b;">
+                                                {{ $booking->dropoff_address }}</td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+                            <tr>
+                                <td style="font-size:12.5px;color:#71717a;">Vehicle: <strong
+                                        style="color:#18181b;">{{ $booking->truckType->name ?? 'Towing Service' }}</strong>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding:20px 28px 0;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="padding:4px 0;font-size:14px;color:#52525b;">Base rate</td>
+                                <td align="right" style="padding:4px 0;font-size:14px;color:#18181b;">
+                                    ₱{{ number_format($baseRate, 2) }}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:4px 0;font-size:14px;color:#52525b;">Distance fee</td>
+                                <td align="right" style="padding:4px 0;font-size:14px;color:#18181b;">
+                                    ₱{{ number_format($distanceFee, 2) }}</td>
+                            </tr>
+                            @if ($additionalFee > 0)
+                                <tr>
+                                    <td style="padding:4px 0;font-size:14px;color:#52525b;">Additional fee</td>
+                                    <td align="right" style="padding:4px 0;font-size:14px;color:#18181b;">
+                                        ₱{{ number_format($additionalFee, 2) }}</td>
+                                </tr>
+                                @if (!empty($additionalFeeNote))
+                                    <tr>
+                                        <td colspan="2" style="padding:0 0 4px;font-size:12px;color:#a1a1aa;">
+                                            ↳ {{ $additionalFeeNote }}</td>
+                                    </tr>
+                                @endif
+                            @endif
+                        </table>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding:16px 28px 0;">
+                        <table width="100%" cellpadding="0" cellspacing="0"
+                            style="background:#18181b;border-radius:12px;">
+                            <tr>
+                                <td style="padding:16px 20px;">
+                                    <table width="100%" cellpadding="0" cellspacing="0">
+                                        <tr>
+                                            <td style="color:#a1a1aa;font-size:12.5px;vertical-align:middle;">
+                                                Estimated Total</td>
+                                            <td align="right" style="color:#ffffff;font-size:22px;font-weight:bold;">
+                                                ₱{{ number_format($estimateTotal, 2) }}</td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td align="center" style="padding:22px 28px 28px;">
+                        <p style="margin:0;font-size:13.5px;color:#3f3f46;">
+                            Open the TowMate app to track your booking status.
+                        </p>
+                    </td>
+                </tr>
+
             </table>
-        </div>
+        </td>
+    </tr>
+    </table>
+</body>
 
-        <div
-            style="margin-top: 24px; padding: 24px; background: #fffdf4; border: 1px solid #fde68a; border-radius: 20px;">
-            <h3 style="margin: 0 0 10px; font-size: 18px; color: #0f172a;">Estimated Price</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    <td style="padding: 8px 0; color: #334155; font-weight: 600;">Base rate</td>
-                    <td style="padding: 8px 0; color: #475569; text-align: right;">₱{{ number_format($baseRate, 2) }}
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 0; color: #334155; font-weight: 600;">Distance fee</td>
-                    <td style="padding: 8px 0; color: #475569; text-align: right;">₱{{ number_format($distanceFee, 2) }}
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 0; color: #0f172a; font-weight: 700;">Estimated Total</td>
-                    <td style="padding: 8px 0; color: #0f172a; text-align: right; font-weight: 700;">
-                        ₱{{ number_format($estimateTotal, 2) }}</td>
-                </tr>
-            </table>
-        </div>
-
-        <div style="margin-top: 24px; padding: 24px; background: #e2e8f0; border-radius: 20px;">
-            <h3 style="margin: 0 0 10px; font-size: 18px; color: #0f172a;">What happens next</h3>
-            <p style="margin: 0; color: #475569;">Dispatch will continue reviewing your request and update the booking
-                using the details already submitted.</p>
-        </div>
-
-        <div style="margin-top: 24px; text-align: center;">
-            <p style="margin: 0 0 14px; font-size: 14px; color: #475569;">Want to check where things stand? You can follow your booking at any time.</p>
-            <a href="{{ route('customer.track', $booking->booking_code) }}"
-               style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:13px 32px;border-radius:12px;">
-                Track My Booking →
-            </a>
-            <p style="margin: 12px 0 0; font-size: 11px; color: #94a3b8;">
-                You'll need to log in to view the tracking page.
-            </p>
-        </div>
-    </div>
-</div>
+</html>

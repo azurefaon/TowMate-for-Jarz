@@ -5,7 +5,10 @@ import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../services/api_service.dart';
 import '../../services/team_leader_service.dart';
+import '../../services/tl_presence_controller.dart';
 import '../../services/location_tracker.dart';
+import '../../widgets/skeleton_box.dart';
+import '../../widgets/tl_bottom_nav.dart';
 import '../../widgets/tl_drawer.dart';
 import '../../widgets/tl_status_timeline.dart';
 import 'tl_en_route_screen.dart';
@@ -18,6 +21,20 @@ import 'tl_returned_screen.dart';
 import 'tl_navigate_screen.dart';
 import 'tl_task_submitted_screen.dart';
 
+TaskModel? resolveFetchedTask({
+  required TaskModel? previous,
+  required TaskModel? fetched,
+}) {
+  final isTerminal = fetched != null &&
+      (fetched.status == 'completed' || fetched.status == 'returned');
+  final wasTrackingSameBooking =
+      previous != null && previous.bookingCode == fetched?.bookingCode;
+  if (isTerminal && !wasTrackingSameBooking) {
+    return null;
+  }
+  return fetched;
+}
+
 class TlActiveTaskShell extends StatefulWidget {
   const TlActiveTaskShell({super.key});
 
@@ -25,56 +42,46 @@ class TlActiveTaskShell extends StatefulWidget {
   State<TlActiveTaskShell> createState() => _TlActiveTaskShellState();
 }
 
-class _TlActiveTaskShellState extends State<TlActiveTaskShell>
-    with WidgetsBindingObserver {
+class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
   TaskModel? _task;
   bool _loading = true;
   int _tabIndex = 0;
   final LocationTracker _gps = LocationTracker();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Timer? _pollTimer;
-  Timer? _presenceTimer;
   String? _name;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     ApiService.getUserName().then((n) { if (mounted) setState(() => _name = n); });
-    TeamLeaderService.pingPresence();
+    TlPresenceController.start();
     _fetchTask();
     _pollTimer = Timer.periodic(
       const Duration(seconds: 20),
       (_) => _fetchTask(),
     );
-    _presenceTimer = Timer.periodic(
-      const Duration(seconds: 45),
-      (_) => TeamLeaderService.pingPresence(),
-    );
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      TeamLeaderService.pingPresence();
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      TeamLeaderService.markAway();
-    }
   }
 
   Future<void> _fetchTask() async {
-    final task = await TeamLeaderService.getCurrentTask();
+    TaskModel? task;
+    try {
+      task = await TeamLeaderService.getCurrentTask();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      return;
+    }
     if (!mounted) return;
+
+    task = resolveFetchedTask(previous: _task, fetched: task);
+
     setState(() {
       _task = task;
       _loading = false;
     });
     _syncGps(task);
 
-    // Keep polling on completed screen if this is a group booking with a
-    // remaining vehicle — dispatcher may assign Vehicle 2 at any time and
-    // we want the TL's screen to auto-transition without a manual tap.
     final isGroupAwaitingNext = task != null &&
         task.status == 'completed' &&
         task.isGroupBooking &&
@@ -105,7 +112,6 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
     if (!mounted) return;
     setState(() => _task = updated);
     _syncGps(updated);
-    // Restart poll timer if transitioning back to an active task (e.g. next vehicle in group)
     if (updated.isActive && (_pollTimer == null || !_pollTimer!.isActive)) {
       _pollTimer = Timer.periodic(
         const Duration(seconds: 20),
@@ -116,9 +122,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
-    _presenceTimer?.cancel();
     _gps.stop();
     super.dispose();
   }
@@ -126,39 +130,41 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: TmColors.white,
-        body: Center(child: CircularProgressIndicator(color: TmColors.yellow)),
+      return Scaffold(
+        backgroundColor: context.bg,
+        body: const SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: _TaskLoadingSkeleton(),
+          ),
+        ),
       );
     }
 
     if (_task == null) {
       return Scaffold(
-        backgroundColor: TmColors.white,
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.error_outline_rounded,
-                size: 48,
-                color: TmColors.grey300,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No active task found.',
-                style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 14),
-              ),
-              const SizedBox(height: 20),
-              TextButton(
-                onPressed: () =>
-                    Navigator.pushReplacementNamed(context, '/tl-home'),
-                child: Text(
-                  'Back to Home',
-                  style: GoogleFonts.inter(color: TmColors.yellow),
+        backgroundColor: context.bg,
+        bottomNavigationBar: const TlBottomNav(currentRoute: '/tl-active-task'),
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'No active task found.',
+                  style: GoogleFonts.inter(color: context.textTertiary, fontSize: 14),
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pushReplacementNamed(context, '/tl-home'),
+                  child: Text(
+                    'Back to Home',
+                    style: GoogleFonts.inter(color: TmColors.yellow),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -206,6 +212,14 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
   }
 
   Widget _topBar(TaskModel task) {
+    const redesignedStepStatuses = {
+      'accepted', 'on_the_way',
+      'arrived_pickup', 'in_progress', 'loading_vehicle',
+      'on_job',
+      'arrived_dropoff',
+    };
+    final hasOwnStepHeader = redesignedStepStatuses.contains(task.status) ||
+        task.status == 'waiting_verification';
     return Container(
       color: TmColors.white,
       child: SafeArea(
@@ -246,26 +260,28 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: TmColors.yellow.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _statusLabel(task.status),
-                      style: GoogleFonts.inter(
-                        color: TmColors.yellow,
-                        fontSize: 11,
+                  if (!hasOwnStepHeader) ...[
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: TmColors.yellow.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _statusLabel(task.status),
+                        style: GoogleFonts.inter(
+                          color: TmColors.yellow,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                   const Spacer(),
-                  if (_gps.isRunning)
+                  if (_gps.isRunning && !hasOwnStepHeader)
                     Row(
                       children: [
                         const Icon(
@@ -286,7 +302,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
                 ],
               ),
             ),
-            TlStatusTimeline(currentStatus: task.status),
+            if (!hasOwnStepHeader) TlStatusTimeline(currentStatus: task.status),
             if (task.isGroupBooking) ...[
               const SizedBox(height: 6),
               Padding(
@@ -296,6 +312,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 3),
+                      clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
                         color: TmColors.yellow.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
@@ -332,8 +349,16 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
 
   Widget _taskTab(TaskModel task) {
     return switch (task.status) {
-      'accepted' => TlEnRouteScreen(task: task, onUpdate: onTaskUpdated),
-      'on_the_way' => TlEnRouteScreen(task: task, onUpdate: onTaskUpdated),
+      'accepted' => TlEnRouteScreen(
+          task: task,
+          onUpdate: onTaskUpdated,
+          onNavigateToPickup: () => setState(() => _tabIndex = 1),
+        ),
+      'on_the_way' => TlEnRouteScreen(
+          task: task,
+          onUpdate: onTaskUpdated,
+          onNavigateToPickup: () => setState(() => _tabIndex = 1),
+        ),
       'arrived_pickup' => TlArrivedPickupScreen(
         task: task,
         onUpdate: onTaskUpdated,
@@ -346,7 +371,11 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
         task: task,
         onUpdate: onTaskUpdated,
       ),
-      'on_job' => TlTransportingScreen(task: task, onUpdate: onTaskUpdated),
+      'on_job' => TlTransportingScreen(
+          task: task,
+          onUpdate: onTaskUpdated,
+          onNavigateToDropoff: () => setState(() => _tabIndex = 1),
+        ),
       'arrived_dropoff' => TlArrivedDropoffScreen(
         task: task,
         onUpdate: onTaskUpdated,
@@ -526,5 +555,33 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
           'returned': 'Returned',
         }[status] ??
         status;
+  }
+}
+
+class _TaskLoadingSkeleton extends StatelessWidget {
+  const _TaskLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const SkeletonBox(width: 90, height: 13),
+            const Spacer(),
+            SkeletonBox(width: 70, height: 22, borderRadius: BorderRadius.circular(20)),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const SkeletonBox(width: 160, height: 26),
+        const SizedBox(height: 24),
+        SkeletonBox(height: 120, borderRadius: BorderRadius.circular(12)),
+        const SizedBox(height: 16),
+        const SkeletonBox(height: 14),
+        const SizedBox(height: 8),
+        const SkeletonBox(width: 220, height: 14),
+      ],
+    );
   }
 }

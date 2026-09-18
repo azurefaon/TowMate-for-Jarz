@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/app_prefs.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
 import '../../services/team_leader_service.dart';
-import '../../widgets/tl_drawer.dart';
+import '../../services/tl_presence_controller.dart';
+import '../../widgets/skeleton_box.dart';
+import '../../widgets/tl_bottom_nav.dart';
 
 class TlProfileScreen extends StatefulWidget {
   const TlProfileScreen({super.key});
@@ -13,7 +16,6 @@ class TlProfileScreen extends StatefulWidget {
 }
 
 class _TlProfileScreenState extends State<TlProfileScreen> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String? _name;
   String? _firstName;
   String? _lastName;
@@ -71,29 +73,31 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: TmColors.white,
-        title: Text('Edit Name', style: GoogleFonts.inter(color: TmColors.black, fontSize: 16)),
+        backgroundColor: ctx.card,
+        title: Text('Edit Name', style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: firstCtrl,
               autofocus: true,
-              style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
-              decoration: const InputDecoration(
+              style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
+              decoration: InputDecoration(
                 hintText: 'First name',
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.black)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
+                hintStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 15),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
+                focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: lastCtrl,
-              style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
-              decoration: const InputDecoration(
+              style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
+              decoration: InputDecoration(
                 hintText: 'Last name',
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.black)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
+                hintStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 15),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
+                focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
               ),
             ),
           ],
@@ -101,11 +105,11 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: GoogleFonts.inter(color: TmColors.black, fontSize: 14)),
+            child: Text('Cancel', style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Save', style: GoogleFonts.inter(color: TmColors.black, fontWeight: FontWeight.w600, fontSize: 14)),
+            child: Text('Save', style: GoogleFonts.inter(color: ctx.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
           ),
         ],
       ),
@@ -136,26 +140,26 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: TmColors.white,
-        title: Text('Edit Phone', style: GoogleFonts.inter(color: TmColors.black, fontSize: 16)),
+        backgroundColor: ctx.card,
+        title: Text('Edit Phone', style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16)),
         content: TextField(
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.phone,
-          style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
-          decoration: const InputDecoration(
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.black)),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
+          style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: GoogleFonts.inter(color: TmColors.black, fontSize: 14)),
+            child: Text('Cancel', style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: Text('Save', style: GoogleFonts.inter(color: TmColors.black, fontWeight: FontWeight.w600, fontSize: 14)),
+            child: Text('Save', style: GoogleFonts.inter(color: ctx.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
           ),
         ],
       ),
@@ -187,8 +191,8 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          backgroundColor: TmColors.white,
-          title: Text('Change Password', style: GoogleFonts.inter(color: TmColors.black, fontSize: 16)),
+          backgroundColor: ctx.card,
+          title: Text('Change Password', style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 16)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -197,7 +201,10 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(border: Border.all(color: TmColors.error)),
+                    decoration: BoxDecoration(
+                      color: TmColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                     child: Text(error!, style: GoogleFonts.inter(color: TmColors.error, fontSize: 12)),
                   ),
                   const SizedBox(height: 12),
@@ -205,33 +212,33 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
                 TextField(
                   controller: currentCtrl,
                   obscureText: true,
-                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
+                  style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
                     labelText: 'Current password',
-                    labelStyle: GoogleFonts.inter(color: TmColors.black, fontSize: 13),
-                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.black)),
+                    labelStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 13),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: newCtrl,
                   obscureText: true,
-                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
+                  style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
                     labelText: 'New password',
-                    labelStyle: GoogleFonts.inter(color: TmColors.black, fontSize: 13),
-                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.black)),
+                    labelStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 13),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: confirmCtrl,
                   obscureText: true,
-                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
+                  style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
                     labelText: 'Confirm new password',
-                    labelStyle: GoogleFonts.inter(color: TmColors.black, fontSize: 13),
-                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.black)),
+                    labelStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 13),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
                   ),
                 ),
               ],
@@ -240,7 +247,7 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: Text('Cancel', style: GoogleFonts.inter(color: TmColors.black, fontSize: 14)),
+              child: Text('Cancel', style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14)),
             ),
             TextButton(
               onPressed: saving
@@ -283,102 +290,337 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
                     },
               child: Text(
                 saving ? 'Saving…' : 'Save',
-                style: GoogleFonts.inter(color: TmColors.black, fontWeight: FontWeight.w600, fontSize: 14),
+                style: GoogleFonts.inter(color: ctx.textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text('Log out?', style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 17, letterSpacing: -0.3)),
+        content: Text(
+          'You will need to sign in again to access your account.',
+          style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Log out', style: GoogleFonts.inter(color: TmColors.error, fontSize: 14)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await TeamLeaderService.goOffline();
+    TlPresenceController.stop();
+    await ApiService.clearSession();
+    AppPrefs.useGuestTheme();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: TmColors.white,
-      drawer: TlDrawer(currentRoute: '/tl-profile', name: _name),
-      appBar: AppBar(
-        backgroundColor: TmColors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: TmColors.black),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          tooltip: 'Menu',
-        ),
-        title: Text(
-          'Profile',
-          style: GoogleFonts.inter(color: TmColors.black, fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: TmColors.yellow))
-          : SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    color: TmColors.black,
-                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            color: TmColors.yellow,
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: Center(
-                            child: Text(
-                              _initials,
-                              style: GoogleFonts.inter(color: TmColors.black, fontSize: 22, fontWeight: FontWeight.w700),
+      backgroundColor: context.bg,
+      bottomNavigationBar: const TlBottomNav(currentRoute: '/tl-profile'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _header(context),
+            Expanded(
+              child: _loading
+                  ? const _ProfileSkeleton()
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.only(bottom: 28),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                CircleAvatar(
+                                  radius: 34,
+                                  backgroundColor: TmColors.yellow,
+                                  child: Text(
+                                    _initials,
+                                    style: GoogleFonts.inter(
+                                      color: TmColors.black,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _name ?? '—',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.inter(
+                                          color: context.textPrimary,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: -0.4,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        'Team Leader',
+                                        style: GoogleFonts.inter(
+                                          color: context.textTertiary,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          _name ?? '—',
-                          style: GoogleFonts.inter(color: TmColors.white, fontSize: 20, fontWeight: FontWeight.w600),
-                        ),
-                      ],
+
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+                            child: _sectionLabel(context, 'Account Information'),
+                          ),
+                          const SizedBox(height: 12),
+                          _row(context, 'Name', _name ?? '—', _editName),
+                          _row(context, 'Email', _email ?? '—', null),
+                          _row(context, 'Phone', _phone ?? '—', _editPhone),
+                          _row(context, 'Password', '••••••••', _changePassword),
+
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+                            child: _sectionLabel(context, 'Appearance'),
+                          ),
+                          const SizedBox(height: 12),
+                          ValueListenableBuilder<ThemeMode>(
+                            valueListenable: AppPrefs.themeModeNotifier,
+                            builder: (ctx, mode, _) {
+                              final dark = mode == ThemeMode.dark;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                decoration: BoxDecoration(
+                                  border: Border(bottom: BorderSide(color: ctx.divider, width: 0.5)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 100,
+                                      child: Text(
+                                        'Dark Mode',
+                                        style: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 13),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        dark ? 'On' : 'Off',
+                                        style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14),
+                                      ),
+                                    ),
+                                    Switch(
+                                      value: dark,
+                                      onChanged: (val) async {
+                                        AppPrefs.themeModeNotifier.value = val ? ThemeMode.dark : ThemeMode.light;
+                                        await AppPrefs.setDarkMode(val);
+                                      },
+                                      activeThumbColor: TmColors.yellow,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+
+                          const SizedBox(height: 36),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: InkWell(
+                              onTap: _logout,
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.logout_rounded, color: TmColors.error, size: 20),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Log out',
+                                    style: GoogleFonts.inter(
+                                      color: TmColors.error,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  _row('Name', _name ?? '—', _editName),
-                  _row('Email', _email ?? '—', null),
-                  _row('Phone', _phone ?? '—', _editPhone),
-                  _row('Password', '••••••••', _changePassword),
-                  const SizedBox(height: 24),
-                ],
-              ),
             ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _row(String label, String value, VoidCallback? onTap) {
+  Widget _header(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
+      ),
+      child: Center(
+        child: RichText(
+          text: TextSpan(
+            style: GoogleFonts.inter(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
+            children: [
+              TextSpan(text: 'Tow', style: TextStyle(color: context.textPrimary)),
+              const TextSpan(text: 'Mate', style: TextStyle(color: TmColors.yellow)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(BuildContext context, String text) {
+    return Text(
+      text,
+      style: GoogleFonts.inter(
+        color: context.textTertiary,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.1,
+      ),
+    );
+  }
+
+  Widget _row(BuildContext context, String label, String value, VoidCallback? onTap) {
     return InkWell(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: TmColors.black, width: 1)),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
         ),
         child: Row(
           children: [
             SizedBox(
-              width: 80,
-              child: Text(label, style: GoogleFonts.inter(color: TmColors.black, fontSize: 13)),
+              width: 88,
+              child: Text(
+                label,
+                style: GoogleFonts.inter(color: context.textSecondary, fontSize: 13),
+              ),
             ),
             Expanded(
-              child: Text(value, style: GoogleFonts.inter(color: TmColors.black, fontSize: 14, fontWeight: FontWeight.w600)),
+              child: Text(
+                value,
+                style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+              ),
             ),
             if (onTap != null)
-              const Icon(Icons.chevron_right_rounded, color: TmColors.black, size: 20),
+              Icon(Icons.chevron_right_rounded, color: context.textTertiary, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProfileSkeleton extends StatelessWidget {
+  const _ProfileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SkeletonBox(
+                  width: 68,
+                  height: 68,
+                  borderRadius: BorderRadius.all(Radius.circular(34)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SkeletonBox(width: 140, height: 18),
+                      const SizedBox(height: 8),
+                      const SkeletonBox(width: 90, height: 13),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+            child: const SkeletonBox(width: 140, height: 12.5),
+          ),
+          const SizedBox(height: 12),
+          const _RowSkeleton(),
+          const _RowSkeleton(),
+          const _RowSkeleton(),
+          const _RowSkeleton(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+            child: const SkeletonBox(width: 100, height: 12.5),
+          ),
+          const SizedBox(height: 12),
+          const _RowSkeleton(),
+        ],
+      ),
+    );
+  }
+}
+
+class _RowSkeleton extends StatelessWidget {
+  const _RowSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 88, child: SkeletonBox(width: 56, height: 13)),
+          const Expanded(child: SkeletonBox(width: 100, height: 14)),
+        ],
       ),
     );
   }

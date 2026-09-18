@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/app_prefs.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
 import '../services/team_leader_service.dart';
+import '../services/tl_presence_controller.dart';
 
 class TlDrawer extends StatelessWidget {
   const TlDrawer({super.key, required this.currentRoute, this.name});
@@ -12,7 +14,7 @@ class TlDrawer extends StatelessWidget {
 
   void _navigate(BuildContext context, String route) {
     final nav = Navigator.of(context);
-    nav.pop(); // close drawer
+    nav.pop();
     if (route == currentRoute) return;
     nav.pushReplacementNamed(route);
   }
@@ -61,7 +63,9 @@ class TlDrawer extends StatelessWidget {
     if (confirmed != true) return;
 
     await TeamLeaderService.goOffline();
+    TlPresenceController.stop();
     await ApiService.clearSession();
+    AppPrefs.useGuestTheme();
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
   }
@@ -81,7 +85,6 @@ class TlDrawer extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
               child: Column(
@@ -122,14 +125,12 @@ class TlDrawer extends StatelessWidget {
               ),
             ),
 
-            // ── Divider ────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(height: 1, color: TmColors.grey300),
             ),
             const SizedBox(height: 8),
 
-            // ── Nav items ──────────────────────────────────────────────
             _TlDrawerItem(
               icon: Icons.dashboard_outlined,
               label: 'Dashboard',

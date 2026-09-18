@@ -10,10 +10,10 @@ void main() {
   });
 
   group('login screen redesign invariants', () {
-    test('renders the modern Welcome back layout without heavy glow shadows', () {
+    test('renders the modern Welcome back layout with the requested subtle glow', () {
       expect(source.contains("'Welcome back'"), isTrue);
-      expect(source.contains("'Sign in to continue with TowMate.'"), isTrue);
-      expect(source.contains('boxShadow'), isFalse);
+      expect(source.contains("'Sign in to continue with TowMate'"), isTrue);
+      expect(source.contains('boxShadow'), isTrue);
     });
 
     test('the primary action is labeled Sign in, not Login', () {
@@ -27,7 +27,7 @@ void main() {
     });
 
     test('Forgot Password renders below the password field and is right-aligned', () {
-      final passwordFieldIndex = source.indexOf("label: 'Password'");
+      final passwordFieldIndex = source.indexOf("label: 'PASSWORD'");
       final forgotButtonIndex = source.indexOf("'Forgot password?'");
       expect(passwordFieldIndex, greaterThan(-1));
       expect(forgotButtonIndex, greaterThan(passwordFieldIndex));
@@ -43,10 +43,10 @@ void main() {
     });
 
     test('the primary email/password form appears before the Google section', () {
-      final emailFieldIndex = source.indexOf("label: 'Email'");
-      final passwordFieldIndex = source.indexOf("label: 'Password'");
+      final emailFieldIndex = source.indexOf("label: 'EMAIL'");
+      final passwordFieldIndex = source.indexOf("label: 'PASSWORD'");
       final signInButtonIndex = source.indexOf("label: 'Sign in'");
-      final dividerIndex = source.indexOf('OrContinueDivider(');
+      final dividerIndex = source.indexOf('_AuthDivider(');
       final googleButtonIndex = source.indexOf('GoogleSignInButton(');
 
       expect(emailFieldIndex, greaterThan(-1));
@@ -96,6 +96,20 @@ void main() {
       expect(source.contains('RateLimiter.isLocked'), isTrue);
       expect(source.contains('RateLimiter.recordFailure()'), isTrue);
       expect(source.contains('CsrfTokenService.generate()'), isTrue);
+    });
+
+    test('every Team Leader sign-in path starts the presence controller', () {
+      final startCount = 'TlPresenceController.start()'.allMatches(source).length;
+      expect(startCount, 3);
+    });
+
+    test('presence start is gated on the Team Leader role, not called unconditionally', () {
+      for (final match in RegExp('TlPresenceController.start\\(\\);?').allMatches(source)) {
+        final before = source.substring(0, match.start);
+        final lineStart = before.lastIndexOf('\n') + 1;
+        final line = source.substring(lineStart, match.start);
+        expect(line.contains("role == 'Team Leader'"), isTrue);
+      }
     });
 
     test('post-login routing by role is unchanged', () {

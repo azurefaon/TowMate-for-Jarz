@@ -14,11 +14,15 @@ class InvoiceMail extends Mailable
 
     public Invoice $invoice;
     public ?string $invoiceUrl;
+    public array $groupVehicles;
+    public float $groupAdjustment;
 
-    public function __construct(Invoice $invoice)
+    public function __construct(Invoice $invoice, array $groupVehicles = [], float $groupAdjustment = 0.0)
     {
         $this->invoice = $invoice->loadMissing(['booking.customer', 'booking.truckType', 'previousInvoice']);
         $this->invoiceUrl = app(DocumentGenerationService::class)->publicDocumentUrl($this->invoice->pdf_path);
+        $this->groupVehicles = $groupVehicles;
+        $this->groupAdjustment = $groupAdjustment;
     }
 
     public function build()

@@ -24,16 +24,15 @@ import 'screens/team_leader/tl_history_screen.dart';
 import 'screens/team_leader/tl_home_screen.dart';
 import 'screens/team_leader/tl_profile_screen.dart';
 import 'services/api_service.dart';
+import 'services/tl_presence_controller.dart';
 
-final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
+final themeModeNotifier = AppPrefs.themeModeNotifier;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterError.onError = (details) {
     if (kDebugMode) FlutterError.dumpErrorToConsole(details);
   };
-  final isDark = await AppPrefs.getDarkMode();
-  themeModeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
   runApp(const MyApp());
 }
 
@@ -64,25 +63,25 @@ class MyApp extends StatelessWidget {
                 : const HomeScreen();
           } else {
             page = switch (settings.name) {
-              '/public-home'       => const PublicHomeScreen(),
-              '/login'             => const LoginScreen(),
-              '/signup'            => const SignupScreen(),
-              '/home'              => const HomeScreen(),
-              '/book-now'          => const BookNowScreen(),
-              '/my-bookings'       => const MyBookingsScreen(),
-              '/quotation'         => const CustomerQuotationScreen(),
-              '/services'          => const ServicesScreen(),
+              '/public-home' => const PublicHomeScreen(),
+              '/login' => const LoginScreen(),
+              '/signup' => const SignupScreen(),
+              '/home' => const HomeScreen(),
+              '/book-now' => const BookNowScreen(),
+              '/my-bookings' => const MyBookingsScreen(),
+              '/quotation' => const CustomerQuotationScreen(),
+              '/services' => const ServicesScreen(),
               '/customer-services' => const CustomerServicesScreen(),
-              '/vehicle-types'     => const CustomerVehicleTypesScreen(),
-              '/about'             => const AboutScreen(),
+              '/vehicle-types' => const CustomerVehicleTypesScreen(),
+              '/about' => const AboutScreen(),
               '/tl-force-password' => const TlForcePasswordScreen(),
-              '/tl-home'           => const TlHomeScreen(),
-              '/tl-active-task'    => const TlActiveTaskShell(),
-              '/tl-history'        => const TlHistoryScreen(),
-              '/tl-profile'        => const TlProfileScreen(),
-              '/profile'           => const ProfileScreen(),
-              '/notifications'     => const NotificationsScreen(),
-              _                    => const PublicHomeScreen(),
+              '/tl-home' => const TlHomeScreen(),
+              '/tl-active-task' => const TlActiveTaskShell(),
+              '/tl-history' => const TlHistoryScreen(),
+              '/tl-profile' => const TlProfileScreen(),
+              '/profile' => const ProfileScreen(),
+              '/notifications' => const NotificationsScreen(),
+              _ => const PublicHomeScreen(),
             };
           }
 
@@ -122,26 +121,31 @@ class _AuthGateState extends State<_AuthGate> {
     final loggedIn = await ApiService.isLoggedIn();
     if (!mounted) return;
     if (!loggedIn) {
+      AppPrefs.useGuestTheme();
       Navigator.pushReplacementNamed(context, '/public-home');
       return;
     }
 
+    await AppPrefs.restoreAuthenticatedTheme();
     final role = await ApiService.getUserRole();
     final mustChange = await ApiService.getMustChangePassword();
     if (!mounted) return;
 
     if (role == 'Team Leader') {
+      TlPresenceController.start();
       Navigator.pushReplacementNamed(
-          context, mustChange ? '/tl-force-password' : '/tl-home');
+        context,
+        mustChange ? '/tl-force-password' : '/tl-home',
+      );
     } else if (role != null) {
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       await ApiService.clearSession();
+      AppPrefs.useGuestTheme();
       Navigator.pushReplacementNamed(context, '/public-home');
     }
   }
 
   @override
-  Widget build(BuildContext context) =>
-      Scaffold(backgroundColor: context.bg);
+  Widget build(BuildContext context) => Scaffold(backgroundColor: context.bg);
 }
