@@ -20,6 +20,7 @@ use App\Services\DocumentGenerationService;
 use App\Services\QuotationService;
 use App\Services\ReturnReasonHandler;
 use App\Services\TeamLeaderAvailabilityService;
+use App\Services\UnitAvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,7 @@ class DispatchController extends Controller
     protected TeamLeaderAvailabilityService $teamLeaderAvailability;
     protected ReturnReasonHandler $returnReasonHandler;
     protected QuotationService $quotationService;
+    protected UnitAvailabilityService $unitAvailability;
 
     protected array $reviewableStatuses = Booking::REVIEWABLE_STATUSES;
 
@@ -42,13 +44,15 @@ class DispatchController extends Controller
         DocumentGenerationService $documentGenerationService,
         TeamLeaderAvailabilityService $teamLeaderAvailability,
         ReturnReasonHandler $returnReasonHandler,
-        QuotationService $quotationService
+        QuotationService $quotationService,
+        UnitAvailabilityService $unitAvailability
     ) {
         $this->bookingService = $bookingService;
         $this->documentGenerationService = $documentGenerationService;
         $this->teamLeaderAvailability = $teamLeaderAvailability;
         $this->returnReasonHandler = $returnReasonHandler;
         $this->quotationService = $quotationService;
+        $this->unitAvailability = $unitAvailability;
     }
 
     public function updateStatus(Request $request, $id)
@@ -303,9 +307,9 @@ class DispatchController extends Controller
         $availableUnitProfiles = Unit::with(['truckType', 'driver', 'teamLeader'])
             ->where('status', 'available')
             ->whereNotNull('team_leader_id')
-            ->whereNotNull('driver_id')
             ->orderBy('name')
             ->get()
+            ->filter(fn (Unit $unit) => $this->unitAvailability->hasDriver($unit))
             ->map(function (Unit $unit) use ($busyTeamLeaderIds, $teamLeaderStatuses, $reservedUnitBookings) {
                 $teamLeaderId = (int) ($unit->team_leader_id ?? 0);
                 $leaderStatus = $teamLeaderStatuses->get($teamLeaderId, []);
@@ -322,7 +326,7 @@ class DispatchController extends Controller
                     'base_rate' => (float) ($unit->truckType->base_rate ?? 0),
                     'per_km_rate' => (float) ($unit->truckType->per_km_rate ?? 0),
                     'team_leader_name' => $unit->teamLeader->full_name ?? $unit->teamLeader->name ?? 'No team leader',
-                    'driver_name' => $unit->driver->full_name ?? $unit->driver->name ?? 'No saved driver',
+                    'driver_name' => $unit->driver->full_name ?? $unit->driver->name ?? $unit->driver_name ?? 'No saved driver',
                     'crew_names' => collect(Unit::SLOT_COLUMNS)
                         ->reject(fn($col) => $col === 'driver_name') // driver already shown separately above
                         ->map(fn($col) => $unit->{$col})

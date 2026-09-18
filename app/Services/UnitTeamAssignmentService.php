@@ -10,27 +10,12 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
-/**
- * The single place that mutates a Unit's Team Leader/Driver/Crew roster.
- * Every write here goes through a DB transaction with row locks and a fresh
- * re-check of every guard immediately before commit — never trusts a
- * disabled button or a client-side check alone.
- *
- * Reuses the existing UnitCrewLoan model for Driver/Crew AND Team Leader
- * borrowing, so there is exactly one loan/transfer mechanism, not two.
- */
 class UnitTeamAssignmentService
 {
     public function __construct(protected UnitAvailabilityService $availability)
     {
     }
 
-    /**
-     * Assign a Team Leader into an empty team_leader slot. If that Team
-     * Leader currently belongs to another Unit, this is a borrow: the
-     * source Unit's slot is cleared and a UnitCrewLoan records the original
-     * home Unit so Return can restore it later.
-     */
     public function assignTeamLeader(Unit $targetUnit, int $teamLeaderId, User $actor): Unit
     {
         return DB::transaction(function () use ($targetUnit, $teamLeaderId, $actor) {
@@ -55,9 +40,6 @@ class UnitTeamAssignmentService
                 throw new RuntimeException('This Team Leader is marked Unavailable for duty today.');
             }
 
-            // Presence (online/offline) is deliberately NOT checked here — it
-            // must never gate eligibility. Only genuine Workload (an active
-            // booking) blocks a reassignment.
             if ($this->isBusy($teamLeader)) {
                 throw new RuntimeException('This Team Leader currently has an active job and cannot be reassigned.');
             }
@@ -68,9 +50,6 @@ class UnitTeamAssignmentService
                 $this->assertUnitTeamIsMovable($sourceUnit, 'borrow the Team Leader from');
             }
 
-            // Belt-and-suspenders: the DB's own partial unique index on
-            // units.team_leader_id is the hard backstop if two requests
-            // somehow both reach this point for the same leader.
             try {
                 if ($sourceUnit) {
                     $sourceUnit->update(['team_leader_id' => null]);
@@ -83,6 +62,25 @@ class UnitTeamAssignmentService
                 }
 
                 throw $e;
+            }
+
+            $personnelUpdates = [];
+
+            $driverFullName = build_full_name($teamLeader->driver_first_name, $teamLeader->driver_middle_name, $teamLeader->driver_last_name);
+            if (filled($driverFullName) && blank($target->driver_name)) {
+                $personnelUpdates['driver_name'] = $driverFullName;
+            }
+
+            if (filled($teamLeader->crew_member_1_name) && blank($target->crew_member_1_name)) {
+                $personnelUpdates['crew_member_1_name'] = $teamLeader->crew_member_1_name;
+            }
+
+            if (filled($teamLeader->crew_member_2_name) && blank($target->crew_member_2_name)) {
+                $personnelUpdates['crew_member_2_name'] = $teamLeader->crew_member_2_name;
+            }
+
+            if ($personnelUpdates !== []) {
+                $target->update($personnelUpdates);
             }
 
             if ($sourceUnit) {
@@ -113,9 +111,6 @@ class UnitTeamAssignmentService
         });
     }
 
-    /**
-     * Return a borrowed Team Leader to their recorded home Unit.
-     */
     public function returnTeamLeader(Unit $currentUnit, User $actor): Unit
     {
         return DB::transaction(function () use ($currentUnit, $actor) {
@@ -158,11 +153,6 @@ class UnitTeamAssignmentService
         });
     }
 
-    /**
-     * Assign a Driver/Crew person into an empty slot, borrowing them from
-     * another Unit's filled slot of the same category (driver <-> driver,
-     * crew <-> crew) — generalizes the pre-existing borrowCrew() logic.
-     */
     public function assignSlotPerson(Unit $targetUnit, string $toSlot, Unit $sourceUnitRef, string $fromSlot, User $actor): Unit
     {
         return DB::transaction(function () use ($targetUnit, $toSlot, $sourceUnitRef, $fromSlot, $actor) {
@@ -273,12 +263,6 @@ class UnitTeamAssignmentService
         });
     }
 
-    /**
-     * Detach a Team Leader who is a REGULAR (non-borrowed) assignment on
-     * this Unit — the slot-level counterpart to Return, for when there is
-     * no home Unit to send anyone back to. Never touches Driver/Crew (see
-     * Unit::boot()) and never touches the Team Leader's Duty/Presence.
-     */
     public function removeTeamLeader(Unit $unit, User $actor): Unit
     {
         return DB::transaction(function () use ($unit, $actor) {
@@ -316,13 +300,6 @@ class UnitTeamAssignmentService
         });
     }
 
-    /**
-     * Detach a Driver/Crew member who is a REGULAR (non-borrowed) assignment
-     * on this Unit — the slot-level counterpart to Return. Only ever
-     * touches the exact free-text SLOT_COLUMNS this service already owns;
-     * a Driver 1 linked account (units.driver_id) predates this loan/borrow
-     * model and is intentionally out of scope here, same as assignSlotPerson().
-     */
     public function removeSlotPerson(Unit $unit, string $slot, User $actor): Unit
     {
         if (! in_array($slot, ['driver_1', 'crew_member_1', 'crew_member_2'], true)) {
@@ -365,14 +342,6 @@ class UnitTeamAssignmentService
         });
     }
 
-    /**
-     * Moves the whole current roster (Team Leader + Driver + Crew 1 + Crew
-     * 2 — only whichever are actually present) from one Unit to another in
-     * one atomic action. Implemented as one UnitCrewLoan per moved slot
-     * (reusing the same mechanism individual Assign/Borrow uses) rather
-     * than inventing a second, parallel "team loan" record — each moved
-     * person can still be Returned individually afterward.
-     */
     public function transferTeam(Unit $sourceUnit, Unit $targetUnit, User $actor): Unit
     {
         return DB::transaction(function () use ($sourceUnit, $targetUnit, $actor) {
@@ -396,9 +365,6 @@ class UnitTeamAssignmentService
                 $teamLeader = User::find($source->team_leader_id);
                 $teamLeaderId = $source->team_leader_id;
 
-                // Source must be cleared BEFORE target is set — units.team_leader_id
-                // has a unique constraint, so both rows briefly holding the same
-                // value (if set in the other order) would violate it.
                 $source->update(['team_leader_id' => null]);
                 $target->update(['team_leader_id' => $teamLeaderId]);
 
@@ -420,9 +386,6 @@ class UnitTeamAssignmentService
                     continue;
                 }
 
-                // A linked Driver 1 account moves its name only, same as an
-                // individual assign would — driver_id itself intentionally
-                // stays put (it identifies an account, not a slot).
                 $personName = $source->{$column};
                 $target->update([$column => $personName]);
                 $source->update([$column => null]);
@@ -465,12 +428,6 @@ class UnitTeamAssignmentService
         DB::transaction(function () use ($teamLeader, $status, $actor) {
             $teamLeader = User::lockForUpdate()->findOrFail($teamLeader->id);
 
-            // A Team Leader committed to an active job is not free to have
-            // Duty toggled either way — flipping it mid-job would contradict
-            // the job's already-committed state and produce misleading
-            // availability elsewhere. Reuses the exact same canonical busy
-            // definition as every other guard in this service (isBusy()) —
-            // no separate "busy" concept is introduced for this check.
             if ($this->isBusy($teamLeader)) {
                 throw new RuntimeException('This Team Leader is currently assigned to an active job and Duty cannot be changed.');
             }
@@ -513,12 +470,6 @@ class UnitTeamAssignmentService
         ]);
     }
 
-    /**
-     * Throws if removing/replacing personnel on this Unit right now would
-     * break a committed reservation or an active job — the one guard every
-     * team-breaking mutation (borrow-out, return, transfer) re-checks
-     * fresh, inside the lock, immediately before commit.
-     */
     protected function assertUnitTeamIsMovable(Unit $unit, string $actionDescription): void
     {
         $state = $this->availability->evaluate($unit);
