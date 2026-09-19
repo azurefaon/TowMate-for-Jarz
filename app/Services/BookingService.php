@@ -76,6 +76,9 @@ class BookingService
             'estimated_price'      => $submittedPrice,
             'additional_fee'       => 0,
             'eta_minutes'          => $data['eta_minutes'] ?? null,
+            'service_type'         => $data['service_type'] ?? 'book_now',
+            'scheduled_date'       => $data['scheduled_date'] ?? null,
+            'scheduled_time'       => $data['scheduled_time'] ?? null,
         ]);
     }
 

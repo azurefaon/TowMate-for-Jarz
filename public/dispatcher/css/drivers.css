@@ -1,17 +1,9 @@
-/* ── Units & Leaders — operational readiness workspace ───────────────────
-   Reuses Dispatch Queue/Active Jobs table conventions (.jobs-table,
-   .jobs-cell-primary/.jobs-cell-secondary, .jobs-booking-code) from
-   jobs.css — only page-specific pieces (header, filters, roster rows,
-   operational-status cell, drawer, modals) live here. All classes are
-   prefixed .ul- and scoped to this page only. */
-
 .ul-page {
     display: flex;
     flex-direction: column;
     gap: 18px;
 }
 
-/* ── Page header ───────────────────────────────────────────────────────── */
 .ul-header {
     display: flex;
     flex-direction: column;
@@ -36,6 +28,12 @@
     border-radius: 8px;
     font-size: 0.85rem;
     border: 1px solid #e5e5e5;
+    animation: ul-feedback-in .18s ease;
+}
+
+@keyframes ul-feedback-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .ul-feedback--success {
@@ -50,7 +48,6 @@
     border-color: #fecaca;
 }
 
-/* ── Toolbar ───────────────────────────────────────────────────────────── */
 .ul-toolbar {
     display: flex;
     align-items: flex-end;
@@ -108,7 +105,6 @@
     }
 }
 
-/* ── Table column widths ──────────────────────────────────────────────── */
 .ul-table {
     table-layout: fixed;
 }
@@ -128,8 +124,6 @@
     text-align: right;
 }
 
-/* ── Table rows are the whole click target that opens the Unit Details
-   drawer (see the drawer styles further down). ───────────────────────── */
 .ul-row {
     cursor: pointer;
 }
@@ -149,7 +143,6 @@
     line-height: 1;
 }
 
-/* ── Assigned Team roster (now inside the drawer) ─────────────────────── */
 .ul-person-row {
     display: flex;
     flex-direction: column;
@@ -199,7 +192,6 @@
     color: #a3a3a3;
 }
 
-/* ── Operational Status (now inside the drawer) ───────────────────────── */
 .ul-status-row {
     display: grid;
     grid-template-columns: 72px 1fr;
@@ -243,7 +235,6 @@
     color: #a3a3a3;
 }
 
-/* ── Plain semantic text colors — no pills, no backgrounds ───────────── */
 .ul-presence--online { color: #15803d; }
 .ul-presence--offline { color: #737373; }
 
@@ -256,7 +247,6 @@
 .ul-availability--available { color: #15803d; font-weight: 600; }
 .ul-availability--not-available { color: #b91c1c; font-weight: 600; }
 
-/* ── Modals (Assign / Transfer Team) ──────────────────────────────────── */
 .ul-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -280,6 +270,17 @@
     border-radius: 10px;
     border: 1px solid #e5e5e5;
     box-shadow: 0 12px 32px rgba(15, 23, 42, .14);
+}
+
+.ul-modal-card--sm {
+    width: min(380px, 100%);
+}
+
+.ul-confirm-body {
+    margin: 0 0 16px;
+    font-size: 0.88rem;
+    color: #404040;
+    line-height: 1.5;
 }
 
 .ul-modal-head {
@@ -351,6 +352,7 @@
 .ul-modal-actions {
     display: flex;
     justify-content: flex-end;
+    gap: 10px;
     margin-top: 12px;
 }
 
@@ -374,7 +376,6 @@
     background: #f5f5f5;
 }
 
-/* ── Unit Details drawer (right-side) ─────────────────────────────────── */
 .ul-drawer-backdrop {
     position: fixed;
     inset: 0;
@@ -493,7 +494,6 @@
     color: #737373;
 }
 
-/* ── Drawer button system — scoped to Units & Leaders only ────────────── */
 .ul-drawer-btn-primary {
     display: inline-flex;
     align-items: center;

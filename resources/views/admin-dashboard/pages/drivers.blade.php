@@ -94,12 +94,9 @@
                             ->filter()
                             ->first();
 
-                        // Reserved/Active-Job units have a locked roster — no Assign,
-                        // Borrow, Return, or Transfer Team, regardless of which slot.
-                        // Server-side guards in UnitTeamAssignmentService are the real
-                        // enforcement; this only keeps the UI from offering an action
-                        // that would just be rejected.
                         $isLocked = (bool) ($row['reservation'] || $row['active_booking']);
+                        $tlName = $tl?->full_name ?? $tl?->name;
+                        $driverDisplayName = $unit->driver?->full_name ?? $unit->driver?->name ?? $unit->driver_name;
                     @endphp
                     <tr class="ul-row"
                         tabindex="0"
@@ -147,9 +144,6 @@
                         </td>
                         <td class="ul-col-chevron"><span class="ul-row-chevron" aria-hidden="true">&rsaquo;</span></td>
                     </tr>
-                    {{-- Unit Details drawer content — server-rendered once, cloned
-                         into #ulDrawerBody on row click. Keeps this page free of
-                         any new read endpoint: all data already computed above. --}}
                     <template id="ul-drawer-{{ $unit->id }}">
                         <div class="ul-drawer-unit-header">
                             <h2 class="ul-drawer-title">{{ $unit->name }}</h2>
@@ -221,9 +215,9 @@
                                         </div>
                                         @unless ($isLocked)
                                             @if ($row['team_leader_home_unit'])
-                                                <button type="button" class="ul-drawer-btn-secondary" data-action="return-team-leader" data-unit-id="{{ $unit->id }}">Return</button>
+                                                <button type="button" class="ul-drawer-btn-secondary" data-action="return-team-leader" data-unit-id="{{ $unit->id }}" data-person-name="{{ $tlName }}" data-home-unit-name="{{ $row['team_leader_home_unit'] }}">Return</button>
                                             @else
-                                                <button type="button" class="ul-drawer-btn-secondary" data-action="remove-team-leader" data-unit-id="{{ $unit->id }}">Remove</button>
+                                                <button type="button" class="ul-drawer-btn-secondary" data-action="remove-team-leader" data-unit-id="{{ $unit->id }}" data-person-name="{{ $tlName }}" data-unit-name="{{ $unit->name }}">Remove</button>
                                             @endif
                                         @endunless
                                     @else
@@ -246,9 +240,9 @@
                                         </div>
                                         @unless ($isLocked)
                                             @if ($row['driver_loan'])
-                                                <button type="button" class="ul-drawer-btn-secondary" data-action="return-slot" data-loan-id="{{ $row['driver_loan']->id }}">Return</button>
+                                                <button type="button" class="ul-drawer-btn-secondary" data-action="return-slot" data-loan-id="{{ $row['driver_loan']->id }}" data-slot="driver_1" data-person-name="{{ $driverDisplayName }}" data-home-unit-name="{{ $row['driver_loan']->fromUnit?->name }}">Return</button>
                                             @elseif (! $unit->driver_id)
-                                                <button type="button" class="ul-drawer-btn-secondary" data-action="remove-slot" data-unit-id="{{ $unit->id }}" data-slot="driver_1">Remove</button>
+                                                <button type="button" class="ul-drawer-btn-secondary" data-action="remove-slot" data-unit-id="{{ $unit->id }}" data-slot="driver_1" data-person-name="{{ $driverDisplayName }}" data-unit-name="{{ $unit->name }}">Remove</button>
                                             @endif
                                         @endunless
                                     @else
@@ -271,9 +265,9 @@
                                         </div>
                                         @unless ($isLocked)
                                             @if ($row['crew_1_loan'])
-                                                <button type="button" class="ul-drawer-btn-secondary" data-action="return-slot" data-loan-id="{{ $row['crew_1_loan']->id }}">Return</button>
+                                                <button type="button" class="ul-drawer-btn-secondary" data-action="return-slot" data-loan-id="{{ $row['crew_1_loan']->id }}" data-slot="crew_member_1" data-person-name="{{ $unit->crew_member_1_name }}" data-home-unit-name="{{ $row['crew_1_loan']->fromUnit?->name }}">Return</button>
                                             @else
-                                                <button type="button" class="ul-drawer-btn-secondary" data-action="remove-slot" data-unit-id="{{ $unit->id }}" data-slot="crew_member_1">Remove</button>
+                                                <button type="button" class="ul-drawer-btn-secondary" data-action="remove-slot" data-unit-id="{{ $unit->id }}" data-slot="crew_member_1" data-person-name="{{ $unit->crew_member_1_name }}" data-unit-name="{{ $unit->name }}">Remove</button>
                                             @endif
                                         @endunless
                                     @else
@@ -296,9 +290,9 @@
                                         </div>
                                         @unless ($isLocked)
                                             @if ($row['crew_2_loan'])
-                                                <button type="button" class="ul-drawer-btn-secondary" data-action="return-slot" data-loan-id="{{ $row['crew_2_loan']->id }}">Return</button>
+                                                <button type="button" class="ul-drawer-btn-secondary" data-action="return-slot" data-loan-id="{{ $row['crew_2_loan']->id }}" data-slot="crew_member_2" data-person-name="{{ $unit->crew_member_2_name }}" data-home-unit-name="{{ $row['crew_2_loan']->fromUnit?->name }}">Return</button>
                                             @else
-                                                <button type="button" class="ul-drawer-btn-secondary" data-action="remove-slot" data-unit-id="{{ $unit->id }}" data-slot="crew_member_2">Remove</button>
+                                                <button type="button" class="ul-drawer-btn-secondary" data-action="remove-slot" data-unit-id="{{ $unit->id }}" data-slot="crew_member_2" data-person-name="{{ $unit->crew_member_2_name }}" data-unit-name="{{ $unit->name }}">Remove</button>
                                             @endif
                                         @endunless
                                     @else
@@ -353,7 +347,6 @@
 
     </div>
 
-    {{-- Unit Details drawer (right-side) --}}
     <div class="ul-drawer-backdrop" id="ulDrawerBackdrop">
         <aside class="ul-drawer" id="ulDrawer" role="dialog" aria-modal="true" aria-label="Unit details">
             <button type="button" class="ul-drawer-close" id="ulDrawerClose" aria-label="Close">&times;</button>
@@ -361,7 +354,6 @@
         </aside>
     </div>
 
-    {{-- Assign dialog — reused for Team Leader / Driver / Crew --}}
     <div class="ul-modal-backdrop" id="ulAssignBackdrop">
         <div class="ul-modal-card">
             <div class="ul-modal-head">
@@ -374,7 +366,6 @@
         </div>
     </div>
 
-    {{-- Transfer Team dialog --}}
     <div class="ul-modal-backdrop" id="ulTransferBackdrop">
         <div class="ul-modal-card">
             <div class="ul-modal-head">
@@ -388,6 +379,22 @@
                 </div>
                 <div class="ul-modal-actions">
                     <button type="button" class="ul-btn ul-btn--primary" id="ulTransferConfirm">Confirm Transfer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ul-modal-backdrop" id="ulConfirmBackdrop">
+        <div class="ul-modal-card ul-modal-card--sm">
+            <div class="ul-modal-head">
+                <h3 id="ulConfirmTitle">Confirm</h3>
+                <button type="button" class="ul-modal-close" id="ulConfirmClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="ul-modal-body">
+                <p class="ul-confirm-body" id="ulConfirmBody"></p>
+                <div class="ul-modal-actions">
+                    <button type="button" class="ul-btn" id="ulConfirmCancel">Cancel</button>
+                    <button type="button" class="ul-btn ul-btn--primary" id="ulConfirmOk">Confirm</button>
                 </div>
             </div>
         </div>

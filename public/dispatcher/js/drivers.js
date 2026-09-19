@@ -2,34 +2,61 @@ document.addEventListener("DOMContentLoaded", function () {
     const page = document.querySelector(".ul-page");
     if (!page) return;
 
-    const CSRF = page.dataset.csrf;
     const BASE = "/admin-dashboard/drivers";
+
+    function csrfToken() {
+        return page.dataset.csrf || "";
+    }
 
     function post(url, body) {
         return fetch(url, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "X-CSRF-TOKEN": CSRF,
+                "X-CSRF-TOKEN": csrfToken(),
                 Accept: "application/json",
             },
             body: JSON.stringify(body || {}),
         }).then(function (r) {
+            if (r.status === 419) {
+                try {
+                    if (currentDrawerUnitId) sessionStorage.setItem("ulReopenUnit", currentDrawerUnitId);
+                    sessionStorage.setItem(
+                        "ulPendingFeedback",
+                        JSON.stringify({ message: "Your session refreshed. Please try that action again.", type: "error" })
+                    );
+                } catch (e) {}
+                window.location.reload();
+                return { ok: false, data: { success: false }, handled: true };
+            }
+
             return r.json().then(function (data) {
                 return { ok: r.ok, data: data };
             });
         });
     }
 
-    function showError(message) {
-        window.alert(message || "Something went wrong.");
+    function showFeedback(message, type) {
+        let el = document.querySelector(".ul-feedback");
+        if (!el) {
+            el = document.createElement("div");
+            const header = document.querySelector(".ul-header");
+            if (header) header.insertAdjacentElement("afterend", el);
+            else page.prepend(el);
+        }
+        el.className = "ul-feedback ul-feedback--" + (type === "error" ? "error" : "success");
+        el.textContent = message;
+
+        clearTimeout(showFeedback._timer);
+        showFeedback._timer = setTimeout(function () {
+            el.remove();
+        }, 6000);
     }
 
-    // ------------------------------------------------------------------
-    // Unit Details drawer — content is server-rendered per unit into a
-    // <template>; opening the drawer just clones that template's content
-    // into the drawer body. No new read endpoint involved.
-    // ------------------------------------------------------------------
+    function showError(message) {
+        showFeedback(message || "Something went wrong.", "error");
+    }
+
     const drawerBackdrop = document.getElementById("ulDrawerBackdrop");
     const drawerBody = document.getElementById("ulDrawerBody");
     let currentDrawerUnitId = null;
@@ -72,15 +99,11 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // A mutation triggered from the drawer reloads the page (server remains
-    // authoritative for every field shown), but the drawer should come back
-    // open on the same Unit with fresh data rather than closed.
-    function reloadKeepingDrawer() {
+    function reloadKeepingDrawer(message) {
         try {
             if (currentDrawerUnitId) sessionStorage.setItem("ulReopenUnit", currentDrawerUnitId);
-        } catch (e) {
-            // sessionStorage unavailable — falls back to a plain reload below.
-        }
+            if (message) sessionStorage.setItem("ulPendingFeedback", JSON.stringify({ message: message, type: "success" }));
+        } catch (e) {}
         window.location.reload();
     }
 
@@ -91,14 +114,20 @@ document.addEventListener("DOMContentLoaded", function () {
                 sessionStorage.removeItem("ulReopenUnit");
                 openDrawerForUnit(reopenId);
             }
-        } catch (e) {
-            // sessionStorage unavailable — drawer simply stays closed after reload.
-        }
+        } catch (e) {}
     })();
 
-    // ------------------------------------------------------------------
-    // Filters (client-side, same pattern as Dispatch Queue/Active Jobs)
-    // ------------------------------------------------------------------
+    (function showPendingFeedbackAfterReload() {
+        try {
+            const raw = sessionStorage.getItem("ulPendingFeedback");
+            if (raw) {
+                sessionStorage.removeItem("ulPendingFeedback");
+                const parsed = JSON.parse(raw);
+                showFeedback(parsed.message, parsed.type);
+            }
+        } catch (e) {}
+    })();
+
     const availabilitySelect = document.getElementById("ulAvailability");
     const presenceSelect = document.getElementById("ulPresence");
     const truckTypeSelect = document.getElementById("ulTruckType");
@@ -125,14 +154,48 @@ document.addEventListener("DOMContentLoaded", function () {
     });
     if (searchInput) searchInput.addEventListener("input", applyFilters);
 
-    // ------------------------------------------------------------------
-    // Assign dialog (Team Leader / Driver / Crew) — trigger now lives
-    // inside dynamically-injected drawer content, so it's delegated.
-    // ------------------------------------------------------------------
+    const confirmBackdrop = document.getElementById("ulConfirmBackdrop");
+    const confirmTitleEl = document.getElementById("ulConfirmTitle");
+    const confirmBodyEl = document.getElementById("ulConfirmBody");
+    const confirmOkBtn = document.getElementById("ulConfirmOk");
+    let confirmHandler = null;
+
+    function openConfirm(title, body, actionLabel, onConfirm) {
+        if (!confirmBackdrop) return;
+        confirmTitleEl.textContent = title;
+        confirmBodyEl.textContent = body;
+        confirmOkBtn.textContent = actionLabel;
+        confirmHandler = onConfirm;
+        confirmBackdrop.classList.add("is-open");
+    }
+
+    function closeConfirm() {
+        if (!confirmBackdrop) return;
+        confirmBackdrop.classList.remove("is-open");
+        confirmHandler = null;
+    }
+
+    document.getElementById("ulConfirmClose")?.addEventListener("click", closeConfirm);
+    document.getElementById("ulConfirmCancel")?.addEventListener("click", closeConfirm);
+    confirmBackdrop?.addEventListener("click", function (e) {
+        if (e.target === confirmBackdrop) closeConfirm();
+    });
+    confirmOkBtn?.addEventListener("click", function () {
+        const handler = confirmHandler;
+        closeConfirm();
+        if (handler) handler();
+    });
+
+    function slotRoleLabel(slot) {
+        if (slot === "driver_1") return "Driver";
+        if (slot === "crew_member_1" || slot === "crew_member_2") return "Crew";
+        return "Person";
+    }
+
     const assignBackdrop = document.getElementById("ulAssignBackdrop");
     const assignTitle = document.getElementById("ulAssignTitle");
     const assignList = document.getElementById("ulAssignList");
-    let assignContext = null; // { role, unitId, slot }
+    let assignContext = null;
 
     function openAssign(role, unitId, slot) {
         assignContext = { role: role, unitId: unitId, slot: slot };
@@ -218,8 +281,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         post(url, body).then(function (res) {
+            if (res.handled) return;
             if (res.ok && res.data.success) {
-                reloadKeepingDrawer();
+                reloadKeepingDrawer(res.data.message);
             } else {
                 showError(res.data.message || "Could not assign.");
             }
@@ -239,70 +303,75 @@ document.addEventListener("DOMContentLoaded", function () {
         if (e.target === assignBackdrop) assignBackdrop.classList.remove("is-open");
     });
 
-    // ------------------------------------------------------------------
-    // Return (Team Leader / Driver / Crew) — delegated (drawer content)
-    // ------------------------------------------------------------------
     document.addEventListener("click", function (e) {
         const btn = e.target.closest('[data-action="return-team-leader"]');
         if (!btn) return;
-        if (!window.confirm("Return this Team Leader to their home unit?")) return;
-        post(BASE + "/units/" + btn.dataset.unitId + "/return-team-leader", {}).then(function (res) {
-            if (res.ok && res.data.success) reloadKeepingDrawer();
-            else showError(res.data.message || "Could not return.");
+        const person = btn.dataset.personName || "This Team Leader";
+        const homeUnit = btn.dataset.homeUnitName || "their home unit";
+        openConfirm("Return Team Leader", "Return " + person + " to " + homeUnit + "?", "Return", function () {
+            post(BASE + "/units/" + btn.dataset.unitId + "/return-team-leader", {}).then(function (res) {
+                if (res.handled) return;
+                if (res.ok && res.data.success) reloadKeepingDrawer(res.data.message);
+                else showError(res.data.message || "Could not return.");
+            });
         });
     });
 
     document.addEventListener("click", function (e) {
         const btn = e.target.closest('[data-action="return-slot"]');
         if (!btn) return;
-        if (!window.confirm("Return this person to their home unit?")) return;
-        post(BASE + "/loans/" + btn.dataset.loanId + "/return", {}).then(function (res) {
-            if (res.ok && res.data.success) reloadKeepingDrawer();
-            else showError(res.data.message || "Could not return.");
+        const role = slotRoleLabel(btn.dataset.slot);
+        const person = btn.dataset.personName || "This person";
+        const homeUnit = btn.dataset.homeUnitName || "their home unit";
+        openConfirm("Return " + role, "Return " + person + " to " + homeUnit + "?", "Return", function () {
+            post(BASE + "/loans/" + btn.dataset.loanId + "/return", {}).then(function (res) {
+                if (res.handled) return;
+                if (res.ok && res.data.success) reloadKeepingDrawer(res.data.message);
+                else showError(res.data.message || "Could not return.");
+            });
         });
     });
 
-    // ------------------------------------------------------------------
-    // Remove (Team Leader / Driver / Crew) — regular, non-borrowed
-    // assignments only; delegated (drawer content).
-    // ------------------------------------------------------------------
     document.addEventListener("click", function (e) {
         const btn = e.target.closest('[data-action="remove-team-leader"]');
         if (!btn) return;
-        if (!window.confirm("Remove this Team Leader from the unit?")) return;
-        post(BASE + "/units/" + btn.dataset.unitId + "/remove-team-leader", {}).then(function (res) {
-            if (res.ok && res.data.success) reloadKeepingDrawer();
-            else showError(res.data.message || "Could not remove.");
+        const person = btn.dataset.personName || "This Team Leader";
+        const unitName = btn.dataset.unitName || "this unit";
+        openConfirm("Remove Team Leader", "Remove " + person + " from " + unitName + "?", "Remove", function () {
+            post(BASE + "/units/" + btn.dataset.unitId + "/remove-team-leader", {}).then(function (res) {
+                if (res.handled) return;
+                if (res.ok && res.data.success) reloadKeepingDrawer(res.data.message);
+                else showError(res.data.message || "Could not remove.");
+            });
         });
     });
 
     document.addEventListener("click", function (e) {
         const btn = e.target.closest('[data-action="remove-slot"]');
         if (!btn) return;
-        if (!window.confirm("Remove this person from the unit?")) return;
-        post(BASE + "/units/" + btn.dataset.unitId + "/remove-slot", { slot: btn.dataset.slot }).then(function (res) {
-            if (res.ok && res.data.success) reloadKeepingDrawer();
-            else showError(res.data.message || "Could not remove.");
+        const role = slotRoleLabel(btn.dataset.slot);
+        const person = btn.dataset.personName || "This person";
+        const unitName = btn.dataset.unitName || "this unit";
+        openConfirm("Remove " + role, "Remove " + person + " from " + unitName + "?", "Remove", function () {
+            post(BASE + "/units/" + btn.dataset.unitId + "/remove-slot", { slot: btn.dataset.slot }).then(function (res) {
+                if (res.handled) return;
+                if (res.ok && res.data.success) reloadKeepingDrawer(res.data.message);
+                else showError(res.data.message || "Could not remove.");
+            });
         });
     });
 
-    // ------------------------------------------------------------------
-    // Duty toggle — delegated (drawer content)
-    // ------------------------------------------------------------------
     document.addEventListener("click", function (e) {
         const btn = e.target.closest('[data-action="toggle-tl-duty"]');
         if (!btn) return;
         const next = btn.dataset.current === "available" ? "unavailable" : "available";
         post(BASE + "/team-leaders/" + btn.dataset.tlId + "/duty", { status: next }).then(function (res) {
-            if (res.ok && res.data.success) reloadKeepingDrawer();
+            if (res.handled) return;
+            if (res.ok && res.data.success) reloadKeepingDrawer(res.data.message);
             else showError(res.data.message || "Could not update duty.");
         });
     });
 
-    // ------------------------------------------------------------------
-    // Transfer Team — trigger delegated (drawer content); target list is
-    // built from the main table rows, which always stay in the DOM.
-    // ------------------------------------------------------------------
     const transferBackdrop = document.getElementById("ulTransferBackdrop");
     const transferTargetSelect = document.getElementById("ulTransferTarget");
     let transferSourceUnitId = null;
@@ -317,7 +386,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".ul-row[data-unit-id]").forEach(function (row) {
             const unitId = row.dataset.unitId;
             if (!unitId || unitId === transferSourceUnitId) return;
-            if (row.dataset.locked === "1") return; // Reserved/Active-Job units can't receive a team.
+            if (row.dataset.locked === "1") return;
 
             const opt = document.createElement("option");
             opt.value = unitId;
@@ -341,7 +410,8 @@ document.addEventListener("DOMContentLoaded", function () {
         post(BASE + "/units/" + transferSourceUnitId + "/transfer-team", {
             target_unit_id: transferTargetSelect.value,
         }).then(function (res) {
-            if (res.ok && res.data.success) reloadKeepingDrawer();
+            if (res.handled) return;
+            if (res.ok && res.data.success) reloadKeepingDrawer(res.data.message);
             else showError(res.data.message || "Could not transfer team.");
         });
     });
