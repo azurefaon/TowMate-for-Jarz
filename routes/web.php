@@ -16,6 +16,7 @@ use App\Http\Controllers\GeoController;
 use App\Http\Controllers\ControlCenterController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdminController;
+use App\Http\Controllers\AndroidDownloadController;
 // use App\Http\Controllers\TeamLeaderController; // archived
 
 use App\Http\Controllers\Admin\AvailableUnitsController;
@@ -51,6 +52,10 @@ use App\Http\Controllers\SystemAdmin\SystemSettingsController as SystemAdminSyst
 use App\Http\Controllers\SystemAdmin\UserManagementController;
 
 Route::redirect('/', '/login')->name('landing');
+
+Route::get('/download/android', [AndroidDownloadController::class, 'show'])
+    ->middleware('throttle:30,1')
+    ->name('download.android');
 
 // ── Landing page routes (archived) ───────────────────────────────────────────
 // Route::get('/book', function () { ... })->name('landing.book');
