@@ -93,7 +93,7 @@ body {
 
 .jarz-hero {
     position: relative;
-    min-height: 680px;
+    min-height: calc(100vh - 72px);
     display: flex;
     align-items: center;
     justify-content: center;
