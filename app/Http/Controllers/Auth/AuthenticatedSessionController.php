@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\AndroidReleaseService;
 use App\Services\AuditLogService;
 use App\Services\TeamLeaderAvailabilityService;
 use Illuminate\Http\RedirectResponse;
@@ -66,13 +67,13 @@ class AuthenticatedSessionController extends Controller
             ],
         };
 
-        $apkPath   = public_path('downloads/towmate.apk');
-        $apkExists = file_exists($apkPath);
-        $apkUrl    = $apkExists ? asset('downloads/towmate.apk') : null;
+        $apkExists = AndroidReleaseService::currentExists();
+        $apkUrl    = $apkExists ? route('download.android') : null;
+        $apkSizeMb = $apkExists ? AndroidReleaseService::metadata()['size_mb'] : null;
 
         $iosDistributionUrl = null;
 
-        return view('auth.login', compact('loginConfig', 'apkExists', 'apkUrl', 'iosDistributionUrl'));
+        return view('auth.login', compact('loginConfig', 'apkExists', 'apkUrl', 'apkSizeMb', 'iosDistributionUrl'));
     }
 
     public function store(LoginRequest $request): RedirectResponse

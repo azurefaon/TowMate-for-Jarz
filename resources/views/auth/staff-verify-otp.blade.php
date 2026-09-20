@@ -4,60 +4,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ asset('admin/css/auth-recovery.css') }}">
-    <link rel="icon" href="{{ asset('admin/images/logo.png') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('admin/css/login.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin/css/staff-forgot-password.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin/css/staff-verify-otp.css') }}">
+    <link rel="icon" type="image/png" href="{{ asset('dispatcher/images/jarz-logo.png') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <title>Verify Code</title>
 </head>
 
-<body class="recovery-page">
-    <div class="recovery-wrap">
-        <div class="recovery-wordmark">Tow<span>Mate</span></div>
-
-        <div class="recovery-card">
-            <div class="recovery-header">
-                <h1>Check your email</h1>
-                <p>Enter the 6-digit verification code sent to:<br><strong>{{ $maskedEmail }}</strong></p>
+<body class="jarz-page">
+    <nav class="jarz-nav jarz-nav--login">
+        <div class="jarz-nav-inner">
+            <a href="{{ route('login') }}" class="jarz-brand">
+                <img src="{{ asset('dispatcher/images/jarz-logo.png') }}" alt="JARZ Towing Services" class="jarz-brand-logo">
+                <span class="jarz-brand-name">JARZ Towing Services</span>
+            </a>
+            <div class="jarz-nav-links">
+                <a href="{{ route('login') }}#about-us">About Us</a>
+                <a href="{{ route('login') }}#our-services">Our Services</a>
             </div>
+        </div>
+    </nav>
 
-            @if (session('status'))
-                <div class="recovery-alert success">{{ session('status') }}</div>
-            @endif
+    <section class="jarz-hero jarz-hero--fill">
+        <div class="jarz-hero-overlay"></div>
+        <div class="jarz-hero-inner">
+            <div class="jarz-fp-card">
+                <h1 class="jarz-fp-title">JARZ Towing Services</h1>
+                <p class="jarz-fp-subtitle">Check Your Email</p>
 
-            @error('otp')
-                <div class="recovery-alert error">{{ $message }}</div>
-            @enderror
+                <div class="jarz-fp-divider"></div>
 
-            <form method="POST" action="{{ route('password.otp.verify') }}" id="otpForm">
-                @csrf
-                <input type="hidden" name="otp" id="otpValue">
+                <p class="jarz-fp-copy">Enter the 6-digit verification code sent to:<br><strong>{{ $maskedEmail }}</strong></p>
 
-                <div class="otp-boxes" id="otpBoxes">
-                    @for ($i = 0; $i < 6; $i++)
-                        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-box" autocomplete="one-time-code">
-                    @endfor
+                @if (session('status'))
+                    <div class="auth-alert success">{{ session('status') }}</div>
+                @endif
+
+                @error('otp')
+                    <div class="auth-alert error">{{ $message }}</div>
+                @enderror
+
+                <form method="POST" action="{{ route('password.otp.verify') }}" id="otpForm">
+                    @csrf
+                    <input type="hidden" name="otp" id="otpValue">
+
+                    <div class="otp-boxes" id="otpBoxes">
+                        @for ($i = 0; $i < 6; $i++)
+                            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-box" autocomplete="one-time-code">
+                        @endfor
+                    </div>
+
+                    <p class="otp-timer" id="otpTimer">Code expires in 04:59</p>
+
+                    <button type="submit" class="primary-btn" id="verifyBtn">Verify Code</button>
+                </form>
+
+                <div class="jarz-fp-divider"></div>
+
+                <div class="jarz-verify-resend">
+                    Didn't receive the code?
+                    <form method="POST" action="{{ route('password.otp.resend') }}" class="jarz-verify-resend-form">
+                        @csrf
+                        <button type="submit" id="resendBtn" @if ($resendWaitSeconds > 0) disabled @endif>Resend code</button>
+                    </form>
                 </div>
 
-                <p class="otp-timer" id="otpTimer">Code expires in 04:59</p>
-
-                <button type="submit" class="recovery-btn" id="verifyBtn">Verify Code</button>
-            </form>
-
-            <div class="recovery-resend">
-                Didn't receive the code?
-                <form method="POST" action="{{ route('password.otp.resend') }}" style="display:inline;">
-                    @csrf
-                    <button type="submit">Resend code</button>
-                </form>
+                <a href="{{ route('password.request') }}" class="jarz-fp-back">&larr; Change email</a>
             </div>
-
-            <a href="{{ route('password.request') }}" class="recovery-back">&larr; Change email</a>
         </div>
-    </div>
+    </section>
 
     <script>
-        // UX only — the server independently validates the OTP's format,
-        // hash, expiry, and attempt count regardless of anything this does.
         const boxes = Array.from(document.querySelectorAll('.otp-box'));
         const hiddenValue = document.getElementById('otpValue');
         const form = document.getElementById('otpForm');
@@ -97,7 +117,6 @@
 
         if (boxes[0]) boxes[0].focus();
 
-        // Display-only countdown — the server is the authoritative expiry check.
         let secondsLeft = 5 * 60 - 1;
         const timerEl = document.getElementById('otpTimer');
 
@@ -117,6 +136,22 @@
             secondsLeft--;
             renderTimer();
             if (secondsLeft <= 0) clearInterval(interval);
+        }, 1000);
+
+        let resendSecondsLeft = {{ (int) $resendWaitSeconds }};
+        const resendBtn = document.getElementById('resendBtn');
+
+        function renderResendState() {
+            resendBtn.disabled = resendSecondsLeft > 0;
+        }
+
+        renderResendState();
+        const resendInterval = setInterval(() => {
+            if (resendSecondsLeft > 0) {
+                resendSecondsLeft--;
+                renderResendState();
+                if (resendSecondsLeft <= 0) clearInterval(resendInterval);
+            }
         }, 1000);
     </script>
 </body>

@@ -20,6 +20,7 @@
         <div class="settings-tabs">
             <button class="settings-tab active" data-tab="user-limits">Pricing &amp; Payment</button>
             <button class="settings-tab" data-tab="customer-content">Customer App Content</button>
+            <button class="settings-tab" data-tab="mobile-app">Mobile App</button>
         </div>
 
         <form method="POST" action="{{ route('superadmin.settings.update') }}" enctype="multipart/form-data">
@@ -541,6 +542,59 @@
                 </form>
             </div>
 
+        </div>
+
+        <div class="settings-content" id="mobile-app">
+            <div class="settings-section">
+                <div class="settings-section-head">
+                    <h3>Android App</h3>
+                    <p>The APK served from the Android download link on the sign-in page.</p>
+                </div>
+
+                @if (session('apk_success'))
+                    <p class="settings-feedback settings-feedback--success">{{ session('apk_success') }}</p>
+                @endif
+
+                <p class="field-help">
+                    @if ($androidApk['source'])
+                        Current build:
+                        <strong>{{ $androidApk['version_name'] ?: 'No version name set' }}</strong>
+                        ({{ $androidApk['size_mb'] ? $androidApk['size_mb'] . ' MB' : 'Size unavailable' }}
+                        @if ($androidApk['uploaded_at'])
+                            , updated {{ \Illuminate\Support\Carbon::parse($androidApk['uploaded_at'])->format('M d, Y g:i A') }}
+                        @endif
+                        )
+                    @else
+                        No Android build uploaded yet.
+                    @endif
+                </p>
+
+                @if ($androidApk['release_notes'])
+                    <p class="field-help">{{ $androidApk['release_notes'] }}</p>
+                @endif
+
+                <form method="POST" action="{{ route('superadmin.settings.upload-apk') }}" enctype="multipart/form-data">
+                    @csrf
+                    <div class="settings-grid">
+                        <div class="settings-field">
+                            <label for="mobile_app_apk_file">APK File</label>
+                            <input type="file" id="mobile_app_apk_file" name="apk_file" accept=".apk" required>
+                            @error('apk_file') <small class="error-text">{{ $message }}</small> @enderror
+                        </div>
+                        <div class="settings-field">
+                            <label for="mobile_app_version_name">Version Name</label>
+                            <input type="text" id="mobile_app_version_name" name="version_name" maxlength="50" placeholder="e.g. 1.4.0" value="{{ old('version_name') }}">
+                        </div>
+                        <div class="settings-field" style="grid-column: 1 / -1;">
+                            <label for="mobile_app_release_notes">Release Notes</label>
+                            <textarea id="mobile_app_release_notes" name="release_notes" maxlength="2000" placeholder="Short summary of what changed">{{ old('release_notes') }}</textarea>
+                        </div>
+                    </div>
+                    <div class="settings-actions">
+                        <button type="submit" class="settings-save">Update APK</button>
+                    </div>
+                </form>
+            </div>
         </div>
 
     </div>

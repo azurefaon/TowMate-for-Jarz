@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\AuditLog;
 use App\Models\MobileAnnouncement;
 use App\Models\MobileCoverageArea;
 use App\Models\MobileHowItWorksStep;
@@ -12,6 +13,10 @@ use App\Models\SystemSetting;
 use App\Models\LandingSetting;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AndroidReleaseService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class SystemSettingsController extends Controller
 {
@@ -29,10 +34,12 @@ class SystemSettingsController extends Controller
         $mobileServices = MobileService::orderBy('display_order')->orderBy('id')->get();
         $mobileHowItWorksSteps = MobileHowItWorksStep::orderBy('display_order')->orderBy('id')->get();
         $mobileCoverageAreas = MobileCoverageArea::orderBy('display_order')->orderBy('id')->get();
+        $androidApk = AndroidReleaseService::metadata();
 
         return view('superadmin.settings.index', compact(
             'settings', 'landing', 'teamLeaderLimit', 'teamLeaderCount',
-            'mobileAnnouncements', 'mobileServices', 'mobileHowItWorksSteps', 'mobileCoverageAreas'
+            'mobileAnnouncements', 'mobileServices', 'mobileHowItWorksSteps', 'mobileCoverageAreas',
+            'androidApk'
         ));
     }
 
@@ -65,22 +72,68 @@ class SystemSettingsController extends Controller
 
     public function uploadApk(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'apk_file' => ['required', 'file', 'max:102400'],
+            'version_name' => ['nullable', 'string', 'max:50'],
+            'release_notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        if ($request->file('apk_file')->getClientOriginalExtension() !== 'apk') {
-            return back()->withErrors(['apk_file' => 'The file must be a .apk file.']);
+        $file = $request->file('apk_file');
+
+        if (strtolower((string) $file->getClientOriginalExtension()) !== 'apk') {
+            return back()->withErrors(['apk_file' => 'The file must have a .apk extension.'])->withInput();
         }
 
-        $dest = public_path('downloads');
-        if (! is_dir($dest)) {
-            mkdir($dest, 0755, true);
+        if (! $this->hasApkSignature($file->getRealPath())) {
+            return back()->withErrors(['apk_file' => 'The uploaded file is not a valid APK package.'])->withInput();
         }
 
-        $request->file('apk_file')->move($dest, 'towmate.apk');
+        $storedName = Str::random(40) . '.apk';
+        $stored = $file->storeAs('', $storedName, AndroidReleaseService::DISK);
 
-        return back()->with('apk_success', 'APK uploaded successfully. Download link is now active.');
+        if (! $stored || ! Storage::disk(AndroidReleaseService::DISK)->exists($storedName)) {
+            return back()->withErrors(['apk_file' => 'The upload could not be saved. Please try again.'])->withInput();
+        }
+
+        if (Storage::disk(AndroidReleaseService::DISK)->size($storedName) !== $file->getSize()) {
+            Storage::disk(AndroidReleaseService::DISK)->delete($storedName);
+
+            return back()->withErrors(['apk_file' => 'The upload was incomplete and has been discarded. The previous build is still active. Please try again.'])->withInput();
+        }
+
+        $previousFilename = SystemSetting::getValue('android_apk_filename');
+
+        SystemSetting::setValue('android_apk_filename', $storedName);
+        SystemSetting::setValue('android_apk_version_name', $validated['version_name'] ?? null);
+        SystemSetting::setValue('android_apk_release_notes', $validated['release_notes'] ?? null);
+        SystemSetting::setValue('android_apk_uploaded_at', now()->toIso8601String());
+
+        if ($previousFilename && $previousFilename !== $storedName) {
+            Storage::disk(AndroidReleaseService::DISK)->delete($previousFilename);
+        }
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'android_apk_uploaded',
+            'entity_type' => 'SystemSetting',
+            'reference' => $validated['version_name'] ?? 'android_apk',
+        ]);
+
+        return back()->with('apk_success', 'Android app updated. The download link now serves this build.');
+    }
+
+    private function hasApkSignature(string $path): bool
+    {
+        $handle = @fopen($path, 'rb');
+
+        if (! $handle) {
+            return false;
+        }
+
+        $signature = fread($handle, 4);
+        fclose($handle);
+
+        return $signature === "PK\x03\x04" || $signature === "PK\x05\x06";
     }
 
     public function updateLanding(Request $request)
