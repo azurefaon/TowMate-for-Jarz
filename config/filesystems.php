@@ -4,6 +4,8 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    'legacy_apk_path' => env('LEGACY_APK_PATH', public_path('downloads/towmate.apk')),
+
     'disks' => [
 
         'local' => [
@@ -20,6 +22,13 @@ return [
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
+        'apk_releases' => [
+            'driver' => 'local',
+            'root' => env('APK_STORAGE_PATH', storage_path('app/apk-releases')),
             'throw' => false,
             'report' => false,
         ],
