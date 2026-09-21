@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -30,6 +31,10 @@ Map<String, dynamic> _detail({
   bool pricingIsProvisional = false,
   String? groupCode,
   List<Map<String, dynamic>>? groupSiblings,
+  String? groupBookingCode,
+  String? quotationNumber,
+  Map<String, dynamic>? groupTotals,
+  List<Map<String, dynamic>>? groupVehicles,
 }) {
   return {
     'success': true,
@@ -69,7 +74,11 @@ Map<String, dynamic> _detail({
       'cancelled_at': null,
       'price_change_log': [],
       'group_code': groupCode,
+      'group_booking_code': groupBookingCode ?? code,
       'group_siblings': groupSiblings ?? [],
+      'group_totals': groupTotals,
+      'group_vehicles': groupVehicles ?? [],
+      'quotation_number': quotationNumber,
     },
   };
 }
@@ -92,17 +101,47 @@ http.Client _clientFor(
   });
 }
 
+http.Client _clientForGroupCancel({
+  required List<Map<String, dynamic>> detailResponses,
+  required Map<String, dynamic> cancelResponse,
+  int cancelStatus = 200,
+  void Function(Map<String, dynamic> body)? onCancelCalled,
+}) {
+  var detailCallCount = 0;
+  return MockClient((request) async {
+    final path = request.url.path;
+    if (path.contains('/bookings/group/') && path.endsWith('/cancel')) {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      onCancelCalled?.call(body);
+      return _json(cancelResponse, status: cancelStatus);
+    }
+    if (path.contains('/detail')) {
+      final index = detailCallCount < detailResponses.length ? detailCallCount : detailResponses.length - 1;
+      detailCallCount++;
+      return _json(detailResponses[index]);
+    }
+    return _json({'success': false}, status: 404);
+  });
+}
+
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
 }
 
-Future<void> _pumpScreen(WidgetTester tester, http.Client client, {String code = 'TM-00225'}) async {
+Future<void> _pumpScreen(
+  WidgetTester tester,
+  http.Client client, {
+  String code = 'TM-00225',
+  bool asGroupOverview = false,
+}) async {
   SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
   await http.runWithClient(
     () async {
-      await tester.pumpWidget(MaterialApp(home: BookingDetailScreen(bookingCode: code)));
+      await tester.pumpWidget(MaterialApp(
+        home: BookingDetailScreen(bookingCode: code, asGroupOverview: asGroupOverview),
+      ));
       await _settle(tester);
     },
     () => client,
@@ -417,9 +456,248 @@ void main() {
       expect(capturedCode, 'TM-00228');
     });
 
+    testWidgets('an individually opened sibling vehicle shows only its own booking code and vehicle type, never the group anchor code', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00228',
+          groupCode: 'GRP-1',
+          groupBookingCode: 'TM-00227',
+          vehicleTypeName: 'Sedan',
+        )),
+        code: 'TM-00228',
+      );
+
+      expect(find.text('TM-00228 · Sedan'), findsOneWidget);
+      expect(find.text('TM-00227'), findsNothing);
+      expect(find.textContaining('Vehicle reference'), findsNothing);
+    });
+
+    testWidgets('a standalone booking shows its own code and vehicle type with no vehicle-reference line', (tester) async {
+      await _pumpScreen(tester, _clientFor(_detail(code: 'TM-00225', vehicleTypeName: 'Sedan')));
+
+      expect(find.text('TM-00225 · Sedan'), findsOneWidget);
+      expect(find.textContaining('Vehicle reference:'), findsNothing);
+    });
+
+    testWidgets('shows the shared quotation number in the service details', (tester) async {
+      await _pumpScreen(tester, _clientFor(_detail(quotationNumber: 'QT-2026-0042')));
+
+      expect(find.text('Quotation No.'), findsOneWidget);
+      expect(find.text('QT-2026-0042'), findsOneWidget);
+    });
+
     testWidgets('does not show THIS REQUEST for a standalone booking', (tester) async {
       await _pumpScreen(tester, _clientFor(_detail()));
       expect(find.text('THIS REQUEST'), findsNothing);
+    });
+
+    testWidgets('the group overview page shows the combined group total, not just one vehicle\'s share', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          groupCode: 'GRP-1',
+          baseRate: 1500.0,
+          distanceFee: 0.0,
+          vatAmount: 180.0,
+          finalTotal: 1680.0,
+          groupSiblings: [
+            {
+              'booking_code': 'TM-00228',
+              'vehicle_type_name': 'Motorcycle',
+              'service_type': 'book_now',
+              'status': 'requested',
+              'is_current': false,
+            },
+          ],
+          groupTotals: {
+            'vehicle_count': 2,
+            'base_rate': 2500.0,
+            'computed_total': 2500.0,
+            'vat_amount': 300.0,
+            'additional_fee': 0.0,
+            'final_total': 2800.0,
+          },
+          groupVehicles: [
+            {
+              'booking_code': 'TM-00227',
+              'status': 'requested',
+              'vehicle_type_name': 'Sedan',
+              'base_rate': 1500.0,
+              'distance_fee': 0.0,
+              'vat_amount': 180.0,
+              'final_total': 1680.0,
+              'pricing_is_provisional': false,
+            },
+            {
+              'booking_code': 'TM-00228',
+              'status': 'requested',
+              'vehicle_type_name': 'Motorcycle',
+              'base_rate': 1000.0,
+              'distance_fee': 0.0,
+              'vat_amount': 120.0,
+              'final_total': 1120.0,
+              'pricing_is_provisional': false,
+            },
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      expect(find.text('Group Total (2 vehicles)'), findsOneWidget);
+      expect(find.text('₱2,800.00'), findsOneWidget);
+      expect(find.text('Total Amount'), findsNothing);
+      expect(find.text('₱1,680.00'), findsWidgets);
+      expect(find.textContaining('combined · 2 vehicles'), findsOneWidget);
+      expect(find.text('You are here'), findsNothing);
+      expect(find.textContaining('TM-00227'), findsWidgets);
+      expect(find.textContaining('TM-00228'), findsWidgets);
+    });
+
+    testWidgets('a grouped provisional group overview shows an estimated combined total', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          serviceType: 'schedule',
+          groupCode: 'GRP-1',
+          baseRate: 1500.0,
+          vatAmount: 180.0,
+          finalTotal: 1680.0,
+          pricingIsProvisional: true,
+          groupSiblings: [
+            {
+              'booking_code': 'TM-00228',
+              'vehicle_type_name': 'Motorcycle',
+              'service_type': 'schedule',
+              'status': 'scheduled',
+              'is_current': false,
+            },
+          ],
+          groupTotals: {
+            'vehicle_count': 2,
+            'base_rate': 2500.0,
+            'computed_total': 2500.0,
+            'vat_amount': 300.0,
+            'additional_fee': 0.0,
+            'final_total': 2800.0,
+          },
+        )),
+        asGroupOverview: true,
+      );
+
+      expect(find.text('Group Total (2 vehicles)'), findsOneWidget);
+      expect(find.textContaining('Estimated Base Rate'), findsOneWidget);
+      expect(find.textContaining('combined · 2 vehicles'), findsOneWidget);
+      expect(find.text('₱2,500.00'), findsOneWidget);
+      expect(find.text('₱2,800.00'), findsWidgets);
+      expect(find.text('₱1,680.00'), findsNothing);
+    });
+
+    testWidgets('opening a grouped booking individually shows only its own share, not the group total', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          groupCode: 'GRP-1',
+          baseRate: 1500.0,
+          distanceFee: 0.0,
+          vatAmount: 180.0,
+          finalTotal: 1680.0,
+          groupSiblings: [
+            {
+              'booking_code': 'TM-00228',
+              'vehicle_type_name': 'Motorcycle',
+              'service_type': 'book_now',
+              'status': 'requested',
+              'is_current': false,
+            },
+          ],
+          groupTotals: {
+            'vehicle_count': 2,
+            'base_rate': 2500.0,
+            'computed_total': 2500.0,
+            'vat_amount': 300.0,
+            'additional_fee': 0.0,
+            'final_total': 2800.0,
+          },
+        )),
+        code: 'TM-00227',
+      );
+
+      expect(find.text('Total Amount'), findsOneWidget);
+      expect(find.text('₱1,680.00'), findsOneWidget);
+      expect(find.textContaining('Group Total'), findsNothing);
+      expect(find.text('₱2,800.00'), findsNothing);
+    });
+
+    testWidgets('tapping a vehicle in the group overview opens its own individual booking detail', (tester) async {
+      Object? capturedArgs;
+      await http.runWithClient(() async {
+        SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+        await tester.pumpWidget(
+          MaterialApp(
+            onGenerateRoute: (settings) {
+              if (settings.name == '/booking-detail' && settings.arguments != 'TM-00227') {
+                capturedArgs = settings.arguments;
+                return MaterialPageRoute(builder: (_) => const Scaffold());
+              }
+              return MaterialPageRoute(
+                builder: (_) => const BookingDetailScreen(bookingCode: 'TM-00227', asGroupOverview: true),
+              );
+            },
+          ),
+        );
+        await _settle(tester);
+
+        await tester.ensureVisible(find.textContaining('TM-00228').first);
+        await tester.tap(find.textContaining('TM-00228').first);
+        await _settle(tester);
+      }, () => _clientFor(_detail(
+            code: 'TM-00227',
+            groupCode: 'GRP-1',
+            groupSiblings: [
+              {
+                'booking_code': 'TM-00228',
+                'vehicle_type_name': 'Motorcycle',
+                'service_type': 'book_now',
+                'status': 'requested',
+                'is_current': false,
+              },
+            ],
+            groupTotals: {
+              'vehicle_count': 2,
+              'base_rate': 2500.0,
+              'computed_total': 2500.0,
+              'vat_amount': 300.0,
+              'additional_fee': 0.0,
+              'final_total': 2800.0,
+            },
+            groupVehicles: [
+              {
+                'booking_code': 'TM-00227',
+                'status': 'requested',
+                'vehicle_type_name': 'Sedan',
+                'final_total': 1680.0,
+              },
+              {
+                'booking_code': 'TM-00228',
+                'status': 'requested',
+                'vehicle_type_name': 'Motorcycle',
+                'final_total': 1120.0,
+              },
+            ],
+          )));
+
+      expect(capturedArgs, 'TM-00228');
+    });
+
+    testWidgets('a standalone booking is never affected by group total fields', (tester) async {
+      await _pumpScreen(tester, _clientFor(_detail(finalTotal: 1680.0)), asGroupOverview: true);
+
+      expect(find.text('Total Amount'), findsOneWidget);
+      expect(find.textContaining('Group Total'), findsNothing);
     });
 
     testWidgets('uses a skeleton shape while loading, not a spinner', (tester) async {
@@ -471,5 +749,572 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    testWidgets('the group header shows a request-level heading and the group reference, not an individual booking code', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          groupCode: 'GRP-000042',
+          groupVehicles: [
+            {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00228', 'status': 'requested', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      expect(find.text('Group Request'), findsOneWidget);
+      expect(find.text('GRP-000042'), findsOneWidget);
+      expect(find.text('2 of 2 vehicles active'), findsOneWidget);
+      expect(find.textContaining('Vehicle reference'), findsNothing);
+    });
+
+    testWidgets('the group header shows Cancelled once every vehicle in the group is cancelled', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          status: 'cancelled',
+          groupCode: 'GRP-000042',
+          groupVehicles: [
+            {'booking_code': 'TM-00227', 'status': 'cancelled', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00228', 'status': 'cancelled', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      expect(find.text('Cancelled'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Cancel Booking'), findsNothing);
+    });
+
+    testWidgets('the group overview omits the single-vehicle info row below Trip Details', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          groupCode: 'GRP-1',
+          groupVehicles: [
+            {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00228', 'status': 'requested', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      expect(find.text('Light Duty'), findsNothing);
+    });
+
+    testWidgets('an individually opened booking still shows its own vehicle info row below Trip Details', (tester) async {
+      await _pumpScreen(tester, _clientFor(_detail()));
+      expect(find.text('Light Duty'), findsOneWidget);
+    });
+
+    testWidgets('shows a single Cancel Booking action on the group overview when at least one vehicle is eligible', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          groupCode: 'GRP-1',
+          groupVehicles: [
+            {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00228', 'status': 'on_the_way', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      expect(find.widgetWithText(ElevatedButton, 'Cancel Booking'), findsOneWidget);
+    });
+
+    testWidgets('does not show a group Cancel Booking action for an individually opened vehicle page', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          status: 'requested',
+          groupCode: 'GRP-1',
+          groupVehicles: [
+            {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00228', 'status': 'requested', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+          ],
+        )),
+      );
+
+      expect(find.widgetWithText(ElevatedButton, 'Cancel Booking'), findsOneWidget);
+      final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets('tapping Cancel Booking opens a selection sheet listing every vehicle with its eligibility', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          groupCode: 'GRP-1',
+          groupVehicles: [
+            {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00228', 'status': 'on_the_way', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      await _settle(tester);
+
+      expect(find.text('What would you like to cancel?'), findsOneWidget);
+      expect(find.text('Sedan · TM-00227'), findsOneWidget);
+      expect(find.text('Motorcycle · TM-00228'), findsOneWidget);
+      expect(find.textContaining('Not eligible for cancellation'), findsOneWidget);
+
+      final checkboxes = tester.widgetList<CheckboxListTile>(find.byType(CheckboxListTile)).toList();
+      expect(checkboxes.length, 3);
+    });
+
+    testWidgets('Select all only selects eligible vehicles', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00227',
+          groupCode: 'GRP-1',
+          groupVehicles: [
+            {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00228', 'status': 'on_the_way', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      await _settle(tester);
+
+      await tester.tap(find.text('Select all'));
+      await _settle(tester);
+
+      expect(find.text('Continue (1 selected)'), findsOneWidget);
+    });
+
+    testWidgets('with one vehicle already cancelled, selecting the two remaining active vehicles warns that none will remain active', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00283',
+          groupCode: 'GRP-1',
+          groupVehicles: [
+            {'booking_code': 'TM-00283', 'status': 'cancelled', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00284', 'status': 'requested', 'vehicle_type_name': 'Pickup Truck', 'final_total': 2200.0},
+            {'booking_code': 'TM-00285', 'status': 'requested', 'vehicle_type_name': 'Compact SUV', 'final_total': 1900.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      await _settle(tester);
+
+      await tester.tap(find.text('Select all'));
+      await _settle(tester);
+
+      await tester.tap(find.text('Continue (2 selected)'));
+      await _settle(tester);
+
+      expect(find.text('Cancel this entire request?'), findsOneWidget);
+      expect(find.text('All remaining active vehicles in this request will be cancelled.'), findsOneWidget);
+      expect(find.textContaining('will remain active and unaffected'), findsNothing);
+      expect(find.textContaining('1 vehicle will remain'), findsNothing);
+    });
+
+    testWidgets('with one vehicle already cancelled, selecting only one of the two remaining active vehicles shows the correct remaining count', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00283',
+          groupCode: 'GRP-1',
+          groupVehicles: [
+            {'booking_code': 'TM-00283', 'status': 'cancelled', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00284', 'status': 'requested', 'vehicle_type_name': 'Pickup Truck', 'final_total': 2200.0},
+            {'booking_code': 'TM-00285', 'status': 'requested', 'vehicle_type_name': 'Compact SUV', 'final_total': 1900.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      await _settle(tester);
+
+      await tester.tap(find.text('Pickup Truck · TM-00284'));
+      await _settle(tester);
+
+      await tester.tap(find.text('Continue (1 selected)'));
+      await _settle(tester);
+
+      expect(find.text('Cancel selected vehicles?'), findsOneWidget);
+      expect(find.text('1 vehicle will remain active and unaffected.'), findsOneWidget);
+      expect(find.text('All remaining active vehicles in this request will be cancelled.'), findsNothing);
+    });
+
+    testWidgets('selecting a vehicle, confirming, and submitting calls the group cancel endpoint once and refreshes totals', (tester) async {
+      Map<String, dynamic>? capturedBody;
+
+      final initialDetail = _detail(
+        code: 'TM-00227',
+        groupCode: 'GRP-1',
+        baseRate: 1500.0,
+        distanceFee: 0.0,
+        vatAmount: 180.0,
+        finalTotal: 1680.0,
+        groupTotals: {
+          'vehicle_count': 2,
+          'base_rate': 2500.0,
+          'computed_total': 2500.0,
+          'vat_amount': 300.0,
+          'additional_fee': 0.0,
+          'final_total': 2800.0,
+        },
+        groupVehicles: [
+          {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+          {'booking_code': 'TM-00228', 'status': 'requested', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+        ],
+      );
+      final afterCancelDetail = _detail(
+        code: 'TM-00227',
+        groupCode: 'GRP-1',
+        baseRate: 1500.0,
+        distanceFee: 0.0,
+        vatAmount: 180.0,
+        finalTotal: 1680.0,
+        groupTotals: {
+          'vehicle_count': 2,
+          'base_rate': 1500.0,
+          'computed_total': 1500.0,
+          'vat_amount': 180.0,
+          'additional_fee': 0.0,
+          'final_total': 1680.0,
+        },
+        groupVehicles: [
+          {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+          {'booking_code': 'TM-00228', 'status': 'cancelled', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+        ],
+      );
+
+      final client = _clientForGroupCancel(
+        detailResponses: [initialDetail, afterCancelDetail],
+        cancelResponse: {
+          'success': true,
+          'message': 'Selected vehicles cancelled successfully.',
+          'cancelled_booking_codes': ['TM-00228'],
+        },
+        onCancelCalled: (body) => capturedBody = body,
+      );
+
+      await http.runWithClient(() async {
+        SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+        await tester.pumpWidget(const MaterialApp(
+          home: BookingDetailScreen(bookingCode: 'TM-00227', asGroupOverview: true),
+        ));
+        await _settle(tester);
+
+        expect(find.text('₱2,800.00'), findsOneWidget);
+
+        await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+        await _settle(tester);
+
+        await tester.tap(find.text('Motorcycle · TM-00228'));
+        await _settle(tester);
+
+        await tester.tap(find.text('Continue (1 selected)'));
+        await _settle(tester);
+
+        expect(find.text('Cancel selected vehicles?'), findsOneWidget);
+        expect(find.textContaining('1 vehicle will remain active'), findsOneWidget);
+
+        await tester.tap(find.text('Confirm Cancellation'));
+        await _settle(tester);
+      }, () => client);
+
+      expect(capturedBody, {
+        'booking_codes': ['TM-00228'],
+      });
+      expect(find.text('₱2,800.00'), findsNothing);
+      expect(find.text('₱1,680.00'), findsWidgets);
+      expect(find.textContaining('TM-00228 · Cancelled'), findsOneWidget);
+    });
+
+    testWidgets('does not show a successful cancellation when the backend rejects the selection', (tester) async {
+      final detail = _detail(
+        code: 'TM-00227',
+        groupCode: 'GRP-1',
+        groupVehicles: [
+          {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+          {'booking_code': 'TM-00228', 'status': 'requested', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+        ],
+      );
+
+      final client = _clientForGroupCancel(
+        detailResponses: [detail, detail],
+        cancelResponse: {
+          'success': false,
+          'message': 'One or more selected vehicles can no longer be cancelled.',
+          'ineligible': [
+            {'booking_code': 'TM-00228', 'status': 'on_the_way'},
+          ],
+        },
+        cancelStatus: 422,
+      );
+
+      await http.runWithClient(() async {
+        SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+        await tester.pumpWidget(const MaterialApp(
+          home: BookingDetailScreen(bookingCode: 'TM-00227', asGroupOverview: true),
+        ));
+        await _settle(tester);
+
+        await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+        await _settle(tester);
+        await tester.tap(find.text('Motorcycle · TM-00228'));
+        await _settle(tester);
+        await tester.tap(find.text('Continue (1 selected)'));
+        await _settle(tester);
+        await tester.tap(find.text('Confirm Cancellation'));
+        await _settle(tester);
+      }, () => client);
+
+      expect(
+        find.text('One or more selected vehicles can no longer be cancelled. Please review and try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('Motorcycle · TM-00228'), findsNothing);
+    });
+
+    testWidgets('shows a network error message without a successful cancellation when the request fails', (tester) async {
+      final detail = _detail(
+        code: 'TM-00227',
+        groupCode: 'GRP-1',
+        groupVehicles: [
+          {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+          {'booking_code': 'TM-00228', 'status': 'requested', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+        ],
+      );
+
+      final client = MockClient((request) async {
+        final path = request.url.path;
+        if (path.contains('/bookings/group/') && path.endsWith('/cancel')) {
+          throw Exception('network down');
+        }
+        if (path.contains('/detail')) return _json(detail);
+        return _json({'success': false}, status: 404);
+      });
+
+      await http.runWithClient(() async {
+        SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+        await tester.pumpWidget(const MaterialApp(
+          home: BookingDetailScreen(bookingCode: 'TM-00227', asGroupOverview: true),
+        ));
+        await _settle(tester);
+
+        await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+        await _settle(tester);
+        await tester.tap(find.text('Motorcycle · TM-00228'));
+        await _settle(tester);
+        await tester.tap(find.text('Continue (1 selected)'));
+        await _settle(tester);
+        await tester.tap(find.text('Confirm Cancellation'));
+        await _settle(tester);
+      }, () => client);
+
+      expect(find.text('Network error. Please try again.'), findsOneWidget);
+    });
+
+    testWidgets('disables the group Cancel Booking action while a request is in flight, preventing duplicate submissions', (tester) async {
+      final detail = _detail(
+        code: 'TM-00227',
+        groupCode: 'GRP-1',
+        groupVehicles: [
+          {'booking_code': 'TM-00227', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+          {'booking_code': 'TM-00228', 'status': 'requested', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+        ],
+      );
+
+      final completer = Completer<http.Response>();
+      final client = MockClient((request) async {
+        final path = request.url.path;
+        if (path.contains('/bookings/group/') && path.endsWith('/cancel')) {
+          return completer.future;
+        }
+        if (path.contains('/detail')) return _json(detail);
+        return _json({'success': false}, status: 404);
+      });
+
+      await http.runWithClient(() async {
+        SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+        await tester.pumpWidget(const MaterialApp(
+          home: BookingDetailScreen(bookingCode: 'TM-00227', asGroupOverview: true),
+        ));
+        await _settle(tester);
+
+        await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+        await _settle(tester);
+        await tester.tap(find.text('Motorcycle · TM-00228'));
+        await _settle(tester);
+        await tester.tap(find.text('Continue (1 selected)'));
+        await _settle(tester);
+        await tester.tap(find.text('Confirm Cancellation'));
+        await tester.pump();
+
+        final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+        expect(button.onPressed, isNull);
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+        completer.complete(_json({'success': true, 'message': 'Cancelled.'}));
+        await _settle(tester);
+      }, () => client);
+    });
+
+    testWidgets('after partial cancellation the group overview labels the amount Remaining Total using the active vehicle count', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00283',
+          groupCode: 'GRP-000042',
+          baseRate: 1500.0,
+          distanceFee: 0.0,
+          vatAmount: 180.0,
+          finalTotal: 1680.0,
+          groupTotals: {
+            'vehicle_count': 2,
+            'base_rate': 1500.0,
+            'computed_total': 1500.0,
+            'vat_amount': 180.0,
+            'additional_fee': 0.0,
+            'final_total': 1680.0,
+          },
+          groupVehicles: [
+            {'booking_code': 'TM-00283', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00284', 'status': 'cancelled', 'vehicle_type_name': 'Sedan', 'final_total': 1120.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      expect(find.text('Remaining Total (1 active vehicle)'), findsOneWidget);
+      expect(find.text('Group Total (2 vehicles)'), findsNothing);
+      expect(find.text('Base Rate'), findsOneWidget);
+      expect(find.textContaining('combined · 1 vehicle'), findsNothing);
+      expect(find.textContaining('TM-00284 · Cancelled'), findsOneWidget);
+      expect(find.textContaining('TM-00283 · Requested'), findsOneWidget);
+    });
+
+    testWidgets('before any cancellation the group overview keeps the Group Total label with the full vehicle count', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00283',
+          groupCode: 'GRP-000042',
+          groupTotals: {
+            'vehicle_count': 2,
+            'base_rate': 2500.0,
+            'computed_total': 2500.0,
+            'vat_amount': 300.0,
+            'additional_fee': 0.0,
+            'final_total': 2800.0,
+          },
+          groupVehicles: [
+            {'booking_code': 'TM-00283', 'status': 'requested', 'vehicle_type_name': 'Sedan', 'final_total': 1680.0},
+            {'booking_code': 'TM-00284', 'status': 'requested', 'vehicle_type_name': 'Motorcycle', 'final_total': 1120.0},
+          ],
+        )),
+        asGroupOverview: true,
+      );
+
+      expect(find.text('Group Total (2 vehicles)'), findsOneWidget);
+      expect(find.textContaining('Remaining Total'), findsNothing);
+      expect(find.textContaining('combined · 2 vehicles'), findsOneWidget);
+    });
+
+    testWidgets('the individual status card shows only the viewed vehicle\'s own code and vehicle type when cancelled', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00284',
+          status: 'cancelled',
+          groupCode: 'GRP-000042',
+          groupBookingCode: 'TM-00283',
+          vehicleTypeName: 'Sedan',
+        )),
+        code: 'TM-00284',
+      );
+
+      expect(find.text('Cancelled'), findsOneWidget);
+      expect(find.text('TM-00284 · Sedan'), findsOneWidget);
+      expect(find.text('TM-00283'), findsNothing);
+      expect(find.textContaining('Vehicle reference'), findsNothing);
+    });
+
+    testWidgets('the individual status card shows the own code and vehicle type for a non-cancelled status too', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00284',
+          status: 'on_the_way',
+          groupCode: 'GRP-000042',
+          groupBookingCode: 'TM-00283',
+          vehicleTypeName: 'Sedan',
+        )),
+        code: 'TM-00284',
+      );
+
+      expect(find.text('TM-00284 · Sedan'), findsOneWidget);
+      expect(find.text('TM-00283'), findsNothing);
+    });
+
+    testWidgets('a cancelled individual booking with locked pricing labels its amount as an original agreed amount', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00284',
+          status: 'cancelled',
+          serviceType: 'schedule',
+          pricingIsProvisional: false,
+          finalTotal: 1680.0,
+        )),
+        code: 'TM-00284',
+      );
+
+      expect(find.text('Original Agreed Amount'), findsOneWidget);
+      expect(find.text('Total Amount'), findsNothing);
+    });
+
+    testWidgets('a cancelled individual booking with unlocked pricing labels its amount as an original estimated amount', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(_detail(
+          code: 'TM-00284',
+          status: 'cancelled',
+          serviceType: 'schedule',
+          pricingIsProvisional: true,
+          finalTotal: 1680.0,
+        )),
+        code: 'TM-00284',
+      );
+
+      expect(find.text('Original Estimated Amount'), findsOneWidget);
+      expect(find.text('Total Amount'), findsNothing);
+    });
+
+    testWidgets('a non-cancelled individual booking keeps the plain Total Amount label', (tester) async {
+      await _pumpScreen(tester, _clientFor(_detail(code: 'TM-00284', status: 'requested')));
+      expect(find.text('Total Amount'), findsOneWidget);
+      expect(find.textContaining('Original'), findsNothing);
+    });
   });
 }

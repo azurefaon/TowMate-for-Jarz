@@ -239,12 +239,13 @@ class GeoController extends Controller
             'extra_vehicles' => $bookNowExtras,
         ]);
 
-        $scheduledExtraPreviews = array_map(function (array $ev) use ($authoritativeDistanceKm) {
+        $previewVatRate = $this->bookingService->vatRate();
+        $buildVehiclePreview = function (array $ev) use ($authoritativeDistanceKm, $previewVatRate) {
             $truckType = TruckType::find($ev['truck_type_id']);
             $baseRate = (float) ($truckType?->base_rate ?? 0);
             $distanceFee = $this->bookingService->distanceFeeFor($authoritativeDistanceKm, (float) ($truckType?->per_km_rate ?? 0));
             $subtotal = round($baseRate + $distanceFee, 2);
-            $vatAmount = round($subtotal * 0.12, 2);
+            $vatAmount = round($subtotal * $previewVatRate, 2);
             return [
                 'truck_type_id' => (int) $ev['truck_type_id'],
                 'vehicle_type_id' => (int) ($ev['vehicle_type_id'] ?? 0),
@@ -253,7 +254,18 @@ class GeoController extends Controller
                 'vat_amount' => $vatAmount,
                 'final_total' => round($subtotal + $vatAmount, 2),
             ];
-        }, $scheduleExtras);
+        };
+        $scheduledExtraPreviews = array_map($buildVehiclePreview, $scheduleExtras);
+        $bookNowVehiclePreviews = [];
+        if ($requestServiceType === 'book_now' && ! empty($bookNowExtras)) {
+            $bookNowVehicles = array_merge([
+                [
+                    'truck_type_id' => $validated['truck_type_id'],
+                    'vehicle_type_id' => $validated['vehicle_type_id'] ?? 0,
+                ],
+            ], $bookNowExtras);
+            $bookNowVehiclePreviews = array_map($buildVehiclePreview, $bookNowVehicles);
+        }
 
         return response()->json([
             'route' => $route,
@@ -272,6 +284,7 @@ class GeoController extends Controller
                 'vat_amount'          => (float) $pricing['vat_amount'],
                 'final_total'         => (float) $pricing['final_total'],
             ],
+            'book_now_vehicle_previews' => $bookNowVehiclePreviews,
             'scheduled_extra_previews' => $scheduledExtraPreviews,
             'availability' => $this->bookingService->dispatchAvailability(),
         ]);

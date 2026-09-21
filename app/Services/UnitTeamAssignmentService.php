@@ -64,6 +64,10 @@ class UnitTeamAssignmentService
                 throw $e;
             }
 
+            if ($sourceUnit) {
+                $this->releaseTeamLeaderSeededPersonnel($sourceUnit, $teamLeader);
+            }
+
             $personnelUpdates = [];
 
             $driverFullName = build_full_name($teamLeader->driver_first_name, $teamLeader->driver_middle_name, $teamLeader->driver_last_name);
@@ -139,6 +143,11 @@ class UnitTeamAssignmentService
             $current->update(['team_leader_id' => null]);
             $homeUnit->update(['team_leader_id' => $loan->person_user_id]);
             $loan->update(['returned_at' => now()]);
+
+            $returningTeamLeader = User::find($loan->person_user_id);
+            if ($returningTeamLeader) {
+                $this->releaseTeamLeaderSeededPersonnel($current, $returningTeamLeader);
+            }
 
             AuditLog::create([
                 'user_id' => $actor->id,
@@ -286,6 +295,10 @@ class UnitTeamAssignmentService
             $teamLeader = User::find($unit->team_leader_id);
 
             $unit->update(['team_leader_id' => null]);
+
+            if ($teamLeader) {
+                $this->releaseTeamLeaderSeededPersonnel($unit, $teamLeader);
+            }
 
             AuditLog::create([
                 'user_id' => $actor->id,
@@ -468,6 +481,44 @@ class UnitTeamAssignmentService
             'reference' => $unit->name,
             'description' => "{$slot} duty set to {$status}.",
         ]);
+    }
+
+    protected function releaseTeamLeaderSeededPersonnel(Unit $unit, User $teamLeader): void
+    {
+        $updates = [];
+
+        $driverFullName = build_full_name($teamLeader->driver_first_name, $teamLeader->driver_middle_name, $teamLeader->driver_last_name);
+        if (
+            filled($driverFullName)
+            && ! $unit->driver_id
+            && $unit->driver_name === $driverFullName
+            && ! $unit->activeLoanOut('driver_1')
+            && ! $unit->activeLoansIn()->has('driver_1')
+        ) {
+            $updates['driver_name'] = null;
+        }
+
+        if (
+            filled($teamLeader->crew_member_1_name)
+            && $unit->crew_member_1_name === $teamLeader->crew_member_1_name
+            && ! $unit->activeLoanOut('crew_member_1')
+            && ! $unit->activeLoansIn()->has('crew_member_1')
+        ) {
+            $updates['crew_member_1_name'] = null;
+        }
+
+        if (
+            filled($teamLeader->crew_member_2_name)
+            && $unit->crew_member_2_name === $teamLeader->crew_member_2_name
+            && ! $unit->activeLoanOut('crew_member_2')
+            && ! $unit->activeLoansIn()->has('crew_member_2')
+        ) {
+            $updates['crew_member_2_name'] = null;
+        }
+
+        if ($updates !== []) {
+            $unit->update($updates);
+        }
     }
 
     protected function assertUnitTeamIsMovable(Unit $unit, string $actionDescription): void

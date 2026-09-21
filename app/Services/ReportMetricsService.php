@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\Quotation;
 use App\Models\Unit;
 use Illuminate\Support\Collection;
 
 class ReportMetricsService
 {
     public const VALID_BOOKING_EXCLUDED_STATUSES = ['requested', 'not_responding', 'rejected'];
+
+    private array $groupAllocationCache = [];
 
     public const METRIC_DICTIONARY = [
         'cancellation_rate' => [
@@ -105,6 +108,50 @@ class ReportMetricsService
         );
     }
 
+    private function groupAdjustmentAllocation(Booking $booking): ?array
+    {
+        if (! $booking->group_code || ! $booking->quotation_id) {
+            return null;
+        }
+
+        if (array_key_exists($booking->quotation_id, $this->groupAllocationCache)) {
+            return $this->groupAllocationCache[$booking->quotation_id];
+        }
+
+        $quotation = Quotation::find($booking->quotation_id);
+        $isNormalizedGroup = $quotation
+            && collect($quotation->extra_vehicles ?? [])->contains(fn ($ev) => ! empty($ev['booking_id']));
+
+        if (! $isNormalizedGroup) {
+            return $this->groupAllocationCache[$booking->quotation_id] = null;
+        }
+
+        $activeServiceTotal = (float) Booking::where('group_code', $booking->group_code)
+            ->where('pickup_address', $booking->pickup_address)
+            ->where('dropoff_address', $booking->dropoff_address)
+            ->where('status', '!=', 'cancelled')
+            ->sum('final_total');
+
+        $adjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
+
+        return $this->groupAllocationCache[$booking->quotation_id] = [
+            'active_service_total' => $activeServiceTotal,
+            'adjustment' => $adjustment,
+        ];
+    }
+
+    private function allocatedRevenue(Booking $booking): float
+    {
+        $allocation = $this->groupAdjustmentAllocation($booking);
+        if ($allocation === null || $allocation['active_service_total'] <= 0) {
+            return (float) $booking->final_total;
+        }
+
+        $share = (float) $booking->final_total / $allocation['active_service_total'];
+
+        return round((float) $booking->final_total + $share * $allocation['adjustment'], 2);
+    }
+
     public function cancellationRate($start, $end, array $filters = []): array
     {
         $validQuery = fn () => $this->applyFilters(
@@ -125,10 +172,10 @@ class ReportMetricsService
 
     public function averageRevenuePerJob($start, $end, array $filters = []): array
     {
-        $completedQuery = fn () => $this->completedPaidJobsQuery($start, $end, $filters);
+        $bookings = $this->completedPaidJobsQuery($start, $end, $filters)->get();
 
-        $revenue = (float) $completedQuery()->sum('final_total');
-        $completedJobs = $completedQuery()->count();
+        $revenue = round($bookings->sum(fn (Booking $b) => $this->allocatedRevenue($b)), 2);
+        $completedJobs = $bookings->count();
 
         return [
             'revenue' => $revenue,
@@ -139,22 +186,22 @@ class ReportMetricsService
 
     public function revenueByTruckType($start, $end, array $filters = [], ?int $limit = null): Collection
     {
-        $query = $this->completedPaidJobsQuery($start, $end, $filters)
+        $bookings = $this->completedPaidJobsQuery($start, $end, $filters)
             ->whereNotNull('truck_type_id')
             ->with('truckType')
-            ->selectRaw('truck_type_id, count(*) as jobs, sum(final_total) as revenue')
-            ->groupBy('truck_type_id')
-            ->orderByDesc('revenue');
+            ->get();
 
-        if ($limit !== null) {
-            $query->take($limit);
-        }
+        $grouped = $bookings->groupBy('truck_type_id')
+            ->map(fn (Collection $rows, $truckTypeId) => [
+                'truck_type_name' => $rows->first()->truckType->name ?? 'Truck Type #' . $truckTypeId,
+                'jobs' => $rows->count(),
+                'revenue' => round($rows->sum(fn (Booking $b) => $this->allocatedRevenue($b)), 2),
+            ])
+            ->values()
+            ->sortByDesc('revenue')
+            ->values();
 
-        return $query->get()->map(fn ($row) => [
-            'truck_type_name' => $row->truckType->name ?? 'Truck Type #' . $row->truck_type_id,
-            'jobs' => (int) $row->jobs,
-            'revenue' => (float) $row->revenue,
-        ]);
+        return $limit !== null ? $grouped->take($limit)->values() : $grouped;
     }
 
     public function completedJobsByTruckType($start, $end, array $filters = []): Collection
@@ -166,7 +213,9 @@ class ReportMetricsService
     public function currentFleetUtilization(): array
     {
         $totalUnits = Unit::whereNull('archived_at')->count();
-        $unitsInUse = Unit::whereNull('archived_at')->where('status', 'on_job')->count();
+        $unitsInUse = app(UnitAvailabilityService::class)->evaluateAll()
+            ->filter(fn($row) => $row['active_booking'] !== null)
+            ->count();
 
         return [
             'total_units' => $totalUnits,
@@ -177,23 +226,28 @@ class ReportMetricsService
 
     public function unitPerformance($start, $end, array $filters = [], ?int $limit = null): Collection
     {
-        $query = $this->completedPaidJobsQuery($start, $end, $filters)
+        $bookings = $this->completedPaidJobsQuery($start, $end, $filters)
             ->whereNotNull('assigned_unit_id')
             ->with('unit.truckType')
-            ->selectRaw('assigned_unit_id, count(*) as completed_jobs, sum(final_total) as revenue')
-            ->groupBy('assigned_unit_id')
-            ->orderByDesc('revenue');
+            ->get();
 
-        if ($limit !== null) {
-            $query->take($limit);
-        }
+        $grouped = $bookings->groupBy('assigned_unit_id')
+            ->map(function (Collection $rows, $unitId) {
+                $revenue = round($rows->sum(fn (Booking $b) => $this->allocatedRevenue($b)), 2);
+                $completedJobs = $rows->count();
 
-        return $query->get()->map(fn ($row) => [
-            'unit_name' => $row->unit->name ?? 'Unit #' . $row->assigned_unit_id,
-            'truck_type_name' => $row->unit->truckType->name ?? '—',
-            'completed_jobs' => (int) $row->completed_jobs,
-            'revenue' => (float) $row->revenue,
-            'average_revenue_per_job' => $row->completed_jobs > 0 ? (float) $row->revenue / (int) $row->completed_jobs : 0.0,
-        ]);
+                return [
+                    'unit_name' => $rows->first()->unit->name ?? 'Unit #' . $unitId,
+                    'truck_type_name' => $rows->first()->unit->truckType->name ?? '—',
+                    'completed_jobs' => $completedJobs,
+                    'revenue' => $revenue,
+                    'average_revenue_per_job' => $completedJobs > 0 ? $revenue / $completedJobs : 0.0,
+                ];
+            })
+            ->values()
+            ->sortByDesc('revenue')
+            ->values();
+
+        return $limit !== null ? $grouped->take($limit)->values() : $grouped;
     }
 }

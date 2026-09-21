@@ -546,8 +546,10 @@
             @php
                 $baseRate     = (float) ($booking->base_rate ?? 0);
                 $distanceKm   = (float) ($booking->distance_km ?? 0);
-                $perKmRate    = (float) ($booking->per_km_rate ?? 0);
-                $distanceFee  = $distanceKm > 0 && $perKmRate > 0 ? round($distanceKm * $perKmRate, 2) : 0;
+                // First 4 km included in the base fee, ₱300/km after — single
+                // source of truth is BookingService::distanceFeeFor(); never
+                // recompute from a plain distance_km * per_km_rate multiply.
+                $distanceFee  = app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm, (float) ($booking->truckType?->per_km_rate ?? 0));
                 $addFee       = (float) ($booking->additional_fee ?? 0);
                 $discountAmt  = (float) ($booking->discount_percentage > 0 ? ($booking->computed_total * $booking->discount_percentage / 100) : 0);
             @endphp

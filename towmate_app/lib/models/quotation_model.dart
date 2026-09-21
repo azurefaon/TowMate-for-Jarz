@@ -10,7 +10,10 @@ class QuotationModel {
     required this.truckTypeName,
     this.baseRate = 0.0,
     this.distanceFee = 0.0,
+    this.subtotal = 0.0,
     this.vatAmount = 0.0,
+    this.vatRate = 0.12,
+    this.discount = 0.0,
     this.additionalFee = 0.0,
     this.additionalFeeNote,
     this.truckTypeClass,
@@ -21,6 +24,8 @@ class QuotationModel {
     this.sentAt,
     this.priceChangeLog,
     this.responseNote,
+    this.extraVehicles,
+    this.priceAdjustments = const [],
   });
 
   final int id;
@@ -29,7 +34,10 @@ class QuotationModel {
   final double estimatedPrice;
   final double baseRate;
   final double distanceFee;
+  final double subtotal;
   final double vatAmount;
+  final double vatRate;
+  final double discount;
   final double additionalFee;
   final String? additionalFeeNote;
   final double distanceKm;
@@ -43,9 +51,26 @@ class QuotationModel {
   final DateTime? expiresAt;
   final DateTime? sentAt;
   final List<Map<String, dynamic>>? priceChangeLog;
-  // Only meaningful while status == 'price_review_requested' — the
-  // customer's own submitted reason for the review.
   final String? responseNote;
+  final List<QuotationVehicleLine>? extraVehicles;
+  final List<QuotationAdjustment> priceAdjustments;
+
+  bool get isGrouped =>
+      extraVehicles != null &&
+      extraVehicles!.any((v) => v.bookingId != null);
+
+  List<QuotationVehicleLine> get groupVehicles {
+    if (!isGrouped) return const [];
+    final primary = QuotationVehicleLine(
+      truckTypeName: truckTypeName,
+      baseRate: baseRate,
+      distanceFee: distanceFee,
+      vatAmount: vatAmount,
+      vatRate: vatRate,
+      finalTotal: subtotal + vatAmount,
+    );
+    return [primary, ...extraVehicles!];
+  }
 
   bool get isExpired => expiresAt != null && expiresAt!.isBefore(DateTime.now());
   bool get isPriceReviewRequested => status == 'price_review_requested';
@@ -63,7 +88,10 @@ class QuotationModel {
         estimatedPrice: (j['estimated_price'] as num).toDouble(),
         baseRate: (j['base_rate'] as num? ?? 0).toDouble(),
         distanceFee: (j['distance_fee'] as num? ?? 0).toDouble(),
+        subtotal: (j['subtotal'] as num? ?? 0).toDouble(),
         vatAmount: (j['vat_amount'] as num? ?? 0).toDouble(),
+        vatRate: (j['vat_rate'] as num? ?? 0.12).toDouble(),
+        discount: (j['discount'] as num? ?? 0).toDouble(),
         additionalFee: (j['additional_fee'] as num? ?? 0).toDouble(),
         additionalFeeNote: j['additional_fee_note'] as String?,
         distanceKm: (j['distance_km'] as num).toDouble(),
@@ -80,5 +108,72 @@ class QuotationModel {
             ?.map((e) => Map<String, dynamic>.from(e as Map))
             .toList(),
         responseNote: j['response_note'] as String?,
+        extraVehicles: (j['extra_vehicles'] as List<dynamic>?)
+            ?.map((e) => QuotationVehicleLine.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        priceAdjustments: (j['price_adjustments'] as List<dynamic>?)
+                ?.map((e) => QuotationAdjustment.fromJson(Map<String, dynamic>.from(e as Map)))
+                .toList() ??
+            const [],
+      );
+}
+
+class QuotationAdjustment {
+  const QuotationAdjustment({
+    required this.type,
+    required this.amount,
+    this.reason,
+  });
+
+  final String type;
+  final double amount;
+  final String? reason;
+
+  bool get isDeduction => type == 'deduct';
+
+  String get displayLabel {
+    if (reason != null && reason!.trim().isNotEmpty) return reason!;
+    return isDeduction ? 'Discount' : 'Additional Fee';
+  }
+
+  factory QuotationAdjustment.fromJson(Map<String, dynamic> j) => QuotationAdjustment(
+        type: j['type'] as String? ?? 'add',
+        amount: (j['amount'] as num? ?? 0).toDouble(),
+        reason: j['reason'] as String?,
+      );
+}
+
+class QuotationVehicleLine {
+  const QuotationVehicleLine({
+    this.bookingId,
+    this.vehicleName,
+    this.truckTypeName,
+    this.baseRate = 0.0,
+    this.distanceFee = 0.0,
+    this.vatAmount = 0.0,
+    this.vatRate = 0.12,
+    this.finalTotal = 0.0,
+  });
+
+  final int? bookingId;
+  final String? vehicleName;
+  final String? truckTypeName;
+  final double baseRate;
+  final double distanceFee;
+  final double vatAmount;
+  final double vatRate;
+  final double finalTotal;
+
+  String get displayName => vehicleName ?? truckTypeName ?? 'Tow Truck';
+
+  factory QuotationVehicleLine.fromJson(Map<String, dynamic> j) => QuotationVehicleLine(
+        bookingId: (j['booking_id'] as num?)?.toInt(),
+        vehicleName: j['vehicle_name'] as String?,
+        truckTypeName: j['truck_type_name'] as String?,
+        baseRate: (j['base_rate'] as num? ?? 0).toDouble(),
+        distanceFee: (j['distance_fee'] as num? ?? 0).toDouble(),
+        vatAmount: (j['vat_amount'] as num? ?? 0).toDouble(),
+        vatRate: (j['vat_rate'] as num? ?? 0.12).toDouble(),
+        finalTotal: (j['final_total'] as num? ?? j['estimated_price'] as num? ?? 0).toDouble(),
       );
 }

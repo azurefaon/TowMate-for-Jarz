@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\BookingStatusUpdated;
 use App\Exceptions\Booking\ScheduledQuoteCutoffPassedException;
 use App\Models\Booking;
+use App\Models\PriceAdjustment;
 use App\Models\Quotation;
 use App\Models\TruckType;
 use App\Services\CustomerNotificationService;
@@ -18,15 +19,6 @@ class QuotationService
         return app(BookingService::class);
     }
 
-    /**
-     * Single authoritative cap on quotation expiry for a Scheduled booking:
-     * expiry may never extend past 2 hours before the scheduled service time,
-     * leaving a real window to reach the Ready dispatch window afterward.
-     * Book Now (or a quotation with no scheduled time) passes through
-     * unchanged. Throws when the cutoff has already passed rather than
-     * silently producing a near-zero, negative, or post-cutoff expiry — every
-     * call site below routes through this instead of computing its own cap.
-     */
     private function resolveExpiry(Quotation $quotation, Carbon $candidate): Carbon
     {
         if ($quotation->service_type === 'book_now' || ! $quotation->scheduled_for) {
@@ -100,6 +92,7 @@ class QuotationService
             'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
             'extra_vehicles' => $data['extra_vehicles'] ?? null,
             'estimated_price' => $data['estimated_price'],
+            'vat_rate' => $data['vat_rate'] ?? $this->bookingService()->vatRate(),
             'service_type' => $data['service_type'] ?? null,
             'scheduled_date' => $data['scheduled_date'] ?? null,
             'scheduled_time' => $data['scheduled_time'] ?? null,
@@ -158,7 +151,6 @@ class QuotationService
             }
         }
 
-        // In-app notification for mobile customers
         if ($quotation->customer && $quotation->customer->user_id) {
             $bookingCode = $quotation->sourceBooking?->booking_code;
             CustomerNotificationService::send(
@@ -194,34 +186,35 @@ class QuotationService
 
             $groupCode = $quotation->quotation_number;
             $isScheduled = $quotation->service_type === 'schedule';
+            $extraVehicles = $quotation->extra_vehicles ?? [];
+            $isNormalizedGroup = collect($extraVehicles)->contains(fn ($ev) => ! empty($ev['booking_id']));
 
-            // If this quotation originated from a mobile booking, update that booking
-            // rather than creating a duplicate.
-            if ($quotation->source_booking_id) {
-                $primaryBooking = Booking::findOrFail($quotation->source_booking_id);
+            $primaryBooking = $quotation->source_booking_id ? Booking::findOrFail($quotation->source_booking_id) : null;
+            $vatRate = $this->bookingService()->resolveVatRate(
+                $quotation->vat_rate !== null ? (float) $quotation->vat_rate : null,
+                $primaryBooking?->vat_amount !== null ? (float) $primaryBooking->vat_amount : null,
+                $primaryBooking?->vat_exclusive_total !== null ? (float) $primaryBooking->vat_exclusive_total : null,
+            );
 
-                $finalTotal   = (float) $quotation->estimated_price;
+            if ($primaryBooking) {
                 $subtotal     = $this->bookingService()->resolveTaxableSubtotal($primaryBooking);
-                $vatAmount    = round($subtotal * 0.12, 2);
+                $vatAmount    = round($subtotal * $vatRate, 2);
                 $vatExclusive = $subtotal;
+                $finalTotal   = $isNormalizedGroup ? round($vatExclusive + $vatAmount, 2) : (float) $quotation->estimated_price;
 
                 $primaryBooking->update(array_merge([
                     'quotation_id'         => $quotation->id,
                     'final_total'          => $finalTotal,
                     'vat_amount'           => $vatAmount,
                     'vat_exclusive_total'  => $vatExclusive,
+                    'vat_rate'             => $vatRate,
                     'status'               => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
                     'customer_approved_at' => now(),
                     'price_locked_at'      => now(),
-                    // Defensive only, Scheduled-only (never affects Book Now,
-                    // which doesn't add this key at all): a Scheduled booking
-                    // must never carry a Unit/TL reservation into
-                    // scheduled_confirmed, no matter how a stale
-                    // selected_unit_id could have gotten onto the row.
-                ], $isScheduled ? ['selected_unit_id' => null] : []));
+                ], $isScheduled ? ['selected_unit_id' => null] : [], $isNormalizedGroup ? ['additional_fee' => 0.0] : []));
             } else {
                 $finalTotal   = (float) $quotation->estimated_price;
-                $vatExclusive = round($finalTotal / 1.12, 2);
+                $vatExclusive = round($finalTotal / (1 + $vatRate), 2);
                 $vatAmount    = round($finalTotal - $vatExclusive, 2);
 
                 $primaryBooking = Booking::create([
@@ -238,6 +231,7 @@ class QuotationService
                     'final_total'         => $finalTotal,
                     'vat_amount'          => $vatAmount,
                     'vat_exclusive_total' => $vatExclusive,
+                    'vat_rate'            => $vatRate,
                     'service_type'        => $quotation->service_type,
                     'scheduled_date'      => $quotation->scheduled_date?->toDateString(),
                     'scheduled_time'      => $quotation->scheduled_time,
@@ -259,9 +253,60 @@ class QuotationService
                 );
             }
 
-            $extraVehicles = $quotation->extra_vehicles ?? [];
-
             foreach ($extraVehicles as $ev) {
+                $evBookingId = $ev['booking_id'] ?? null;
+
+                if ($evBookingId) {
+                    if ((int) $evBookingId === (int) $quotation->source_booking_id) {
+                        continue;
+                    }
+
+                    $siblingBooking = Booking::find($evBookingId);
+                    if (! $siblingBooking) {
+                        continue;
+                    }
+
+                    $evIsScheduled = ($ev['service_type'] ?? $siblingBooking->service_type) === 'schedule';
+                    $evFinalTotal = (float) ($ev['final_total'] ?? $ev['estimated_price'] ?? 0);
+                    $evBaseRate = (float) ($ev['base_rate'] ?? 0);
+                    $evDistanceFee = (float) ($ev['distance_fee'] ?? 0);
+                    $evVatExclusive = isset($ev['vat_exclusive_total'])
+                        ? (float) $ev['vat_exclusive_total']
+                        : round($evBaseRate + $evDistanceFee, 2);
+                    $evVatAmount = isset($ev['vat_amount']) ? round((float) $ev['vat_amount'], 2) : round($evVatExclusive * $vatRate, 2);
+                    $evVatRate = $this->bookingService()->resolveVatRate(
+                        isset($ev['vat_rate']) && $ev['vat_rate'] !== null ? (float) $ev['vat_rate'] : null,
+                        $evVatAmount,
+                        $evVatExclusive,
+                    );
+                    $evServiceTotal = round($evVatExclusive + $evVatAmount, 2);
+                    $evAdjustment = round($evFinalTotal - $evServiceTotal, 2);
+
+                    $siblingBooking->update(array_merge([
+                        'quotation_id'         => $quotation->id,
+                        'final_total'          => $evFinalTotal,
+                        'vat_amount'           => $evVatAmount,
+                        'vat_exclusive_total'  => $evVatExclusive,
+                        'vat_rate'             => $evVatRate,
+                        'additional_fee'       => $evAdjustment,
+                        'status'               => $evIsScheduled ? 'scheduled_confirmed' : 'confirmed',
+                        'customer_approved_at' => now(),
+                        'price_locked_at'      => now(),
+                    ], $evIsScheduled ? ['selected_unit_id' => null] : []));
+
+                    if ($evIsScheduled && $siblingBooking->scheduled_date) {
+                        DB::statement(
+                            "INSERT INTO booking_capacity (booking_date, slots_used, updated_at)
+                             VALUES (?, 1, NOW())
+                             ON CONFLICT (booking_date) DO UPDATE
+                             SET slots_used = booking_capacity.slots_used + 1, updated_at = NOW()",
+                            [$siblingBooking->scheduled_date->toDateString()]
+                        );
+                    }
+
+                    continue;
+                }
+
                 $evTruckTypeId = $ev['truck_type_id'] ?? null;
                 $evServiceType = $ev['service_type'] ?? $quotation->service_type ?? 'book_now';
                 $evScheduled = $evServiceType === 'schedule';
@@ -324,8 +369,6 @@ class QuotationService
 
     public function rejectQuotation(Quotation $quotation, ?string $reason = null): void
     {
-        // Defense-in-depth: callers already check is_current before calling this,
-        // but guard here too in case of a race with a concurrent price revision.
         if (! $quotation->is_current) {
             return;
         }
@@ -346,12 +389,6 @@ class QuotationService
         }
     }
 
-    /**
-     * Dispatcher-initiated withdrawal of an already-sent quote — distinct from
-     * rejectQuotation() above, which is the customer's own self-decline. Kept
-     * as its own status ('cancelled' vs 'rejected') so neither the dispatcher
-     * UI nor the customer-facing quote page has to guess which side pulled it.
-     */
     public function cancelQuotation(Quotation $quotation): void
     {
         $quotation->update([
@@ -393,15 +430,6 @@ class QuotationService
         }
     }
 
-    /**
-     * Customer-initiated: "I responded in time, but I'd like the dispatcher to
-     * look at this price again." Distinct from negotiateQuotation()/'negotiating'
-     * below (which has no live customer entry point and isn't reused here to
-     * avoid confusing semantics) — this is Book Now-only. Deliberately does NOT
-     * touch sent_at/expires_at: excluding 'price_review_requested' from
-     * expireOldQuotations()/getQuotationsNeedingFollowUp()'s status whitelist is
-     * what "pauses" the customer-response clock, no timestamp faking needed.
-     */
     public function requestPriceReview(Quotation $quotation, string $reason): void
     {
         if (! $quotation->is_current || $quotation->status !== 'sent') {
@@ -426,13 +454,6 @@ class QuotationService
         ]);
     }
 
-    /**
-     * Dispatcher decided the current price is fine as-is. Same quotation row/
-     * version — NOT newVersion() — since nothing financial changed. Resuming
-     * with a fresh sent_at/expires_at is what restarts the customer-response
-     * clock (and, by the same status-whitelist mechanism as above, makes it
-     * eligible for the 30-minute reminder again).
-     */
     public function keepCurrentPrice(Quotation $quotation, ?string $dispatcherNote = null): Quotation
     {
         if (! $quotation->is_current || $quotation->status !== 'price_review_requested') {
@@ -488,13 +509,6 @@ class QuotationService
         return $quotation->fresh();
     }
 
-    /**
-     * Dispatcher decided to change the price after a review request. Never
-     * mutates the sent version in place — creates a new one via the existing
-     * newVersion() mechanism (old row -> is_current=false = "Superseded",
-     * enforced by the same is_current guard every accept/reject/update path
-     * already uses to reject stale actions).
-     */
     public function resolvePriceReviewWithNewPrice(Quotation $quotation, float $newPrice, ?string $note, float $additionalFee = 0): Quotation
     {
         if (! $quotation->is_current || $quotation->status !== 'price_review_requested') {
@@ -514,9 +528,12 @@ class QuotationService
         ];
         $log = $this->appendSentVersionEntry($log, (int) ($quotation->version ?: 1) + 1);
 
+        $this->recordAdjustmentDelta($quotation->quotation_number, (float) $quotation->additional_fee, $additionalFee, $note, auth()->id());
+
         $next = $quotation->newVersion([
             'estimated_price' => $newPrice,
             'additional_fee' => $additionalFee,
+            'vat_rate' => $this->bookingService()->vatRate(),
             'counter_offer_amount' => null,
             'response_note' => null,
             'status' => 'sent',
@@ -602,13 +619,6 @@ class QuotationService
 
     public function getQuotationsNeedingFollowUp()
     {
-        // Book Now quotations only live for 1 hour (see sendQuotation()'s
-        // $expiryHours), so a reminder tied to a multi-day threshold would
-        // never fire before they expire — remind at the halfway point (30 min
-        // after sending) instead. Everything else (schedule bookings) keeps
-        // the original 5-day threshold. A null service_type is treated as
-        // Book Now, matching the convention already used for the queue query
-        // in DispatchController::index().
         return Quotation::whereIn('status', ['sent', 'negotiating'])
             ->current()
             ->whereNull('responded_at')
@@ -719,6 +729,124 @@ class QuotationService
             'vehicle_image_path' => $oldQuotation->vehicle_image_path,
             'extra_vehicles' => $oldQuotation->extra_vehicles,
             'estimated_price' => $oldQuotation->estimated_price,
+            'vat_rate' => $this->bookingService()->resolveVatRate(
+                $oldQuotation->vat_rate !== null ? (float) $oldQuotation->vat_rate : null,
+            ),
         ]);
+    }
+
+    public function canonicalBaseTotalFor(?Booking $sourceBooking, bool $isEditableDraft = false): ?float
+    {
+        if (! $sourceBooking) {
+            return null;
+        }
+
+        return $this->bookingService()->applyVatAndAdjustment(
+            $this->bookingService()->taxableSubtotalFor($sourceBooking, $isEditableDraft),
+            0,
+        )['base_total'];
+    }
+
+    public function netActiveAdjustment(string $quotationNumber): float
+    {
+        $active = PriceAdjustment::forQuotation($quotationNumber)->active()->get();
+
+        $added = (float) $active->where('type', 'add')->sum('amount');
+        $deducted = (float) $active->where('type', 'deduct')->sum('amount');
+
+        return round($added - $deducted, 2);
+    }
+
+    public function recordPriceAdjustments(string $quotationNumber, array $items, ?int $userId): void
+    {
+        foreach ($items as $item) {
+            PriceAdjustment::create([
+                'quotation_number' => $quotationNumber,
+                'type' => $item['type'],
+                'amount' => round(abs((float) $item['amount']), 2),
+                'reason' => $item['reason'] ?? null,
+                'status' => 'active',
+                'created_by' => $userId,
+            ]);
+        }
+    }
+
+    public function recordAdjustmentDelta(string $quotationNumber, float $previousAdditionalFee, float $newAdditionalFee, ?string $reason, ?int $userId): void
+    {
+        $delta = round($newAdditionalFee - $previousAdditionalFee, 2);
+
+        if (abs($delta) < 0.005) {
+            return;
+        }
+
+        $this->recordPriceAdjustments($quotationNumber, [[
+            'type' => $delta > 0 ? 'add' : 'deduct',
+            'amount' => abs($delta),
+            'reason' => $reason,
+        ]], $userId);
+    }
+
+    public function undoPriceAdjustment(Quotation $quotation, PriceAdjustment $adjustment, ?int $userId): Quotation
+    {
+        $reverted = PriceAdjustment::where('id', $adjustment->id)
+            ->where('status', 'active')
+            ->update([
+                'status' => 'reverted',
+                'reverted_at' => now(),
+                'reverted_by' => $userId,
+            ]);
+
+        if ($reverted === 0) {
+            throw new \Exception('This adjustment has already been reverted.');
+        }
+
+        $isGrouped = collect($quotation->extra_vehicles ?? [])->contains(fn ($ev) => isset($ev['booking_id']));
+        $isEditableDraft = in_array($quotation->status, ['draft', 'pending'], true);
+        $discount = (float) ($quotation->discount ?? 0);
+        $newAdditionalFee = $this->netActiveAdjustment($quotation->quotation_number);
+
+        if ($isGrouped) {
+            $groupServiceTotal = collect($quotation->extra_vehicles)->sum(fn ($ev) => (float) ($ev['final_total'] ?? $ev['estimated_price'] ?? 0));
+            $baseTotal = round($groupServiceTotal - $discount, 2);
+        } else {
+            $sourceBooking = $quotation->source_booking_id ? Booking::find($quotation->source_booking_id) : null;
+            $baseTotal = $this->canonicalBaseTotalFor($sourceBooking, $isEditableDraft)
+                ?? round((float) $quotation->estimated_price - (float) $quotation->additional_fee, 2);
+        }
+
+        $newPrice = max(round($baseTotal + $newAdditionalFee, 2), 0);
+
+        $payload = [
+            'estimated_price' => $newPrice,
+            'additional_fee' => $newAdditionalFee,
+        ];
+
+        if ($isEditableDraft) {
+            $quotation->update($payload);
+            $next = $quotation->fresh();
+        } else {
+            $payload['status'] = in_array($quotation->status, ['sent', 'negotiating'], true) ? 'sent' : $quotation->status;
+            $next = $quotation->newVersion($payload);
+        }
+
+        if (! $isGrouped && $next->source_booking_id) {
+            $sourceBooking = Booking::find($next->source_booking_id);
+            if ($sourceBooking) {
+                $vatRate = $next->vat_rate !== null ? (float) $next->vat_rate : $this->bookingService()->vatRate();
+                $totals = $this->bookingService()->applyVatAndAdjustment(
+                    $this->bookingService()->taxableSubtotalFor($sourceBooking, $isEditableDraft),
+                    $newAdditionalFee,
+                    $vatRate,
+                );
+                $sourceBooking->update($this->bookingService()->filterPayloadForTable('bookings', [
+                    'final_total' => $totals['final_total'],
+                    'vat_amount' => $totals['vat_amount'],
+                    'vat_exclusive_total' => $totals['subtotal'],
+                    'quotation_id' => $next->id,
+                ]));
+            }
+        }
+
+        return $next;
     }
 }

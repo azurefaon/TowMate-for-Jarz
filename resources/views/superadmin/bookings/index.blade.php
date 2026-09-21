@@ -3,7 +3,8 @@
 @section('title', 'Bookings')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('admin/css/bookings.css') }}?v={{ filemtime(public_path('admin/css/bookings.css')) }}">
+    <link rel="stylesheet"
+        href="{{ asset('admin/css/bookings.css') }}?v={{ filemtime(public_path('admin/css/bookings.css')) }}">
 @endpush
 
 @section('content')
@@ -12,7 +13,7 @@
         <div class="booking-header">
             <div>
                 <h1>Bookings Overview</h1>
-                <p>Review booking activity and transaction history.</p>
+                <p>Review current and historical towing bookings.</p>
             </div>
         </div>
 
@@ -22,9 +23,12 @@
                     <label class="booking-field-label" for="bookingStatusSelect">Status</label>
                     <select name="status" id="bookingStatusSelect" data-custom>
                         <option value="" {{ $filters['status'] === '' ? 'selected' : '' }}>All statuses</option>
-                        <option value="needs_attention" {{ $filters['status'] === 'needs_attention' ? 'selected' : '' }}>Needs Attention</option>
-                        <option value="completed" {{ $filters['status'] === 'completed' ? 'selected' : '' }}>Completed</option>
-                        <option value="scheduled" {{ $filters['status'] === 'scheduled' ? 'selected' : '' }}>Scheduled</option>
+                        <option value="needs_attention" {{ $filters['status'] === 'needs_attention' ? 'selected' : '' }}>
+                            Needs Attention</option>
+                        <option value="completed" {{ $filters['status'] === 'completed' ? 'selected' : '' }}>Completed
+                        </option>
+                        <option value="scheduled" {{ $filters['status'] === 'scheduled' ? 'selected' : '' }}>Scheduled
+                        </option>
                         <option value="on_job" {{ $filters['status'] === 'on_job' ? 'selected' : '' }}>On Job</option>
                         <option value="returned" {{ $filters['status'] === 'returned' ? 'selected' : '' }}>Returned</option>
                     </select>
@@ -49,8 +53,10 @@
                             <input type="date" name="to" data-role="to" value="{{ $filters['to'] }}">
                         </div>
 
-                        <button type="button" id="bookingRangeApply" class="booking-range-btn booking-range-btn--apply">Apply</button>
-                        <button type="button" id="bookingRangeClear" class="booking-range-btn booking-range-btn--clear">Clear</button>
+                        <button type="button" id="bookingRangeApply"
+                            class="booking-range-btn booking-range-btn--apply">Apply</button>
+                        <button type="button" id="bookingRangeClear"
+                            class="booking-range-btn booking-range-btn--clear">Clear</button>
                     </div>
                 </div>
             </div>
@@ -84,7 +90,8 @@
                                 $statusClass = match (true) {
                                     $booking->status === 'completed' => 'is-completed',
                                     $booking->status === 'cancelled' => 'is-cancelled',
-                                    in_array($booking->status, ['scheduled', 'scheduled_confirmed'], true) => 'is-muted',
+                                    in_array($booking->status, ['scheduled', 'scheduled_confirmed'], true)
+                                        => 'is-muted',
                                     default => 'is-neutral',
                                 };
                             @endphp

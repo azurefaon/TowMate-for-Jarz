@@ -507,9 +507,11 @@ class UserManagementController extends Controller
 
         AuditLog::create([
             'user_id' => Auth::id(),
-            'action' => 'Toggled status for: ' . $user->name,
+            'action' => 'user_status_toggled',
             'entity_type' => 'User',
             'entity_id' => $user->id,
+            'reference' => $user->name,
+            'description' => "Set status to {$user->status}.",
         ]);
 
         return back()->with('success', 'User status updated.');

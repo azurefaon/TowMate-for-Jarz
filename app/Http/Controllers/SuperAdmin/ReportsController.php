@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\TruckType;
 use App\Models\User;
+use App\Services\AuditLogService;
 use App\Services\DocumentGenerationService;
 use App\Services\ReportMetricsService;
 use Illuminate\Http\Request;
@@ -32,9 +33,6 @@ class ReportsController extends Controller
     ];
 
     protected const ACTIVITY_CATEGORIES = [
-        'login' => 'Login',
-        'logout' => 'Logout',
-        'login_failed' => 'Failed Login',
         'create' => 'Create',
         'update' => 'Update',
         'archive' => 'Archive',
@@ -45,10 +43,7 @@ class ReportsController extends Controller
         'quotation_change' => 'Quotation Change',
         'status_change' => 'Status Change',
         'system' => 'System',
-        'security' => 'Security',
     ];
-
-    protected const SECURITY_CATEGORIES = ['login', 'logout', 'login_failed', 'security'];
 
     public function __construct(protected DocumentGenerationService $documents, protected ReportMetricsService $metrics)
     {
@@ -254,9 +249,9 @@ class ReportsController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $logs = AuditLog::with(['user.role'])
+            ->whereIn('action', AuditLogService::BUSINESS_ACTIONS)
             ->whereBetween('created_at', [$start, $end])
             ->when($category !== '', fn ($q) => $q->where('category', $category))
-            ->when($category === '', fn ($q) => $q->whereNotIn('category', self::SECURITY_CATEGORIES))
             ->when($entityType !== '', fn ($q) => $q->where('entity_type', $entityType))
             ->when(filled($actorId), fn ($q) => $q->where('user_id', $actorId))
             ->when($search !== '', function ($q) use ($search) {
@@ -288,7 +283,7 @@ class ReportsController extends Controller
             'actorId' => $actorId,
             'search' => $search,
             'categories' => self::ACTIVITY_CATEGORIES,
-            'entityTypes' => AuditLog::query()->select('entity_type')->distinct()->whereNotNull('entity_type')->orderBy('entity_type')->pluck('entity_type'),
+            'entityTypes' => AuditLog::query()->select('entity_type')->distinct()->whereNotNull('entity_type')->whereIn('action', AuditLogService::BUSINESS_ACTIONS)->orderBy('entity_type')->pluck('entity_type'),
             'actors' => User::whereIn('role_id', [1, 2, 3])->orderBy('name')->get(['id', 'name', 'first_name', 'middle_name', 'last_name']),
         ]);
     }
@@ -359,11 +354,18 @@ class ReportsController extends Controller
             }
         } elseif (! empty($old) || ! empty($new)) {
             foreach (array_unique(array_merge(array_keys($old), array_keys($new))) as $field) {
-                $rows[] = [
-                    'label' => $humanize($field),
-                    'old' => $this->formatAuditValue($old[$field] ?? null),
-                    'new' => $this->formatAuditValue($new[$field] ?? null),
-                ];
+                if (array_key_exists($field, $old) && array_key_exists($field, $new)) {
+                    $rows[] = [
+                        'label' => $humanize($field),
+                        'old' => $this->formatAuditValue($old[$field]),
+                        'new' => $this->formatAuditValue($new[$field]),
+                    ];
+                } else {
+                    $rows[] = [
+                        'label' => $humanize($field),
+                        'value' => $this->formatAuditValue($new[$field] ?? $old[$field] ?? null),
+                    ];
+                }
             }
         }
 
@@ -502,6 +504,7 @@ class ReportsController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $query = AuditLog::with('user')
+            ->whereIn('action', AuditLogService::BUSINESS_ACTIONS)
             ->whereBetween('created_at', [$start, $end])
             ->when($category !== '', fn ($q) => $q->where('category', $category))
             ->when($entityType !== '', fn ($q) => $q->where('entity_type', $entityType))

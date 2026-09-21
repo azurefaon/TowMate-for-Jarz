@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/booking_model.dart';
 import '../models/quotation_model.dart';
 import '../models/truck_type_model.dart';
+import '../models/vehicle_category_model.dart';
 import '../models/vehicle_type_model.dart';
 
 class ApiService {
@@ -178,14 +179,89 @@ class ApiService {
         if (data?['name'] != null) {
           await prefs.setString('user_name', data!['name'] as String);
         }
+
         if (phone != null) {
           await _secure.write(key: 'user_phone', value: phone);
         }
+
         return {'success': true};
       }
       return {
         'success': false,
         'message': body['message'] ?? 'Failed to update name.',
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
+  static Future<Uint8List?> fetchProfileImage() async {
+    try {
+      final token = await getToken();
+      if (token == null || token.isEmpty) return null;
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/v1/profile/image'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) return response.bodyBytes;
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>> updateProfileImage(XFile image) async {
+    try {
+      final token = await getToken();
+      if (token == null || token.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Your session has expired. Please sign in again.',
+        };
+      }
+      final bytes = await image.readAsBytes();
+      final extension = image.name.toLowerCase().split('.').last;
+      final mediaType = switch (extension) {
+        'jpg' || 'jpeg' => MediaType('image', 'jpeg'),
+        'png' => MediaType('image', 'png'),
+        'webp' => MediaType('image', 'webp'),
+        _ => null,
+      };
+      if (mediaType == null) {
+        return {
+          'success': false,
+          'message': 'Please choose a JPG, PNG, or WEBP image.',
+        };
+      }
+      final request =
+          http.MultipartRequest('POST', Uri.parse('$baseUrl/v1/profile/image'))
+            ..headers['Accept'] = 'application/json'
+            ..headers['Authorization'] = 'Bearer $token'
+            ..files.add(
+              http.MultipartFile.fromBytes(
+                'profile_image',
+                bytes,
+                filename: image.name,
+                contentType: mediaType,
+              ),
+            );
+      final response = await request.send().timeout(
+        const Duration(seconds: 30),
+      );
+      final responseBody = await response.stream.bytesToString();
+      Map<String, dynamic>? body;
+      try {
+        body = jsonDecode(responseBody) as Map<String, dynamic>;
+      } on FormatException {
+        body = null;
+      }
+      return {
+        'success': response.statusCode == 200 && body?['success'] == true,
+        'message':
+            body?['message'] ??
+            (response.statusCode == 422
+                ? 'Please choose a valid image up to 5 MB.'
+                : 'Could not update your profile photo.'),
       };
     } catch (e) {
       return _networkError(e);
@@ -273,8 +349,7 @@ class ApiService {
 
   static Map<String, dynamic> _networkError(Object e) {
     final msg = e.toString().toLowerCase();
-    if (e is SocketException ||
-        e is http.ClientException ||
+    if (e is http.ClientException ||
         msg.contains('connection refused') ||
         msg.contains('failed host lookup') ||
         msg.contains('failed to fetch') ||
@@ -646,6 +721,30 @@ class ApiService {
     }
   }
 
+  static Future<List<VehicleCategoryModel>> fetchVehicleCategories() async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/v1/vehicle-categories'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List;
+        return list
+            .map(
+              (j) => VehicleCategoryModel.fromJson(j as Map<String, dynamic>),
+            )
+            .toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   static Future<Map<String, dynamic>?> fetchPricingPreview({
     required int vehicleTypeId,
     required double pickupLat,
@@ -703,7 +802,9 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/v1/customer/content');
     http.Response? res;
     try {
-      res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 20));
+      res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
@@ -721,21 +822,38 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/v1/vehicle-types/by-category/$category');
     http.Response? res;
     try {
-      res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 20));
+      res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final list = data['vehicleTypes'] as List? ?? [];
         return list.cast<Map<String, dynamic>>();
       }
-      _debugFetchFailure('fetchVehicleTypesByCategory', uri, null, res.statusCode);
+      _debugFetchFailure(
+        'fetchVehicleTypesByCategory',
+        uri,
+        null,
+        res.statusCode,
+      );
       return [];
     } catch (e) {
-      _debugFetchFailure('fetchVehicleTypesByCategory', uri, e, res?.statusCode);
+      _debugFetchFailure(
+        'fetchVehicleTypesByCategory',
+        uri,
+        e,
+        res?.statusCode,
+      );
       return [];
     }
   }
 
-  static void _debugFetchFailure(String stage, Uri uri, Object? error, int? statusCode) {
+  static void _debugFetchFailure(
+    String stage,
+    Uri uri,
+    Object? error,
+    int? statusCode,
+  ) {
     if (!kDebugMode) return;
     debugPrint(
       '[ApiService] $stage failed: '
@@ -871,6 +989,36 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> cancelGroupBookings(
+    String groupCode,
+    List<String> bookingCodes, {
+    String? reason,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/v1/bookings/group/$groupCode/cancel'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({
+              'booking_codes': bookingCodes,
+              if (reason != null && reason.isNotEmpty) 'reason': reason,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': response.statusCode == 200 && body['success'] == true,
+        'message': body['message'] ?? '',
+        'invalid_booking_codes': body['invalid_booking_codes'],
+        'ineligible': body['ineligible'],
+        'cancelled_booking_codes': body['cancelled_booking_codes'],
+      };
+    } catch (_) {
+      return {'success': false, 'message': 'Network error. Please try again.'};
+    }
+  }
+
   static Future<BookingModel?> fetchBookingDetail(String code) async {
     try {
       final token = await getToken();
@@ -928,6 +1076,38 @@ class ApiService {
         final data = body['data'];
         if (data == null) return null;
         return BookingModel.fromJson(data as Map<String, dynamic>);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> checkDuplicateActiveRoute({
+    required double pickupLat,
+    required double pickupLng,
+    required double dropoffLat,
+    required double dropoffLng,
+    required String serviceType,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/v1/bookings/check-duplicate-route'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({
+              'pickup_lat': pickupLat,
+              'pickup_lng': pickupLng,
+              'dropoff_lat': dropoffLat,
+              'dropoff_lng': dropoffLng,
+              'service_type': serviceType,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 422) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        return body['message'] as String?;
       }
       return null;
     } catch (_) {
@@ -1045,8 +1225,12 @@ class ApiService {
       }
 
       if (response.statusCode == 201 && body['success'] == true) {
-        final bookings = (body['bookings'] as List?)
-                ?.map((e) => BookingGroupSibling.fromJson(e as Map<String, dynamic>))
+        final bookings =
+            (body['bookings'] as List?)
+                ?.map(
+                  (e) =>
+                      BookingGroupSibling.fromJson(e as Map<String, dynamic>),
+                )
                 .toList() ??
             const <BookingGroupSibling>[];
         return {
@@ -1446,6 +1630,18 @@ class ApiService {
       await http
           .post(
             Uri.parse('$baseUrl/v1/notifications/mark-read'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {}
+  }
+
+  static Future<void> markNotificationRead(int id) async {
+    try {
+      final token = await getToken();
+      await http
+          .post(
+            Uri.parse('$baseUrl/v1/notifications/$id/read'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
           )
           .timeout(const Duration(seconds: 10));

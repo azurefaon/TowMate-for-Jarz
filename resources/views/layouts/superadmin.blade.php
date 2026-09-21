@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'JARZ Owner')</title>
-    <link rel="icon" type="image/png" href="{{ asset('admin/images/logo.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('dispatcher/images/jarz-logo.png') }}">
     @stack('styles')
     <link rel="stylesheet" href="{{ asset('superadmin/css/panel.css') }}?v={{ filemtime(public_path('superadmin/css/panel.css')) }}">
     <style>

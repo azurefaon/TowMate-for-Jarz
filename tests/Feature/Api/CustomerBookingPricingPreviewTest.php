@@ -159,6 +159,47 @@ it('ignores a client-forged truck_type_id that does not exist', function () {
     ])->assertStatus(422);
 });
 
+it('rejects a pricing preview for an inactive primary vehicle type', function () {
+    Sanctum::actingAs(cppCustomerUser(), ['*']);
+    $truckType = cppTruckType();
+    $vehicleType = cppVehicleType($truckType);
+    $vehicleType->update(['status' => 'inactive']);
+
+    $response = test()->postJson('/api/v1/geo/pricing-preview', [
+        'vehicle_type_id' => $vehicleType->id,
+        'pickup_lat' => CPP_PICKUP_LAT,
+        'pickup_lng' => CPP_PICKUP_LNG,
+        'drop_lat' => CPP_DROPOFF_LAT,
+        'drop_lng' => CPP_DROPOFF_LNG,
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors('vehicle_type_id');
+});
+
+it('rejects a pricing preview whose extra vehicle uses an inactive vehicle type', function () {
+    Sanctum::actingAs(cppCustomerUser(), ['*']);
+    $primaryTruckType = cppTruckType();
+    $primaryVehicle = cppVehicleType($primaryTruckType);
+    $extraTruckType = cppTruckType();
+    $extraVehicle = cppVehicleType($extraTruckType);
+    $extraVehicle->update(['status' => 'inactive']);
+
+    $response = test()->postJson('/api/v1/geo/pricing-preview', [
+        'vehicle_type_id' => $primaryVehicle->id,
+        'pickup_lat' => CPP_PICKUP_LAT,
+        'pickup_lng' => CPP_PICKUP_LNG,
+        'drop_lat' => CPP_DROPOFF_LAT,
+        'drop_lng' => CPP_DROPOFF_LNG,
+        'extra_vehicles' => [
+            ['vehicle_type_id' => $extraVehicle->id, 'service_type' => 'book_now'],
+        ],
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors('extra_vehicles.0.vehicle_type_id');
+});
+
 it('combines Book Now extra vehicles into one total, matching what createBooking would actually charge', function () {
     Sanctum::actingAs(cppCustomerUser(), ['*']);
     $primary = cppTruckType(1500, 60);
@@ -182,6 +223,36 @@ it('combines Book Now extra vehicles into one total, matching what createBooking
     expect((float) $response->json('pricing.computed_total'))->toBe($expectedComputedTotal);
     expect((float) $response->json('pricing.final_total'))->toBe($expectedFinalTotal);
     expect($response->json('scheduled_extra_previews'))->toBe([]);
+});
+
+it('prices each Book Now extra vehicle using its own per_km_rate, not the primary vehicle truck type\'s rate', function () {
+    Sanctum::actingAs(cppCustomerUser(), ['*']);
+    $primary = cppTruckType(1500, 60);
+    $extra = cppTruckType(900, 40);
+
+    $response = test()->postJson('/api/v1/geo/pricing-preview', [
+        'truck_type_id' => $primary->id,
+        'pickup_lat' => CPP_PICKUP_LAT,
+        'pickup_lng' => CPP_PICKUP_LNG,
+        'drop_lat' => CPP_DROPOFF_LAT,
+        'drop_lng' => CPP_DROPOFF_LNG,
+        'extra_vehicles' => [
+            ['truck_type_id' => $extra->id, 'service_type' => 'book_now'],
+        ],
+    ]);
+
+    $response->assertOk();
+    $distanceKm = (float) $response->json('pricing.distance_km');
+    expect($distanceKm)->toBeGreaterThan(4.0);
+
+    $primaryDistanceFee = round(($distanceKm - 4.0) * 60, 2);
+    $extraDistanceFee = round(($distanceKm - 4.0) * 40, 2);
+    $expectedDistanceFee = round($primaryDistanceFee + $extraDistanceFee, 2);
+    $expectedComputedTotal = round(1500 + 900 + $expectedDistanceFee, 2);
+
+    expect((float) $response->json('pricing.distance_fee'))->toBe($expectedDistanceFee);
+    expect((float) $response->json('pricing.computed_total'))->toBe($expectedComputedTotal);
+    expect((float) $response->json('pricing.distance_fee'))->not->toBe(round(($distanceKm - 4.0) * 60 * 2, 2));
 });
 
 it('prices Scheduled extra vehicles separately from the primary total, not combined', function () {

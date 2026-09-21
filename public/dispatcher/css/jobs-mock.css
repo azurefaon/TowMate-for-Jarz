@@ -1,0 +1,335 @@
+/* ==========================================================================
+   Active Jobs — Mock Preview (Phase 1 design-only)
+   Extends jobs.css's tokens/classes. New rules only for the mock concepts:
+   tab row, two new status colors, historical-assignment note, proof/signature
+   placeholders, return-for-correction button + reason modal, mock banner.
+   ========================================================================== */
+
+/* ── Mock banner ─────────────────────────────────────────── */
+.mock-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: #FEF3C7;
+    border: 1px solid #FDE68A;
+    color: #92400E;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.mock-banner i {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.mock-banner strong {
+    color: #78350F;
+}
+
+/* ── Summary row ─────────────────────────────────────────── */
+.mock-summary-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.mock-summary-pills {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.pill-awaiting {
+    background: #DBEAFE;
+    color: #1D4ED8;
+}
+
+.mock-summary-note {
+    margin: 0;
+    font-size: 0.78rem;
+    color: #64748b;
+    max-width: 640px;
+    line-height: 1.5;
+}
+
+/* ── Tab row (mirrors Dispatch Queue's rb-tabs pattern) ─────*/
+.rb-tabs {
+    display: flex;
+    gap: 6px;
+    margin: 0;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #E3E6EB;
+    font-family: 'Public Sans', system-ui, sans-serif;
+    flex-wrap: wrap;
+}
+
+.rb-tab {
+    padding: 9px 16px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #5B6472;
+    font-size: 13.5px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.rb-tab-count {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    background: #F6F7F9;
+    border-radius: 6px;
+    padding: 1px 6px;
+    color: #5B6472;
+}
+
+.rb-tab.is-active {
+    background: #fff;
+    border-color: #E3E6EB;
+    color: #111111;
+    box-shadow: 0 1px 0 rgba(20, 23, 28, .10);
+}
+
+.rb-tab.is-active .rb-tab-count {
+    background: #FACC15;
+    color: #111111;
+}
+
+/* ── New status colors ───────────────────────────────────── */
+/* Awaiting Payment Verification reuses the real waiting_verification blue —
+   this is a label change, not a new color, per the plan. */
+.dot-awaiting-payment-verification { background: #2563eb; }
+.status-awaiting-payment-verification { color: #2563eb; }
+
+/* Correction Required — new, distinct from "delayed" red so the two concepts
+   (operationally late vs. submission needs a fix) never read as the same thing. */
+.dot-correction-required { background: #c026d3; }
+.status-correction-required { color: #c026d3; }
+
+/* Completed (reference-only preview at bottom of page) — muted, not a live status. */
+.dot-completed-preview { background: #94a3b8; }
+.status-completed-preview { color: #64748b; }
+
+/* ── Secondary line for verification-state rows ──────────── */
+.mock-secondary-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #64748b;
+}
+
+.mock-secondary-line i {
+    flex-shrink: 0;
+    color: #16a34a;
+}
+
+/* ── Historical-assignment note in modal ─────────────────── */
+.mock-historical-note {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    font-size: 0.76rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.mock-historical-note strong {
+    color: #334155;
+}
+
+/* ── Payment proof placeholder ────────────────────────────── */
+.mock-proof-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 28px 16px;
+    border-radius: 10px;
+    border: 1.5px dashed #cbd5e1;
+    background: #f8fafc;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.mock-proof-box i {
+    width: 30px;
+    height: 30px;
+    color: #cbd5e1;
+}
+
+/* ── Signature placeholder ───────────────────────────────── */
+.mock-signature-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px;
+    border-radius: 10px;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.mock-signature-svg {
+    width: 100%;
+    max-width: 260px;
+    height: 70px;
+}
+
+.mock-signature-caption {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+/* ── Return reason ────────────────────────────────────────── */
+.mock-return-reason {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #fdf2f8;
+    border: 1px solid #fbcfe8;
+    color: #9d174d;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+/* ── Return for Correction button ────────────────────────── */
+.btn-return {
+    background: #ffffff;
+    color: #c026d3;
+    border: 1.5px solid #f0abfc;
+}
+
+.btn-return:hover {
+    background: #fdf4ff;
+    opacity: 1;
+}
+
+/* ── Completed preview block ─────────────────────────────── */
+.mock-completed-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mock-completed-preview-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.mock-completed-row {
+    border-radius: 16px;
+    border: 1px dashed #e2e8f0;
+    background: #fafbfc;
+    cursor: default;
+    opacity: 0.85;
+}
+
+.mock-completed-row:hover {
+    background: #fafbfc;
+}
+
+/* ── Return-for-Correction reason modal (mirrors the Dispatch Queue
+   rb-view-all-modal pattern, copied here since that page's <style> block
+   is scoped to dispatch.blade.php and not shared) ──────────── */
+.rb-view-all-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 15, .5);
+    backdrop-filter: blur(2px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2199;
+    padding: 20px;
+}
+
+.rb-view-all-modal-backdrop.is-open {
+    display: flex;
+}
+
+.rb-view-all-modal {
+    width: 100%;
+    max-width: 460px;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #E3E6EB;
+    box-shadow: 0 20px 60px rgba(20, 23, 28, .18);
+    max-height: 88vh;
+    overflow-y: auto;
+    font-family: 'Public Sans', system-ui, sans-serif;
+}
+
+.rb-view-all-modal-head {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid #E3E6EB;
+}
+
+.rb-view-all-modal-body {
+    padding: 16px 20px;
+}
+
+.rb-view-all-modal-foot {
+    padding: 14px 20px 18px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    border-top: 1px solid #E3E6EB;
+}
+
+.rb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 38px;
+    min-width: 100px;
+    padding: 8px 14px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.rb-btn-secondary {
+    background: #F6F7F9;
+    color: #334155;
+}
+
+.rb-btn-primary {
+    background: #FACC15;
+    color: #111111;
+}
+
+.rb-btn-danger-fill {
+    background: #c026d3;
+    color: #ffffff;
+}
+
+/* ── Responsive (matches jobs.css breakpoints) ────────────── */
+@media (max-width: 780px) {
+    .mock-summary-note {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .rb-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+}

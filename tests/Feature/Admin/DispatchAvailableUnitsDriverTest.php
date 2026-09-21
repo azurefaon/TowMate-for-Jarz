@@ -111,7 +111,7 @@ it('excludes a unit with neither driver_id nor driver_name', function () {
     expect($units->pluck('id'))->not->toContain($unit->id);
 });
 
-it('still excludes a unit whose team leader is offline even with a driver_name set', function () {
+it('still includes a unit whose team leader is offline as long as it has a driver_name set', function () {
     $dispatcher = availDriverDispatcher();
     $truckType = availDriverTruckType();
     $teamLeader = availDriverTeamLeader(online: false);
@@ -129,7 +129,8 @@ it('still excludes a unit whose team leader is offline even with a driver_name s
 
     $units = availDriverAvailableUnits($response);
 
-    expect($units->pluck('id'))->not->toContain($unit->id);
+    expect($units->pluck('id'))->toContain($unit->id);
+    expect($units->firstWhere('id', $unit->id)['status_summary'])->toContain('Available for dispatch');
 });
 
 it('still excludes a unit whose team leader has an active job', function () {

@@ -2,6 +2,8 @@
 
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\DispatcherNotification;
+use App\Models\Quotation;
 use App\Models\Role;
 use App\Models\TruckType;
 use App\Models\Unit;
@@ -85,6 +87,25 @@ function sbmBasePayload(VehicleType $vehicle, array $overrides = []): array
     ], $overrides);
 }
 
+it('keeps a single-vehicle Book Now request as one booking and one quotation', function () {
+    [$user, $customer] = sbmCustomer();
+    $truck = sbmTruckType();
+    sbmReadyUnit($truck);
+    $vehicle = sbmVehicleType($truck->id, 'SBM Sedan');
+    Sanctum::actingAs($user, ['*']);
+
+    $response = test()->postJson('/api/v1/bookings', sbmBasePayload($vehicle, [
+        'service_type' => 'book_now',
+    ]));
+
+    $response->assertCreated();
+    $booking = Booking::where('customer_id', $customer->id)->first();
+    expect(Booking::where('customer_id', $customer->id)->count())->toBe(1);
+    expect($booking->group_code)->toBeNull();
+    expect($booking->extra_vehicles)->toBeNull();
+    expect(Quotation::where('source_booking_id', $booking->id)->count())->toBe(1);
+});
+
 it('allows a Book Now request when every vehicle has exact Truck Type availability', function () {
     [$user] = sbmCustomer();
     $truck = sbmTruckType();
@@ -103,7 +124,69 @@ it('allows a Book Now request when every vehicle has exact Truck Type availabili
 
     $response->assertCreated();
     expect($response->json('bookings'))->toHaveCount(1);
-    expect(Booking::count())->toBe(1);
+    expect($response->json('group_vehicle_count'))->toBe(2);
+    expect($response->json('group_siblings'))->toHaveCount(1);
+    expect(Booking::count())->toBe(2);
+    expect(DispatcherNotification::count())->toBe(1);
+    expect(Quotation::count())->toBe(1);
+
+    $bookings = Booking::orderBy('id')->get();
+    expect($bookings[0]->group_code)->not->toBeNull();
+    expect($bookings[1]->group_code)->toBe($bookings[0]->group_code);
+    expect($bookings[0]->vehicle_type_id)->toBe($vehicle->id);
+    expect($bookings[1]->vehicle_type_id)->toBe($extraVehicle->id);
+    expect((float) $bookings[0]->final_total)->toBeGreaterThan(0);
+    expect((float) $bookings[1]->final_total)->toBeGreaterThan(0);
+
+    $quotation = Quotation::first();
+    expect((float) $quotation->estimated_price)->toBe(
+        round((float) $bookings[0]->final_total + (float) $bookings[1]->final_total, 2),
+    );
+    expect($quotation->extra_vehicles[0]['booking_id'])->toBe($bookings[1]->id);
+});
+
+it('prices a Book Now extra vehicle independently, using its own base rate and its own truck type per_km_rate', function () {
+    [$user, $customer] = sbmCustomer();
+    $primaryTruck = sbmTruckType(1500, 60);
+    sbmReadyUnit($primaryTruck);
+    $vehicle = sbmVehicleType($primaryTruck->id, 'SBM Sedan');
+    $extraTruck = sbmTruckType(900, 40);
+    sbmReadyUnit($extraTruck);
+    $extraVehicle = sbmVehicleType($extraTruck->id, 'SBM Tricycle');
+    Sanctum::actingAs($user, ['*']);
+
+    $response = test()->postJson('/api/v1/bookings', sbmBasePayload($vehicle, [
+        'service_type' => 'book_now',
+        'extra_vehicles' => json_encode([
+            ['vehicle_type_id' => $extraVehicle->id],
+        ]),
+        'extra_vehicle_images' => [0 => sbmImages(1)],
+    ]));
+
+    $response->assertCreated();
+
+    $bookings = Booking::where('customer_id', $customer->id)->orderBy('id')->get();
+    expect($bookings)->toHaveCount(2);
+    $booking = $bookings[0];
+    $sibling = $bookings[1];
+    expect((float) $booking->distance_km)->toBeGreaterThan(4.0);
+
+    $primaryDistanceFee = round(((float) $booking->distance_km - 4.0) * 60, 2);
+    $extraDistanceFee = round(((float) $booking->distance_km - 4.0) * 40, 2);
+    $primarySubtotal = round(1500 + $primaryDistanceFee, 2);
+    $extraSubtotal = round(900 + $extraDistanceFee, 2);
+    $primaryTotal = round($primarySubtotal * 1.12, 2);
+    $extraTotal = round($extraSubtotal * 1.12, 2);
+
+    $extraLineItem = Quotation::first()->extra_vehicles[0];
+    expect((float) $extraLineItem['distance_fee'])->toBe($extraDistanceFee);
+    expect((float) $extraLineItem['final_total'])->toBe($extraTotal);
+    expect((float) $extraLineItem['distance_fee'])->not->toBe($primaryDistanceFee);
+    expect($extraLineItem['booking_id'])->toBe($sibling->id);
+
+    expect((float) $booking->computed_total)->toBe($primarySubtotal);
+    expect((float) $booking->final_total)->toBe($primaryTotal);
+    expect((float) $sibling->final_total)->toBe($extraTotal);
 });
 
 it('blocks a Book Now request when the primary vehicle has no exact Truck Type availability', function () {
@@ -265,9 +348,12 @@ it('cannot spoof a cheaper truck_type_id for an extra vehicle to bypass the real
     ]));
 
     $response->assertCreated();
-    $booking = Booking::latest()->first();
+    $booking = Booking::where('vehicle_type_id', $vehicle->id)->first();
+    expect((float) $booking->distance_km)->toBeGreaterThan(4.0);
     $extraCharge = json_decode(json_encode($booking->extra_vehicles), true)[0];
-    expect((float) $extraCharge['estimated_price'])->toBe(round($expensiveTruck->base_rate * 1.12, 2));
+    $expectedDistanceFee = round(((float) $booking->distance_km - 4.0) * (float) $expensiveTruck->per_km_rate, 2);
+    $expectedSubtotal = round((float) $expensiveTruck->base_rate + $expectedDistanceFee, 2);
+    expect((float) $extraCharge['estimated_price'])->toBe(round($expectedSubtotal * 1.12, 2));
     expect((int) $extraCharge['truck_type_id'])->toBe($expensiveTruck->id);
 });
 

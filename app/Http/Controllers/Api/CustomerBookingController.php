@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Events\BookingStatusUpdated;
+use App\Exceptions\Booking\DuplicateActiveRouteException;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\TruckType;
+use App\Models\VehicleCategory;
 use App\Models\VehicleType;
 use App\Services\BookingService;
 use App\Services\QuotationService;
@@ -59,6 +61,41 @@ class CustomerBookingController extends Controller
         ];
     }
 
+    private function groupTotalsFor(\Illuminate\Support\Collection $groupMembers): array
+    {
+        $activeGroupMembers = $groupMembers->whereNotIn('status', ['cancelled', 'rejected', 'not_responding']);
+
+        return [
+            'vehicle_count'  => $groupMembers->count(),
+            'base_rate'      => round((float) $activeGroupMembers->sum('base_rate'), 2),
+            'computed_total' => round((float) $activeGroupMembers->sum('computed_total'), 2),
+            'vat_amount'     => round((float) $activeGroupMembers->sum('vat_amount'), 2),
+            'additional_fee' => round((float) $activeGroupMembers->sum('additional_fee'), 2),
+            'final_total'    => round((float) $activeGroupMembers->sum('final_total'), 2),
+        ];
+    }
+
+    private function groupVehicleBreakdownFor(\Illuminate\Support\Collection $groupMembers): array
+    {
+        return $groupMembers->map(function (Booking $m) {
+            $memberProvisional = $m->service_type === 'schedule' && is_null($m->price_locked_at);
+
+            return [
+                'booking_code'           => $m->booking_code,
+                'status'                 => $m->status,
+                'vehicle_type_name'      => $m->vehicleType?->name,
+                'truck_type_name'        => $m->truckType?->name,
+                'base_rate'              => $m->base_rate !== null ? (float) $m->base_rate : null,
+                'distance_fee'           => (!$memberProvisional && $m->distance_km !== null && $m->per_km_rate !== null)
+                    ? $this->bookingService->distanceFeeFor((float) $m->distance_km, (float) $m->per_km_rate)
+                    : null,
+                'vat_amount'             => $m->vat_amount !== null ? (float) $m->vat_amount : null,
+                'final_total'            => $m->final_total !== null ? (float) $m->final_total : null,
+                'pricing_is_provisional' => $memberProvisional,
+            ];
+        })->values()->all();
+    }
+
     public function truckTypes(): JsonResponse
     {
         $types = TruckType::with(['vehicleTypes' => fn($q) => $q->where('status', 'active')->orderBy('display_order')])
@@ -98,6 +135,17 @@ class CustomerBookingController extends Controller
             ]);
 
         return response()->json($types);
+    }
+
+    public function vehicleCategories(): JsonResponse
+    {
+        $activeCategorySlugs = VehicleType::where('status', 'active')->pluck('category')->unique();
+
+        $categories = VehicleCategory::whereIn('slug', $activeCategorySlugs)
+            ->orderBy('name')
+            ->get(['slug', 'name']);
+
+        return response()->json($categories);
     }
 
     public function availability(): JsonResponse
@@ -145,6 +193,14 @@ class CustomerBookingController extends Controller
                 ->all()
             : [];
 
+        $groupTotals = $booking->group_code
+            ? $this->groupTotalsFor(
+                Booking::where('group_code', $booking->group_code)
+                    ->where('customer_id', $customer->id)
+                    ->get()
+            )
+            : null;
+
         return response()->json(['data' => [
             'id'                  => $booking->id,
             'booking_code'        => $booking->booking_code,
@@ -164,6 +220,7 @@ class CustomerBookingController extends Controller
             'group_code'          => $booking->group_code,
             'group_vehicle_count' => $booking->group_code ? count($groupSiblings) + 1 : 1,
             'group_siblings'      => $groupSiblings,
+            'group_totals'        => $groupTotals,
             'scheduled_date'      => $booking->scheduled_date?->toDateString(),
             'scheduled_time'      => $booking->scheduled_time,
             'scheduled_for'       => $booking->scheduled_for?->toIso8601String(),
@@ -182,8 +239,34 @@ class CustomerBookingController extends Controller
         $bookings = Booking::where('customer_id', $customer->id)
             ->with(['truckType', 'vehicleType'])
             ->orderByDesc('created_at')
-            ->paginate(10)
-            ->through(fn($b) => [
+            ->paginate(10);
+
+        $groupCodes = $bookings->getCollection()->pluck('group_code')->filter()->unique();
+        $anchorsByGroupCode = $groupCodes->isEmpty()
+            ? collect()
+            : Booking::whereIn('group_code', $groupCodes)
+                ->orderBy('id')
+                ->get(['id', 'group_code', 'booking_code'])
+                ->groupBy('group_code')
+                ->map(fn($group) => $group->first());
+
+        $anchorIds = $bookings->getCollection()
+            ->map(fn($b) => $b->group_code ? $anchorsByGroupCode->get($b->group_code)?->id ?? $b->id : $b->id)
+            ->unique()
+            ->values();
+
+        $quotationNumbersByAnchorId = $anchorIds->isEmpty()
+            ? collect()
+            : \App\Models\Quotation::whereIn('source_booking_id', $anchorIds)
+                ->latest('id')
+                ->get(['source_booking_id', 'quotation_number'])
+                ->unique('source_booking_id')
+                ->keyBy('source_booking_id');
+
+        $bookings = $bookings->through(function ($b) use ($anchorsByGroupCode, $quotationNumbersByAnchorId) {
+            $anchorId = $b->group_code ? ($anchorsByGroupCode->get($b->group_code)?->id ?? $b->id) : $b->id;
+
+            return [
                 'id'                => $b->id,
                 'booking_code'      => $b->booking_code,
                 'status'            => $b->status,
@@ -196,12 +279,40 @@ class CustomerBookingController extends Controller
                 'vehicle_type_name' => $b->vehicleType?->name,
                 'created_at'        => $b->created_at?->toDateTimeString(),
                 'group_code'        => $b->group_code,
+                'group_booking_code' => $anchorsByGroupCode->get($b->group_code)?->booking_code ?? $b->booking_code,
+                'quotation_number'  => $quotationNumbersByAnchorId->get($anchorId)?->quotation_number,
                 'service_type'      => $b->service_type,
                 'scheduled_date'    => $b->scheduled_date?->toDateString(),
                 'scheduled_time'    => $b->scheduled_time,
-            ]);
+            ];
+        });
 
         return response()->json($bookings);
+    }
+
+    public function checkDuplicateRoute(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'pickup_lat'    => 'required|numeric|between:-90,90',
+            'pickup_lng'    => 'required|numeric|between:-180,180',
+            'dropoff_lat'   => 'required|numeric|between:-90,90',
+            'dropoff_lng'   => 'required|numeric|between:-180,180',
+            'service_type'  => 'nullable|in:book_now,schedule',
+        ]);
+
+        $customer = Customer::where('user_id', $request->user()->id)->first();
+
+        if (!$customer) {
+            return response()->json(['duplicate' => false]);
+        }
+
+        try {
+            $this->bookingService->checkDuplicateActiveRoute($customer, $validated);
+        } catch (DuplicateActiveRouteException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['duplicate' => false]);
     }
 
     public function createBooking(Request $request): JsonResponse
@@ -223,6 +334,15 @@ class CustomerBookingController extends Controller
             'extra_vehicles'                   => 'nullable|string',
         ]);
 
+        if ($this->bookingService->estimateDirectDistanceKm(
+            (float) $validated['pickup_lat'],
+            (float) $validated['pickup_lng'],
+            (float) $validated['dropoff_lat'],
+            (float) $validated['dropoff_lng'],
+        ) <= 0.05) {
+            return response()->json(['message' => 'Pickup and drop-off locations must be different.'], 422);
+        }
+
         $primaryFiles = collect($request->file('vehicle_images') ?? [])
             ->filter(fn($f) => $f instanceof \Symfony\Component\HttpFoundation\File\UploadedFile && $f->isValid())
             ->values()
@@ -240,12 +360,10 @@ class CustomerBookingController extends Controller
             return response()->json(['message' => 'Customer profile not found.'], 422);
         }
 
-        $hasActive = Booking::where('customer_id', $customer->id)
-            ->whereNotIn('status', self::INACTIVE_STATUSES)
-            ->exists();
-
-        if ($hasActive) {
-            return response()->json(['message' => 'You already have an active booking. Please wait for it to complete.'], 422);
+        try {
+            $this->bookingService->checkDuplicateActiveRoute($customer, $validated);
+        } catch (DuplicateActiveRouteException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
 
         [$truckType, $derivationError] = $this->bookingService->resolveRequiredTruckType((int) $validated['vehicle_type_id']);
@@ -261,7 +379,6 @@ class CustomerBookingController extends Controller
             (float) $validated['dropoff_lat'],
             (float) $validated['dropoff_lng'],
         );
-        $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm, (float) $truckType->per_km_rate);
 
         $readyTruckTypeIds = $this->bookingService->dispatchAvailability()['ready_truck_type_ids'] ?? [];
         $requestServiceType = $validated['service_type'] ?? 'book_now';
@@ -336,31 +453,35 @@ class CustomerBookingController extends Controller
         $scheduleExtras = $requestServiceType === 'schedule' ? ($allExtraVehicles ?? []) : [];
         $bookNowExtras  = $requestServiceType === 'book_now' ? ($allExtraVehicles ?? []) : [];
 
-        $extraVehiclesTotalBase = 0.0;
-        $pricedBookNowExtras    = [];
+        $pricedBookNowExtras = [];
         if (!empty($bookNowExtras)) {
             $extraTruckTypeIds = array_column($bookNowExtras, 'truck_type_id');
             $extraTruckTypes   = TruckType::whereIn('id', $extraTruckTypeIds)
-                ->get(['id', 'base_rate'])
+                ->get(['id', 'base_rate', 'per_km_rate'])
                 ->keyBy('id');
 
-            $pricedBookNowExtras = array_map(function ($ev) use ($extraTruckTypes, &$extraVehiclesTotalBase) {
-                $evTruck = $extraTruckTypes->get($ev['truck_type_id'] ?? 0);
-                $evBase  = (float) ($evTruck?->base_rate ?? 0);
-                $evTotal = round($evBase * 1.12, 2);
-                $extraVehiclesTotalBase += $evBase;
+            $pricedBookNowExtras = array_map(function ($ev) use ($extraTruckTypes, $distanceKm) {
+                $evTruck   = $extraTruckTypes->get($ev['truck_type_id'] ?? 0);
+                $evPricing = $this->bookingService->priceOneVehicle(
+                    (float) ($evTruck?->base_rate ?? 0),
+                    $distanceKm,
+                    (float) ($evTruck?->per_km_rate ?? 0),
+                );
                 $clean = $ev;
                 unset($clean['_index']);
-                return array_merge($clean, ['estimated_price' => $evTotal]);
+                return array_merge($clean, $evPricing, ['estimated_price' => $evPricing['final_total']]);
             }, $bookNowExtras);
         }
 
-        $allVehiclesBase = (float) $truckType->base_rate + $extraVehiclesTotalBase;
-        $computedTotal   = round($allVehiclesBase + $distanceFee, 2);
-        $finalTotal      = round($computedTotal * 1.12, 2);
+        $primaryPricing = $this->bookingService->priceOneVehicle((float) $truckType->base_rate, $distanceKm, (float) $truckType->per_km_rate);
+        $primaryComputedTotal = round($primaryPricing['base_rate'] + $primaryPricing['distance_fee'], 2);
+        $computedTotal  = round($primaryPricing['base_rate'] + $primaryPricing['distance_fee'] + array_sum(array_column($pricedBookNowExtras, 'base_rate')) + array_sum(array_column($pricedBookNowExtras, 'distance_fee')), 2);
+        $vatAmount      = round($primaryPricing['vat_amount'] + array_sum(array_column($pricedBookNowExtras, 'vat_amount')), 2);
+        $finalTotal     = round($primaryPricing['final_total'] + array_sum(array_column($pricedBookNowExtras, 'final_total')), 2);
 
         $storedPhotoPaths = [];
         $siblingIds = [];
+        $bookNowLineItems = $pricedBookNowExtras;
 
         DB::beginTransaction();
         try {
@@ -377,10 +498,10 @@ class CustomerBookingController extends Controller
                 'distance_km'      => $distanceKm,
                 'base_rate'        => $truckType->base_rate,
                 'per_km_rate'      => $truckType->per_km_rate,
-                'computed_total'        => $computedTotal,
-                'final_total'           => $finalTotal,
-                'vat_exclusive_total'   => $computedTotal,
-                'vat_amount'            => round($computedTotal * 0.12, 2),
+                'computed_total'        => !empty($bookNowExtras) ? $primaryComputedTotal : $computedTotal,
+                'final_total'           => !empty($bookNowExtras) ? $primaryPricing['final_total'] : $finalTotal,
+                'vat_exclusive_total'   => !empty($bookNowExtras) ? $primaryComputedTotal : $computedTotal,
+                'vat_amount'            => !empty($bookNowExtras) ? $primaryPricing['vat_amount'] : $vatAmount,
                 'additional_fee'        => 0,
                 'status'           => ($validated['service_type'] ?? 'book_now') === 'schedule' ? 'scheduled' : 'requested',
                 'service_type'     => $validated['service_type'] ?? 'book_now',
@@ -399,11 +520,64 @@ class CustomerBookingController extends Controller
             $storedPhotoPaths = array_merge($storedPhotoPaths, $primaryPaths);
             $booking->update(['vehicle_image_path' => json_encode($primaryPaths)]);
 
-            foreach ($bookNowExtras as $ev) {
-                $slot = ((int) ($ev['_index'] ?? -1)) + 1;
-                $files = $extraFilesByIndex[$ev['_index']] ?? [];
-                $extraPaths = $this->bookingService->storeVehiclePhotosFor($booking, $slot, $files);
-                $storedPhotoPaths = array_merge($storedPhotoPaths, $extraPaths);
+            if (!empty($bookNowExtras)) {
+                $groupCode = 'GRP-' . str_pad($booking->id, 6, '0', STR_PAD_LEFT);
+                $booking->update(['group_code' => $groupCode]);
+                $bookNowLineItems = [];
+
+                foreach ($bookNowExtras as $index => $ev) {
+                    $evTruckType = $extraTruckTypes->get($ev['truck_type_id'] ?? 0);
+                    $evPricing = $pricedBookNowExtras[$index];
+                    $sibling = Booking::withoutEvents(function () use (
+                        $customer,
+                        $validated,
+                        $distanceKm,
+                        $ev,
+                        $evTruckType,
+                        $evPricing,
+                        $requestServiceType,
+                        $groupCode
+                    ) {
+                        return Booking::create([
+                            'customer_id' => $customer->id,
+                            'truck_type_id' => $ev['truck_type_id'],
+                            'vehicle_type_id' => $ev['vehicle_type_id'],
+                            'pickup_address' => $validated['pickup_address'],
+                            'pickup_lat' => $validated['pickup_lat'],
+                            'pickup_lng' => $validated['pickup_lng'],
+                            'dropoff_address' => $validated['dropoff_address'],
+                            'dropoff_lat' => $validated['dropoff_lat'],
+                            'dropoff_lng' => $validated['dropoff_lng'],
+                            'distance_km' => $distanceKm,
+                            'base_rate' => $evPricing['base_rate'],
+                            'per_km_rate' => $evTruckType->per_km_rate,
+                            'computed_total' => round($evPricing['base_rate'] + $evPricing['distance_fee'], 2),
+                            'final_total' => $evPricing['final_total'],
+                            'vat_exclusive_total' => round($evPricing['base_rate'] + $evPricing['distance_fee'], 2),
+                            'vat_amount' => $evPricing['vat_amount'],
+                            'additional_fee' => 0,
+                            'status' => 'requested',
+                            'service_type' => $requestServiceType,
+                            'customer_type' => $customer->customer_type ?? 'regular',
+                            'confirmation_type' => 'mobile',
+                            'notes' => $validated['notes'] ?? null,
+                            'group_code' => $groupCode,
+                        ]);
+                    });
+                    $sibling->update(['booking_code' => 'TM-' . str_pad($sibling->id, 5, '0', STR_PAD_LEFT)]);
+                    $siblingIds[] = $sibling->id;
+
+                    $siblingFiles = $extraFilesByIndex[$ev['_index']] ?? [];
+                    $siblingPaths = $this->bookingService->storeVehiclePhotosFor($sibling, 0, $siblingFiles);
+                    $storedPhotoPaths = array_merge($storedPhotoPaths, $siblingPaths);
+                    $sibling->update(['vehicle_image_path' => json_encode($siblingPaths)]);
+
+                    $bookNowLineItems[] = array_merge($pricedBookNowExtras[$index], [
+                        'booking_id' => $sibling->id,
+                    ]);
+                }
+
+                $booking->update(['extra_vehicles' => $bookNowLineItems]);
             }
 
             if (!empty($scheduleExtras)) {
@@ -419,11 +593,8 @@ class CustomerBookingController extends Controller
                     $evTruckType = $scheduleExtraTruckTypes->get($ev['truck_type_id'] ?? 0);
                     if (!$evTruckType) continue;
 
-                    $evBase          = (float) $evTruckType->base_rate;
-                    $evDistanceFee   = $this->bookingService->distanceFeeFor($distanceKm, (float) $evTruckType->per_km_rate);
-                    $evComputedTotal = round($evBase + $evDistanceFee, 2);
-                    $evVatAmount     = round($evComputedTotal * 0.12, 2);
-                    $evTotal         = round($evComputedTotal + $evVatAmount, 2);
+                    $evPricing       = $this->bookingService->priceOneVehicle((float) $evTruckType->base_rate, $distanceKm, (float) $evTruckType->per_km_rate);
+                    $evComputedTotal = round($evPricing['base_rate'] + $evPricing['distance_fee'], 2);
 
                     $sibling = Booking::create([
                         'customer_id'       => $customer->id,
@@ -440,8 +611,8 @@ class CustomerBookingController extends Controller
                         'per_km_rate'       => $evTruckType->per_km_rate,
                         'computed_total'      => $evComputedTotal,
                         'vat_exclusive_total' => $evComputedTotal,
-                        'vat_amount'          => $evVatAmount,
-                        'final_total'         => $evTotal,
+                        'vat_amount'          => $evPricing['vat_amount'],
+                        'final_total'         => $evPricing['final_total'],
                         'additional_fee'      => 0,
                         'status'            => 'scheduled',
                         'service_type'      => 'schedule',
@@ -489,7 +660,7 @@ class CustomerBookingController extends Controller
                     'scheduled_date'     => $validated['scheduled_date'] ?? null,
                     'scheduled_time'     => $validated['scheduled_time'] ?? null,
                     'vehicle_image_path' => $booking->vehicle_image_path,
-                    'extra_vehicles'     => !empty($pricedBookNowExtras) ? $pricedBookNowExtras : null,
+                    'extra_vehicles'     => !empty($bookNowLineItems) ? $bookNowLineItems : null,
                     'pickup_notes'       => $validated['notes'] ?? null,
                 ]);
                 $booking->update(['quotation_id' => $quotation->id]);
@@ -501,20 +672,35 @@ class CustomerBookingController extends Controller
             }
         }
 
-        $createdBookings = Booking::whereIn('id', [$booking->id, ...$siblingIds])
-            ->with(['truckType', 'vehicleType'])
-            ->orderBy('id')
-            ->get()
-            ->map(fn($b) => $this->bookingSummary($b, $booking->booking_code))
-            ->values()
-            ->all();
+        if ($requestServiceType === 'book_now' && !empty($siblingIds)) {
+            $groupSiblingSummaries = Booking::whereIn('id', $siblingIds)
+                ->with(['truckType', 'vehicleType'])
+                ->orderBy('id')
+                ->get()
+                ->map(fn($b) => $this->bookingSummary($b))
+                ->values()
+                ->all();
+
+            $createdBookings = [$this->bookingSummary($booking->load(['truckType', 'vehicleType']), $booking->booking_code)];
+        } else {
+            $groupSiblingSummaries = [];
+            $createdBookings = Booking::whereIn('id', [$booking->id, ...$siblingIds])
+                ->with(['truckType', 'vehicleType'])
+                ->orderBy('id')
+                ->get()
+                ->map(fn($b) => $this->bookingSummary($b, $booking->booking_code))
+                ->values()
+                ->all();
+        }
 
         return response()->json([
-            'success'      => true,
-            'booking_code' => $booking->booking_code,
-            'group_code'   => $booking->group_code,
-            'bookings'     => $createdBookings,
-            'message'      => 'Booking submitted successfully.',
+            'success'             => true,
+            'booking_code'        => $booking->booking_code,
+            'group_code'          => $booking->group_code,
+            'group_vehicle_count' => 1 + count($siblingIds),
+            'group_siblings'      => $groupSiblingSummaries,
+            'bookings'            => $createdBookings,
+            'message'             => 'Booking submitted successfully.',
         ], 201);
     }
 
@@ -574,11 +760,210 @@ class CustomerBookingController extends Controller
                 ]);
             }
 
+            if ($booking->group_code) {
+                $anchor = Booking::where('group_code', $booking->group_code)
+                    ->where('pickup_address', $booking->pickup_address)
+                    ->where('dropoff_address', $booking->dropoff_address)
+                    ->orderBy('id')
+                    ->first();
+
+                $groupQuotation = $anchor
+                    ? \App\Models\Quotation::where('source_booking_id', $anchor->id)->current()->where('status', 'draft')->first()
+                    : null;
+
+                if ($groupQuotation) {
+                    $remainingLineItems = collect($groupQuotation->extra_vehicles ?? [])
+                        ->reject(fn($ev) => ($ev['booking_id'] ?? null) === $booking->id)
+                        ->values();
+
+                    if ($remainingLineItems->count() !== count($groupQuotation->extra_vehicles ?? [])) {
+                        $groupQuotation->update([
+                            'extra_vehicles' => $remainingLineItems->all(),
+                            'estimated_price' => max(round($remainingLineItems->sum('final_total') - (float) $groupQuotation->discount, 2), 0),
+                        ]);
+                    }
+                }
+            }
+
             return ['status' => 200, 'body' => ['success' => true, 'message' => 'Booking cancelled successfully.'], 'booking' => $booking];
         });
 
         if (isset($result['booking'])) {
             BookingStatusUpdated::safeFire($result['booking']);
+        }
+
+        return response()->json($result['body'], $result['status']);
+    }
+
+    public function cancelGroupBookings(Request $request, string $groupCode): JsonResponse
+    {
+        $customer = Customer::where('user_id', auth()->id())->first();
+
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Customer not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'booking_codes'   => 'required|array|min:1',
+            'booking_codes.*' => 'required|string|distinct',
+            'reason'          => 'nullable|string|max:500',
+        ]);
+
+        $codes  = $validated['booking_codes'];
+        $reason = $validated['reason'] ?? null;
+
+        $result = DB::transaction(function () use ($groupCode, $codes, $reason, $customer) {
+            $selected = Booking::where('customer_id', $customer->id)
+                ->whereIn('booking_code', $codes)
+                ->lockForUpdate()
+                ->get();
+
+            $missingCodes = array_values(array_diff($codes, $selected->pluck('booking_code')->all()));
+
+            if (!empty($missingCodes)) {
+                return ['status' => 422, 'body' => [
+                    'success' => false,
+                    'message' => 'Some selected booking codes were not found.',
+                    'invalid_booking_codes' => $missingCodes,
+                ]];
+            }
+
+            $outsideGroup = $selected->filter(fn($b) => $b->group_code !== $groupCode)
+                ->pluck('booking_code')
+                ->values()
+                ->all();
+
+            if (!empty($outsideGroup)) {
+                return ['status' => 422, 'body' => [
+                    'success' => false,
+                    'message' => 'Some selected booking codes do not belong to this group.',
+                    'invalid_booking_codes' => $outsideGroup,
+                ]];
+            }
+
+            $ineligible = $selected->reject(fn($b) => in_array($b->status, ['requested', 'scheduled', 'scheduled_confirmed'], true))
+                ->map(fn($b) => ['booking_code' => $b->booking_code, 'status' => $b->status])
+                ->values()
+                ->all();
+
+            if (!empty($ineligible)) {
+                return ['status' => 422, 'body' => [
+                    'success' => false,
+                    'message' => 'One or more selected vehicles can no longer be cancelled — they have already progressed past the point cancellation is allowed.',
+                    'ineligible' => $ineligible,
+                ]];
+            }
+
+            $cancelledIds = $selected->pluck('id');
+
+            $capacityReleases = [];
+            foreach ($selected as $booking) {
+                if ($booking->service_type === 'schedule' && $booking->price_locked_at !== null && $booking->scheduled_date !== null) {
+                    $date = $booking->scheduled_date->toDateString();
+                    $capacityReleases[$date] = ($capacityReleases[$date] ?? 0) + 1;
+                }
+            }
+
+            foreach ($selected as $booking) {
+                $booking->update([
+                    'status' => 'cancelled',
+                    'rejection_reason' => $reason,
+                ]);
+
+                AuditLog::create([
+                    'user_id'     => auth()->id(),
+                    'action'      => 'booking_cancelled_by_customer',
+                    'entity_type' => 'Booking',
+                    'entity_id'   => $booking->id,
+                    'reference'   => $booking->job_code,
+                    'description' => $reason ? "Cancelled by customer (group) — {$reason}" : 'Cancelled by customer (group).',
+                ]);
+
+                $quotation = \App\Models\Quotation::where('source_booking_id', $booking->id)
+                    ->current()
+                    ->first();
+                if ($quotation && !in_array($quotation->status, ['accepted', 'rejected', 'cancelled', 'expired'])) {
+                    $quotation->update([
+                        'status' => 'rejected',
+                        'responded_at' => now(),
+                        'response_note' => 'Booking cancelled by customer.',
+                    ]);
+                }
+            }
+
+            foreach ($capacityReleases as $date => $count) {
+                DB::statement(
+                    'UPDATE booking_capacity SET slots_used = GREATEST(slots_used - ?, 0), updated_at = NOW() WHERE booking_date = ?',
+                    [$count, $date]
+                );
+            }
+
+            $anchor = Booking::where('group_code', $groupCode)
+                ->where('pickup_address', $selected->first()->pickup_address)
+                ->where('dropoff_address', $selected->first()->dropoff_address)
+                ->orderBy('id')
+                ->first();
+
+            if ($anchor) {
+                $groupQuotation = \App\Models\Quotation::where('source_booking_id', $anchor->id)
+                    ->current()
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($groupQuotation && in_array($groupQuotation->status, ['draft', 'pending'], true)) {
+                    $remainingLineItems = collect($groupQuotation->extra_vehicles ?? [])
+                        ->reject(fn($ev) => $cancelledIds->contains($ev['booking_id'] ?? null))
+                        ->values();
+
+                    if ($remainingLineItems->count() !== count($groupQuotation->extra_vehicles ?? [])) {
+                        $remainingAnchorTotal = $cancelledIds->contains($anchor->id) ? 0.0 : (float) $anchor->final_total;
+                        $newEstimatedPrice = max(round($remainingAnchorTotal + $remainingLineItems->sum('final_total') - (float) $groupQuotation->discount, 2), 0);
+
+                        $groupQuotation->newVersion([
+                            'extra_vehicles'  => $remainingLineItems->all(),
+                            'estimated_price' => $newEstimatedPrice,
+                        ]);
+                    }
+                }
+            }
+
+            $groupMembers = Booking::where('group_code', $groupCode)
+                ->where('customer_id', $customer->id)
+                ->orderBy('id')
+                ->get();
+
+            $vehicles = $groupMembers->map(fn($b) => [
+                'booking_code'   => $b->booking_code,
+                'status'         => $b->status,
+                'final_total'    => $b->final_total !== null ? (float) $b->final_total : null,
+                'is_cancellable' => in_array($b->status, ['requested', 'scheduled', 'scheduled_confirmed'], true),
+            ])->values()->all();
+
+            $finalGroupQuotation = $anchor
+                ? \App\Models\Quotation::where('source_booking_id', $anchor->id)->current()->first()
+                : null;
+
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'message' => 'Selected vehicles cancelled successfully.',
+                    'group_code' => $groupCode,
+                    'cancelled_booking_codes' => $selected->pluck('booking_code')->values()->all(),
+                    'vehicles' => $vehicles,
+                    'remaining_total' => $this->groupTotalsFor($groupMembers),
+                    'accepted_quotation_amount' => ($finalGroupQuotation && $finalGroupQuotation->status === 'accepted')
+                        ? (float) $finalGroupQuotation->estimated_price
+                        : null,
+                ],
+                'bookings' => $selected,
+            ];
+        });
+
+        if (isset($result['bookings'])) {
+            foreach ($result['bookings'] as $booking) {
+                BookingStatusUpdated::safeFire($booking);
+            }
         }
 
         return response()->json($result['body'], $result['status']);
@@ -603,7 +988,15 @@ class CustomerBookingController extends Controller
         $driverName = $booking->driver_name
             ?? optional(optional($booking->unit)->driver)->name;
 
-        $quotation = \App\Models\Quotation::where('source_booking_id', $booking->id)
+        $anchor = $booking->group_code
+            ? Booking::where('group_code', $booking->group_code)
+                ->where('pickup_address', $booking->pickup_address)
+                ->where('dropoff_address', $booking->dropoff_address)
+                ->orderBy('id')
+                ->first()
+            : $booking;
+        $anchor = $anchor ?? $booking;
+        $quotation = \App\Models\Quotation::where('source_booking_id', $anchor->id)
             ->latest('id')
             ->first();
         $priceChangeLog = $quotation?->price_change_log ?? [];
@@ -617,16 +1010,23 @@ class CustomerBookingController extends Controller
         $pricingIsProvisional = $booking->service_type === 'schedule' && is_null($booking->price_locked_at);
 
         $groupSiblings = [];
+        $groupTotals = null;
+        $groupVehicles = [];
         if ($booking->group_code) {
-            $groupSiblings = Booking::where('group_code', $booking->group_code)
+            $groupMembers = Booking::where('group_code', $booking->group_code)
                 ->where('customer_id', $customer->id)
-                ->where('id', '!=', $booking->id)
                 ->with(['truckType', 'vehicleType'])
                 ->orderBy('id')
-                ->get()
+                ->get();
+
+            $groupSiblings = $groupMembers
+                ->filter(fn($b) => $b->id !== $booking->id)
                 ->map(fn($b) => $this->bookingSummary($b))
                 ->values()
                 ->all();
+
+            $groupTotals = $this->groupTotalsFor($groupMembers);
+            $groupVehicles = $this->groupVehicleBreakdownFor($groupMembers);
         }
 
         return response()->json([
@@ -671,7 +1071,11 @@ class CustomerBookingController extends Controller
                 'cancelled_at'      => $cancelledAt?->toIso8601String(),
                 'price_change_log'  => $priceChangeLog,
                 'group_code'        => $booking->group_code,
+                'group_booking_code' => $anchor->booking_code,
                 'group_siblings'    => $groupSiblings,
+                'group_totals'      => $groupTotals,
+                'group_vehicles'    => $groupVehicles,
+                'quotation_number'  => $quotation?->quotation_number,
             ],
         ]);
     }

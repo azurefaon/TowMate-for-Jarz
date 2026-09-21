@@ -150,6 +150,23 @@ it('rejects booking creation without a vehicle_type_id, matching the real custom
     $response->assertJsonValidationErrors('vehicle_type_id');
 });
 
+it('rejects booking creation when the vehicle type is inactive', function () {
+    [$user] = vttCustomer();
+    $truckType = vttTruckType('Inactive');
+    $vehicleType = vttVehicleType($truckType->id);
+    $vehicleType->update(['status' => 'inactive']);
+    vttReadyUnit($truckType);
+    Sanctum::actingAs($user, ['*']);
+
+    $response = test()->postJson('/api/v1/bookings', vttBookingPayload([
+        'truck_type_id' => $truckType->id,
+        'vehicle_type_id' => $vehicleType->id,
+    ]));
+
+    $response->assertStatus(422);
+    expect(Booking::count())->toBe(0);
+});
+
 it('rejects booking creation when the vehicle type has no configured required truck type', function () {
     [$user] = vttCustomer();
     $truckType = vttTruckType('Unconfigured');
@@ -338,8 +355,13 @@ it('uses the mapped extra vehicle rate server-side, ignoring a spoofed cheaper t
     $booking = Booking::where('customer_id', $customer->id)->latest()->first();
     $storedExtras = $booking->extra_vehicles;
 
-    expect((float) $storedExtras[0]['estimated_price'])->toBe(round(8000 * 1.12, 2));
-    expect((float) $storedExtras[0]['estimated_price'])->not->toBe(round(100 * 1.12, 2));
+    $expensiveDistanceFee = round(max(0, (float) $booking->distance_km - 4.0) * 400, 2);
+    $expensiveTotal = round((8000 + $expensiveDistanceFee) * 1.12, 2);
+    $cheapDistanceFee = round(max(0, (float) $booking->distance_km - 4.0) * 10, 2);
+    $cheapTotal = round((100 + $cheapDistanceFee) * 1.12, 2);
+
+    expect((float) $storedExtras[0]['estimated_price'])->toBe($expensiveTotal);
+    expect((float) $storedExtras[0]['estimated_price'])->not->toBe($cheapTotal);
 });
 
 it('does not let a tampered cheaper extra vehicle truck type reduce the sibling scheduled booking price', function () {
@@ -410,6 +432,27 @@ it('rejects an extra vehicle whose vehicle type has no configured required truck
         'vehicle_type_id' => $primaryVehicle->id,
         'extra_vehicles' => json_encode([
             ['vehicle_type_id' => $unmappedVehicle->id, 'service_type' => 'book_now'],
+        ]),
+    ]));
+
+    $response->assertStatus(422);
+    expect(Booking::count())->toBe(0);
+});
+
+it('rejects an extra vehicle whose vehicle type is inactive', function () {
+    [$user] = vttCustomer();
+    $primaryTruck = vttTruckType('InactiveExtraPrimary');
+    $primaryVehicle = vttVehicleType($primaryTruck->id);
+    $extraTruck = vttTruckType('InactiveExtraSecondary');
+    $extraVehicle = vttVehicleType($extraTruck->id);
+    $extraVehicle->update(['status' => 'inactive']);
+
+    Sanctum::actingAs($user, ['*']);
+
+    $response = test()->postJson('/api/v1/bookings', vttBookingPayload([
+        'vehicle_type_id' => $primaryVehicle->id,
+        'extra_vehicles' => json_encode([
+            ['vehicle_type_id' => $extraVehicle->id, 'service_type' => 'book_now'],
         ]),
     ]));
 

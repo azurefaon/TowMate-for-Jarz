@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../core/route_observer.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart';
@@ -18,7 +19,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, RouteAware {
   BookingModel? _booking;
   QuotationModel? _quotation;
   Map<String, dynamic>? _announcement;
@@ -64,8 +65,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    appRouteObserver.subscribe(this, ModalRoute.of(context) as PageRoute);
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    appRouteObserver.unsubscribe(this);
     _pollTimer?.cancel();
     _notifTimer?.cancel();
     super.dispose();
@@ -74,6 +82,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _loadData();
+  }
+
+  @override
+  void didPopNext() {
+    _loadData();
   }
 
   Future<void> _loadData() async {
@@ -205,10 +218,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               const SizedBox(height: 16),
                               _AnnouncementBanner(announcement: _announcement!),
                             ],
-                            const SizedBox(height: 20),
-                            _PrimaryCta(
-                              onPressed: () => Navigator.pushNamed(context, '/book-now'),
-                            ),
                             const SizedBox(height: 28),
                             if (_quotation != null)
                               _QuotationReadyCard(
@@ -223,7 +232,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     : () => Navigator.pushNamed(
                                           context,
                                           '/booking-detail',
-                                          arguments: _booking!.bookingCode,
+                                          arguments: _booking!.isGrouped
+                                              ? {
+                                                  'bookingCode': _booking!.bookingCode,
+                                                  'asGroupOverview': true,
+                                                }
+                                              : _booking!.bookingCode,
                                         ),
                               ),
                             const SizedBox(height: 32),
@@ -282,7 +296,7 @@ class _HomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
       ),
@@ -291,8 +305,8 @@ class _HomeHeader extends StatelessWidget {
           text: TextSpan(
             style: GoogleFonts.inter(
               fontSize: 20,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.6,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
             ),
             children: [
               TextSpan(text: 'Tow', style: TextStyle(color: context.textPrimary)),
@@ -322,59 +336,23 @@ class _Greeting extends StatelessWidget {
           '$greeting,',
           style: GoogleFonts.inter(
             color: context.textSecondary,
-            fontSize: 15,
-            letterSpacing: 0.1,
+            fontSize: 13.5,
+            letterSpacing: 0.2,
           ),
         ),
         if (firstName != null) ...[
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             firstName,
             style: GoogleFonts.inter(
               color: context.textPrimary,
-              fontSize: 26,
-              fontWeight: FontWeight.w600,
+              fontSize: 27,
+              fontWeight: FontWeight.w700,
               letterSpacing: -0.7,
             ),
           ),
         ],
       ],
-    );
-  }
-}
-
-class _PrimaryCta extends StatelessWidget {
-  const _PrimaryCta({required this.onPressed});
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: TmColors.yellow,
-          foregroundColor: TmColors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.local_shipping, size: 20),
-            Expanded(
-              child: Text(
-                'Book Now',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-            const Icon(Icons.chevron_right, size: 22),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -633,37 +611,31 @@ class _CurrentBookingSection extends StatelessWidget {
   Widget _emptyState(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
       decoration: BoxDecoration(
+        color: context.card,
         border: Border.all(color: context.divider),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.local_shipping_outlined, color: context.textTertiary, size: 22),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'No active booking',
-                  style: GoogleFonts.inter(
-                    color: context.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Your active towing request will appear here.',
-                  style: GoogleFonts.inter(
-                    color: context.textTertiary,
-                    fontSize: 12.5,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ],
+          Text(
+            'No active booking',
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Your active towing request will appear here.',
+            style: GoogleFonts.inter(
+              color: context.textTertiary,
+              fontSize: 12.5,
+              letterSpacing: 0.1,
+              height: 1.4,
             ),
           ),
         ],
@@ -671,106 +643,118 @@ class _CurrentBookingSection extends StatelessWidget {
     );
   }
 
-  String? _siblingsHint(BookingModel booking) {
-    final siblings = booking.groupSiblings;
-    if (siblings == null || siblings.isEmpty) return null;
-    if (siblings.length == 1) {
-      final label = siblings.first.serviceType == 'schedule' ? 'scheduled' : 'Book Now';
-      return '+1 $label vehicle';
-    }
-    return '+${siblings.length} other vehicles';
-  }
-
   Widget _activeCard(BuildContext context, BookingModel booking) {
-    final siblingsHint = _siblingsHint(booking);
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              booking.bookingCode,
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.3,
+    final isGrouped = booking.isGrouped;
+    final vehicleCount = 1 + (booking.groupSiblings?.length ?? 0);
+    final vehicleLabel = vehicleCount > 1 ? '$vehicleCount Vehicles' : '1 Vehicle';
+    final priceValue = booking.groupTotals?.finalTotal ?? booking.finalTotal ?? booking.computedTotal;
+    final priceLabel = booking.groupTotals != null ? booking.groupTotalLabel : 'Estimated Price';
+    final headingText = isGrouped ? (booking.groupCode ?? 'Group Request') : booking.bookingCode;
+    final statusText = isGrouped
+        ? (booking.groupAllCancelled
+            ? 'Cancelled'
+            : booking.groupAllCompleted
+                ? 'Completed'
+                : 'Active')
+        : booking.humanStatus;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.card,
+        border: Border.all(color: context.divider),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                headingText,
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.3,
+                ),
               ),
-            ),
-            Text(
-              booking.humanStatus,
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              Text(
+                statusText,
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-          ],
-        ),
-        if (booking.displayVehicleName.isNotEmpty) ...[
-          const SizedBox(height: 2),
+            ],
+          ),
+          const SizedBox(height: 4),
           Text(
-            booking.displayVehicleName,
+            isGrouped
+                ? (booking.groupAllCancelled || booking.groupAllCompleted
+                    ? vehicleLabel
+                    : booking.groupActiveStatusText)
+                : (booking.displayVehicleName.isNotEmpty
+                    ? '$vehicleLabel  ·  ${booking.displayVehicleName}'
+                    : vehicleLabel),
             style: GoogleFonts.inter(
               color: _secondaryTextColor(context),
               fontSize: 12,
               letterSpacing: 0.1,
             ),
           ),
-        ],
-        if (siblingsHint != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            siblingsHint,
-            style: GoogleFonts.inter(
-              color: _secondaryTextColor(context),
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.1,
+          const SizedBox(height: 14),
+          _AddressLine(label: 'Pickup', address: booking.pickupAddress),
+          const SizedBox(height: 8),
+          _AddressLine(label: 'Dropoff', address: booking.dropoffAddress),
+          if (priceValue != null) ...[
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  priceLabel,
+                  style: GoogleFonts.inter(
+                    color: _secondaryTextColor(context),
+                    fontSize: 12,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+                Text(
+                  '₱${NumberFormat('#,##0.00', 'en_PH').format(priceValue)}',
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-        const SizedBox(height: 14),
-        _AddressLine(label: 'Pickup', address: booking.pickupAddress),
-        const SizedBox(height: 8),
-        _AddressLine(label: 'Dropoff', address: booking.dropoffAddress),
-        if (booking.distanceKm != null && (booking.finalTotal ?? booking.computedTotal) != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            '${booking.distanceKm!.toStringAsFixed(1)} km  —  ₱${NumberFormat('#,##0.00', 'en_PH').format((booking.finalTotal ?? booking.computedTotal)!)}',
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.1,
-            ),
-          ),
-        ],
-      ],
-    );
-
-    final card = Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        border: Border.all(color: context.divider),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(child: content),
+          ],
           if (onViewDetails != null) ...[
-            const SizedBox(width: 8),
-            Icon(Icons.chevron_right, color: context.textPrimary, size: 22),
+            const SizedBox(height: 14),
+            Divider(color: context.divider, height: 1),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: onViewDetails,
+              child: Text(
+                'View Booking Details',
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
           ],
         ],
       ),
     );
-
-    if (onViewDetails == null) return card;
-    return GestureDetector(onTap: onViewDetails, child: card);
   }
 }
 
@@ -811,38 +795,36 @@ class _ServiceChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
         color: context.card,
         border: Border.all(color: context.divider),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: _hasImage
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: CmsImage(imageUrl: service.imageUrl),
-                  )
-                : Icon(Icons.local_shipping, color: context.textPrimary, size: 26),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              service.title,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.1,
+          if (_hasImage) ...[
+            SizedBox(
+              width: 26,
+              height: 26,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(7),
+                child: CmsImage(imageUrl: service.imageUrl),
               ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          Text(
+            service.title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.1,
             ),
           ),
         ],
@@ -864,37 +846,30 @@ class _VehicleTypesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final entries = [
-      for (final v in twoWheelers) (name: (v['name'] as String?) ?? '', icon: Icons.two_wheeler),
-      for (final v in fourWheelers) (name: (v['name'] as String?) ?? '', icon: Icons.directions_car_outlined),
-      for (final v in heavyVehicles) (name: (v['name'] as String?) ?? '', icon: Icons.local_shipping_outlined),
-    ].where((e) => e.name.isNotEmpty).take(8).toList();
+      for (final v in twoWheelers) (v['name'] as String?) ?? '',
+      for (final v in fourWheelers) (v['name'] as String?) ?? '',
+      for (final v in heavyVehicles) (v['name'] as String?) ?? '',
+    ].where((name) => name.isNotEmpty).take(8).toList();
 
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final entry in entries)
+        for (final name in entries)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
               color: context.bg,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: context.divider),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(entry.icon, color: context.textTertiary, size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  entry.name,
-                  style: GoogleFonts.inter(
-                    color: context.textPrimary,
-                    fontSize: 11.5,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ],
+            child: Text(
+              name,
+              style: GoogleFonts.inter(
+                color: context.textPrimary,
+                fontSize: 11.5,
+                letterSpacing: 0.1,
+              ),
             ),
           ),
       ],

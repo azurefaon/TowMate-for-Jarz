@@ -3,6 +3,7 @@
 use App\Models\Role;
 use App\Models\TruckType;
 use App\Models\Unit;
+use App\Models\UnitCrewLoan;
 use App\Models\User;
 use App\Services\UnitTeamAssignmentService;
 
@@ -155,4 +156,170 @@ it('leaves driver_name empty when the team leader has no driver details on file'
     app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $teamLeader->id, $actor);
 
     expect($unit->fresh()->driver_name)->toBeNull();
+});
+
+it('releases the seeded driver and crew from the source unit when the team leader is borrowed elsewhere', function () {
+    $truckType = driverSyncTruckType();
+    $teamLeaderRole = driverSyncTeamLeaderRole();
+    $actor = driverSyncActor();
+
+    $teamLeader = User::factory()->create([
+        'role_id' => $teamLeaderRole->id,
+        'driver_first_name' => 'PAULO',
+        'driver_last_name' => 'PAULO',
+        'crew_member_1_name' => 'Crew One',
+    ]);
+
+    $unitA = Unit::create([
+        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+    ]);
+    $unitB = Unit::create([
+        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+    ]);
+
+    $svc = app(UnitTeamAssignmentService::class);
+    $svc->assignTeamLeader($unitA, $teamLeader->id, $actor);
+    expect($unitA->fresh()->driver_name)->toBe('PAULO PAULO');
+
+    $svc->assignTeamLeader($unitB, $teamLeader->id, $actor);
+
+    expect($unitA->fresh()->driver_name)->toBeNull()
+        ->and($unitA->fresh()->crew_member_1_name)->toBeNull()
+        ->and($unitB->fresh()->driver_name)->toBe('PAULO PAULO')
+        ->and($unitB->fresh()->crew_member_1_name)->toBe('Crew One');
+});
+
+it('releases the seeded driver from a unit when its team leader is removed outright', function () {
+    $truckType = driverSyncTruckType();
+    $teamLeaderRole = driverSyncTeamLeaderRole();
+    $actor = driverSyncActor();
+
+    $teamLeader = User::factory()->create([
+        'role_id' => $teamLeaderRole->id,
+        'driver_first_name' => 'PAULO',
+        'driver_last_name' => 'PAULO',
+    ]);
+
+    $unit = Unit::create([
+        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+    ]);
+
+    $svc = app(UnitTeamAssignmentService::class);
+    $svc->assignTeamLeader($unit, $teamLeader->id, $actor);
+    expect($unit->fresh()->driver_name)->toBe('PAULO PAULO');
+
+    $svc->removeTeamLeader($unit, $actor);
+
+    expect($unit->fresh()->team_leader_id)->toBeNull()
+        ->and($unit->fresh()->driver_name)->toBeNull();
+});
+
+it('releases the seeded driver from the unit a borrowed team leader is returned from', function () {
+    $truckType = driverSyncTruckType();
+    $teamLeaderRole = driverSyncTeamLeaderRole();
+    $actor = driverSyncActor();
+
+    $teamLeader = User::factory()->create([
+        'role_id' => $teamLeaderRole->id,
+        'driver_first_name' => 'PAULO',
+        'driver_last_name' => 'PAULO',
+    ]);
+
+    $homeUnit = Unit::create([
+        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+        'team_leader_id' => $teamLeader->id,
+    ]);
+    $borrowedToUnit = Unit::create([
+        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+    ]);
+
+    $svc = app(UnitTeamAssignmentService::class);
+    $svc->assignTeamLeader($borrowedToUnit, $teamLeader->id, $actor);
+    expect($borrowedToUnit->fresh()->driver_name)->toBe('PAULO PAULO');
+
+    $svc->returnTeamLeader($borrowedToUnit, $actor);
+
+    expect($homeUnit->fresh()->team_leader_id)->toBe($teamLeader->id)
+        ->and($borrowedToUnit->fresh()->driver_name)->toBeNull();
+});
+
+it('does not clear a driver name that does not match the team leaders registered details when borrowed away', function () {
+    $truckType = driverSyncTruckType();
+    $teamLeaderRole = driverSyncTeamLeaderRole();
+    $actor = driverSyncActor();
+
+    $teamLeader = User::factory()->create([
+        'role_id' => $teamLeaderRole->id,
+        'driver_first_name' => 'PAULO',
+        'driver_last_name' => 'PAULO',
+    ]);
+
+    $unitA = Unit::create([
+        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+        'team_leader_id' => $teamLeader->id,
+        'driver_name' => 'Independently Assigned Driver',
+    ]);
+    $unitB = Unit::create([
+        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+    ]);
+
+    app(UnitTeamAssignmentService::class)->assignTeamLeader($unitB, $teamLeader->id, $actor);
+
+    expect($unitA->fresh()->driver_name)->toBe('Independently Assigned Driver');
+});
+
+it('does not clear a driver name that is an active independent loan even if it matches the team leaders registered details', function () {
+    $truckType = driverSyncTruckType();
+    $teamLeaderRole = driverSyncTeamLeaderRole();
+    $actor = driverSyncActor();
+
+    $teamLeader = User::factory()->create([
+        'role_id' => $teamLeaderRole->id,
+        'driver_first_name' => 'PAULO',
+        'driver_last_name' => 'PAULO',
+    ]);
+
+    $loanSourceUnit = Unit::create([
+        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+        'driver_name' => 'PAULO PAULO',
+    ]);
+    $unit = Unit::create([
+        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
+        'plate_number' => fake()->unique()->bothify('???-####'),
+        'truck_type_id' => $truckType->id,
+        'status' => 'available',
+    ]);
+
+    $svc = app(UnitTeamAssignmentService::class);
+    $svc->assignSlotPerson($unit, 'driver_1', $loanSourceUnit, 'driver_1', $actor);
+    $svc->assignTeamLeader($unit, $teamLeader->id, $actor);
+
+    $svc->removeTeamLeader($unit, $actor);
+
+    expect($unit->fresh()->driver_name)->toBe('PAULO PAULO')
+        ->and(UnitCrewLoan::where('to_unit_id', $unit->id)->where('to_slot', 'driver_1')->whereNull('returned_at')->exists())->toBeTrue();
 });

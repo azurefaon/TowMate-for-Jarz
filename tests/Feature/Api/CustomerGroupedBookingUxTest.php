@@ -102,6 +102,38 @@ function gbuCreateScheduledGroupRequest(User $user): array
     return [$response, $primaryVehicle, $extraVehicle];
 }
 
+function gbuCreateBookNowGroupRequest(User $user): array
+{
+    $primaryTruck = gbuTruckType();
+    gbuReadyUnit($primaryTruck);
+    $primaryVehicle = gbuVehicleType($primaryTruck->id, 'GBU Group Sedan');
+
+    $extraTruck = gbuTruckType();
+    gbuReadyUnit($extraTruck);
+    $extraVehicle = gbuVehicleType($extraTruck->id, 'GBU Group Motorcycle');
+
+    Sanctum::actingAs($user, ['*']);
+
+    $response = test()->postJson('/api/v1/bookings', [
+        'vehicle_type_id' => $primaryVehicle->id,
+        'pickup_address' => 'Origin',
+        'pickup_lat' => 14.5995,
+        'pickup_lng' => 120.9842,
+        'dropoff_address' => 'Destination',
+        'dropoff_lat' => 14.6905,
+        'dropoff_lng' => 120.9842,
+        'distance_km' => 12,
+        'service_type' => 'book_now',
+        'vehicle_images' => gbuImages(1),
+        'extra_vehicles' => json_encode([
+            ['vehicle_type_id' => $extraVehicle->id],
+        ]),
+        'extra_vehicle_images' => [0 => gbuImages(1)],
+    ]);
+
+    return [$response, $primaryVehicle, $extraVehicle];
+}
+
 function gbuCreateBookNowRequest(User $user): array
 {
     $truck = gbuTruckType();
@@ -267,6 +299,376 @@ it('detail exposes group_siblings for a grouped booking and an empty list for a 
     $soloDetail = test()->getJson("/api/v1/bookings/{$soloResponse->json('booking_code')}/detail");
     $soloDetail->assertOk();
     expect($soloDetail->json('data.group_siblings'))->toBe([]);
+});
+
+it('detail exposes a group_totals sum matching each active member\'s own final_total for an all-Scheduled group', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($user);
+    $response->assertCreated();
+    $primaryCode = $response->json('booking_code');
+    $siblingCode = $response->json('bookings')[1]['booking_code'];
+
+    $primaryBooking = Booking::where('booking_code', $primaryCode)->first();
+    $siblingBooking = Booking::where('booking_code', $siblingCode)->first();
+    $expectedTotal = round((float) $primaryBooking->final_total + (float) $siblingBooking->final_total, 2);
+
+    $detail = test()->getJson("/api/v1/bookings/{$primaryCode}/detail");
+    $detail->assertOk();
+    expect($detail->json('data.group_totals.vehicle_count'))->toBe(2);
+    expect((float) $detail->json('data.group_totals.final_total'))->toBe($expectedTotal);
+    expect((float) $detail->json('data.group_totals.final_total'))->not->toBe((float) $primaryBooking->final_total);
+});
+
+it('detail excludes a cancelled sibling from group_totals while still listing it in group_siblings', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($user);
+    $response->assertCreated();
+    $primaryCode = $response->json('booking_code');
+    $siblingCode = $response->json('bookings')[1]['booking_code'];
+
+    test()->postJson("/api/v1/bookings/{$siblingCode}/cancel")->assertOk();
+
+    $primaryBooking = Booking::where('booking_code', $primaryCode)->first();
+
+    $detail = test()->getJson("/api/v1/bookings/{$primaryCode}/detail");
+    $detail->assertOk();
+    expect($detail->json('data.group_totals.vehicle_count'))->toBe(2);
+    expect((float) $detail->json('data.group_totals.final_total'))->toBe(round((float) $primaryBooking->final_total, 2));
+
+    $siblingSummary = collect($detail->json('data.group_siblings'))->firstWhere('booking_code', $siblingCode);
+    expect($siblingSummary)->not->toBeNull();
+    expect($siblingSummary['status'])->toBe('cancelled');
+});
+
+it('detail exposes the true group total for a Book Now group, not just the primary vehicle\'s own share', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateBookNowGroupRequest($user);
+    $response->assertCreated();
+    $primaryCode = $response->json('booking_code');
+    $siblingCode = $response->json('group_siblings')[0]['booking_code'];
+
+    $primaryBooking = Booking::where('booking_code', $primaryCode)->first();
+    $siblingBooking = Booking::where('booking_code', $siblingCode)->first();
+    $expectedTotal = round((float) $primaryBooking->final_total + (float) $siblingBooking->final_total, 2);
+
+    $detail = test()->getJson("/api/v1/bookings/{$primaryCode}/detail");
+    $detail->assertOk();
+    expect((float) $detail->json('data.final_total'))->toBe((float) $primaryBooking->final_total);
+    expect((float) $detail->json('data.group_totals.final_total'))->toBe($expectedTotal);
+    expect((float) $detail->json('data.group_totals.final_total'))->toBeGreaterThan((float) $detail->json('data.final_total'));
+});
+
+it('detail returns a null group_totals for a standalone booking', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateBookNowRequest($user);
+    $response->assertCreated();
+
+    $detail = test()->getJson("/api/v1/bookings/{$response->json('booking_code')}/detail");
+    $detail->assertOk();
+    expect($detail->json('data.group_totals'))->toBeNull();
+});
+
+it('cancelGroupBookings rejects an empty selection', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($user);
+    $response->assertCreated();
+
+    $cancel = test()->postJson("/api/v1/bookings/group/{$response->json('group_code')}/cancel", [
+        'booking_codes' => [],
+    ]);
+    $cancel->assertStatus(422);
+    $cancel->assertJsonValidationErrors('booking_codes');
+});
+
+it('cancelGroupBookings rejects a duplicate selection', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($user);
+    $response->assertCreated();
+    $primaryCode = $response->json('booking_code');
+
+    $cancel = test()->postJson("/api/v1/bookings/group/{$response->json('group_code')}/cancel", [
+        'booking_codes' => [$primaryCode, $primaryCode],
+    ]);
+    $cancel->assertStatus(422);
+    $cancel->assertJsonValidationErrors('booking_codes.0');
+});
+
+it('cancelGroupBookings rejects a booking code that does not exist', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($user);
+    $response->assertCreated();
+
+    $cancel = test()->postJson("/api/v1/bookings/group/{$response->json('group_code')}/cancel", [
+        'booking_codes' => ['TM-99999'],
+    ]);
+    $cancel->assertStatus(422);
+    expect($cancel->json('invalid_booking_codes'))->toContain('TM-99999');
+
+    $primary = Booking::where('booking_code', $response->json('booking_code'))->first();
+    expect($primary->status)->toBe('scheduled');
+});
+
+it('cancelGroupBookings rejects a booking code that belongs to a different group', function () {
+    [$user] = gbuCustomer();
+    [$responseA] = gbuCreateScheduledGroupRequest($user);
+    $responseA->assertCreated();
+
+    Booking::where('customer_id', Customer::where('user_id', $user->id)->first()->id)
+        ->update(['status' => 'completed']);
+
+    [$responseB] = gbuCreateBookNowGroupRequest($user);
+    $responseB->assertCreated();
+
+    $codeFromGroupA = $responseA->json('booking_code');
+    $groupCodeB = $responseB->json('group_code');
+    $codeFromGroupB = $responseB->json('group_siblings')[0]['booking_code'];
+
+    $cancel = test()->postJson("/api/v1/bookings/group/{$groupCodeB}/cancel", [
+        'booking_codes' => [$codeFromGroupA, $codeFromGroupB],
+    ]);
+    $cancel->assertStatus(422);
+    expect($cancel->json('invalid_booking_codes'))->toContain($codeFromGroupA);
+
+    $siblingB = Booking::where('booking_code', $codeFromGroupB)->first();
+    expect($siblingB->status)->toBe('requested');
+});
+
+it('cancelGroupBookings rejects booking codes owned by another customer (BOLA)', function () {
+    [$ownerUser] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($ownerUser);
+    $response->assertCreated();
+    $groupCode = $response->json('group_code');
+    $primaryCode = $response->json('booking_code');
+    $siblingCode = $response->json('bookings')[1]['booking_code'];
+
+    [$attackerUser] = gbuCustomer();
+    Sanctum::actingAs($attackerUser, ['*']);
+
+    $cancel = test()->postJson("/api/v1/bookings/group/{$groupCode}/cancel", [
+        'booking_codes' => [$primaryCode, $siblingCode],
+    ]);
+    $cancel->assertStatus(422);
+    expect($cancel->json('invalid_booking_codes'))->toContain($primaryCode, $siblingCode);
+
+    $primary = Booking::where('booking_code', $primaryCode)->first();
+    expect($primary->status)->toBe('scheduled');
+});
+
+it('cancelGroupBookings cancels none when one selected vehicle is no longer eligible (atomic rollback)', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($user);
+    $response->assertCreated();
+    $groupCode = $response->json('group_code');
+    $primaryCode = $response->json('booking_code');
+    $siblingCode = $response->json('bookings')[1]['booking_code'];
+
+    test()->postJson("/api/v1/bookings/{$siblingCode}/cancel")->assertOk();
+
+    $cancel = test()->postJson("/api/v1/bookings/group/{$groupCode}/cancel", [
+        'booking_codes' => [$primaryCode, $siblingCode],
+    ]);
+    $cancel->assertStatus(422);
+    expect(collect($cancel->json('ineligible'))->pluck('booking_code'))->toContain($siblingCode);
+
+    $primary = Booking::where('booking_code', $primaryCode)->first();
+    expect($primary->status)->toBe('scheduled');
+});
+
+it('cancelGroupBookings cancels one selected vehicle, strips it from the group quotation, and leaves the sibling untouched', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateBookNowGroupRequest($user);
+    $response->assertCreated();
+    $groupCode = $response->json('group_code');
+    $primaryCode = $response->json('booking_code');
+    $siblingCode = $response->json('group_siblings')[0]['booking_code'];
+
+    $primary = Booking::where('booking_code', $primaryCode)->first();
+    $sibling = Booking::where('booking_code', $siblingCode)->first();
+    $quotation = \App\Models\Quotation::where('source_booking_id', $primary->id)->current()->first();
+    expect($quotation->status)->toBe('pending');
+    expect(collect($quotation->extra_vehicles)->pluck('booking_id'))->toContain($sibling->id);
+
+    $cancel = test()->postJson("/api/v1/bookings/group/{$groupCode}/cancel", [
+        'booking_codes' => [$siblingCode],
+    ]);
+    $cancel->assertOk();
+    expect($cancel->json('cancelled_booking_codes'))->toBe([$siblingCode]);
+    expect((float) $cancel->json('remaining_total.final_total'))->toBe(round((float) $primary->final_total, 2));
+    expect($cancel->json('accepted_quotation_amount'))->toBeNull();
+
+    $primary->refresh();
+    $sibling->refresh();
+    expect($sibling->status)->toBe('cancelled');
+    expect($primary->status)->toBe('requested');
+
+    $quotation = \App\Models\Quotation::where('quotation_number', $quotation->quotation_number)->current()->first();
+    expect(collect($quotation->extra_vehicles ?? [])->pluck('booking_id'))->not->toContain($sibling->id);
+    expect((float) $quotation->estimated_price)->toBe(round((float) $primary->final_total, 2));
+});
+
+it('cancelGroupBookings cancels every vehicle in a full group cancellation', function () {
+    [$user] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($user);
+    $response->assertCreated();
+    $groupCode = $response->json('group_code');
+    $primaryCode = $response->json('booking_code');
+    $siblingCode = $response->json('bookings')[1]['booking_code'];
+
+    $cancel = test()->postJson("/api/v1/bookings/group/{$groupCode}/cancel", [
+        'booking_codes' => [$primaryCode, $siblingCode],
+    ]);
+    $cancel->assertOk();
+    expect((float) $cancel->json('remaining_total.final_total'))->toBe(0.0);
+    expect($cancel->json('remaining_total.vehicle_count'))->toBe(2);
+
+    expect(Booking::where('booking_code', $primaryCode)->first()->status)->toBe('cancelled');
+    expect(Booking::where('booking_code', $siblingCode)->first()->status)->toBe('cancelled');
+});
+
+it('cancelGroupBookings preserves an accepted group quotation amount and releases capacity for the cancelled vehicle only', function () {
+    [$user, $customer] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($user);
+    $response->assertCreated();
+    $groupCode = $response->json('group_code');
+    $primaryCode = $response->json('booking_code');
+    $siblingCode = $response->json('bookings')[1]['booking_code'];
+
+    $primary = Booking::where('booking_code', $primaryCode)->first();
+    $sibling = Booking::where('booking_code', $siblingCode)->first();
+    $scheduledDate = $primary->scheduled_date->toDateString();
+
+    $quotation = app(\App\Services\QuotationService::class)->createQuotation([
+        'source_booking_id' => $primary->id,
+        'customer_id' => $customer->id,
+        'truck_type_id' => $primary->truck_type_id,
+        'pickup_address' => $primary->pickup_address,
+        'dropoff_address' => $primary->dropoff_address,
+        'distance_km' => $primary->distance_km,
+        'estimated_price' => round((float) $primary->final_total + (float) $sibling->final_total, 2),
+        'service_type' => 'schedule',
+        'scheduled_date' => $scheduledDate,
+        'scheduled_time' => $primary->scheduled_time,
+        'extra_vehicles' => [[
+            'booking_id' => $sibling->id,
+            'truck_type_id' => $sibling->truck_type_id,
+            'service_type' => 'schedule',
+            'final_total' => (float) $sibling->final_total,
+            'base_rate' => (float) $sibling->base_rate,
+            'distance_fee' => 0,
+        ]],
+    ]);
+    app(\App\Services\QuotationService::class)->sendQuotation($quotation, 168);
+
+    Sanctum::actingAs($user, ['*']);
+    test()->postJson("/api/v1/quotations/{$quotation->id}/accept")->assertOk();
+
+    $primary->refresh();
+    $sibling->refresh();
+    expect($primary->status)->toBe('scheduled_confirmed');
+    expect($sibling->status)->toBe('scheduled_confirmed');
+    expect($primary->price_locked_at)->not->toBeNull();
+    expect($sibling->price_locked_at)->not->toBeNull();
+
+    $capacityBefore = \Illuminate\Support\Facades\DB::table('booking_capacity')->where('booking_date', $scheduledDate)->first();
+    expect($capacityBefore->slots_used)->toBe(2);
+
+    $originalEstimatedPrice = (float) $quotation->fresh()->estimated_price;
+
+    $cancel = test()->postJson("/api/v1/bookings/group/{$groupCode}/cancel", [
+        'booking_codes' => [$siblingCode],
+    ]);
+    $cancel->assertOk();
+    expect((float) $cancel->json('accepted_quotation_amount'))->toBe($originalEstimatedPrice);
+    expect((float) $cancel->json('remaining_total.final_total'))->toBe(round((float) $primary->final_total, 2));
+
+    $quotation = \App\Models\Quotation::where('quotation_number', $quotation->quotation_number)->current()->first();
+    expect($quotation->status)->toBe('accepted');
+    expect((float) $quotation->estimated_price)->toBe($originalEstimatedPrice);
+
+    $primary->refresh();
+    $sibling->refresh();
+    expect($sibling->status)->toBe('cancelled');
+    expect($primary->status)->toBe('scheduled_confirmed');
+
+    $capacityAfter = \Illuminate\Support\Facades\DB::table('booking_capacity')->where('booking_date', $scheduledDate)->first();
+    expect($capacityAfter->slots_used)->toBe(1);
+});
+
+it('cancelGroupBookings does not decrement capacity twice on a repeated request', function () {
+    [$user, $customer] = gbuCustomer();
+    [$response] = gbuCreateScheduledGroupRequest($user);
+    $response->assertCreated();
+    $groupCode = $response->json('group_code');
+    $primaryCode = $response->json('booking_code');
+    $siblingCode = $response->json('bookings')[1]['booking_code'];
+
+    $primary = Booking::where('booking_code', $primaryCode)->first();
+    $sibling = Booking::where('booking_code', $siblingCode)->first();
+    $scheduledDate = $primary->scheduled_date->toDateString();
+
+    $quotation = app(\App\Services\QuotationService::class)->createQuotation([
+        'source_booking_id' => $primary->id,
+        'customer_id' => $customer->id,
+        'truck_type_id' => $primary->truck_type_id,
+        'pickup_address' => $primary->pickup_address,
+        'dropoff_address' => $primary->dropoff_address,
+        'distance_km' => $primary->distance_km,
+        'estimated_price' => round((float) $primary->final_total + (float) $sibling->final_total, 2),
+        'service_type' => 'schedule',
+        'scheduled_date' => $scheduledDate,
+        'scheduled_time' => $primary->scheduled_time,
+        'extra_vehicles' => [[
+            'booking_id' => $sibling->id,
+            'truck_type_id' => $sibling->truck_type_id,
+            'service_type' => 'schedule',
+            'final_total' => (float) $sibling->final_total,
+            'base_rate' => (float) $sibling->base_rate,
+            'distance_fee' => 0,
+        ]],
+    ]);
+    app(\App\Services\QuotationService::class)->sendQuotation($quotation, 168);
+
+    Sanctum::actingAs($user, ['*']);
+    test()->postJson("/api/v1/quotations/{$quotation->id}/accept")->assertOk();
+
+    $first = test()->postJson("/api/v1/bookings/group/{$groupCode}/cancel", [
+        'booking_codes' => [$siblingCode],
+    ]);
+    $first->assertOk();
+
+    $capacityAfterFirst = \Illuminate\Support\Facades\DB::table('booking_capacity')->where('booking_date', $scheduledDate)->first();
+    expect($capacityAfterFirst->slots_used)->toBe(1);
+
+    $second = test()->postJson("/api/v1/bookings/group/{$groupCode}/cancel", [
+        'booking_codes' => [$siblingCode],
+    ]);
+    $second->assertStatus(422);
+    expect(collect($second->json('ineligible'))->pluck('booking_code'))->toContain($siblingCode);
+
+    $capacityAfterSecond = \Illuminate\Support\Facades\DB::table('booking_capacity')->where('booking_date', $scheduledDate)->first();
+    expect($capacityAfterSecond->slots_used)->toBe(1);
+});
+
+it('cancelGroupBookings leaves an unrelated customer\'s standalone booking untouched', function () {
+    [$groupUser] = gbuCustomer();
+    [$groupResponse] = gbuCreateScheduledGroupRequest($groupUser);
+    $groupResponse->assertCreated();
+    $groupCode = $groupResponse->json('group_code');
+    $siblingCode = $groupResponse->json('bookings')[1]['booking_code'];
+
+    [$soloUser] = gbuCustomer();
+    [$soloResponse] = gbuCreateBookNowRequest($soloUser);
+    $soloResponse->assertCreated();
+    $soloCode = $soloResponse->json('booking_code');
+
+    Sanctum::actingAs($groupUser, ['*']);
+    $cancel = test()->postJson("/api/v1/bookings/group/{$groupCode}/cancel", [
+        'booking_codes' => [$siblingCode],
+    ]);
+    $cancel->assertOk();
+
+    $solo = Booking::where('booking_code', $soloCode)->first();
+    expect($solo->status)->toBe('requested');
 });
 
 it('bookingHistory returns the customer-facing vehicle_type_name for each booking', function () {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/app_prefs.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
 
@@ -71,6 +72,7 @@ class TmDrawer extends StatelessWidget {
     if (confirmed != true) return;
 
     await ApiService.clearSession();
+    AppPrefs.useGuestTheme();
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
   }
@@ -303,8 +305,7 @@ class _TmDrawerItemState extends State<_TmDrawerItem> {
                       : context.textTertiary,
                   fontSize: 15,
                   letterSpacing: 0.1,
-                  fontWeight:
-                      isActive ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ],

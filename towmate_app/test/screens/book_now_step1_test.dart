@@ -97,7 +97,11 @@ List<Map<String, dynamic>> _vehicleTypesPayload() => [
   },
 ];
 
-http.Client _client({List<int> readyTruckTypeIds = const [1]}) {
+http.Client _client({
+  List<int> readyTruckTypeIds = const [1],
+  List<int>? autocompleteCallCount,
+}) {
+  final counter = autocompleteCallCount ?? [0];
   return MockClient((request) async {
     final path = request.url.path;
     if (path.contains('vehicle-types')) {
@@ -112,11 +116,16 @@ http.Client _client({List<int> readyTruckTypeIds = const [1]}) {
       });
     }
     if (path.contains('autocomplete')) {
+      counter[0]++;
+      final lat = counter[0] == 1 ? 14.5832 : 14.6905;
       return _json({
         'suggestions': [
-          {'label': 'Rizal Park, Manila', 'coordinates': [120.9822, 14.5832]},
+          {'label': 'Rizal Park, Manila', 'coordinates': [120.9822, lat]},
         ],
       });
+    }
+    if (path.contains('check-duplicate-route')) {
+      return _json({'duplicate': false});
     }
     return _json({}, status: 404);
   });
@@ -143,6 +152,7 @@ Future<void> _pumpToStep1(
   addTearDown(tester.view.resetDevicePixelRatio);
 
   SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+  final autocompleteCallCount = [0];
   await http.runWithClient(() async {
     await tester.pumpWidget(const MaterialApp(home: BookNowScreen()));
     await _settle(tester);
@@ -161,18 +171,29 @@ Future<void> _pumpToStep1(
 
     await tester.tap(find.text('Continue'));
     await _settle(tester);
-  }, () => _client(readyTruckTypeIds: readyTruckTypeIds));
+  }, () => _client(readyTruckTypeIds: readyTruckTypeIds, autocompleteCallCount: autocompleteCallCount));
+}
+
+Future<void> _openPrimaryVehicleCategory(
+  WidgetTester tester,
+  String category,
+) async {
+  await tester.ensureVisible(find.text(category).last);
+  await tester.tap(find.text(category).last);
+  await _settle(tester);
 }
 
 Future<void> _selectVan(WidgetTester tester) async {
-  await tester.ensureVisible(find.text('Van'));
-  await tester.tap(find.text('Van'));
+  await _openPrimaryVehicleCategory(tester, '4-Wheeler');
+  await tester.ensureVisible(find.text('Van').last);
+  await tester.tap(find.text('Van').last);
   await _settle(tester);
 }
 
 Future<void> _selectSedan(WidgetTester tester) async {
-  await tester.ensureVisible(find.text('Sedan'));
-  await tester.tap(find.text('Sedan'));
+  await _openPrimaryVehicleCategory(tester, '4-Wheeler');
+  await tester.ensureVisible(find.text('Sedan').last);
+  await tester.tap(find.text('Sedan').last);
   await _settle(tester);
 }
 
@@ -196,45 +217,45 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('shows only a limited number of rows by default with a View more link', (tester) async {
+    testWidgets('shows a search field and expandable Owner-managed categories immediately, with no Browse all gate', (
+      tester,
+    ) async {
       await _pumpToStep1(tester);
 
-      expect(find.text('Motorcycle'), findsOneWidget);
-      expect(find.text('Scooter'), findsOneWidget);
+      expect(_vehicleTypeSearchFields, findsOneWidget);
+      expect(find.text('Browse all vehicle types'), findsNothing);
+      expect(find.text('View more'), findsNothing);
+      expect(find.text('4-Wheeler'), findsOneWidget);
+      expect(find.text('2-Wheeler'), findsOneWidget);
+      expect(find.text('Heavy Vehicle'), findsOneWidget);
+      expect(find.text('Sedan'), findsNothing);
+      expect(find.text('Pickup'), findsNothing);
+      expect(find.byIcon(Icons.expand_more_rounded), findsWidgets);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('tapping a category expands it to reveal its vehicles in Owner-defined order', (tester) async {
+      await _pumpToStep1(tester);
+
+      await tester.tap(find.text('4-Wheeler'));
+      await _settle(tester);
       expect(find.text('Sedan'), findsOneWidget);
-      expect(find.text('SUV'), findsOneWidget);
-      expect(find.text('Van'), findsOneWidget);
-      expect(find.text('Pickup'), findsNothing);
-      expect(find.text('Delivery Truck'), findsNothing);
-      expect(find.text('View more'), findsOneWidget);
-
-      await tester.pumpWidget(const SizedBox());
-    });
-
-    testWidgets('rows are stacked full-width with icon, name, category and no boxed grid', (tester) async {
-      await _pumpToStep1(tester);
-
-      expect(find.text('4-Wheeler'), findsWidgets);
-      expect(find.text('2-Wheeler'), findsWidgets);
-      expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
-
-      await tester.pumpWidget(const SizedBox());
-    });
-
-    testWidgets('View more opens the All Vehicle Types sheet with the full list and its own search', (
-      tester,
-    ) async {
-      await _pumpToStep1(tester);
-
-      await tester.tap(find.text('View more'));
-      await _settle(tester);
-
-      expect(find.text('All Vehicle Types'), findsOneWidget);
       expect(find.text('Pickup'), findsOneWidget);
-      expect(find.text('Delivery Truck'), findsOneWidget);
-      expect(_vehicleTypeSearchFields, findsNWidgets(2));
 
-      await tester.enterText(_vehicleTypeSearchFields.last, 'deliv');
+      await tester.tap(find.text('Heavy Vehicle'));
+      await _settle(tester);
+      expect(find.text('Delivery Truck'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('typing a search directly shows matching vehicles without expanding a category first', (
+      tester,
+    ) async {
+      await _pumpToStep1(tester);
+
+      await tester.enterText(_vehicleTypeSearchFields.first, 'deliv');
       await _settle(tester);
 
       expect(find.text('Delivery Truck'), findsOneWidget);
@@ -243,17 +264,17 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('selecting a row from the All Vehicle Types sheet closes it and selects the vehicle', (
+    testWidgets('selecting a vehicle from an expanded category collapses into a selected summary', (
       tester,
     ) async {
       await _pumpToStep1(tester);
 
-      await tester.tap(find.text('View more'));
+      await tester.tap(find.text('Heavy Vehicle'));
       await _settle(tester);
       await tester.tap(find.text('Delivery Truck'));
       await _settle(tester);
 
-      expect(find.text('All Vehicle Types'), findsNothing);
+      expect(find.text('Heavy Vehicle'), findsNothing);
       expect(find.text('Delivery Truck'), findsOneWidget);
       expect(find.text('Change'), findsOneWidget);
 
@@ -277,20 +298,13 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('an unmatched search shows the no-results message with a Browse all action', (tester) async {
+    testWidgets('an unmatched search shows the no-results message', (tester) async {
       await _pumpToStep1(tester);
 
       await tester.enterText(_vehicleTypeSearchFields.first, 'zzz-no-match');
       await _settle(tester);
 
       expect(find.text('No vehicle types found.'), findsOneWidget);
-      expect(find.text('Try a different keyword or browse all vehicle types.'), findsOneWidget);
-      expect(find.text('Browse all vehicle types'), findsOneWidget);
-
-      await tester.tap(find.text('Browse all vehicle types'));
-      await _settle(tester);
-
-      expect(find.text('All Vehicle Types'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
     });
@@ -318,7 +332,13 @@ void main() {
       await _settle(tester);
 
       expect(_vehicleTypeSearchFields, findsOneWidget);
-      expect(find.text('Motorcycle'), findsOneWidget);
+      expect(find.text('4-Wheeler'), findsOneWidget);
+
+      await tester.tap(find.text('4-Wheeler'));
+      await _settle(tester);
+
+      expect(find.text('Motorcycle'), findsNothing);
+      expect(find.text('Sedan'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
     });
@@ -339,7 +359,8 @@ void main() {
 
       await tester.tap(find.text('Change'));
       await _settle(tester);
-      await tester.tap(find.text('Van'));
+      await _openPrimaryVehicleCategory(tester, '4-Wheeler');
+      await tester.tap(find.text('Van').last);
       await _settle(tester);
 
       expect(find.text('1 / 5 photos'), findsOneWidget);
@@ -386,8 +407,58 @@ void main() {
     }
   });
 
-  group('BookNowScreen Step 1 Schedule entire request + date/time confirmation', () {
-    testWidgets('Schedule entire request stays on Step 1 and reveals Preferred Date + Preferred Time', (tester) async {
+  group('BookNowScreen Step 1 vehicle picker layout stability', () {
+    for (final size in [Size(320, 480), Size(360, 560), Size(390, 640)]) {
+      testWidgets(
+        'shows the search field and categories without overflow at ${size.width.toInt()}x${size.height.toInt()}',
+        (tester) async {
+          await _pumpToStep1(tester, size: size);
+          expect(tester.takeException(), isNull);
+
+          await tester.tap(find.text('4-Wheeler'));
+          await _settle(tester);
+          expect(tester.takeException(), isNull);
+
+          await tester.tap(find.text('Heavy Vehicle'));
+          await _settle(tester);
+          expect(tester.takeException(), isNull);
+
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
+    }
+
+    testWidgets('the step indicator and Continue button never move while the category list scrolls', (
+      tester,
+    ) async {
+      await _pumpToStep1(tester, size: const Size(360, 560));
+
+      await tester.tap(find.text('4-Wheeler'));
+      await _settle(tester);
+
+      final stepRectBefore = tester.getRect(find.text('Location'));
+      final continueRectBefore = tester.getRect(find.text('Continue'));
+
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -300),
+      );
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+
+      final stepRectAfter = tester.getRect(find.text('Location'));
+      final continueRectAfter = tester.getRect(find.text('Continue'));
+
+      expect(stepRectAfter, equals(stepRectBefore));
+      expect(continueRectAfter, equals(continueRectBefore));
+      expect(stepRectAfter.bottom, lessThanOrEqualTo(continueRectAfter.top));
+
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  group('BookNowScreen Schedule entire request returns to Step 0 for date/time', () {
+    testWidgets('Schedule entire request navigates back to Step 0 and reveals Preferred Date + Preferred Time', (tester) async {
       await _pumpToStep1(tester);
       await _selectSedan(tester);
 
@@ -395,7 +466,8 @@ void main() {
       await tester.tap(find.text('Schedule entire request').last);
       await _settle(tester);
 
-      expect(find.text('Your Vehicle'), findsOneWidget);
+      expect(find.text('VEHICLE TYPE'), findsNothing);
+      expect(find.text('BOOKING MODE'), findsOneWidget);
       expect(find.text('Preferred Date'), findsOneWidget);
       expect(find.text('Preferred Time'), findsOneWidget);
       expect(find.text('Select date'), findsOneWidget);
@@ -485,27 +557,19 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('Continue is blocked until both date and time are confirmed, with exact per-field hints', (
+    testWidgets('Continue on Step 0 is blocked until both date and time are confirmed, with exact per-field hints', (
       tester,
     ) async {
-      final previousPlatform = ImagePickerPlatform.instance;
-      ImagePickerPlatform.instance = _FakeImagePickerPlatform(_createFakePhotoFile());
-      addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
-
       await _pumpToStep1(tester);
       await _selectSedan(tester);
       await tester.tap(find.text('Schedule entire request').last);
       await _settle(tester);
 
-      await tester.tap(find.text('Add vehicle photos'));
-      await _settle(tester);
-      await tester.tap(find.text('Choose from Gallery'));
-      await _settle(tester);
-
       await tester.ensureVisible(find.text('Continue'));
       await tester.tap(find.text('Continue'));
       await _settle(tester);
-      expect(find.text('Select a preferred date for Vehicle 1 to continue'), findsOneWidget);
+      expect(find.text('Select a preferred date to continue'), findsOneWidget);
+      expect(find.text('BOOKING MODE'), findsOneWidget);
 
       await tester.tap(find.text('Select date'));
       await _settle(tester);
@@ -515,7 +579,8 @@ void main() {
       await tester.ensureVisible(find.text('Continue'));
       await tester.tap(find.text('Continue'));
       await _settle(tester);
-      expect(find.text('Select a preferred time for Vehicle 1 to continue'), findsOneWidget);
+      expect(find.text('Select a preferred time to continue'), findsOneWidget);
+      expect(find.text('BOOKING MODE'), findsOneWidget);
 
       await tester.tap(find.text('Select time'));
       await _settle(tester);
@@ -525,14 +590,14 @@ void main() {
       await tester.ensureVisible(find.text('Continue'));
       await tester.tap(find.text('Continue'));
       await _settle(tester);
-      expect(find.text('Select a preferred date for Vehicle 1 to continue'), findsNothing);
-      expect(find.text('Select a preferred time for Vehicle 1 to continue'), findsNothing);
+      expect(find.text('BOOKING MODE'), findsNothing);
+      expect(find.text('VEHICLE TYPE'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
     });
 
     testWidgets(
-      'REGRESSION: unavailable -> Schedule entire request -> Cancel date -> Change -> reselect same vehicle stays unavailable',
+      'REGRESSION: unavailable -> Schedule entire request -> confirm date/time -> Step 1 keeps the same vehicle with no schedule fields',
       (tester) async {
         await _pumpToStep1(tester);
         await _selectSedan(tester);
@@ -543,46 +608,172 @@ void main() {
 
         await tester.tap(find.text('Select date'));
         await _settle(tester);
-        await tester.tap(find.text('Cancel'));
+        await tester.tap(find.text('OK'));
+        await _settle(tester);
+        await tester.tap(find.text('Select time'));
+        await _settle(tester);
+        await tester.tap(find.text('OK'));
         await _settle(tester);
 
-        expect(find.text('Preferred Date'), findsOneWidget);
-        expect(find.text('Available for Book Now'), findsNothing);
-
-        await tester.tap(find.text('Change'));
-        await _settle(tester);
-        await tester.tap(find.text('Sedan'));
+        await tester.ensureVisible(find.text('Continue'));
+        await tester.tap(find.text('Continue'));
         await _settle(tester);
 
+        expect(find.text('VEHICLE TYPE'), findsOneWidget);
+        expect(find.text('Sedan'), findsOneWidget);
         expect(find.text('No Units Available'), findsNothing);
         expect(find.text('Available for Book Now'), findsNothing);
-        expect(find.text('Preferred Date'), findsOneWidget);
-        expect(find.text('Preferred Time'), findsOneWidget);
+        expect(find.text('Preferred Date'), findsNothing);
+        expect(find.text('Preferred Time'), findsNothing);
+        expect(find.text('SCHEDULE'), findsNothing);
 
         await tester.pumpWidget(const SizedBox());
       },
     );
 
-    testWidgets('scheduling UI state cannot mutate exact availability for a different vehicle', (tester) async {
+    testWidgets('choosing a different, available vehicle after Schedule entire request keeps the request scheduled, never reverting to Book Now', (tester) async {
       await _pumpToStep1(tester, readyTruckTypeIds: const [1]);
       await _selectSedan(tester);
       expect(find.text('No Units Available'), findsOneWidget);
       await tester.tap(find.text('Schedule entire request').last);
       await _settle(tester);
 
-      await tester.tap(find.text('Change'));
+      await tester.tap(find.text('Select date'));
       await _settle(tester);
-      await tester.tap(find.text('Van'));
+      await tester.tap(find.text('OK'));
+      await _settle(tester);
+      await tester.tap(find.text('Select time'));
+      await _settle(tester);
+      await tester.tap(find.text('OK'));
       await _settle(tester);
 
-      expect(find.text('Available for Book Now'), findsOneWidget);
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      await tester.tap(find.text('Change'));
+      await _settle(tester);
+      await _openPrimaryVehicleCategory(tester, '4-Wheeler');
+      await tester.tap(find.text('Van').last);
+      await _settle(tester);
+
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('Preferred Time'), findsNothing);
+      expect(find.text('Available for Book Now'), findsNothing);
+      expect(find.text('No Units Available'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('choosing Schedule Later on Step 0 keeps the request scheduled after selecting a vehicle on Step 1', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+      final autocompleteCallCount = [0];
+      await http.runWithClient(() async {
+        await tester.pumpWidget(const MaterialApp(home: BookNowScreen()));
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).first, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park').first);
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).last, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park').first);
+        await _settle(tester);
+
+        await tester.tap(find.text('Schedule Later'));
+        await _settle(tester);
+
+        await tester.tap(find.text('Select date'));
+        await _settle(tester);
+        await tester.tap(find.text('OK'));
+        await _settle(tester);
+        await tester.tap(find.text('Select time'));
+        await _settle(tester);
+        await tester.tap(find.text('OK'));
+        await _settle(tester);
+
+        await tester.tap(find.text('Continue'));
+        await _settle(tester);
+      }, () => _client(autocompleteCallCount: autocompleteCallCount));
+
+      await _selectSedan(tester);
+
+      expect(find.text('SCHEDULE'), findsNothing);
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('No Units Available'), findsNothing);
+      expect(find.text('Available for Book Now'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('choosing Schedule Later on Step 0 then switching vehicles on Step 1 still keeps the request scheduled', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+      final autocompleteCallCount = [0];
+      await http.runWithClient(() async {
+        await tester.pumpWidget(const MaterialApp(home: BookNowScreen()));
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).first, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park').first);
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).last, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park').first);
+        await _settle(tester);
+
+        await tester.tap(find.text('Schedule Later'));
+        await _settle(tester);
+
+        await tester.tap(find.text('Select date'));
+        await _settle(tester);
+        await tester.tap(find.text('OK'));
+        await _settle(tester);
+        await tester.tap(find.text('Select time'));
+        await _settle(tester);
+        await tester.tap(find.text('OK'));
+        await _settle(tester);
+
+        await tester.tap(find.text('Continue'));
+        await _settle(tester);
+      }, () => _client(autocompleteCallCount: autocompleteCallCount));
+
+      await _selectSedan(tester);
+      expect(find.text('SCHEDULE'), findsNothing);
+      expect(find.text('Preferred Date'), findsNothing);
+
+      await tester.tap(find.text('Change'));
+      await _settle(tester);
+      await _selectVan(tester);
+
+      expect(find.text('SCHEDULE'), findsNothing);
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('Available for Book Now'), findsNothing);
+      expect(find.text('No Units Available'), findsNothing);
 
       await tester.pumpWidget(const SizedBox());
     });
   });
 
   group('BookNowScreen Step 1 additional vehicles', () {
-    testWidgets('an unselected additional vehicle starts compact: search + Browse all, not the full list', (
+    testWidgets('an unselected additional vehicle shows search and expandable categories immediately', (
       tester,
     ) async {
       await _pumpToStep1(tester);
@@ -592,7 +783,8 @@ void main() {
       await _settle(tester);
 
       expect(_vehicleTypeSearchFields, findsNWidgets(2));
-      expect(find.text('Browse all vehicle types'), findsOneWidget);
+      expect(find.text('Browse all vehicle types'), findsNothing);
+      expect(find.text('4-Wheeler'), findsNWidgets(2));
 
       await tester.pumpWidget(const SizedBox());
     });
@@ -606,10 +798,10 @@ void main() {
       await tester.tap(find.text('Add another vehicle'));
       await _settle(tester);
 
-      await tester.ensureVisible(find.text('Browse all vehicle types'));
-      await tester.tap(find.text('Browse all vehicle types'));
-      await _settle(tester);
 
+      await tester.ensureVisible(find.text('4-Wheeler').last);
+      await tester.tap(find.text('4-Wheeler').last);
+      await _settle(tester);
       await tester.ensureVisible(find.text('Van').last);
       await tester.tap(find.text('Van').last);
       await _settle(tester);
@@ -629,10 +821,10 @@ void main() {
       await tester.tap(find.text('Add another vehicle'));
       await _settle(tester);
 
-      await tester.ensureVisible(find.text('Browse all vehicle types'));
-      await tester.tap(find.text('Browse all vehicle types'));
-      await _settle(tester);
 
+      await tester.ensureVisible(find.text('4-Wheeler').last);
+      await tester.tap(find.text('4-Wheeler').last);
+      await _settle(tester);
       await tester.ensureVisible(find.text('Sedan').last);
       await tester.tap(find.text('Sedan').last);
       await _settle(tester);
@@ -662,10 +854,10 @@ void main() {
       await tester.tap(find.text('Add another vehicle'));
       await _settle(tester);
 
-      await tester.ensureVisible(find.text('Browse all vehicle types'));
-      await tester.tap(find.text('Browse all vehicle types'));
-      await _settle(tester);
 
+      await tester.ensureVisible(find.text('4-Wheeler').last);
+      await tester.tap(find.text('4-Wheeler').last);
+      await _settle(tester);
       await tester.ensureVisible(find.text('Sedan').last);
       await tester.tap(find.text('Sedan').last);
       await _settle(tester);
@@ -674,8 +866,30 @@ void main() {
       await tester.tap(find.text('Schedule entire request').last);
       await _settle(tester);
 
+      expect(find.text('VEHICLE TYPE'), findsNothing);
       expect(find.text('Preferred Date'), findsOneWidget);
       expect(find.text('Preferred Time'), findsOneWidget);
+
+      await tester.tap(find.text('Select date'));
+      await _settle(tester);
+      await tester.tap(find.text('OK'));
+      await _settle(tester);
+      await tester.tap(find.text('Select time'));
+      await _settle(tester);
+      await tester.tap(find.text('OK'));
+      await _settle(tester);
+
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('Preferred Time'), findsNothing);
+
+      await tester.ensureVisible(find.text('Vehicle 2'));
+      await tester.tap(find.text('Vehicle 2'));
+      await _settle(tester);
+
       expect(
         find.text('This vehicle will be scheduled with the rest of your request.'),
         findsOneWidget,
@@ -701,8 +915,8 @@ void main() {
       await tester.ensureVisible(find.text('Add another vehicle'));
       await tester.tap(find.text('Add another vehicle'));
       await _settle(tester);
-      await tester.ensureVisible(find.text('Browse all vehicle types'));
-      await tester.tap(find.text('Browse all vehicle types'));
+      await tester.ensureVisible(find.text('4-Wheeler').last);
+      await tester.tap(find.text('4-Wheeler').last);
       await _settle(tester);
       await tester.ensureVisible(find.text('Sedan').last);
       await tester.tap(find.text('Sedan').last);
@@ -772,8 +986,8 @@ void main() {
         await tester.ensureVisible(find.text(slotTitle));
         await tester.tap(find.text(slotTitle));
         await _settle(tester);
-        await tester.ensureVisible(find.text('Browse all vehicle types'));
-        await tester.tap(find.text('Browse all vehicle types'));
+        await tester.ensureVisible(find.text('4-Wheeler').last);
+        await tester.tap(find.text('4-Wheeler').last);
         await _settle(tester);
         final typeFinder = find.text(vehicleName).last;
         await tester.ensureVisible(typeFinder);
@@ -804,26 +1018,15 @@ void main() {
   });
 
   group('BookNowScreen Step 1 header spacing', () {
-    for (final width in [320.0, 360.0, 390.0, 412.0]) {
-      testWidgets('VEHICLE TYPE and Not sure what to choose? never touch at ${width.toInt()}px', (
-        tester,
-      ) async {
-        await _pumpToStep1(tester, size: Size(width, 900));
+    testWidgets('does not show a Not sure what to choose? link or its help sheet', (tester) async {
+      await _pumpToStep1(tester);
 
-        final labelRect = tester.getRect(find.text('VEHICLE TYPE'));
-        final linkRect = tester.getRect(find.text('Not sure what to choose?'));
+      expect(find.text('VEHICLE TYPE'), findsOneWidget);
+      expect(find.text('Not sure what to choose?'), findsNothing);
+      expect(find.text('Choosing a vehicle type'), findsNothing);
 
-        final sameLine = (labelRect.top - linkRect.top).abs() < 4;
-        if (sameLine) {
-          expect(linkRect.left, greaterThan(labelRect.right));
-        } else {
-          expect(linkRect.top, greaterThanOrEqualTo(labelRect.bottom));
-        }
-        expect(tester.takeException(), isNull);
-
-        await tester.pumpWidget(const SizedBox());
-      });
-    }
+      await tester.pumpWidget(const SizedBox());
+    });
   });
 
   group('BookNowScreen Step 1 Review gate', () {
@@ -854,8 +1057,8 @@ void main() {
       await tester.ensureVisible(find.text('Add another vehicle'));
       await tester.tap(find.text('Add another vehicle'));
       await _settle(tester);
-      await tester.ensureVisible(find.text('Browse all vehicle types'));
-      await tester.tap(find.text('Browse all vehicle types'));
+      await tester.ensureVisible(find.text('4-Wheeler').last);
+      await tester.tap(find.text('4-Wheeler').last);
       await _settle(tester);
       await tester.ensureVisible(find.text('Van').last);
       await tester.tap(find.text('Van').last);
@@ -908,8 +1111,8 @@ void main() {
       await tester.ensureVisible(find.text('Add another vehicle'));
       await tester.tap(find.text('Add another vehicle'));
       await _settle(tester);
-      await tester.ensureVisible(find.text('Browse all vehicle types'));
-      await tester.tap(find.text('Browse all vehicle types'));
+      await tester.ensureVisible(find.text('4-Wheeler').last);
+      await tester.tap(find.text('4-Wheeler').last);
       await _settle(tester);
       await tester.ensureVisible(find.text('Sedan').last);
       await tester.tap(find.text('Sedan').last);
@@ -928,40 +1131,24 @@ void main() {
       expect(find.text('Vehicle 2 is not available for Book Now'), findsOneWidget);
     });
 
-    testWidgets('unavailable vehicle switched to Schedule entire request but no date blocks Review', (tester) async {
-      final previousPlatform = ImagePickerPlatform.instance;
-      ImagePickerPlatform.instance = _FakeImagePickerPlatform(_createFakePhotoFile());
-      addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
-
+    testWidgets('unavailable vehicle switched to Schedule entire request but no date blocks progressing to Step 1', (tester) async {
       await _pumpToStep1(tester);
       await _selectSedan(tester);
       await tester.tap(find.text('Schedule entire request').last);
-      await _settle(tester);
-      await tester.tap(find.text('Add vehicle photos'));
-      await _settle(tester);
-      await tester.tap(find.text('Choose from Gallery'));
       await _settle(tester);
 
       await tester.ensureVisible(find.text('Continue'));
       await tester.tap(find.text('Continue'));
       await _settle(tester);
 
-      expect(find.text('TRIP'), findsNothing);
-      expect(find.text('Select a preferred date for Vehicle 1 to continue'), findsOneWidget);
+      expect(find.text('VEHICLE TYPE'), findsNothing);
+      expect(find.text('Select a preferred date to continue'), findsOneWidget);
     });
 
-    testWidgets('confirmed date but no time blocks Review', (tester) async {
-      final previousPlatform = ImagePickerPlatform.instance;
-      ImagePickerPlatform.instance = _FakeImagePickerPlatform(_createFakePhotoFile());
-      addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
-
+    testWidgets('confirmed date but no time blocks progressing to Step 1', (tester) async {
       await _pumpToStep1(tester);
       await _selectSedan(tester);
       await tester.tap(find.text('Schedule entire request').last);
-      await _settle(tester);
-      await tester.tap(find.text('Add vehicle photos'));
-      await _settle(tester);
-      await tester.tap(find.text('Choose from Gallery'));
       await _settle(tester);
 
       await tester.tap(find.text('Select date'));
@@ -973,8 +1160,8 @@ void main() {
       await tester.tap(find.text('Continue'));
       await _settle(tester);
 
-      expect(find.text('TRIP'), findsNothing);
-      expect(find.text('Select a preferred time for Vehicle 1 to continue'), findsOneWidget);
+      expect(find.text('VEHICLE TYPE'), findsNothing);
+      expect(find.text('Select a preferred time to continue'), findsOneWidget);
     });
 
     testWidgets('valid scheduled date + time passes and reaches Review', (tester) async {
@@ -986,10 +1173,6 @@ void main() {
       await _selectSedan(tester);
       await tester.tap(find.text('Schedule entire request').last);
       await _settle(tester);
-      await tester.tap(find.text('Add vehicle photos'));
-      await _settle(tester);
-      await tester.tap(find.text('Choose from Gallery'));
-      await _settle(tester);
 
       await tester.tap(find.text('Select date'));
       await _settle(tester);
@@ -998,6 +1181,15 @@ void main() {
       await tester.tap(find.text('Select time'));
       await _settle(tester);
       await tester.tap(find.text('OK'));
+      await _settle(tester);
+
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      await tester.tap(find.text('Add vehicle photos'));
+      await _settle(tester);
+      await tester.tap(find.text('Choose from Gallery'));
       await _settle(tester);
 
       await tester.ensureVisible(find.text('Continue'));
@@ -1024,8 +1216,8 @@ void main() {
         await tester.ensureVisible(find.text('Add another vehicle'));
         await tester.tap(find.text('Add another vehicle'));
         await _settle(tester);
-        await tester.ensureVisible(find.text('Browse all vehicle types'));
-        await tester.tap(find.text('Browse all vehicle types'));
+        await tester.ensureVisible(find.text('4-Wheeler').last);
+        await tester.tap(find.text('4-Wheeler').last);
         await _settle(tester);
         await tester.ensureVisible(find.text('Sedan').last);
         await tester.tap(find.text('Sedan').last);
@@ -1033,24 +1225,31 @@ void main() {
         await tester.ensureVisible(find.text('Schedule entire request').last);
         await tester.tap(find.text('Schedule entire request').last);
         await _settle(tester);
-        await tester.ensureVisible(find.text('Add vehicle photos').last);
-        await tester.tap(find.text('Add vehicle photos').last);
-        await _settle(tester);
-        await tester.tap(find.text('Choose from Gallery'));
-        await _settle(tester);
 
         expect(find.text('Preferred Date'), findsOneWidget);
         expect(find.text('Preferred Time'), findsOneWidget);
 
-        await tester.ensureVisible(find.text('Select date'));
         await tester.tap(find.text('Select date'));
         await _settle(tester);
         await tester.tap(find.text('OK'));
         await _settle(tester);
-        await tester.ensureVisible(find.text('Select time'));
         await tester.tap(find.text('Select time'));
         await _settle(tester);
         await tester.tap(find.text('OK'));
+        await _settle(tester);
+
+        await tester.ensureVisible(find.text('Continue'));
+        await tester.tap(find.text('Continue'));
+        await _settle(tester);
+
+        await tester.ensureVisible(find.text('Vehicle 2'));
+        await tester.tap(find.text('Vehicle 2'));
+        await _settle(tester);
+
+        await tester.ensureVisible(find.text('Add vehicle photos').last);
+        await tester.tap(find.text('Add vehicle photos').last);
+        await _settle(tester);
+        await tester.tap(find.text('Choose from Gallery'));
         await _settle(tester);
 
         await tester.ensureVisible(find.text('Continue'));
@@ -1078,8 +1277,8 @@ void main() {
       await tester.ensureVisible(find.text('Add another vehicle'));
       await tester.tap(find.text('Add another vehicle'));
       await _settle(tester);
-      await tester.ensureVisible(find.text('Browse all vehicle types'));
-      await tester.tap(find.text('Browse all vehicle types'));
+      await tester.ensureVisible(find.text('2-Wheeler').last);
+      await tester.tap(find.text('2-Wheeler').last);
       await _settle(tester);
       await tester.ensureVisible(find.text('Motorcycle').last);
       await tester.tap(find.text('Motorcycle').last);
@@ -1120,8 +1319,8 @@ void main() {
       await tester.ensureVisible(find.text('Add another vehicle'));
       await tester.tap(find.text('Add another vehicle'));
       await _settle(tester);
-      await tester.ensureVisible(find.text('Browse all vehicle types'));
-      await tester.tap(find.text('Browse all vehicle types'));
+      await tester.ensureVisible(find.text('4-Wheeler').last);
+      await tester.tap(find.text('4-Wheeler').last);
       await _settle(tester);
       await tester.ensureVisible(find.text('Van').last);
       await tester.tap(find.text('Van').last);
@@ -1143,8 +1342,8 @@ void main() {
       await tester.ensureVisible(find.text('Add another vehicle'));
       await tester.tap(find.text('Add another vehicle'));
       await _settle(tester);
-      await tester.ensureVisible(find.text('Browse all vehicle types'));
-      await tester.tap(find.text('Browse all vehicle types'));
+      await tester.ensureVisible(find.text('4-Wheeler').last);
+      await tester.tap(find.text('4-Wheeler').last);
       await _settle(tester);
       await tester.ensureVisible(find.text('Sedan').last);
       await tester.tap(find.text('Sedan').last);
@@ -1177,6 +1376,218 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Select date'), findsNothing);
       expect(find.text('Select time'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  group('BookNowScreen single request-level schedule regression', () {
+    Future<void> pumpScheduledToStep1(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+      final autocompleteCallCount = [0];
+      await http.runWithClient(() async {
+        await tester.pumpWidget(const MaterialApp(home: BookNowScreen()));
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).first, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park').first);
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).last, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park').first);
+        await _settle(tester);
+
+        await tester.tap(find.text('Schedule Later'));
+        await _settle(tester);
+
+        await tester.tap(find.text('Select date'));
+        await _settle(tester);
+        await tester.tap(find.text('OK'));
+        await _settle(tester);
+        await tester.tap(find.text('Select time'));
+        await _settle(tester);
+        await tester.tap(find.text('OK'));
+        await _settle(tester);
+
+        await tester.tap(find.text('Continue'));
+        await _settle(tester);
+      }, () => _client(autocompleteCallCount: autocompleteCallCount));
+    }
+
+    testWidgets('1. Schedule Later date/time persists from Step 1 through Step 2 and Review', (tester) async {
+      final previousPlatform = ImagePickerPlatform.instance;
+      ImagePickerPlatform.instance = _FakeImagePickerPlatform(_createFakePhotoFile());
+      addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
+
+      await pumpScheduledToStep1(tester);
+
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('Preferred Time'), findsNothing);
+
+      await _selectVan(tester);
+      await tester.tap(find.text('Add vehicle photos'));
+      await _settle(tester);
+      await tester.tap(find.text('Choose from Gallery'));
+      await _settle(tester);
+
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      expect(find.text('TRIP'), findsOneWidget);
+      expect(find.text('Scheduled'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('2. Step 2 does not request another schedule', (tester) async {
+      final previousPlatform = ImagePickerPlatform.instance;
+      ImagePickerPlatform.instance = _FakeImagePickerPlatform(_createFakePhotoFile());
+      addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
+
+      await pumpScheduledToStep1(tester);
+
+      expect(find.text('SCHEDULE'), findsNothing);
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('Preferred Time'), findsNothing);
+      expect(find.text('Select date'), findsNothing);
+      expect(find.text('Select time'), findsNothing);
+
+      await _selectVan(tester);
+
+      expect(find.text('SCHEDULE'), findsNothing);
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('Preferred Time'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('3. Multiple vehicles inherit one request-level schedule shown identically in Review', (tester) async {
+      final previousPlatform = ImagePickerPlatform.instance;
+      ImagePickerPlatform.instance = _FakeImagePickerPlatform(_createFakePhotoFile());
+      addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
+
+      await pumpScheduledToStep1(tester);
+
+      await _selectVan(tester);
+      await tester.tap(find.text('Add vehicle photos'));
+      await _settle(tester);
+      await tester.tap(find.text('Choose from Gallery'));
+      await _settle(tester);
+
+      await tester.ensureVisible(find.text('Add another vehicle'));
+      await tester.tap(find.text('Add another vehicle'));
+      await _settle(tester);
+      await tester.ensureVisible(find.text('4-Wheeler').last);
+      await tester.tap(find.text('4-Wheeler').last);
+      await _settle(tester);
+      await tester.ensureVisible(find.text('Sedan').last);
+      await tester.tap(find.text('Sedan').last);
+      await _settle(tester);
+      await tester.ensureVisible(find.text('Add vehicle photos').last);
+      await tester.tap(find.text('Add vehicle photos').last);
+      await _settle(tester);
+      await tester.tap(find.text('Choose from Gallery'));
+      await _settle(tester);
+
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      expect(find.text('TRIP'), findsOneWidget);
+      expect(find.text('Scheduled'), findsOneWidget);
+
+      final scheduleTexts = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => t.data)
+          .whereType<String>()
+          .where((s) => s.contains(' · ') && (s.contains('AM') || s.contains('PM')))
+          .toList();
+      expect(scheduleTexts.length, 2);
+      expect(scheduleTexts.toSet().length, 1);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('4. Changing vehicle type and adding/removing additional vehicles does not change the schedule', (tester) async {
+      final previousPlatform = ImagePickerPlatform.instance;
+      ImagePickerPlatform.instance = _FakeImagePickerPlatform(_createFakePhotoFile());
+      addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
+
+      await pumpScheduledToStep1(tester);
+
+      await _selectSedan(tester);
+      expect(find.text('Preferred Date'), findsNothing);
+
+      await tester.tap(find.text('Change'));
+      await _settle(tester);
+      await _selectVan(tester);
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('Preferred Time'), findsNothing);
+
+      await tester.ensureVisible(find.text('Add another vehicle'));
+      await tester.tap(find.text('Add another vehicle'));
+      await _settle(tester);
+      expect(find.text('Preferred Date'), findsNothing);
+
+      final removeButtons = find.text('Remove');
+      await tester.ensureVisible(removeButtons.first);
+      await tester.tap(removeButtons.first);
+      await _settle(tester);
+      expect(find.text('Preferred Date'), findsNothing);
+
+      await tester.tap(find.text('Add vehicle photos'));
+      await _settle(tester);
+      await tester.tap(find.text('Choose from Gallery'));
+      await _settle(tester);
+
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      expect(find.text('TRIP'), findsOneWidget);
+      expect(find.text('Scheduled'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('5. Back navigation from the vehicle step to Step 1 preserves the selected schedule', (tester) async {
+      await pumpScheduledToStep1(tester);
+      await _selectVan(tester);
+
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await _settle(tester);
+
+      expect(find.text('BOOKING MODE'), findsOneWidget);
+      expect(find.text('Preferred Date'), findsOneWidget);
+      expect(find.text('Preferred Time'), findsOneWidget);
+      expect(find.text('Select date'), findsNothing);
+      expect(find.text('Select time'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('6. Book Now flow never shows schedule date/time fields', (tester) async {
+      await _pumpToStep1(tester);
+
+      expect(find.text('SCHEDULE'), findsNothing);
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('Preferred Time'), findsNothing);
+
+      await _selectVan(tester);
+
+      expect(find.text('Available for Book Now'), findsOneWidget);
+      expect(find.text('Preferred Date'), findsNothing);
+      expect(find.text('Preferred Time'), findsNothing);
 
       await tester.pumpWidget(const SizedBox());
     });

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/screens/customer/login_screen.dart';
 import 'package:towmate_app/screens/customer/signup_screen.dart';
+import 'package:towmate_app/widgets/google_mark.dart';
 import 'package:towmate_app/widgets/google_signin_button.dart';
 
 void main() {
@@ -16,10 +17,11 @@ void main() {
   }
 
   group('Login Google sign-in flow', () {
-    testWidgets('tapping Continue with Google resolves safely without a raw error or crash', (tester) async {
+    testWidgets('tapping the Google icon button resolves safely without a raw error or crash', (tester) async {
       await pumpScreen(tester, const LoginScreen());
 
-      expect(find.text('Continue with Google'), findsOneWidget);
+      expect(find.byType(GoogleMark), findsOneWidget);
+      expect(find.text('Continue with Google'), findsNothing);
 
       await tester.tap(find.byType(GoogleSignInButton));
       await tester.pumpAndSettle();
@@ -28,10 +30,10 @@ void main() {
       expect(find.textContaining('Exception'), findsNothing);
       expect(find.textContaining('MissingPlugin'), findsNothing);
       expect(find.textContaining('stack'), findsNothing);
-      expect(find.text('Continue with Google'), findsOneWidget);
+      expect(find.byType(GoogleMark), findsOneWidget);
     });
 
-    testWidgets('rapidly tapping Continue with Google twice does not throw or duplicate submissions', (
+    testWidgets('rapidly tapping the Google icon button twice does not throw or duplicate submissions', (
       tester,
     ) async {
       await pumpScreen(tester, const LoginScreen());
@@ -44,13 +46,13 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the email/password Sign in flow remains present alongside the Google button', (tester) async {
+    testWidgets('the email/password Sign in flow remains present alongside the Google icon button', (tester) async {
       await pumpScreen(tester, const LoginScreen());
 
-      expect(find.text('Email'), findsOneWidget);
-      expect(find.text('Password'), findsOneWidget);
+      expect(find.text('EMAIL'), findsOneWidget);
+      expect(find.text('PASSWORD'), findsOneWidget);
       expect(find.text('Sign in'), findsOneWidget);
-      expect(find.text('Continue with Google'), findsOneWidget);
+      expect(find.byType(GoogleMark), findsOneWidget);
     });
 
     for (final width in [320.0, 340.0, 360.0, 375.0, 390.0, 412.0]) {
@@ -68,14 +70,14 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(find.text('Forgot password?'), findsOneWidget);
-        expect(find.text('Continue with Google'), findsOneWidget);
+        expect(find.byType(GoogleMark), findsOneWidget);
       });
     }
 
     testWidgets('Forgot password? stays below the Password field and right-aligned', (tester) async {
       await pumpScreen(tester, const LoginScreen());
 
-      final passwordFieldCenter = tester.getCenter(find.text('Password'));
+      final passwordFieldCenter = tester.getCenter(find.text('PASSWORD'));
       final forgotPasswordCenter = tester.getCenter(find.text('Forgot password?'));
 
       expect(forgotPasswordCenter.dy, greaterThan(passwordFieldCenter.dy));
@@ -86,10 +88,11 @@ void main() {
   });
 
   group('Signup Google sign-in flow', () {
-    testWidgets('tapping Sign up with Google resolves safely without a raw error or crash', (tester) async {
+    testWidgets('tapping the Google icon button resolves safely without a raw error or crash', (tester) async {
       await pumpScreen(tester, const SignupScreen());
 
-      expect(find.text('Sign up with Google'), findsOneWidget);
+      expect(find.byType(GoogleMark), findsOneWidget);
+      expect(find.text('Sign up with Google'), findsNothing);
 
       await tester.ensureVisible(find.byType(GoogleSignInButton));
       await tester.pump();
@@ -101,12 +104,12 @@ void main() {
       expect(find.textContaining('MissingPlugin'), findsNothing);
     });
 
-    testWidgets('the registration form fields remain present alongside the Google button', (tester) async {
+    testWidgets('the registration form fields remain present alongside the Google icon button', (tester) async {
       await pumpScreen(tester, const SignupScreen());
 
-      expect(find.text('Phone number'), findsOneWidget);
+      expect(find.text('+63'), findsOneWidget);
       expect(find.text('Create account'), findsOneWidget);
-      expect(find.text('Sign up with Google'), findsOneWidget);
+      expect(find.byType(GoogleMark), findsOneWidget);
     });
 
     testWidgets('uses "or sign up with" wording, distinct from the Login divider', (tester) async {
@@ -116,20 +119,22 @@ void main() {
       expect(find.text('or continue with'), findsNothing);
     });
 
-    testWidgets('renders without horizontal overflow at a narrow mobile viewport', (tester) async {
-      final originalSize = tester.view.physicalSize;
-      final originalRatio = tester.view.devicePixelRatio;
-      tester.view.physicalSize = const Size(360, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.physicalSize = originalSize;
-        tester.view.devicePixelRatio = originalRatio;
+    for (final width in [320.0, 340.0, 360.0, 375.0, 390.0, 412.0]) {
+      testWidgets('renders without horizontal overflow at $width px width', (tester) async {
+        final originalSize = tester.view.physicalSize;
+        final originalRatio = tester.view.devicePixelRatio;
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.physicalSize = originalSize;
+          tester.view.devicePixelRatio = originalRatio;
+        });
+
+        await pumpScreen(tester, const SignupScreen());
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(GoogleMark), findsOneWidget);
       });
-
-      await pumpScreen(tester, const SignupScreen());
-
-      expect(tester.takeException(), isNull);
-      expect(find.text('Sign up with Google'), findsOneWidget);
-    });
+    }
   });
 }

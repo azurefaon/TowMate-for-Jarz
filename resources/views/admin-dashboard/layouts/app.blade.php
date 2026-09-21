@@ -410,6 +410,27 @@
                 overlay.addEventListener('click', closeSidebar);
             }
         })();
+
+        (function() {
+            const dropdowns = document.querySelectorAll('.notif-dropdown, .profile-dropdown');
+
+            dropdowns.forEach(function(dropdown) {
+                dropdown.addEventListener('toggle', function() {
+                    if (!dropdown.open) return;
+                    dropdowns.forEach(function(other) {
+                        if (other !== dropdown) other.removeAttribute('open');
+                    });
+                });
+            });
+
+            document.addEventListener('click', function(e) {
+                dropdowns.forEach(function(dropdown) {
+                    if (dropdown.open && !dropdown.contains(e.target)) {
+                        dropdown.removeAttribute('open');
+                    }
+                });
+            });
+        })();
     </script>
 
     @stack('scripts')

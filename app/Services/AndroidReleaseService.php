@@ -9,9 +9,16 @@ class AndroidReleaseService
 {
     public const DISK = 'apk_releases';
 
+    public const APP_DOWNLOAD_URL = 'https://www.jarztowing.com/app';
+
     public static function legacyPath(): string
     {
         return config('filesystems.legacy_apk_path');
+    }
+
+    public static function isActive(): bool
+    {
+        return SystemSetting::getValue('android_app_active', '1') !== '0';
     }
 
     public static function currentFilename(): ?string

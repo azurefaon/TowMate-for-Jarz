@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/app_prefs.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
 import '../../widgets/tm_button.dart';
@@ -31,8 +32,10 @@ class EmailOtpScreen extends StatefulWidget {
 }
 
 class _EmailOtpScreenState extends State<EmailOtpScreen> {
-  final List<TextEditingController> _digitControllers =
-      List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _digitControllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   bool _isVerifying = false;
@@ -75,8 +78,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
     });
   }
 
-  String get _otp =>
-      _digitControllers.map((c) => c.text).join();
+  String get _otp => _digitControllers.map((c) => c.text).join();
 
   Future<void> _verify() async {
     final otp = _otp;
@@ -113,11 +115,13 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
     if (!mounted) return;
 
     if (signupRes['success'] == true) {
+      await AppPrefs.restoreAuthenticatedTheme();
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
     } else {
       setState(() {
         _isVerifying = false;
-        _error = signupRes['message'] as String? ??
+        _error =
+            signupRes['message'] as String? ??
             'Account creation failed. Please try again.';
       });
     }
@@ -183,10 +187,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
               const SizedBox(height: 8),
               Text(
                 'We sent a 6-digit code to',
-                style: GoogleFonts.inter(
-                  color: TmColors.grey500,
-                  fontSize: 15,
-                ),
+                style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 15),
               ),
               const SizedBox(height: 4),
               Text(
@@ -200,17 +201,20 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
               const SizedBox(height: 36),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(6, (i) => _DigitBox(
-                  controller: _digitControllers[i],
-                  focusNode: _focusNodes[i],
-                  onChanged: (v) => _onDigitChanged(v, i),
-                  onBackspace: () {
-                    if (_digitControllers[i].text.isEmpty && i > 0) {
-                      _digitControllers[i - 1].clear();
-                      _focusNodes[i - 1].requestFocus();
-                    }
-                  },
-                )),
+                children: List.generate(
+                  6,
+                  (i) => _DigitBox(
+                    controller: _digitControllers[i],
+                    focusNode: _focusNodes[i],
+                    onChanged: (v) => _onDigitChanged(v, i),
+                    onBackspace: () {
+                      if (_digitControllers[i].text.isEmpty && i > 0) {
+                        _digitControllers[i - 1].clear();
+                        _focusNodes[i - 1].requestFocus();
+                      }
+                    },
+                  ),
+                ),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 16),
@@ -242,8 +246,9 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: TmColors.yellow,
                     foregroundColor: TmColors.black,
-                    disabledBackgroundColor:
-                        TmColors.yellow.withValues(alpha: 0.5),
+                    disabledBackgroundColor: TmColors.yellow.withValues(
+                      alpha: 0.5,
+                    ),
                     shape: const StadiumBorder(),
                     elevation: 0,
                   ),
@@ -278,25 +283,25 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
                         ),
                       )
                     : _resendCooldown > 0
-                        ? Text(
-                            'Resend code in ${_resendCooldown}s',
-                            style: GoogleFonts.inter(
-                              color: TmColors.grey500,
-                              fontSize: 14,
-                            ),
-                          )
-                        : GestureDetector(
-                            onTap: _resend,
-                            child: Text(
-                              'Resend code',
-                              style: GoogleFonts.inter(
-                                color: TmColors.yellow,
-                                fontSize: 14,
-                                decoration: TextDecoration.underline,
-                                decorationColor: TmColors.yellow,
-                              ),
-                            ),
+                    ? Text(
+                        'Resend code in ${_resendCooldown}s',
+                        style: GoogleFonts.inter(
+                          color: TmColors.grey500,
+                          fontSize: 14,
+                        ),
+                      )
+                    : GestureDetector(
+                        onTap: _resend,
+                        child: Text(
+                          'Resend code',
+                          style: GoogleFonts.inter(
+                            color: TmColors.yellow,
+                            fontSize: 14,
+                            decoration: TextDecoration.underline,
+                            decorationColor: TmColors.yellow,
                           ),
+                        ),
+                      ),
               ),
             ],
           ),

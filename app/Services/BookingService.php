@@ -75,6 +75,7 @@ class BookingService
             'vehicle_image_path'   => $data['vehicle_image_path'] ?? null,
             'estimated_price'      => $submittedPrice,
             'additional_fee'       => 0,
+            'vat_rate'             => $pricing['vat_rate'],
             'eta_minutes'          => $data['eta_minutes'] ?? null,
             'service_type'         => $data['service_type'] ?? 'book_now',
             'scheduled_date'       => $data['scheduled_date'] ?? null,
@@ -120,6 +121,7 @@ class BookingService
             'vehicle_image_path'   => $data['vehicle_image_path'] ?? null,
             'estimated_price'      => $submittedPrice,
             'additional_fee'       => 0,
+            'vat_rate'             => $pricing['vat_rate'],
             'eta_minutes'          => $data['eta_minutes'] ?? null,
             'service_type'         => $data['service_type'] ?? 'book_now',
             'scheduled_date'       => $data['scheduled_date'] ?? null,
@@ -195,39 +197,60 @@ class BookingService
         }
     }
 
+    private const TERMINAL_BOOKING_STATUSES = ['completed', 'cancelled', 'rejected', 'not_responding'];
+
     public function checkDuplicateActiveRoute(?Customer $customer, array $data, ?int $ignoreBookingId = null): void
     {
         if (! $customer) {
             return;
         }
 
-        $pickup = $this->normalizeAddress($data['pickup_address'] ?? null);
-        $dropoff = $this->normalizeAddress($data['dropoff_address'] ?? null);
+        $serviceType = $data['service_type'] ?? 'book_now';
 
-        if ($pickup === '' || $dropoff === '') {
+        $pickupLat = is_numeric($data['pickup_lat'] ?? null) ? (float) $data['pickup_lat'] : null;
+        $pickupLng = is_numeric($data['pickup_lng'] ?? null) ? (float) $data['pickup_lng'] : null;
+        $dropoffLat = is_numeric($data['dropoff_lat'] ?? null) ? (float) $data['dropoff_lat'] : null;
+        $dropoffLng = is_numeric($data['dropoff_lng'] ?? null) ? (float) $data['dropoff_lng'] : null;
+        $hasCoordinates = $pickupLat !== null && $pickupLng !== null && $dropoffLat !== null && $dropoffLng !== null;
+
+        $pickupAddress = $this->normalizeAddress($data['pickup_address'] ?? null);
+        $dropoffAddress = $this->normalizeAddress($data['dropoff_address'] ?? null);
+
+        if (! $hasCoordinates && ($pickupAddress === '' || $dropoffAddress === '')) {
             return;
         }
-
-        $activeStatuses = [
-            'requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed',
-            'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job',
-        ];
 
         $duplicate = Booking::query()
             ->where('customer_id', $customer->id)
             ->when($ignoreBookingId, fn ($q) => $q->where('id', '!=', $ignoreBookingId))
-            ->whereIn('status', $activeStatuses)
+            ->whereNotIn('status', self::TERMINAL_BOOKING_STATUSES)
+            ->where('service_type', $serviceType)
             ->get()
-            ->first(fn (Booking $b) =>
-                $this->normalizeAddress($b->pickup_address) === $pickup &&
-                $this->normalizeAddress($b->dropoff_address) === $dropoff
-            );
+            ->first(function (Booking $b) use (
+                $hasCoordinates, $pickupLat, $pickupLng, $dropoffLat, $dropoffLng, $pickupAddress, $dropoffAddress
+            ) {
+                if ($hasCoordinates && $b->pickup_lat !== null && $b->pickup_lng !== null
+                    && $b->dropoff_lat !== null && $b->dropoff_lng !== null) {
+                    return $this->sameCoordinate((float) $b->pickup_lat, (float) $b->pickup_lng, $pickupLat, $pickupLng)
+                        && $this->sameCoordinate((float) $b->dropoff_lat, (float) $b->dropoff_lng, $dropoffLat, $dropoffLng);
+                }
+
+                return $this->normalizeAddress($b->pickup_address) === $pickupAddress
+                    && $this->normalizeAddress($b->dropoff_address) === $dropoffAddress;
+            });
 
         if ($duplicate) {
+            $modeLabel = $serviceType === 'schedule' ? 'scheduled' : 'Book Now';
+
             throw new DuplicateActiveRouteException(
-                'You already have an active booking for this same pickup and drop-off route.'
+                "You already have an active {$modeLabel} booking for this same pickup and drop-off route."
             );
         }
+    }
+
+    private function sameCoordinate(float $lat1, float $lng1, float $lat2, float $lng2): bool
+    {
+        return $this->estimateDirectDistanceKm($lat1, $lng1, $lat2, $lng2) <= 0.05;
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -446,6 +469,7 @@ class BookingService
             'vehicle_image_path' => $data['vehicle_image_path'] ?? null,
             'estimated_price'    => $v2Price,
             'additional_fee'     => 0,
+            'vat_rate'           => $v2Pricing['vat_rate'],
             'eta_minutes'        => $v2Eta,
             'service_type'       => $data['vehicle_2_service_type'] ?? 'book_now',
             'scheduled_date'     => $data['vehicle_2_scheduled_date'] ?? null,
@@ -610,8 +634,8 @@ class BookingService
         $distanceKm = $this->resolveDistanceKm($data);
         $baseRate   = (float) $truckType->base_rate;
 
-        // Sum base rates of any extra vehicles
         $extraBaseRates = 0.0;
+        $extraDistanceFees = 0.0;
         $extraVehicles  = is_array($data['extra_vehicles'] ?? null)
             ? $data['extra_vehicles']
             : (is_string($data['extra_vehicles'] ?? null) ? json_decode($data['extra_vehicles'], true) ?? [] : []);
@@ -619,21 +643,21 @@ class BookingService
             $evTruck = TruckType::find($ev['truck_type_id'] ?? null);
             if ($evTruck) {
                 $extraBaseRates += (float) $evTruck->base_rate;
+                $extraDistanceFees += $this->distanceFeeFor($distanceKm, (float) $evTruck->per_km_rate);
             }
         }
 
-        // First 4 km included in base fee; chargeable distance billed at the
-        // truck type's own per_km_rate (SuperAdmin-editable), not a literal.
         $extraDistance = max(0.0, $distanceKm - 4.0);
-        $distanceFee   = $this->distanceFeeFor($distanceKm, (float) $truckType->per_km_rate);
+        $distanceFee   = round($this->distanceFeeFor($distanceKm, (float) $truckType->per_km_rate) + $extraDistanceFees, 2);
 
         $grossPrice    = round($baseRate + $extraBaseRates + $distanceFee, 2);
         $customerType  = $this->resolveCustomerType($data);
         $discount      = $this->resolveBookingDiscount($data, $grossPrice, $customerType);
         $additionalFee = $this->parsePrice($data['additional_fee'] ?? null);
 
+        $vatRate    = $this->vatRate();
         $subtotal   = max(round($grossPrice - $discount['discount_amount'], 2), 0);
-        $vatAmount  = round($subtotal * 0.12, 2);
+        $vatAmount  = round($subtotal * $vatRate, 2);
         $baseTotal  = round($subtotal + $vatAmount, 2);
         $actualPrice = max(round($baseTotal + $additionalFee, 2), 0);
 
@@ -652,6 +676,7 @@ class BookingService
             'subtotal'            => $subtotal,
             'discounted_total'    => $subtotal,
             'vat_amount'          => $vatAmount,
+            'vat_rate'            => $vatRate,
             'base_total'          => $baseTotal,
             'vat_exclusive_total' => $subtotal,
             'final_total'         => $actualPrice,
@@ -669,6 +694,56 @@ class BookingService
     public function distanceFeeFor(float $distanceKm, float $perKmRate): float
     {
         return round(max(0.0, $distanceKm - 4.0) * $perKmRate, 2);
+    }
+
+    public function vatRate(): float
+    {
+        $percentage = (float) SystemSetting::getValue('vat_rate_percentage', 12);
+
+        return max($percentage, 0) / 100;
+    }
+
+    public function resolveVatRate(?float $snapshot, ?float $vatAmount = null, ?float $vatExclusiveTotal = null): float
+    {
+        if ($snapshot !== null) {
+            return $snapshot;
+        }
+
+        if ($vatAmount !== null && $vatExclusiveTotal !== null && $vatExclusiveTotal > 0) {
+            return round($vatAmount / $vatExclusiveTotal, 4);
+        }
+
+        return $this->vatRate();
+    }
+
+    public function priceOneVehicle(float $baseRate, float $distanceKm, float $perKmRate): array
+    {
+        $distanceFee = $this->distanceFeeFor($distanceKm, $perKmRate);
+        $subtotal    = round($baseRate + $distanceFee, 2);
+        $vatRate     = $this->vatRate();
+        $vatAmount   = round($subtotal * $vatRate, 2);
+
+        return [
+            'base_rate'    => round($baseRate, 2),
+            'distance_fee' => $distanceFee,
+            'vat_amount'   => $vatAmount,
+            'vat_rate'     => $vatRate,
+            'final_total'  => round($subtotal + $vatAmount, 2),
+        ];
+    }
+
+    public function groupSiblingBookings(Booking $booking): \Illuminate\Support\Collection
+    {
+        if (! $booking->group_code) {
+            return collect([$booking]);
+        }
+
+        return Booking::where('group_code', $booking->group_code)
+            ->where('status', '!=', 'cancelled')
+            ->where('pickup_address', $booking->pickup_address)
+            ->where('dropoff_address', $booking->dropoff_address)
+            ->orderBy('id')
+            ->get();
     }
 
     public function calculateQuotationTotals(
@@ -699,7 +774,8 @@ class BookingService
 
         $discountAmount = round($grossTotal * ($resolvedDiscountPercentage / 100), 2);
         $subtotal       = max(round($grossTotal - $discountAmount, 2), 0);
-        $vatAmount      = round($subtotal * 0.12, 2);
+        $vatRate        = $this->vatRate();
+        $vatAmount      = round($subtotal * $vatRate, 2);
         $baseTotal      = round($subtotal + $vatAmount, 2);
 
         $resolvedAdditionalFee = $this->parseSignedPrice($additionalFee);
@@ -727,6 +803,7 @@ class BookingService
             'vat_exclusive_total' => $subtotal,
             'final_total'         => $finalTotal,
             'vat_amount'          => $vatAmount,
+            'vat_rate'            => $vatRate,
         ];
     }
 
@@ -756,15 +833,17 @@ class BookingService
             : $this->resolveTaxableSubtotal($booking);
     }
 
-    public function applyVatAndAdjustment(float $subtotal, float $signedAdjustment): array
+    public function applyVatAndAdjustment(float $subtotal, float $signedAdjustment, ?float $vatRate = null): array
     {
-        $vatAmount = round($subtotal * 0.12, 2);
+        $vatRate = $vatRate ?? $this->vatRate();
+        $vatAmount = round($subtotal * $vatRate, 2);
         $baseTotal = round($subtotal + $vatAmount, 2);
         $finalTotal = max(round($baseTotal + $signedAdjustment, 2), 0);
 
         return [
             'subtotal'    => $subtotal,
             'vat_amount'  => $vatAmount,
+            'vat_rate'    => $vatRate,
             'base_total'  => $baseTotal,
             'final_total' => $finalTotal,
         ];
@@ -798,6 +877,7 @@ class BookingService
             'discount_reason' => $pricing['discount_reason'],
             'additional_fee' => $pricing['additional_fee'],
             'final_total' => $pricing['final_total'],
+            'vat_rate' => $pricing['vat_rate'],
             'customer_type' => $pricing['customer_type'],
             'notes' => $this->composeNotes(
                 $this->composeLocationNotes(['pickup_notes' => $pickupNotes]),
@@ -886,7 +966,7 @@ class BookingService
     public function resolveRequiredTruckType(int $vehicleTypeId): array
     {
         $vehicleType = VehicleType::find($vehicleTypeId);
-        if (! $vehicleType || ! $vehicleType->required_truck_type_id) {
+        if (! $vehicleType || $vehicleType->status !== 'active' || ! $vehicleType->required_truck_type_id) {
             return [null, 'This vehicle type is not yet configured for booking. Please contact support.'];
         }
 

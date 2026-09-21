@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SystemAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -20,9 +21,6 @@ class AuditLogController extends Controller
         'archive' => 'Archive',
         'restore' => 'Restore',
         'delete' => 'Delete',
-        'dispatch' => 'Dispatch',
-        'assignment_change' => 'Assignment Change',
-        'quotation_change' => 'Quotation Change',
         'status_change' => 'Status Change',
         'system' => 'System',
     ];
@@ -36,6 +34,7 @@ class AuditLogController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $logs = AuditLog::with(['user.role'])
+            ->whereNotIn('action', AuditLogService::BUSINESS_ACTIONS)
             ->whereBetween('created_at', [$start, $end])
             ->when($category !== '', fn ($q) => $q->where('category', $category))
             ->when(filled($userId), fn ($q) => $q->where('user_id', $userId))

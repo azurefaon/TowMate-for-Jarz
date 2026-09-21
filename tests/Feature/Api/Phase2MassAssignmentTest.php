@@ -40,7 +40,7 @@ it('26b: a customer cannot escalate role_id/status through the registration endp
         $r->save();
     });
 
-    $email = 'mass-assign-reg@example.com';
+    $email = 'mass-assign-reg@gmail.com';
     \Illuminate\Support\Facades\Cache::put('reg_verified_' . $email, true, now()->addMinutes(15));
 
     $this->postJson('/api/register', [

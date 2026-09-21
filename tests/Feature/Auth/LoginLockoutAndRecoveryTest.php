@@ -480,7 +480,7 @@ it('renders the Android download with the real existing APK target', function ()
     $response = test()->get('/login');
 
     $response->assertSee('Android');
-    $response->assertSee('downloads/towmate.apk', false);
+    $response->assertSee(route('download.android'), false);
 });
 
 it('styles the Android and iOS controls as black store-style badges with truthful wording', function () {

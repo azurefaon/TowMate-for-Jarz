@@ -14,7 +14,10 @@ class ControlCenterService
 {
     protected array $activeStatuses = ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
 
-    public function __construct(protected TeamLeaderAvailabilityService $teamLeaderAvailability) {}
+    public function __construct(
+        protected TeamLeaderAvailabilityService $teamLeaderAvailability,
+        protected UnitAvailabilityService $unitAvailability,
+    ) {}
 
     public function buildPayload(User $user, array $filters = []): array
     {
@@ -238,8 +241,9 @@ class ControlCenterService
             })
             ->values();
 
-        $availableUnitsCount = Unit::query()->where('status', 'available')->count();
-        $onJobUnitsCount = Unit::query()->where('status', 'on_job')->count();
+        $availabilityRows = $this->unitAvailability->evaluateAll();
+        $availableUnitsCount = $availabilityRows->filter(fn($row) => $row['operational_state'] !== 'maintenance' && $row['active_booking'] === null)->count();
+        $onJobUnitsCount = $availabilityRows->filter(fn($row) => $row['active_booking'] !== null)->count();
         $notAvailableUnitsCount = Unit::query()->where('status', 'maintenance')->count();
         $todayBookings = Booking::query()->whereDate('created_at', today())->count();
         $weekBookings = Booking::query()->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count();

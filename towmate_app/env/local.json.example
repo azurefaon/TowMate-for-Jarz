@@ -1,0 +1,6 @@
+{
+  "API_BASE_URL": "http://127.0.0.1:8000/api",
+  "GOOGLE_SERVER_CLIENT_ID": "YOUR_GOOGLE_SERVER_CLIENT_ID.apps.googleusercontent.com",
+  "GOOGLE_CLIENT_ID": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+  "TL_DEMO_ARRIVAL_ENABLED": true
+}

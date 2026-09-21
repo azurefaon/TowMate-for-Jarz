@@ -102,6 +102,20 @@ it('rejects a non-apk file upload', function () {
     ])->assertSessionHasErrors(['apk_file']);
 });
 
+it('does not expose business pricing, discount, or payment policy fields', function () {
+    $admin = saSettingsAdmin();
+
+    $html = $this->actingAs($admin)->get(route('system-admin.settings.index'))->getContent();
+
+    expect($html)->not->toContain('name="bank_account_number"');
+    expect($html)->not->toContain('name="gcash_name"');
+    expect($html)->not->toContain('discount_percentage');
+    expect($html)->not->toContain('max_dispatcher_discount_percentage');
+    expect($html)->not->toContain('max_additional_charge');
+    expect($html)->not->toContain('Price Adjustment Settings');
+    expect($html)->not->toContain('Additional Charge Settings');
+});
+
 it('forbids owner from the system admin technical settings routes', function () {
     $owner = User::factory()->create(['role_id' => 1, 'status' => 'active', 'must_change_password' => false]);
 

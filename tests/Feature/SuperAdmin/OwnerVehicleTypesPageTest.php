@@ -41,12 +41,21 @@ function vtTruckType(array $overrides = []): TruckType
     ], $overrides));
 }
 
+function vtDefaultTruckType(): TruckType
+{
+    return TruckType::firstOrCreate(
+        ['name' => 'VT Default Truck'],
+        ['class' => 'light', 'base_rate' => 1500, 'per_km_rate' => 60, 'max_tonnage' => 4000, 'status' => 'active']
+    );
+}
+
 function vtVehicleType(array $overrides = []): VehicleType
 {
     return VehicleType::create(array_merge([
         'name' => 'VT Vehicle ' . fake()->unique()->word(),
         'category' => '4_wheeler',
         'weight_kg' => 2000,
+        'required_truck_type_id' => vtDefaultTruckType()->id,
         'status' => 'active',
         'display_order' => 0,
     ], $overrides));
@@ -87,7 +96,7 @@ it('preserves server-side search via query string', function () {
 
     $response->assertOk();
     $response->assertSee($matching->name);
-    $response->assertDontSee($other->name);
+    $response->assertDontSee('data-name="' . $other->name . '"', false);
 });
 
 it('preserves the category filter', function () {
@@ -98,7 +107,7 @@ it('preserves the category filter', function () {
 
     $response->assertOk();
     $response->assertSee($wheeler->name);
-    $response->assertDontSee($heavy->name);
+    $response->assertDontSee('data-name="' . $heavy->name . '"', false);
 });
 
 it('preserves the status filter', function () {
@@ -109,7 +118,7 @@ it('preserves the status filter', function () {
 
     $response->assertOk();
     $response->assertSee($inactive->name);
-    $response->assertDontSee($active->name);
+    $response->assertDontSee('data-name="' . $active->name . '"', false);
 });
 
 it('keeps add vehicle type available in the toolbar', function () {
@@ -286,55 +295,79 @@ it('does not expose dispatcher or personnel operational controls on the vehicle 
     $response->assertDontSee('name="driver_id"', false);
 });
 
-it('keeps pagination rendering when results exceed one page', function () {
-    for ($i = 0; $i < 12; $i++) {
-        vtVehicleType();
-    }
+it('groups vehicle types by truck type and then category with a vehicle count', function () {
+    $truckType = vtTruckType(['name' => 'VT Group Truck']);
+    $type = vtVehicleType(['name' => 'VT Grouped Vehicle', 'category' => '4_wheeler', 'required_truck_type_id' => $truckType->id]);
 
     $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index'));
+    $content = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('pagination-wrapper', false);
+    $response->assertSee('VT Group Truck');
+    $response->assertSee($type->category_label);
+    $response->assertSee($type->name);
+    expect($content)->toContain('vc-group-trucktype');
+    expect($content)->toContain('vc-group-category');
+    expect($content)->toContain('<span class="vc-count">1</span>');
 });
 
-it('renders the standardized owner pagination footer with an active page and results summary', function () {
-    for ($i = 0; $i < 12; $i++) {
-        vtVehicleType();
-    }
+it('keeps every group collapsed by default when browsing without a search term', function () {
+    vtVehicleType(['name' => 'VT Collapsed Vehicle']);
 
     $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index'));
+    $content = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('owner-pagination', false);
-    $response->assertSee('is-active', false);
-    $response->assertSee('aria-current="page"', false);
-    $response->assertSee('Showing 1', false);
+    expect($content)->not->toContain('data-accordion-group="vc-main-trucktype" open');
+    expect($content)->toMatch('/data-accordion-group="vc-main-category-\d+"(?! open)/');
 });
 
-it('loads page two of vehicle types and updates the results summary', function () {
-    for ($i = 0; $i < 12; $i++) {
-        vtVehicleType();
-    }
+it('automatically expands only the groups containing a search match', function () {
+    $truckType = vtTruckType(['name' => 'VT Search Truck']);
+    $matching = vtVehicleType(['name' => 'VT Findable Search Vehicle', 'required_truck_type_id' => $truckType->id]);
+    vtVehicleType(['name' => 'VT Other Search Vehicle']);
 
-    $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index', ['page' => 2]));
+    $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index', ['search' => 'Findable Search']));
+    $content = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('Showing 11', false);
+    $response->assertSee($matching->name);
+    expect($content)->toContain('data-accordion-group="vc-main-trucktype" open');
 });
 
-it('preserves the category and status filters inside the pagination links', function () {
-    for ($i = 0; $i < 12; $i++) {
-        vtVehicleType(['category' => '2_wheeler', 'status' => 'active']);
-    }
+it('does not load every vehicle into one expanded list when there is no search term', function () {
+    vtVehicleType(['name' => 'VT Bulk Vehicle A']);
+    vtVehicleType(['name' => 'VT Bulk Vehicle B']);
+    vtVehicleType(['name' => 'VT Bulk Vehicle C']);
 
-    $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index', [
-        'category' => '2_wheeler',
-        'status' => 'active',
-    ]));
+    $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index'));
+    $content = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('category=2_wheeler', false);
-    $response->assertSee('status=active', false);
+    expect($content)->not->toContain('data-accordion-group="vc-main-trucktype" open');
+});
+
+it('narrows the category filter to only matching groups', function () {
+    $wheeler = vtVehicleType(['name' => 'VT Category Filter Match', 'category' => '2_wheeler']);
+    $heavy = vtVehicleType(['name' => 'VT Category Filter Other', 'category' => 'heavy_vehicle']);
+
+    $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index', ['category' => '2_wheeler']));
+
+    $response->assertOk();
+    $response->assertSee('<span class="cell-main">' . $wheeler->name . '</span>', false);
+    $response->assertDontSee('<span class="cell-main">' . $heavy->name . '</span>', false);
+});
+
+it('shows an inactive vehicle type clearly labeled when the status filter includes it', function () {
+    $inactive = vtVehicleType(['name' => 'VT Inactive Filter Vehicle', 'status' => 'inactive']);
+
+    $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index', ['status' => 'inactive']));
+    $content = $response->getContent();
+
+    $response->assertOk();
+    $response->assertSee($inactive->name);
+    expect($content)->toContain('status-inactive');
+    expect($content)->toContain('Not shown to customers');
 });
 
 it('renders a compact empty state distinguishing filtered from genuinely empty results', function () {
@@ -370,7 +403,7 @@ it('keeps the exact existing field names in the add vehicle type modal', functio
     $response->assertSee('name="category" id="addVcCategory"', false);
     $response->assertSee('name="weight_kg" id="addVcWeight"', false);
     $response->assertSee('name="description" id="addVcDescription"', false);
-    $response->assertSee('name="truck_types[]"', false);
+    $response->assertDontSee('name="truck_types[]"', false);
 });
 
 it('renders the edit vehicle type modal wired to the exact existing form and PUT method', function () {
@@ -385,29 +418,25 @@ it('renders the edit vehicle type modal wired to the exact existing form and PUT
     $response->assertSee('name="weight_kg" id="editVcWeight"', false);
 });
 
-it('renders compatible truck types as multi-select checkboxes, not radio buttons, in both modals', function () {
+it('does not render a compatible truck types section in either modal', function () {
     vtTruckType(['name' => 'VT Compat Truck']);
 
     $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index'));
     $content = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('VT Compat Truck');
-    expect(substr_count($content, 'type="checkbox" name="truck_types[]"'))->toBeGreaterThanOrEqual(2);
-    $response->assertDontSee('type="radio" name="truck_types', false);
+    $response->assertDontSee('Compatible Truck Types');
+    expect($content)->not->toContain('type="checkbox" name="truck_types[]"');
+    expect($content)->not->toContain('vc-truck-check-input');
 });
 
-it('preserves the weight-compatibility data hooks the existing JS relies on', function () {
-    vtTruckType(['name' => 'VT Class Truck', 'class' => 'medium', 'max_tonnage' => 6000]);
-
+it('makes weight not required in either modal', function () {
     $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index'));
     $content = $response->getContent();
 
     $response->assertOk();
-    expect($content)->toContain('data-class="medium"');
-    expect($content)->toContain('data-capacity="6000.00"');
-    expect($content)->toContain('vc-truck-check-input add-truck-check');
-    expect($content)->toContain('vc-truck-check-input edit-truck-check');
+    expect($content)->not->toContain('name="weight_kg" id="addVcWeight" required');
+    expect($content)->not->toContain('name="weight_kg" id="editVcWeight" required');
 });
 
 it('does not introduce personnel assignment fields in the add or edit vehicle type modals', function () {

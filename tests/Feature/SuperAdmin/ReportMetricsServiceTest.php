@@ -166,13 +166,16 @@ it('counts completed jobs by truck type', function () {
     expect($result[$medium->name]['completed_jobs'])->toBe(2);
 });
 
-it('computes current fleet utilization as units on job divided by non-archived units', function () {
+it('computes current fleet utilization as units with a real active booking divided by non-archived units', function () {
     $truckType = rmsTruckType();
 
-    Unit::create(['name' => 'RMS Unit 1', 'plate_number' => fake()->unique()->bothify('???-####'), 'truck_type_id' => $truckType->id, 'status' => 'on_job']);
+    $unit1 = Unit::create(['name' => 'RMS Unit 1', 'plate_number' => fake()->unique()->bothify('???-####'), 'truck_type_id' => $truckType->id, 'status' => 'available']);
     Unit::create(['name' => 'RMS Unit 2', 'plate_number' => fake()->unique()->bothify('???-####'), 'truck_type_id' => $truckType->id, 'status' => 'available']);
     Unit::create(['name' => 'RMS Unit 3', 'plate_number' => fake()->unique()->bothify('???-####'), 'truck_type_id' => $truckType->id, 'status' => 'available']);
-    Unit::create(['name' => 'RMS Unit 4 Archived', 'plate_number' => fake()->unique()->bothify('???-####'), 'truck_type_id' => $truckType->id, 'status' => 'on_job', 'archived_at' => now()]);
+    $archivedUnit = Unit::create(['name' => 'RMS Unit 4 Archived', 'plate_number' => fake()->unique()->bothify('???-####'), 'truck_type_id' => $truckType->id, 'status' => 'available', 'archived_at' => now()]);
+
+    rmsBooking(['status' => 'on_job', 'truck_type_id' => $truckType->id, 'assigned_unit_id' => $unit1->id]);
+    rmsBooking(['status' => 'on_job', 'truck_type_id' => $truckType->id, 'assigned_unit_id' => $archivedUnit->id]);
 
     $result = rmsService()->currentFleetUtilization();
 

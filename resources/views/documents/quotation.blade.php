@@ -313,6 +313,64 @@
             <div><strong>Contact Number:</strong> {{ $booking->customer->phone ?? 'N/A' }}</div>
         </div>
 
+        @php
+            $quotation = $quotation ?? null;
+            $bookingService = app(\App\Services\BookingService::class);
+            $extraLineItems = $quotation ? collect($quotation->extra_vehicles ?? []) : collect();
+            $isMultiBookingGroup = $extraLineItems->contains(fn($item) => isset($item['booking_id']));
+            $primaryLineItem = [
+                'truck_type_name' => $booking->truckType->name ?? 'Towing Service',
+                'final_total' => (float) ($booking->final_total ?? 0),
+            ];
+            $lineItems = $isMultiBookingGroup ? $extraLineItems : $extraLineItems->prepend($primaryLineItem);
+            $subtotal = $lineItems->sum(fn($item) => (float) ($item['final_total'] ?? $item['estimated_price'] ?? 0));
+            $serviceDiscount = (float) ($quotation->discount ?? 0);
+            $groupAdjustment = $isMultiBookingGroup ? (float) ($quotation->additional_fee ?? 0) : 0.0;
+            $grandTotal = $quotation ? max($subtotal - $serviceDiscount + $groupAdjustment, 0) : (float) ($booking->final_total ?? 0);
+
+            $pctLabel = fn($rate) => rtrim(rtrim(number_format($rate * 100, 2), '0'), '.') . '%';
+            $vatRateForDisplay = $bookingService->resolveVatRate(
+                $quotation && $quotation->vat_rate !== null
+                    ? (float) $quotation->vat_rate
+                    : ($booking->vat_rate !== null ? (float) $booking->vat_rate : null),
+            );
+
+            $deriveLineVat = function ($item, int $idx) use ($bookingService, $booking, $isMultiBookingGroup) {
+                $isPrimarySolo = ! $isMultiBookingGroup && $idx === 0;
+                $itemTotal = (float) ($item['final_total'] ?? $item['estimated_price'] ?? 0);
+
+                if ($isPrimarySolo) {
+                    $baseRate = $booking->base_rate !== null ? (float) $booking->base_rate : null;
+                    $distanceFee = $booking->truckType ? $booking->distance_fee_amount : null;
+                    $vatRateSnapshot = $booking->vat_rate !== null ? (float) $booking->vat_rate : null;
+                    $vatAmountSnapshot = $booking->vat_amount !== null ? (float) $booking->vat_amount : null;
+                } else {
+                    $baseRate = isset($item['base_rate']) ? (float) $item['base_rate'] : null;
+                    $distanceFee = isset($item['distance_fee']) ? (float) $item['distance_fee'] : null;
+                    $vatRateSnapshot = isset($item['vat_rate']) && $item['vat_rate'] !== null ? (float) $item['vat_rate'] : null;
+                    $vatAmountSnapshot = isset($item['vat_amount']) ? (float) $item['vat_amount'] : null;
+                }
+
+                $hasRateBreakdown = $baseRate !== null && $distanceFee !== null;
+                $vatExclusiveFromRates = $hasRateBreakdown ? round($baseRate + $distanceFee, 2) : null;
+                $vatRate = $bookingService->resolveVatRate($vatRateSnapshot, $vatAmountSnapshot, $vatExclusiveFromRates);
+
+                if ($hasRateBreakdown) {
+                    $itemSubtotal = $vatExclusiveFromRates;
+                    $vatAmount = $vatAmountSnapshot !== null ? round($vatAmountSnapshot, 2) : round($itemSubtotal * $vatRate, 2);
+                } else {
+                    $itemSubtotal = round($itemTotal / (1 + $vatRate), 2);
+                    $vatAmount = round($itemTotal - $itemSubtotal, 2);
+                }
+
+                return ['subtotal' => $itemSubtotal, 'vat_amount' => $vatAmount];
+            };
+
+            $lineVatBreakdowns = $lineItems->values()->map(fn($item, $idx) => $deriveLineVat($item, $idx));
+            $combinedTaxableSubtotal = round($lineVatBreakdowns->sum('subtotal'), 2);
+            $combinedVatAmount = round($lineVatBreakdowns->sum('vat_amount'), 2);
+        @endphp
+
         <table class="item-table">
             <thead>
                 <tr>
@@ -322,11 +380,13 @@
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td>{{ $booking->truckType->name ?? 'Towing Service' }}</td>
-                    <td>1</td>
-                    <td>{{ $peso }}{{ number_format((float) ($booking->final_total ?? 0), 2) }}</td>
-                </tr>
+                @foreach ($lineItems as $item)
+                    <tr>
+                        <td>{{ $item['truck_type_name'] ?? ($booking->truckType->name ?? 'Towing Service') }}</td>
+                        <td>1</td>
+                        <td>{{ $peso }}{{ number_format((float) ($item['final_total'] ?? $item['estimated_price'] ?? 0), 2) }}</td>
+                    </tr>
+                @endforeach
                 <tr class="spacer-row">
                     <td colspan="3"></td>
                 </tr>
@@ -335,9 +395,32 @@
 
         <table class="total-wrap">
             <tr>
-                <td class="total-label">Total</td>
-                <td class="total-amount">
-                    {{ $peso }}{{ number_format((float) ($booking->final_total ?? 0), 2) }}</td>
+                <td class="total-label">Taxable Subtotal</td>
+                <td class="total-amount">{{ $peso }}{{ number_format($combinedTaxableSubtotal, 2) }}</td>
+            </tr>
+            <tr>
+                <td class="total-label">VAT ({{ $pctLabel($vatRateForDisplay) }})</td>
+                <td class="total-amount">{{ $peso }}{{ number_format($combinedVatAmount, 2) }}</td>
+            </tr>
+            <tr>
+                <td class="total-label">Service Total (incl. VAT)</td>
+                <td class="total-amount">{{ $peso }}{{ number_format($subtotal, 2) }}</td>
+            </tr>
+            @if ($serviceDiscount > 0)
+                <tr>
+                    <td class="total-label">Service Discount</td>
+                    <td class="total-amount">-{{ $peso }}{{ number_format($serviceDiscount, 2) }}</td>
+                </tr>
+            @endif
+            @if ($groupAdjustment != 0)
+                <tr>
+                    <td class="total-label">{{ $groupAdjustment < 0 ? 'Discount' : 'Additional Fee' }}</td>
+                    <td class="total-amount">{{ $groupAdjustment < 0 ? '-' : '' }}{{ $peso }}{{ number_format(abs($groupAdjustment), 2) }}</td>
+                </tr>
+            @endif
+            <tr>
+                <td class="total-label">Final Quoted Total</td>
+                <td class="total-amount">{{ $peso }}{{ number_format($grandTotal, 2) }}</td>
             </tr>
         </table>
 

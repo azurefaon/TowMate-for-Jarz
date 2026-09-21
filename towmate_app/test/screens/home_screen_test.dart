@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:towmate_app/core/route_observer.dart';
+import 'package:towmate_app/core/theme.dart';
 import 'package:towmate_app/screens/customer/home_screen.dart';
 import 'package:towmate_app/widgets/skeleton_box.dart';
 import 'package:towmate_app/widgets/tm_bottom_nav.dart';
@@ -179,11 +181,12 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('renders the greeting, primary CTA, and bottom nav once loaded', (tester) async {
+    testWidgets('renders the greeting and bottom nav once loaded, without a Book Now CTA button', (tester) async {
       await _pumpHome(tester);
 
       expect(find.textContaining('Faon'), findsOneWidget);
-      expect(find.text('Book Now'), findsWidgets);
+      expect(find.text('Book Now'), findsOneWidget);
+      expect(find.byType(ElevatedButton), findsNothing);
       expect(find.byType(TmBottomNav), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -235,7 +238,7 @@ void main() {
       expect(find.text('No active booking'), findsNothing);
     });
 
-    testWidgets('the Current Booking card shows a chevron affordance, not a View details label', (tester) async {
+    testWidgets('the Current Booking card shows a clear View Booking Details action', (tester) async {
       await _pumpHome(
         tester,
         currentBooking: {
@@ -247,11 +250,10 @@ void main() {
         },
       );
 
-      expect(find.text('View details'), findsNothing);
-      expect(find.byIcon(Icons.chevron_right), findsWidgets);
+      expect(find.text('View Booking Details'), findsOneWidget);
     });
 
-    testWidgets('tapping the Current Booking card navigates using the real booking code', (tester) async {
+    testWidgets('tapping View Booking Details navigates using the real booking code', (tester) async {
       String? capturedRoute;
       Object? capturedArgs;
 
@@ -270,7 +272,7 @@ void main() {
         },
       );
 
-      await tester.tap(find.text('TM-0002'));
+      await tester.tap(find.text('View Booking Details'));
       await _settle(tester);
 
       expect(capturedRoute, '/booking-detail');
@@ -291,11 +293,11 @@ void main() {
         },
       );
 
-      expect(find.text('Pickup Truck'), findsOneWidget);
-      expect(find.text('Light Duty'), findsNothing);
+      expect(find.textContaining('Pickup Truck'), findsOneWidget);
+      expect(find.textContaining('Light Duty'), findsNothing);
     });
 
-    testWidgets('a mixed Book Now + Scheduled group shows the Book Now booking with a sibling hint', (tester) async {
+    testWidgets('a mixed Book Now + Scheduled group shows the group reference and an accurate active-vehicle count', (tester) async {
       await _pumpHome(
         tester,
         currentBooking: {
@@ -318,9 +320,197 @@ void main() {
         },
       );
 
+      expect(find.text('GRP-1'), findsOneWidget);
+      expect(find.text('TM-00227'), findsNothing);
+      expect(find.text('Active'), findsOneWidget);
+      expect(find.text('2 of 2 vehicles active'), findsOneWidget);
+    });
+
+    testWidgets('a grouped current booking shows the combined group total, not the first vehicle\'s own price', (tester) async {
+      await _pumpHome(
+        tester,
+        currentBooking: {
+          'id': 1,
+          'booking_code': 'TM-00227',
+          'status': 'requested',
+          'service_type': 'book_now',
+          'pickup_address': 'A',
+          'dropoff_address': 'B',
+          'final_total': 1680.0,
+          'computed_total': 1500.0,
+          'group_code': 'GRP-1',
+          'group_vehicle_count': 2,
+          'group_siblings': [
+            {
+              'booking_code': 'TM-00228',
+              'vehicle_type_name': 'Motorcycle',
+              'service_type': 'book_now',
+              'status': 'requested',
+            },
+          ],
+          'group_totals': {
+            'vehicle_count': 2,
+            'base_rate': 2500.0,
+            'computed_total': 2500.0,
+            'vat_amount': 300.0,
+            'additional_fee': 0.0,
+            'final_total': 2800.0,
+          },
+        },
+      );
+
+      expect(find.text('Group Total'), findsOneWidget);
+      expect(find.text('₱2,800.00'), findsOneWidget);
+      expect(find.text('₱1,680.00'), findsNothing);
+    });
+
+    testWidgets('a grouped current booking shows the group reference, not the selected vehicle\'s TM code', (tester) async {
+      await _pumpHome(
+        tester,
+        currentBooking: {
+          'id': 1,
+          'booking_code': 'TM-00227',
+          'status': 'requested',
+          'service_type': 'book_now',
+          'pickup_address': 'A',
+          'dropoff_address': 'B',
+          'vehicle_type_name': 'Sedan',
+          'group_code': 'GRP-1',
+          'group_vehicle_count': 2,
+          'group_siblings': [
+            {
+              'booking_code': 'TM-00228',
+              'vehicle_type_name': 'Motorcycle',
+              'service_type': 'book_now',
+              'status': 'requested',
+            },
+          ],
+        },
+      );
+
+      expect(find.text('GRP-1'), findsOneWidget);
+      expect(find.text('TM-00227'), findsNothing);
+      expect(find.text('2 of 2 vehicles active'), findsOneWidget);
+      expect(find.textContaining('1 Vehicle  ·  Sedan'), findsNothing);
+    });
+
+    testWidgets('after a sibling is cancelled, the current booking card shows an accurate active-vehicle count and Remaining Total', (tester) async {
+      await _pumpHome(
+        tester,
+        currentBooking: {
+          'id': 1,
+          'booking_code': 'TM-00227',
+          'status': 'requested',
+          'service_type': 'book_now',
+          'pickup_address': 'A',
+          'dropoff_address': 'B',
+          'group_code': 'GRP-1',
+          'group_vehicle_count': 2,
+          'group_siblings': [
+            {
+              'booking_code': 'TM-00228',
+              'vehicle_type_name': 'Motorcycle',
+              'service_type': 'book_now',
+              'status': 'cancelled',
+            },
+          ],
+          'group_totals': {
+            'vehicle_count': 2,
+            'base_rate': 1500.0,
+            'computed_total': 1500.0,
+            'vat_amount': 180.0,
+            'additional_fee': 0.0,
+            'final_total': 1680.0,
+          },
+        },
+      );
+
+      expect(find.text('1 of 2 vehicles active'), findsOneWidget);
+      expect(find.text('Remaining Total'), findsOneWidget);
+      expect(find.text('₱1,680.00'), findsOneWidget);
+      expect(find.text('Group Total'), findsNothing);
+    });
+
+    testWidgets('when every vehicle in the group is cancelled, the current booking card shows Cancelled', (tester) async {
+      await _pumpHome(
+        tester,
+        currentBooking: {
+          'id': 1,
+          'booking_code': 'TM-00227',
+          'status': 'cancelled',
+          'service_type': 'book_now',
+          'pickup_address': 'A',
+          'dropoff_address': 'B',
+          'group_code': 'GRP-1',
+          'group_vehicle_count': 2,
+          'group_siblings': [
+            {
+              'booking_code': 'TM-00228',
+              'vehicle_type_name': 'Motorcycle',
+              'service_type': 'book_now',
+              'status': 'cancelled',
+            },
+          ],
+        },
+      );
+
+      expect(find.text('Cancelled'), findsOneWidget);
+      expect(find.text('GRP-1'), findsOneWidget);
+    });
+
+    testWidgets('a standalone current booking still shows its own TM code and vehicle type', (tester) async {
+      await _pumpHome(
+        tester,
+        currentBooking: {
+          'id': 1,
+          'booking_code': 'TM-00227',
+          'status': 'requested',
+          'service_type': 'book_now',
+          'pickup_address': 'A',
+          'dropoff_address': 'B',
+          'vehicle_type_name': 'Sedan',
+        },
+      );
+
       expect(find.text('TM-00227'), findsOneWidget);
-      expect(find.text('Requested'), findsOneWidget);
-      expect(find.textContaining('+1 scheduled vehicle'), findsOneWidget);
+      expect(find.text('1 Vehicle  ·  Sedan'), findsOneWidget);
+    });
+
+    testWidgets('tapping View Booking Details on a grouped current booking opens the group overview', (tester) async {
+      String? capturedRoute;
+      Object? capturedArgs;
+
+      await _pumpHome(
+        tester,
+        currentBooking: {
+          'id': 1,
+          'booking_code': 'TM-00227',
+          'status': 'requested',
+          'service_type': 'book_now',
+          'pickup_address': 'A',
+          'dropoff_address': 'B',
+          'group_code': 'GRP-1',
+          'group_vehicle_count': 2,
+          'group_siblings': [
+            {
+              'booking_code': 'TM-00228',
+              'vehicle_type_name': 'Motorcycle',
+              'service_type': 'book_now',
+              'status': 'requested',
+            },
+          ],
+        },
+        onNavigate: (route, args) {
+          capturedRoute = route;
+          capturedArgs = args;
+        },
+      );
+
+      await tester.tap(find.text('View Booking Details'));
+      await _settle(tester);
+
+      expect(capturedRoute, '/booking-detail');
+      expect(capturedArgs, {'bookingCode': 'TM-00227', 'asGroupOverview': true});
     });
 
     testWidgets('real service and vehicle-type data renders from the API response', (tester) async {
@@ -332,26 +522,15 @@ void main() {
       expect(find.text('Sedan'), findsOneWidget);
     });
 
-    testWidgets('the primary CTA and the bottom-nav Book Now item use identical wording', (tester) async {
+    testWidgets('Book Now is reachable only through the bottom navigation', (tester) async {
       await _pumpHome(tester);
 
-      expect(find.widgetWithText(ElevatedButton, 'Book Now'), findsOneWidget);
       expect(
         find.descendant(of: find.byType(TmBottomNav), matching: find.text('Book Now')),
         findsOneWidget,
       );
+      expect(find.byType(ElevatedButton), findsNothing);
       expect(find.text('Book a Tow'), findsNothing);
-    });
-
-    testWidgets('the Book Now CTA shows a right chevron', (tester) async {
-      await _pumpHome(tester);
-
-      final button = find.widgetWithText(ElevatedButton, 'Book Now');
-      expect(button, findsOneWidget);
-      expect(
-        find.descendant(of: button, matching: find.byIcon(Icons.chevron_right)),
-        findsOneWidget,
-      );
     });
 
     testWidgets('customer-facing service names render without hyphens', (tester) async {
@@ -461,7 +640,6 @@ void main() {
 
       expect(find.text('Services info is unavailable right now.'), findsOneWidget);
       expect(find.text('Vehicle type info is unavailable right now.'), findsOneWidget);
-      expect(find.widgetWithText(ElevatedButton, 'Book Now'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -598,11 +776,11 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
     });
 
-    testWidgets('Home primary CTA and Book Now nav item route to the same booking flow', (tester) async {
+    testWidgets('tapping the bottom-nav Book Now item routes to the booking flow', (tester) async {
       final routes = <String>[];
       await _pumpHome(tester, onNavigate: (route, args) => routes.add(route));
 
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Book Now'));
+      await tester.tap(find.descendant(of: find.byType(TmBottomNav), matching: find.text('Book Now')));
       await _settle(tester);
 
       expect(routes, contains('/book-now'));
@@ -657,6 +835,109 @@ void main() {
         expect(find.byType(TmBottomNav), findsOneWidget);
       });
     }
+
+    testWidgets('renders correctly in light mode', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'test-token',
+        'user_role': 'Customer',
+        'user_name': 'Faon Delacruz',
+      });
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: AppTheme.light,
+              themeMode: ThemeMode.light,
+              home: const HomeScreen(),
+            ),
+          );
+          await _settle(tester);
+        },
+        () => _buildClient(),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('No active booking'), findsOneWidget);
+    });
+
+    testWidgets('renders correctly in dark mode', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'test-token',
+        'user_role': 'Customer',
+        'user_name': 'Faon Delacruz',
+      });
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: AppTheme.light,
+              darkTheme: AppTheme.dark,
+              themeMode: ThemeMode.dark,
+              home: const HomeScreen(),
+            ),
+          );
+          await _settle(tester);
+        },
+        () => _buildClient(),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('No active booking'), findsOneWidget);
+    });
+
+    testWidgets('returning from a pushed route refreshes the current booking so cancellations elsewhere stay consistent', (tester) async {
+      var currentCallCount = 0;
+      final client = MockClient((request) async {
+        final path = request.url.path;
+        if (path.endsWith('/v1/bookings/current')) {
+          currentCallCount++;
+          return _json({'data': null});
+        }
+        if (path.endsWith('/v1/quotations/pending')) return _json({'data': null});
+        if (path.endsWith('/v1/customer/content')) return _json(_servicesFixture);
+        if (path.contains('/vehicle-types/by-category/')) return _json({'vehicleTypes': []});
+        if (path.endsWith('/v1/notifications')) return _json({'success': true, 'unread_count': 0, 'data': []});
+        return _json({'success': false}, status: 404);
+      });
+
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'test-token',
+        'user_role': 'Customer',
+        'user_name': 'Faon Delacruz',
+      });
+
+      await http.runWithClient(() async {
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorObservers: [appRouteObserver],
+            onGenerateRoute: (settings) {
+              if (settings.name == '/' || settings.name == null) {
+                return MaterialPageRoute(builder: (_) => const HomeScreen());
+              }
+              return MaterialPageRoute(
+                builder: (context) => Scaffold(
+                  body: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('pushed-back'),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+        await _settle(tester);
+
+        expect(currentCallCount, 1);
+
+        Navigator.of(tester.element(find.byType(HomeScreen))).pushNamed('/booking-detail');
+        await _settle(tester);
+
+        await tester.tap(find.text('pushed-back'));
+        await _settle(tester);
+
+        expect(currentCallCount, 2);
+      }, () => client);
+    });
   });
 
   group('TmBottomNav', () {

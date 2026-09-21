@@ -132,7 +132,11 @@ class BookingController extends Controller
         ]);
 
         try {
-            $this->bookingService->checkDuplicateActiveRoute($customer, $validated, (int) $booking->id);
+            $this->bookingService->checkDuplicateActiveRoute(
+                $customer,
+                [...$validated, 'service_type' => $booking->service_type],
+                (int) $booking->id
+            );
         } catch (DuplicateActiveRouteException $e) {
             return back()->withInput()->withErrors(['phone' => $e->getMessage()]);
         }

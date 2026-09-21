@@ -69,6 +69,28 @@ class AuditLogService
     ];
 
     public const BUSINESS_ACTIONS = [
+        'create_booking', 'update_booking', 'delete_booking',
+        'booking_assigned', 'booking_reassigned', 'booking_status_override',
+        'booking_cancelled_by_customer', 'booking_rejected', 'booking_rescheduled',
+        'scheduled_booking_cancelled_by_dispatcher', 'demo_arrival_confirmed',
+        'payment_confirmed', 'payment_submitted', 'service_fee_applied', 'invoice_voided',
+        'create_quotation', 'update_quotation', 'delete_quotation',
+        'quotation_draft_updated', 'quotation_drafted', 'quotation_price_updated',
+        'quotation_price_review_adjusted', 'quotation_price_review_kept', 'quotation_sent',
+        'create_unit', 'unit_created', 'update_unit', 'unit_archived', 'unit_restored',
+        'unit_permanently_deleted', 'unit_status_override', 'unit_assigned', 'unit_removed',
+        'crew_borrowed', 'crew_returned', 'crew_removed',
+        'team_leader_reassigned', 'team_leader_assigned', 'team_leader_removed', 'team_leader_returned',
+        'team_leader_duty_changed', 'team_leader_status_override', 'team_transferred', 'slot_duty_changed',
+        'driver_added',
+        'create_truck_type', 'update_truck_type', 'delete_truck_type',
+        'create_customer', 'update_customer', 'delete_customer',
+        'mobile_service_created', 'mobile_service_reordered', 'mobile_service_status_changed',
+        'mobile_announcement_created', 'mobile_announcement_updated', 'mobile_announcement_status_changed',
+        'mobile_coverage_area_created', 'mobile_coverage_area_reordered', 'mobile_coverage_area_status_changed',
+        'mobile_how_it_works_step_created', 'mobile_how_it_works_step_reordered', 'mobile_how_it_works_step_status_changed',
+        'mobile_about_updated', 'mobile_support_updated',
+        'customer_risk_updated',
         'personnel_created', 'personnel_updated', 'personnel_activated',
         'personnel_deactivated', 'personnel_home_unit_changed',
     ];

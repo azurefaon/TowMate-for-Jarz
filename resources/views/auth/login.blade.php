@@ -9,7 +9,8 @@
     <link rel="icon" type="image/png" href="{{ asset('dispatcher/images/jarz-logo.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <title>{{ $loginConfig['pageTitle'] ?? 'TowMate | Sign In' }}</title>
 </head>
 
@@ -23,7 +24,8 @@
     <nav class="jarz-nav jarz-nav--login">
         <div class="jarz-nav-inner">
             <a href="#top" class="jarz-brand">
-                <img src="{{ asset('dispatcher/images/jarz-logo.png') }}" alt="JARZ Towing Services" class="jarz-brand-logo">
+                <img src="{{ asset('dispatcher/images/jarz-logo.png') }}" alt="JARZ Towing Services"
+                    class="jarz-brand-logo">
                 <span class="jarz-brand-name">JARZ Towing Services</span>
             </a>
             <div class="jarz-nav-links">
@@ -40,8 +42,10 @@
                 @if ($isLocked)
                     <div class="lock-block">
                         <h2>Sign-in temporarily locked</h2>
-                        <p class="lock-message">Too many unsuccessful sign-in attempts. Your sign-in access is temporarily locked. Verify your email to recover access.</p>
-                        <a href="{{ route('login.recover', ['email' => $lockedEmail]) }}" class="primary-btn lock-recover-btn">Recover access</a>
+                        <p class="lock-message">Too many unsuccessful sign-in attempts. Your sign-in access is
+                            temporarily locked. Verify your email to recover access.</p>
+                        <a href="{{ route('login.recover', ['email' => $lockedEmail]) }}"
+                            class="primary-btn lock-recover-btn">Recover access</a>
                         <a href="{{ route('login') }}" class="lock-back-link">&larr; Back to sign in</a>
                     </div>
                 @else
@@ -74,7 +78,7 @@
                                         </svg>
                                     </span>
                                     <input id="email" type="email" name="email" value="{{ old('email') }}"
-                                        placeholder="you@jarztowing.com" autocomplete="username" maxlength="150">
+                                        placeholder="example@gmail.com" autocomplete="username" maxlength="150">
                                 </div>
                                 @error('email')
                                     <span class="field-error">{{ $message }}</span>
@@ -92,8 +96,9 @@
                                                 stroke="currentColor" stroke-width="1.8" />
                                         </svg>
                                     </span>
-                                    <input id="password" type="password" name="password" placeholder="Enter your password"
-                                        autocomplete="current-password" maxlength="128">
+                                    <input id="password" type="password" name="password"
+                                        placeholder="Enter your password" autocomplete="current-password"
+                                        maxlength="128">
                                     <button type="button" class="toggle-password" id="togglePassword"
                                         aria-label="Show password">Show</button>
                                 </div>
@@ -104,7 +109,8 @@
                         </div>
 
                         <div class="form-footer">
-                            <a href="{{ route('password.request') }}" class="forgot-link" id="forgotPasswordLink">Forgot password?</a>
+                            <a href="{{ route('password.request') }}" class="forgot-link"
+                                id="forgotPasswordLink">Forgot password?</a>
                         </div>
 
                         <button type="submit" class="primary-btn" id="loginButton">
@@ -126,17 +132,28 @@
             <h2 class="jarz-section-heading">Get App</h2>
             <div class="jarz-app-cards">
                 <div class="jarz-app-card">
-                    <svg class="jarz-app-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.5.5 0 00-.87-.5l-1.86 3.22a11.4 11.4 0 00-9.42 0L5.43 5.8a.5.5 0 10-.87.5L6.4 9.48A10.3 10.3 0 001 18h22a10.3 10.3 0 00-5.4-8.52zM7 15a1 1 0 110-2 1 1 0 010 2zm10 0a1 1 0 110-2 1 1 0 010 2z" /></svg>
+                    <svg class="jarz-app-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path
+                            d="M17.6 9.48l1.84-3.18a.5.5 0 00-.87-.5l-1.86 3.22a11.4 11.4 0 00-9.42 0L5.43 5.8a.5.5 0 10-.87.5L6.4 9.48A10.3 10.3 0 001 18h22a10.3 10.3 0 00-5.4-8.52zM7 15a1 1 0 110-2 1 1 0 010 2zm10 0a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
                     <h3 class="jarz-app-name">Android</h3>
-                    @if ($apkExists && $apkSizeMb)
-                        <p class="jarz-app-meta">{{ $apkSizeMb }} MB</p>
-                    @endif
-                    @if ($apkExists)
-                        <a href="{{ $apkUrl }}" download="TowMate.apk" class="jarz-apk-btn">Download APK</a>
+                    @if (!$androidActive)
+                        <p class="jarz-app-meta">TowMate is temporarily unavailable. Please check again later.</p>
+                    @else
+                        @if ($apkExists && $apkSizeMb)
+                            <p class="jarz-app-meta">{{ $apkSizeMb }} MB</p>
+                        @endif
+                        @if ($apkExists)
+                            <a href="{{ $apkUrl }}" download="TowMate.apk" class="jarz-apk-btn">Download
+                                APK</a>
+                        @endif
                     @endif
                 </div>
                 <div class="jarz-app-card">
-                    <svg class="jarz-app-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.05 12.04c-.03-2.5 2.04-3.7 2.13-3.76-1.16-1.7-2.97-1.94-3.62-1.96-1.54-.16-3.02.9-3.8.9-.79 0-2-.88-3.29-.86-1.69.03-3.26.99-4.13 2.5-1.77 3.06-.45 7.6 1.26 10.08.84 1.22 1.83 2.58 3.14 2.53 1.26-.05 1.74-.81 3.27-.81 1.52 0 1.96.81 3.29.79 1.36-.02 2.22-1.22 3.05-2.45.96-1.4 1.35-2.76 1.37-2.83-.03-.01-2.63-1.01-2.67-4.13zM14.6 4.7c.7-.85 1.17-2.02 1.04-3.2-1 .04-2.23.68-2.95 1.5-.65.73-1.22 1.92-1.07 3.05 1.1.09 2.25-.56 2.98-1.35z" /></svg>
+                    <svg class="jarz-app-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path
+                            d="M17.05 12.04c-.03-2.5 2.04-3.7 2.13-3.76-1.16-1.7-2.97-1.94-3.62-1.96-1.54-.16-3.02.9-3.8.9-.79 0-2-.88-3.29-.86-1.69.03-3.26.99-4.13 2.5-1.77 3.06-.45 7.6 1.26 10.08.84 1.22 1.83 2.58 3.14 2.53 1.26-.05 1.74-.81 3.27-.81 1.52 0 1.96.81 3.29.79 1.36-.02 2.22-1.22 3.05-2.45.96-1.4 1.35-2.76 1.37-2.83-.03-.01-2.63-1.01-2.67-4.13zM14.6 4.7c.7-.85 1.17-2.02 1.04-3.2-1 .04-2.23.68-2.95 1.5-.65.73-1.22 1.92-1.07 3.05 1.1.09 2.25-.56 2.98-1.35z" />
+                    </svg>
                     <h3 class="jarz-app-name">iOS</h3>
                     <p class="jarz-app-meta">Coming soon</p>
                     <span class="jarz-apk-btn jarz-apk-btn-disabled" aria-disabled="true">Coming soon</span>
@@ -148,7 +165,9 @@
     <section class="jarz-about" id="about-us">
         <div class="jarz-about-inner">
             <h2 class="jarz-section-heading">About Us</h2>
-            <p class="jarz-about-copy">JARZ Towing Services operates a fleet of tow trucks providing towing and roadside support for vehicles in need. Our drivers and dispatch team work together to get vehicles moved safely and get drivers back on their way.</p>
+            <p class="jarz-about-copy">JARZ Towing Services operates a fleet of tow trucks providing towing and
+                roadside support for vehicles in need. Our drivers and dispatch team work together to get vehicles moved
+                safely and get drivers back on their way.</p>
         </div>
     </section>
 
@@ -162,11 +181,13 @@
                 </div>
                 <div class="jarz-service-card">
                     <h3 class="jarz-service-name">Medium-Duty Towing</h3>
-                    <p class="jarz-service-copy">Towing assistance for medium-sized vehicles that require a larger tow truck.</p>
+                    <p class="jarz-service-copy">Towing assistance for medium-sized vehicles that require a larger tow
+                        truck.</p>
                 </div>
                 <div class="jarz-service-card">
                     <h3 class="jarz-service-name">Heavy-Duty Towing</h3>
-                    <p class="jarz-service-copy">Towing assistance for heavy vehicles that require specialized towing equipment.</p>
+                    <p class="jarz-service-copy">Towing assistance for heavy vehicles that require specialized towing
+                        equipment.</p>
                 </div>
             </div>
         </div>

@@ -102,7 +102,7 @@
                                         ₱{{ number_format($priceBreakdown['distance_fee'], 2) }}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding:4px 0;font-size:14px;color:#52525b;">VAT (12%)</td>
+                                    <td style="padding:4px 0;font-size:14px;color:#52525b;">VAT ({{ $priceBreakdown['vat_rate_label'] ?? '12%' }})</td>
                                     <td align="right" style="padding:4px 0;font-size:14px;color:#18181b;">
                                         ₱{{ number_format($priceBreakdown['vat_amount'], 2) }}</td>
                                 </tr>

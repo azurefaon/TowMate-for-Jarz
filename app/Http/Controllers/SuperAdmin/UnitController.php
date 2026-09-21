@@ -58,10 +58,11 @@ class UnitController extends Controller
             'crew_member_2_name' => $leader->crew_member_2_name,
         ])->values();
 
+        $availabilityRows = app(\App\Services\UnitAvailabilityService::class)->evaluateAll();
         $stats = [
             'total' => Unit::count(),
-            'available' => Unit::where('status', 'available')->count(),
-            'on_job' => Unit::where('status', 'on_job')->count(),
+            'available' => $availabilityRows->filter(fn($row) => $row['operational_state'] !== 'maintenance' && $row['active_booking'] === null)->count(),
+            'on_job' => $availabilityRows->filter(fn($row) => $row['active_booking'] !== null)->count(),
             'maintenance' => Unit::where('status', 'maintenance')->count(),
         ];
 

@@ -10,8 +10,6 @@ import '../../widgets/quotation_price_cards.dart';
 
 String _peso(double v) => formatPeso(v);
 
-/// Shared content for the three bottom action buttons — swaps to a spinner
-/// while its own action is in flight, otherwise a leading icon + label.
 Widget _actionButtonContent({
   required bool loading,
   required Color loadingColor,
@@ -31,12 +29,17 @@ Widget _actionButtonContent({
     children: [
       Icon(icon, size: 18, color: textColor),
       const SizedBox(width: 8),
-      Text(
-        label,
-        style: GoogleFonts.inter(
-          color: textColor,
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
+      Flexible(
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+          style: GoogleFonts.inter(
+            color: textColor,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     ],
@@ -66,8 +69,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Route arguments aren't reliably available in initState(), and this
-    // only needs to run once per screen instance.
     if (_timerStarted) return;
     _timerStarted = true;
     final remaining = _quotationOrNull?.timeRemaining;
@@ -305,7 +306,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top bar ──────────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               decoration: BoxDecoration(
@@ -344,7 +344,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
               ),
             ),
 
-            // ── Body ─────────────────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -359,7 +358,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // ── Total amount ───────────────────────────────────
                     Text(
                       'Total Amount',
                       style: GoogleFonts.inter(
@@ -381,18 +379,30 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                     ),
                     const SizedBox(height: 18),
 
-                    // ── Price breakdown ────────────────────────────────
-                    PriceBreakdownCard(
-                      baseRate: quotation.baseRate,
-                      distanceFee: quotation.distanceFee,
-                      distanceKm: quotation.distanceKm,
-                      vatAmount: quotation.vatAmount,
-                      additionalFee: quotation.additionalFee,
-                      additionalFeeNote: quotation.additionalFeeNote,
-                    ),
+                    if (quotation.isGrouped)
+                      GroupedPriceBreakdownCard(
+                        vehicles: quotation.groupVehicles,
+                        vatRate: quotation.vatRate,
+                        discount: quotation.discount,
+                        finalTotal: quotation.estimatedPrice,
+                        priceAdjustments: quotation.priceAdjustments,
+                      )
+                    else
+                      PriceBreakdownCard(
+                        baseRate: quotation.baseRate,
+                        distanceFee: quotation.distanceFee,
+                        distanceKm: quotation.distanceKm,
+                        subtotal: quotation.subtotal,
+                        vatAmount: quotation.vatAmount,
+                        vatRate: quotation.vatRate,
+                        finalTotal: quotation.estimatedPrice,
+                        discount: quotation.discount,
+                        additionalFeeNote: quotation.additionalFeeNote,
+                        priceAdjustments: quotation.priceAdjustments,
+                        showFullBreakdown: true,
+                      ),
                     const SizedBox(height: 20),
 
-                    // ── Trip details ───────────────────────────────────
                     TripDetailsSection(
                       pickupAddress: quotation.pickupAddress,
                       dropoffAddress: quotation.dropoffAddress,
@@ -414,7 +424,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                       ),
                     ],
 
-                    // ── Price history ──────────────────────────────────
                     if (quotation.priceChangeLog != null &&
                         quotation.priceChangeLog!.isNotEmpty) ...[
                       const SizedBox(height: 20),
@@ -424,7 +433,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                     const SizedBox(height: 28),
 
                     if (quotation.isPriceReviewRequested) ...[
-                      // ── Waiting for dispatcher ──────────────────────────
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
@@ -477,7 +485,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                         ),
                       ),
                     ] else ...[
-                      // ── Accept button ─────────────────────────────────
                       ElevatedButton(
                         onPressed: _accepting || _declining || _requestingReview
                             ? null
@@ -503,7 +510,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
 
                       const SizedBox(height: 12),
 
-                      // ── Request Price Review button ───────────────────
                       OutlinedButton(
                         onPressed: _accepting || _declining || _requestingReview
                             ? null
@@ -527,7 +533,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
 
                       const SizedBox(height: 12),
 
-                      // ── Decline button ─────────────────────────────────
                       OutlinedButton(
                         onPressed: _accepting || _declining || _requestingReview
                             ? null
@@ -562,9 +567,6 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
   }
 }
 
-/// Colored status card: icon + status label + quotation number, with an
-/// optional countdown pinned to the right — replaces the old plain grey
-/// eyebrow text.
 class _StatusBanner extends StatelessWidget {
   const _StatusBanner({
     required this.status,

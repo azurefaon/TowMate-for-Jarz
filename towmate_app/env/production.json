@@ -1,0 +1,6 @@
+{
+  "API_BASE_URL": "https://www.jarztowing.com/api",
+  "GOOGLE_SERVER_CLIENT_ID": "191576105651-878s9u31fll8hj4rqetrhpv5tg77iujt.apps.googleusercontent.com",
+  "GOOGLE_CLIENT_ID": "191576105651-878s9u31fll8hj4rqetrhpv5tg77iujt.apps.googleusercontent.com",
+  "TL_DEMO_ARRIVAL_ENABLED": false
+}

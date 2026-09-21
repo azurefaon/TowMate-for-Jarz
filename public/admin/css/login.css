@@ -404,6 +404,16 @@ body {
     gap: 24px;
 }
 
+.jarz-app-cards--single {
+    grid-template-columns: minmax(0, 320px);
+    justify-content: center;
+}
+
+.jarz-getapp.jarz-hero--fill {
+    display: flex;
+    align-items: center;
+}
+
 .jarz-app-card {
     background: #1f1f1f;
     border: 1px solid rgba(255, 255, 255, 0.1);

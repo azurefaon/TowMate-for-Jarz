@@ -5,9 +5,11 @@ import 'google_web_button_types.dart';
 Widget renderGoogleWebButton({
   double? minimumWidth,
   GoogleButtonText text = GoogleButtonText.continueWith,
+  bool iconOnly = false,
 }) {
   return web.renderButton(
     configuration: web.GSIButtonConfiguration(
+      type: iconOnly ? web.GSIButtonType.icon : null,
       theme: web.GSIButtonTheme.outline,
       shape: web.GSIButtonShape.rectangular,
       size: web.GSIButtonSize.large,
@@ -15,7 +17,7 @@ Widget renderGoogleWebButton({
           ? web.GSIButtonText.signupWith
           : web.GSIButtonText.continueWith,
       logoAlignment: web.GSIButtonLogoAlignment.left,
-      minimumWidth: minimumWidth,
+      minimumWidth: iconOnly ? null : minimumWidth,
     ),
   );
 }

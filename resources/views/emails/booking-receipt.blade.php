@@ -19,7 +19,17 @@
             ? array_sum(array_column($groupVehicles, 'final_total')) + $groupAdjustment
             : null;
         $finalTotal = $groupTotal ?? (float) ($booking->final_total ?? 0);
-        $vatAmount = ! empty($groupVehicles) ? 0.0 : ($finalTotal > 0 ? round($finalTotal / 1.12 * 0.12, 2) : 0.0);
+        $vatRate = app(\App\Services\BookingService::class)->resolveVatRate(
+            $booking->vat_rate !== null ? (float) $booking->vat_rate : null,
+            $booking->vat_amount !== null ? (float) $booking->vat_amount : null,
+            $booking->vat_exclusive_total !== null ? (float) $booking->vat_exclusive_total : null,
+        );
+        $vatRateLabel = rtrim(rtrim(number_format($vatRate * 100, 2), '0'), '.') . '%';
+        $vatAmount = ! empty($groupVehicles)
+            ? 0.0
+            : ($booking->vat_amount !== null
+                ? (float) $booking->vat_amount
+                : ($finalTotal > 0 ? round($finalTotal / (1 + $vatRate) * $vatRate, 2) : 0.0));
         $additionalFee = (float) ($booking->additional_fee ?? 0);
         $additionalFeeNote = $booking->dispatcher_note
             ?? collect($booking->quotation?->price_change_log ?? [])->last()['reason']
@@ -193,7 +203,7 @@
                                     @if ($vatAmount > 0)
                                         <tr>
                                             <td style="padding:11px 16px;border-bottom:1px solid #f1f1f3;font-size:13px;color:#18181b;">
-                                                VAT (12%)</td>
+                                                VAT ({{ $vatRateLabel }})</td>
                                             <td style="padding:11px 16px;border-bottom:1px solid #f1f1f3;font-size:13px;color:#18181b;text-align:right;">
                                                 {!! $fmt($vatAmount) !!}</td>
                                         </tr>

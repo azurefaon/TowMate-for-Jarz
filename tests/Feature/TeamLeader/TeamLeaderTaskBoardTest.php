@@ -333,7 +333,7 @@ it('shows dispatcher notifications and active jobs once a team leader takes the 
         ->get(route('admin.jobs'))
         ->assertOk()
         ->assertSee($booking->job_code, false)
-        ->assertSee('On The Way', false);
+        ->assertSee('On the Way', false);
 });
 
 it('removes the team leader unit assignment when they go offline', function () {

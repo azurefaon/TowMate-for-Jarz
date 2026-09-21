@@ -10,8 +10,14 @@ class AndroidDownloadController extends Controller
 {
     private const APK_MIME_TYPE = 'application/vnd.android.package-archive';
 
+    private const UNAVAILABLE_MESSAGE = 'TowMate is temporarily unavailable. Please check again later.';
+
     public function show(): Response
     {
+        if (! AndroidReleaseService::isActive()) {
+            abort(503, self::UNAVAILABLE_MESSAGE);
+        }
+
         $filename = AndroidReleaseService::currentFilename();
 
         if ($filename) {
@@ -29,5 +35,15 @@ class AndroidDownloadController extends Controller
         }
 
         abort(404);
+    }
+
+    public function landing()
+    {
+        $apkExists = AndroidReleaseService::currentExists();
+        $androidActive = AndroidReleaseService::isActive();
+        $apkUrl = ($apkExists && $androidActive) ? route('download.android') : null;
+        $apkSizeMb = $apkExists ? AndroidReleaseService::metadata()['size_mb'] : null;
+
+        return view('app-download', compact('apkExists', 'androidActive', 'apkUrl', 'apkSizeMb'));
     }
 }

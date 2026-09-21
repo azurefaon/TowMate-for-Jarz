@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
+import '../../models/vehicle_category_model.dart';
 import '../../models/vehicle_type_model.dart';
 import '../../services/api_service.dart';
 import '../../widgets/quotation_price_cards.dart';
@@ -34,6 +35,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
   TimeOfDay? _scheduledTime;
 
   List<VehicleTypeModel> _vehicleTypes = [];
+  List<VehicleCategoryModel> _vehicleCategories = [];
   VehicleTypeModel? _selectedVehicleType;
   bool _loadingTypes = true;
 
@@ -73,6 +75,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
   String? _prefillDropoffAddress;
 
   int _step = 0;
+  final ScrollController _scrollController = ScrollController();
+  bool _checkingDuplicateRoute = false;
 
   Timer? _availabilityPollTimer;
 
@@ -117,19 +121,29 @@ class _BookNowScreenState extends State<BookNowScreen> {
   void dispose() {
     _availabilityPollTimer?.cancel();
     _notesCtrl.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _jumpToTop() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    });
   }
 
   Future<void> _loadData() async {
     if (mounted) setState(() => _loadingTypes = true);
 
     final typeFuture = ApiService.fetchVehicleTypes();
+    final categoryFuture = ApiService.fetchVehicleCategories();
     final availFuture = _refreshAvailability();
 
     final types = await typeFuture;
+    final categories = await categoryFuture;
     if (!mounted) return;
     setState(() {
       _vehicleTypes = types;
+      _vehicleCategories = categories;
       _loadingTypes = false;
     });
 
@@ -158,14 +172,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
   }
 
   void _selectVehicle(VehicleTypeModel vehicle) {
-    final isDifferentVehicle = _selectedVehicleType?.id != vehicle.id;
     setState(() {
       _selectedVehicleType = vehicle;
-      if (isDifferentVehicle) {
-        _serviceType = 'book_now';
-        _scheduledDate = null;
-        _scheduledTime = null;
-      }
     });
 
     if (_serviceType == 'book_now' && !_isExactlyAvailable(vehicle)) {
@@ -229,7 +237,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
     const r = 6371.0;
     final dLat = (b.latitude - a.latitude) * pi / 180;
     final dLng = (b.longitude - a.longitude) * pi / 180;
-    final h = sin(dLat / 2) * sin(dLat / 2) +
+    final h =
+        sin(dLat / 2) * sin(dLat / 2) +
         cos(a.latitude * pi / 180) *
             cos(b.latitude * pi / 180) *
             sin(dLng / 2) *
@@ -409,7 +418,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
   }
 
   void _scheduleEntireRequest() {
-    setState(() => _serviceType = 'schedule');
+    setState(() {
+      _serviceType = 'schedule';
+      _step = 0;
+    });
+    _jumpToTop();
   }
 
   Future<void> _showNoUnitsModal() async {
@@ -557,7 +570,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
     if (!mounted) return;
 
     if (result['success'] == true) {
-      final bookings = result['bookings'] as List<BookingGroupSibling>? ?? const [];
+      final bookings =
+          result['bookings'] as List<BookingGroupSibling>? ?? const [];
       Navigator.pushNamedAndRemoveUntil(
         context,
         '/booking-success',
@@ -573,27 +587,26 @@ class _BookNowScreenState extends State<BookNowScreen> {
     }
   }
 
-
   bool get _canProceedStep1 =>
       _pickupLatLng != null &&
       _dropoffLatLng != null &&
       _distanceKm != null &&
-      !_loadingRoute;
+      !_loadingRoute &&
+      (_serviceType != 'schedule' ||
+          (_scheduledDate != null && _scheduledTime != null));
 
   bool get _canProceedStep2 {
     if (_selectedVehicleType == null) return false;
     if (_vehicleImages.isEmpty) return false;
-    if (_serviceType == 'book_now' && !_isExactlyAvailable(_selectedVehicleType!)) {
-      return false;
-    }
-    if (_serviceType == 'schedule' &&
-        (_scheduledDate == null || _scheduledTime == null)) {
+    if (_serviceType == 'book_now' &&
+        !_isExactlyAvailable(_selectedVehicleType!)) {
       return false;
     }
     if (_extraVehicles.any((v) {
       if (v.vehicle == null) return true;
       if (v.images.isEmpty) return true;
-      if (_serviceType == 'book_now' && !_isExactlyAvailable(v.vehicle!)) return true;
+      if (_serviceType == 'book_now' && !_isExactlyAvailable(v.vehicle!))
+        return true;
       return false;
     })) {
       return false;
@@ -717,7 +730,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                   ),
                   const SizedBox(height: 10),
                   GestureDetector(
-                    onTap: () => setState(() => _serviceType = 'schedule'),
+                    onTap: _scheduleEntireRequest,
                     child: Text(
                       'Schedule for later instead →',
                       style: GoogleFonts.inter(
@@ -734,17 +747,14 @@ class _BookNowScreenState extends State<BookNowScreen> {
           ),
         _VehicleTypeSection(
           vehicleTypes: _vehicleTypes,
+          vehicleCategories: _vehicleCategories,
           loading: _loadingTypes,
           selectedVehicle: _selectedVehicleType,
           readyTruckTypeIds: _readyTruckTypeIds,
           bookNowEnabled: _bookNowEnabled,
           serviceType: _serviceType,
-          scheduledDate: _scheduledDate,
-          scheduledTime: _scheduledTime,
           onSelect: _selectVehicle,
           onRetry: _loadData,
-          onDateConfirmed: (d) => setState(() => _scheduledDate = d),
-          onTimeConfirmed: (t) => setState(() => _scheduledTime = t),
           onScheduleEntireRequest: _scheduleEntireRequest,
         ),
         const SizedBox(height: 20),
@@ -759,6 +769,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
           _ExtraVehiclesSection(
             extraVehicles: _extraVehicles,
             vehicleTypes: _vehicleTypes,
+            vehicleCategories: _vehicleCategories,
             canAdd: _extraVehicles.length < 5,
             vehicleCount: _extraVehicles.length + 1,
             readyTruckTypeIds: _readyTruckTypeIds,
@@ -825,7 +836,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
     final canonicalDistanceKm = pricingMap != null
         ? (pricingMap['distance_km'] as num?)?.toDouble()
         : null;
-    final bool distanceDiffers = _distanceKm != null &&
+    final bool distanceDiffers =
+        _distanceKm != null &&
         canonicalDistanceKm != null &&
         (_distanceKm! - canonicalDistanceKm).abs() > 0.05;
 
@@ -876,7 +888,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
                   caption: distanceDiffers
                       ? 'Driving distance for map & ETA. Billed distance is '
                             '${canonicalDistanceKm.toStringAsFixed(2)} km — see Price Summary.'
-                      : (_routeFallback ? 'Estimated distance (route unavailable)' : null),
+                      : (_routeFallback
+                            ? 'Estimated distance (route unavailable)'
+                            : null),
                 ),
               ],
               if (hasSchedule && dateStr != null) ...[
@@ -889,7 +903,10 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 ),
               ],
               const SizedBox(height: 28),
-              _sectionHeaderWithEdit('VEHICLES', () => setState(() => _step = 1)),
+              _sectionHeaderWithEdit(
+                'VEHICLES',
+                () => setState(() => _step = 1),
+              ),
               const SizedBox(height: 14),
               for (int i = 0; i < allVehicles.length; i++) ...[
                 if (i > 0) ...[
@@ -907,7 +924,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 const SizedBox(height: 20),
                 Text(
                   'You\'re confirming one request for ${allVehicles.length} vehicle${allVehicles.length == 1 ? '' : 's'}. '
-                  'Each vehicle will be handled and billed as a separate booking.',
+                  'Each vehicle is priced separately and included in one quotation.',
                   style: GoogleFonts.inter(
                     color: secondaryTextColor(context),
                     fontSize: 12,
@@ -1001,7 +1018,12 @@ class _BookNowScreenState extends State<BookNowScreen> {
     }
 
     final pricing = preview['pricing'] as Map<String, dynamic>? ?? {};
-    final scheduledExtraPreviews = (preview['scheduled_extra_previews'] as List?)
+    final bookNowVehiclePreviews =
+        (preview['book_now_vehicle_previews'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
+    final scheduledExtraPreviews =
+        (preview['scheduled_extra_previews'] as List?)
             ?.cast<Map<String, dynamic>>() ??
         [];
     final bookNowVehicleCount = _serviceType == 'book_now'
@@ -1010,6 +1032,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
     return _PriceBreakdown(
       pricing: pricing,
+      bookNowVehiclePreviews: bookNowVehiclePreviews,
       scheduledExtraPreviews: scheduledExtraPreviews,
       vehicleTypes: _vehicleTypes,
       bookNowVehicleCount: bookNowVehicleCount,
@@ -1019,8 +1042,39 @@ class _BookNowScreenState extends State<BookNowScreen> {
     );
   }
 
+  Future<void> _proceedFromLocationStep() async {
+    setState(() => _checkingDuplicateRoute = true);
+    final duplicateMessage = await ApiService.checkDuplicateActiveRoute(
+      pickupLat: _pickupLatLng!.latitude,
+      pickupLng: _pickupLatLng!.longitude,
+      dropoffLat: _dropoffLatLng!.latitude,
+      dropoffLng: _dropoffLatLng!.longitude,
+      serviceType: _serviceType,
+    );
+    if (!mounted) return;
+    setState(() => _checkingDuplicateRoute = false);
+
+    if (duplicateMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            duplicateMessage,
+            style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+          ),
+          backgroundColor: TmColors.grey700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _step = 1);
+  }
+
   Widget _buildBottomBar() {
-    final bool loading = _step == 0 && _loadingRoute;
+    final bool loading = _step == 0 && (_loadingRoute || _checkingDuplicateRoute);
     final bool isConfirm = _step == 2;
     final String label = isConfirm ? 'Confirm Booking' : 'Continue';
 
@@ -1034,21 +1088,26 @@ class _BookNowScreenState extends State<BookNowScreen> {
         hint = 'Set a drop-off location to continue';
       } else if (_loadingRoute) {
         hint = 'Calculating route...';
+      } else if (_serviceType == 'schedule' && _scheduledDate == null) {
+        hint = 'Select a preferred date to continue';
+      } else if (_serviceType == 'schedule' && _scheduledTime == null) {
+        hint = 'Select a preferred time to continue';
+      } else if (_checkingDuplicateRoute) {
+        hint = 'Checking your existing bookings...';
       } else if (_routeFallback) {
         hint = 'Using estimated distance (route unavailable)';
       }
-      onTap = _canProceedStep1 ? () => setState(() => _step = 1) : null;
+      onTap = (_canProceedStep1 && !_checkingDuplicateRoute)
+          ? _proceedFromLocationStep
+          : null;
     } else if (_step == 1) {
       if (_selectedVehicleType == null) {
         hint = 'Select a vehicle type for Vehicle 1 to continue';
       } else if (_vehicleImages.isEmpty) {
         hint = 'Add at least 1 photo for Vehicle 1 to continue';
-      } else if (_serviceType == 'book_now' && !_isExactlyAvailable(_selectedVehicleType!)) {
+      } else if (_serviceType == 'book_now' &&
+          !_isExactlyAvailable(_selectedVehicleType!)) {
         hint = 'Vehicle 1 is not available for Book Now';
-      } else if (_serviceType == 'schedule' && _scheduledDate == null) {
-        hint = 'Select a preferred date for Vehicle 1 to continue';
-      } else if (_serviceType == 'schedule' && _scheduledTime == null) {
-        hint = 'Select a preferred time for Vehicle 1 to continue';
       } else {
         for (int i = 0; i < _extraVehicles.length; i++) {
           final v = _extraVehicles[i];
@@ -1057,7 +1116,8 @@ class _BookNowScreenState extends State<BookNowScreen> {
             hint = 'Select a vehicle type for $label to continue';
           } else if (v.images.isEmpty) {
             hint = 'Add at least 1 photo for $label to continue';
-          } else if (_serviceType == 'book_now' && !_isExactlyAvailable(v.vehicle!)) {
+          } else if (_serviceType == 'book_now' &&
+              !_isExactlyAvailable(v.vehicle!)) {
             hint = '$label is not available for Book Now';
           }
           if (hint != null) break;
@@ -1091,7 +1151,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
               child: Text(
                 hint,
                 style: GoogleFonts.inter(
-                  color: _step == 1 ? TmColors.destructive : context.textPrimary,
+                  color: _step == 1
+                      ? TmColors.destructive
+                      : context.textPrimary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.1,
@@ -1227,7 +1289,12 @@ class _BookNowScreenState extends State<BookNowScreen> {
               children: [
                 _buildTopBar(ctx),
                 _StepIndicator(step: _step),
-                Expanded(child: SingleChildScrollView(child: _buildStepBody())),
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    child: _buildStepBody(),
+                  ),
+                ),
                 _buildBottomBar(),
               ],
             ),
@@ -1237,7 +1304,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
     );
   }
 }
-
 
 class _BookingModeSection extends StatelessWidget {
   const _BookingModeSection({
@@ -1339,7 +1405,9 @@ class _BookingModeSection extends StatelessWidget {
                                   const Duration(days: 1),
                                 ),
                                 firstDate: DateTime.now(),
-                                lastDate: DateTime.now().add(const Duration(days: 90)),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 90),
+                                ),
                                 builder: (ctx, child) => Theme(
                                   data: Theme.of(ctx).copyWith(
                                     colorScheme: const ColorScheme.light(
@@ -1491,97 +1559,17 @@ class _DateTimeField extends StatelessWidget {
                           ? context.textPrimary
                           : secondaryTextColor(context),
                       fontSize: 13,
-                      fontWeight: value != null ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: value != null
+                          ? FontWeight.w600
+                          : FontWeight.w400,
                       letterSpacing: 0.1,
                     ),
                   ),
                 ),
-                Icon(
-                  icon,
-                  size: 14,
-                  color: secondaryTextColor(context),
-                ),
+                Icon(icon, size: 14, color: secondaryTextColor(context)),
               ],
             ),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SchedulePickerFields extends StatelessWidget {
-  const _SchedulePickerFields({
-    required this.scheduledDate,
-    required this.scheduledTime,
-    required this.onDateConfirmed,
-    required this.onTimeConfirmed,
-  });
-
-  final DateTime? scheduledDate;
-  final TimeOfDay? scheduledTime;
-  final void Function(DateTime) onDateConfirmed;
-  final void Function(TimeOfDay) onTimeConfirmed;
-
-  String _formatDate(DateTime d) =>
-      '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
-
-  String _formatTime(TimeOfDay t) {
-    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
-    final m = t.minute.toString().padLeft(2, '0');
-    final period = t.period == DayPeriod.am ? 'AM' : 'PM';
-    return '$h:$m $period';
-  }
-
-  Future<void> _pickDate(BuildContext context) async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: scheduledDate ?? today.add(const Duration(days: 1)),
-      firstDate: today,
-      lastDate: today.add(const Duration(days: 90)),
-    );
-    if (picked != null) onDateConfirmed(picked);
-  }
-
-  Future<void> _pickTime(BuildContext context) async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: scheduledTime ?? TimeOfDay.now(),
-    );
-    if (picked != null) onTimeConfirmed(picked);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('SCHEDULE', style: sectionEyebrowStyle(context)),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _DateTimeField(
-                label: 'Preferred Date',
-                value: scheduledDate != null ? _formatDate(scheduledDate!) : null,
-                placeholder: 'Select date',
-                onTap: () => _pickDate(context),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _DateTimeField(
-                label: 'Preferred Time',
-                value: scheduledTime != null ? _formatTime(scheduledTime!) : null,
-                placeholder: 'Select time',
-                icon: Icons.access_time_rounded,
-                onTap: () => _pickTime(context),
-              ),
-            ),
-          ],
         ),
       ],
     );
@@ -1632,6 +1620,8 @@ class _LocationSectionState extends State<_LocationSection> {
 
   List<Map<String, dynamic>> _pickupSuggestions = [];
   List<Map<String, dynamic>> _dropoffSuggestions = [];
+  String? _pickupPlaceId;
+  String? _dropoffPlaceId;
   bool _pickupSearching = false;
   bool _dropoffSearching = false;
   bool _locating = false;
@@ -1683,6 +1673,8 @@ class _LocationSectionState extends State<_LocationSection> {
     if (widget.pickupLatLng == null && old.pickupLatLng != null) {
       _pickupCtrl.clear();
       _dropoffCtrl.clear();
+      _pickupPlaceId = null;
+      _dropoffPlaceId = null;
       setState(() {
         _pickupSuggestions = [];
         _dropoffSuggestions = [];
@@ -1711,7 +1703,9 @@ class _LocationSectionState extends State<_LocationSection> {
       return;
     }
 
-    final newEntry = OverlayEntry(builder: (_) => _buildSuggestionOverlay(isPickup));
+    final newEntry = OverlayEntry(
+      builder: (_) => _buildSuggestionOverlay(isPickup),
+    );
     Overlay.of(context).insert(newEntry);
     if (isPickup) {
       _pickupOverlay = newEntry;
@@ -1749,7 +1743,10 @@ class _LocationSectionState extends State<_LocationSection> {
                 child: child,
               ),
             ),
-            child: _SuggestionList(suggestions: suggestions, onSelect: onSelect),
+            child: _SuggestionList(
+              suggestions: suggestions,
+              onSelect: onSelect,
+            ),
           ),
         ),
       ),
@@ -1790,12 +1787,36 @@ class _LocationSectionState extends State<_LocationSection> {
     _debounce = Timer(const Duration(milliseconds: 420), () async {
       final results = await ApiService.autocompleteAddress(query);
       if (!mounted) return;
+      final otherPlaceId = isPickup ? _dropoffPlaceId : _pickupPlaceId;
+      final otherLatLng = isPickup ? widget.dropoffLatLng : widget.pickupLatLng;
+      final otherLabel = (isPickup ? _dropoffCtrl.text : _pickupCtrl.text)
+          .trim()
+          .toLowerCase();
+      final filtered = results.where((r) {
+        final placeId = r['place_id'] as String?;
+        if (otherPlaceId != null && placeId != null && placeId == otherPlaceId) {
+          return false;
+        }
+        final coords = r['coordinates'] as List?;
+        if (otherLatLng != null && coords != null) {
+          final candidate = LatLng(
+            (coords[1] as num).toDouble(),
+            (coords[0] as num).toDouble(),
+          );
+          return !_isSameLocation(candidate, otherLatLng);
+        }
+        if (placeId == null && coords == null) {
+          final label = (r['label'] as String? ?? '').trim().toLowerCase();
+          return otherLabel.isEmpty || label != otherLabel;
+        }
+        return true;
+      }).toList();
       setState(() {
         if (isPickup) {
-          _pickupSuggestions = results;
+          _pickupSuggestions = filtered;
           _pickupSearching = false;
         } else {
-          _dropoffSuggestions = results;
+          _dropoffSuggestions = filtered;
           _dropoffSearching = false;
         }
       });
@@ -1829,6 +1850,27 @@ class _LocationSectionState extends State<_LocationSection> {
     };
   }
 
+  bool _isSameLocation(LatLng candidate, LatLng? other) {
+    if (other == null) return false;
+    return _BookNowScreenState._haversineKm(candidate, other) <= 0.05;
+  }
+
+  void _showSameLocationWarning() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Pickup and drop-off locations must be different.',
+          style: GoogleFonts.inter(color: TmColors.white, fontSize: 14),
+        ),
+        backgroundColor: TmColors.grey700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
   Future<void> _selectPickup(Map<String, dynamic> feature) async {
     _pickupFocus.unfocus();
     setState(() {
@@ -1844,11 +1886,17 @@ class _LocationSectionState extends State<_LocationSection> {
     final lat = resolved['lat'] as double;
     final lng = resolved['lng'] as double;
     final label = resolved['label'] as String;
+    final latlng = LatLng(lat, lng);
+
+    if (_isSameLocation(latlng, widget.dropoffLatLng)) {
+      _showSameLocationWarning();
+      return;
+    }
+
+    _pickupPlaceId = feature['place_id'] as String?;
     _pickupCtrl.text = label;
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(LatLng(lat, lng), 14),
-    );
-    widget.onPickupSelected(LatLng(lat, lng), label);
+    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latlng, 14));
+    widget.onPickupSelected(latlng, label);
   }
 
   Future<void> _selectDropoff(Map<String, dynamic> feature) async {
@@ -1866,15 +1914,22 @@ class _LocationSectionState extends State<_LocationSection> {
     final lat = resolved['lat'] as double;
     final lng = resolved['lng'] as double;
     final label = resolved['label'] as String;
+    final latlng = LatLng(lat, lng);
+
+    if (_isSameLocation(latlng, widget.pickupLatLng)) {
+      _showSameLocationWarning();
+      return;
+    }
+
+    _dropoffPlaceId = feature['place_id'] as String?;
     _dropoffCtrl.text = label;
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(LatLng(lat, lng), 14),
-    );
-    widget.onDropoffSelected(LatLng(lat, lng), label);
+    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latlng, 14));
+    widget.onDropoffSelected(latlng, label);
   }
 
   void _clearPickup() {
     _pickupCtrl.clear();
+    _pickupPlaceId = null;
     setState(() => _pickupSuggestions = []);
     _syncOverlay(isPickup: true);
     widget.onPickupCleared();
@@ -1882,6 +1937,7 @@ class _LocationSectionState extends State<_LocationSection> {
 
   void _clearDropoff() {
     _dropoffCtrl.clear();
+    _dropoffPlaceId = null;
     setState(() => _dropoffSuggestions = []);
     _syncOverlay(isPickup: false);
     widget.onDropoffCleared();
@@ -1890,6 +1946,8 @@ class _LocationSectionState extends State<_LocationSection> {
   void _reset() {
     _pickupCtrl.clear();
     _dropoffCtrl.clear();
+    _pickupPlaceId = null;
+    _dropoffPlaceId = null;
     setState(() {
       _pickupSuggestions = [];
       _dropoffSuggestions = [];
@@ -1967,6 +2025,12 @@ class _LocationSectionState extends State<_LocationSection> {
 
       if (!mounted) return;
 
+      if (_isSameLocation(latlng, widget.dropoffLatLng)) {
+        _showSameLocationWarning();
+        return;
+      }
+
+      _pickupPlaceId = null;
       _pickupCtrl.text = address;
       _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latlng, 15));
       widget.onPickupSelected(latlng, address);
@@ -2061,7 +2125,9 @@ class _LocationSectionState extends State<_LocationSection> {
                             ? const SkeletonBox(
                                 width: 14,
                                 height: 14,
-                                borderRadius: BorderRadius.all(Radius.circular(7)),
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(7),
+                                ),
                               )
                             : Icon(
                                 Icons.my_location_rounded,
@@ -2070,7 +2136,9 @@ class _LocationSectionState extends State<_LocationSection> {
                               ),
                         const SizedBox(width: 6),
                         Text(
-                          _locating ? 'Getting location...' : 'Use current location',
+                          _locating
+                              ? 'Getting location...'
+                              : 'Use current location',
                           style: GoogleFonts.inter(
                             color: context.textPrimary,
                             fontSize: 12,
@@ -2122,7 +2190,9 @@ class _LocationSectionState extends State<_LocationSection> {
             borderRadius: BorderRadius.circular(14),
             child: Container(
               height: 260,
-              decoration: BoxDecoration(border: Border.all(color: context.divider)),
+              decoration: BoxDecoration(
+                border: Border.all(color: context.divider),
+              ),
               child: Stack(
                 children: [
                   Positioned.fill(
@@ -2153,7 +2223,8 @@ class _LocationSectionState extends State<_LocationSection> {
                             markerId: const MarkerId('pickup'),
                             position: widget.pickupLatLng!,
                             icon: BitmapDescriptor.defaultMarkerWithHue(
-                                BitmapDescriptor.hueViolet),
+                              BitmapDescriptor.hueViolet,
+                            ),
                             infoWindow: const InfoWindow(title: 'Pickup'),
                           ),
                         if (widget.dropoffLatLng != null)
@@ -2161,7 +2232,8 @@ class _LocationSectionState extends State<_LocationSection> {
                             markerId: const MarkerId('dropoff'),
                             position: widget.dropoffLatLng!,
                             icon: BitmapDescriptor.defaultMarkerWithHue(
-                                BitmapDescriptor.hueYellow),
+                              BitmapDescriptor.hueYellow,
+                            ),
                             infoWindow: const InfoWindow(title: 'Drop-off'),
                           ),
                       },
@@ -2227,7 +2299,6 @@ class _LocationSectionState extends State<_LocationSection> {
     );
   }
 }
-
 
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel({required this.text});
@@ -2296,11 +2367,7 @@ class _SearchField extends StatelessWidget {
             vertical: 13,
           ),
           border: InputBorder.none,
-          prefixIcon: Icon(
-            icon,
-            size: 18,
-            color: secondaryTextColor(context),
-          ),
+          prefixIcon: Icon(icon, size: 18, color: secondaryTextColor(context)),
           suffixIcon: searching
               ? const Padding(
                   padding: EdgeInsets.all(14),
@@ -2328,7 +2395,6 @@ class _SearchField extends StatelessWidget {
     );
   }
 }
-
 
 class _SuggestionList extends StatelessWidget {
   const _SuggestionList({required this.suggestions, required this.onSelect});
@@ -2397,7 +2463,6 @@ class _SuggestionList extends StatelessWidget {
   }
 }
 
-
 IconData _vehicleCategoryIcon(String category) {
   switch (category) {
     case '2_wheeler':
@@ -2409,60 +2474,30 @@ IconData _vehicleCategoryIcon(String category) {
   }
 }
 
-List<VehicleTypeModel> _filterVehicleTypes(List<VehicleTypeModel> all, String query) {
+List<VehicleTypeModel> _filterVehicleTypes(
+  List<VehicleTypeModel> all,
+  String query,
+) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return all;
   return all.where((v) => v.name.toLowerCase().contains(q)).toList();
 }
 
 class _NoVehicleTypesFound extends StatelessWidget {
-  const _NoVehicleTypesFound({this.onBrowseAll});
-
-  final VoidCallback? onBrowseAll;
+  const _NoVehicleTypesFound();
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'No vehicle types found.',
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.1,
-            ),
-          ),
-          if (onBrowseAll != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Try a different keyword or browse all vehicle types.',
-              style: GoogleFonts.inter(
-                color: secondaryTextColor(context),
-                fontSize: 12.5,
-                letterSpacing: 0.1,
-              ),
-            ),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: onBrowseAll,
-              behavior: HitTestBehavior.opaque,
-              child: Text(
-                'Browse all vehicle types',
-                style: GoogleFonts.inter(
-                  color: TmColors.yellow,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  decoration: TextDecoration.underline,
-                  decorationColor: TmColors.yellow,
-                ),
-              ),
-            ),
-          ],
-        ],
+      child: Text(
+        'No vehicle types found.',
+        style: GoogleFonts.inter(
+          color: context.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.1,
+        ),
       ),
     );
   }
@@ -2471,31 +2506,25 @@ class _NoVehicleTypesFound extends StatelessWidget {
 class _VehicleTypeSection extends StatefulWidget {
   const _VehicleTypeSection({
     required this.vehicleTypes,
+    required this.vehicleCategories,
     required this.loading,
     required this.selectedVehicle,
     required this.readyTruckTypeIds,
     required this.bookNowEnabled,
     required this.serviceType,
-    required this.scheduledDate,
-    required this.scheduledTime,
     required this.onSelect,
-    required this.onDateConfirmed,
-    required this.onTimeConfirmed,
     required this.onScheduleEntireRequest,
     this.onRetry,
   });
 
   final List<VehicleTypeModel> vehicleTypes;
+  final List<VehicleCategoryModel> vehicleCategories;
   final bool loading;
   final VehicleTypeModel? selectedVehicle;
   final Set<int> readyTruckTypeIds;
   final bool bookNowEnabled;
   final String serviceType;
-  final DateTime? scheduledDate;
-  final TimeOfDay? scheduledTime;
   final void Function(VehicleTypeModel) onSelect;
-  final void Function(DateTime) onDateConfirmed;
-  final void Function(TimeOfDay) onTimeConfirmed;
   final VoidCallback onScheduleEntireRequest;
   final VoidCallback? onRetry;
 
@@ -2504,8 +2533,6 @@ class _VehicleTypeSection extends StatefulWidget {
 }
 
 class _VehicleTypeSectionState extends State<_VehicleTypeSection> {
-  static const _defaultRowLimit = 5;
-
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
   bool _changing = false;
@@ -2529,170 +2556,13 @@ class _VehicleTypeSectionState extends State<_VehicleTypeSection> {
     setState(() => _changing = false);
   }
 
-  void _showAllTypesSheet(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: context.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => _AllVehicleTypesSheet(
-        vehicleTypes: widget.vehicleTypes,
-        selectedId: widget.selectedVehicle?.id,
-        onSelect: (v) {
-          Navigator.pop(ctx);
-          _handleSelect(v);
-        },
-      ),
-    );
-  }
-
   Widget _vehicleTypeHeading(BuildContext context) {
-    final labelStyle = sectionEyebrowStyle(context);
-    final linkStyle = GoogleFonts.inter(
-      color: TmColors.yellow,
-      fontSize: 12.5,
-      fontWeight: FontWeight.w600,
-      decoration: TextDecoration.underline,
-      decorationColor: TmColors.yellow,
-    );
-    final label = Text('VEHICLE TYPE', style: labelStyle);
-    final link = GestureDetector(
-      onTap: () => _showHelpSheet(context),
-      behavior: HitTestBehavior.opaque,
-      child: Text('Not sure what to choose?', style: linkStyle),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final dir = Directionality.of(context);
-        final labelWidth = (TextPainter(
-          text: TextSpan(text: 'VEHICLE TYPE', style: labelStyle),
-          textDirection: dir,
-        )..layout()).width;
-        final linkWidth = (TextPainter(
-          text: TextSpan(text: 'Not sure what to choose?', style: linkStyle),
-          textDirection: dir,
-        )..layout()).width;
-        final fitsOneLine = labelWidth + 16 + linkWidth <= constraints.maxWidth;
-        return fitsOneLine
-            ? Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [label, link])
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [label, const SizedBox(height: 8), link],
-              );
-      },
-    );
-  }
-
-  void _showHelpSheet(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: context.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (ctx, scrollController) => Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: ctx.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Choosing a vehicle type',
-                style: GoogleFonts.inter(
-                  color: ctx.textPrimary,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Pick the option closest to your vehicle.',
-                style: GoogleFonts.inter(
-                  color: secondaryTextColor(ctx),
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ListView.separated(
-                  controller: scrollController,
-                  itemCount: widget.vehicleTypes.length,
-                  separatorBuilder: (_, _) => Container(height: 0.5, color: ctx.divider),
-                  itemBuilder: (_, i) {
-                    final v = widget.vehicleTypes[i];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(_vehicleCategoryIcon(v.category), size: 20, color: ctx.textPrimary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  v.name,
-                                  style: GoogleFonts.inter(
-                                    color: ctx.textPrimary,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                if (v.description != null && v.description!.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    v.description!,
-                                    style: GoogleFonts.inter(
-                                      color: secondaryTextColor(ctx),
-                                      fontSize: 12.5,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return Text('VEHICLE TYPE', style: sectionEyebrowStyle(context));
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filterVehicleTypes(widget.vehicleTypes, _searchCtrl.text);
-    final bool searching = _searchCtrl.text.trim().isNotEmpty;
     final bool showSelected = widget.selectedVehicle != null && !_changing;
-    final visibleRows = searching ? filtered : filtered.take(_defaultRowLimit).toList();
-    final bool hasMore = !searching && filtered.length > _defaultRowLimit;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
@@ -2727,7 +2597,10 @@ class _VehicleTypeSectionState extends State<_VehicleTypeSection> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                border: Border.all(color: TmColors.error.withValues(alpha: 0.4), width: 1.5),
+                border: Border.all(
+                  color: TmColors.error.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -2788,14 +2661,6 @@ class _VehicleTypeSectionState extends State<_VehicleTypeSection> {
                     ),
                   ),
                 ],
-              ] else if (widget.serviceType == 'schedule') ...[
-                const SizedBox(height: 16),
-                _SchedulePickerFields(
-                  scheduledDate: widget.scheduledDate,
-                  scheduledTime: widget.scheduledTime,
-                  onDateConfirmed: widget.onDateConfirmed,
-                  onTimeConfirmed: widget.onTimeConfirmed,
-                ),
               ],
             ] else ...[
               _vehicleTypeHeading(context),
@@ -2809,137 +2674,17 @@ class _VehicleTypeSectionState extends State<_VehicleTypeSection> {
                 onChanged: (_) => setState(() {}),
                 onClear: () => setState(_searchCtrl.clear),
               ),
-              const SizedBox(height: 4),
-              if (filtered.isEmpty)
-                _NoVehicleTypesFound(onBrowseAll: () => _showAllTypesSheet(context))
-              else ...[
-                Column(
-                  children: visibleRows.map((v) {
-                    return _VehicleTypeRow(
-                      vehicle: v,
-                      selected: widget.selectedVehicle?.id == v.id,
-                      onTap: () => _handleSelect(v),
-                    );
-                  }).toList(),
-                ),
-                if (hasMore)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: GestureDetector(
-                      onTap: () => _showAllTypesSheet(context),
-                      behavior: HitTestBehavior.opaque,
-                      child: Text(
-                        'View more',
-                        style: GoogleFonts.inter(
-                          color: TmColors.yellow,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          decoration: TextDecoration.underline,
-                          decorationColor: TmColors.yellow,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+              const SizedBox(height: 10),
+              _VehicleCategoryList(
+                vehicleTypes: widget.vehicleTypes,
+                vehicleCategories: widget.vehicleCategories,
+                query: _searchCtrl.text,
+                selectedId: widget.selectedVehicle?.id,
+                onSelect: _handleSelect,
+              ),
             ],
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _AllVehicleTypesSheet extends StatefulWidget {
-  const _AllVehicleTypesSheet({
-    required this.vehicleTypes,
-    required this.selectedId,
-    required this.onSelect,
-  });
-
-  final List<VehicleTypeModel> vehicleTypes;
-  final int? selectedId;
-  final void Function(VehicleTypeModel) onSelect;
-
-  @override
-  State<_AllVehicleTypesSheet> createState() => _AllVehicleTypesSheetState();
-}
-
-class _AllVehicleTypesSheetState extends State<_AllVehicleTypesSheet> {
-  final _searchCtrl = TextEditingController();
-  final _searchFocus = FocusNode();
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    _searchFocus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _filterVehicleTypes(widget.vehicleTypes, _searchCtrl.text);
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (ctx, scrollController) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: ctx.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'All Vehicle Types',
-              style: GoogleFonts.inter(
-                color: ctx.textPrimary,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SearchField(
-              controller: _searchCtrl,
-              focusNode: _searchFocus,
-              placeholder: 'Search vehicle type',
-              searching: false,
-              icon: Icons.search_rounded,
-              onChanged: (_) => setState(() {}),
-              onClear: () => setState(_searchCtrl.clear),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: filtered.isEmpty
-                  ? SingleChildScrollView(
-                      controller: scrollController,
-                      child: const _NoVehicleTypesFound(),
-                    )
-                  : ListView.builder(
-                      controller: scrollController,
-                      itemCount: filtered.length,
-                      itemBuilder: (_, i) {
-                        final v = filtered[i];
-                        return _VehicleTypeRow(
-                          vehicle: v,
-                          selected: widget.selectedId == v.id,
-                          onTap: () => widget.onSelect(v),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -2963,22 +2708,28 @@ class _VehicleTypeRow extends StatelessWidget {
     required this.vehicle,
     required this.selected,
     required this.onTap,
+    this.showCategoryLabel = true,
   });
 
   final VehicleTypeModel vehicle;
   final bool selected;
   final VoidCallback onTap;
+  final bool showCategoryLabel;
 
   @override
   Widget build(BuildContext context) {
-    final categoryLabel = _vehicleCategoryLabel(vehicle.category);
+    final categoryLabel = showCategoryLabel
+        ? _vehicleCategoryLabel(vehicle.category)
+        : '';
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
+          border: Border(
+            bottom: BorderSide(color: context.divider, width: 0.5),
+          ),
         ),
         child: Row(
           children: [
@@ -3018,12 +2769,232 @@ class _VehicleTypeRow extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             if (selected)
-              const Icon(Icons.check_circle_rounded, size: 20, color: TmColors.yellow)
+              const Icon(
+                Icons.check_circle_rounded,
+                size: 20,
+                color: TmColors.yellow,
+              )
             else
-              Icon(Icons.chevron_right_rounded, size: 20, color: secondaryTextColor(context)),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: secondaryTextColor(context),
+              ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _VehicleCategoryGroup {
+  const _VehicleCategoryGroup({
+    required this.slug,
+    required this.name,
+    required this.vehicles,
+  });
+
+  final String slug;
+  final String name;
+  final List<VehicleTypeModel> vehicles;
+}
+
+List<_VehicleCategoryGroup> _groupVehiclesByCategory(
+  List<VehicleCategoryModel> categories,
+  List<VehicleTypeModel> vehicles,
+) {
+  final byCategory = <String, List<VehicleTypeModel>>{};
+  for (final v in vehicles) {
+    byCategory.putIfAbsent(v.category, () => []).add(v);
+  }
+
+  final groups = <_VehicleCategoryGroup>[];
+  final seen = <String>{};
+  for (final c in categories) {
+    final vs = byCategory[c.slug];
+    if (vs == null || vs.isEmpty) continue;
+    groups.add(_VehicleCategoryGroup(slug: c.slug, name: c.name, vehicles: vs));
+    seen.add(c.slug);
+  }
+  for (final entry in byCategory.entries) {
+    if (seen.contains(entry.key)) continue;
+    final fallbackLabel = _vehicleCategoryLabel(entry.key);
+    groups.add(
+      _VehicleCategoryGroup(
+        slug: entry.key,
+        name: fallbackLabel.isNotEmpty ? fallbackLabel : entry.key,
+        vehicles: entry.value,
+      ),
+    );
+  }
+  return groups;
+}
+
+class _VehicleCategoryList extends StatefulWidget {
+  const _VehicleCategoryList({
+    required this.vehicleTypes,
+    required this.vehicleCategories,
+    required this.query,
+    required this.selectedId,
+    required this.onSelect,
+  });
+
+  final List<VehicleTypeModel> vehicleTypes;
+  final List<VehicleCategoryModel> vehicleCategories;
+  final String query;
+  final int? selectedId;
+  final void Function(VehicleTypeModel) onSelect;
+
+  @override
+  State<_VehicleCategoryList> createState() => _VehicleCategoryListState();
+}
+
+class _VehicleCategoryListState extends State<_VehicleCategoryList> {
+  String? _expandedSlug;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.query.trim().isNotEmpty) {
+      final filtered = _filterVehicleTypes(widget.vehicleTypes, widget.query);
+      if (filtered.isEmpty) return const _NoVehicleTypesFound();
+      return Column(
+        children: filtered
+            .map(
+              (v) => _VehicleTypeRow(
+                vehicle: v,
+                selected: widget.selectedId == v.id,
+                onTap: () => widget.onSelect(v),
+              ),
+            )
+            .toList(),
+      );
+    }
+
+    final groups = _groupVehiclesByCategory(
+      widget.vehicleCategories,
+      widget.vehicleTypes,
+    );
+
+    if (groups.isEmpty) return const _NoVehicleTypesFound();
+
+    return Column(
+      children: groups.map((group) {
+        final isExpanded = _expandedSlug == group.slug;
+        return _VehicleCategoryGroupTile(
+          group: group,
+          expanded: isExpanded,
+          selectedId: widget.selectedId,
+          onToggle: () => setState(() {
+            _expandedSlug = isExpanded ? null : group.slug;
+          }),
+          onSelectVehicle: widget.onSelect,
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _VehicleCategoryGroupTile extends StatelessWidget {
+  const _VehicleCategoryGroupTile({
+    required this.group,
+    required this.expanded,
+    required this.selectedId,
+    required this.onToggle,
+    required this.onSelectVehicle,
+  });
+
+  final _VehicleCategoryGroup group;
+  final bool expanded;
+  final int? selectedId;
+  final VoidCallback onToggle;
+  final void Function(VehicleTypeModel) onSelectVehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: onToggle,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: context.divider, width: 0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _vehicleCategoryIcon(group.slug),
+                  size: 20,
+                  color: context.textPrimary,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        group.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          color: context.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${group.vehicles.length} option${group.vehicles.length == 1 ? '' : 's'}',
+                        style: GoogleFonts.inter(
+                          color: secondaryTextColor(context),
+                          fontSize: 12,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AnimatedRotation(
+                  turns: expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(
+                    Icons.expand_more_rounded,
+                    size: 20,
+                    color: secondaryTextColor(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          alignment: Alignment.topCenter,
+          child: expanded
+              ? Padding(
+                  padding: const EdgeInsets.only(left: 34, top: 4, bottom: 4),
+                  child: Column(
+                    children: group.vehicles
+                        .map(
+                          (v) => _VehicleTypeRow(
+                            vehicle: v,
+                            selected: selectedId == v.id,
+                            onTap: () => onSelectVehicle(v),
+                            showCategoryLabel: false,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
     );
   }
 }
@@ -3035,7 +3006,9 @@ class _AvailabilityStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = available ? TmColors.success : secondaryTextColor(context);
+    final Color color = available
+        ? TmColors.success
+        : secondaryTextColor(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -3045,7 +3018,9 @@ class _AvailabilityStatusCard extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            available ? Icons.check_circle_rounded : Icons.remove_circle_outline_rounded,
+            available
+                ? Icons.check_circle_rounded
+                : Icons.remove_circle_outline_rounded,
             size: 18,
             color: color,
           ),
@@ -3055,7 +3030,9 @@ class _AvailabilityStatusCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  available ? 'Available for Book Now' : 'Not available for Book Now',
+                  available
+                      ? 'Available for Book Now'
+                      : 'Not available for Book Now',
                   style: GoogleFonts.inter(
                     color: color,
                     fontSize: 13,
@@ -3084,7 +3061,10 @@ class _AvailabilityStatusCard extends StatelessWidget {
 }
 
 class _SelectedVehicleTypeRow extends StatelessWidget {
-  const _SelectedVehicleTypeRow({required this.vehicle, required this.onChange});
+  const _SelectedVehicleTypeRow({
+    required this.vehicle,
+    required this.onChange,
+  });
 
   final VehicleTypeModel vehicle;
   final VoidCallback onChange;
@@ -3100,7 +3080,11 @@ class _SelectedVehicleTypeRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(_vehicleCategoryIcon(vehicle.category), size: 18, color: context.textPrimary),
+          Icon(
+            _vehicleCategoryIcon(vehicle.category),
+            size: 18,
+            color: context.textPrimary,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -3211,7 +3195,9 @@ class _VehicleImageSection extends StatelessWidget {
                           Text(
                             'Add vehicle photos',
                             style: GoogleFonts.inter(
-                              color: showError ? TmColors.error : context.textPrimary,
+                              color: showError
+                                  ? TmColors.error
+                                  : context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                               letterSpacing: -0.1,
@@ -3257,7 +3243,11 @@ class _VehicleImageSection extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.add_rounded, size: 22, color: context.textPrimary),
+                          Icon(
+                            Icons.add_rounded,
+                            size: 22,
+                            color: context.textPrimary,
+                          ),
                           const SizedBox(height: 4),
                           Text(
                             'Add more',
@@ -3352,11 +3342,11 @@ class _ImageThumb extends StatelessWidget {
   }
 }
 
-
 class _ExtraVehiclesSection extends StatefulWidget {
   const _ExtraVehiclesSection({
     required this.extraVehicles,
     required this.vehicleTypes,
+    required this.vehicleCategories,
     required this.canAdd,
     required this.vehicleCount,
     required this.readyTruckTypeIds,
@@ -3371,6 +3361,7 @@ class _ExtraVehiclesSection extends StatefulWidget {
 
   final List<_ExtraVehicleData> extraVehicles;
   final List<VehicleTypeModel> vehicleTypes;
+  final List<VehicleCategoryModel> vehicleCategories;
   final bool canAdd;
   final int vehicleCount;
   final Set<int> readyTruckTypeIds;
@@ -3429,7 +3420,9 @@ class _ExtraVehiclesSectionState extends State<_ExtraVehiclesSection> {
               Text(
                 '${widget.vehicleCount} of 6 vehicles',
                 style: GoogleFonts.inter(
-                  color: widget.vehicleCount >= 6 ? TmColors.error : secondaryTextColor(context),
+                  color: widget.vehicleCount >= 6
+                      ? TmColors.error
+                      : secondaryTextColor(context),
                   fontSize: 11,
                   letterSpacing: 0.4,
                 ),
@@ -3452,6 +3445,7 @@ class _ExtraVehiclesSectionState extends State<_ExtraVehiclesSection> {
               index: i,
               data: data,
               vehicleTypes: widget.vehicleTypes,
+              vehicleCategories: widget.vehicleCategories,
               expanded: identical(_expanded, data),
               onToggleExpand: () => setState(() {
                 _expanded = identical(_expanded, data) ? null : data;
@@ -3462,7 +3456,8 @@ class _ExtraVehiclesSectionState extends State<_ExtraVehiclesSection> {
               readyTruckTypeIds: widget.readyTruckTypeIds,
               requestServiceType: widget.requestServiceType,
               onAddPhotoTap: () => widget.onAddPhotoTap(i),
-              onRemovePhoto: (photoIndex) => widget.onRemovePhoto(i, photoIndex),
+              onRemovePhoto: (photoIndex) =>
+                  widget.onRemovePhoto(i, photoIndex),
             );
           }),
           const SizedBox(height: 14),
@@ -3480,7 +3475,11 @@ class _ExtraVehiclesSectionState extends State<_ExtraVehiclesSection> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.add_rounded, size: 16, color: context.textPrimary),
+                    Icon(
+                      Icons.add_rounded,
+                      size: 16,
+                      color: context.textPrimary,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       'Add another vehicle',
@@ -3524,6 +3523,7 @@ class _ExtraVehicleSlot extends StatefulWidget {
     required this.index,
     required this.data,
     required this.vehicleTypes,
+    required this.vehicleCategories,
     required this.expanded,
     required this.onToggleExpand,
     required this.onRemove,
@@ -3538,6 +3538,7 @@ class _ExtraVehicleSlot extends StatefulWidget {
   final int index;
   final _ExtraVehicleData data;
   final List<VehicleTypeModel> vehicleTypes;
+  final List<VehicleCategoryModel> vehicleCategories;
   final bool expanded;
   final VoidCallback onToggleExpand;
   final VoidCallback onRemove;
@@ -3556,7 +3557,6 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
   bool _changing = false;
-  bool _browsingAll = false;
 
   @override
   void dispose() {
@@ -3583,8 +3583,11 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
     final onRemovePhoto = widget.onRemovePhoto;
     final hasVehicle = data.vehicle != null;
     final hasPhotos = data.images.isNotEmpty;
-    final bool isAvailableForBookNow = hasVehicle && _isAvailable(data.vehicle!);
-    final bool bookingReady = widget.requestServiceType == 'schedule' ? true : isAvailableForBookNow;
+    final bool isAvailableForBookNow =
+        hasVehicle && _isAvailable(data.vehicle!);
+    final bool bookingReady = widget.requestServiceType == 'schedule'
+        ? true
+        : isAvailableForBookNow;
     final bool isComplete = hasVehicle && hasPhotos && bookingReady;
     final String statusLabel = !hasVehicle
         ? 'Vehicle type required'
@@ -3601,10 +3604,7 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
 
     void handleVehicleTap(VehicleTypeModel v) {
       onVehicleSet(v);
-      setState(() {
-        _changing = false;
-        _browsingAll = false;
-      });
+      setState(() => _changing = false);
     }
 
     return Container(
@@ -3657,7 +3657,10 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                     onTap: onRemove,
                     behavior: HitTestBehavior.opaque,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
                       child: Text(
                         'Remove',
                         style: GoogleFonts.inter(
@@ -3699,7 +3702,10 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                         const SizedBox(height: 12),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 14),
-                          child: Text('VEHICLE TYPE', style: sectionEyebrowStyle(context)),
+                          child: Text(
+                            'VEHICLE TYPE',
+                            style: sectionEyebrowStyle(context),
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Padding(
@@ -3707,10 +3713,8 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                           child: (hasVehicle && !_changing)
                               ? _SelectedVehicleTypeRow(
                                   vehicle: data.vehicle!,
-                                  onChange: () => setState(() {
-                                    _changing = true;
-                                    _browsingAll = false;
-                                  }),
+                                  onChange: () =>
+                                      setState(() => _changing = true),
                                 )
                               : Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3722,38 +3726,18 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                                       searching: false,
                                       icon: Icons.search_rounded,
                                       onChanged: (_) => setState(() {}),
-                                      onClear: () => setState(_searchCtrl.clear),
+                                      onClear: () =>
+                                          setState(_searchCtrl.clear),
                                     ),
                                     const SizedBox(height: 10),
-                                    if (_searchCtrl.text.trim().isEmpty && !_browsingAll)
-                                      GestureDetector(
-                                        onTap: () => setState(() => _browsingAll = true),
-                                        behavior: HitTestBehavior.opaque,
-                                        child: Text(
-                                          'Browse all vehicle types',
-                                          style: GoogleFonts.inter(
-                                            color: TmColors.yellow,
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w600,
-                                            decoration: TextDecoration.underline,
-                                            decorationColor: TmColors.yellow,
-                                          ),
-                                        ),
-                                      )
-                                    else if (_filterVehicleTypes(vehicleTypes, _searchCtrl.text).isEmpty)
-                                      _NoVehicleTypesFound(
-                                        onBrowseAll: () => setState(() => _browsingAll = true),
-                                      )
-                                    else
-                                      Column(
-                                        children: _filterVehicleTypes(vehicleTypes, _searchCtrl.text).map((v) {
-                                          return _VehicleTypeRow(
-                                            vehicle: v,
-                                            selected: data.vehicle?.id == v.id,
-                                            onTap: () => handleVehicleTap(v),
-                                          );
-                                        }).toList(),
-                                      ),
+                                    _VehicleCategoryList(
+                                      vehicleTypes: vehicleTypes,
+                                      vehicleCategories:
+                                          widget.vehicleCategories,
+                                      query: _searchCtrl.text,
+                                      selectedId: data.vehicle?.id,
+                                      onSelect: handleVehicleTap,
+                                    ),
                                   ],
                                 ),
                         ),
@@ -3761,7 +3745,9 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                           const SizedBox(height: 12),
                           if (widget.requestServiceType == 'book_now') ...[
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -3790,7 +3776,9 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                             ),
                           ] else
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
                               child: Text(
                                 'This vehicle will be scheduled with the rest of your request.',
                                 style: GoogleFonts.inter(
@@ -3807,7 +3795,10 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('VEHICLE PHOTOS', style: sectionEyebrowStyle(context)),
+                              Text(
+                                'VEHICLE PHOTOS',
+                                style: sectionEyebrowStyle(context),
+                              ),
                               if (data.images.isNotEmpty)
                                 Text(
                                   '${data.images.length} / 5 photos',
@@ -3832,7 +3823,9 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                                     decoration: BoxDecoration(
                                       color: context.card,
                                       border: Border.all(
-                                        color: data.imageError ? TmColors.error : context.divider,
+                                        color: data.imageError
+                                            ? TmColors.error
+                                            : context.divider,
                                         width: 1.5,
                                       ),
                                       borderRadius: BorderRadius.circular(12),
@@ -3842,14 +3835,18 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                                         Icon(
                                           Icons.add_a_photo_rounded,
                                           size: 22,
-                                          color: data.imageError ? TmColors.error : context.textPrimary,
+                                          color: data.imageError
+                                              ? TmColors.error
+                                              : context.textPrimary,
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
                                           child: Text(
                                             'Add vehicle photos',
                                             style: GoogleFonts.inter(
-                                              color: data.imageError ? TmColors.error : context.textPrimary,
+                                              color: data.imageError
+                                                  ? TmColors.error
+                                                  : context.textPrimary,
                                               fontSize: 13,
                                               fontWeight: FontWeight.w700,
                                               letterSpacing: -0.1,
@@ -3879,13 +3876,23 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                                           height: 88,
                                           decoration: BoxDecoration(
                                             color: context.card,
-                                            border: Border.all(color: context.divider, width: 1.5),
-                                            borderRadius: BorderRadius.circular(10),
+                                            border: Border.all(
+                                              color: context.divider,
+                                              width: 1.5,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                           child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
                                             children: [
-                                              Icon(Icons.add_rounded, size: 22, color: context.textPrimary),
+                                              Icon(
+                                                Icons.add_rounded,
+                                                size: 22,
+                                                color: context.textPrimary,
+                                              ),
                                               const SizedBox(height: 4),
                                               Text(
                                                 'Add more',
@@ -3913,7 +3920,6 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
     );
   }
 }
-
 
 class _NotesSection extends StatelessWidget {
   const _NotesSection({required this.controller});
@@ -3959,7 +3965,6 @@ class _NotesSection extends StatelessWidget {
     );
   }
 }
-
 
 class _StepIndicator extends StatelessWidget {
   const _StepIndicator({required this.step});
@@ -4020,7 +4025,9 @@ class _StepDot extends StatelessWidget {
                 : Text(
                     '${index + 1}',
                     style: GoogleFonts.inter(
-                      color: active ? TmColors.black : secondaryTextColor(context),
+                      color: active
+                          ? TmColors.black
+                          : secondaryTextColor(context),
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.1,
@@ -4059,10 +4066,10 @@ class _StepLine extends StatelessWidget {
   }
 }
 
-
 class _PriceBreakdown extends StatelessWidget {
   const _PriceBreakdown({
     required this.pricing,
+    required this.bookNowVehiclePreviews,
     required this.scheduledExtraPreviews,
     required this.vehicleTypes,
     required this.bookNowVehicleCount,
@@ -4072,6 +4079,7 @@ class _PriceBreakdown extends StatelessWidget {
   });
 
   final Map<String, dynamic> pricing;
+  final List<Map<String, dynamic>> bookNowVehiclePreviews;
   final List<Map<String, dynamic>> scheduledExtraPreviews;
   final List<VehicleTypeModel> vehicleTypes;
   final int bookNowVehicleCount;
@@ -4090,7 +4098,9 @@ class _PriceBreakdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (serviceType == 'schedule') {
+    if (serviceType == 'schedule' ||
+        scheduledExtraPreviews.isNotEmpty ||
+        bookNowVehiclePreviews.length > 1) {
       return _buildScheduledBreakdown(context);
     }
     return _buildBookNowBreakdown(context);
@@ -4110,8 +4120,11 @@ class _PriceBreakdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _BRow(
-          label: combinedBaseRate ? 'Base Rate ($bookNowVehicleCount vehicles)' : 'Base Rate',
-          value: '₱${priceFmt.format(combinedBaseRate ? baseRateTotal : baseRate)}',
+          label: combinedBaseRate
+              ? 'Base Rate ($bookNowVehicleCount vehicles)'
+              : 'Base Rate',
+          value:
+              '₱${priceFmt.format(combinedBaseRate ? baseRateTotal : baseRate)}',
         ),
         _BRow(
           label: 'Distance Fee',
@@ -4163,26 +4176,43 @@ class _PriceBreakdown extends StatelessWidget {
   }
 
   Widget _buildScheduledBreakdown(BuildContext context) {
+    final vehiclePreviews = serviceType == 'book_now'
+        ? bookNowVehiclePreviews
+        : <Map<String, dynamic>>[];
     final names = <String>[
       primaryVehicleName,
-      for (final ev in scheduledExtraPreviews) _vehicleName((ev['vehicle_type_id'] as num? ?? 0).toInt()),
+      for (final ev in serviceType == 'book_now'
+          ? vehiclePreviews.skip(1)
+          : scheduledExtraPreviews)
+        _vehicleName((ev['vehicle_type_id'] as num? ?? 0).toInt()),
     ];
-    final baseRates = <double>[
-      _num(pricing['base_rate']),
-      for (final ev in scheduledExtraPreviews) _num(ev['base_rate']),
-    ];
-    final distanceFees = <double>[
-      _num(pricing['distance_fee']),
-      for (final ev in scheduledExtraPreviews) _num(ev['distance_fee']),
-    ];
-    final vatAmounts = <double>[
-      _num(pricing['vat_amount']),
-      for (final ev in scheduledExtraPreviews) _num(ev['vat_amount']),
-    ];
-    final finalTotals = <double>[
-      _num(pricing['final_total']),
-      for (final ev in scheduledExtraPreviews) _num(ev['final_total']),
-    ];
+    final multiVehicle = names.length > 1;
+    final baseRates = serviceType == 'book_now' && vehiclePreviews.isNotEmpty
+        ? [for (final ev in vehiclePreviews) _num(ev['base_rate'])]
+        : [
+            _num(pricing['base_rate']),
+            for (final ev in scheduledExtraPreviews) _num(ev['base_rate']),
+          ];
+    final distanceFees =
+        serviceType == 'book_now' && vehiclePreviews.isNotEmpty
+            ? [for (final ev in vehiclePreviews) _num(ev['distance_fee'])]
+            : [
+                _num(pricing['distance_fee']),
+                for (final ev in scheduledExtraPreviews)
+                  _num(ev['distance_fee']),
+              ];
+    final vatAmounts = serviceType == 'book_now' && vehiclePreviews.isNotEmpty
+        ? [for (final ev in vehiclePreviews) _num(ev['vat_amount'])]
+        : [
+            _num(pricing['vat_amount']),
+            for (final ev in scheduledExtraPreviews) _num(ev['vat_amount']),
+          ];
+    final finalTotals = serviceType == 'book_now' && vehiclePreviews.isNotEmpty
+        ? [for (final ev in vehiclePreviews) _num(ev['final_total'])]
+        : [
+            _num(pricing['final_total']),
+            for (final ev in scheduledExtraPreviews) _num(ev['final_total']),
+          ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4193,45 +4223,74 @@ class _PriceBreakdown extends StatelessWidget {
             Container(height: 1, color: context.divider),
             const SizedBox(height: 14),
           ],
-          Text('VEHICLE ${i + 1}', style: sectionEyebrowStyle(context)),
-          const SizedBox(height: 4),
           Text(
-            names[i],
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.1,
-            ),
+            multiVehicle
+                ? 'Vehicle ${i + 1} — ${names[i]}'
+                : 'VEHICLE ${i + 1}',
+            style: multiVehicle
+                ? GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.1,
+                  )
+                : sectionEyebrowStyle(context),
           ),
+          if (!multiVehicle) ...[
+            const SizedBox(height: 4),
+            Text(
+              names[i],
+              style: GoogleFonts.inter(
+                color: context.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.1,
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
-          _BRow(label: 'Estimated Base Rate', value: '₱${priceFmt.format(baseRates[i])}'),
-          _BRow(label: 'Estimated Distance Fee', value: '₱${priceFmt.format(distanceFees[i])}'),
-          _BRow(label: 'Estimated VAT', value: '₱${priceFmt.format(vatAmounts[i])}'),
-          _BRow(label: 'Estimated Total', value: '₱${priceFmt.format(finalTotals[i])}'),
+          _BRow(
+            label: multiVehicle ? 'Base Rate' : 'Estimated Base Rate',
+            value: '₱${priceFmt.format(baseRates[i])}',
+          ),
+          _BRow(
+            label: multiVehicle ? 'Distance Fee' : 'Estimated Distance Fee',
+            value: '₱${priceFmt.format(distanceFees[i])}',
+            caption: multiVehicle ? 'First 4 km included.' : null,
+          ),
+          _BRow(
+            label: multiVehicle ? 'VAT (12%)' : 'Estimated VAT',
+            value: '₱${priceFmt.format(vatAmounts[i])}',
+          ),
+          _BRow(
+            label: multiVehicle ? 'Vehicle Total' : 'Estimated Total',
+            value: '₱${priceFmt.format(finalTotals[i])}',
+          ),
+        ],
+        if (multiVehicle) ...[
+          const SizedBox(height: 14),
+          Container(height: 1, color: context.divider),
+          const SizedBox(height: 12),
+          _BRow(
+            label: 'Estimated Total',
+            value:
+                '₱${priceFmt.format(finalTotals.fold<double>(0, (sum, value) => sum + value))}',
+          ),
         ],
         const SizedBox(height: 14),
         Container(height: 1, color: context.divider),
         const SizedBox(height: 12),
-        Text(
-          'Scheduled pricing may change after quotation review.',
-          style: GoogleFonts.inter(
-            color: secondaryTextColor(context),
-            fontSize: 11.5,
-            letterSpacing: 0.1,
-            height: 1.4,
+        if (serviceType == 'schedule') ...[
+          Text(
+            'Scheduled pricing may change after quotation review.',
+            style: GoogleFonts.inter(
+              color: secondaryTextColor(context),
+              fontSize: 11.5,
+              letterSpacing: 0.1,
+              height: 1.4,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Each vehicle will be quoted and billed separately.',
-          style: GoogleFonts.inter(
-            color: secondaryTextColor(context),
-            fontSize: 11.5,
-            letterSpacing: 0.1,
-            height: 1.4,
-          ),
-        ),
+        ],
       ],
     );
   }
@@ -4289,7 +4348,6 @@ class _BRow extends StatelessWidget {
     );
   }
 }
-
 
 class _ReviewRow extends StatelessWidget {
   const _ReviewRow({required this.label, required this.value, this.caption});
@@ -4414,7 +4472,8 @@ class _VehicleReviewEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool wide = constraints.maxWidth >= 300 && vehicle.images.isNotEmpty;
+        final bool wide =
+            constraints.maxWidth >= 300 && vehicle.images.isNotEmpty;
         if (!wide) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4450,7 +4509,12 @@ class _ReviewPhotoThumb extends StatelessWidget {
       borderRadius: BorderRadius.circular(6),
       child: kIsWeb
           ? Image.network(file.path, width: 52, height: 52, fit: BoxFit.cover)
-          : Image.file(File(file.path), width: 52, height: 52, fit: BoxFit.cover),
+          : Image.file(
+              File(file.path),
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+            ),
     );
   }
 }

@@ -19,8 +19,8 @@ void main() {
 
       final field = tester.widget<TextField>(find.byType(TextField).last);
       expect(field.obscureText, isTrue);
-      expect(find.byIcon(Icons.visibility), findsOneWidget);
-      expect(find.byIcon(Icons.visibility_off), findsNothing);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_off_outlined), findsNothing);
     });
 
     testWidgets('tapping the eye reveals the password and swaps the icon', (tester) async {
@@ -29,27 +29,27 @@ void main() {
       await tester.enterText(find.byType(TextFormField).last, 'MyPassword!123');
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.visibility));
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
       await tester.pump();
 
       final field = tester.widget<TextField>(find.byType(TextField).last);
       expect(field.obscureText, isFalse);
       expect(field.controller!.text, 'MyPassword!123');
-      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
-      expect(find.byIcon(Icons.visibility), findsNothing);
+      expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsNothing);
     });
 
     testWidgets('tapping the eye a second time hides the password again', (tester) async {
       await pumpLogin(tester);
 
-      await tester.tap(find.byIcon(Icons.visibility));
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
       await tester.pump();
-      await tester.tap(find.byIcon(Icons.visibility_off));
+      await tester.tap(find.byIcon(Icons.visibility_off_outlined));
       await tester.pump();
 
       final field = tester.widget<TextField>(find.byType(TextField).last);
       expect(field.obscureText, isTrue);
-      expect(find.byIcon(Icons.visibility), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
     });
   });
 }

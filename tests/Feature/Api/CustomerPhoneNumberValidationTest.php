@@ -29,7 +29,7 @@ beforeEach(function () {
 });
 
 it('accepts the canonical +639XXXXXXXXX phone format on registration', function () {
-    $email = 'phoneok-' . uniqid() . '@example.com';
+    $email = 'phoneok-' . uniqid() . '@gmail.com';
     Cache::put('reg_verified_' . $email, true, now()->addMinutes(15));
 
     $response = test()->postJson('/api/register', cpvRegisterPayload($email, '+639171234567'));
@@ -73,12 +73,12 @@ it('rejects a request that omits the phone field entirely', function () {
 });
 
 it('still enforces phone uniqueness under the canonical format', function () {
-    $existingEmail = 'phoneuniq1-' . uniqid() . '@example.com';
+    $existingEmail = 'phoneuniq1-' . uniqid() . '@gmail.com';
     Cache::put('reg_verified_' . $existingEmail, true, now()->addMinutes(15));
     test()->postJson('/api/register', cpvRegisterPayload($existingEmail, '+639171234567'))
         ->assertStatus(201);
 
-    $secondEmail = 'phoneuniq2-' . uniqid() . '@example.com';
+    $secondEmail = 'phoneuniq2-' . uniqid() . '@gmail.com';
     Cache::put('reg_verified_' . $secondEmail, true, now()->addMinutes(15));
     $response = test()->postJson('/api/register', cpvRegisterPayload($secondEmail, '+639171234567'));
 

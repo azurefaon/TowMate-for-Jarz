@@ -147,13 +147,13 @@ it('excludes security categories from the default unfiltered view', function () 
     $response->assertDontSee('BA_SECURITY_LOGIN_EVENT');
 });
 
-it('still allows viewing security category logs when explicitly filtered', function () {
+it('never shows security or account events even when a category filter is forced in the query string', function () {
     baLog(['category' => 'security', 'action' => 'customer_password_reset_otp_locked', 'description' => 'BA_SECURITY_FILTERED_EVENT']);
 
     $response = $this->actingAs(baOwner())->get(route('superadmin.reports.activity', ['category' => 'security']));
 
     $response->assertOk();
-    $response->assertSee('BA_SECURITY_FILTERED_EVENT');
+    $response->assertDontSee('BA_SECURITY_FILTERED_EVENT');
 });
 
 it('continues to support the date range filter', function () {
@@ -223,4 +223,58 @@ it('renders a clean empty state when no activity matches the filters', function 
     $response->assertOk();
     $response->assertSee('No business activity found.');
     $response->assertSee('Try adjusting the selected filters or date range.');
+});
+
+it('excludes account and security events from business activity', function () {
+    baLog(['action' => 'user_anonymized', 'description' => 'BA_HIDDEN_ANONYMIZED']);
+    baLog(['action' => 'user_permanently_deleted', 'description' => 'BA_HIDDEN_DELETED']);
+    baLog(['action' => 'user_queued_for_deletion', 'description' => 'BA_HIDDEN_QUEUED']);
+    baLog(['action' => 'user_updated', 'description' => 'BA_HIDDEN_ROLE_CHANGE']);
+    baLog(['action' => 'password_changed', 'description' => 'BA_HIDDEN_PASSWORD']);
+    baLog(['action' => 'account_temporarily_locked', 'description' => 'BA_HIDDEN_LOCKED']);
+    baLog(['action' => 'account_unlocked_via_email', 'description' => 'BA_HIDDEN_UNLOCKED']);
+    baLog(['action' => 'login', 'description' => 'BA_HIDDEN_LOGIN']);
+    baLog(['action' => 'failed_login', 'description' => 'BA_HIDDEN_FAILED_LOGIN']);
+
+    $response = $this->actingAs(baOwner())->get(route('superadmin.reports.activity'));
+
+    $response->assertOk();
+    $response->assertDontSee('BA_HIDDEN_ANONYMIZED');
+    $response->assertDontSee('BA_HIDDEN_DELETED');
+    $response->assertDontSee('BA_HIDDEN_QUEUED');
+    $response->assertDontSee('BA_HIDDEN_ROLE_CHANGE');
+    $response->assertDontSee('BA_HIDDEN_PASSWORD');
+    $response->assertDontSee('BA_HIDDEN_LOCKED');
+    $response->assertDontSee('BA_HIDDEN_UNLOCKED');
+    $response->assertDontSee('BA_HIDDEN_LOGIN');
+    $response->assertDontSee('BA_HIDDEN_FAILED_LOGIN');
+});
+
+it('includes genuine business events in business activity', function () {
+    baLog(['action' => 'create_booking', 'entity_type' => 'Booking', 'description' => 'BA_SHOWN_BOOKING_CREATED']);
+    baLog(['action' => 'create_quotation', 'entity_type' => 'Quotation', 'description' => 'BA_SHOWN_QUOTATION_CREATED']);
+    baLog(['action' => 'payment_confirmed', 'entity_type' => 'Booking', 'description' => 'BA_SHOWN_PAYMENT_CONFIRMED']);
+    baLog(['action' => 'unit_assigned', 'entity_type' => 'Unit', 'description' => 'BA_SHOWN_UNIT_ASSIGNED']);
+    baLog(['action' => 'crew_borrowed', 'entity_type' => 'Unit', 'description' => 'BA_SHOWN_CREW_BORROWED']);
+    baLog(['action' => 'update_truck_type', 'entity_type' => 'TruckType', 'description' => 'BA_SHOWN_RATE_CHANGED']);
+
+    $response = $this->actingAs(baOwner())->get(route('superadmin.reports.activity'));
+
+    $response->assertOk();
+    $response->assertSee('BA_SHOWN_BOOKING_CREATED');
+    $response->assertSee('BA_SHOWN_QUOTATION_CREATED');
+    $response->assertSee('BA_SHOWN_PAYMENT_CONFIRMED');
+    $response->assertSee('BA_SHOWN_UNIT_ASSIGNED');
+    $response->assertSee('BA_SHOWN_CREW_BORROWED');
+    $response->assertSee('BA_SHOWN_RATE_CHANGED');
+});
+
+it('excludes account and security events from the exported business activity pdf', function () {
+    baLog(['action' => 'create_booking', 'description' => 'BA_PDF_SHOWN_BOOKING']);
+    baLog(['action' => 'user_anonymized', 'description' => 'BA_PDF_HIDDEN_ANONYMIZED']);
+    baLog(['action' => 'login', 'description' => 'BA_PDF_HIDDEN_LOGIN']);
+
+    $response = $this->actingAs(baOwner())->get(route('superadmin.reports.activity.export'));
+
+    $response->assertOk();
 });

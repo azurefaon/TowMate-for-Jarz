@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
+import '../../widgets/skeleton_box.dart';
 import '../../widgets/tm_bottom_nav.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -51,17 +52,45 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
   }
 
-  void _onTap(Map<String, dynamic> n) {
+  static const _quotationActionTypes = {
+    'quotation_sent',
+    'quotation_updated',
+    'quotation_price_review_kept',
+    'quotation_followup',
+  };
+
+  Future<void> _onTap(Map<String, dynamic> n) async {
     final code = n['booking_code'] as String?;
-    if (code != null && code.isNotEmpty) {
-      Navigator.pushNamed(context, '/booking-detail', arguments: code);
-    }
+    if (code == null || code.isEmpty) return;
+
     if (n['is_read'] == false) {
+      final id = n['id'];
       setState(() {
         final idx = _notifications.indexOf(n);
         if (idx >= 0) _notifications[idx] = {...n, 'is_read': true};
       });
+      if (id is int) {
+        ApiService.markNotificationRead(id);
+      }
     }
+
+    if (_quotationActionTypes.contains(n['type'] as String?)) {
+      final quotation = await ApiService.fetchPendingQuotation();
+      if (!mounted) return;
+      if (quotation != null) {
+        Navigator.pushNamed(context, '/quotation', arguments: quotation);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This quotation is no longer available. It may have already been responded to or expired.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    Navigator.pushNamed(context, '/booking-detail', arguments: code);
   }
 
   @override
@@ -70,6 +99,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Scaffold(
       backgroundColor: context.bg,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: context.surface,
         elevation: 0,
         centerTitle: true,
@@ -80,10 +110,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             fontSize: 16,
             letterSpacing: -0.3,
           ),
-        ),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: context.textPrimary),
-          onPressed: () => Navigator.pop(context),
         ),
         actions: [
           if (hasUnread)
@@ -101,9 +127,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ),
       bottomNavigationBar: const TmBottomNav(currentRoute: '/notifications'),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: TmColors.yellow),
-            )
+          ? const _NotificationsSkeleton()
           : _notifications.isEmpty
               ? Center(
                   child: Column(
@@ -125,14 +149,92 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               : RefreshIndicator(
                   color: TmColors.yellow,
                   onRefresh: _load,
-                  child: ListView.separated(
-                    itemCount: _notifications.length,
-                    separatorBuilder: (_, __) =>
-                        Divider(height: 0.5, color: context.divider),
-                    itemBuilder: (_, i) =>
-                        _NotifCard(n: _notifications[i], onTap: _onTap),
+                  child: ListView(
+                    children: _buildSectionedItems(),
                   ),
                 ),
+    );
+  }
+
+  List<Widget> _buildSectionedItems() {
+    final sections = groupNotificationsByDate(_notifications);
+    final items = <Widget>[];
+    for (final section in sections) {
+      items.add(_SectionHeader(label: section.label));
+      for (final n in section.items) {
+        items.add(_NotifCard(n: n, onTap: _onTap));
+      }
+    }
+    return items;
+  }
+}
+
+class NotificationDateSection {
+  const NotificationDateSection(this.label, this.items);
+  final String label;
+  final List<Map<String, dynamic>> items;
+}
+
+List<NotificationDateSection> groupNotificationsByDate(
+  List<Map<String, dynamic>> notifications,
+) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+
+  final todayItems = <Map<String, dynamic>>[];
+  final yesterdayItems = <Map<String, dynamic>>[];
+  final earlierItems = <Map<String, dynamic>>[];
+
+  for (final n in notifications) {
+    final iso = n['created_at'] as String?;
+    final dt = iso != null ? DateTime.tryParse(iso)?.toLocal() : null;
+    if (dt == null) {
+      earlierItems.add(n);
+      continue;
+    }
+    final day = DateTime(dt.year, dt.month, dt.day);
+    if (day == today) {
+      todayItems.add(n);
+    } else if (day == yesterday) {
+      yesterdayItems.add(n);
+    } else {
+      earlierItems.add(n);
+    }
+  }
+
+  final sections = <NotificationDateSection>[];
+  if (todayItems.isNotEmpty) {
+    sections.add(NotificationDateSection('Today', todayItems));
+  }
+  if (yesterdayItems.isNotEmpty) {
+    sections.add(NotificationDateSection('Yesterday', yesterdayItems));
+  }
+  if (earlierItems.isNotEmpty) {
+    sections.add(NotificationDateSection('Earlier', earlierItems));
+  }
+  return sections;
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: context.bg,
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          color: context.textTertiary,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+        ),
+      ),
     );
   }
 }
@@ -140,108 +242,66 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 class _NotifCard extends StatelessWidget {
   const _NotifCard({required this.n, required this.onTap});
   final Map<String, dynamic> n;
-  final void Function(Map<String, dynamic>) onTap;
+  final Future<void> Function(Map<String, dynamic>) onTap;
 
   @override
   Widget build(BuildContext context) {
     final isRead = n['is_read'] == true;
-    final type = n['type'] as String? ?? '';
 
     return InkWell(
       onTap: () => onTap(n),
       child: Container(
         color: isRead ? Colors.transparent : TmColors.yellow.withValues(alpha: 0.04),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: _iconBg(type),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(_icon(type), color: _iconColor(type), size: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    n['title'] as String? ?? '',
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 13,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                ),
+                if (!isRead)
+                  Container(
+                    width: 7,
+                    height: 7,
+                    margin: const EdgeInsets.only(left: 8),
+                    decoration: const BoxDecoration(
+                      color: TmColors.yellow,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          n['title'] as String? ?? '',
-                          style: GoogleFonts.inter(
-                            color: context.textPrimary,
-                            fontSize: 13,
-                            letterSpacing: -0.1,
-                          ),
-                        ),
-                      ),
-                      if (!isRead)
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: TmColors.yellow,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    n['body'] as String? ?? '',
-                    style: GoogleFonts.inter(
-                      color: context.textSecondary,
-                      fontSize: 12,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _timeAgo(n['created_at'] as String?),
-                    style: GoogleFonts.inter(
-                      color: context.textTertiary,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 3),
+            Text(
+              n['body'] as String? ?? '',
+              style: GoogleFonts.inter(
+                color: context.textSecondary,
+                fontSize: 12,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _timeAgo(n['created_at'] as String?),
+              style: GoogleFonts.inter(
+                color: context.textTertiary,
+                fontSize: 11,
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  IconData _icon(String type) {
-    return switch (type) {
-      'quotation_sent' || 'quotation_updated' => Icons.receipt_long_rounded,
-      'booking_update' => Icons.local_shipping_rounded,
-      _ => Icons.notifications_rounded,
-    };
-  }
-
-  Color _iconBg(String type) {
-    return switch (type) {
-      'quotation_sent' || 'quotation_updated' =>
-        TmColors.yellow.withValues(alpha: 0.12),
-      'booking_update' => TmColors.success.withValues(alpha: 0.1),
-      _ => TmColors.grey300.withValues(alpha: 0.3),
-    };
-  }
-
-  Color _iconColor(String type) {
-    return switch (type) {
-      'quotation_sent' || 'quotation_updated' => TmColors.yellow,
-      'booking_update' => TmColors.success,
-      _ => TmColors.grey500,
-    };
   }
 
   String _timeAgo(String? iso) {
@@ -257,5 +317,42 @@ class _NotifCard extends StatelessWidget {
     } catch (_) {
       return '';
     }
+  }
+}
+
+class _NotificationsSkeleton extends StatelessWidget {
+  const _NotificationsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 5,
+      separatorBuilder: (_, _) => Divider(height: 0.5, color: context.divider),
+      itemBuilder: (_, _) => const _NotifCardSkeleton(),
+    );
+  }
+}
+
+class _NotifCardSkeleton extends StatelessWidget {
+  const _NotifCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SkeletonBox(width: 130, height: 13),
+          const SizedBox(height: 6),
+          const SkeletonBox(height: 12),
+          const SizedBox(height: 4),
+          const SkeletonBox(width: 180, height: 12),
+          const SizedBox(height: 6),
+          const SkeletonBox(width: 60, height: 11),
+        ],
+      ),
+    );
   }
 }

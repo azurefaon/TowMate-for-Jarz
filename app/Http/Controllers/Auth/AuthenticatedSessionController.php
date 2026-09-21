@@ -67,13 +67,14 @@ class AuthenticatedSessionController extends Controller
             ],
         };
 
+        $androidActive = AndroidReleaseService::isActive();
         $apkExists = AndroidReleaseService::currentExists();
-        $apkUrl    = $apkExists ? route('download.android') : null;
+        $apkUrl    = ($apkExists && $androidActive) ? route('download.android') : null;
         $apkSizeMb = $apkExists ? AndroidReleaseService::metadata()['size_mb'] : null;
 
         $iosDistributionUrl = null;
 
-        return view('auth.login', compact('loginConfig', 'apkExists', 'apkUrl', 'apkSizeMb', 'iosDistributionUrl'));
+        return view('auth.login', compact('loginConfig', 'apkExists', 'androidActive', 'apkUrl', 'apkSizeMb', 'iosDistributionUrl'));
     }
 
     public function store(LoginRequest $request): RedirectResponse

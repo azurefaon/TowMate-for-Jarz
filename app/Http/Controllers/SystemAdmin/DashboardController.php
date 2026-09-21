@@ -26,6 +26,7 @@ class DashboardController extends Controller
         'user_restored',
         'user_queued_for_deletion',
         'user_deletion_cancelled',
+        'user_status_toggled',
     ];
 
     public function index()

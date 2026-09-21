@@ -783,7 +783,7 @@
                     <div class="bk-field">
                         <label for="bk_email">Email Address</label>
                         <input type="email" id="bk_email" name="email" value="{{ $prefillEmail }}"
-                            placeholder="you@example.com" class="{{ $errors->has('email') ? 'is-error' : '' }}">
+                            placeholder="example@gmail.com" class="{{ $errors->has('email') ? 'is-error' : '' }}">
                         @error('email')
                             <span class="bk-error">{{ $message }}</span>
                         @enderror

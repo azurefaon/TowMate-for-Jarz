@@ -199,8 +199,8 @@
             <!-- ── PANE: Quote (default) ───────────────────────────────────── -->
             <div id="qmPane-quote" style="display: none; padding: 18px 24px;">
 
-                <!-- Price Breakdown -->
-                <div class="qm-section">
+                <!-- Price Breakdown (single-vehicle quotations only) -->
+                <div class="qm-section" id="qmSingleVehicleBreakdown">
                     <div class="qm-section-hdr">Price Breakdown</div>
                     <div style="padding: 14px; display: grid; gap: 8px; background: #fff;">
                         <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: #000;">
@@ -230,12 +230,34 @@
                             <span id="qmSubtotalAmount">₱0.00</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: #6b7280;">
-                            <span>VAT (12%)</span>
+                            <span id="qmVatLabel">VAT (12%)</span>
                             <span id="qmVatAmount">₱0.00</span>
                         </div>
                         <div style="border-top: 2px solid #000; padding-top: 10px; display: flex; justify-content: space-between; align-items: baseline;">
-                            <span style="font-size: 0.9rem; font-weight: 800; color: #000;">Total</span>
+                            <span style="font-size: 0.9rem; font-weight: 800; color: #000;">Base total (incl. VAT)</span>
                             <span style="font-size: 1.2rem; font-weight: 800; color: #000;" id="qmTotalAmount">₱0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Per-vehicle Price Breakdown (grouped multi-vehicle quotations only) -->
+                <div id="qmGroupedVehicleBreakdown" style="display:none;"></div>
+
+                <!-- Service Discount breakdown (quotation-level, all vehicles summed) -->
+                <div class="qm-section">
+                    <div class="qm-section-hdr">Quotation Total</div>
+                    <div style="padding: 14px; display: grid; gap: 8px; background: #fff;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #374151;">
+                            <span>Subtotal</span>
+                            <span id="qmDiscountSubtotal">₱0.00</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #374151;">
+                            <span>Service Discount</span>
+                            <span id="qmServiceDiscountAmount">-₱0.00</span>
+                        </div>
+                        <div style="border-top: 2px solid #000; padding-top: 10px; display: flex; justify-content: space-between; align-items: baseline;">
+                            <span style="font-size: 0.9rem; font-weight: 800; color: #000;">Total</span>
+                            <span style="font-size: 1.2rem; font-weight: 800; color: #000;" id="qmFinalTotalAmount">₱0.00</span>
                         </div>
                     </div>
                 </div>
@@ -251,10 +273,9 @@
                             <span id="qmCurrentPriceDisplay" style="font-size:1rem; font-weight:800; color:#000;">₱0.00</span>
                         </div>
 
-                        <!-- Adjustment: +/- toggle + amount -->
                         <div>
                             <label style="font-size:0.78rem; font-weight:600; color:#374151; display:block; margin-bottom:6px;">
-                                Adjustment
+                                Adjustments
                             </label>
                             <div style="display:flex; gap:6px; align-items:center;">
                                 <button type="button" id="qmSignAdd" onclick="qmSetSign('+')"
@@ -272,9 +293,19 @@
                             </div>
                         </div>
 
-                        <!-- New total preview -->
+                        <div>
+                            <label style="font-size:0.78rem; font-weight:600; color:#374151; display:block; margin-bottom:6px;">
+                                Service Discount
+                            </label>
+                            <input type="number" id="qmServiceDiscount" step="0.01" min="0" placeholder="0.00" value="0.00"
+                                style="width:100%; padding:7px 10px; border:1px solid #d1d5db; border-radius:8px; font-size:0.88rem; color:#0f172a; box-sizing:border-box;"
+                                onkeydown="if(['e','E','+','-'].includes(event.key)) event.preventDefault()"
+                                oninput="recalcQuotationTotal()">
+                            <div style="font-size:0.72rem; color:#94a3b8; margin-top:4px;">Manual, quotation-level only — never applied per vehicle.</div>
+                        </div>
+
                         <div class="qm-new-total-row">
-                            <span style="font-size:0.82rem; font-weight:800; color:#facc15; text-transform:uppercase; letter-spacing:0.05em;">New Total</span>
+                            <span style="font-size:0.82rem; font-weight:800; color:#facc15; text-transform:uppercase; letter-spacing:0.05em;">Final total</span>
                             <span style="font-size:1.05rem; font-weight:800; color:#fff;" id="qmCalculatedPrice">₱0.00</span>
                         </div>
 
@@ -615,7 +646,7 @@
                 const indicator = document.getElementById('qmDraftSavedIndicator');
                 if (indicator) indicator.style.display = 'flex';
                 const recordedPriceEl = document.getElementById('qmDraftRecordedPrice');
-                if (recordedPriceEl) recordedPriceEl.textContent = fmt(price);
+                if (recordedPriceEl) recordedPriceEl.textContent = fmt(parseFloat(data.price || price));
 
                 // Lock the adjust inputs — price is now recorded
                 const adjustInput = document.getElementById('qmAdjustAmount');
@@ -811,10 +842,11 @@
                 }
                 window.qmDistanceFee = distanceFee;
 
-                // Extra vehicles total — use pre-VAT base (estimated_price is VAT-inclusive, divide by 1.12)
                 const evTotal = (q.extra_vehicles || []).reduce(function(s, ev) {
                     if (ev.service_type === 'schedule') return s;
-                    return s + Math.round(parseFloat(ev.estimated_price || 0) / 1.12 * 100) / 100;
+                    const evPrice = parseFloat(ev.estimated_price || 0);
+                    const evVat = parseFloat(ev.vat_amount || 0);
+                    return s + Math.round((evPrice - evVat) * 100) / 100;
                 }, 0);
                 window.qmExtraVehiclesTotal = evTotal;
                 const evTotalRow = document.getElementById('qmExtraVehiclesTotalRow');
@@ -829,37 +861,60 @@
                     }
                 }
 
-                // Price breakdown — back-calculate from the stored total to avoid rounding
-                // drift caused by distance_km being stored at 2 dp instead of full precision.
-                if (q.status === 'sent' || q.status === 'negotiating' || q.status === 'draft' || q.status === 'accepted') {
-                    const savedTotal    = parseFloat(q.estimated_price || 0);
-                    const savedVat      = Math.round(savedTotal / 1.12 * 0.12 * 100) / 100;
-                    const savedSub      = Math.round((savedTotal - savedVat) * 100) / 100;
-                    const backDistFee   = Math.round((savedSub - (window.qmBasePrice || 0) - evTotal) * 100) / 100;
-                    document.getElementById('qmDistanceFee').textContent    = fmt(backDistFee);
-                    document.getElementById('qmSubtotalAmount').textContent = fmt(savedSub);
-                    document.getElementById('qmVatAmount').textContent      = fmt(savedVat);
-                    document.getElementById('qmTotalAmount').textContent    = fmt(savedTotal);
+                const isMultiBookingGroup = (q.extra_vehicles || []).some(ev => ev.booking_id !== undefined && ev.booking_id !== null);
+                const singleBreakdown  = document.getElementById('qmSingleVehicleBreakdown');
+                const groupedBreakdown = document.getElementById('qmGroupedVehicleBreakdown');
+
+                if (isMultiBookingGroup) {
+                    if (singleBreakdown) singleBreakdown.style.display = 'none';
+                    if (groupedBreakdown) {
+                        groupedBreakdown.style.display = 'block';
+                        groupedBreakdown.innerHTML = (q.extra_vehicles || []).map(function(ev, idx) {
+                            const label = ev.truck_type_name || ev.vehicle_name || 'Tow Truck';
+                            return '<div class="qm-section">'
+                                + '<div class="qm-section-hdr">Vehicle ' + (idx + 1) + ' — ' + label + '</div>'
+                                + '<div style="padding: 14px; display: grid; gap: 8px; background: #fff;">'
+                                + '<div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: #000;"><span>Base Rate</span><span>' + fmt(parseFloat(ev.base_rate || 0)) + '</span></div>'
+                                + '<div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #374151;"><span>Distance Fee</span><span>' + fmt(parseFloat(ev.distance_fee || 0)) + '</span></div>'
+                                + '<div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: #6b7280;"><span>VAT (' + vatPercentLabel(ev.vat_rate || q.vat_rate) + ')</span><span>' + fmt(parseFloat(ev.vat_amount || 0)) + '</span></div>'
+                                + '<div style="border-top: 2px solid #000; padding-top: 10px; display: flex; justify-content: space-between; align-items: baseline;"><span style="font-size: 0.9rem; font-weight: 800; color: #000;">Vehicle Total</span><span style="font-size: 1.2rem; font-weight: 800; color: #000;">' + fmt(parseFloat(ev.final_total ?? ev.estimated_price ?? 0)) + '</span></div>'
+                                + '</div></div>';
+                        }).join('');
+                    }
                 } else {
-                    // pending / no quotation yet — prefer stored booking total (avoids rounding drift)
-                    const bookingTotal = parseFloat(q.booking_final_total || 0);
-                    if (bookingTotal > 0) {
-                        const bVat  = Math.round(bookingTotal / 1.12 * 0.12 * 100) / 100;
-                        const bSub  = Math.round((bookingTotal - bVat) * 100) / 100;
-                        // back-calculate distance fee so all rows add up exactly
-                        const backDistFee = Math.round((bSub - (window.qmBasePrice || 0) - evTotal) * 100) / 100;
+                    if (singleBreakdown) singleBreakdown.style.display = 'block';
+                    if (groupedBreakdown) { groupedBreakdown.style.display = 'none'; groupedBreakdown.innerHTML = ''; }
+
+                    const vatLabelEl = document.getElementById('qmVatLabel');
+                    const hasServerSubtotal = q.subtotal !== undefined && q.subtotal !== null && parseFloat(q.subtotal) > 0;
+                    if (hasServerSubtotal) {
+                        const serverSub  = parseFloat(q.subtotal || 0);
+                        const serverVat  = parseFloat(q.vat_amount || 0);
+                        const serverBase = parseFloat(q.base_total || (serverSub + serverVat));
+                        const backDistFee = Math.round((serverSub - (window.qmBasePrice || 0) - evTotal) * 100) / 100;
                         document.getElementById('qmDistanceFee').textContent    = fmt(backDistFee);
-                        document.getElementById('qmSubtotalAmount').textContent = fmt(bSub);
-                        document.getElementById('qmVatAmount').textContent      = fmt(bVat);
-                        document.getElementById('qmTotalAmount').textContent    = fmt(bookingTotal);
+                        document.getElementById('qmSubtotalAmount').textContent = fmt(serverSub);
+                        document.getElementById('qmVatAmount').textContent      = fmt(serverVat);
+                        document.getElementById('qmTotalAmount').textContent    = fmt(serverBase);
+                        if (vatLabelEl) vatLabelEl.textContent = 'VAT (' + vatPercentLabel(q.vat_rate) + ')';
                     } else {
+                        const vatRate = parseFloat(q.vat_rate || 0.12) || 0.12;
                         const compSubtotal = Math.round(((window.qmBasePrice || 0) + distanceFee + evTotal) * 100) / 100;
-                        const tempVat = Math.round(compSubtotal * 0.12 * 100) / 100;
+                        const tempVat = Math.round(compSubtotal * vatRate * 100) / 100;
                         document.getElementById('qmSubtotalAmount').textContent = fmt(compSubtotal);
                         document.getElementById('qmVatAmount').textContent      = fmt(tempVat);
                         document.getElementById('qmTotalAmount').textContent    = fmt(compSubtotal + tempVat);
+                        if (vatLabelEl) vatLabelEl.textContent = 'VAT (' + vatPercentLabel(vatRate) + ')';
                     }
                 }
+
+                window.qmServiceDiscount = parseFloat(q.discount || 0) || 0;
+                const discountInput = document.getElementById('qmServiceDiscount');
+                if (discountInput) discountInput.value = window.qmServiceDiscount.toFixed(2);
+                window.qmPreDiscountBase = (parseFloat(q.estimated_price || 0) || 0) + window.qmServiceDiscount;
+                document.getElementById('qmDiscountSubtotal').textContent = fmt(window.qmPreDiscountBase);
+                document.getElementById('qmServiceDiscountAmount').textContent = '-' + fmt(window.qmServiceDiscount);
+                document.getElementById('qmFinalTotalAmount').textContent = fmt(parseFloat(q.estimated_price || 0) || 0);
 
                 // Pricing setup: reset adjustment, set current base
                 const adjustAmountEl = document.getElementById('qmAdjustAmount');
@@ -877,7 +932,8 @@
                     // pending — use stored booking total to avoid rounding drift from distance precision
                     const bookingTotal = parseFloat(q.booking_final_total || 0);
                     const subtotalInit = (window.qmBasePrice || 0) + (window.qmDistanceFee || 0) + (window.qmExtraVehiclesTotal || 0);
-                    const computed     = Math.round(subtotalInit * 1.12 * 100) / 100;
+                    const pendingVatRate = parseFloat(q.vat_rate || 0.12) || 0.12;
+                    const computed     = Math.round(subtotalInit * (1 + pendingVatRate) * 100) / 100;
                     const suggested    = bookingTotal > 0 ? bookingTotal : computed;
                     window.qmCurrentBase = suggested;
                     document.getElementById('qmCurrentPriceDisplay').textContent = fmt(suggested);
@@ -1040,21 +1096,23 @@
 
     // ── Price recalculation ──────────────────────────────────────────────────
     function recalcQuotationTotal() {
-        const amt      = parseFloat(document.getElementById('qmAdjustAmount')?.value || 0) || 0;
-        const sign     = (window.qmAdjustSign === '+') ? 1 : -1;
-        const newTotal = Math.max(0, (window.qmCurrentBase || 0) + sign * amt);
+        const amt        = parseFloat(document.getElementById('qmAdjustAmount')?.value || 0) || 0;
+        const sign        = (window.qmAdjustSign === '+') ? 1 : -1;
+        const discount    = Math.max(0, parseFloat(document.getElementById('qmServiceDiscount')?.value || 0) || 0);
+        const preDiscount = (window.qmPreDiscountBase !== undefined) ? window.qmPreDiscountBase : (window.qmCurrentBase || 0);
+        const newTotal    = Math.max(0, preDiscount - discount + sign * amt);
         document.getElementById('qmCalculatedPrice').textContent = fmt(newTotal);
-
-        // Price Breakdown (Base Rate / Subtotal / VAT / Total) stays fixed — only New Total updates.
+        document.getElementById('qmServiceDiscountAmount').textContent = '-' + fmt(discount);
+        document.getElementById('qmFinalTotalAmount').textContent = fmt(newTotal);
 
         // Note/Reason is only required once an adjustment amount is entered
         const noteRequiredHint = document.getElementById('qmNoteRequiredHint');
         if (noteRequiredHint) noteRequiredHint.style.display = amt !== 0 ? 'inline' : 'none';
 
-        // Enable Update/Edit Price button only when there is an actual adjustment
         const updateBtn = document.getElementById('qmUpdatePriceBtn');
         if (updateBtn && updateBtn.style.display !== 'none') {
-            const hasChange = amt > 0;
+            const discountChanged = discount !== (window.qmServiceDiscount || 0);
+            const hasChange = amt > 0 || discountChanged;
             updateBtn.disabled = !hasChange;
             updateBtn.style.opacity  = hasChange ? '1' : '0.4';
             updateBtn.style.cursor   = hasChange ? 'pointer' : 'not-allowed';
@@ -1120,6 +1178,11 @@
     // ── Utility ──────────────────────────────────────────────────────────────
     function fmt(val) {
         return `₱${parseFloat(val).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+
+    function vatPercentLabel(rate) {
+        const pct = Math.round((parseFloat(rate) || 0.12) * 10000) / 100;
+        return (pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(2)) + '%';
     }
 
     function fmtSchedDateTime(date, time) {
@@ -1259,7 +1322,9 @@
         const isSentState   = window.qmCurrentStatus === 'sent' || window.qmCurrentStatus === 'negotiating';
         const adjustAmt     = parseFloat(document.getElementById('qmAdjustAmount')?.value || 0) || 0;
         const adjustSign    = (window.qmAdjustSign === '+') ? 1 : -1;
-        const newPrice      = Math.max(0, (window.qmCurrentBase || 0) + adjustSign * adjustAmt);
+        const discount      = Math.max(0, parseFloat(document.getElementById('qmServiceDiscount')?.value || 0) || 0);
+        const preDiscount   = (window.qmPreDiscountBase !== undefined) ? window.qmPreDiscountBase : (window.qmCurrentBase || 0);
+        const newPrice      = Math.max(0, preDiscount - discount + adjustSign * adjustAmt);
         const otherFees     = adjustSign * adjustAmt;
 
         // Note is only required when an adjustment is actually being made
@@ -1289,6 +1354,7 @@
                 body: JSON.stringify({
                     new_price:      newPrice,
                     additional_fee: otherFees,
+                    discount:       discount,
                     note:           note
                 })
             })

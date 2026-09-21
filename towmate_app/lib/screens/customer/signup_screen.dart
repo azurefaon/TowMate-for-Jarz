@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show TextInputFormatter;
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/theme.dart';
+import '../../core/app_prefs.dart';
 import '../../core/validators.dart';
 import '../../core/security_utils.dart';
 import '../../services/api_service.dart';
@@ -10,6 +9,16 @@ import '../../widgets/google_signin_button.dart';
 import '../../widgets/password_strength_bar.dart';
 import 'email_otp_screen.dart';
 import 'google_phone_completion_screen.dart';
+
+const _brand = Color(0xFFF5A623);
+const _buttonGradientEnd = Color(0xFFE8960D);
+const _fieldBorder = Color(0xFFD1D5DB);
+const _fieldBorderFocused = Color(0xFF262626);
+const _textSecondary = Color(0xFF9CA3AF);
+const _iconMuted = Color(0xFFBBBEC8);
+const _textPrimary = Color(0xFF111111);
+const _towDark = Color(0xFF1A1040);
+const _errorRed = Color(0xFFE53935);
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -26,6 +35,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _emailFieldKey = GlobalKey<FormFieldState<String>>();
 
   bool _isLoading = false;
   bool _isGoogleLoading = false;
@@ -37,6 +47,11 @@ class _SignupScreenState extends State<SignupScreen> {
 
   void _touch(String field) {
     if (_touched.add(field)) setState(() {});
+  }
+
+  void _onEmailBlur() {
+    _touch('email');
+    _emailFieldKey.currentState?.validate();
   }
 
   String? _gated(String field, String? Function() validate) {
@@ -54,7 +69,10 @@ class _SignupScreenState extends State<SignupScreen> {
   Future<void> _redirectIfLoggedIn() async {
     final loggedIn = await ApiService.isLoggedIn();
     if (!mounted) return;
-    if (loggedIn) Navigator.pushReplacementNamed(context, '/home');
+    if (loggedIn) {
+      await AppPrefs.restoreAuthenticatedTheme();
+      Navigator.pushReplacementNamed(context, '/home');
+    }
   }
 
   @override
@@ -104,7 +122,8 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() {
         _isLoading = false;
         _apiError =
-            res['message'] as String? ?? 'Failed to send OTP. Please try again.';
+            res['message'] as String? ??
+            'Failed to send OTP. Please try again.';
       });
     }
   }
@@ -146,10 +165,12 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
-    if (result.outcome == GoogleAuthOutcome.unavailable || result.idToken == null) {
+    if (result.outcome == GoogleAuthOutcome.unavailable ||
+        result.idToken == null) {
       setState(() {
         _isGoogleLoading = false;
-        _apiError = 'Google sign-in is unavailable right now. Please try again.';
+        _apiError =
+            'Google sign-in is unavailable right now. Please try again.';
       });
       return;
     }
@@ -173,228 +194,273 @@ class _SignupScreenState extends State<SignupScreen> {
     }
 
     if (res['success'] == true) {
+      await AppPrefs.restoreAuthenticatedTheme();
       Navigator.pushReplacementNamed(context, '/home');
       return;
     }
 
     setState(() {
       _isGoogleLoading = false;
-      _apiError = res['message'] as String? ?? 'Google sign-in failed. Please try again.';
+      _apiError =
+          res['message'] as String? ??
+          'Google sign-in failed. Please try again.';
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.bg,
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: TextButton(
-                  onPressed: _goToLogin,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(44, 36),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    alignment: Alignment.centerLeft,
-                  ),
-                  child: Text(
-                    '← Back to sign in',
-                    style: GoogleFonts.inter(
-                      color: context.textTertiary,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w500,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Center(child: _BrandMark()),
+                  const SizedBox(height: 22),
+                  TextButton(
+                    onPressed: _goToLogin,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(44, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      alignment: Alignment.centerLeft,
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Create your account',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.6,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Request and track towing services with TowMate.',
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 14,
-                  letterSpacing: 0.1,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: _Field(
-                            controller: _firstNameController,
-                            label: 'First name',
-                            validator: (v) =>
-                                _gated('firstName', () => Validators.name(v, 'First name')),
-                            textInputAction: TextInputAction.next,
-                            onChanged: (_) => _touch('firstName'),
-                          ),
+                        const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 13,
+                          color: _textSecondary,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _Field(
-                            controller: _lastNameController,
-                            label: 'Last name',
-                            validator: (v) =>
-                                _gated('lastName', () => Validators.name(v, 'Last name')),
-                            textInputAction: TextInputAction.next,
-                            onChanged: (_) => _touch('lastName'),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Back to sign in',
+                          style: GoogleFonts.inter(
+                            color: _textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    _Field(
-                      controller: _emailController,
-                      label: 'Email',
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (v) => _gated('email', () => Validators.email(v)),
-                      textInputAction: TextInputAction.next,
-                      onChanged: (_) => _touch('email'),
-                    ),
-                    const SizedBox(height: 14),
-                    _Field(
-                      controller: _phoneController,
-                      label: 'Phone number',
-                      keyboardType: TextInputType.phone,
-                      fixedPrefix: '+63',
-                      hintText: '917 123 4567',
-                      inputFormatters: PhMobilePhone.formatters,
-                      validator: (v) => _gated(
-                        'phone',
-                        () => PhMobilePhone.validateLocal(v, showIncomplete: _submitted),
-                      ),
-                      textInputAction: TextInputAction.next,
-                      onChanged: (_) => _touch('phone'),
-                    ),
-                    const SizedBox(height: 14),
-                    _Field(
-                      controller: _passwordController,
-                      label: 'Password',
-                      obscureText: true,
-                      validator: (v) => _gated('password', () => Validators.password(v)),
-                      textInputAction: TextInputAction.next,
-                      onChanged: (v) {
-                        _touch('password');
-                        setState(() => _passwordValue = v);
-                      },
-                    ),
-                    const SizedBox(height: 6),
-                    PasswordStrengthBar(password: _passwordValue),
-                    const SizedBox(height: 14),
-                    _Field(
-                      controller: _confirmPasswordController,
-                      label: 'Confirm password',
-                      obscureText: true,
-                      validator: (v) => _gated(
-                        'confirmPassword',
-                        () => Validators.confirmPassword(v, _passwordValue),
-                      ),
-                      textInputAction: TextInputAction.done,
-                      onChanged: (_) => _touch('confirmPassword'),
-                      onFieldSubmitted: (_) => _submit(),
-                    ),
-                    if (_apiError != null) ...[
-                      const SizedBox(height: 16),
-                      _InlineBanner(message: _apiError!),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: TmColors.yellow,
-                    foregroundColor: TmColors.black,
-                    disabledBackgroundColor:
-                        TmColors.yellow.withValues(alpha: 0.6),
-                    shape: const StadiumBorder(),
-                    elevation: 0,
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: TmColors.black,
-                            strokeWidth: 2,
+                  const SizedBox(height: 14),
+                  Text(
+                    'Create your account',
+                    style: GoogleFonts.inter(
+                      color: _textPrimary,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Request and track towing services with TowMate',
+                    style: GoogleFonts.inter(
+                      color: _textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final stack = constraints.maxWidth < 300;
+                            final firstField = _Field(
+                              controller: _firstNameController,
+                              label: 'FIRST NAME',
+                              hint: 'Enter your first name',
+                              validator: (v) => _gated(
+                                'firstName',
+                                () => Validators.name(v, 'First name'),
+                              ),
+                              textInputAction: TextInputAction.next,
+                              onChanged: (_) => _touch('firstName'),
+                            );
+                            final lastField = _Field(
+                              controller: _lastNameController,
+                              label: 'LAST NAME',
+                              hint: 'Enter your last name',
+                              validator: (v) => _gated(
+                                'lastName',
+                                () => Validators.name(v, 'Last name'),
+                              ),
+                              textInputAction: TextInputAction.next,
+                              onChanged: (_) => _touch('lastName'),
+                            );
+                            if (stack) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  firstField,
+                                  const SizedBox(height: 12),
+                                  lastField,
+                                ],
+                              );
+                            }
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: firstField),
+                                const SizedBox(width: 10),
+                                Expanded(child: lastField),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        _Field(
+                          fieldKey: _emailFieldKey,
+                          controller: _emailController,
+                          label: 'EMAIL',
+                          hint: 'Enter your Gmail address',
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (v) =>
+                              _gated('email', () => Validators.email(v)),
+                          textInputAction: TextInputAction.next,
+                          onBlur: _onEmailBlur,
+                        ),
+                        const SizedBox(height: 12),
+                        _PhoneField(
+                          controller: _phoneController,
+                          validator: (v) => _gated(
+                            'phone',
+                            () => PhMobilePhone.validateLocal(
+                              v,
+                              showIncomplete: _submitted,
+                            ),
                           ),
-                        )
-                      : Text(
-                          'Create account',
+                          onChanged: (_) => _touch('phone'),
+                        ),
+                        const SizedBox(height: 12),
+                        _Field(
+                          controller: _passwordController,
+                          label: 'PASSWORD',
+                          hint: 'Enter your password',
+                          obscureText: true,
+                          validator: (v) =>
+                              _gated('password', () => Validators.password(v)),
+                          textInputAction: TextInputAction.next,
+                          onChanged: (v) {
+                            _touch('password');
+                            setState(() => _passwordValue = v);
+                          },
+                        ),
+                        const SizedBox(height: 6),
+                        PasswordStrengthBar(password: _passwordValue),
+                        const SizedBox(height: 12),
+                        _Field(
+                          controller: _confirmPasswordController,
+                          label: 'CONFIRM PASSWORD',
+                          hint: 'Confirm your password',
+                          obscureText: true,
+                          validator: (v) => _gated(
+                            'confirmPassword',
+                            () => Validators.confirmPassword(v, _passwordValue),
+                          ),
+                          textInputAction: TextInputAction.done,
+                          onChanged: (_) => _touch('confirmPassword'),
+                          onFieldSubmitted: (_) => _submit(),
+                        ),
+                        if (_apiError != null) ...[
+                          const SizedBox(height: 12),
+                          _InlineBanner(message: _apiError!),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _GradientButton(
+                    label: 'Create account',
+                    isLoading: _isLoading,
+                    onPressed: _isLoading ? null : _submit,
+                  ),
+                  const _AuthDivider(label: 'or sign up with'),
+                  Center(
+                    child: GoogleSignInButton(
+                      isLoading: _isGoogleLoading,
+                      onPressed: _onGoogleSignIn,
+                      onWebResult: _onWebGoogleResult,
+                      label: 'Sign up with Google',
+                      webText: GoogleButtonText.signUp,
+                      iconOnly: true,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Center(
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          'Already have an account? ',
                           style: GoogleFonts.inter(
-                            color: TmColors.black,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.1,
+                            color: _textSecondary,
+                            fontSize: 13.5,
                           ),
                         ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const OrContinueDivider(label: 'or sign up with'),
-              const SizedBox(height: 14),
-              GoogleSignInButton(
-                isLoading: _isGoogleLoading,
-                onPressed: _onGoogleSignIn,
-                onWebResult: _onWebGoogleResult,
-                label: 'Sign up with Google',
-                webText: GoogleButtonText.signUp,
-              ),
-              const SizedBox(height: 18),
-              Wrap(
-                alignment: WrapAlignment.center,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    'Already have an account? ',
-                    style: GoogleFonts.inter(
-                      color: context.textSecondary,
-                      fontSize: 14,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: _goToLogin,
-                    child: Text(
-                      'Sign in',
-                      style: GoogleFonts.inter(
-                        color: context.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
+                        GestureDetector(
+                          onTap: _goToLogin,
+                          child: Text(
+                            'Sign in',
+                            style: GoogleFonts.inter(
+                              color: _brand,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BrandMark extends StatelessWidget {
+  const _BrandMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: 'Tow',
+            style: GoogleFonts.inter(
+              color: _towDark,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+            ),
+          ),
+          TextSpan(
+            text: 'Mate',
+            style: GoogleFonts.inter(
+              color: _brand,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -404,28 +470,28 @@ class _Field extends StatefulWidget {
   const _Field({
     required this.controller,
     required this.label,
+    required this.hint,
     this.obscureText = false,
     this.keyboardType,
     this.validator,
     this.textInputAction,
     this.onChanged,
     this.onFieldSubmitted,
-    this.fixedPrefix,
-    this.hintText,
-    this.inputFormatters,
+    this.onBlur,
+    this.fieldKey,
   });
 
   final TextEditingController controller;
   final String label;
+  final String hint;
   final bool obscureText;
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
   final TextInputAction? textInputAction;
   final void Function(String)? onChanged;
   final void Function(String)? onFieldSubmitted;
-  final String? fixedPrefix;
-  final String? hintText;
-  final List<TextInputFormatter>? inputFormatters;
+  final VoidCallback? onBlur;
+  final GlobalKey<FormFieldState<String>>? fieldKey;
 
   @override
   State<_Field> createState() => _FieldState();
@@ -433,100 +499,366 @@ class _Field extends StatefulWidget {
 
 class _FieldState extends State<_Field> {
   late bool _obscure;
+  final _focusNode = FocusNode();
+  bool _focused = false;
 
   @override
   void initState() {
     super.initState();
     _obscure = widget.obscureText;
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    final hasFocus = _focusNode.hasFocus;
+    if (_focused != hasFocus) {
+      final wasFocused = _focused;
+      setState(() => _focused = hasFocus);
+      if (wasFocused && !hasFocus) {
+        widget.onBlur?.call();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.label,
-          style: GoogleFonts.inter(
-            color: context.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: widget.controller,
-          obscureText: _obscure,
-          keyboardType: widget.keyboardType,
-          validator: widget.validator,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-          textInputAction: widget.textInputAction,
-          onChanged: widget.onChanged,
-          onFieldSubmitted: widget.onFieldSubmitted,
-          inputFormatters: widget.inputFormatters,
-          autocorrect: !widget.obscureText,
-          enableSuggestions: !widget.obscureText,
-          autofillHints: widget.obscureText ? const [] : null,
-          style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
-          decoration: InputDecoration(
-            hintText: widget.hintText ?? widget.label,
-            hintStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 15),
-            filled: true,
-            fillColor: context.surface,
-            prefixIcon: widget.fixedPrefix == null
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(left: 16, right: 12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          widget.fixedPrefix!,
-                          style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+    return FormField<String>(
+      key: widget.fieldKey,
+      initialValue: widget.controller.text,
+      validator: widget.validator,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      builder: (field) {
+        final borderColor = field.hasError
+            ? _errorRed
+            : (_focused ? _fieldBorderFocused : _fieldBorder);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.label,
+              style: GoogleFonts.inter(
+                color: _textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(height: 6),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _focusNode,
+                      obscureText: _obscure,
+                      keyboardType: widget.keyboardType,
+                      textInputAction: widget.textInputAction,
+                      onChanged: (v) {
+                        field.didChange(v);
+                        widget.onChanged?.call(v);
+                      },
+                      onSubmitted: widget.onFieldSubmitted,
+                      autocorrect: !widget.obscureText,
+                      enableSuggestions: !widget.obscureText,
+                      autofillHints: widget.obscureText ? const [] : null,
+                      cursorColor: _fieldBorderFocused,
+                      style: GoogleFonts.inter(
+                        color: _textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: widget.hint,
+                        hintStyle: GoogleFonts.inter(
+                          color: _iconMuted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
-                        const SizedBox(width: 10),
-                        Container(width: 1, height: 18, color: context.divider),
-                      ],
+                        filled: false,
+                        isDense: true,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        suffixIcon: widget.obscureText
+                            ? GestureDetector(
+                                onTap: () =>
+                                    setState(() => _obscure = !_obscure),
+                                child: Icon(
+                                  _obscure
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: _obscure
+                                      ? _textSecondary
+                                      : _fieldBorderFocused,
+                                  size: 18,
+                                ),
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.only(
+                          left: 16,
+                          top: 15,
+                          bottom: 15,
+                        ),
+                      ),
                     ),
                   ),
-            prefixIconConstraints: widget.fixedPrefix == null
-                ? null
-                : const BoxConstraints(minWidth: 0, minHeight: 0),
-            suffixIcon: widget.obscureText
-                ? GestureDetector(
-                    onTap: () => setState(() => _obscure = !_obscure),
-                    child: Icon(
-                      _obscure ? Icons.visibility : Icons.visibility_off,
-                      color: context.textTertiary,
-                      size: 20,
+                  const SizedBox(width: 14),
+                ],
+              ),
+            ),
+            if (field.hasError) ...[
+              const SizedBox(height: 4),
+              Text(
+                field.errorText!,
+                style: GoogleFonts.inter(color: _errorRed, fontSize: 11.5),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PhoneField extends StatefulWidget {
+  const _PhoneField({required this.controller, this.validator, this.onChanged});
+
+  final TextEditingController controller;
+  final String? Function(String?)? validator;
+  final void Function(String)? onChanged;
+
+  @override
+  State<_PhoneField> createState() => _PhoneFieldState();
+}
+
+class _PhoneFieldState extends State<_PhoneField> {
+  final _focusNode = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (_focused != _focusNode.hasFocus) {
+      setState(() => _focused = _focusNode.hasFocus);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<String>(
+      initialValue: widget.controller.text,
+      validator: widget.validator,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      builder: (field) {
+        final borderColor = field.hasError
+            ? _errorRed
+            : (_focused ? _fieldBorderFocused : _fieldBorder);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'PHONE NUMBER',
+              style: GoogleFonts.inter(
+                color: _textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(height: 6),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 15,
+                    ),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        right: BorderSide(color: _fieldBorder, width: 1.5),
+                      ),
+                    ),
+                    child: Text(
+                      '+63',
+                      style: GoogleFonts.inter(
+                        color: _textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _focusNode,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                      onChanged: (v) {
+                        field.didChange(v);
+                        widget.onChanged?.call(v);
+                      },
+                      inputFormatters: PhMobilePhone.formatters,
+                      cursorColor: _fieldBorderFocused,
+                      style: GoogleFonts.inter(
+                        color: _textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Enter your phone number',
+                        hintStyle: GoogleFonts.inter(
+                          color: _iconMuted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        filled: false,
+                        isDense: true,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (field.hasError) ...[
+              const SizedBox(height: 4),
+              Text(
+                field.errorText!,
+                style: GoogleFonts.inter(color: _errorRed, fontSize: 11.5),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AuthDivider extends StatelessWidget {
+  const _AuthDivider({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Row(
+        children: [
+          const Expanded(child: Divider(color: _fieldBorder, thickness: 1)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              label,
+              style: GoogleFonts.inter(color: _iconMuted, fontSize: 12),
+            ),
+          ),
+          const Expanded(child: Divider(color: _fieldBorder, thickness: 1)),
+        ],
+      ),
+    );
+  }
+}
+
+class _GradientButton extends StatelessWidget {
+  const _GradientButton({
+    required this.label,
+    required this.isLoading,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 52,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_brand, _buttonGradientEnd],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _brand.withValues(alpha: 0.32),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onPressed,
+          child: Center(
+            child: isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
                     ),
                   )
-                : null,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: context.divider),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: context.divider),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: context.textTertiary, width: 1.5),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: TmColors.error, width: 1.5),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: TmColors.error, width: 1.5),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-            errorStyle: GoogleFonts.inter(color: TmColors.error, fontSize: 12),
+                : Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -539,14 +871,18 @@ class _InlineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
-        color: TmColors.error.withValues(alpha: 0.08),
+        color: _errorRed.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         message,
-        style: GoogleFonts.inter(color: TmColors.error, fontSize: 13, letterSpacing: 0.1),
+        style: GoogleFonts.inter(
+          color: _errorRed,
+          fontSize: 12.5,
+          letterSpacing: 0.1,
+        ),
       ),
     );
   }

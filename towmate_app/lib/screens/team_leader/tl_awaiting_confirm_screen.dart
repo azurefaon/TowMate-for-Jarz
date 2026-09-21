@@ -1,14 +1,29 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:intl/intl.dart';
 import 'package:signature/signature.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../services/team_leader_service.dart';
-import '../../widgets/tl_checklist_item.dart';
+import '../../widgets/quotation_price_cards.dart' show formatPeso;
+
+class _DecimalInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    if (text.isEmpty) return newValue;
+    if (!RegExp(r'^\d*\.?\d{0,2}$').hasMatch(text)) return oldValue;
+    if ('.'.allMatches(text).length > 1) return oldValue;
+    return newValue;
+  }
+}
 
 class TlAwaitingConfirmScreen extends StatefulWidget {
   const TlAwaitingConfirmScreen(
@@ -33,14 +48,13 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
   String? _error;
   String? _selectedPayment;
   final _cashReceivedCtrl = TextEditingController();
+  final _cashFocusNode = FocusNode();
 
   XFile? _paymentProof;
   bool _proofUploaded = false;
   bool _uploadingProof = false;
 
-  XFile? _cashProofFile;
-  bool _cashProofUploaded = false;
-  bool _uploadingCashProof = false;
+  final Set<int> _expandedVehicles = {};
 
   static const _paymentOptions = [
     (value: 'cash',          label: 'Cash',         icon: Icons.payments_rounded),
@@ -48,12 +62,34 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
     (value: 'bank_transfer', label: 'Bank Transfer', icon: Icons.account_balance_rounded),
   ];
 
-  bool get _needsProof =>
-      _selectedPayment == 'gcash' || _selectedPayment == 'bank_transfer';
+  bool get _needsProof => _selectedPayment != null;
+
+  double get _amountDue =>
+      widget.task.isGroupBooking && widget.task.groupTotal != null
+          ? widget.task.groupTotal!
+          : widget.task.finalTotal;
+
+  String get _rawCashValue => _cashReceivedCtrl.text.replaceAll(',', '');
 
   bool get _cashCovers {
-    final val = double.tryParse(_cashReceivedCtrl.text);
-    return val != null && val >= widget.task.finalTotal;
+    final val = double.tryParse(_rawCashValue);
+    return val != null && val >= _amountDue;
+  }
+
+  void _onCashFocusChange() {
+    final raw = _rawCashValue.trim();
+    if (raw.isEmpty) return;
+    final val = double.tryParse(raw);
+    if (val == null) return;
+
+    final formatted = _cashFocusNode.hasFocus
+        ? raw
+        : NumberFormat('#,##0.00', 'en_PH').format(val);
+
+    _cashReceivedCtrl.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
   }
 
   bool get _canSubmit {
@@ -73,81 +109,20 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
       }
     });
     _cashReceivedCtrl.addListener(() => setState(() {}));
+    _cashFocusNode.addListener(_onCashFocusChange);
   }
 
   @override
   void dispose() {
     _sigCtrl.dispose();
     _cashReceivedCtrl.dispose();
+    _cashFocusNode.dispose();
     super.dispose();
   }
 
-  Future<File?> _exportSignature() async {
+  Future<Uint8List?> _exportSignature() async {
     if (_sigCtrl.isEmpty) return null;
-    final bytes = await _sigCtrl.toPngBytes();
-    if (bytes == null) return null;
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/sig_${DateTime.now().millisecondsSinceEpoch}.png');
-    await file.writeAsBytes(bytes);
-    return file;
-  }
-
-  void _showCashProofSource() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: TmColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            ListTile(
-              title: Text('Take Photo',
-                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 14)),
-              onTap: () {
-                Navigator.pop(context);
-                _pickAndUploadCashProof(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              title: Text('Choose from Gallery',
-                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 14)),
-              onTap: () {
-                Navigator.pop(context);
-                _pickAndUploadCashProof(ImageSource.gallery);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickAndUploadCashProof(ImageSource source) async {
-    final file = await ImagePicker().pickImage(source: source, imageQuality: 85);
-    if (file == null || !mounted) return;
-    setState(() {
-      _cashProofFile = file;
-      _uploadingCashProof = true;
-    });
-    final res = await TeamLeaderService.uploadPhoto(
-        widget.task.bookingCode, file, 'payment_proof');
-    if (!mounted) return;
-    setState(() {
-      _uploadingCashProof = false;
-      _cashProofUploaded = res['success'] == true;
-      if (!_cashProofUploaded) _cashProofFile = null;
-    });
-    if (!_cashProofUploaded) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(res['message'] as String? ?? 'Upload failed.'),
-        backgroundColor: TmColors.error,
-      ));
-    }
+    return _sigCtrl.toPngBytes();
   }
 
   void _showProofSource() {
@@ -209,6 +184,10 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
   }
 
   Future<void> _back() async {
+    if (widget.task.status != 'waiting_verification') {
+      Navigator.of(context).pop();
+      return;
+    }
     setState(() => _loading = true);
     final res = await TeamLeaderService.updateStatus(
         widget.task.bookingCode, 'arrived_dropoff');
@@ -238,434 +217,725 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
     }
     if (_selectedPayment == 'cash' && !_cashCovers) {
       setState(() => _error =
-          'Cash received must cover the final total of ₱${widget.task.finalTotal.toStringAsFixed(2)}.');
+          'Cash received must cover the final total of ${formatPeso(_amountDue)}.');
       return;
     }
 
     setState(() { _loading = true; _error = null; });
 
-    final sigFile = await _exportSignature();
+    try {
+      final sigBytes = await _exportSignature();
 
-    final res = await TeamLeaderService.completeTask(
-        widget.task.bookingCode, sigFile, _selectedPayment!,
-        cashReceived:
-            _selectedPayment == 'cash' ? _cashReceivedCtrl.text : null);
-    if (!mounted) return;
-    if (res['success'] == true) {
-      final data = res['data'];
-      final updated = data != null
-          ? TaskModel.fromJson(data as Map<String, dynamic>)
-          : widget.task.copyWith(status: 'completed');
-      widget.onUpdate(updated);
-    } else {
+      final res = await TeamLeaderService.completeTask(
+          widget.task.bookingCode, sigBytes, _selectedPayment!,
+          cashReceived: _selectedPayment == 'cash' ? _rawCashValue : null);
+      if (!mounted) return;
+      if (res['success'] == true) {
+        final updated = res['task'] as TaskModel? ??
+            widget.task.copyWith(
+                status: 'waiting_verification', paymentMethod: _selectedPayment);
+        widget.onUpdate(updated);
+        if (widget.task.status != 'waiting_verification' &&
+            Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      } else {
+        setState(() {
+          _loading = false;
+          _error = res['message'] as String? ?? 'Completion failed.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = res['message'] as String? ?? 'Completion failed.';
+        _error = 'Something went wrong while submitting. Please try again.';
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _header(),
-            const SizedBox(height: 24),
+    final task = widget.task;
+    final showGroupBreakdown = task.isGroupBooking && task.groupTotal != null;
 
-            // ── Verification checklist ──────────────────────────────
-            Text('Verification Checklist',
-                style: GoogleFonts.inter(
-                    color: TmColors.black, fontSize: 15, letterSpacing: -0.2)),
-            const SizedBox(height: 12),
-            TlChecklistItem(
-              label: 'Customer signature',
-              sublabel: _hasSig ? 'Captured' : 'Sign below',
-              checked: _hasSig,
-            ),
-            TlChecklistItem(
-              label: 'Payment method',
-              sublabel: _selectedPayment != null
-                  ? _paymentOptions
-                      .firstWhere((p) => p.value == _selectedPayment)
-                      .label
-                  : 'Select below',
-              checked: _selectedPayment != null,
-            ),
-            if (_needsProof)
-              TlChecklistItem(
-                label: 'Payment proof',
-                sublabel: _proofUploaded ? 'Uploaded' : 'Upload below',
-                checked: _proofUploaded,
-              ),
-            if (_selectedPayment == 'cash')
-              TlChecklistItem(
-                label: 'Cash received',
-                sublabel: _cashCovers ? 'Confirmed' : 'Enter amount below',
-                checked: _cashCovers,
-              ),
-            const SizedBox(height: 24),
-
-            // ── Payment method ──────────────────────────────────────
-            Text('Payment Method',
-                style: GoogleFonts.inter(color: TmColors.black, fontSize: 13)),
-            const SizedBox(height: 10),
-            Row(
-              children: _paymentOptions.map((option) {
-                final selected = _selectedPayment == option.value;
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() {
-                      _selectedPayment = option.value;
-                      if (option.value == 'cash') {
-                        _paymentProof = null;
-                        _proofUploaded = false;
-                      } else {
-                        _cashReceivedCtrl.clear();
-                      }
-                    }),
-                    child: Container(
-                      margin: EdgeInsets.only(
-                        right: option.value == 'bank_transfer' ? 0 : 8,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 14, horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? TmColors.yellow.withValues(alpha: 0.1)
-                            : TmColors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color:
-                              selected ? TmColors.yellow : TmColors.grey300,
-                          width: selected ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(option.icon,
-                              color: selected
-                                  ? TmColors.black
-                                  : TmColors.grey500,
-                              size: 22),
-                          const SizedBox(height: 6),
-                          Text(
-                            option.label,
-                            style: GoogleFonts.inter(
-                              color: selected
-                                  ? TmColors.black
-                                  : TmColors.grey500,
-                              fontSize: 11,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-
-            // ── Cash received amount ────────────────────────────────
-            if (_selectedPayment == 'cash') ...[
-              const SizedBox(height: 20),
-              Text('Cash Received (₱)',
-                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 13)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _cashReceivedCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: GoogleFonts.inter(color: TmColors.black, fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: '0.00',
-                  hintStyle: GoogleFonts.inter(color: TmColors.grey500, fontSize: 15),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: TmColors.grey300),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: TmColors.grey300),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: TmColors.yellow, width: 1.5),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Must be at least ₱${widget.task.finalTotal.toStringAsFixed(2)}.',
-                style: GoogleFonts.inter(
-                  color: (_cashReceivedCtrl.text.isNotEmpty && !_cashCovers)
-                      ? TmColors.error
-                      : TmColors.grey500,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-
-            // ── Optional cash proof ─────────────────────────────────
-            if (_selectedPayment == 'cash') ...[
-              const SizedBox(height: 20),
-              Text('Proof of Payment (Optional)',
-                  style: GoogleFonts.inter(
-                      color: TmColors.black, fontSize: 13)),
-              const SizedBox(height: 4),
-              Text('Take photo with customer or choose from gallery.',
-                  style: GoogleFonts.inter(
-                      color: TmColors.grey500, fontSize: 11)),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _uploadingCashProof ? null : _showCashProofSource,
-                child: Container(
-                  height: 120,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: TmColors.grey100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _cashProofUploaded
-                          ? TmColors.success
-                          : TmColors.grey300,
-                      width: _cashProofUploaded ? 1.5 : 1,
-                    ),
-                  ),
-                  child: _uploadingCashProof
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                              color: TmColors.yellow, strokeWidth: 2))
-                      : _cashProofFile != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: kIsWeb
-                                  ? Image.network(_cashProofFile!.path,
-                                      height: 120,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover)
-                                  : Image.file(File(_cashProofFile!.path),
-                                      height: 120,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover),
-                            )
-                          : Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.add_a_photo_outlined,
-                                      color: TmColors.grey500, size: 24),
-                                  const SizedBox(height: 4),
-                                  Text('Tap to add photo (optional)',
-                                      style: GoogleFonts.inter(
-                                          color: TmColors.grey500,
-                                          fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                ),
-              ),
-            ],
-
-            // ── Payment proof (GCash / Bank Transfer only) ──────────
-            if (_needsProof) ...[
-              const SizedBox(height: 20),
-              Text('Payment Proof',
-                  style:
-                      GoogleFonts.inter(color: TmColors.black, fontSize: 13)),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _uploadingProof ? null : _showProofSource,
-                child: Container(
-                  height: 140,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: TmColors.grey100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _proofUploaded
-                          ? TmColors.success
-                          : TmColors.grey300,
-                      width: _proofUploaded ? 1.5 : 1,
-                    ),
-                  ),
-                  child: _uploadingProof
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                              color: TmColors.yellow, strokeWidth: 2))
-                      : _paymentProof != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: kIsWeb
-                                  ? Image.network(_paymentProof!.path,
-                                      height: 140,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover)
-                                  : Image.file(File(_paymentProof!.path),
-                                      height: 140,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover),
-                            )
-                          : Center(
-                              child: Text('Tap to upload proof',
-                                  style: GoogleFonts.inter(
-                                      color: TmColors.grey500, fontSize: 13)),
-                            ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
-
-            // ── Signature pad ───────────────────────────────────────
-            Text('Customer Signature',
-                style: GoogleFonts.inter(color: TmColors.black, fontSize: 13)),
-            const SizedBox(height: 4),
-            Text('Required for task completion',
-                style:
-                    GoogleFonts.inter(color: TmColors.grey500, fontSize: 11)),
-            const SizedBox(height: 8),
-            Container(
-              height: 160,
-              decoration: BoxDecoration(
-                color: TmColors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _hasSig ? TmColors.yellow : TmColors.grey300,
-                  width: _hasSig ? 1.5 : 1,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Signature(
-                  controller: _sigCtrl,
-                  backgroundColor: TmColors.white,
-                ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  _sigCtrl.clear();
-                  setState(() => _hasSig = false);
-                },
-                child: Text('Clear',
-                    style: GoogleFonts.inter(
-                        color: TmColors.grey500, fontSize: 12)),
-              ),
-            ),
-
-            if (_error != null) ...[
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: TmColors.error.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: const Border(
-                      left: BorderSide(color: TmColors.error, width: 3)),
-                ),
-                child: Text(_error!,
-                    style: GoogleFonts.inter(
-                        color: TmColors.error, fontSize: 13)),
-              ),
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: context.bg,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _stepHeader(context),
+              const SizedBox(height: 18),
+              showGroupBreakdown ? _groupPaymentCard(context, task) : _amountDueCard(context),
+              const SizedBox(height: 14),
+              _paymentMethodCard(context),
+              const SizedBox(height: 14),
+              _signatureCard(context),
+              if (_error != null) ...[
+                const SizedBox(height: 14),
+                _errorBox(context, _error!),
+              ],
+              const SizedBox(height: 16),
+              _primaryBtn(context, (_loading || !_canSubmit) ? null : _submit),
               const SizedBox(height: 12),
+              _secondaryBtn(context, 'Back', _loading ? null : _back),
             ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: (_loading || !_canSubmit) ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: TmColors.yellow,
-                  foregroundColor: TmColors.black,
-                  disabledBackgroundColor:
-                      TmColors.yellow.withValues(alpha: 0.5),
-                  shape: const StadiumBorder(),
-                  elevation: 0,
-                ),
-                child: _loading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            color: TmColors.black, strokeWidth: 2))
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.check_circle_rounded,
-                              color: TmColors.black, size: 20),
-                          const SizedBox(width: 8),
-                          Text('Complete Task',
-                              style: GoogleFonts.inter(
-                                  color: TmColors.black, fontSize: 15)),
-                        ],
-                      ),
+  Widget _stepHeader(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Customer Verification',
+          style: GoogleFonts.inter(
+            color: context.textPrimary,
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            height: 1.15,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Text(
+              'Step 5 of 6',
+              style: GoogleFonts.inter(
+                color: context.textTertiary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 12),
-            _outlineBtn('Back', Icons.arrow_back_rounded, _loading ? null : _back),
-            const SizedBox(height: 40),
+            const Spacer(),
+            Text(
+              '5 / 6',
+              style: GoogleFonts.inter(
+                color: context.textTertiary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _outlineBtn(String label, IconData icon, VoidCallback? onTap) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: TmColors.grey300),
-          shape: const StadiumBorder(),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: 5 / 6,
+            minHeight: 6,
+            backgroundColor: context.divider,
+            valueColor: const AlwaysStoppedAnimation(TmColors.yellow),
+          ),
         ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, color: TmColors.grey700, size: 18),
-          const SizedBox(width: 8),
-          Text(label,
-              style: GoogleFonts.inter(color: TmColors.grey700, fontSize: 14)),
-        ]),
+      ],
+    );
+  }
+
+  BoxDecoration _cardDecoration(BuildContext context) {
+    return BoxDecoration(
+      color: context.card,
+      borderRadius: BorderRadius.circular(23),
+      border: Border.all(color: context.divider),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: context.isDark ? 0.24 : 0.06),
+          blurRadius: 20,
+          offset: const Offset(0, 8),
+        ),
+      ],
+    );
+  }
+
+  Widget _cardTitle(BuildContext context, String text) {
+    return Text(
+      text,
+      style: GoogleFonts.inter(
+        color: context.textPrimary,
+        fontSize: 16,
+        fontWeight: FontWeight.w800,
       ),
     );
   }
 
-  Widget _header() {
+  Widget _amountDueCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: TmColors.black,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.verified_outlined,
-              color: TmColors.yellow, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Awaiting Customer Verification',
-                    style: GoogleFonts.inter(
-                        color: TmColors.white, fontSize: 14)),
-                Text('Collect signature and confirm payment to complete.',
-                    style: GoogleFonts.inter(
-                        color: TmColors.grey500, fontSize: 12)),
-              ],
+          _cardTitle(context, 'Payment'),
+          const SizedBox(height: 10),
+          Text(
+            'Amount Due',
+            style: GoogleFonts.inter(
+              color: context.textTertiary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            formatPeso(_amountDue),
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _groupPaymentCard(BuildContext context, TaskModel task) {
+    final vehicles = task.groupVehicleTotals;
+    final breakdown = task.groupVehicleBreakdown;
+    final hasBreakdown = breakdown != null && breakdown.isNotEmpty;
+    final adjustment = task.groupAdjustment ?? 0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(context, 'Group Payment'),
+          const SizedBox(height: 3),
+          Text(
+            '${task.groupVehicleCount} vehicles',
+            style: GoogleFonts.inter(
+              color: context.textTertiary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (hasBreakdown)
+            for (var i = 0; i < breakdown.length; i++) ...[
+              if (i > 0) Divider(height: 1, thickness: 1, color: context.divider),
+              _vehicleBreakdownSection(context, i, breakdown[i]),
+            ]
+          else
+            for (var i = 0; i < vehicles.length; i++)
+              _breakdownRow(context, 'Vehicle ${i + 1}', vehicles[i]),
+          if (adjustment != 0) ...[
+            const SizedBox(height: 6),
+            _breakdownRow(context, 'Adjustment', adjustment),
+          ],
+          const SizedBox(height: 6),
+          Divider(height: 1, thickness: 1, color: context.divider),
+          const SizedBox(height: 6),
+          _breakdownRow(context, 'Total', _amountDue, emphasize: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _vehicleBreakdownSection(BuildContext context, int index, GroupVehiclePricing pricing) {
+    final expanded = _expandedVehicles.contains(index);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() {
+            if (expanded) {
+              _expandedVehicles.remove(index);
+            } else {
+              _expandedVehicles.add(index);
+            }
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Vehicle ${index + 1}',
+                    style: GoogleFonts.inter(
+                      color: context.textTertiary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (!expanded) ...[
+                  Text(
+                    formatPeso(pricing.finalTotal),
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Icon(
+                  expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: context.textTertiary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (expanded) ...[
+          _pricingComponentRow(context, 'Base Rate', pricing.baseRate),
+          _pricingComponentRow(context, 'Distance Fee', pricing.distanceFee),
+          _pricingComponentRow(context, 'VAT (12%)', pricing.vatAmount),
+          const SizedBox(height: 2),
+          _breakdownRow(context, 'Vehicle Total', pricing.finalTotal, emphasize: true, strong: false),
+          const SizedBox(height: 4),
+        ],
+      ],
+    );
+  }
+
+  Widget _pricingComponentRow(BuildContext context, String label, double amount) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                color: context.textTertiary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            formatPeso(amount),
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _breakdownRow(BuildContext context, String label, double amount, {bool emphasize = false, bool strong = true}) {
+    final labelSize = emphasize ? (strong ? 15.0 : 14.0) : 14.0;
+    final labelWeight = emphasize ? FontWeight.w700 : FontWeight.w500;
+    final valueSize = emphasize ? (strong ? 16.0 : 15.0) : 14.0;
+    final valueWeight = emphasize ? (strong ? FontWeight.w800 : FontWeight.w700) : FontWeight.w600;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                color: emphasize ? context.textPrimary : context.textTertiary,
+                fontSize: labelSize,
+                fontWeight: labelWeight,
+              ),
+            ),
+          ),
+          Text(
+            formatPeso(amount),
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: valueSize,
+              fontWeight: valueWeight,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentMethodCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(context, 'Payment Method'),
+          const SizedBox(height: 10),
+          Row(
+            children: _paymentOptions.map((option) {
+              final selected = _selectedPayment == option.value;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _selectedPayment = option.value;
+                    if (option.value == 'cash') {
+                      _paymentProof = null;
+                      _proofUploaded = false;
+                    } else {
+                      _cashReceivedCtrl.clear();
+                    }
+                  }),
+                  child: Container(
+                    margin: EdgeInsets.only(
+                      right: option.value == 'bank_transfer' ? 0 : 8,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: selected ? TmColors.yellow : context.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? TmColors.yellow : context.divider,
+                        width: selected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Text(
+                      option.label,
+                      style: GoogleFonts.inter(
+                        color: selected ? TmColors.black : context.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          if (_selectedPayment == 'cash') ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, thickness: 1, color: context.divider),
+            const SizedBox(height: 12),
+            _cashSection(context),
+          ],
+          if (_needsProof) ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, thickness: 1, color: context.divider),
+            const SizedBox(height: 12),
+            _proofSection(context),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _cashSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cash Received (₱)',
+          style: GoogleFonts.inter(
+            color: context.textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _cashReceivedCtrl,
+          focusNode: _cashFocusNode,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [_DecimalInputFormatter()],
+          style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: '0.00',
+            hintStyle: GoogleFonts.inter(color: context.textTertiary, fontSize: 15),
+            filled: true,
+            fillColor: context.surface,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: context.divider),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: context.divider),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: TmColors.yellow, width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          'Must be at least ${formatPeso(_amountDue)}.',
+          style: GoogleFonts.inter(
+            color: (_cashReceivedCtrl.text.isNotEmpty && !_cashCovers)
+                ? TmColors.error
+                : context.textTertiary,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _proofSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                'Payment Proof',
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Required',
+              style: GoogleFonts.inter(
+                color: TmColors.error,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _proofUploadBox(
+          context,
+          height: 110,
+          uploading: _uploadingProof,
+          uploaded: _proofUploaded,
+          file: _paymentProof,
+          placeholder: 'Tap to upload proof',
+          onTap: _uploadingProof ? null : _showProofSource,
+        ),
+      ],
+    );
+  }
+
+  Widget _proofUploadBox(
+    BuildContext context, {
+    required double height,
+    required bool uploading,
+    required bool uploaded,
+    required XFile? file,
+    required String placeholder,
+    required VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: height,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: context.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: uploaded ? TmColors.success : context.divider,
+            width: uploaded ? 1.5 : 1,
+          ),
+        ),
+        child: uploading
+            ? const Center(
+                child: CircularProgressIndicator(color: TmColors.yellow, strokeWidth: 2),
+              )
+            : file != null
+                ? Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: kIsWeb
+                            ? Image.network(file.path, height: height, width: double.infinity, fit: BoxFit.cover)
+                            : Image.file(File(file.path), height: height, width: double.infinity, fit: BoxFit.cover),
+                      ),
+                      if (uploaded)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                            child: Container(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.check_circle_rounded, color: TmColors.success, size: 16),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Proof uploaded',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    'Replace',
+                                    style: GoogleFonts.inter(
+                                      color: TmColors.yellow,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+                : Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.upload_rounded, color: context.textTertiary, size: 22),
+                        const SizedBox(height: 6),
+                        Text(
+                          placeholder,
+                          style: GoogleFonts.inter(color: context.textTertiary, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+      ),
+    );
+  }
+
+  Widget _signatureCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(context, 'Customer Signature'),
+          const SizedBox(height: 3),
+          Text(
+            'Required to complete this request',
+            style: GoogleFonts.inter(color: context.textTertiary, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            height: 130,
+            decoration: BoxDecoration(
+              color: context.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _hasSig ? TmColors.yellow : context.divider,
+                width: _hasSig ? 1.5 : 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Signature(
+                controller: _sigCtrl,
+                backgroundColor: context.surface,
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {
+                _sigCtrl.clear();
+                setState(() => _hasSig = false);
+              },
+              child: Text(
+                'Clear',
+                style: GoogleFonts.inter(color: context.textTertiary, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorBox(BuildContext context, String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: TmColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: const Border(left: BorderSide(color: TmColors.error, width: 3)),
+      ),
+      child: Text(
+        message,
+        style: GoogleFonts.inter(color: TmColors.error, fontSize: 13),
+      ),
+    );
+  }
+
+  Widget _primaryBtn(BuildContext context, VoidCallback? onTap) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: TmColors.yellow,
+          foregroundColor: TmColors.black,
+          disabledBackgroundColor: TmColors.yellow.withValues(alpha: 0.6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 0,
+        ),
+        child: _loading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(color: TmColors.black, strokeWidth: 2),
+              )
+            : Text(
+                'Complete Task',
+                style: GoogleFonts.inter(
+                  color: TmColors.black,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _secondaryBtn(BuildContext context, String label, VoidCallback? onTap) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: context.card,
+          side: BorderSide(color: context.divider),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            color: context.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }

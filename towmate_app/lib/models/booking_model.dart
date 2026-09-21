@@ -105,6 +105,86 @@ class BookingGroupSibling {
   }
 }
 
+class GroupTotals {
+  const GroupTotals({
+    required this.vehicleCount,
+    required this.baseRate,
+    required this.computedTotal,
+    required this.vatAmount,
+    required this.additionalFee,
+    required this.finalTotal,
+  });
+
+  final int vehicleCount;
+  final double baseRate;
+  final double computedTotal;
+  final double vatAmount;
+  final double additionalFee;
+  final double finalTotal;
+
+  factory GroupTotals.fromJson(Map<String, dynamic> j) {
+    return GroupTotals(
+      vehicleCount: _i(j['vehicle_count']) ?? 0,
+      baseRate: _d(j['base_rate']) ?? 0,
+      computedTotal: _d(j['computed_total']) ?? 0,
+      vatAmount: _d(j['vat_amount']) ?? 0,
+      additionalFee: _d(j['additional_fee']) ?? 0,
+      finalTotal: _d(j['final_total']) ?? 0,
+    );
+  }
+}
+
+class GroupVehicleBreakdown {
+  const GroupVehicleBreakdown({
+    required this.bookingCode,
+    required this.status,
+    this.vehicleTypeName,
+    this.truckTypeName,
+    this.baseRate,
+    this.distanceFee,
+    this.vatAmount,
+    this.finalTotal,
+    this.pricingIsProvisional = false,
+  });
+
+  final String bookingCode;
+  final String status;
+  final String? vehicleTypeName;
+  final String? truckTypeName;
+  final double? baseRate;
+  final double? distanceFee;
+  final double? vatAmount;
+  final double? finalTotal;
+  final bool pricingIsProvisional;
+
+  String get displayVehicleName =>
+      (vehicleTypeName != null && vehicleTypeName!.isNotEmpty)
+          ? vehicleTypeName!
+          : (truckTypeName ?? '');
+
+  String get humanStatus => humanStatusLabel(status);
+
+  bool get isCancellableByCustomer =>
+      BookingModel.cancellableStatuses.contains(status);
+
+  bool get isActiveInGroup =>
+      !BookingModel.groupInactiveStatuses.contains(status);
+
+  factory GroupVehicleBreakdown.fromJson(Map<String, dynamic> j) {
+    return GroupVehicleBreakdown(
+      bookingCode: j['booking_code'] as String? ?? '',
+      status: j['status'] as String? ?? '',
+      vehicleTypeName: j['vehicle_type_name'] as String?,
+      truckTypeName: j['truck_type_name'] as String?,
+      baseRate: _d(j['base_rate']),
+      distanceFee: _d(j['distance_fee']),
+      vatAmount: _d(j['vat_amount']),
+      finalTotal: _d(j['final_total']),
+      pricingIsProvisional: j['pricing_is_provisional'] as bool? ?? false,
+    );
+  }
+}
+
 class BookingModel {
   const BookingModel({
     required this.id,
@@ -147,6 +227,10 @@ class BookingModel {
     this.pricingIsProvisional = false,
     this.groupSiblings,
     this.groupVehicleCount,
+    this.groupBookingCode,
+    this.quotationNumber,
+    this.groupTotals,
+    this.groupVehicles,
   });
 
   final int id;
@@ -190,6 +274,10 @@ class BookingModel {
   final bool pricingIsProvisional;
   final List<BookingGroupSibling>? groupSiblings;
   final int? groupVehicleCount;
+  final String? groupBookingCode;
+  final String? quotationNumber;
+  final GroupTotals? groupTotals;
+  final List<GroupVehicleBreakdown>? groupVehicles;
 
   String get displayVehicleName =>
       (vehicleTypeName != null && vehicleTypeName!.isNotEmpty)
@@ -211,7 +299,7 @@ class BookingModel {
         scheduledTime: scheduledTime,
       );
 
-  static const Set<String> _kCancellableStatuses = {
+  static const Set<String> cancellableStatuses = {
     'requested',
     'scheduled',
     'scheduled_confirmed',
@@ -224,11 +312,52 @@ class BookingModel {
     'not_responding',
   };
 
-  bool get isCancellableByCustomer => _kCancellableStatuses.contains(status);
+  bool get isCancellableByCustomer => cancellableStatuses.contains(status);
 
   bool get isHistorical => _kHistoryStatuses.contains(status);
 
   bool get isGrouped => groupCode != null && groupCode!.isNotEmpty;
+
+  bool get isGroupChildVehicle =>
+      isGrouped && groupBookingCode != null && groupBookingCode != bookingCode;
+
+  static const Set<String> groupInactiveStatuses = {
+    'cancelled',
+    'rejected',
+    'not_responding',
+  };
+
+  List<String> get groupMemberStatuses {
+    if (groupVehicles != null && groupVehicles!.isNotEmpty) {
+      return groupVehicles!.map((v) => v.status).toList();
+    }
+    if (groupSiblings != null && groupSiblings!.isNotEmpty) {
+      return [status, ...groupSiblings!.map((s) => s.status)];
+    }
+    return [status];
+  }
+
+  int get groupTotalVehicleCount => groupMemberStatuses.length;
+
+  int get groupActiveVehicleCount => groupMemberStatuses
+      .where((s) => !groupInactiveStatuses.contains(s))
+      .length;
+
+  bool get groupAllCancelled =>
+      groupMemberStatuses.isNotEmpty && groupMemberStatuses.every((s) => s == 'cancelled');
+
+  bool get groupAllCompleted =>
+      groupMemberStatuses.isNotEmpty && groupMemberStatuses.every((s) => s == 'completed');
+
+  String get groupActiveStatusText {
+    if (groupAllCancelled) return 'Cancelled';
+    if (groupAllCompleted) return 'Completed';
+    final total = groupTotalVehicleCount;
+    return '$groupActiveVehicleCount of $total vehicle${total == 1 ? '' : 's'} active';
+  }
+
+  String get groupTotalLabel =>
+      groupActiveVehicleCount < groupTotalVehicleCount ? 'Remaining Total' : 'Group Total';
 
   factory BookingModel.fromJson(Map<String, dynamic> j) {
     final tt = j['truck_type'] as Map<String, dynamic>?;
@@ -281,6 +410,14 @@ class BookingModel {
           ?.map((e) => BookingGroupSibling.fromJson(e as Map<String, dynamic>))
           .toList(),
       groupVehicleCount: _i(j['group_vehicle_count']),
+      groupBookingCode: j['group_booking_code'] as String?,
+      quotationNumber: j['quotation_number'] as String?,
+      groupTotals: j['group_totals'] != null
+          ? GroupTotals.fromJson(j['group_totals'] as Map<String, dynamic>)
+          : null,
+      groupVehicles: (j['group_vehicles'] as List?)
+          ?.map((e) => GroupVehicleBreakdown.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 }

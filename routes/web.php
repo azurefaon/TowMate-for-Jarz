@@ -9,7 +9,6 @@ use App\Models\User;
 
 use App\Models\TruckType;
 
-use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 
 use App\Http\Controllers\GeoController;
@@ -17,7 +16,6 @@ use App\Http\Controllers\ControlCenterController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\AndroidDownloadController;
-// use App\Http\Controllers\TeamLeaderController; // archived
 
 use App\Http\Controllers\Admin\AvailableUnitsController;
 use App\Http\Controllers\Admin\DashboardController as AdminController;
@@ -57,11 +55,8 @@ Route::get('/download/android', [AndroidDownloadController::class, 'show'])
     ->middleware('throttle:30,1')
     ->name('download.android');
 
-// ── Landing page routes (archived) ───────────────────────────────────────────
-// Route::get('/book', function () { ... })->name('landing.book');
-// Route::post('/book', [CustomerBookingController::class, 'landingStore'])->name('landing.book.store');
-// Route::get('/booking-confirmed', function () { ... })->name('booking.confirmed');
-// ─────────────────────────────────────────────────────────────────────────────
+Route::get('/app', [AndroidDownloadController::class, 'landing'])
+    ->name('app.download');
 
 Route::prefix('geo')
     ->name('geo.')
@@ -104,20 +99,6 @@ Route::post('/quotation/review/{booking}', [CustomerBookingController::class, 'r
     ->middleware(['signed', 'throttle:20,1'])
     ->name('quotation.review.submit');
 
-// Route::get('/dashboard', function (Request $request) {
-//     $role = Auth::user()->role_id ?? 0;
-//     $baseUrl = rtrim(config('app.url') ?: ($request->getSchemeAndHttpHost() . $request->getBaseUrl()), '/');
-//     $redirectTo = fn(string $path) => redirect()->to($baseUrl . $path);
-//     return match ($role) {
-//         1 => $redirectTo('/superadmin/dashboard'),
-//         2 => $redirectTo('/admin-dashboard'),
-//         3 => $redirectTo('/teamleader/dashboard'),
-//         4 => $redirectTo('/driver'),
-//         5 => $redirectTo('/customer/dashboard'),
-//         default => view('dashboard'),
-//     };
-// })->middleware(['auth'])->name('dashboard');
-
 Route::get('/dashboard', function () {
     $role = Auth::user()->role_id ?? 0;
 
@@ -139,11 +120,6 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__ . '/auth.php';
-
-// ── Team Leader web UI routes (archived) ─────────────────────────────────────
-// Route::prefix('teamleader')->name('teamleader.')->middleware(['auth','role:3','force.password.change'])->group(function () { ... });
-// Route::get('/teamleader/verification/{booking}/{decision}', ...)->name('teamleader.verification.respond');
-// ─────────────────────────────────────────────────────────────────────────────
 
 Route::view('/driver', 'dashboard')
     ->middleware(['auth', 'role:4'])
@@ -211,6 +187,7 @@ Route::prefix('admin-dashboard')
         Route::post('/booking/{booking}/mark-risk', [DispatchController::class, 'markCustomerRisk'])->name('booking.mark-risk');
         Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');
         Route::post('/jobs/{booking}/confirm-payment', [JobsController::class, 'confirmPayment'])->name('jobs.confirm-payment');
+        Route::view('/jobs/mock-preview', 'admin-dashboard.pages.jobs-mock')->name('jobs.mock-preview');
         Route::get('/booking-history', [\App\Http\Controllers\Admin\BookingHistoryController::class, 'index'])->name('booking-history');
         Route::post('/booking/{id}/update-status', [DispatchController::class, 'updateStatus'])->name('booking.updateStatus');
 
@@ -223,6 +200,7 @@ Route::prefix('admin-dashboard')
             Route::post('/{quotation}/adjust-price', [DispatchController::class, 'adjustQuotationPriceAfterReview'])->name('adjust-price');
             Route::patch('/{quotation}/extend', [DispatchController::class, 'extendQuotation'])->name('extend');
             Route::get('/{quotation}/response', [DispatchController::class, 'viewQuotationResponse'])->name('response');
+            Route::post('/{quotation}/adjustments/{adjustment}/undo', [DispatchController::class, 'undoPriceAdjustment'])->name('adjustments.undo');
         });
 
         Route::prefix('invoices')->name('invoices.')->group(function () {
@@ -267,7 +245,11 @@ Route::prefix('superadmin')
         Route::post('/vehicle-types', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'store'])->name('vehicle-types.store');
         Route::put('/vehicle-types/{vehicleType}', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'update'])->name('vehicle-types.update');
         Route::patch('/vehicle-types/{vehicleType}/toggle', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'toggleStatus'])->name('vehicle-types.toggle');
+        Route::patch('/vehicle-types/reorder', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'saveOrder'])->name('vehicle-types.reorder');
         Route::delete('/vehicle-types/{vehicleType}', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'destroy'])->name('vehicle-types.destroy');
+
+        Route::post('/vehicle-categories', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'storeCategory'])->name('vehicle-categories.store');
+        Route::put('/vehicle-categories/{vehicleCategory}', [\App\Http\Controllers\SuperAdmin\VehicleTypeController::class, 'updateCategory'])->name('vehicle-categories.update');
 
         Route::get('/units', [UnitController::class, 'index'])->name('unit-truck.index');
         Route::get('/units/archived', [UnitController::class, 'archived'])->name('units.archived');
@@ -294,8 +276,9 @@ Route::get('/settings', [SystemSettingsController::class, 'index'])->name('setti
         Route::post('/settings/update', [SystemSettingsController::class, 'update'])->name('settings.update');
         Route::post('/settings/landing', [SystemSettingsController::class, 'updateLanding'])->name('settings.landing.update');
         Route::post('/settings/upload-apk', [SystemSettingsController::class, 'uploadApk'])->name('settings.upload-apk');
+        Route::patch('/settings/mobile-app/toggle', [SystemSettingsController::class, 'toggleAppStatus'])->name('settings.mobile-app.toggle');
+        Route::get('/settings/mobile-app/qr-code', [SystemSettingsController::class, 'mobileAppQrCode'])->name('settings.mobile-app.qr-code');
 
-        // Customer App Content — lives inside System Settings (no separate sidebar entry).
         Route::prefix('settings/customer-content')->name('settings.customer-content.')->group(function () {
             Route::post('/announcements', [CustomerAppContentController::class, 'announcementStore'])->name('announcements.store');
             Route::patch('/announcements/{announcement}', [CustomerAppContentController::class, 'announcementUpdate'])->name('announcements.update');
@@ -394,9 +377,6 @@ Route::middleware(['auth', 'role:5'])
             $classes   = ['light', 'medium', 'heavy'];
             $truckTypes = TruckType::where('status', 'active')->orderBy('base_rate')->get();
 
-            // Single source of truth for "is a class actually dispatch-ready right now"
-            // (online, non-busy team leader on a matching, available unit) — shared with
-            // the Flutter app's GET /api/v1/availability via the same service method.
             $readyByClass = $bookingService->dispatchAvailability()['ready_by_class'];
 
             $classData = collect($classes)->mapWithKeys(function ($cls) use ($truckTypes, $readyByClass) {
@@ -432,19 +412,3 @@ Route::middleware(['auth', 'role:5'])
         })->name('help');
     });
 
-// Route::prefix('v1')->group(function () {
-
-//     Route::post('/login', [AuthController::class, 'login']);
-//     Route::post('/register', [AuthController::class, 'register']);
-
-//     Route::middleware('auth:sanctum')->group(function () {
-
-//         Route::get('/user', [AuthController::class, 'user']);
-
-//         Route::apiResource('bookings', BookingController::class);
-//     });
-// });
-
-Route::post('/api/login', [AuthController::class, 'login'])->withoutMiddleware([
-    \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class,
-]);

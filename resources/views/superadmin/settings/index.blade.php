@@ -73,8 +73,8 @@
 
                 <div class="settings-section">
                     <div class="settings-section-head">
-                        <h3>Discount Settings</h3>
-                        <p>PWD/Senior discount used by the pricing calculation.</p>
+                        <h3>PWD/Senior Discount</h3>
+                        <p>Automatic discount applied to customer bookings that qualify for PWD/Senior pricing.</p>
                     </div>
 
                     <div class="settings-grid">
@@ -91,14 +91,100 @@
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="settings-actions" id="main-settings-actions">
-                <button type="submit" class="settings-save">Save Changes</button>
-                <button type="button" class="settings-reset">Reset to Defaults</button>
-            </div>
+                <hr class="settings-divider">
 
-        </form>
+                <div class="settings-section">
+                    <div class="settings-section-head">
+                        <h3>VAT Rate</h3>
+                        <p>The VAT percentage applied to every new booking estimate and quotation. Existing quotations keep the rate that was in effect when they were priced.</p>
+                    </div>
+
+                    <div class="settings-grid">
+                        <div class="settings-field">
+                            <label>VAT Rate (%)</label>
+                            <input type="number" step="0.01" min="0" max="100" name="settings[vat_rate_percentage]"
+                                value="{{ old('settings.vat_rate_percentage', $settings['vat_rate_percentage'] ?? '12') }}">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-actions" id="main-settings-actions">
+                    <button type="submit" class="settings-save">Save Changes</button>
+                    <button type="button" class="settings-reset">Reset to Defaults</button>
+                </div>
+            </form>
+
+            <hr class="settings-divider">
+
+            <form method="POST" action="{{ route('superadmin.settings.update') }}">
+                @csrf
+                <input type="hidden" name="settings[price_adjustment_form]" value="1">
+
+                <div class="settings-section">
+                    <div class="settings-section-head">
+                        <h3>Price Adjustment Settings</h3>
+                        <p>Controls the manual price adjustment dispatchers can apply when editing a quotation.</p>
+                    </div>
+
+                    <div class="settings-grid">
+                        <div class="settings-field settings-checkbox-field">
+                            <input type="checkbox" id="dispatcher_discount_enabled" name="settings[dispatcher_discount_enabled]" value="1"
+                                {{ old('settings.dispatcher_discount_enabled', $settings['dispatcher_discount_enabled'] ?? '0') == '1' ? 'checked' : '' }}>
+                            <label for="dispatcher_discount_enabled">Allowed Discount</label>
+                        </div>
+
+                        <div class="settings-field">
+                            <label>Maximum Dispatcher Discount (%)</label>
+                            <input type="number" step="0.01" min="0" max="100" name="settings[max_dispatcher_discount_percentage]"
+                                value="{{ old('settings.max_dispatcher_discount_percentage', $settings['max_dispatcher_discount_percentage'] ?? '') }}">
+                        </div>
+
+                        <div class="settings-field settings-checkbox-field">
+                            <input type="checkbox" id="dispatcher_discount_require_reason" name="settings[dispatcher_discount_require_reason]" value="1"
+                                {{ old('settings.dispatcher_discount_require_reason', $settings['dispatcher_discount_require_reason'] ?? '0') == '1' ? 'checked' : '' }}>
+                            <label for="dispatcher_discount_require_reason">Require Reason</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-actions">
+                    <button type="submit" class="settings-save">Save Changes</button>
+                </div>
+            </form>
+
+            <hr class="settings-divider">
+
+            <form method="POST" action="{{ route('superadmin.settings.update') }}">
+                @csrf
+                <input type="hidden" name="settings[additional_charge_form]" value="1">
+
+                <div class="settings-section">
+                    <div class="settings-section-head">
+                        <h3>Additional Charge Settings</h3>
+                        <p>Controls the itemized additional charge dispatchers can apply when editing a quotation.</p>
+                    </div>
+
+                    <div class="settings-grid">
+                        <div class="settings-field">
+                            <label>Maximum Additional Charge (₱)</label>
+                            <input type="number" step="0.01" min="0" name="settings[max_additional_charge]"
+                                value="{{ old('settings.max_additional_charge', $settings['max_additional_charge'] ?? '') }}">
+                        </div>
+
+                        <div class="settings-field settings-checkbox-field">
+                            <input type="checkbox" id="additional_charge_require_reason" name="settings[additional_charge_require_reason]" value="1"
+                                {{ old('settings.additional_charge_require_reason', $settings['additional_charge_require_reason'] ?? '0') == '1' ? 'checked' : '' }}>
+                            <label for="additional_charge_require_reason">Require Reason</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-actions">
+                    <button type="submit" class="settings-save">Save Changes</button>
+                </div>
+            </form>
+        </div>
 
         <div class="settings-content" id="customer-content">
 
@@ -548,29 +634,43 @@
             <div class="settings-section">
                 <div class="settings-section-head">
                     <h3>Android App</h3>
-                    <p>The APK served from the Android download link on the sign-in page.</p>
+                    <p>Upload and manage the Android app version. The APK will be served from the download link on the sign-in page.</p>
                 </div>
 
                 @if (session('apk_success'))
                     <p class="settings-feedback settings-feedback--success">{{ session('apk_success') }}</p>
                 @endif
 
-                <p class="field-help">
-                    @if ($androidApk['source'])
-                        Current build:
-                        <strong>{{ $androidApk['version_name'] ?: 'No version name set' }}</strong>
-                        ({{ $androidApk['size_mb'] ? $androidApk['size_mb'] . ' MB' : 'Size unavailable' }}
+                <div class="mobile-app-summary">
+                    <div class="mobile-app-summary-item">
+                        <p class="mobile-app-summary-label">Current version</p>
+                        <p class="mobile-app-summary-value">{{ $androidApk['version_name'] ?: '—' }}</p>
+                        <p class="mobile-app-summary-sub">{{ $androidApk['size_mb'] ? $androidApk['size_mb'] . ' MB' : 'Size unavailable' }}</p>
+                    </div>
+                    <div class="mobile-app-summary-item">
+                        <p class="mobile-app-summary-label">Last updated</p>
                         @if ($androidApk['uploaded_at'])
-                            , updated {{ \Illuminate\Support\Carbon::parse($androidApk['uploaded_at'])->format('M d, Y g:i A') }}
+                            <p class="mobile-app-summary-value">{{ \Illuminate\Support\Carbon::parse($androidApk['uploaded_at'])->format('M d, Y') }}</p>
+                            <p class="mobile-app-summary-sub">{{ \Illuminate\Support\Carbon::parse($androidApk['uploaded_at'])->format('g:i A') }}</p>
+                        @else
+                            <p class="mobile-app-summary-value">—</p>
                         @endif
-                        )
-                    @else
-                        No Android build uploaded yet.
-                    @endif
-                </p>
+                    </div>
+                    <div class="mobile-app-summary-item">
+                        <p class="mobile-app-summary-label">Status</p>
+                        <form method="POST" action="{{ route('superadmin.settings.mobile-app.toggle') }}" class="status-toggle-form">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit" class="status-toggle-btn {{ $androidAppActive ? 'is-active' : 'is-inactive' }}">
+                                <span class="status-toggle-track"><span class="status-toggle-thumb"></span></span>
+                                <span class="status-toggle-label">{{ $androidAppActive ? 'Active' : 'Inactive' }}</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
 
                 @if ($androidApk['release_notes'])
-                    <p class="field-help">{{ $androidApk['release_notes'] }}</p>
+                    <p class="field-help" style="margin-bottom: 16px;">{{ $androidApk['release_notes'] }}</p>
                 @endif
 
                 <form method="POST" action="{{ route('superadmin.settings.upload-apk') }}" enctype="multipart/form-data">
@@ -594,6 +694,43 @@
                         <button type="submit" class="settings-save">Update APK</button>
                     </div>
                 </form>
+            </div>
+
+            <hr class="settings-divider">
+
+            <div class="settings-section">
+                <div class="settings-section-head">
+                    <h3>Download QR Code</h3>
+                    <p>Generate a QR code that links to your app download page. Customers can scan this code to easily access the TowMate app.</p>
+                </div>
+
+                <div class="qr-card">
+                    <div class="qr-left">
+                        <label for="mobile_app_download_url">Download page URL</label>
+                        <div class="qr-url-row">
+                            <input type="text" id="mobile_app_download_url" value="{{ $appDownloadUrl }}" readonly>
+                            <button type="button" class="qr-copy-btn" id="copyAppUrlBtn" title="Copy URL"><i data-lucide="copy"></i></button>
+                        </div>
+                        <p class="field-help">This URL will open your app download page (Android/iOS).</p>
+                    </div>
+
+                    <div class="qr-divider"></div>
+
+                    <div class="qr-right">
+                        <div class="qr-preview-box">
+                            <canvas id="appQrCanvas" data-endpoint="{{ route('superadmin.settings.mobile-app.qr-code') }}"></canvas>
+                        </div>
+                        <div class="qr-meta">
+                            <h4>QR Code</h4>
+                            <p>Scan with your phone camera to open the app download page.</p>
+                            <div class="qr-actions">
+                                <button type="button" id="generateQrBtn" class="qr-btn qr-btn-dark"><i data-lucide="refresh-cw"></i> Generate QR Code</button>
+                                <button type="button" id="downloadQrBtn" class="qr-btn qr-btn-outline"><i data-lucide="download"></i> Download QR Code</button>
+                            </div>
+                            <small class="error-text" id="qrGenerateError" style="display: none;"></small>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -636,3 +773,99 @@
         });
     </script>
 @endsection
+
+@push('scripts')
+    <script>
+        (function () {
+            const canvas = document.getElementById('appQrCanvas');
+            const generateBtn = document.getElementById('generateQrBtn');
+            const downloadBtn = document.getElementById('downloadQrBtn');
+            const copyBtn = document.getElementById('copyAppUrlBtn');
+            const urlInput = document.getElementById('mobile_app_download_url');
+            const errorEl = document.getElementById('qrGenerateError');
+            const ctx = canvas ? canvas.getContext('2d') : null;
+            const qrEndpoint = canvas ? canvas.dataset.endpoint : null;
+
+            function showQrError(message) {
+                if (!errorEl) return;
+                errorEl.textContent = message;
+                errorEl.style.display = 'block';
+            }
+
+            function clearQrError() {
+                if (!errorEl) return;
+                errorEl.style.display = 'none';
+                errorEl.textContent = '';
+            }
+
+            function renderQr() {
+                if (!canvas || !ctx || !qrEndpoint) {
+                    showQrError('QR preview is unavailable.');
+                    return;
+                }
+
+                clearQrError();
+
+                fetch(qrEndpoint, { cache: 'no-store' })
+                    .then(function (response) {
+                        if (!response.ok) {
+                            throw new Error('QR request failed with status ' + response.status);
+                        }
+                        return response.blob();
+                    })
+                    .then(function (blob) {
+                        return new Promise(function (resolve, reject) {
+                            const image = new Image();
+                            const objectUrl = URL.createObjectURL(blob);
+
+                            image.onload = function () {
+                                canvas.width = image.naturalWidth;
+                                canvas.height = image.naturalHeight;
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                ctx.drawImage(image, 0, 0);
+                                URL.revokeObjectURL(objectUrl);
+                                resolve();
+                            };
+
+                            image.onerror = function () {
+                                URL.revokeObjectURL(objectUrl);
+                                reject(new Error('Could not decode the QR image.'));
+                            };
+
+                            image.src = objectUrl;
+                        });
+                    })
+                    .catch(function () {
+                        showQrError('Could not generate the QR code. Please try again.');
+                    });
+            }
+
+            renderQr();
+
+            generateBtn?.addEventListener('click', renderQr);
+
+            downloadBtn?.addEventListener('click', function () {
+                if (!canvas || !canvas.width) {
+                    showQrError('Generate the QR code before downloading.');
+                    return;
+                }
+
+                const link = document.createElement('a');
+                link.download = 'towmate-app-qr.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+
+            copyBtn?.addEventListener('click', async function () {
+                if (!urlInput) return;
+
+                try {
+                    await navigator.clipboard.writeText(urlInput.value);
+                } catch (e) {
+                    urlInput.select();
+                    document.execCommand('copy');
+                }
+            });
+        })();
+    </script>
+@endpush

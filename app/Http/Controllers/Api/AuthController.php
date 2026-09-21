@@ -13,8 +13,10 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AuthController extends Controller
 {
@@ -122,11 +124,26 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        if ($request->has('email')) {
+            $request->merge(['email' => trim((string) $request->input('email'))]);
+        }
+
         try {
             $data = $request->validate([
                 'first_name'            => 'required|string|max:100',
                 'last_name'             => 'required|string|max:100',
-                'email'                 => 'required|email|max:255|unique:users,email',
+                'email'                 => [
+                    'bail',
+                    'required',
+                    'email',
+                    'max:255',
+                    'unique:users,email',
+                    function ($attribute, $value, $fail) {
+                        if (! str_ends_with(strtolower(trim((string) $value)), '@gmail.com')) {
+                            $fail('Please use a Gmail address.');
+                        }
+                    },
+                ],
                 'phone'                 => ['required', 'string', 'regex:/^\+639\d{9}$/', 'unique:users,phone'],
                 'password'              => [
                     'required',
@@ -135,6 +152,8 @@ class AuthController extends Controller
                     Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised(),
                 ],
                 'password_confirmation' => 'required|string',
+            ], [
+                'email.email' => 'Enter a valid Gmail address.',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
@@ -272,8 +291,40 @@ class AuthController extends Controller
                 'role'       => $user->role?->name ?? 'Customer',
                 'duty_class' => $user->duty_class,
                 'auth_provider' => $user->auth_provider,
+                'has_profile_image' => filled($user->profile_image),
             ],
         ]);
+    }
+
+    public function profileImage(Request $request): StreamedResponse
+    {
+        $path = $request->user()->profile_image;
+
+        if (blank($path) || ! Storage::disk('local')->exists($path)) {
+            abort(404);
+        }
+
+        return Storage::disk('local')->response($path);
+    }
+
+    public function updateProfileImage(Request $request): JsonResponse
+    {
+        $request->validate([
+            'profile_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ]);
+
+        $user = $request->user();
+        $oldImage = $user->profile_image;
+        $path = $request->file('profile_image')->store('profile-images/'.$user->id, 'local');
+
+        $user->profile_image = $path;
+        $user->save();
+
+        if ($oldImage) {
+            Storage::disk('local')->delete($oldImage);
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function updateProfile(Request $request): JsonResponse

@@ -17,45 +17,45 @@ void main() {
     testWidgets('both password fields start obscured with two visibility icons shown', (tester) async {
       await pumpSignup(tester);
 
-      expect(find.byIcon(Icons.visibility), findsNWidgets(2));
-      expect(find.byIcon(Icons.visibility_off), findsNothing);
+      expect(find.byIcon(Icons.visibility_outlined), findsNWidgets(2));
+      expect(find.byIcon(Icons.visibility_off_outlined), findsNothing);
     });
 
     testWidgets('revealing Password does not reveal Confirm password', (tester) async {
       await pumpSignup(tester);
 
-      await tester.tap(find.byIcon(Icons.visibility).first);
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
       await tester.pump();
 
-      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
-      expect(find.byIcon(Icons.visibility), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
     });
 
     testWidgets('revealing Confirm password does not reveal Password', (tester) async {
       await pumpSignup(tester);
 
-      await tester.ensureVisible(find.byIcon(Icons.visibility).last);
+      await tester.ensureVisible(find.byIcon(Icons.visibility_outlined).last);
       await tester.pump();
-      await tester.tap(find.byIcon(Icons.visibility).last);
+      await tester.tap(find.byIcon(Icons.visibility_outlined).last);
       await tester.pump();
 
-      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
-      expect(find.byIcon(Icons.visibility), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
     });
 
     testWidgets('each field toggles independently and keeps its own controller text', (tester) async {
       await pumpSignup(tester);
 
-      final textFields = find.byType(TextFormField);
+      final textFields = find.byType(TextField);
       await tester.ensureVisible(textFields.at(4));
       await tester.enterText(textFields.at(4), 'PasswordOne!1');
       await tester.ensureVisible(textFields.at(5));
       await tester.enterText(textFields.at(5), 'PasswordTwo!2');
       await tester.pump();
 
-      await tester.ensureVisible(find.byIcon(Icons.visibility).first);
+      await tester.ensureVisible(find.byIcon(Icons.visibility_outlined).first);
       await tester.pump();
-      await tester.tap(find.byIcon(Icons.visibility).first);
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
       await tester.pump();
 
       final fields = tester.widgetList<TextField>(find.byType(TextField)).toList();

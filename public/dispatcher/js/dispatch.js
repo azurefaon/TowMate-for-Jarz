@@ -185,6 +185,7 @@ document.addEventListener("DOMContentLoaded", function () {
     initializeBookNowFilter();
     initializeScheduledFilter();
     initializeRowKeyboardAccess();
+    initializeQueueRefresh();
 
     function initializeViewToggle() {
         // No view-toggle UI exists on this page — no-op stub kept for compatibility.
@@ -476,6 +477,72 @@ document.addEventListener("DOMContentLoaded", function () {
                 event.preventDefault();
                 row.click();
             });
+        });
+    }
+
+    function initializeQueueRefresh() {
+        var refreshBtn = document.getElementById("rbQueueRefreshBtn");
+        if (!refreshBtn) return;
+        var isRefreshing = false;
+
+        function isMockPreviewActive() {
+            return window.location.search.indexOf("mockDrawer=1") !== -1;
+        }
+
+        function isDrawerOpen() {
+            var drawer = document.getElementById("rbDrawer");
+            return Boolean(drawer && drawer.classList.contains("is-open"));
+        }
+
+        function reapplySubFilter(selectId, inputId) {
+            var select = document.getElementById(selectId);
+            if (select) select.dispatchEvent(new Event("change"));
+            var input = document.getElementById(inputId);
+            if (input) input.dispatchEvent(new Event("input"));
+        }
+
+        refreshBtn.addEventListener("click", function () {
+            if (isRefreshing || isMockPreviewActive() || isDrawerOpen()) return;
+
+            isRefreshing = true;
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = "Refreshing…";
+
+            fetch(window.location.href, {
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+            })
+                .then(function (response) {
+                    if (!response.ok) throw new Error("refresh failed");
+                    return response.text();
+                })
+                .then(function (html) {
+                    var freshDoc = new DOMParser().parseFromString(html, "text/html");
+                    var freshBookNow = freshDoc.getElementById("bookNowPanel");
+                    var freshScheduled = freshDoc.getElementById("scheduledPanel");
+                    var liveBookNow = document.getElementById("bookNowPanel");
+                    var liveScheduled = document.getElementById("scheduledPanel");
+                    if (!freshBookNow || !freshScheduled || !liveBookNow || !liveScheduled) {
+                        throw new Error("missing queue panel");
+                    }
+
+                    liveBookNow.innerHTML = freshBookNow.innerHTML;
+                    liveScheduled.innerHTML = freshScheduled.innerHTML;
+
+                    var activeTabBtn = document.querySelector(".queue-filter-btn.is-active");
+                    var activeFilter = (activeTabBtn && activeTabBtn.dataset.filter) || "book-now";
+                    if (typeof window.applyDispatchQueueFilter === "function") {
+                        window.applyDispatchQueueFilter(activeFilter);
+                    }
+
+                    reapplySubFilter("rbBnFilter", "bnSearch");
+                    reapplySubFilter("schedFilter", "schedSearch");
+                })
+                .catch(function () {})
+                .finally(function () {
+                    isRefreshing = false;
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = "Refresh";
+                });
         });
     }
 
@@ -1776,6 +1843,16 @@ document.addEventListener("DOMContentLoaded", function () {
                         ? state.selectedCard.getAttribute("data-discount-rate")
                         : 0,
                 ),
+                vatAmount: parseNumericPrice(
+                    state.selectedCard
+                        ? state.selectedCard.getAttribute("data-vat-amount")
+                        : 0,
+                ),
+                vatExclusiveTotal: parseNumericPrice(
+                    state.selectedCard
+                        ? state.selectedCard.getAttribute("data-vat-exclusive-total")
+                        : 0,
+                ),
                 customerType: state.selectedCard
                     ? state.selectedCard.getAttribute("data-customer-type")
                     : "Regular",
@@ -2151,7 +2228,14 @@ document.addEventListener("DOMContentLoaded", function () {
         var baseRate = getSelectedUnitBaseRate();
         var extraDist = Math.max(0, parseFloat(distanceKm) - 4);
         var dFee = roundValue(extraDist * getSelectedUnitPerKmRate());
-        var computedPrice = roundValue((baseRate + dFee) * 1.12);
+        var draftVatRate =
+            state.reviewData && state.reviewData.vatExclusiveTotal > 0
+                ? state.reviewData.vatAmount / state.reviewData.vatExclusiveTotal
+                : null;
+        var computedPrice =
+            draftVatRate !== null
+                ? roundValue((baseRate + dFee) * (1 + draftVatRate))
+                : roundValue(baseRate + dFee);
         var price = parseNumericPrice(quotedPrice) > 0 ? parseNumericPrice(quotedPrice) : computedPrice;
 
         fetch("/admin-dashboard/booking/" + bookingId + "/save-draft", {
@@ -2433,8 +2517,15 @@ document.addEventListener("DOMContentLoaded", function () {
         var selectedUnitBaseRate = getSelectedUnitBaseRate();
         var computedTotal = roundValue(selectedUnitBaseRate + distanceFee);
         var discountAmount = roundValue(computedTotal * (discountRate / 100));
-        var subtotal = Math.max(roundValue(computedTotal - discountAmount + additionalFee), 0);
-        var finalTotal = roundValue(subtotal * 1.12);
+        var taxableSubtotal = Math.max(roundValue(computedTotal - discountAmount), 0);
+        var vatRate =
+            state.reviewData.vatExclusiveTotal > 0
+                ? state.reviewData.vatAmount / state.reviewData.vatExclusiveTotal
+                : null;
+        var hasTrustworthyVat = vatRate !== null;
+        var vatAmount = hasTrustworthyVat ? roundValue(taxableSubtotal * vatRate) : 0;
+        var serviceTotal = roundValue(taxableSubtotal + vatAmount);
+        var finalTotal = Math.max(roundValue(serviceTotal + additionalFee), 0);
 
         state.reviewData.distanceKm = distanceKm;
         state.reviewData.distanceFee = distanceFee;
@@ -2478,7 +2569,10 @@ document.addEventListener("DOMContentLoaded", function () {
             "summaryAdditionalFee",
             "₱" + formatCurrencyValue(additionalFee),
         );
-        setText("summaryFinalTotal", "₱" + formatCurrencyValue(finalTotal));
+        setText(
+            "summaryFinalTotal",
+            hasTrustworthyVat ? "₱" + formatCurrencyValue(finalTotal) : "—",
+        );
 
         syncDiscountInputState();
 
@@ -2504,8 +2598,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (finalTotalPreview) {
-            finalTotalPreview.textContent =
-                "₱" + formatCurrencyValue(finalTotal);
+            finalTotalPreview.textContent = hasTrustworthyVat
+                ? "₱" + formatCurrencyValue(finalTotal)
+                : "—";
         }
     }
 

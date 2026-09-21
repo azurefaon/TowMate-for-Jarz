@@ -1,3 +1,26 @@
+class GroupVehiclePricing {
+  final double baseRate;
+  final double distanceFee;
+  final double vatAmount;
+  final double finalTotal;
+
+  const GroupVehiclePricing({
+    required this.baseRate,
+    required this.distanceFee,
+    required this.vatAmount,
+    required this.finalTotal,
+  });
+
+  factory GroupVehiclePricing.fromJson(Map<String, dynamic> json) {
+    return GroupVehiclePricing(
+      baseRate: (json['base_rate'] as num?)?.toDouble() ?? 0.0,
+      distanceFee: (json['distance_fee'] as num?)?.toDouble() ?? 0.0,
+      vatAmount: (json['vat_amount'] as num?)?.toDouble() ?? 0.0,
+      finalTotal: (json['final_total'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
 class TaskModel {
   final int id;
   final String bookingCode;
@@ -26,6 +49,12 @@ class TaskModel {
   final String? groupCode;
   final int groupVehicleCount;
   final int groupPosition;
+  final bool groupReadyForPayment;
+  final double? groupTotal;
+  final List<double> groupVehicleTotals;
+  final List<GroupVehiclePricing>? groupVehicleBreakdown;
+  final double? groupAdjustment;
+  final bool hasClaimableSibling;
 
   const TaskModel({
     required this.id,
@@ -55,6 +84,12 @@ class TaskModel {
     this.groupCode,
     this.groupVehicleCount = 1,
     this.groupPosition = 1,
+    this.groupReadyForPayment = false,
+    this.groupTotal,
+    this.groupVehicleTotals = const [],
+    this.groupVehicleBreakdown,
+    this.groupAdjustment,
+    this.hasClaimableSibling = false,
   });
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
@@ -88,6 +123,17 @@ class TaskModel {
       groupCode: json['group_code'] as String?,
       groupVehicleCount: (json['group_vehicle_count'] as num?)?.toInt() ?? 1,
       groupPosition: (json['group_position'] as num?)?.toInt() ?? 1,
+      groupReadyForPayment: json['group_ready_for_payment'] as bool? ?? false,
+      groupTotal: (json['group_total'] as num?)?.toDouble(),
+      groupVehicleTotals: (json['group_vehicle_totals'] as List<dynamic>?)
+              ?.map((v) => (v as num).toDouble())
+              .toList() ??
+          const [],
+      groupVehicleBreakdown: (json['group_vehicle_breakdown'] as List<dynamic>?)
+          ?.map((v) => GroupVehiclePricing.fromJson(v as Map<String, dynamic>))
+          .toList(),
+      groupAdjustment: (json['group_adjustment'] as num?)?.toDouble(),
+      hasClaimableSibling: json['has_claimable_sibling'] as bool? ?? false,
     );
   }
 
@@ -97,6 +143,12 @@ class TaskModel {
     String? groupCode,
     int? groupVehicleCount,
     int? groupPosition,
+    bool? groupReadyForPayment,
+    double? groupTotal,
+    List<double>? groupVehicleTotals,
+    List<GroupVehiclePricing>? groupVehicleBreakdown,
+    double? groupAdjustment,
+    bool? hasClaimableSibling,
   }) {
     return TaskModel(
       id: id,
@@ -126,6 +178,12 @@ class TaskModel {
       groupCode: groupCode ?? this.groupCode,
       groupVehicleCount: groupVehicleCount ?? this.groupVehicleCount,
       groupPosition: groupPosition ?? this.groupPosition,
+      groupReadyForPayment: groupReadyForPayment ?? this.groupReadyForPayment,
+      groupTotal: groupTotal ?? this.groupTotal,
+      groupVehicleTotals: groupVehicleTotals ?? this.groupVehicleTotals,
+      groupVehicleBreakdown: groupVehicleBreakdown ?? this.groupVehicleBreakdown,
+      groupAdjustment: groupAdjustment ?? this.groupAdjustment,
+      hasClaimableSibling: hasClaimableSibling ?? this.hasClaimableSibling,
     );
   }
 

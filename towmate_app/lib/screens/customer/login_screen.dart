@@ -255,7 +255,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     _AuthField(
                       controller: _emailController,
                       label: 'EMAIL',
-                      hint: 'you@example.com',
+                      hint: 'example@gmail.com',
                       keyboardType: TextInputType.emailAddress,
                       validator: Validators.email,
                       textInputAction: TextInputAction.next,
@@ -518,8 +518,7 @@ class _AuthFieldState extends State<_AuthField> {
                     focusedErrorBorder: InputBorder.none,
                     suffixIcon: widget.obscureText
                         ? GestureDetector(
-                            onTap: () =>
-                                setState(() => _obscure = !_obscure),
+                            onTap: () => setState(() => _obscure = !_obscure),
                             child: Icon(
                               _obscure
                                   ? Icons.visibility_outlined

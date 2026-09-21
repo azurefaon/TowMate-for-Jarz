@@ -18,6 +18,7 @@ class GoogleSignInButton extends StatefulWidget {
     this.onWebResult,
     this.label = 'Continue with Google',
     this.webText = GoogleButtonText.continueWith,
+    this.iconOnly = false,
   });
 
   final bool isLoading;
@@ -25,6 +26,7 @@ class GoogleSignInButton extends StatefulWidget {
   final ValueChanged<GoogleAuthResult>? onWebResult;
   final String label;
   final GoogleButtonText webText;
+  final bool iconOnly;
 
   @override
   State<GoogleSignInButton> createState() => _GoogleSignInButtonState();
@@ -52,16 +54,33 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.iconOnly) {
+      return SizedBox(
+        width: 48,
+        height: 48,
+        child: widget.isLoading
+            ? const _LoadingShell()
+            : (kIsWeb ? _webButton() : _nativeButton()),
+      );
+    }
     return SizedBox(
       width: double.infinity,
       height: 52,
       child: widget.isLoading
-          ? _LoadingShell()
+          ? const _LoadingShell()
           : (kIsWeb ? _webButton() : _nativeButton()),
     );
   }
 
   Widget _webButton() {
+    if (widget.iconOnly) {
+      return Center(
+        child: renderGoogleWebButton(
+          text: widget.webText,
+          iconOnly: true,
+        ),
+      );
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth.isFinite
@@ -78,6 +97,26 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
   }
 
   Widget _nativeButton() {
+    if (widget.iconOnly) {
+      return Tooltip(
+        message: widget.label,
+        child: OutlinedButton(
+          onPressed: widget.onPressed,
+          style: OutlinedButton.styleFrom(
+            backgroundColor: TmColors.white,
+            foregroundColor: TmColors.black,
+            disabledBackgroundColor: TmColors.white,
+            side: const BorderSide(color: TmColors.grey300),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            padding: EdgeInsets.zero,
+            elevation: 0,
+          ),
+          child: const GoogleMark(size: 20),
+        ),
+      );
+    }
     return OutlinedButton(
       onPressed: widget.onPressed,
       style: OutlinedButton.styleFrom(
@@ -113,6 +152,8 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
 }
 
 class _LoadingShell extends StatelessWidget {
+  const _LoadingShell();
+
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(

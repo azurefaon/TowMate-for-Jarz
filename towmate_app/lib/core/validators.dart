@@ -28,10 +28,18 @@ abstract final class PhMobilePhone {
 }
 
 abstract final class Validators {
+  static const String gmailDomain = 'gmail.com';
+
   static String? email(String? v) {
     if (v == null || v.trim().isEmpty) return 'Email is required';
-    final re = RegExp(r'^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$');
-    if (!re.hasMatch(v.trim())) return 'Enter a valid email address';
+    final trimmed = v.trim();
+    final re = RegExp(
+      r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$',
+      caseSensitive: false,
+    );
+    if (!re.hasMatch(trimmed)) return 'Enter a valid Gmail address.';
+    final domain = trimmed.split('@').last.toLowerCase();
+    if (domain != gmailDomain) return 'Please use a Gmail address.';
     return null;
   }
 

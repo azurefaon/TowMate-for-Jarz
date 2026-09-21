@@ -3,7 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 
 class TmBottomNav extends StatelessWidget {
-  const TmBottomNav({super.key, required this.currentRoute, this.unreadCount = 0});
+  const TmBottomNav({
+    super.key,
+    required this.currentRoute,
+    this.unreadCount = 0,
+  });
 
   final String currentRoute;
   final int unreadCount;
@@ -93,7 +97,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? TmColors.black : context.textTertiary;
+    final color = selected ? TmColors.yellow : context.textTertiary;
     return Expanded(
       child: Semantics(
         button: true,
@@ -108,14 +112,24 @@ class _NavItem extends StatelessWidget {
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Icon(selected ? selectedIcon : icon, color: color, size: 23),
+                    Icon(
+                      selected ? selectedIcon : icon,
+                      color: color,
+                      size: 23,
+                    ),
                     if (badgeCount > 0)
                       Positioned(
                         right: -6,
                         top: -4,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                          constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 15,
+                            minHeight: 15,
+                          ),
                           decoration: const BoxDecoration(
                             color: TmColors.error,
                             shape: BoxShape.circle,
@@ -181,11 +195,7 @@ class _BookNowNavItem extends StatelessWidget {
                     color: TmColors.yellow,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.add,
-                    color: TmColors.black,
-                    size: 20,
-                  ),
+                  child: const Icon(Icons.add, color: TmColors.black, size: 20),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -193,7 +203,7 @@ class _BookNowNavItem extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    color: selected ? TmColors.black : context.textTertiary,
+                    color: selected ? TmColors.yellow : context.textTertiary,
                     fontSize: 10.5,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                     letterSpacing: 0.1,

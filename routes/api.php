@@ -47,7 +47,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('v1/profile',                        [AuthController::class, 'profile']);
+    Route::get('v1/profile/image',                 [AuthController::class, 'profileImage']);
     Route::post('v1/profile/update',               [AuthController::class, 'updateProfile']);
+    Route::post('v1/profile/image',                [AuthController::class, 'updateProfileImage']);
     Route::post('v1/profile/change-password',      [AuthController::class, 'changePassword']);
     Route::post('v1/profile/email/request-otp',    [AuthController::class, 'requestEmailChangeOtp']);
     Route::post('v1/profile/email/confirm',        [AuthController::class, 'confirmEmailChange']);
@@ -55,13 +57,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('v1')->group(function () {
         Route::get('truck-types',  [CustomerBookingController::class, 'truckTypes']);
         Route::get('vehicle-types', [CustomerBookingController::class, 'vehicleTypes']);
+        Route::get('vehicle-categories', [CustomerBookingController::class, 'vehicleCategories']);
         Route::get('availability', [CustomerBookingController::class, 'availability']);
         Route::get('bookings/current', [CustomerBookingController::class, 'currentBooking']);
         Route::get('bookings/history', [CustomerBookingController::class, 'bookingHistory']);
         Route::post('bookings', [CustomerBookingController::class, 'createBooking'])->middleware('throttle:customer-booking-create');
+        Route::post('bookings/check-duplicate-route', [CustomerBookingController::class, 'checkDuplicateRoute']);
         Route::get('bookings/{code}/detail', [CustomerBookingController::class, 'detail']);
         Route::get('bookings/{code}/receipt', [CustomerBookingController::class, 'receipt']);
         Route::post('bookings/{code}/cancel', [CustomerBookingController::class, 'cancelBooking'])->middleware('throttle:customer-booking-cancel');
+        Route::post('bookings/group/{groupCode}/cancel', [CustomerBookingController::class, 'cancelGroupBookings'])->middleware('throttle:customer-booking-cancel');
 
         Route::middleware('throttle:api-geo-proxy')->group(function () {
             Route::get('geo/search', [GeoController::class, 'search']);

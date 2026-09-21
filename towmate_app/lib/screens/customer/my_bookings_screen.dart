@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../core/route_observer.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart';
 import '../../services/api_service.dart';
-import '../../widgets/booking_cancel_dialog.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/tm_bottom_nav.dart';
 
@@ -32,7 +32,7 @@ class MyBookingsScreen extends StatefulWidget {
   State<MyBookingsScreen> createState() => _MyBookingsScreenState();
 }
 
-class _MyBookingsScreenState extends State<MyBookingsScreen> {
+class _MyBookingsScreenState extends State<MyBookingsScreen> with RouteAware {
   List<BookingModel> _bookings = [];
   QuotationModel? _pendingQuotation;
   bool _loading = true;
@@ -46,6 +46,23 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    appRouteObserver.subscribe(this, ModalRoute.of(context) as PageRoute);
+  }
+
+  @override
+  void dispose() {
+    appRouteObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    _load(refresh: true);
   }
 
   Future<void> _load({bool refresh = false}) async {
@@ -116,26 +133,6 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     return result;
   }
 
-  Future<void> _cancelBooking(BookingModel b) async {
-    final confirmed = await showCancelBookingDialog(context, b);
-    if (confirmed != true || !mounted) return;
-    final result = await ApiService.cancelBooking(b.bookingCode);
-    if (!mounted) return;
-    if (result['success'] == true) {
-      _load(refresh: true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            (result['message'] as String?)?.isNotEmpty == true
-                ? result['message'] as String
-                : 'Failed to cancel booking.',
-          ),
-        ),
-      );
-    }
-  }
-
   void _openQuotation() async {
     await Navigator.pushNamed(context, '/quotation', arguments: _pendingQuotation);
     _load(refresh: true);
@@ -143,6 +140,14 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
 
   void _openBooking(BookingModel b) {
     Navigator.pushNamed(context, '/booking-detail', arguments: b.bookingCode);
+  }
+
+  void _openGroup(BookingModel primary) {
+    Navigator.pushNamed(
+      context,
+      '/booking-detail',
+      arguments: {'bookingCode': primary.bookingCode, 'asGroupOverview': true},
+    );
   }
 
   @override
@@ -191,7 +196,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                   quotation: _pendingQuotation,
                                   onOpenQuotation: _openQuotation,
                                   onOpenBooking: _openBooking,
-                                  onCancel: _cancelBooking,
+                                  onOpenGroup: _openGroup,
                                 )
                               : _HistoryList(
                                   displayList: _buildDisplayList(history),
@@ -199,6 +204,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                   loadingMore: _loadingMore,
                                   onLoadMore: _loadMore,
                                   onOpenBooking: _openBooking,
+                                  onOpenGroup: _openGroup,
                                 ),
                         ),
             ),
@@ -276,14 +282,14 @@ class _ActiveList extends StatelessWidget {
     required this.quotation,
     required this.onOpenQuotation,
     required this.onOpenBooking,
-    required this.onCancel,
+    required this.onOpenGroup,
   });
   final List<BookingModel> bookings;
   final List<Object> displayList;
   final QuotationModel? quotation;
   final VoidCallback onOpenQuotation;
   final void Function(BookingModel) onOpenBooking;
-  final void Function(BookingModel) onCancel;
+  final void Function(BookingModel) onOpenGroup;
 
   @override
   Widget build(BuildContext context) {
@@ -309,12 +315,11 @@ class _ActiveList extends StatelessWidget {
         const SizedBox(height: 12),
         for (final item in displayList)
           item is BookingModel
-              ? _BookingCard(booking: item, onTap: () => onOpenBooking(item), onCancel: () => onCancel(item))
+              ? _BookingCard(booking: item, onTap: () => onOpenBooking(item))
               : _GroupBookingCard(
                   primary: (item as List<BookingModel>).first,
                   siblings: item.skip(1).toList(),
-                  onTap: () => onOpenBooking(item.first),
-                  onCancel: () => onCancel(item.first),
+                  onTap: () => onOpenGroup(item.first),
                 ),
       ],
     );
@@ -328,12 +333,14 @@ class _HistoryList extends StatelessWidget {
     required this.loadingMore,
     required this.onLoadMore,
     required this.onOpenBooking,
+    required this.onOpenGroup,
   });
   final List<Object> displayList;
   final bool hasMore;
   final bool loadingMore;
   final VoidCallback onLoadMore;
   final void Function(BookingModel) onOpenBooking;
+  final void Function(BookingModel) onOpenGroup;
 
   @override
   Widget build(BuildContext context) {
@@ -368,12 +375,11 @@ class _HistoryList extends StatelessWidget {
         }
         final item = displayList[i];
         return item is BookingModel
-            ? _BookingCard(booking: item, onTap: () => onOpenBooking(item), onCancel: () {})
+            ? _BookingCard(booking: item, onTap: () => onOpenBooking(item))
             : _GroupBookingCard(
                 primary: (item as List<BookingModel>).first,
                 siblings: item.skip(1).toList(),
-                onTap: () => onOpenBooking(item.first),
-                onCancel: () {},
+                onTap: () => onOpenGroup(item.first),
               );
       },
     );
@@ -426,10 +432,9 @@ class _QuotationBanner extends StatelessWidget {
 }
 
 class _BookingCard extends StatelessWidget {
-  const _BookingCard({required this.booking, required this.onTap, required this.onCancel});
+  const _BookingCard({required this.booking, required this.onTap});
   final BookingModel booking;
   final VoidCallback onTap;
-  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -454,10 +459,8 @@ class _BookingCard extends StatelessWidget {
                   Icon(Icons.chevron_right, color: context.textPrimary, size: 22),
                 ],
               ),
-              if (booking.isCancellableByCustomer || _showQuotationSentHint(booking)) ...[
-                const SizedBox(height: 12),
-                _CancelButton(booking: booking, onCancel: onCancel),
-              ],
+              const SizedBox(height: 12),
+              _ViewDetailsButton(onTap: onTap),
             ],
           ),
         ),
@@ -466,33 +469,34 @@ class _BookingCard extends StatelessWidget {
   }
 }
 
-class _GroupBookingCard extends StatefulWidget {
+class _GroupBookingCard extends StatelessWidget {
   const _GroupBookingCard({
     required this.primary,
     required this.siblings,
     required this.onTap,
-    required this.onCancel,
   });
   final BookingModel primary;
   final List<BookingModel> siblings;
   final VoidCallback onTap;
-  final VoidCallback onCancel;
-
-  @override
-  State<_GroupBookingCard> createState() => _GroupBookingCardState();
-}
-
-class _GroupBookingCardState extends State<_GroupBookingCard> {
-  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final b = widget.primary;
-    final totalVehicles = widget.siblings.length + 1;
+    final vehicles = [primary, ...siblings];
+    final totalVehicles = vehicles.length;
+    final anyPriceKnown = vehicles.any((v) => v.finalTotal != null || v.computedTotal != null);
+    final groupPrice = vehicles.fold<double>(
+      0,
+      (sum, v) => sum + (v.finalTotal ?? v.computedTotal ?? 0),
+    );
+    final allCommitted = vehicles.every((v) => _isCommitted(v.status));
+    final allCancelled = vehicles.every((v) => v.status == 'cancelled');
+    final scheduled = primary.scheduledLabel;
+    final showScheduled = primary.serviceType == 'schedule' && scheduled.isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -502,6 +506,25 @@ class _GroupBookingCardState extends State<_GroupBookingCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      primary.groupCode ?? 'Group Request',
+                      style: GoogleFonts.inter(
+                        color: context.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.chevron_right, color: context.textPrimary, size: 22),
+                ],
+              ),
+              const SizedBox(height: 3),
               Text(
                 '$totalVehicles vehicle${totalVehicles > 1 ? 's' : ''} in this request',
                 style: GoogleFonts.inter(
@@ -511,35 +534,57 @@ class _GroupBookingCardState extends State<_GroupBookingCard> {
                   letterSpacing: 0.6,
                 ),
               ),
-              const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(child: _BookingCardBody(booking: b)),
-                  const SizedBox(width: 8),
-                  Icon(Icons.chevron_right, color: context.textPrimary, size: 22),
-                ],
-              ),
-              if (b.isCancellableByCustomer || _showQuotationSentHint(b)) ...[
-                const SizedBox(height: 12),
-                _CancelButton(booking: b, onCancel: widget.onCancel),
-              ],
-              if (widget.siblings.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                GestureDetector(
-                  onTap: () => setState(() => _expanded = !_expanded),
-                  child: Text(
-                    _expanded
-                        ? 'Hide ${widget.siblings.length} other vehicle${widget.siblings.length > 1 ? 's' : ''}'
-                        : 'Show ${widget.siblings.length} other vehicle${widget.siblings.length > 1 ? 's' : ''}',
-                    style: GoogleFonts.inter(color: context.textPrimary, fontSize: 12.5, fontWeight: FontWeight.w500),
-                  ),
+              if (primary.quotationNumber != null && primary.quotationNumber!.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  'Quotation: ${primary.quotationNumber}',
+                  style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12),
                 ),
-                if (_expanded) ...[
-                  const SizedBox(height: 10),
-                  ...widget.siblings.map((s) => _SiblingRow(sibling: s)),
-                ],
               ],
+              const SizedBox(height: 10),
+              _AddressRow(label: 'Pickup', address: primary.pickupAddress),
+              const SizedBox(height: 6),
+              _AddressRow(label: 'Drop-off', address: primary.dropoffAddress),
+              if (showScheduled) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text('Scheduled: ', style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12.5)),
+                    Text(
+                      scheduled,
+                      style: GoogleFonts.inter(color: context.textPrimary, fontSize: 12.5, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              for (int i = 0; i < vehicles.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                _GroupVehicleRow(index: i + 1, vehicle: vehicles[i]),
+              ],
+              if (anyPriceKnown) ...[
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        allCancelled ? 'Original Estimated Total' : 'Group Total',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12.5, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${allCancelled || allCommitted ? '' : 'Est. '}₱${NumberFormat('#,##0.00', 'en_PH').format(groupPrice)}',
+                      style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.2),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              _ViewDetailsButton(onTap: onTap),
             ],
           ),
         ),
@@ -548,15 +593,15 @@ class _GroupBookingCardState extends State<_GroupBookingCard> {
   }
 }
 
-class _SiblingRow extends StatelessWidget {
-  const _SiblingRow({required this.sibling});
-  final BookingModel sibling;
+class _GroupVehicleRow extends StatelessWidget {
+  const _GroupVehicleRow({required this.index, required this.vehicle});
+  final int index;
+  final BookingModel vehicle;
 
   @override
   Widget build(BuildContext context) {
-    final timeLabel = sibling.scheduledLabel;
+    final timeLabel = vehicle.scheduledLabel;
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: context.surface,
@@ -569,7 +614,7 @@ class _SiblingRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  sibling.displayVehicleName,
+                  'Vehicle $index · ${vehicle.displayVehicleName}',
                   style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13, letterSpacing: -0.1),
                 ),
                 if (timeLabel.isNotEmpty) ...[
@@ -580,8 +625,8 @@ class _SiblingRow extends StatelessWidget {
             ),
           ),
           Text(
-            sibling.humanStatus,
-            style: GoogleFonts.inter(color: _statusColor(sibling.status, context), fontSize: 11.5, fontWeight: FontWeight.w500),
+            vehicle.humanStatus,
+            style: GoogleFonts.inter(color: _statusColor(vehicle.status, context), fontSize: 11.5, fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -589,46 +634,27 @@ class _SiblingRow extends StatelessWidget {
   }
 }
 
-bool _showQuotationSentHint(BookingModel b) => b.status == 'quotation_sent';
-
-class _CancelButton extends StatelessWidget {
-  const _CancelButton({required this.booking, required this.onCancel});
-  final BookingModel booking;
-  final VoidCallback onCancel;
+class _ViewDetailsButton extends StatelessWidget {
+  const _ViewDetailsButton({required this.onTap});
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final active = booking.isCancellableByCustomer;
     return SizedBox(
       width: double.infinity,
       height: 40,
-      child: active
-          ? ElevatedButton(
-              onPressed: onCancel,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: TmColors.destructive,
-                foregroundColor: TmColors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text(
-                'Cancel Booking',
-                style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600),
-              ),
-            )
-          : OutlinedButton(
-              onPressed: null,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: context.textTertiary,
-                side: BorderSide(color: context.divider, width: 1.2),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                disabledForegroundColor: context.textTertiary,
-              ),
-              child: Text(
-                'Quotation sent — can\'t cancel here',
-                style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600),
-              ),
-            ),
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: context.textPrimary,
+          side: BorderSide(color: context.divider, width: 1.2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        child: Text(
+          'View Booking Details',
+          style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600),
+        ),
+      ),
     );
   }
 }
@@ -652,7 +678,7 @@ class _BookingCardBody extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                b.bookingCode,
+                b.groupBookingCode ?? b.bookingCode,
                 style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15, fontWeight: FontWeight.w500, letterSpacing: -0.2),
               ),
             ),
@@ -668,6 +694,13 @@ class _BookingCardBody extends StatelessWidget {
           '${b.displayVehicleName}  ·  ${_serviceTypeLabel(b.serviceType)}',
           style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12),
         ),
+        if (b.quotationNumber != null && b.quotationNumber!.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          Text(
+            'Quotation: ${b.quotationNumber}',
+            style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12),
+          ),
+        ],
         const SizedBox(height: 10),
         _AddressRow(label: 'Pickup', address: b.pickupAddress),
         const SizedBox(height: 6),

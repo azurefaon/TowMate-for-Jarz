@@ -26,9 +26,14 @@ class QuotationFollowUpMail extends Mailable
 
         $distanceFee = app(BookingService::class)->distanceFeeFor($distanceKm, (float) ($quotation->truckType->per_km_rate ?? 0));
 
+        $vatRate = app(BookingService::class)->resolveVatRate(
+            $quotation->vat_rate !== null ? (float) $quotation->vat_rate : null,
+            $sourceBooking?->vat_amount !== null ? (float) $sourceBooking->vat_amount : null,
+            $sourceBooking?->vat_exclusive_total !== null ? (float) $sourceBooking->vat_exclusive_total : null,
+        );
         $vatAmount = (float) ($sourceBooking?->vat_amount ?? 0);
         if ($vatAmount <= 0 && $totalAmount > 0) {
-            $vatAmount = round(($totalAmount - $additionalFee) / 1.12 * 0.12, 2);
+            $vatAmount = round(($totalAmount - $additionalFee) / (1 + $vatRate) * $vatRate, 2);
         }
 
         $additionalFeeNote = $sourceBooking?->dispatcher_note
@@ -40,6 +45,7 @@ class QuotationFollowUpMail extends Mailable
             'distance_km'         => $distanceKm,
             'distance_fee'        => $distanceFee,
             'vat_amount'          => $vatAmount,
+            'vat_rate_label'      => rtrim(rtrim(number_format($vatRate * 100, 2), '0'), '.') . '%',
             'additional_fee'      => $additionalFee,
             'additional_fee_note' => $additionalFeeNote,
             'total_amount'        => $totalAmount,

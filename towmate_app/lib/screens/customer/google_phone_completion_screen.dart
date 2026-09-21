@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/app_prefs.dart';
 import '../../core/theme.dart';
 import '../../core/validators.dart';
 import '../../core/security_utils.dart';
@@ -16,10 +17,12 @@ class GooglePhoneCompletionScreen extends StatefulWidget {
   final String firstName;
 
   @override
-  State<GooglePhoneCompletionScreen> createState() => _GooglePhoneCompletionScreenState();
+  State<GooglePhoneCompletionScreen> createState() =>
+      _GooglePhoneCompletionScreenState();
 }
 
-class _GooglePhoneCompletionScreenState extends State<GooglePhoneCompletionScreen> {
+class _GooglePhoneCompletionScreenState
+    extends State<GooglePhoneCompletionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   late final String _csrfToken;
@@ -63,18 +66,23 @@ class _GooglePhoneCompletionScreenState extends State<GooglePhoneCompletionScree
     if (!mounted) return;
 
     if (res['success'] == true) {
+      await AppPrefs.restoreAuthenticatedTheme();
       Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     } else {
       setState(() {
         _isLoading = false;
-        _apiError = res['message'] as String? ?? 'Could not complete sign-up. Please try again.';
+        _apiError =
+            res['message'] as String? ??
+            'Could not complete sign-up. Please try again.';
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final greetingName = widget.firstName.trim().isEmpty ? '' : ' ${widget.firstName.trim()}';
+    final greetingName = widget.firstName.trim().isEmpty
+        ? ''
+        : ' ${widget.firstName.trim()}';
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -127,12 +135,21 @@ class _GooglePhoneCompletionScreenState extends State<GooglePhoneCompletionScree
                   onFieldSubmitted: (_) => _submit(),
                   validator: (v) {
                     if (!_touched && !_submitted) return null;
-                    return PhMobilePhone.validateLocal(v, showIncomplete: _submitted);
+                    return PhMobilePhone.validateLocal(
+                      v,
+                      showIncomplete: _submitted,
+                    );
                   },
-                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 15,
+                  ),
                   decoration: InputDecoration(
                     hintText: '917 123 4567',
-                    hintStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 15),
+                    hintStyle: GoogleFonts.inter(
+                      color: context.textSecondary,
+                      fontSize: 15,
+                    ),
                     filled: true,
                     fillColor: context.surface,
                     prefixIcon: Padding(
@@ -140,13 +157,26 @@ class _GooglePhoneCompletionScreenState extends State<GooglePhoneCompletionScree
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('+63', style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15)),
+                          Text(
+                            '+63',
+                            style: GoogleFonts.inter(
+                              color: context.textPrimary,
+                              fontSize: 15,
+                            ),
+                          ),
                           const SizedBox(width: 10),
-                          Container(width: 1, height: 18, color: context.divider),
+                          Container(
+                            width: 1,
+                            height: 18,
+                            color: context.divider,
+                          ),
                         ],
                       ),
                     ),
-                    prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 0,
+                      minHeight: 0,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide(color: context.divider),
@@ -157,32 +187,54 @@ class _GooglePhoneCompletionScreenState extends State<GooglePhoneCompletionScree
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: context.textTertiary, width: 1.5),
+                      borderSide: BorderSide(
+                        color: context.textTertiary,
+                        width: 1.5,
+                      ),
                     ),
                     errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: TmColors.error, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: TmColors.error,
+                        width: 1.5,
+                      ),
                     ),
                     focusedErrorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: TmColors.error, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: TmColors.error,
+                        width: 1.5,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-                    errorStyle: GoogleFonts.inter(color: TmColors.error, fontSize: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 15,
+                    ),
+                    errorStyle: GoogleFonts.inter(
+                      color: TmColors.error,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 if (_apiError != null) ...[
                   const SizedBox(height: 16),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: TmColors.error.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       _apiError!,
-                      style: GoogleFonts.inter(color: TmColors.error, fontSize: 13, letterSpacing: 0.1),
+                      style: GoogleFonts.inter(
+                        color: TmColors.error,
+                        fontSize: 13,
+                        letterSpacing: 0.1,
+                      ),
                     ),
                   ),
                 ],
@@ -195,7 +247,9 @@ class _GooglePhoneCompletionScreenState extends State<GooglePhoneCompletionScree
                     style: ElevatedButton.styleFrom(
                       backgroundColor: TmColors.yellow,
                       foregroundColor: TmColors.black,
-                      disabledBackgroundColor: TmColors.yellow.withValues(alpha: 0.6),
+                      disabledBackgroundColor: TmColors.yellow.withValues(
+                        alpha: 0.6,
+                      ),
                       shape: const StadiumBorder(),
                       elevation: 0,
                     ),
@@ -203,7 +257,10 @@ class _GooglePhoneCompletionScreenState extends State<GooglePhoneCompletionScree
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(color: TmColors.black, strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              color: TmColors.black,
+                              strokeWidth: 2,
+                            ),
                           )
                         : Text(
                             'Continue',

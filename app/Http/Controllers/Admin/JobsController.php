@@ -28,21 +28,43 @@ class JobsController extends Controller
 
     public function index()
     {
-        $jobs = Booking::with(['customer', 'truckType', 'unit.driver', 'assignedTeamLeader'])
+        $allJobs = Booking::with(['customer', 'truckType', 'unit.driver', 'assignedTeamLeader'])
             ->whereIn('status', $this->activeStatuses)
             ->latest()
-            ->paginate(12);
+            ->get();
+
+        $groups = $allJobs
+            ->groupBy(fn(Booking $b) => $b->group_code
+                ? $b->group_code . '|' . $b->pickup_address . '|' . $b->dropoff_address
+                : 'solo-' . $b->id)
+            ->map(function ($members) {
+                $sorted = $members->sortBy('id')->values();
+                $primary = $sorted->first();
+                $primary->sibling_bookings = $sorted;
+                $primary->group_total = $this->isNormalizedGroupBooking($primary)
+                    ? $this->activeGroupTotal($primary, $sorted)
+                    : null;
+                return $primary;
+            })
+            ->values()
+            ->sortByDesc(fn(Booking $b) => $b->created_at?->getTimestamp() ?? 0)
+            ->values();
+
+        $page = (int) request('page', 1);
+        $perPage = 12;
+        $jobs = new \Illuminate\Pagination\LengthAwarePaginator(
+            $groups->forPage($page, $perPage),
+            $groups->count(),
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
 
         $stats = [
             'total'             => Booking::whereIn('status', $this->activeStatuses)->count(),
             'operational'       => Booking::whereIn('status', array_values(array_diff($this->activeStatuses, $this->verificationStatuses)))->count(),
             'awaiting_payment'  => Booking::whereIn('status', $this->verificationStatuses)->count(),
             'delayed'           => Booking::where('status', 'delayed')->count(),
-            // UI filter-group counts for the Active Jobs tabs — computed
-            // independently of pagination (the table itself is paginated at
-            // 12/page, so counting rendered rows client-side would be wrong).
-            // Presentation groupings only; the underlying statuses/lifecycle
-            // are unchanged.
             'assigned'              => Booking::whereIn('status', ['assigned', 'accepted'])->count(),
             'en_route'              => Booking::whereIn('status', ['on_the_way', 'arrived_pickup'])->count(),
             'in_service'            => Booking::whereIn('status', ['in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff'])->count(),
@@ -52,11 +74,44 @@ class JobsController extends Controller
         return view('admin-dashboard.pages.jobs', compact('jobs', 'stats'));
     }
 
+    private function isNormalizedGroupBooking(Booking $booking): bool
+    {
+        if (! $booking->group_code || ! $booking->quotation_id) {
+            return false;
+        }
+        $quotation = \App\Models\Quotation::find($booking->quotation_id);
+        if (! $quotation) {
+            return false;
+        }
+        return collect($quotation->extra_vehicles ?? [])->contains(fn($ev) => ! empty($ev['booking_id']));
+    }
+
+    private function activeGroupTotal(Booking $primary, \Illuminate\Support\Collection $activeMembers): ?float
+    {
+        $quotation = \App\Models\Quotation::find($primary->quotation_id);
+        if (! $quotation) {
+            return null;
+        }
+
+        $expectedMemberCount = 1 + collect($quotation->extra_vehicles ?? [])
+            ->filter(fn($ev) => ! empty($ev['booking_id']))
+            ->count();
+
+        if ($activeMembers->count() >= $expectedMemberCount) {
+            return (float) $quotation->estimated_price;
+        }
+
+        $adjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
+
+        return max(round($activeMembers->sum(fn($member) => (float) $member->final_total) + $adjustment, 2), 0);
+    }
+
     public function confirmPayment(Request $request, Booking $booking)
     {
         $readyStatuses = ['waiting_verification', 'payment_pending', 'payment_submitted'];
+        $isGroup = $this->isNormalizedGroupBooking($booking);
 
-        $outcome = DB::transaction(function () use ($booking, $readyStatuses) {
+        $outcome = DB::transaction(function () use ($booking, $readyStatuses, $isGroup) {
             $locked = Booking::whereKey($booking->id)->lockForUpdate()->first();
 
             if ($locked->status === 'completed') {
@@ -67,10 +122,48 @@ class JobsController extends Controller
                 return ['error' => 'This booking is not ready for completion.'];
             }
 
-            $locked->update([
-                'status'       => 'completed',
-                'completed_at' => now(),
-            ]);
+            $members = $isGroup
+                ? Booking::where('group_code', $locked->group_code)
+                    ->where('pickup_address', $locked->pickup_address)
+                    ->where('dropoff_address', $locked->dropoff_address)
+                    ->lockForUpdate()
+                    ->orderBy('id')
+                    ->get()
+                    ->reject(fn($member) => $member->status === 'cancelled')
+                    ->values()
+                : collect([$locked]);
+
+            $notReady = $members->filter(fn($member) => $member->id !== $locked->id
+                && $member->status !== 'completed'
+                && ! in_array($member->status, $readyStatuses, true));
+            if ($notReady->isNotEmpty()) {
+                return ['error' => 'All vehicles in this group must submit payment before it can be confirmed.'];
+            }
+
+            foreach ($members as $member) {
+                if ($member->status === 'completed') {
+                    continue;
+                }
+
+                $wasSubmitted = $member->payment_submitted_at !== null;
+
+                $member->update([
+                    'status'       => 'completed',
+                    'completed_at' => now(),
+                ]);
+
+                if (! $wasSubmitted) {
+                    if ($member->assigned_unit_id) {
+                        Unit::whereKey($member->assigned_unit_id)->update(['status' => 'available']);
+                    }
+                    if ($member->assigned_team_leader_id) {
+                        $tl = User::find($member->assigned_team_leader_id);
+                        if ($tl) {
+                            app(TeamLeaderAvailabilityService::class)->setOperationalOverride($tl, 'available');
+                        }
+                    }
+                }
+            }
 
             AuditLog::create([
                 'user_id'     => auth()->id(),
@@ -81,19 +174,7 @@ class JobsController extends Controller
                 'description' => 'Job completed' . ($locked->cash_received !== null ? ' — cash received ₱' . number_format((float) $locked->cash_received, 2) : ''),
             ]);
 
-            if (! $locked->payment_submitted_at) {
-                if ($locked->assigned_unit_id) {
-                    Unit::whereKey($locked->assigned_unit_id)->update(['status' => 'available']);
-                }
-                if ($locked->assigned_team_leader_id) {
-                    $tl = User::find($locked->assigned_team_leader_id);
-                    if ($tl) {
-                        app(TeamLeaderAvailabilityService::class)->setOperationalOverride($tl, 'available');
-                    }
-                }
-            }
-
-            return ['booking' => $locked];
+            return ['booking' => $locked, 'members' => $members];
         });
 
         if (isset($outcome['error'])) {
@@ -108,11 +189,17 @@ class JobsController extends Controller
         }
 
         $booking = $outcome['booking'];
+        $members = $outcome['members'];
         $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
 
         BookingStatusUpdated::safeFire($booking);
+        foreach ($members as $member) {
+            if ($member->id === $booking->id) {
+                continue;
+            }
+            try { BookingStatusUpdated::safeFire($member->fresh()); } catch (\Throwable) {}
+        }
 
-        // Notify customer that their booking is complete
         if ($booking->customer && $booking->customer->user_id) {
             CustomerNotificationService::send(
                 userId: $booking->customer->user_id,
@@ -123,12 +210,9 @@ class JobsController extends Controller
             );
         }
 
-        // PDF generation and email are deferred until after the HTTP response is sent
-        // so the dispatcher sees the confirmation immediately instead of waiting 10-30s.
         $bookingId = $booking->id;
-        app()->terminating(function () use ($bookingId) {
-            // Flush the HTTP response to the client before heavy work so the
-            // browser gets the JSON immediately (built-in dev server + PHP-FPM).
+        $quotationId = $booking->quotation_id;
+        app()->terminating(function () use ($bookingId, $isGroup, $quotationId) {
             while (ob_get_level() > 0) {
                 ob_end_flush();
             }
@@ -143,16 +227,42 @@ class JobsController extends Controller
                 if (! $b) {
                     return;
                 }
+                if ($b->receipt && $b->receipt->email_sent) {
+                    return;
+                }
 
                 $documentService = app(DocumentGenerationService::class);
                 $finalQuotePath  = $documentService->generateQuotation($b, true);
                 $b->update(['final_quote_path' => $finalQuotePath]);
 
-                $receipt = $documentService->generateReceipt($b);
+                if ($isGroup && $quotationId) {
+                    $quotation = \App\Models\Quotation::find($quotationId);
+                    $cancelledGroupBookingIds = Booking::where('group_code', $b->group_code)
+                        ->where('status', 'cancelled')
+                        ->pluck('id');
+                    $groupVehicles = collect($quotation->extra_vehicles ?? [])
+                        ->reject(fn($ev) => in_array($ev['booking_id'] ?? null, $cancelledGroupBookingIds->all(), true))
+                        ->map(function ($ev) {
+                            $truckTypeName = $ev['truck_type_name']
+                                ?? (\App\Models\TruckType::find($ev['truck_type_id'] ?? null)?->name);
+                            return [
+                                'truck_type_name' => $truckTypeName ?? 'Towing Service',
+                                'final_total'     => (float) ($ev['final_total'] ?? $ev['estimated_price'] ?? 0),
+                            ];
+                        })->values()->all();
+                    $groupAdjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
+                    $receipt = $documentService->generateReceipt($b, $groupVehicles, $groupAdjustment);
+                } else {
+                    $receipt = $documentService->generateReceipt($b);
+                }
 
                 if (filled($b->customer?->email)) {
                     Mail::to($b->customer->email)->send(
-                        new BookingReceiptMail($b->fresh(['customer', 'truckType', 'receipt']))
+                        new BookingReceiptMail(
+                            $b->fresh(['customer', 'truckType', 'receipt']),
+                            $groupVehicles ?? [],
+                            $groupAdjustment ?? 0.0
+                        )
                     );
                     $receipt->update(['email_sent' => true]);
                 }

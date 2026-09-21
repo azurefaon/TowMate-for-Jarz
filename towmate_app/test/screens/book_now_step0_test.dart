@@ -15,6 +15,7 @@ http.Response _json(Object body, {int status = 200}) {
 }
 
 http.Client _client() {
+  var autocompleteCalls = 0;
   return MockClient((request) async {
     final path = request.url.path;
     if (path.contains('truck-types')) {
@@ -33,9 +34,11 @@ http.Client _client() {
       return _json({'book_now_enabled': true, 'ready_units_count': 3, 'ready_by_class': {}});
     }
     if (path.contains('autocomplete')) {
+      autocompleteCalls++;
+      final lat = autocompleteCalls == 1 ? 14.5832 : 14.6905;
       return _json({
         'suggestions': [
-          {'label': 'Rizal Park, Manila', 'coordinates': [120.9822, 14.5832]},
+          {'label': 'Rizal Park, Manila', 'coordinates': [120.9822, lat]},
         ],
       });
     }
@@ -257,5 +260,126 @@ void main() {
         await tester.pumpWidget(const SizedBox());
       });
     }
+  });
+
+  group('BookNowScreen Step 0 pickup/drop-off exclusivity', () {
+    http.Client sameSuggestionClient() {
+      return MockClient((request) async {
+        final path = request.url.path;
+        if (path.contains('truck-types')) return _json([]);
+        if (path.contains('availability')) {
+          return _json({'book_now_enabled': true, 'ready_units_count': 3, 'ready_by_class': {}});
+        }
+        if (path.contains('autocomplete')) {
+          return _json({
+            'suggestions': [
+              {'label': 'Rizal Park, Manila', 'coordinates': [120.9822, 14.5832]},
+            ],
+          });
+        }
+        return _json({}, status: 404);
+      });
+    }
+
+    testWidgets('excludes the selected pickup location from drop-off suggestions', (tester) async {
+      await http.runWithClient(() async {
+        await _pumpBookNow(tester);
+
+        await tester.enterText(find.byType(TextField).first, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park'));
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).last, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+
+        expect(find.text('Rizal Park'), findsNothing);
+      }, sameSuggestionClient);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('excludes the selected drop-off location from pickup suggestions', (tester) async {
+      await http.runWithClient(() async {
+        await _pumpBookNow(tester);
+
+        await tester.enterText(find.byType(TextField).last, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park'));
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).first, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+
+        expect(find.text('Rizal Park'), findsNothing);
+      }, sameSuggestionClient);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    http.Client bypassClient() {
+      return MockClient((request) async {
+        final path = request.url.path;
+        if (path.contains('truck-types')) return _json([]);
+        if (path.contains('availability')) {
+          return _json({'book_now_enabled': true, 'ready_units_count': 3, 'ready_by_class': {}});
+        }
+        if (path.contains('place-details')) {
+          return _json({
+            'label': request.url.queryParameters['place_id'] == 'place-a'
+                ? 'SM Novaliches'
+                : 'SM Novaliches Entrance 2',
+            'coordinates': [121.0362, 14.7357],
+          });
+        }
+        if (path.contains('autocomplete')) {
+          final q = request.url.queryParameters['q'] ?? '';
+          if (q.contains('Entrance')) {
+            return _json({
+              'suggestions': [
+                {'label': 'SM Novaliches Entrance 2', 'place_id': 'place-b'},
+              ],
+            });
+          }
+          return _json({
+            'suggestions': [
+              {'label': 'SM Novaliches', 'place_id': 'place-a'},
+            ],
+          });
+        }
+        return _json({}, status: 404);
+      });
+    }
+
+    testWidgets('blocks confirming a drop-off that resolves to the same coordinates as pickup under a different place id', (tester) async {
+      await http.runWithClient(() async {
+        await _pumpBookNow(tester);
+
+        await tester.enterText(find.byType(TextField).first, 'SM Novalic');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('SM Novaliches'));
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).last, 'SM Novaliches Entrance');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('SM Novaliches Entrance 2'));
+        await _settle(tester);
+
+        expect(
+          find.text('Pickup and drop-off locations must be different.'),
+          findsOneWidget,
+        );
+        final dropoffField = tester.widget<TextField>(find.byType(TextField).last);
+        expect(dropoffField.controller?.text, isNot('SM Novaliches Entrance 2'));
+      }, bypassClient);
+
+      await tester.pumpWidget(const SizedBox());
+    });
   });
 }

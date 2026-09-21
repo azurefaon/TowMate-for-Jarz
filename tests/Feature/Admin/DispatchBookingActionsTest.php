@@ -5,6 +5,7 @@ use App\Mail\BookingRejectedMail;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Role;
+use App\Models\Quotation;
 use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
@@ -122,6 +123,56 @@ it('sends a quotation only after the dispatcher reviews the request and sets the
             && ! str_contains($html, 'Review your quotation')
             && ! str_contains($html, 'Open quotation document');
     });
+
+    it('does not reserve or assign a unit while preparing an unaccepted quotation', function () {
+        Mail::fake();
+
+        [$dispatcher, $booking] = makeDispatchScenario();
+        $unit = makeReadyUnitForBooking($booking);
+
+        $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
+            'action' => 'accept',
+            'assigned_unit_id' => $unit->id,
+            'distance_km' => '12.50',
+            'distance_fee' => '637.50',
+            'price' => '2,950.00',
+        ])->assertOk();
+
+        $booking->refresh();
+        expect($booking->status)->toBe('quotation_sent')
+            ->and($booking->assigned_unit_id)->toBeNull()
+            ->and($booking->assigned_team_leader_id)->toBeNull()
+            ->and($booking->selected_unit_id)->toBeNull();
+    });
+
+    it('assigns an accepted Book Now booking only after the current quotation is accepted', function () {
+        [$dispatcher, $booking] = makeDispatchScenario();
+        $unit = makeReadyUnitForBooking($booking);
+
+        $quotation = Quotation::create([
+            'source_booking_id' => $booking->id,
+            'customer_id' => $booking->customer_id,
+            'truck_type_id' => $booking->truck_type_id,
+            'pickup_address' => $booking->pickup_address,
+            'dropoff_address' => $booking->dropoff_address,
+            'estimated_price' => 2950,
+            'status' => 'accepted',
+            'is_current' => true,
+        ]);
+        $booking->update([
+            'quotation_id' => $quotation->id,
+            'status' => 'confirmed',
+            'customer_approved_at' => now(),
+        ]);
+
+        $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
+            'action' => 'accept',
+            'assigned_unit_id' => $unit->id,
+        ])->assertOk();
+
+        expect($booking->fresh()->assigned_unit_id)->toBe($unit->id)
+            ->and($booking->fresh()->status)->toBe('assigned');
+    });
 });
 
 it('rejects a booking and emails the rejection reason to the customer', function () {
@@ -180,7 +231,7 @@ it('stores the selected available unit when dispatch sends a quotation', functio
         ->and($booking->status)->toBe('quotation_sent');
 });
 
-it('only shows units with online available team leaders in the dispatch quotation dropdown', function () {
+it('shows available units in the dispatch quotation dropdown regardless of team leader presence', function () {
     [$dispatcher, $booking] = makeDispatchScenario();
 
     $teamLeaderRole = Role::firstOrCreate(['name' => 'Team Leader'], ['description' => 'Tow unit team leader']);
@@ -217,7 +268,7 @@ it('only shows units with online available team leaders in the dispatch quotatio
         ->get(route('admin.dispatch'))
         ->assertOk()
         ->assertSee('Online Unit 11')
-        ->assertDontSee('Offline Unit 12');
+        ->assertSee('Offline Unit 12');
 });
 
 it('keeps sending quotations working even if the legacy bookings table has no additional fee column', function () {

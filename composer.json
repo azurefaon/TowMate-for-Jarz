@@ -11,6 +11,7 @@
     "require": {
         "php": "^8.2",
         "dompdf/dompdf": "^3.1",
+        "endroid/qr-code": "^6",
         "google/apiclient": "^2.19",
         "laravel/framework": "^12.0",
         "laravel/reverb": "^1.10",
@@ -21,6 +22,7 @@
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "khanamiryan/qrcode-detector-decoder": "^2",
         "laravel/breeze": "^2.3",
         "laravel/pail": "^1.2.2",
         "laravel/pint": "^1.24",

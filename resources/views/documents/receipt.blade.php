@@ -313,11 +313,21 @@
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td>{{ $booking->truckType->name ?? 'Towing Service' }}</td>
-                    <td>1</td>
-                    <td>{{ $peso }}{{ number_format((float) ($booking->final_total ?? 0), 2) }}</td>
-                </tr>
+                @if (! empty($groupVehicles ?? []))
+                    @foreach ($groupVehicles as $index => $vehicle)
+                        <tr>
+                            <td>Vehicle {{ $index + 1 }} — {{ $vehicle['truck_type_name'] ?? 'Towing Service' }}</td>
+                            <td>1</td>
+                            <td>{{ $peso }}{{ number_format((float) ($vehicle['final_total'] ?? 0), 2) }}</td>
+                        </tr>
+                    @endforeach
+                @else
+                    <tr>
+                        <td>{{ $booking->truckType->name ?? 'Towing Service' }}</td>
+                        <td>1</td>
+                        <td>{{ $peso }}{{ number_format((float) ($booking->final_total ?? 0), 2) }}</td>
+                    </tr>
+                @endif
                 <tr class="spacer-row">
                     <td colspan="3"></td>
                 </tr>
@@ -325,11 +335,31 @@
         </table>
 
         <table class="total-wrap">
-            <tr>
-                <td class="total-label">Total</td>
-                <td class="total-amount">
-                    {{ $peso }}{{ number_format((float) ($booking->final_total ?? 0), 2) }}</td>
-            </tr>
+            @if (! empty($groupVehicles ?? []))
+                <tr>
+                    <td class="total-label">Base total</td>
+                    <td class="total-amount">
+                        {{ $peso }}{{ number_format(array_sum(array_column($groupVehicles, 'final_total')), 2) }}</td>
+                </tr>
+                @if (($groupAdjustment ?? 0) != 0)
+                    <tr>
+                        <td class="total-label">Quotation adjustment</td>
+                        <td class="total-amount">
+                            {{ ($groupAdjustment ?? 0) > 0 ? '+' : '' }}{{ $peso }}{{ number_format($groupAdjustment ?? 0, 2) }}</td>
+                    </tr>
+                @endif
+                <tr>
+                    <td class="total-label">Total</td>
+                    <td class="total-amount">
+                        {{ $peso }}{{ number_format($groupTotal ?? 0, 2) }}</td>
+                </tr>
+            @else
+                <tr>
+                    <td class="total-label">Total</td>
+                    <td class="total-amount">
+                        {{ $peso }}{{ number_format((float) ($booking->final_total ?? 0), 2) }}</td>
+                </tr>
+            @endif
         </table>
 
         <table class="payment-signature">

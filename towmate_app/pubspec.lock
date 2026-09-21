@@ -416,6 +416,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.3"
+  google_navigation_flutter:
+    dependency: "direct main"
+    description:
+      name: google_navigation_flutter
+      sha256: fdf79ddeda8bbba9d8b9218c41551b918447032004cbe72ea7365287c9d9bf80
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.0"
   google_sign_in:
     dependency: "direct main"
     description:

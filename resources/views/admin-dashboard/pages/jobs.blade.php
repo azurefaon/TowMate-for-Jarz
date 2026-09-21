@@ -49,7 +49,7 @@
                             default => 'in-service',
                         };
 
-                        $statusLabel = match ($job->status) {
+                        $statusLabelFor = fn($status) => match ($status) {
                             'assigned' => 'Assigned',
                             'accepted' => 'Accepted',
                             'on_the_way' => 'On the Way',
@@ -59,8 +59,23 @@
                             'on_job' => 'In Transit',
                             'arrived_dropoff' => 'Arrived at Drop-off',
                             'waiting_verification' => 'Awaiting Verification',
-                            default => ucwords(str_replace('_', ' ', $job->status)),
+                            default => ucwords(str_replace('_', ' ', $status)),
                         };
+                        $statusLabel = $statusLabelFor($job->status);
+
+                        $siblingBookings = $job->sibling_bookings ?? collect([$job]);
+                        $siblingCount = $siblingBookings->count();
+                        $groupOperationalDoneCount = $siblingBookings->filter(fn($sib) => in_array($sib->status, ['arrived_dropoff', 'waiting_verification', 'completed'], true))->count();
+                        $groupVehicles = $siblingCount > 1
+                            ? $siblingBookings->map(fn($sib) => [
+                                'booking_code' => $sib->booking_code,
+                                'unit' => optional($sib->unit)->name ?? 'Unassigned',
+                                'team_leader' => optional($sib->assignedTeamLeader)->full_name
+                                    ?? optional($sib->assignedTeamLeader)->name
+                                    ?? 'Unassigned',
+                                'status' => $statusLabelFor($sib->status),
+                            ])->values()->all()
+                            : [];
 
                         $customer   = optional($job->customer)->full_name ?? optional($job->customer)->name ?? 'Customer unavailable';
                         $custPhone  = optional($job->customer)->phone ?? '';
@@ -91,12 +106,23 @@
                             'cash' => 'Cash',
                             default => null,
                         };
+                        $displayTotal = $job->group_total ?? $job->final_total;
                         $amountSubmitted = $job->payment_method === 'cash'
                             ? $job->cash_received
-                            : $job->final_total;
-                        $finalTotal = $job->final_total ? number_format((float) $job->final_total, 2) : '';
-                        $proofUrl = protected_file_url($job->payment_proof_path) ?? '';
-                        $signatureUrl = protected_file_url($job->customer_signature_path) ?? '';
+                            : $displayTotal;
+                        $finalTotal = $displayTotal ? number_format((float) $displayTotal, 2) : '';
+                        $proofPath = $siblingBookings->pluck('payment_proof_path')->first(fn($p) => filled($p));
+                        $signaturePath = $siblingBookings->pluck('customer_signature_path')->first(fn($p) => filled($p));
+                        $proofUrl = protected_file_url($proofPath) ?? '';
+                        $signatureUrl = protected_file_url($signaturePath) ?? '';
+                        $vehicleImages = $siblingBookings
+                            ->flatMap(fn($sib) => collect($sib->vehicle_image_paths)->map(fn($path) => [
+                                'url' => protected_file_url($path),
+                                'booking_code' => $sib->booking_code,
+                            ]))
+                            ->filter(fn($img) => filled($img['url']))
+                            ->values()
+                            ->all();
                     @endphp
                     <tr class="jobs-row js-open-job-row" tabindex="0"
                         aria-label="Open {{ $job->booking_code }}, {{ $customer }}"
@@ -123,10 +149,15 @@
                         data-payment-submitted-at="{{ $paymentSubmittedAt?->format('M d, Y g:i A') }}"
                         data-proof-url="{{ $proofUrl }}"
                         data-signature-url="{{ $signatureUrl }}"
-                        data-cash-received="{{ $job->cash_received ? number_format((float) $job->cash_received, 2) : '' }}">
+                        data-cash-received="{{ $job->cash_received ? number_format((float) $job->cash_received, 2) : '' }}"
+                        data-group-vehicles="{{ json_encode($groupVehicles) }}"
+                        data-vehicle-images="{{ json_encode($vehicleImages) }}">
                         <td>
-                            <div class="jobs-cell-primary jobs-booking-code">{{ $job->booking_code }}</div>
+                            <div class="jobs-cell-primary jobs-booking-code">{{ $job->booking_code }}@if ($siblingCount > 1)<span class="jobs-cell-secondary"> (+{{ $siblingCount - 1 }})</span>@endif</div>
                             <div class="jobs-cell-secondary">{{ $customer }}</div>
+                            @if ($siblingCount > 1)
+                                <div class="jobs-cell-secondary">{{ $groupOperationalDoneCount }} of {{ $siblingCount }} vehicles completed</div>
+                            @endif
                         </td>
                         <td>
                             <span class="jobs-status-text {{ $bucket === 'awaiting-verification' ? 'jobs-status-text--emphasis' : '' }}">{{ $statusLabel }}</span>
@@ -253,6 +284,16 @@
                     </div>
                 </div>
 
+                <div class="jobs-drawer-section" id="drawer-vehicles-section" style="display:none;">
+                    <div class="jobs-drawer-section-title">Vehicles in This Request</div>
+                    <div class="jobs-drawer-grid" id="drawer-vehicles-grid"></div>
+                </div>
+
+                <div class="jobs-drawer-section" id="drawer-vehicle-photos-section" style="display:none;">
+                    <div class="jobs-drawer-section-title">Vehicle Photos</div>
+                    <div class="jobs-photo-grid" id="drawer-vehicle-photos-grid"></div>
+                </div>
+
                 <div class="jobs-drawer-section" id="drawer-payment-section" style="display:none;">
                     <div class="jobs-drawer-section-title">Payment Summary</div>
                     <div class="jobs-drawer-grid">
@@ -261,11 +302,11 @@
                             <span class="jobs-drawer-value" id="drawer-amount-due">—</span>
                         </div>
                         <div class="jobs-drawer-item" id="drawer-amount-submitted-wrap">
-                            <span class="jobs-drawer-label">Amount Submitted</span>
+                            <span class="jobs-drawer-label" id="drawer-amount-submitted-label">Amount Submitted</span>
                             <span class="jobs-drawer-value" id="drawer-amount-submitted">—</span>
                         </div>
                         <div class="jobs-drawer-item" id="drawer-difference-wrap">
-                            <span class="jobs-drawer-label">Difference</span>
+                            <span class="jobs-drawer-label" id="drawer-difference-label">Difference</span>
                             <span class="jobs-drawer-value" id="drawer-difference">—</span>
                         </div>
                         <div class="jobs-drawer-item" id="drawer-amount-paid-wrap">

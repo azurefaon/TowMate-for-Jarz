@@ -151,3 +151,45 @@ it('does not break owner business activity, which remains independently accessib
         ->get(route('superadmin.reports.activity'))
         ->assertOk();
 });
+
+it('excludes business booking, quotation, and fleet events from the audit log', function () {
+    $admin = auditLogSystemAdmin();
+
+    AuditLog::create(['user_id' => $admin->id, 'action' => 'create_booking', 'reference' => 'SA_HIDDEN_BOOKING']);
+    AuditLog::create(['user_id' => $admin->id, 'action' => 'create_quotation', 'reference' => 'SA_HIDDEN_QUOTATION']);
+    AuditLog::create(['user_id' => $admin->id, 'action' => 'unit_assigned', 'reference' => 'SA_HIDDEN_UNIT']);
+    AuditLog::create(['user_id' => $admin->id, 'action' => 'payment_confirmed', 'reference' => 'SA_HIDDEN_PAYMENT']);
+
+    $this->actingAs($admin)
+        ->get(route('system-admin.audit-logs.index'))
+        ->assertOk()
+        ->assertDontSee('SA_HIDDEN_BOOKING')
+        ->assertDontSee('SA_HIDDEN_QUOTATION')
+        ->assertDontSee('SA_HIDDEN_UNIT')
+        ->assertDontSee('SA_HIDDEN_PAYMENT');
+});
+
+it('includes account, identity, and security events in the audit log', function () {
+    $admin = auditLogSystemAdmin();
+
+    AuditLog::create(['user_id' => $admin->id, 'action' => 'user_anonymized', 'reference' => 'SA_SHOWN_ANONYMIZED']);
+    AuditLog::create(['user_id' => $admin->id, 'action' => 'user_permanently_deleted', 'reference' => 'SA_SHOWN_DELETED']);
+    AuditLog::create(['user_id' => $admin->id, 'action' => 'user_queued_for_deletion', 'reference' => 'SA_SHOWN_QUEUED']);
+    AuditLog::create(['user_id' => $admin->id, 'action' => 'user_updated', 'reference' => 'SA_SHOWN_ROLE_CHANGE']);
+    AuditLog::create(['user_id' => $admin->id, 'action' => 'password_changed', 'reference' => 'SA_SHOWN_PASSWORD']);
+    AuditLog::create(['user_id' => null, 'action' => 'account_temporarily_locked', 'reference' => 'SA_SHOWN_LOCKED']);
+    AuditLog::create(['user_id' => null, 'action' => 'account_unlocked_via_email', 'reference' => 'SA_SHOWN_UNLOCKED']);
+    AuditLog::create(['user_id' => null, 'action' => 'login', 'reference' => 'SA_SHOWN_LOGIN']);
+
+    $this->actingAs($admin)
+        ->get(route('system-admin.audit-logs.index'))
+        ->assertOk()
+        ->assertSee('SA_SHOWN_ANONYMIZED')
+        ->assertSee('SA_SHOWN_DELETED')
+        ->assertSee('SA_SHOWN_QUEUED')
+        ->assertSee('SA_SHOWN_ROLE_CHANGE')
+        ->assertSee('SA_SHOWN_PASSWORD')
+        ->assertSee('SA_SHOWN_LOCKED')
+        ->assertSee('SA_SHOWN_UNLOCKED')
+        ->assertSee('SA_SHOWN_LOGIN');
+});

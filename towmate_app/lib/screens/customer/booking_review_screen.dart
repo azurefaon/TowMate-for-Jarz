@@ -63,10 +63,40 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
   String? _userEmail;
   String? _userPhone;
 
+  double? _previewVatAmount;
+  double? _previewFinalTotal;
+
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
+    _fetchVatPreview();
+  }
+
+  Future<void> _fetchVatPreview() async {
+    final preview = await ApiService.fetchPricingPreview(
+      vehicleTypeId: widget.primaryVehicle.id,
+      pickupLat: widget.pickupLat,
+      pickupLng: widget.pickupLng,
+      dropoffLat: widget.dropoffLat,
+      dropoffLng: widget.dropoffLng,
+      serviceType: widget.serviceType,
+      extraVehicles: widget.extraVehicles
+          .map(
+            (ev) => <String, dynamic>{
+              'truck_type_id': ev['truck_type_id'],
+              'vehicle_type_id': ev['vehicle_type_id'],
+            },
+          )
+          .toList(),
+    );
+    final pricing = preview?['pricing'] as Map<String, dynamic>?;
+    if (pricing != null && mounted) {
+      setState(() {
+        _previewVatAmount = (pricing['vat_amount'] as num?)?.toDouble();
+        _previewFinalTotal = (pricing['final_total'] as num?)?.toDouble();
+      });
+    }
   }
 
   Future<void> _loadUserInfo() async {
@@ -108,8 +138,8 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
     return bases + _distanceFee;
   }
 
-  double get _vatAmount => _grossPrice * 0.12;
-  double get _total => _grossPrice * 1.12;
+  double get _vatAmount => _previewVatAmount ?? _grossPrice * 0.12;
+  double get _total => _previewFinalTotal ?? _grossPrice * 1.12;
 
   String _formatSchedule() {
     if (widget.scheduledDate == null || widget.scheduledTime == null) return '';

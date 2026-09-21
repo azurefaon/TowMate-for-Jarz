@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Booking;
 use App\Models\Invoice;
 use App\Models\LandingSetting;
+use App\Models\Quotation;
 use App\Models\Receipt;
 use App\Models\SystemSetting;
 use Dompdf\Dompdf;
@@ -14,12 +15,13 @@ use Illuminate\Support\Str;
 
 class DocumentGenerationService
 {
-    public function generateQuotation(Booking $booking, bool $isFinal = false): string
+    public function generateQuotation(Booking $booking, bool $isFinal = false, ?Quotation $quotation = null): string
     {
         $booking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
 
         $html = view('documents.quotation', [
             'booking' => $booking,
+            'quotation' => $quotation,
             'settings' => $this->documentSettings(),
             'isFinal' => $isFinal,
             'generatedAt' => now(),
@@ -43,7 +45,7 @@ class DocumentGenerationService
         return $path;
     }
 
-    public function generateReceipt(Booking $booking): Receipt
+    public function generateReceipt(Booking $booking, array $groupVehicles = [], float $groupAdjustment = 0.0): Receipt
     {
         $booking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
 
@@ -57,11 +59,18 @@ class DocumentGenerationService
             ]
         );
 
+        $groupTotal = ! empty($groupVehicles)
+            ? array_sum(array_column($groupVehicles, 'final_total')) + $groupAdjustment
+            : null;
+
         $html = view('documents.receipt', [
             'booking' => $booking,
             'receipt' => $receipt,
             'settings' => $this->documentSettings(),
             'generatedAt' => now(),
+            'groupVehicles' => $groupVehicles,
+            'groupAdjustment' => $groupAdjustment,
+            'groupTotal' => $groupTotal,
         ])->render();
 
         $path = sprintf('documents/receipts/booking-%d-receipt.pdf', $booking->id);
@@ -77,15 +86,22 @@ class DocumentGenerationService
         return $receipt->fresh();
     }
 
-    public function generateInvoice(Invoice $invoice): Invoice
+    public function generateInvoice(Invoice $invoice, array $groupVehicles = [], float $groupAdjustment = 0.0): Invoice
     {
         $booking = $invoice->booking()->with(['customer', 'truckType'])->first();
+
+        $groupTotal = ! empty($groupVehicles)
+            ? array_sum(array_column($groupVehicles, 'final_total')) + $groupAdjustment
+            : null;
 
         $html = view('documents.invoice', [
             'booking' => $booking,
             'invoice' => $invoice,
             'settings' => $this->documentSettings(),
             'generatedAt' => now(),
+            'groupVehicles' => $groupVehicles,
+            'groupAdjustment' => $groupAdjustment,
+            'groupTotal' => $groupTotal,
         ])->render();
 
         $path = sprintf('documents/invoices/invoice-%d.pdf', $invoice->id);

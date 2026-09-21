@@ -1115,7 +1115,12 @@
             display: flex; align-items: center; justify-content: center;
             font-weight: 700; font-size: 15px; flex: none;
         }
-        .rb-drawer-head h3 { font-size: 16.5px; }
+        .rb-quote-label { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #111111; }
+        .rb-quote-id { font-size: 15px; font-weight: 700; color: #111111; line-height: 1.3; margin-top: 1px; }
+        .rb-quote-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+        .rb-quote-booking { font-size: 12px; font-weight: 500; color: #111111; }
+        .rb-status-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #111111; color: #FFFFFF; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+        .rb-drawer-head h3 { font-size: 16.5px; margin-top: 4px; }
         .rb-drawer-head .rb-sub { font-size: 12px; color: #5B6472; margin-top: 2px; display: flex; flex-direction: column; gap: 1px; }
         .rb-drawer-close {
             border: none; background: #F6F7F9; width: 28px; height: 28px; border-radius: 8px;
@@ -1143,6 +1148,11 @@
             color: #8A93A3; cursor: pointer; z-index: 1; overflow: hidden;
         }
         .rb-photo-box img { width: 100%; height: 100%; object-fit: cover; }
+        .rb-photo-box.rb-photo-empty { cursor: default; }
+        .rb-photo-fallback-text { font-size: 12.5px; font-weight: 600; text-align: center; padding: 0 12px; }
+        .rb-mock-row { background: #FFFBEA; }
+        .rb-mock-row:hover { background: #FFF6D6; }
+        .rb-mock-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 99px; background: #FACC15; color: #111111; font-size: 10px; font-weight: 700; vertical-align: middle; }
         .rb-photo-stack-badge {
             position: absolute; bottom: 8px; right: 8px; background: rgba(20,23,28,.72); color: #fff;
             font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px;
@@ -1190,7 +1200,21 @@
         .rb-is-deduct { color: #D8402C; font-weight: 600; }
 
         .rb-sub-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #8A93A3; }
-        .rb-history-toggle-btn, .rb-adj-toggle-btn { width: 100%; justify-content: center; }
+        .rb-group-vehicle-list { display: flex; flex-direction: column; }
+        .rb-group-vehicle { display: flex; flex-direction: column; gap: 10px; padding: 16px 0; }
+        .rb-group-vehicle:first-child { padding-top: 0; }
+        .rb-group-vehicle:last-child { padding-bottom: 0; }
+        .rb-group-vehicle + .rb-group-vehicle { border-top: 1px solid #E3E6EB; }
+        .rb-group-vehicle-head { display: flex; flex-direction: column; gap: 3px; }
+        .rb-group-vehicle-title { font-size: 13px; font-weight: 700; color: #111111; }
+        .rb-group-vehicle-meta { font-size: 12px; color: #5B6472; }
+        .rb-group-vehicle-assign { width: 100%; justify-content: center; }
+        .rb-history-toggle-btn { width: 100%; justify-content: space-between; }
+        .rb-adj-toggle-btn { width: 100%; justify-content: center; }
+        .rb-history-btn-label { display: inline-flex; align-items: center; gap: 6px; }
+        .rb-chevron { display: inline-flex; transition: transform .15s; }
+        .rb-chevron.rb-is-open { transform: rotate(180deg); }
+        .rb-adj-empty { font-size: 12px; color: #8A93A3; padding: 4px 2px; }
         .rb-adj-form { display: flex; flex-direction: column; gap: 10px; background: #fff; border: 1px solid #E3E6EB; border-radius: 12px; padding: 14px; }
         .rb-adj-form input, .rb-adj-form select, .rb-adj-form textarea { border: 1px solid #CFD4DC; background: #fff; color: #111111; border-radius: 8px; padding: 9px 10px; font-size: 12.5px; font-family: inherit; width: 100%; }
         .rb-adj-form textarea { min-height: 70px; resize: vertical; }
@@ -1203,7 +1227,6 @@
         .rb-adj-error { color: #D8402C; font-size: 11.5px; font-weight: 600; }
         .rb-adj-form-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 8px; border-top: 1px solid #E3E6EB; }
         .rb-adj-form-actions .rb-btn { flex: none; min-width: 110px; }
-        .rb-adj-hint { font-size: 11px; color: #8A93A3; text-align: right; }
         .rb-history { display: flex; flex-direction: column; gap: 6px; }
         .rb-adj-row { display: flex; align-items: baseline; gap: 8px; font-size: 12px; background: #F6F7F9; border: 1px solid #E3E6EB; border-radius: 8px; padding: 7px 10px; }
         .rb-adj-row .rb-adj-sign { font-family: 'JetBrains Mono', monospace; font-weight: 700; flex: none; }
@@ -1211,6 +1234,9 @@
         .rb-adj-row .rb-adj-sign.rb-is-deduct { color: #D8402C; }
         .rb-adj-row .rb-adj-reason { flex: 1; color: #111111; }
         .rb-adj-row .rb-adj-time { color: #8A93A3; font-size: 11px; flex: none; }
+        .rb-adj-undo-btn { border: 1px solid #D8402C; color: #D8402C; background: #fff; border-radius: 6px; font-size: 11px; font-weight: 600; padding: 2px 8px; cursor: pointer; margin-left: 6px; }
+        .rb-adj-undo-btn:hover { background: #FEF2F2; }
+        .rb-adj-reverted-badge { color: #8A93A3; font-size: 11px; font-weight: 600; margin-left: 6px; text-transform: uppercase; letter-spacing: 0.03em; }
 
         .rb-expired-chip { position: relative; display: flex; align-items: center; gap: 6px; color: #D8402C; padding: 2px 0; font-size: 12px; font-weight: 600; }
 
@@ -1363,6 +1389,8 @@
                             {{ $queueCounts['scheduled'] ?? 0 }}
                         </span>
                     </button>
+
+                    <button type="button" class="rb-btn rb-btn-secondary" id="rbQueueRefreshBtn" style="margin-left:auto;">Refresh</button>
                 </div>
 
                 <div class="incoming-section incoming-list" id="incomingList" data-default-filter="book-now"
@@ -1796,6 +1824,7 @@
                                         data-recommended-summary="{{ e($bnPrimary->recommended_unit_summary ?? '') }}"
                                         data-dispatch-zone="{{ e($bnPrimary->dispatch_zone_label ?? 'General Dispatch Zone') }}"
                                         data-quotation-id="{{ $bnPrimary->active_quotation_id ?? '' }}"
+                                        data-quotation-number="{{ $bnPrimary->active_quotation_number ?? '' }}"
                                         data-quotation-status="{{ $bnPrimary->active_quotation_status ?? '' }}"
                                         data-price-change-log="{{ json_encode($bnPrimary->active_quotation_price_change_log ?? []) }}">
                                         <td>
@@ -1925,6 +1954,7 @@
                                             data-recommended-summary=""
                                             data-dispatch-zone="{{ e($sch->dispatch_zone_label ?? 'General Dispatch Zone') }}"
                                             data-quotation-id="{{ $sch->active_quotation_id ?? '' }}"
+                                            data-quotation-number="{{ $sch->active_quotation_number ?? '' }}"
                                             data-quotation-status="{{ $sch->active_quotation_status ?? '' }}"
                                             data-price-change-log="{{ json_encode($sch->active_quotation_price_change_log ?? []) }}">
                                             <td>
@@ -2557,9 +2587,11 @@
             quoteUpdatePrice: "{{ route('admin.quotations.update-price', ':quotation') }}",
             quoteKeepPrice:   "{{ route('admin.quotations.keep-price', ':quotation') }}",
             quoteAdjustPrice: "{{ route('admin.quotations.adjust-price', ':quotation') }}",
+            quoteUndoAdjustment: "{{ route('admin.quotations.adjustments.undo', ['quotation' => ':quotation', 'adjustment' => ':adjustment']) }}",
             jobsIndex: "{{ route('admin.jobs') }}",
         };
         window.RB_CSRF = "{{ csrf_token() }}";
+        window.RB_VAT_RATE = {{ app(\App\Services\BookingService::class)->vatRate() }};
     </script>
     <script>
         // Return Reason Action Handlers

@@ -51,6 +51,7 @@ class Booking extends Model
         'final_total',
         'vat_amount',
         'vat_exclusive_total',
+        'vat_rate',
         'customer_type',
         'service_type',
         'scheduled_date',
@@ -169,6 +170,7 @@ class Booking extends Model
             'discount_percentage' => 'decimal:2',
             'additional_fee' => 'decimal:2',
             'final_total' => 'decimal:2',
+            'vat_rate' => 'decimal:4',
             'eta_minutes' => 'decimal:2',
             'payment_proof_path' => 'string',
         ];

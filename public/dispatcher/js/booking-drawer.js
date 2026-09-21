@@ -1,36 +1,6 @@
-/**
- * Booking drawer ("View & Quote") — shared by the Book Now AND Scheduled
- * queues.
- *
- * Scope: replaces the old #actionModal flow for #bookNowPanel cards, and the
- * old #quotationModal flow for the Scheduled queue, with one slide-in
- * drawer. Status-changing actions (send / cancel / assign / reject /
- * accept-decline counter / dispatch / reschedule) deliberately reload the
- * page instead of patching the DOM optimistically — avoids client state
- * drifting from server truth — and the drawer auto-reopens for the same
- * booking afterward (see reloadAfterSuccess()/reopenDrawerAfterReload()) so
- * it doesn't appear to close from the dispatcher's point of view. Save
- * Quote/Save changes (submitSaveDraft()) never change the booking's
- * status/queue bucket, so those instead refresh state and the drawer in
- * place with no reload at all (see applySaveDraftSuccess()) — the drawer
- * never even appears to close.
- *
- * Scheduled-specific rule (see effectiveStatus()): a Scheduled booking never
- * reserves a Unit/TL in advance. Once its quotation is accepted
- * (status === "scheduled_confirmed"), the server computes a scheduling
- * bucket (confirmed / upcoming / ready / overdue — Booking::getSchedulingBucketAttribute())
- * that this file reads off data-scheduling-bucket rather than recomputing.
- * "Available units" and "Proceed to Dispatch"/"Dispatch Now" only appear at
- * ready/overdue; confirmed/upcoming show an informational note only.
- * #incomingList/#actionModal are untouched and keep using their existing flow.
- */
 (function () {
     "use strict";
 
-    // ------------------------------------------------------------------
-    // Icons (inline SVG, no external icon library — matches CSP-free plain
-    // hand-written JS already used elsewhere on this page).
-    // ------------------------------------------------------------------
     var ICON_PATHS = {
         search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>',
         check: '<polyline points="20 6 9 17 4 12"></polyline>',
@@ -74,9 +44,6 @@
         );
     }
 
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
     function peso(n) {
         n = Number(n) || 0;
         return (
@@ -105,6 +72,29 @@
         if (sec < 86400) return Math.floor(sec / 3600) + "h ago";
         return Math.floor(sec / 86400) + "d ago";
     }
+    var QUOTATION_STATUS_LABELS = {
+        pending: "Pending",
+        draft: "Draft",
+        sent: "Sent",
+        negotiating: "Negotiating",
+        price_review_requested: "Price Review Requested",
+        accepted: "Accepted",
+        rejected: "Rejected",
+        expired: "Expired",
+        disregarded: "Disregarded",
+    };
+    function quotationStatusLabel(status) {
+        if (!status) return "";
+        if (QUOTATION_STATUS_LABELS[status])
+            return QUOTATION_STATUS_LABELS[status];
+        return String(status)
+            .split("_")
+            .filter(Boolean)
+            .map(function (w) {
+                return w.charAt(0).toUpperCase() + w.slice(1);
+            })
+            .join(" ");
+    }
     function fillRoute(tpl, id) {
         return tpl.replace(":booking", id).replace(":quotation", id);
     }
@@ -116,6 +106,13 @@
         };
     }
     function apiCall(url, method, payload) {
+        if (state && state.isMockPreview) {
+            return Promise.resolve({
+                ok: false,
+                status: 0,
+                data: { message: "Mock preview — actions are disabled." },
+            });
+        }
         return fetch(url, {
             method: method,
             headers: csrfHeaders(),
@@ -146,6 +143,7 @@
     // State for the currently open drawer
     // ------------------------------------------------------------------
     var state = null; // built fresh each time the drawer opens
+    var isDrawerBusy = false;
 
     function buildStateFromCard(cardEl) {
         var d = cardEl.dataset;
@@ -163,6 +161,7 @@
         }
 
         return {
+            isMockPreview: d.mockPreview === "1",
             bookingCode: d.bookingCode || d.id,
             status: d.status,
             createdAt: d.createdAt,
@@ -184,8 +183,10 @@
             // Real, server-persisted additional fee — never reverse-engineered
             // from currentPrice (see pricingSectionHtml()'s "Adjustments" row).
             additionalFee: parseFloat(d.currentAdditional || "0") || 0,
+            discount: 0,
             vatExclusiveTotal: parseFloat(d.vatExclusiveTotal || "0") || 0,
             vatAmount: parseFloat(d.vatAmount || "0") || 0,
+            vatRate: parseFloat(d.vatRate || "0.12") || 0.12,
             truckType: d.truckType || "",
             truckTypeId: parseInt(d.truckTypeId || "0", 10) || 0,
             vehicleCategory: d.vehicleCategory || "",
@@ -193,54 +194,34 @@
             dispatchZone: d.dispatchZone || "General Dispatch Zone",
             recommendedUnitId: d.recommendedUnit || "",
             quotationId: d.quotationId || "",
+            quotationNumber: d.quotationNumber || "",
             quotationStatus: d.quotationStatus || "",
-            // Filled in from the quotation-details fetch (mergeQuotationDetailsIntoState())
-            // — the moment the quotation row was first created, for the synthetic
-            // "Draft saved" history entry. Stays pinned to the original creation
-            // time even after later edits (Eloquent never touches created_at on
-            // ->update()), so reopening an existing Draft shows the same timestamp.
             quotationCreatedAt: "",
             sentAt: "",
             quotationVersion: 0,
             rescheduleEvents: [],
-            // client-only, never sent to the server directly — folded into one
-            // update-price/save-draft/assign call at commit time (see §0.A of plan)
             adjustments: [],
-            // Pre-populated from the booking's own soft-reserved unit (if any) — this
-            // is what makes "Proceed to Dispatch" auto-use a previously selected unit
-            // without the dispatcher needing to re-pick it.
+            priceAdjustments: [],
             selectedUnitId: d.selectedUnit || null,
-            // Snapshot of the server-saved value, kept unchanged while selectedUnitId
-            // is mutated by clicks — lets us detect "unit selection changed" the same
-            // way `adjustments` detects a staged price change (see footerHtml()).
             originalSelectedUnitId: d.selectedUnit || null,
             adjFormOpen: false,
             historyOpen: false,
-            // Scheduled-only — null/"" for Book Now. schedulingBucket is
-            // computed server-side (Booking::getSchedulingBucketAttribute())
-            // and only meaningful once status === "scheduled_confirmed".
-            isScheduled: d.status === "scheduled" || d.status === "scheduled_confirmed",
+            isScheduled:
+                d.status === "scheduled" || d.status === "scheduled_confirmed",
             schedulingBucket: d.schedulingBucket || "",
             scheduledFor: d.scheduledFor || "",
-            // Synchronous snapshot from the card's own data — avoids a blank-history
-            // flash while the quotation-details fetch below is still in flight (or
-            // if it fails); that fetch still overwrites this with the freshest copy
-            // once it resolves.
+
             priceChangeLog: priceChangeLog,
+            groupVehicles: [],
         };
     }
 
-    /**
-     * Resolves the effective "card status" the footer/UI should treat this
-     * booking as. For a confirmed Scheduled booking this is one of
-     * confirmed/upcoming/ready/overdue (schedulingBucket, computed
-     * server-side) instead of the single "confirmed" Book Now uses.
-     */
     function effectiveStatus(s) {
         if (s.quotationStatus === "draft") return "draft";
         if (s.quotationStatus === "sent") return "sent";
         if (s.quotationStatus === "negotiating") return "negotiating";
-        if (s.quotationStatus === "price_review_requested") return "price_review_requested";
+        if (s.quotationStatus === "price_review_requested")
+            return "price_review_requested";
         if (s.quotationStatus === "expired") return "expired";
         if (s.status === "scheduled_confirmed")
             return s.schedulingBucket || "confirmed";
@@ -248,7 +229,6 @@
         return "new";
     }
 
-    /** True when there's a staged price adjustment or an unsaved unit-selection change. */
     function hasStagedDraftChanges(s) {
         return (
             s.adjustments.length > 0 ||
@@ -261,51 +241,73 @@
             return sum + a.amount;
         }, 0);
     }
-    /**
-     * VAT-exclusive amount before any dispatcher-entered distance fee or staged
-     * adjustments. Once a quotation exists, currentPrice already reflects the full
-     * committed price (refreshed from getQuotationDetails), so deriving from it
-     * (rather than the booking's own pre-quote vat_exclusive_total) keeps drafts
-     * showing their real saved price instead of a stale customer-facing estimate.
-     */
-    function baseSubtotal(s) {
-        // For a fresh booking (no quotation yet), use the real truck-class base
-        // rate directly — this is what the server will actually use (assignBooking()
-        // reads the selected unit's truckType.base_rate), unlike the booking's own
-        // preview total which the customer app may have computed with a different,
-        // rougher formula.
-        if (effectiveStatus(s) === "new") return s.baseRate;
-        return s.currentPrice / 1.12;
+    function vatPercentLabel(rate) {
+        var pct = Math.round((rate || 0.12) * 10000) / 100;
+        return (pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(2)) + "%";
     }
-    /**
-     * First 4 km included in base fee, then the truck type's own per_km_rate
-     * (SuperAdmin-editable) — must match BookingService::distanceFeeFor()
-     * exactly (see confirmThenSend()). Only relevant for a fresh booking with
-     * no quotation yet; an existing quotation's price already has whatever
-     * distance fee was used when it was created.
-     */
+    function baseSubtotal(s) {
+        if (effectiveStatus(s) === "new") return s.baseRate;
+        if (s.vatExclusiveTotal > 0) return s.vatExclusiveTotal;
+        return (
+            (s.currentPrice - (s.additionalFee || 0)) /
+            (1 + (s.vatRate || 0.12))
+        );
+    }
     function distanceFeeFor(s) {
         if (effectiveStatus(s) !== "new") return 0;
         var km = parseFloat(s.distanceKm) || 0;
         return km > 0 ? Math.max(0, km - 4) * (s.perKmRate || 0) : 0;
     }
-    /** Total after distance fee + staged adjustments, VAT-inclusive, using the real 12% split. */
     function adjustedTotal(s) {
-        var subtotal = baseSubtotal(s) + distanceFeeFor(s) + netAdjustment(s);
-        var vat = subtotal * 0.12;
-        return { subtotal: subtotal, vat: vat, total: subtotal + vat };
+        if (s.groupVehicles && s.groupVehicles.length > 1) {
+            var groupBaseTotal = s.groupVehicles.reduce(function (
+                sum,
+                vehicle,
+            ) {
+                return sum + (parseFloat(vehicle.final_total) || 0);
+            }, 0);
+            var groupVat = s.groupVehicles.reduce(function (sum, vehicle) {
+                return sum + (parseFloat(vehicle.vat_amount) || 0);
+            }, 0);
+            var groupSubtotal = s.groupVehicles.reduce(function (sum, vehicle) {
+                var vehicleVat = parseFloat(vehicle.vat_amount) || 0;
+                var vehicleRate =
+                    parseFloat(vehicle.vat_rate) || s.vatRate || 0.12;
+                return sum + (vehicleRate > 0 ? vehicleVat / vehicleRate : 0);
+            }, 0);
+            var groupTotal = (s.currentPrice || 0) + netAdjustment(s);
+            var groupAdjustment = groupTotal - groupBaseTotal;
+            return {
+                subtotal: groupSubtotal,
+                vat: groupVat,
+                baseTotal: groupBaseTotal,
+                adjustment: groupAdjustment,
+                total: groupTotal,
+            };
+        }
+        var subtotal = baseSubtotal(s) + distanceFeeFor(s);
+        var vat =
+            s.vatAmount > 0 && effectiveStatus(s) !== "new"
+                ? s.vatAmount
+                : subtotal * (s.vatRate || 0.12);
+        var baseTotal = subtotal + vat;
+        var adjustment = (s.additionalFee || 0) + netAdjustment(s);
+        return {
+            subtotal: subtotal,
+            vat: vat,
+            baseTotal: baseTotal,
+            adjustment: adjustment,
+            total: baseTotal + adjustment,
+        };
     }
 
-    // ------------------------------------------------------------------
-    // Drawer shell
-    // ------------------------------------------------------------------
     var drawerEl = document.getElementById("rbDrawer");
     var drawerOverlayEl = document.getElementById("rbDrawerOverlay");
 
-    // Response shape: { success: true, quotation: {...} } — see
-    // DispatchController::getQuotationDetails(). Shared by drawer-open and by
-    // applySaveDraftSuccess() (in-place refresh after Save Quote/Save changes).
     function fetchQuotationDetails(quotationId) {
+        if (state && state.isMockPreview) {
+            return Promise.resolve(null);
+        }
         var url = fillRoute(window.RB_ROUTES.quoteDetails, quotationId);
         return fetch(url, { headers: { Accept: "application/json" } })
             .then(function (res) {
@@ -316,18 +318,44 @@
             });
     }
 
-    // Note there is no "vehicle_category" field on a quotation (only make/model/
-    // year/color/plate) — Category stays sourced from the booking's own
-    // vehicleType relation set at drawer-open time; only Plate (and
-    // price/history/counter-offer) get refreshed here.
     function mergeQuotationDetailsIntoState(data) {
         if (!data) return;
+        if (Array.isArray(data.group_vehicles)) {
+            state.groupVehicles = data.group_vehicles.map(function (vehicle) {
+                return Object.assign({}, vehicle, {
+                    selected_unit_id:
+                        vehicle.selected_unit_id ||
+                        vehicle.assigned_unit_id ||
+                        null,
+                    assignment_busy: false,
+                });
+            });
+        }
         if (typeof data.estimated_price !== "undefined") {
             state.currentPrice =
                 parseFloat(data.estimated_price) || state.currentPrice;
         }
-        if (typeof data.additional_fee !== "undefined" && data.additional_fee !== null) {
+        if (
+            typeof data.additional_fee !== "undefined" &&
+            data.additional_fee !== null
+        ) {
             state.additionalFee = parseFloat(data.additional_fee) || 0;
+        }
+        if (typeof data.discount !== "undefined" && data.discount !== null) {
+            state.discount = parseFloat(data.discount) || 0;
+        }
+        if (typeof data.subtotal !== "undefined" && data.subtotal !== null) {
+            state.vatExclusiveTotal =
+                parseFloat(data.subtotal) || state.vatExclusiveTotal;
+        }
+        if (
+            typeof data.vat_amount !== "undefined" &&
+            data.vat_amount !== null
+        ) {
+            state.vatAmount = parseFloat(data.vat_amount) || state.vatAmount;
+        }
+        if (typeof data.vat_rate !== "undefined" && data.vat_rate !== null) {
+            state.vatRate = parseFloat(data.vat_rate) || state.vatRate;
         }
         if (data.price_change_log && Array.isArray(data.price_change_log)) {
             state.priceChangeLog = data.price_change_log;
@@ -343,6 +371,15 @@
         }
         if (data.reschedule_events && Array.isArray(data.reschedule_events)) {
             state.rescheduleEvents = data.reschedule_events;
+        }
+        if (data.price_adjustments && Array.isArray(data.price_adjustments)) {
+            state.priceAdjustments = data.price_adjustments;
+        }
+        if (data.status) {
+            state.quotationStatus = data.status;
+        }
+        if (data.quotation_number) {
+            state.quotationNumber = data.quotation_number;
         }
         if (data.vehicle_plate_number)
             state.vehiclePlate = data.vehicle_plate_number;
@@ -360,8 +397,6 @@
             state.counterOfferAmount =
                 parseFloat(data.counter_offer_amount) || null;
         }
-        // Only meaningful while quotationStatus === 'price_review_requested' —
-        // the customer's own submitted reason for the review.
         state.reviewReason = data.response_note || null;
     }
 
@@ -373,9 +408,6 @@
         drawerEl.classList.add("is-open");
         renderDrawer();
 
-        // If there's a live quotation, fetch its real details (price change log,
-        // exact current price, expiry) rather than trusting only the card's
-        // page-load snapshot.
         if (state.quotationId) {
             var openedState = state;
             fetchQuotationDetails(state.quotationId)
@@ -384,9 +416,7 @@
                     mergeQuotationDetailsIntoState(data);
                     renderDrawer();
                 })
-                .catch(function () {
-                    /* keep showing the page-load snapshot on failure */
-                });
+                .catch(function () {});
         }
     };
 
@@ -395,7 +425,9 @@
             var message = state.adjustments.length
                 ? "You have unsaved price adjustments that haven't been sent yet. Close without saving?"
                 : "You have an unsaved unit selection change. Close without saving?";
-            var ok = await rbConfirm(message, { okLabel: "Close without saving" });
+            var ok = await rbConfirm(message, {
+                okLabel: "Close without saving",
+            });
             if (!ok) return;
         }
         drawerEl.classList.remove("is-open");
@@ -405,7 +437,10 @@
         }, 220);
         state = null;
     }
-    drawerOverlayEl.addEventListener("click", closeBookingDrawer);
+    drawerOverlayEl.addEventListener("click", function () {
+        if (isDrawerBusy) return;
+        closeBookingDrawer();
+    });
     document.addEventListener("keydown", function (e) {
         if (e.key === "Escape") {
             closeLightbox();
@@ -414,9 +449,6 @@
         }
     });
 
-    // ------------------------------------------------------------------
-    // Section renderers
-    // ------------------------------------------------------------------
     function requestSectionHtml(s) {
         var eff = effectiveStatus(s);
         var rows = [
@@ -447,7 +479,6 @@
     }
 
     function vehicleSectionHtml(s) {
-        if (!s.photos.length) return "";
         return (
             '<div class="rb-section"><h4>Vehicle</h4>' +
             photoStackHtml(s) +
@@ -455,9 +486,26 @@
         );
     }
 
+    function photoFallbackHtml(text, visible) {
+        return (
+            '<span class="rb-photo-fallback-text"' +
+            (visible ? "" : ' style="display:none;"') +
+            ">" +
+            esc(text) +
+            "</span>"
+        );
+    }
+
     function photoStackHtml(s) {
         var n = s.photos.length;
-        if (!n) return "";
+        if (!n) {
+            return (
+                '<div class="rb-photo-stack-wrap">' +
+                '<div class="rb-photo-box rb-photo-empty">' +
+                photoFallbackHtml("No vehicle photo provided", true) +
+                "</div></div>"
+            );
+        }
         var back = "";
         if (n >= 3)
             back +=
@@ -473,13 +521,18 @@
                   n +
                   "</div>"
                 : "";
+        var firstUrl = s.photos[0];
+        var imgHtml = firstUrl
+            ? '<img src="' +
+              esc(firstUrl) +
+              '" alt="Vehicle photo" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\';">' +
+              photoFallbackHtml("Unable to load photo", false)
+            : photoFallbackHtml("No vehicle photo provided", true);
         return (
             '<div class="rb-photo-stack-wrap">' +
             back +
             '<div class="rb-photo-box" id="rbPhotoStackTrigger">' +
-            '<img src="' +
-            esc(s.photos[0]) +
-            '" alt="Vehicle photo">' +
+            imgHtml +
             badge +
             "</div></div>"
         );
@@ -492,11 +545,12 @@
         if (isNaN(target)) return "";
         var diffMs = target - Date.now();
         var mins = Math.round(Math.abs(diffMs) / 60000);
-        var label = mins < 60
-            ? mins + " min"
-            : mins < 1440
-              ? Math.round(mins / 60) + " hr"
-              : Math.round(mins / 1440) + " d";
+        var label =
+            mins < 60
+                ? mins + " min"
+                : mins < 1440
+                  ? Math.round(mins / 60) + " hr"
+                  : Math.round(mins / 1440) + " d";
         return diffMs >= 0 ? "Starts in " + label : "Overdue by " + label;
     }
 
@@ -518,9 +572,7 @@
             "<div><dt>Scheduled for</dt><dd>" +
             esc(dateLabel) +
             "</dd></div>" +
-            (sub
-                ? "<div><dt>Status</dt><dd>" + esc(sub) + "</dd></div>"
-                : "") +
+            (sub ? "<div><dt>Status</dt><dd>" + esc(sub) + "</dd></div>" : "") +
             "</div></div>"
         );
     }
@@ -531,9 +583,6 @@
               esc(s.pickupNotes) +
               "</span>"
             : "";
-        // Distance is computed entirely on the customer's side (from the pickup/
-        // dropoff locations they set) — always read-only here, dispatchers never
-        // enter or edit it.
         return (
             '<div class="rb-section"><h4>Route</h4><div class="rb-route">' +
             '<div class="rb-route-row"><span class="rb-route-dot rb-pick"></span><span class="rb-route-addr">' +
@@ -560,201 +609,284 @@
     }
 
     function pricingSectionHtml(s) {
+        var grouped = s.groupVehicles && s.groupVehicles.length > 1;
         var eff = effectiveStatus(s);
         var editable = eff === "new" || eff === "draft";
+        var breakdown;
+        var fixedTotal;
+        var accepted;
+        var adj = adjustedTotal(s);
 
-        var fixedTotal = (baseSubtotal(s) + distanceFeeFor(s)) * 1.12;
-        var accepted =
-            eff === "confirmed" ||
-            eff === "upcoming" ||
-            eff === "ready" ||
-            eff === "overdue";
-        var fixedLabel = editable
-            ? "Total"
-            : eff === "negotiating"
-              ? "Your last offer"
-              : accepted
-                ? "Agreed total"
-                : "Quoted total";
+        if (grouped) {
+            var groupRows = s.groupVehicles
+                .map(function (vehicle, index) {
+                    return (
+                        '<div class="rb-breakdown" style="margin-bottom:12px;">' +
+                        '<div class="rb-sub-label">Vehicle ' +
+                        (index + 1) +
+                        " — " +
+                        esc(
+                            vehicle.vehicle_name ||
+                                vehicle.truck_type_name ||
+                                "Vehicle",
+                        ) +
+                        "</div>" +
+                        '<div class="rb-b-row"><span>Truck type</span><span>' +
+                        esc(vehicle.truck_type_name || "—") +
+                        "</span></div>" +
+                        '<div class="rb-b-row"><span>Base rate</span><span class="rb-mono">' +
+                        peso(vehicle.base_rate) +
+                        "</span></div>" +
+                        '<div class="rb-b-row"><span>Distance fee</span><span class="rb-mono">' +
+                        peso(vehicle.distance_fee) +
+                        "</span></div>" +
+                        '<div class="rb-b-row"><span>VAT (' +
+                        vatPercentLabel(vehicle.vat_rate || s.vatRate) +
+                        ')</span><span class="rb-mono">' +
+                        peso(vehicle.vat_amount) +
+                        "</span></div>" +
+                        '<div class="rb-b-row rb-b-final"><span>Vehicle service total</span><span class="rb-mono">' +
+                        peso(vehicle.final_total) +
+                        "</span></div>" +
+                        '<div class="rb-b-row"><span>Assigned unit</span><span>' +
+                        esc(
+                            vehicle.assigned_unit_id ||
+                                vehicle.selected_unit_id ||
+                                "Not assigned",
+                        ) +
+                        "</span></div>" +
+                        "</div>"
+                    );
+                })
+                .join("");
+            var groupTotal = s.groupVehicles.reduce(function (sum, vehicle) {
+                return sum + (parseFloat(vehicle.final_total) || 0);
+            }, 0);
+            fixedTotal = groupTotal;
+            accepted =
+                eff === "confirmed" ||
+                eff === "upcoming" ||
+                eff === "ready" ||
+                eff === "overdue";
+            breakdown = groupRows;
+        } else {
+            fixedTotal = adj.baseTotal;
+            accepted =
+                eff === "confirmed" ||
+                eff === "upcoming" ||
+                eff === "ready" ||
+                eff === "overdue";
+            var fixedLabel = editable
+                ? "Total"
+                : eff === "negotiating"
+                  ? "Your last offer"
+                  : accepted
+                    ? "Agreed total"
+                    : "Quoted total";
 
-        // Base rate and distance stay valid, known figures no matter the quote's
-        // status, so the breakdown never has to collapse to a single opaque
-        // total.
-        var breakdownDistFeeKm = 0; // chargeable km after the first-4-km allowance — label only, math unchanged below
-        var breakdownDistFee = (function () {
-            var km = parseFloat(s.distanceKm) || 0;
-            breakdownDistFeeKm = Math.max(0, km - 4);
-            return km > 0 ? breakdownDistFeeKm * (s.perKmRate || 0) : 0;
-        })();
-        // Real, server-persisted additional fee — never reverse-engineered from
-        // currentPrice. A Price Review "Adjust price" override changes the total
-        // directly without touching additional_fee, so back-calculating a delta
-        // from currentPrice - (base + distance) surfaces a confusing phantom
-        // figure that was never actually saved anywhere (e.g. "keep current
-        // price" showing a nonexistent adjustment just from rounding drift).
-        var additionalFee = eff === "new" ? 0 : s.additionalFee || 0;
-        var breakdownSubtotal = s.baseRate + breakdownDistFee + additionalFee;
-        // VAT and the final total always come straight from the real committed
-        // price (never recomputed from the reference rows above) so this can
-        // never drift from what's actually saved.
-        var breakdownTotal =
-            eff === "new" ? breakdownSubtotal * 1.12 : s.currentPrice;
-        var breakdownVat =
-            eff === "new"
-                ? breakdownSubtotal * 0.12
-                : breakdownTotal - breakdownTotal / 1.12;
+            var breakdownDistFeeKm = 0;
+            var breakdownDistFee = (function () {
+                var km = parseFloat(s.distanceKm) || 0;
+                breakdownDistFeeKm = Math.max(0, km - 4);
+                return km > 0 ? breakdownDistFeeKm * (s.perKmRate || 0) : 0;
+            })();
+            var additionalFee = editable ? 0 : s.additionalFee || 0;
+            var breakdownTotal = editable ? fixedTotal : s.currentPrice;
+            var breakdownVat = editable
+                ? adj.vat
+                : s.vatAmount > 0
+                  ? s.vatAmount
+                  : breakdownTotal - breakdownTotal / (1 + (s.vatRate || 0.12));
 
-        var breakdown =
-            '<div class="rb-breakdown">' +
-            '<div class="rb-b-row"><span>Base rate (' +
-            esc(s.truckType || "Truck class") +
-            ')</span><span class="rb-mono">' +
-            peso(s.baseRate) +
-            "</span></div>" +
-            '<div class="rb-b-row"><span>Distance fee' +
-            (s.distanceKm ? " (" + breakdownDistFeeKm.toFixed(2) + " km after first 4 km)" : "") +
-            '</span><span class="rb-mono">' +
-            peso(breakdownDistFee) +
-            "</span></div>" +
-            (additionalFee !== 0
-                ? '<div class="rb-b-row rb-b-adj"><span>Additional fee</span><span class="rb-mono ' +
-                  (additionalFee > 0 ? "rb-is-add" : "rb-is-deduct") +
-                  '">' +
-                  (additionalFee > 0 ? "+" : "") +
-                  peso(additionalFee) +
-                  "</span></div>"
-                : "") +
-            '<div class="rb-b-row"><span>VAT (12%)</span><span class="rb-mono">' +
-            peso(breakdownVat) +
-            "</span></div>" +
-            '<div class="rb-b-row rb-b-final"><span>' +
-            fixedLabel +
-            ' (incl. VAT)</span><span class="rb-mono">' +
-            peso(breakdownTotal) +
-            "</span></div>" +
-            "</div>";
+            breakdown =
+                '<div class="rb-breakdown">' +
+                '<div class="rb-b-row"><span>Base rate (' +
+                esc(s.truckType || "Truck class") +
+                ')</span><span class="rb-mono">' +
+                peso(s.baseRate) +
+                "</span></div>" +
+                '<div class="rb-b-row"><span>Distance fee' +
+                (s.distanceKm
+                    ? " (" +
+                      breakdownDistFeeKm.toFixed(2) +
+                      " km after first 4 km)"
+                    : "") +
+                '</span><span class="rb-mono">' +
+                peso(breakdownDistFee) +
+                "</span></div>" +
+                (additionalFee !== 0
+                    ? '<div class="rb-b-row rb-b-adj"><span>Additional fee</span><span class="rb-mono ' +
+                      (additionalFee > 0 ? "rb-is-add" : "rb-is-deduct") +
+                      '">' +
+                      (additionalFee > 0 ? "+" : "") +
+                      peso(additionalFee) +
+                      "</span></div>"
+                    : "") +
+                '<div class="rb-b-row"><span>VAT (' +
+                vatPercentLabel(s.vatRate) +
+                ')</span><span class="rb-mono">' +
+                peso(breakdownVat) +
+                "</span></div>" +
+                '<div class="rb-b-row rb-b-final"><span>' +
+                fixedLabel +
+                ' (incl. VAT)</span><span class="rb-mono">' +
+                peso(breakdownTotal) +
+                "</span></div>" +
+                "</div>";
+        }
 
         var adjustedHtml = "";
-        var netAdj = netAdjustment(s);
-        if (netAdj !== 0) {
-            var adj = adjustedTotal(s);
+        if (grouped) {
             adjustedHtml =
                 '<div class="rb-breakdown">' +
-                '<div class="rb-b-row"><span>Base total</span><span class="rb-mono">' +
+                '<div class="rb-b-row"><span>Base total (incl. VAT)</span><span class="rb-mono">' +
+                peso(fixedTotal) +
+                "</span></div>" +
+                (adj.adjustment !== 0
+                    ? '<div class="rb-b-row rb-b-adj"><span>Quotation adjustment</span><span class="rb-mono ' +
+                      (adj.adjustment > 0 ? "rb-is-add" : "rb-is-deduct") +
+                      '">' +
+                      (adj.adjustment > 0 ? "+" : "") +
+                      peso(adj.adjustment) +
+                      "</span></div>"
+                    : "") +
+                '<div class="rb-b-row rb-b-final"><span>Final quoted total</span><span class="rb-mono">' +
+                peso(adj.total) +
+                "</span></div></div>";
+        }
+        var displayAdjustment = editable ? adj.adjustment : netAdjustment(s);
+        if (!grouped && displayAdjustment !== 0) {
+            var adjustedFinalLabel = editable
+                ? "Final total"
+                : "Actual agreed total (incl. VAT)";
+            var adjustedFinalAmount = editable
+                ? adj.total
+                : fixedTotal + displayAdjustment;
+            adjustedHtml =
+                '<div class="rb-breakdown">' +
+                '<div class="rb-b-row"><span>Base total (incl. VAT)</span><span class="rb-mono">' +
                 peso(fixedTotal) +
                 "</span></div>" +
                 '<div class="rb-b-row rb-b-adj"><span>Adjustments</span><span class="rb-mono ' +
-                (netAdj > 0 ? "rb-is-add" : "rb-is-deduct") +
+                (displayAdjustment > 0 ? "rb-is-add" : "rb-is-deduct") +
                 '">' +
-                (netAdj > 0 ? "+" : "") +
-                peso(netAdj) +
+                (displayAdjustment > 0 ? "+" : "") +
+                peso(displayAdjustment) +
                 "</span></div>" +
                 '<div class="rb-b-row rb-b-final"><span>' +
-                (editable ? "Total after adjustments" : "Actual agreed total") +
-                ' (incl. VAT)</span><span class="rb-mono">' +
-                peso(adj.total) +
+                adjustedFinalLabel +
+                '</span><span class="rb-mono">' +
+                peso(adjustedFinalAmount) +
                 "</span></div>" +
                 "</div>";
         }
 
-        var historyHtml = "";
-        var hasHistory =
-            s.priceChangeLog.length > 0 || s.adjustments.length > 0;
-        if (hasHistory) {
-            // price_change_log mixes real monetary adjustments with lifecycle/
-            // informational events (a quote being sent, a review requested, a
-            // price kept unchanged) \u2014 only entries with an actual non-zero
-            // delta render as a signed peso amount; every known lifecycle
-            // `type` gets its own plain, non-monetary label instead of a
-            // misleading "+\u20b10.00". Rounded to 2dp before the zero-check so
-            // float noise never masquerades as a real change.
-            var rows = s.priceChangeLog
-                .map(function (h) {
-                    var delta =
-                        Math.round(
-                            ((parseFloat(h.new) || 0) -
-                                (parseFloat(h.old) || 0)) *
-                                100,
-                        ) / 100;
-                    var lifecycleTypes = {
-                        price_review_requested: 1,
-                        price_review_kept: 1,
-                        quotation_sent: 1,
-                    };
-                    var isMonetary = !lifecycleTypes[h.type] && delta !== 0;
+        var lockedQuotationStatuses = {
+            accepted: 1,
+            rejected: 1,
+            expired: 1,
+            disregarded: 1,
+            cancelled: 1,
+        };
+        var isQuotationLocked = !!lockedQuotationStatuses[s.quotationStatus];
+        var adjustmentCount = s.priceAdjustments.length + s.adjustments.length;
 
-                    var signHtml = "";
-                    var labelHtml;
+        var rows =
+            '<div class="rb-adj-row"><span class="rb-adj-reason">Initial calculated price \u2014 ' +
+            peso(adj.baseTotal) +
+            '</span><span class="rb-adj-time">' +
+            esc(timeAgoLabel(s.quotationCreatedAt || s.createdAt) || "") +
+            "</span></div>";
 
-                    if (isMonetary) {
-                        var isAdd = delta >= 0;
-                        signHtml =
-                            '<span class="rb-adj-sign ' +
-                            (isAdd ? "rb-is-add" : "rb-is-deduct") +
-                            '">' +
-                            (isAdd ? "+" : "\u2212") +
-                            peso(Math.abs(delta)) +
-                            "</span>";
-                        labelHtml = esc(h.reason || "Price adjusted");
-                    } else if (h.type === "price_review_requested") {
-                        labelHtml =
-                            '<div style="font-weight:700;color:#111111;">Customer requested price review</div>' +
-                            (h.reason
-                                ? "<div>" + esc(h.reason) + "</div>"
-                                : "");
-                    } else if (h.type === "price_review_kept") {
-                        labelHtml =
-                            "Price retained at " +
-                            peso(parseFloat(h.new) || 0);
-                    } else if (h.type === "quotation_sent") {
-                        labelHtml =
-                            h.version && h.version > 1
-                                ? "Revised quotation sent"
-                                : "Initial quotation sent";
-                    } else {
-                        labelHtml = esc(h.reason || "Quotation updated");
-                    }
+        rows += s.priceAdjustments
+            .map(function (a) {
+                var isAdd = a.type === "add";
+                var isActive = a.status === "active";
+                var addedRow =
+                    '<div class="rb-adj-row"><span class="rb-adj-sign ' +
+                    (isAdd ? "rb-is-add" : "rb-is-deduct") +
+                    '">' +
+                    (isAdd ? "+" : "\u2212") +
+                    peso(a.amount) +
+                    '</span><span class="rb-adj-reason">' +
+                    esc(
+                        a.reason ||
+                            (isAdd
+                                ? "Adjustment added"
+                                : "Adjustment deducted"),
+                    ) +
+                    (isActive && !isQuotationLocked
+                        ? ' <button type="button" class="rb-adj-undo-btn" data-undo-adjustment="' +
+                          a.id +
+                          '">Undo</button>'
+                        : !isActive
+                          ? ' <span class="rb-adj-reverted-badge">Reverted</span>'
+                          : "") +
+                    '</span><span class="rb-adj-time">' +
+                    esc(timeAgoLabel(a.created_at) || "") +
+                    "</span></div>";
 
-                    return (
-                        '<div class="rb-adj-row">' +
-                        signHtml +
-                        '<span class="rb-adj-reason">' +
-                        labelHtml +
-                        '</span><span class="rb-adj-time">' +
-                        esc(timeAgoLabel(h.at) || "") +
-                        "</span></div>"
-                    );
-                })
-                .join("");
-            rows += s.adjustments
-                .map(function (a) {
-                    return (
-                        '<div class="rb-adj-row"><span class="rb-adj-sign ' +
-                        (a.amount > 0 ? "rb-is-add" : "rb-is-deduct") +
-                        '">' +
-                        (a.amount > 0 ? "+" : "\u2212") +
-                        peso(Math.abs(a.amount)) +
-                        '</span><span class="rb-adj-reason">' +
-                        esc(a.reason) +
-                        ' <em style="color:#8A93A3;">(not sent yet)</em></span><span class="rb-adj-time">just now</span></div>'
-                    );
-                })
-                .join("");
-            historyHtml =
-                '<button type="button" class="rb-btn rb-btn-secondary rb-history-toggle-btn" id="rbHistoryToggleBtn">' +
-                icon("fileText") +
-                " Price history</button>" +
-                '<div class="rb-history" id="rbHistoryList"' +
-                (s.historyOpen ? "" : ' style="display:none;"') +
-                ">" +
-                rows +
-                "</div>";
-        }
+                var revertedRow = !isActive
+                    ? '<div class="rb-adj-row"><span class="rb-adj-reason">Adjustment reverted \u2014 ' +
+                      (isAdd ? "+" : "\u2212") +
+                      peso(a.amount) +
+                      (a.reason ? " (" + esc(a.reason) + ")" : "") +
+                      '</span><span class="rb-adj-time">' +
+                      esc(timeAgoLabel(a.reverted_at) || "") +
+                      "</span></div>"
+                    : "";
+
+                return addedRow + revertedRow;
+            })
+            .join("");
+
+        rows += s.adjustments
+            .map(function (a) {
+                return (
+                    '<div class="rb-adj-row"><span class="rb-adj-sign ' +
+                    (a.amount > 0 ? "rb-is-add" : "rb-is-deduct") +
+                    '">' +
+                    (a.amount > 0 ? "+" : "\u2212") +
+                    peso(Math.abs(a.amount)) +
+                    '</span><span class="rb-adj-reason">' +
+                    esc(a.reason) +
+                    ' <em style="color:#8A93A3;">(not sent yet)</em></span><span class="rb-adj-time">just now</span></div>'
+                );
+            })
+            .join("");
+
+        var historyLabel =
+            "Price history" +
+            (adjustmentCount > 0
+                ? " (" +
+                  adjustmentCount +
+                  " adjustment" +
+                  (adjustmentCount === 1 ? "" : "s") +
+                  ")"
+                : "");
+        var historyHtml =
+            '<button type="button" class="rb-btn rb-btn-secondary rb-history-toggle-btn" id="rbHistoryToggleBtn">' +
+            '<span class="rb-history-btn-label">' +
+            icon("fileText") +
+            " " +
+            historyLabel +
+            "</span>" +
+            '<span class="rb-chevron' +
+            (s.historyOpen ? " rb-is-open" : "") +
+            '" id="rbHistoryChevron">' +
+            icon("chevronDown") +
+            "</span></button>" +
+            '<div class="rb-history" id="rbHistoryList"' +
+            (s.historyOpen ? "" : ' style="display:none;"') +
+            ">" +
+            (rows ||
+                '<div class="rb-adj-empty">No price adjustments yet.</div>') +
+            "</div>";
 
         var adjFormHtml = "";
         if (editable) {
             adjFormHtml =
-                '<div class="rb-sub-label">Add price adjustment</div>' +
+                '<div class="rb-sub-label">New adjustment</div>' +
                 '<div class="rb-adj-form" id="rbAdjForm"' +
                 (s.adjFormOpen ? "" : ' style="display:none;"') +
                 ">" +
@@ -775,8 +907,7 @@
                 (s.adjFormOpen ? ' style="display:none;"' : "") +
                 ">" +
                 icon("plus") +
-                " Add price adjustment</button>" +
-                '<div class="rb-adj-hint">You can add multiple adjustments if needed.</div>';
+                " Add price adjustment</button>";
         }
 
         var negotiatingHtml = "";
@@ -817,7 +948,7 @@
         }
 
         return (
-            '<div class="rb-section"><h4>' + (s.isScheduled ? "Pricing" : "Pricing &amp; unit") + '</h4>' +
+            '<div class="rb-section"><h4>Pricing</h4>' +
             breakdown +
             adjustedHtml +
             negotiatingHtml +
@@ -889,6 +1020,68 @@
     }
 
     function unitsSectionHtml(s) {
+        var groupAccepted =
+            s.quotationStatus === "accepted" &&
+            (s.status === "confirmed" || s.status === "scheduled_confirmed");
+        if (!groupAccepted) {
+            return '<div class="rb-section"><h4>Assignment</h4><div class="rb-note-box">Unit assignment available after customer acceptance.</div></div>';
+        }
+        if (s.groupVehicles && s.groupVehicles.length > 1) {
+            if (
+                s.isScheduled &&
+                effectiveStatus(s) !== "ready" &&
+                effectiveStatus(s) !== "overdue"
+            ) {
+                return "";
+            }
+            return (
+                '<div class="rb-section"><h4>Assign vehicles</h4><div class="rb-group-vehicle-list">' +
+                s.groupVehicles
+                    .map(function (vehicle, index) {
+                        return (
+                            '<div class="rb-group-vehicle" data-group-vehicle="' +
+                            vehicle.booking_id +
+                            '">' +
+                            '<div class="rb-group-vehicle-head">' +
+                            '<div class="rb-group-vehicle-title">Vehicle ' +
+                            (index + 1) +
+                            " — " +
+                            esc(vehicle.vehicle_name || "Vehicle") +
+                            "</div>" +
+                            '<div class="rb-group-vehicle-meta">' +
+                            esc(
+                                vehicle.truck_type_name ||
+                                    "Required truck type",
+                            ) +
+                            " · " +
+                            peso(vehicle.final_total) +
+                            " · " +
+                            esc(vehicle.status || "") +
+                            "</div>" +
+                            "</div>" +
+                            '<div class="rb-search-wrap"><span class="rb-search-ic">' +
+                            icon("search", 15) +
+                            '</span><input type="text" data-group-search="' +
+                            vehicle.booking_id +
+                            '" placeholder="Search compatible unit or team leader"></div>' +
+                            '<div class="rb-unit-option-list" data-group-unit-list="' +
+                            vehicle.booking_id +
+                            '" style="display:flex;flex-direction:column;gap:10px;"></div>' +
+                            '<button type="button" class="rb-btn rb-btn-primary rb-group-vehicle-assign" data-group-dispatch="' +
+                            vehicle.booking_id +
+                            '"' +
+                            (vehicle.selected_unit_id ? "" : " disabled") +
+                            ">" +
+                            (vehicle.assigned_unit_id
+                                ? "Update assignment"
+                                : "Assign vehicle") +
+                            "</button></div>"
+                        );
+                    })
+                    .join("") +
+                "</div></div>"
+            );
+        }
         // Scheduled bookings never reserve a unit in advance — "Available
         // units" only appears once the booking has actually reached its
         // ready/overdue dispatch window. Book Now is unaffected (isScheduled
@@ -917,19 +1110,10 @@
                 accept: false,
             },
         ];
-        // Synthetic — no dedicated "draft saved" event is persisted anywhere
-        // (saveQuotationDraft() only logs a price_change_log entry when
-        // there's an actual price delta to record, which a first save has
-        // none of). quotation.created_at already pins the true first-save
-        // moment and never moves on later edits, so it's reused here instead
-        // of adding a new persisted event. Skipped if a future price_change_log
-        // entry type ever represents this same moment, to avoid a duplicate line.
-        var hasDraftSavedLogEntry = s.priceChangeLog.some(function (h) {
-            return h.type === "draft_saved";
-        });
-        if (s.quotationId && s.quotationCreatedAt && !hasDraftSavedLogEntry) {
+
+        if (s.quotationId && s.quotationCreatedAt) {
             items.push({
-                labelHtml: esc("Draft saved"),
+                labelHtml: esc("Initial quotation generated"),
                 noteHtml: "",
                 time: timeAgoLabel(s.quotationCreatedAt),
                 at: s.quotationCreatedAt,
@@ -938,7 +1122,7 @@
         }
         function sentVersionLabel(version) {
             return parseInt(version, 10) <= 1
-                ? "Initial quotation sent"
+                ? "Quotation sent"
                 : "Revised quotation sent";
         }
         var sentVersionsLogged = {};
@@ -954,35 +1138,26 @@
                 });
                 return;
             }
-            var delta = (parseFloat(h.new) || 0) - (parseFloat(h.old) || 0);
-            var priceHtml;
             if (h.type === "price_review_requested") {
-                priceHtml = "Customer requested a price review";
+                items.push({
+                    labelHtml: "Customer requested price review",
+                    noteHtml: h.reason ? esc(h.reason) : "",
+                    time: timeAgoLabel(h.at) || "",
+                    at: h.at,
+                    accept: false,
+                });
             } else if (h.type === "price_review_kept") {
-                priceHtml =
-                    "Price review completed \u2014 amount unchanged (" +
-                    peso(h.new) +
-                    ")";
-            } else {
-                priceHtml =
-                    delta === 0
-                        ? "Price updated (now " + peso(h.new) + ")"
-                        : '<span class="' +
-                          (delta > 0 ? "rb-is-add" : "rb-is-deduct") +
-                          '">' +
-                          (delta > 0 ? "+" : "\u2212") +
-                          peso(Math.abs(delta)) +
-                          "</span> (now " +
-                          peso(h.new) +
-                          ")";
+                items.push({
+                    labelHtml:
+                        "Price review completed \u2014 amount unchanged (" +
+                        peso(h.new) +
+                        ")",
+                    noteHtml: h.reason ? esc(h.reason) : "",
+                    time: timeAgoLabel(h.at) || "",
+                    at: h.at,
+                    accept: false,
+                });
             }
-            items.push({
-                labelHtml: priceHtml,
-                noteHtml: h.reason ? esc(h.reason) : "",
-                time: timeAgoLabel(h.at) || "",
-                at: h.at,
-                accept: false,
-            });
         });
         if (
             s.quotationId &&
@@ -1003,7 +1178,11 @@
                 labelHtml: esc("Booking rescheduled"),
                 noteHtml:
                     ev.old_scheduled_for && ev.new_scheduled_for
-                        ? esc(ev.old_scheduled_for + " → " + ev.new_scheduled_for)
+                        ? esc(
+                              ev.old_scheduled_for +
+                                  " → " +
+                                  ev.new_scheduled_for,
+                          )
                         : "",
                 time: timeAgoLabel(ev.at),
                 at: ev.at,
@@ -1036,6 +1215,18 @@
                 );
             })
             .join("");
+        if (s.quotationStatus === "accepted") {
+            rows +=
+                '<div class="rb-t-item rb-is-accept"><span class="rb-t-icon">' +
+                icon("check", 14) +
+                '</span><div><div class="rb-t-text">Customer accepted</div>' +
+                '<div class="rb-t-time">—</div></div></div>';
+            rows +=
+                '<div class="rb-t-item rb-is-accept"><span class="rb-t-icon">' +
+                icon("check", 14) +
+                '</span><div><div class="rb-t-text">Dispatcher confirmed</div>' +
+                '<div class="rb-t-time">—</div></div></div>';
+        }
         return (
             '<div class="rb-section"><h4>Quote history</h4><div class="rb-timeline">' +
             rows +
@@ -1043,9 +1234,6 @@
         );
     }
 
-    // ------------------------------------------------------------------
-    // Footer (status-specific actions)
-    // ------------------------------------------------------------------
     function footerHtml(s) {
         var eff = effectiveStatus(s);
         var main = "";
@@ -1075,7 +1263,7 @@
             main =
                 '<button type="button" class="rb-btn rb-btn-secondary" id="rbCancelQuoteBtn">' +
                 icon("xCircle") +
-                " Cancel quote</button>";
+                " Cancel quotation</button>";
         } else if (eff === "negotiating") {
             main =
                 '<button type="button" class="rb-btn rb-btn-secondary" id="rbDeclineCounterBtn">Decline, keep ' +
@@ -1115,6 +1303,13 @@
         } else if (eff === "expired") {
             main = ""; // no Extend / Resend — expired quotes are done, only Reject remains
         }
+        if (
+            s.groupVehicles &&
+            s.groupVehicles.length > 1 &&
+            ["confirmed", "upcoming", "ready", "overdue"].indexOf(eff) !== -1
+        ) {
+            main = "";
+        }
 
         var expiredChip =
             eff === "expired"
@@ -1123,18 +1318,18 @@
                   "<span>Quote expired</span></div>"
                 : "";
 
-        // Scheduled: no cancel option in confirmed/upcoming/ready (the
-        // customer app is the cancel path there) — only Overdue gets a
-        // dispatcher-initiated "Cancel Booking", reusing the same
-        // action:'reject' wire contract as Book Now's reject link.
         var showRejectLink = s.isScheduled
             ? eff === "overdue"
             : eff !== "confirmed";
-        var rejectLabel = s.isScheduled ? "Cancel Booking" : "Reject this booking";
+        var rejectLabel = s.isScheduled
+            ? "Cancel Booking"
+            : "Reject this booking";
         var rejectHtml = showRejectLink
             ? '<div class="rb-drawer-foot-reject"><button type="button" class="rb-link-btn" id="rbRejectBtn" style="color:#D8402C;">' +
               icon("trash", 14) +
-              " " + rejectLabel + "</button></div>"
+              " " +
+              rejectLabel +
+              "</button></div>"
             : "";
 
         return (
@@ -1144,6 +1339,30 @@
             main +
             "</div>" +
             rejectHtml
+        );
+    }
+
+    function quotationIdentityHtml(s) {
+        var numberText = s.quotationNumber
+            ? esc(s.quotationNumber)
+            : "No quotation yet";
+        var bookingText = s.bookingCode ? esc(s.bookingCode) : "—";
+        var statusText = s.quotationNumber
+            ? quotationStatusLabel(s.quotationStatus)
+            : "";
+        return (
+            '<div class="rb-quote-label">Quotation</div>' +
+            '<div class="rb-quote-id rb-mono">' +
+            numberText +
+            "</div>" +
+            '<div class="rb-quote-row">' +
+            '<span class="rb-quote-booking rb-mono">Booking: ' +
+            bookingText +
+            "</span>" +
+            (statusText
+                ? '<span class="rb-status-badge">' + esc(statusText) + "</span>"
+                : "") +
+            "</div>"
         );
     }
 
@@ -1162,10 +1381,6 @@
             .join("")
             .toUpperCase();
 
-        // innerHTML replacement below rebuilds .rb-drawer-body as a brand-new node,
-        // which resets scroll to the top — restore wherever the dispatcher was
-        // scrolled to (e.g. re-rendering after "Add price adjustment") so re-renders
-        // don't keep bouncing them back up.
         var prevBody = drawerEl.querySelector(".rb-drawer-body");
         var prevScrollTop = prevBody ? prevBody.scrollTop : 0;
 
@@ -1173,7 +1388,9 @@
             '<div class="rb-drawer-head">' +
             '<div class="rb-who"><div class="rb-avatar">' +
             esc(initials) +
-            "</div><div><h3>" +
+            "</div><div>" +
+            quotationIdentityHtml(s) +
+            "<h3>" +
             esc(s.customerName) +
             '</h3><div class="rb-sub"><span>' +
             esc(s.customerPhone) +
@@ -1200,9 +1417,16 @@
 
         wireDrawerEvents();
         renderUnitList("");
+        if (s.groupVehicles && s.groupVehicles.length > 1) {
+            renderGroupUnitLists();
+        }
 
         var newBody = drawerEl.querySelector(".rb-drawer-body");
         if (newBody) newBody.scrollTop = prevScrollTop;
+
+        if (s.isMockPreview) {
+            setBusy(true);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -1221,9 +1445,6 @@
             };
         });
 
-        // ---- price adjustment form ----
-        // Re-render on toggle (instead of imperatively flipping both state and
-        // DOM) so s.adjFormOpen stays the single source of truth for what's shown.
         byId("rbAdjToggleBtn", function (el) {
             el.onclick = function () {
                 s.adjFormOpen = true;
@@ -1289,8 +1510,19 @@
                 byId("rbHistoryList", function (l) {
                     l.style.display = s.historyOpen ? "" : "none";
                 });
+                byId("rbHistoryChevron", function (c) {
+                    c.classList.toggle("rb-is-open", s.historyOpen);
+                });
             };
         });
+
+        drawerEl
+            .querySelectorAll("[data-undo-adjustment]")
+            .forEach(function (btn) {
+                btn.onclick = function () {
+                    submitUndoAdjustment(btn.dataset.undoAdjustment);
+                };
+            });
 
         // ---- footer actions ----
         byId("rbSaveDraftBtn", function (el) {
@@ -1391,9 +1623,7 @@
                     );
                     return;
                 }
-                // The backend still takes the new absolute total — the dispatcher
-                // only enters an add/deduct delta, computed against the current
-                // price here (same convention as the New/Draft adjustment form).
+
                 var signed = typeSel.value === "deduct" ? -amt : amt;
                 var newPrice = Number(s.currentPrice || 0) + signed;
                 if (newPrice <= 0) {
@@ -1413,6 +1643,30 @@
                 submitDispatch();
             };
         });
+        document.querySelectorAll("[data-group-search]").forEach(function (el) {
+            el.oninput = function () {
+                var vehicle = (s.groupVehicles || []).find(function (item) {
+                    return (
+                        String(item.booking_id) ===
+                        String(el.dataset.groupSearch)
+                    );
+                });
+                if (vehicle) renderGroupUnitList(vehicle, el.value);
+            };
+        });
+        document
+            .querySelectorAll("[data-group-dispatch]")
+            .forEach(function (el) {
+                el.onclick = function () {
+                    var vehicle = (s.groupVehicles || []).find(function (item) {
+                        return (
+                            String(item.booking_id) ===
+                            String(el.dataset.groupDispatch)
+                        );
+                    });
+                    if (vehicle) submitGroupDispatch(vehicle);
+                };
+            });
         byId("rbRescheduleBtn", function (el) {
             el.onclick = function () {
                 submitReschedule();
@@ -1450,8 +1704,7 @@
         var bookingCode = state ? state.bookingCode : null;
         return AVAILABLE_UNITS.filter(function (u) {
             if (Number(u.truck_type_id) !== Number(truckTypeId)) return false;
-            // Soft-reserved by a different booking's pending quote — hide it here,
-            // but never hide it from the booking that actually holds the reservation.
+
             if (
                 u.reserved_by_booking_code &&
                 String(u.reserved_by_booking_code) !== String(bookingCode)
@@ -1468,6 +1721,124 @@
             return 0;
         });
         return arr;
+    }
+
+    function unitsForGroupVehicle(vehicle) {
+        var used = (state.groupVehicles || [])
+            .filter(function (other) {
+                return (
+                    String(other.booking_id) !== String(vehicle.booking_id) &&
+                    other.selected_unit_id
+                );
+            })
+            .map(function (other) {
+                return String(other.selected_unit_id);
+            });
+        return AVAILABLE_UNITS.filter(function (unit) {
+            if (Number(unit.truck_type_id) !== Number(vehicle.truck_type_id))
+                return false;
+            if (used.indexOf(String(unit.id)) !== -1) return false;
+            if (
+                unit.reserved_by_booking_code &&
+                String(unit.reserved_by_booking_code) !==
+                    String(vehicle.booking_code)
+            )
+                return false;
+            return true;
+        });
+    }
+
+    function renderGroupUnitList(vehicle, query) {
+        var listEl = document.querySelector(
+            '[data-group-unit-list="' + vehicle.booking_id + '"]',
+        );
+        if (!listEl) return;
+        var q = (query || "").trim().toLowerCase();
+        var filtered = unitsForGroupVehicle(vehicle).filter(function (unit) {
+            return (
+                (unit.label || "").toLowerCase().indexOf(q) > -1 ||
+                (unit.team_leader_name || "").toLowerCase().indexOf(q) > -1
+            );
+        });
+        if (!filtered.length) {
+            listEl.innerHTML =
+                '<div class="rb-unit-empty-note">' +
+                icon("mapPin", 24) +
+                "<span>No compatible units ready right now.</span></div>";
+            return;
+        }
+        listEl.innerHTML = filtered
+            .map(function (unit) {
+                return unitCardHtml(
+                    unit,
+                    false,
+                    String(unit.id) === String(vehicle.selected_unit_id),
+                );
+            })
+            .join("");
+        listEl
+            .querySelectorAll("[data-assign-unit]")
+            .forEach(function (button) {
+                button.addEventListener("click", function () {
+                    vehicle.selected_unit_id =
+                        String(vehicle.selected_unit_id) ===
+                        String(button.dataset.assignUnit)
+                            ? null
+                            : button.dataset.assignUnit;
+                    renderGroupUnitLists();
+                });
+            });
+    }
+
+    function submitGroupDispatch(vehicle) {
+        if (!vehicle.selected_unit_id || vehicle.assignment_busy) return;
+        vehicle.assignment_busy = true;
+        renderGroupUnitLists();
+        apiCall(
+            fillRoute(window.RB_ROUTES.assign, vehicle.booking_code),
+            "POST",
+            {
+                action: "accept",
+                assigned_unit_id: vehicle.selected_unit_id,
+            },
+        )
+            .then(function (res) {
+                vehicle.assignment_busy = false;
+                if (!res.ok) {
+                    showDrawerNetworkError(res.data && res.data.message);
+                    renderGroupUnitLists();
+                    return;
+                }
+                vehicle.assigned_unit_id = vehicle.selected_unit_id;
+                vehicle.status = res.data.status || vehicle.status;
+                AVAILABLE_UNITS.forEach(function (unit) {
+                    if (String(unit.id) === String(vehicle.selected_unit_id)) {
+                        unit.reserved_by_booking_code = vehicle.booking_code;
+                    }
+                });
+                renderDrawer();
+            })
+            .catch(function () {
+                vehicle.assignment_busy = false;
+                showDrawerNetworkError();
+                renderGroupUnitLists();
+            });
+    }
+
+    function renderGroupUnitLists() {
+        (state.groupVehicles || []).forEach(function (vehicle) {
+            var search = document.querySelector(
+                '[data-group-search="' + vehicle.booking_id + '"]',
+            );
+            renderGroupUnitList(vehicle, search ? search.value : "");
+            var dispatch = document.querySelector(
+                '[data-group-dispatch="' + vehicle.booking_id + '"]',
+            );
+            if (dispatch) {
+                dispatch.disabled =
+                    !vehicle.selected_unit_id || vehicle.assignment_busy;
+            }
+        });
     }
 
     function renderUnitList(query) {
@@ -1520,15 +1891,12 @@
                 var alreadySelected =
                     String(s.selectedUnitId) === String(clickedId);
                 s.selectedUnitId = alreadySelected ? null : clickedId;
-                // renderUnitList() below only redraws the units list, not the
-                // footer — flip Save changes directly so a selection change
-                // (including deselecting) is never silently lost on close.
+
                 var saveBtn = document.getElementById("rbSaveDraftBtn");
                 if (saveBtn && effectiveStatus(s) === "draft") {
                     saveBtn.disabled = !hasStagedDraftChanges(s);
                 }
-                // Present only for eff statuses confirmed/ready/overdue (see
-                // footerHtml()) — null elsewhere, so no extra status check needed.
+
                 var dispatchBtn = document.getElementById("rbDispatchBtn");
                 if (dispatchBtn) {
                     dispatchBtn.disabled = !s.selectedUnitId;
@@ -1555,12 +1923,7 @@
             };
         });
     }
-    // ------------------------------------------------------------------
-    // Styled confirm/alert/prompt modal — replaces native window.confirm()/
-    // alert()/prompt() so every dialog matches the app's own look instead of
-    // the browser's. Reuses the "View all N units" modal shell (that feature
-    // was deferred this round, so the mount point was otherwise unused).
-    // ------------------------------------------------------------------
+
     var rbModalBackdrop = document.getElementById("rbUnitsModalBackdrop");
     var rbModalBox = document.getElementById("rbUnitsModalBox");
     var rbModalResolver = null;
@@ -1674,9 +2037,6 @@
         });
     }
 
-    // Exposed globally so other scripts on this page (e.g. the Scheduled
-    // queue's _quotation-modal.blade.php) can use the same styled dialogs
-    // instead of native confirm()/alert()/prompt().
     window.rbConfirm = rbConfirm;
     window.rbAlert = rbAlert;
     window.rbPrompt = rbPrompt;
@@ -1689,8 +2049,11 @@
     function renderLightbox() {
         var url = lightboxState.photos[lightboxState.index];
         document.getElementById("rbLightboxImage").innerHTML = url
-            ? '<img src="' + esc(url) + '" alt="Vehicle photo">'
-            : "";
+            ? '<img src="' +
+              esc(url) +
+              '" alt="Vehicle photo" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\';">' +
+              photoFallbackHtml("Unable to load photo", false)
+            : photoFallbackHtml("No vehicle photo provided", true);
         document.getElementById("rbLightboxCaption").textContent =
             "Photo " +
             (lightboxState.index + 1) +
@@ -1730,26 +2093,20 @@
             if (e.target === lightboxBackdrop) closeLightbox();
         });
 
-    // ------------------------------------------------------------------
-    // Commit actions — each folds all staged adjustments into ONE network
-    // call, per the plan's §0.A correction (update-price emails the
-    // customer + versions the quotation on every call).
-    // ------------------------------------------------------------------
     function setBusy(disabled) {
+        if (state && state.isMockPreview) {
+            disabled = true;
+        }
+        isDrawerBusy = disabled;
         drawerEl.querySelectorAll(".rb-btn").forEach(function (b) {
             b.disabled = disabled;
         });
-        // Save changes must stay disabled whenever there's nothing staged to
-        // save — the blanket toggle above would otherwise wrongly re-enable it
-        // after a busy state ends without a full re-render (e.g. a failed
-        // action on a booking with no pending adjustments).
+
         if (!disabled && state && !hasStagedDraftChanges(state)) {
             var saveBtn = document.getElementById("rbSaveDraftBtn");
             if (saveBtn) saveBtn.disabled = true;
         }
-        // Proceed to Dispatch must stay disabled with no unit picked, for the
-        // same reason — the blanket toggle above would otherwise wrongly
-        // re-enable it once some other busy cycle on this drawer finishes.
+
         if (!disabled && state && !state.selectedUnitId) {
             var dispatchBtn = document.getElementById("rbDispatchBtn");
             if (dispatchBtn) dispatchBtn.disabled = true;
@@ -1761,12 +2118,6 @@
         });
     }
     function reloadAfterSuccess() {
-        // Full reload keeps client state from drifting off server truth (see file
-        // header) — but that also blanks out `state`/closes the drawer and resets
-        // the queue tab as a side effect. Stash which booking was open (see
-        // reopenDrawerAfterReload() below) AND which queue tab was active (see
-        // dispatch.js's init, which otherwise always defaults back to Book Now)
-        // so both restore once the new page loads.
         if (state && state.bookingCode) {
             try {
                 sessionStorage.setItem(
@@ -1776,13 +2127,9 @@
                 var activeTabBtn = document.querySelector(
                     ".queue-filter-btn.is-active",
                 );
-                var activeFilter =
-                    activeTabBtn && activeTabBtn.dataset.filter;
+                var activeFilter = activeTabBtn && activeTabBtn.dataset.filter;
                 if (activeFilter) {
-                    sessionStorage.setItem(
-                        "rbReopenQueueFilter",
-                        activeFilter,
-                    );
+                    sessionStorage.setItem("rbReopenQueueFilter", activeFilter);
                 }
             } catch (e) {
                 /* ignore */
@@ -1791,12 +2138,18 @@
         window.location.reload();
     }
 
-    /** Shared payload for saveQuotationDraft() — price is VAT-inclusive there (assigned to estimated_price verbatim, no server-side re-derivation). */
     function draftSavePayload(s) {
         var adj = adjustedTotal(s);
         return {
             price: Number(adj.total.toFixed(2)),
             additional_fee: Number(netAdjustment(s).toFixed(2)),
+            adjustments: s.adjustments.map(function (a) {
+                return {
+                    type: a.amount >= 0 ? "add" : "deduct",
+                    amount: Number(Math.abs(a.amount).toFixed(2)),
+                    reason: a.reason,
+                };
+            }),
             selected_unit_id: s.selectedUnitId || null,
             dispatcher_note:
                 s.adjustments
@@ -1808,12 +2161,6 @@
         };
     }
 
-    // Save Quote/Save changes no longer force a full reload, but AVAILABLE_UNITS
-    // (the #rbAvailableUnitsJson blob, shared read-only across every card's
-    // drawer) is still only ever loaded once at page load — without this, a
-    // unit just soft-reserved here would keep showing as free in a different
-    // booking's drawer opened later in the same tab, until some other action
-    // happens to trigger a real reload. Mirrors what the server just did.
     function updateAvailableUnitsReservation(bookingCode, newUnitId) {
         var newId = newUnitId ? Number(newUnitId) : null;
         AVAILABLE_UNITS.forEach(function (u) {
@@ -1830,9 +2177,6 @@
     }
 
     function findCardByBookingCode(bookingCode) {
-        // Book Now uses .incoming-card; the Scheduled queue is a table of
-        // .jobs-row <tr> elements — both carry data-booking-code, so this
-        // covers whichever queue the booking actually lives in.
         var cards = document.querySelectorAll(
             ".incoming-card[data-booking-code], .jobs-row[data-booking-code]",
         );
@@ -1842,12 +2186,6 @@
         return null;
     }
 
-    // Keeps the underlying queue card's own dataset in sync after an in-place
-    // save (see applySaveDraftSuccess()) — without this, closing the drawer and
-    // reopening the SAME card (no intervening full reload) would rebuild `state`
-    // from stale data via buildStateFromCard() and the save would appear to have
-    // been lost. Doesn't touch the card's visible face/badges — those only
-    // refresh on the next real reload (Send/Reject/Dispatch/Cancel still do one).
     function updateCardDatasetFromState(s) {
         var card = findCardByBookingCode(s.bookingCode);
         if (!card) return;
@@ -1858,14 +2196,21 @@
         card.dataset.selectedUnit = s.selectedUnitId || "";
     }
 
-    // Save Quote / Save changes only ever persist price/unit-selection details —
-    // they never move the booking to a different queue bucket or status — so,
-    // per explicit request, they refresh the already-open drawer in place
-    // instead of reloadAfterSuccess()'s full page reload (which the dispatcher
-    // saw as the drawer visibly closing and reopening).
+    function refreshDrawerFromServer(newQuotationId) {
+        var s = state;
+        if (newQuotationId) s.quotationId = newQuotationId;
+        if (!s.quotationId) return Promise.resolve();
+        return fetchQuotationDetails(s.quotationId).then(function (fresh) {
+            if (state !== s) return;
+            mergeQuotationDetailsIntoState(fresh);
+            renderDrawer();
+            updateCardDatasetFromState(s);
+        });
+    }
+
     function applySaveDraftSuccess(data, committedPrice) {
         var s = state;
-        s.currentPrice = committedPrice; // exactly what the server just stored verbatim as estimated_price
+        s.currentPrice = committedPrice;
         s.adjustments = [];
         s.originalSelectedUnitId = s.selectedUnitId;
         if (data && data.quotation_id) s.quotationId = data.quotation_id;
@@ -1875,26 +2220,12 @@
         renderDrawer();
         updateCardDatasetFromState(s);
 
-        if (s.quotationId) {
-            fetchQuotationDetails(s.quotationId)
-                .then(function (fresh) {
-                    if (state !== s) return; // drawer moved on to a different booking meanwhile
-                    mergeQuotationDetailsIntoState(fresh);
-                    renderDrawer();
-                    updateCardDatasetFromState(s);
-                })
-                .catch(function () {
-                    /* optimistic values already applied above */
-                });
-        }
+        refreshDrawerFromServer().catch(function () {});
     }
 
     function submitSaveDraft() {
         var s = state;
-        // Distance is computed entirely on the customer's side (from the pickup/
-        // dropoff locations they set) — dispatchers never enter it. If it's somehow
-        // missing on a fresh booking, block the save with an explanation instead of
-        // offering a field to fix, since there's nothing for the dispatcher to fix.
+
         if (effectiveStatus(s) === "new" && !(parseFloat(s.distanceKm) > 0)) {
             rbAlert(
                 "Distance isn't available for this booking yet. It's calculated automatically from the customer's pickup and drop-off locations — dispatchers can't enter it manually. Try again once it syncs, or contact support if this persists.",
@@ -1923,12 +2254,7 @@
             });
     }
 
-    // Shared by both confirmThenSend() branches below — sending never moves the
-    // booking out of the Book Now queue (only the quotation's own status changes,
-    // to 'sent'; see QuotationService::sendQuotation()), so this refreshes state
-    // and the drawer in place instead of reloadAfterSuccess(), same as
-    // applySaveDraftSuccess() for Save Quote/Save changes.
-    function applySendSuccess(committedPrice) {
+    function applySendSuccess(committedPrice, newQuotationId) {
         var s = state;
         s.currentPrice = committedPrice;
         s.adjustments = [];
@@ -1938,18 +2264,7 @@
         renderDrawer();
         updateCardDatasetFromState(s);
 
-        if (s.quotationId) {
-            fetchQuotationDetails(s.quotationId)
-                .then(function (fresh) {
-                    if (state !== s) return;
-                    mergeQuotationDetailsIntoState(fresh);
-                    renderDrawer();
-                    updateCardDatasetFromState(s);
-                })
-                .catch(function () {
-                    /* optimistic values already applied above */
-                });
-        }
+        refreshDrawerFromServer(newQuotationId).catch(function () {});
     }
 
     async function confirmThenSend() {
@@ -1968,8 +2283,6 @@
         if (!ok) return;
 
         if (s.adjustments.length) {
-            // Draft with unsaved staged adjustments — persist them to the draft first
-            // (saveQuotationDraft takes price VAT-inclusive verbatim), then send it.
             var payload = draftSavePayload(s);
             setBusy(true);
             apiCall(
@@ -1993,19 +2306,21 @@
                 })
                 .then(function (res) {
                     setBusy(false);
-                    if (!res) return; // save-draft already failed and reported above
+                    if (!res) return;
                     if (!res.ok) {
                         showDrawerNetworkError(res.data && res.data.message);
                         return;
                     }
-                    applySendSuccess(payload.price);
+                    applySendSuccess(
+                        payload.price,
+                        res.data && res.data.quotation_id,
+                    );
                 })
                 .catch(function () {
                     setBusy(false);
                     showDrawerNetworkError();
                 });
         } else {
-            // Draft already exists on the server with no further staged changes — just send it.
             setBusy(true);
             apiCall(
                 fillRoute(window.RB_ROUTES.quoteSend, s.quotationId),
@@ -2018,7 +2333,10 @@
                         showDrawerNetworkError(res.data && res.data.message);
                         return;
                     }
-                    applySendSuccess(s.currentPrice);
+                    applySendSuccess(
+                        s.currentPrice,
+                        res.data && res.data.quotation_id,
+                    );
                 })
                 .catch(function () {
                     setBusy(false);
@@ -2029,10 +2347,10 @@
 
     async function submitCancelQuote() {
         var ok = await rbConfirm(
-            "Cancel this quote? The customer will no longer be able to accept it.",
+            "Cancel this quotation? The customer will no longer be able to accept it.",
             {
-                title: "Cancel quote",
-                okLabel: "Cancel quote",
+                title: "Cancel quotation",
+                okLabel: "Cancel quotation",
                 cancelLabel: "Keep it",
             },
         );
@@ -2057,13 +2375,6 @@
             });
     }
 
-    /**
-     * Dispatcher's two responses to a customer's "Request Price Review" —
-     * Book Now only. Distinct from submitDecideOnCounter() above (that one
-     * responds to the old, dead-for-Book-Now negotiation path and stays
-     * untouched since Scheduled's own tabbed modal still relies on its
-     * backend endpoint).
-     */
     async function submitKeepPrice() {
         var ok = await rbConfirm(
             "Keep the current price (" +
@@ -2084,12 +2395,47 @@
                     showDrawerNetworkError(res.data && res.data.message);
                     return;
                 }
-                reloadAfterSuccess();
+                refreshDrawerFromServer(
+                    res.data && res.data.quotation_id,
+                ).catch(function () {});
             })
             .catch(function () {
                 setBusy(false);
                 showDrawerNetworkError();
             });
+    }
+
+    function submitUndoAdjustment(adjustmentId) {
+        var s = state;
+        rbConfirm(
+            "Undo adjustment? This will remove the adjustment from the current quotation. The action will remain recorded in Price History.",
+            { title: "Undo adjustment", okLabel: "Confirm Undo" },
+        ).then(function (ok) {
+            if (!ok) return;
+            setBusy(true);
+            apiCall(
+                fillRoute(
+                    window.RB_ROUTES.quoteUndoAdjustment,
+                    s.quotationId,
+                ).replace(":adjustment", adjustmentId),
+                "POST",
+                {},
+            )
+                .then(function (res) {
+                    setBusy(false);
+                    if (!res.ok) {
+                        showDrawerNetworkError(res.data && res.data.message);
+                        return;
+                    }
+                    refreshDrawerFromServer(
+                        res.data && res.data.quotation_id,
+                    ).catch(function () {});
+                })
+                .catch(function () {
+                    setBusy(false);
+                    showDrawerNetworkError();
+                });
+        });
     }
 
     function submitAdjustPriceAfterReview(newPrice, note) {
@@ -2105,7 +2451,9 @@
                     showDrawerNetworkError(res.data && res.data.message);
                     return;
                 }
-                reloadAfterSuccess();
+                refreshDrawerFromServer(
+                    res.data && res.data.quotation_id,
+                ).catch(function () {});
             })
             .catch(function () {
                 setBusy(false);
@@ -2113,14 +2461,6 @@
             });
     }
 
-    /**
-     * Accept/Decline counter both resend the quote at a given price — the
-     * customer always has final say (this backend has no way for a
-     * dispatcher to instantly confirm on their behalf). Accept resends at
-     * their proposed price; Decline resends at the original price. Both
-     * transition the quotation back to "sent", awaiting the customer's
-     * real acceptance in their own app.
-     */
     async function submitDecideOnCounter(acceptCounter) {
         var s = state;
         var newPrice = acceptCounter
@@ -2153,7 +2493,9 @@
                     showDrawerNetworkError(res.data && res.data.message);
                     return;
                 }
-                reloadAfterSuccess();
+                refreshDrawerFromServer(
+                    res.data && res.data.quotation_id,
+                ).catch(function () {});
             })
             .catch(function () {
                 setBusy(false);
@@ -2219,7 +2561,8 @@
                 var reason = (input.value || "").trim();
                 var errEl = document.getElementById("rbCancelReasonError");
                 if (!reason) {
-                    errEl.textContent = "A reason is required to cancel this booking.";
+                    errEl.textContent =
+                        "A reason is required to cancel this booking.";
                     errEl.style.display = "";
                     return;
                 }
@@ -2229,14 +2572,8 @@
     }
 
     async function promptRejectReason() {
-        // A Scheduled booking already at Overdue reuses this exact reject
-        // wire contract for its "Cancel Booking" action (see footerHtml()) —
-        // the server tells the two apart by the locked booking's own status
-        // (DispatchController::assignBooking()'s reject branch), so only the
-        // dialog copy needs to differ here. Cancelling a Scheduled booking
-        // requires a reason (validated both here and server-side); rejecting
-        // a never-quoted Book Now request stays optional via rbPrompt().
-        var isSchedCancel = state && state.isScheduled && effectiveStatus(state) === "overdue";
+        var isSchedCancel =
+            state && state.isScheduled && effectiveStatus(state) === "overdue";
         var reason = isSchedCancel
             ? await promptCancelReason()
             : await rbPrompt(
@@ -2251,7 +2588,11 @@
         setBusy(true);
         apiCall(fillRoute(window.RB_ROUTES.assign, state.bookingCode), "POST", {
             action: "reject",
-            rejection_reason: reason || (isSchedCancel ? "Cancelled by dispatcher." : "Rejected by dispatcher."),
+            rejection_reason:
+                reason ||
+                (isSchedCancel
+                    ? "Cancelled by dispatcher."
+                    : "Rejected by dispatcher."),
         })
             .then(function (res) {
                 setBusy(false);
@@ -2267,7 +2608,6 @@
             });
     }
 
-    /** Custom multi-field dialog (date + time + reason) reusing the same rbModalBackdrop/rbModalBox shell as rbPrompt(). */
     function promptReschedule(opts) {
         opts = opts || {};
         var reasonRequired = !!opts.reasonRequired;
@@ -2315,7 +2655,8 @@
                     return;
                 }
                 if (reasonRequired && !reason) {
-                    errEl.textContent = "A reason is required when rescheduling an overdue booking.";
+                    errEl.textContent =
+                        "A reason is required when rescheduling an overdue booking.";
                     errEl.style.display = "";
                     return;
                 }
@@ -2345,11 +2686,15 @@
         }).then(function (result) {
             if (!result) return;
             setBusy(true);
-            apiCall(fillRoute(window.RB_ROUTES.reschedule, s.bookingCode), "POST", {
-                new_scheduled_date: result.date,
-                new_scheduled_time: result.time,
-                reason: result.reason || null,
-            })
+            apiCall(
+                fillRoute(window.RB_ROUTES.reschedule, s.bookingCode),
+                "POST",
+                {
+                    new_scheduled_date: result.date,
+                    new_scheduled_time: result.time,
+                    reason: result.reason || null,
+                },
+            )
                 .then(function (res) {
                     setBusy(false);
                     if (!res.ok) {
@@ -2364,11 +2709,6 @@
                 });
         });
     }
-
-    // Note: #rbBnFilter's actual status-filtering is handled by
-    // dispatch.js's initializeBookNowFilter(), which filters the real
-    // .jobs-row table rows (this file used to filter a .rb-qcard card grid
-    // that no longer exists in the current table-based Book Now layout).
 
     function updateRbWaitPills() {
         document.querySelectorAll("[data-rb-created]").forEach(function (pill) {
@@ -2388,10 +2728,6 @@
     }
     window.setInterval(updateRbWaitPills, 5000);
 
-    // Auto-reopen the drawer for whichever booking a mutating action (save
-    // quote/changes, send, dispatch, reject, etc.) just reloaded the page for
-    // — see reloadAfterSuccess(). One-shot: cleared immediately so a later,
-    // unrelated manual refresh doesn't also pop the drawer back open.
     (function reopenDrawerAfterReload() {
         var bookingCode;
         try {
@@ -2403,5 +2739,381 @@
         if (!bookingCode) return;
         var card = findCardByBookingCode(bookingCode);
         if (card) window.openBookingDrawer(card);
+    })();
+
+    (function openMockDrawerPreview() {
+        if (window.location.search.indexOf("mockDrawer=1") === -1) return;
+
+        var MOCK_BOOKINGS = [
+            {
+                label: "Book Now #1",
+                id: "TM-0073",
+                bookingCode: "TM-0073",
+                status: "requested",
+                customerName: "Juan Dela Cruz",
+                customerPhone: "09123456789",
+                customerEmail: "juan@example.com",
+                pickup: "123 Rizal Street, Makati City",
+                dropoff: "456 Bonifacio Avenue, Taguig City",
+                distanceKm: "8.5",
+                currentPrice: "1500",
+                baseRate: "800",
+                perKmRate: "75",
+                truckType: "Light Duty",
+                vehicleCategory: "4_wheeler",
+                dispatchZone: "Metro Manila Zone A",
+                quotationNumber: "QT-20260920-0001",
+                quotationStatus: "pending",
+            },
+            {
+                label: "Book Now #2",
+                id: "TM-0081",
+                bookingCode: "TM-0081",
+                status: "requested",
+                customerName: "Maria Santos",
+                customerPhone: "09187654321",
+                customerEmail: "maria@example.com",
+                pickup: "789 Shaw Boulevard, Mandaluyong City",
+                dropoff: "321 Ortigas Avenue, Pasig City",
+                distanceKm: "5.2",
+                currentPrice: "1200",
+                baseRate: "800",
+                perKmRate: "75",
+                truckType: "Medium Duty",
+                vehicleCategory: "4_wheeler",
+                dispatchZone: "Metro Manila Zone B",
+                quotationNumber: "QT-20260920-0005",
+                quotationStatus: "sent",
+                photos: '["/dispatcher/images/mock-broken-photo-does-not-exist.jpg"]',
+            },
+            {
+                label: "Scheduled",
+                id: "TM-0095",
+                bookingCode: "TM-0095",
+                status: "scheduled_confirmed",
+                schedulingBucket: "upcoming",
+                scheduledFor: new Date(Date.now() + 3 * 3600000).toISOString(),
+                customerName: "Pedro Reyes",
+                customerPhone: "09209876543",
+                customerEmail: "pedro@example.com",
+                pickup: "12 Katipunan Avenue, Quezon City",
+                dropoff: "34 Commonwealth Avenue, Quezon City",
+                distanceKm: "6.8",
+                currentPrice: "1350",
+                baseRate: "800",
+                perKmRate: "75",
+                truckType: "Light Duty",
+                vehicleCategory: "4_wheeler",
+                dispatchZone: "Metro Manila Zone A",
+                quotationNumber: "QT-20260920-0009",
+                quotationStatus: "accepted",
+                photos: '["/dispatcher/images/jarz-logo.png"]',
+            },
+            {
+                label: "Book Now #3 (Accepted)",
+                id: "TM-0102",
+                bookingCode: "TM-0102",
+                status: "confirmed",
+                customerName: "Ana Villanueva",
+                customerPhone: "09171234567",
+                customerEmail: "ana@example.com",
+                pickup: "55 Aurora Boulevard, Quezon City",
+                dropoff: "77 EDSA, Mandaluyong City",
+                distanceKm: "9.4",
+                currentPrice: "1600",
+                baseRate: "800",
+                perKmRate: "75",
+                truckType: "Light Duty",
+                vehicleCategory: "4_wheeler",
+                dispatchZone: "Metro Manila Zone A",
+                quotationNumber: "QT-20260920-0012",
+                quotationStatus: "accepted",
+            },
+            {
+                label: "Grouped (+ adjustment)",
+                id: "TM-MOCKGRPA",
+                bookingCode: "TM-MOCKGRPA",
+                status: "requested",
+                customerName: "Grouped Mock Customer A",
+                customerPhone: "09000000001",
+                customerEmail: "mock-group-a@example.com",
+                pickup: "10 Mock Pickup Street, Quezon City",
+                dropoff: "20 Mock Dropoff Avenue, Quezon City",
+                distanceKm: "10",
+                currentPrice: "0",
+                baseRate: "1500",
+                perKmRate: "60",
+                truckType: "Light Duty",
+                vehicleCategory: "4_wheeler",
+                dispatchZone: "Metro Manila Zone A",
+                quotationNumber: "QT-MOCK-GROUP-A",
+                quotationStatus: "sent",
+                isGroupMock: true,
+                groupAdjustment: 300,
+            },
+            {
+                label: "Grouped (− adjustment)",
+                id: "TM-MOCKGRPB",
+                bookingCode: "TM-MOCKGRPB",
+                status: "requested",
+                customerName: "Grouped Mock Customer B",
+                customerPhone: "09000000002",
+                customerEmail: "mock-group-b@example.com",
+                pickup: "10 Mock Pickup Street, Quezon City",
+                dropoff: "20 Mock Dropoff Avenue, Quezon City",
+                distanceKm: "10",
+                currentPrice: "0",
+                baseRate: "1500",
+                perKmRate: "60",
+                truckType: "Light Duty",
+                vehicleCategory: "4_wheeler",
+                dispatchZone: "Metro Manila Zone A",
+                quotationNumber: "QT-MOCK-GROUP-B",
+                quotationStatus: "sent",
+                isGroupMock: true,
+                groupAdjustment: -200,
+            },
+        ];
+
+        function buildMockCard(mock) {
+            var card = document.createElement("tr");
+            card.dataset.mockPreview = "1";
+            card.dataset.createdAt = new Date(
+                Date.now() - 10 * 60000,
+            ).toISOString();
+            Object.keys(mock).forEach(function (key) {
+                if (key === "label") return;
+                card.dataset[key] = mock[key];
+            });
+            return card;
+        }
+
+        function mockQueueRowHtml(mock, isScheduled) {
+            var effStatus = isScheduled
+                ? mock.schedulingBucket || "needs-quote"
+                : "new";
+            var statusText = isScheduled
+                ? mock.schedulingBucket
+                    ? mock.schedulingBucket.charAt(0).toUpperCase() +
+                      mock.schedulingBucket.slice(1)
+                    : "Needs Quote"
+                : "Needs Quote";
+            var statusClass =
+                (isScheduled ? "sched-status-" : "bn-status-") +
+                effStatus.replace(/_/g, "-");
+            var whenLabel = isScheduled
+                ? mock.scheduledFor
+                    ? new Date(mock.scheduledFor).toLocaleString("en-PH", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                      })
+                    : "Schedule pending"
+                : "Just now";
+            var whenSub = isScheduled ? "Starts soon" : "Requested just now";
+            var attrs =
+                'class="jobs-row rb-mock-row" onclick="window.openBookingDrawer(this)" tabindex="0" ' +
+                'data-mock-preview="1" data-queue="' +
+                (isScheduled ? "scheduled" : "book-now") +
+                '" ' +
+                'data-eff-status="' +
+                esc(effStatus) +
+                '" ' +
+                (isScheduled
+                    ? 'data-sched-bucket="' + esc(effStatus) + '" '
+                    : "") +
+                'data-created-at="' +
+                new Date(Date.now() - 10 * 60000).toISOString() +
+                '" ';
+            Object.keys(mock).forEach(function (key) {
+                if (key === "label") return;
+                var attrName = key.replace(/([A-Z])/g, "-$1").toLowerCase();
+                attrs += "data-" + attrName + '="' + esc(mock[key]) + '" ';
+            });
+            return (
+                "<tr " +
+                attrs +
+                ">" +
+                '<td><div class="jobs-cell-primary jobs-booking-code">' +
+                esc(mock.bookingCode) +
+                '<span class="rb-mock-badge">MOCK</span></div>' +
+                '<div class="jobs-cell-secondary">' +
+                esc(mock.customerName) +
+                "</div></td>" +
+                '<td><div class="jobs-cell-primary">' +
+                esc(whenLabel) +
+                "</div>" +
+                '<div class="jobs-cell-secondary">' +
+                esc(whenSub) +
+                "</div></td>" +
+                '<td><span class="jobs-status-text ' +
+                statusClass +
+                '">' +
+                esc(statusText) +
+                "</span></td>" +
+                '<td class="jobs-route-cell" title="' +
+                esc(mock.pickup) +
+                " → " +
+                esc(mock.dropoff) +
+                '">' +
+                '<div class="jobs-route-line">' +
+                esc(mock.pickup) +
+                "</div>" +
+                '<div class="jobs-route-line jobs-route-line--drop">→ ' +
+                esc(mock.dropoff) +
+                "</div></td>" +
+                '<td class="jobs-cell-secondary">' +
+                esc(mock.truckType) +
+                "</td>" +
+                '<td class="jobs-cell-secondary">just now</td>' +
+                "</tr>"
+            );
+        }
+
+        function injectMockRow(panelId, mock, isScheduled) {
+            var panel = document.getElementById(panelId);
+            if (!panel) return;
+            var tbody = panel.querySelector("tbody");
+            if (!tbody) {
+                panel.innerHTML =
+                    '<div class="jobs-table-wrap"><table class="jobs-table"><thead><tr>' +
+                    "<th>Booking / Customer</th><th>" +
+                    (isScheduled ? "Schedule" : "Requested") +
+                    "</th>" +
+                    "<th>Status</th><th>Route</th><th>Truck Class</th><th>Updated</th>" +
+                    "</tr></thead><tbody></tbody></table></div>";
+                tbody = panel.querySelector("tbody");
+            }
+            tbody.insertAdjacentHTML(
+                "afterbegin",
+                mockQueueRowHtml(mock, isScheduled),
+            );
+        }
+
+        function mockRound(value) {
+            return Math.round(value * 100) / 100;
+        }
+
+        function buildMockGroupVehicle(
+            bookingId,
+            bookingCode,
+            truckTypeName,
+            baseRate,
+            perKmRate,
+            distanceKm,
+            vatRate,
+        ) {
+            var distanceFee = mockRound(
+                Math.max(0, distanceKm - 4) * perKmRate,
+            );
+            var subtotal = mockRound(baseRate + distanceFee);
+            var vatAmount = mockRound(subtotal * vatRate);
+            var finalTotal = mockRound(subtotal + vatAmount);
+            return {
+                booking_id: bookingId,
+                booking_code: bookingCode,
+                vehicle_type_id: null,
+                vehicle_name: truckTypeName,
+                truck_type_id: null,
+                truck_type_name: truckTypeName,
+                base_rate: baseRate,
+                distance_fee: distanceFee,
+                vat_exclusive_total: subtotal,
+                vat_amount: vatAmount,
+                vat_rate: vatRate,
+                final_total: finalTotal,
+                assigned_unit_id: null,
+                selected_unit_id: null,
+                status: "requested",
+            };
+        }
+
+        function buildMockGroupQuotationDetails(groupAdjustment) {
+            var vatRate = window.RB_VAT_RATE || 0.12;
+            var vehicleA = buildMockGroupVehicle(
+                900001,
+                "TM-MOCKGRPA1",
+                "Light Duty (MOCK)",
+                1500,
+                60,
+                10,
+                vatRate,
+            );
+            var vehicleB = buildMockGroupVehicle(
+                900002,
+                "TM-MOCKGRPA2",
+                "Medium Duty (MOCK)",
+                2000,
+                70,
+                10,
+                vatRate,
+            );
+            var serviceTotal = mockRound(
+                vehicleA.final_total + vehicleB.final_total,
+            );
+            var subtotal = mockRound(
+                vehicleA.vat_exclusive_total + vehicleB.vat_exclusive_total,
+            );
+            var vatAmount = mockRound(
+                vehicleA.vat_amount + vehicleB.vat_amount,
+            );
+            var estimatedPrice = Math.max(
+                mockRound(serviceTotal + groupAdjustment),
+                0,
+            );
+            return {
+                group_vehicles: [vehicleA, vehicleB],
+                estimated_price: estimatedPrice,
+                additional_fee: groupAdjustment,
+                discount: 0,
+                subtotal: subtotal,
+                vat_amount: vatAmount,
+                vat_rate: vatRate,
+                status: "sent",
+                quotation_number:
+                    groupAdjustment >= 0
+                        ? "QT-MOCK-GROUP-A"
+                        : "QT-MOCK-GROUP-B",
+                distance_km: 10,
+                counter_offer_amount: null,
+                response_note: null,
+            };
+        }
+
+        injectMockRow("bookNowPanel", MOCK_BOOKINGS[0], false);
+        injectMockRow(
+            "scheduledPanel",
+            MOCK_BOOKINGS.filter(function (m) {
+                return m.label === "Scheduled";
+            })[0],
+            true,
+        );
+
+        var panel = document.createElement("div");
+        panel.id = "rbMockPreviewPanel";
+        panel.style.cssText =
+            "position:fixed;top:16px;left:16px;z-index:9999;background:#111111;padding:10px;border-radius:8px;display:flex;gap:8px;";
+        MOCK_BOOKINGS.forEach(function (mock) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = mock.label;
+            btn.style.cssText =
+                "background:#FACC15;color:#111111;border:none;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;";
+            btn.addEventListener("click", function () {
+                window.openBookingDrawer(buildMockCard(mock));
+                if (mock.isGroupMock) {
+                    mergeQuotationDetailsIntoState(
+                        buildMockGroupQuotationDetails(mock.groupAdjustment),
+                    );
+                    renderDrawer();
+                }
+            });
+            panel.appendChild(btn);
+        });
+        document.body.appendChild(panel);
+
+        window.openBookingDrawer(buildMockCard(MOCK_BOOKINGS[0]));
     })();
 })();

@@ -46,13 +46,13 @@ class VehicleType extends Model
         return $this->hasMany(Quotation::class);
     }
 
+    public function categoryModel()
+    {
+        return $this->belongsTo(VehicleCategory::class, 'category', 'slug');
+    }
+
     public function getCategoryLabelAttribute()
     {
-        return match($this->category) {
-            '2_wheeler' => '2-Wheeler',
-            '4_wheeler' => '4-Wheeler',
-            'heavy_vehicle' => 'Heavy Vehicle',
-            default => 'Unknown'
-        };
+        return $this->categoryModel?->name ?? 'Unknown';
     }
 }

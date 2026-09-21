@@ -1544,16 +1544,22 @@ async function calculateEstimate() {
         currentDistanceKm = Number(pricing.distance_km || 0);
         currentEtaMinutes = Number(data.route?.duration_min || 0);
         currentEstimateTotal = Number(pricing.final_total || 0);
-        const kmIncrements = Number(
-            pricing.km_increments || Math.floor(currentDistanceKm / 4),
-        );
+        // Label only — the actual charged distanceFeeText below always comes
+        // straight from the backend. First 4 km included in the base fee,
+        // then the truck type's own per_km_rate (SuperAdmin-editable),
+        // matching BookingService::distanceFeeFor().
+        const chargeableKm = Math.max(0, currentDistanceKm - 4);
+        const perKmRate = Number(pricing.per_km_rate || 0);
 
         applyPricingSnapshot(
             createPricingSnapshot({
                 baseRateText: "₱0.00",
                 distanceText: `${currentDistanceKm.toFixed(2)} km`,
                 etaText: formatEta(currentEtaMinutes, currentDistanceKm),
-                perKmRateText: `${kmIncrements} × ₱200.00`,
+                perKmRateText:
+                    chargeableKm > 0
+                        ? `${chargeableKm.toFixed(2)} chargeable km × ${currency(perKmRate)}`
+                        : "first 4 km free",
                 distanceFeeText: currency(pricing.distance_fee || 0),
                 excessKmText: "0.00 km",
                 excessFeeText: "₱0.00",
@@ -1667,7 +1673,7 @@ function resetEstimatePreview(keepRoute = false) {
             baseRateText: "₱0.00",
             distanceText: "0 km",
             etaText: "Pending route",
-            perKmRateText: "0 × ₱200.00",
+            perKmRateText: "first 4 km free",
             distanceFeeText: "₱0.00",
             excessKmText: "0 km",
             excessFeeText: "₱0.00",
@@ -1744,8 +1750,15 @@ function estimateDistanceFromCoords() {
 
 function applyTruckBasePreview(hasRouteContext = false) {
     const distanceKm = hasRouteContext ? estimateDistanceFromCoords() : 0;
-    const kmIncrements = Math.floor(distanceKm / 4);
-    const distanceFee = kmIncrements * 200;
+    // First 4 km included in the base fee, then the selected truck type's
+    // own per_km_rate (SuperAdmin-editable, read from the option's dataset)
+    // — must match BookingService::distanceFeeFor() exactly (the backend's
+    // single source of truth for this fee, which is what actually gets
+    // saved/charged). This is a network-failure/no-live-preview fallback
+    // only, so base rate stays 0 here (unknown at this point).
+    const chargeableKm = Math.max(0, distanceKm - 4);
+    const perKmRate = getSelectedTruckRates().perKm;
+    const distanceFee = Math.round(chargeableKm * perKmRate * 100) / 100;
 
     currentRate = 0;
     currentDistanceKm = distanceKm;
@@ -1757,7 +1770,10 @@ function applyTruckBasePreview(hasRouteContext = false) {
             baseRateText: "₱0.00",
             distanceText: `${distanceKm.toFixed(2)} km`,
             etaText: formatEta(currentEtaMinutes, distanceKm),
-            perKmRateText: `${kmIncrements} × ₱200.00`,
+            perKmRateText:
+                chargeableKm > 0
+                    ? `${chargeableKm.toFixed(2)} chargeable km × ${currency(perKmRate)}`
+                    : "first 4 km free",
             distanceFeeText: currency(distanceFee),
             excessKmText: "0 km",
             excessFeeText: "₱0.00",

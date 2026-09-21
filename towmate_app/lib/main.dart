@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'core/app_prefs.dart';
+import 'core/route_observer.dart';
 import 'core/theme.dart';
 import 'models/booking_model.dart';
 import 'screens/customer/about_screen.dart';
@@ -49,13 +50,23 @@ class MyApp extends StatelessWidget {
         darkTheme: AppTheme.dark,
         themeMode: mode,
         home: const _AuthGate(),
+        navigatorObservers: [appRouteObserver],
         onGenerateRoute: (settings) {
           final Widget page;
           if (settings.name == '/booking-detail') {
-            final code = settings.arguments;
-            page = code is String && code.isNotEmpty
-                ? BookingDetailScreen(bookingCode: code)
-                : const MyBookingsScreen();
+            final args = settings.arguments;
+            if (args is String && args.isNotEmpty) {
+              page = BookingDetailScreen(bookingCode: args);
+            } else if (args is Map &&
+                args['bookingCode'] is String &&
+                (args['bookingCode'] as String).isNotEmpty) {
+              page = BookingDetailScreen(
+                bookingCode: args['bookingCode'] as String,
+                asGroupOverview: args['asGroupOverview'] == true,
+              );
+            } else {
+              page = const MyBookingsScreen();
+            }
           } else if (settings.name == '/booking-success') {
             final bookings = settings.arguments;
             page = bookings is List<BookingGroupSibling> && bookings.isNotEmpty

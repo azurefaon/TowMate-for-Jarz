@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:towmate_app/core/theme.dart';
+import 'package:towmate_app/core/route_observer.dart';
 import 'package:towmate_app/screens/customer/my_bookings_screen.dart';
 import 'package:towmate_app/widgets/skeleton_box.dart';
 import 'package:towmate_app/widgets/tm_bottom_nav.dart';
@@ -27,6 +27,8 @@ Map<String, dynamic> _booking({
   String pickupAddress = 'Sumilang Street, Pasig',
   String dropoffAddress = 'Quirino Highway, QC',
   String? vehicleTypeName,
+  String? groupBookingCode,
+  String? quotationNumber,
 }) {
   return {
     'id': int.parse(code.replaceAll(RegExp(r'[^0-9]'), '')),
@@ -41,6 +43,8 @@ Map<String, dynamic> _booking({
     'vehicle_type_name': vehicleTypeName,
     'created_at': '2026-09-01 10:00:00',
     'group_code': groupCode,
+    'group_booking_code': groupBookingCode ?? code,
+    'quotation_number': quotationNumber,
     'service_type': serviceType,
     'scheduled_date': scheduledDate,
     'scheduled_time': scheduledTime,
@@ -240,78 +244,32 @@ void main() {
       expect(navigated, contains('/quotation'));
     });
 
-    testWidgets('a requested booking shows an active, solid destructive Cancel Booking control', (tester) async {
-      await _pumpScreen(tester, _clientFor(bookings: [_booking(code: 'TM-00001', status: 'requested')]));
+    testWidgets('every standalone booking card shows a single View Booking Details button, never Cancel Booking', (tester) async {
+      for (final status in ['requested', 'scheduled_confirmed', 'quotation_sent', 'on_the_way', 'completed']) {
+        await _pumpScreen(tester, _clientFor(bookings: [_booking(code: 'TM-00001', status: status)]));
 
-      final button = find.widgetWithText(ElevatedButton, 'Cancel Booking');
-      expect(button, findsOneWidget);
-      final widget = tester.widget<ElevatedButton>(button);
-      expect(widget.onPressed, isNotNull);
-      final bg = widget.style?.backgroundColor?.resolve({});
-      expect(bg, TmColors.destructive);
+        expect(find.widgetWithText(OutlinedButton, 'View Booking Details'), findsOneWidget, reason: 'status=$status');
+        expect(find.text('Cancel Booking'), findsNothing, reason: 'status=$status');
+        expect(find.textContaining('can\'t cancel here'), findsNothing, reason: 'status=$status');
+      }
     });
 
-    testWidgets('a scheduled_confirmed booking is also cancellable, matching the backend rule', (tester) async {
-      await _pumpScreen(tester, _clientFor(bookings: [_booking(code: 'TM-00001', status: 'scheduled_confirmed')]));
-
-      final button = find.widgetWithText(ElevatedButton, 'Cancel Booking');
-      expect(button, findsOneWidget);
-      expect(tester.widget<ElevatedButton>(button).onPressed, isNotNull);
-    });
-
-    testWidgets('a quotation_sent booking shows a disabled cancel hint, not an active cancel button', (tester) async {
-      await _pumpScreen(tester, _clientFor(bookings: [_booking(code: 'TM-00001', status: 'quotation_sent')]));
-
-      expect(find.text('Cancel Booking'), findsNothing);
-      final hint = find.textContaining('can\'t cancel here');
-      expect(hint, findsOneWidget);
-    });
-
-    testWidgets('an on_the_way booking (active job) shows no cancel control at all', (tester) async {
-      await _pumpScreen(tester, _clientFor(bookings: [_booking(code: 'TM-00001', status: 'on_the_way')]));
-
-      expect(find.text('Cancel Booking'), findsNothing);
-      expect(find.textContaining('can\'t cancel here'), findsNothing);
-    });
-
-    testWidgets('tapping Cancel Booking then confirming calls the cancel API and refreshes', (tester) async {
-      var cancelCalled = false;
-      final client = MockClient((request) async {
-        final path = request.url.path;
-        if (path.endsWith('/v1/bookings/history')) {
-          return _json({
-            'data': cancelCalled ? [] : [_booking(code: 'TM-00001', status: 'requested')],
-            'meta': {},
-          });
-        }
-        if (path.endsWith('/v1/quotations/pending')) return _json({'data': null});
-        if (path.contains('/cancel')) {
-          cancelCalled = true;
-          return _json({'success': true, 'message': 'Booking cancelled successfully.'});
-        }
-        return _json({'success': false}, status: 404);
-      });
-
-      SharedPreferences.setMockInitialValues({'auth_token': 't', 'user_role': 'Customer'});
-      await http.runWithClient(
-        () async {
-          await tester.pumpWidget(const MaterialApp(home: MyBookingsScreen()));
-          await _settle(tester);
-
-          await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
-          await _settle(tester);
-          expect(cancelCalled, isFalse);
-          await tester.tap(find.widgetWithText(TextButton, 'Cancel Booking'));
-          await _settle(tester);
-        },
-        () => client,
+    testWidgets('tapping View Booking Details on a standalone card opens its individual Booking Details, never a cancellation dialog', (tester) async {
+      Object? capturedArgs;
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [_booking(code: 'TM-00001', status: 'requested')]),
+        onNavigate: (route, args) => capturedArgs = args,
       );
 
-      expect(cancelCalled, isTrue);
-      expect(find.text('TM-00001'), findsNothing);
+      await tester.tap(find.widgetWithText(OutlinedButton, 'View Booking Details'));
+      await _settle(tester);
+
+      expect(capturedArgs, 'TM-00001');
+      expect(find.text('Cancel this booking?'), findsNothing);
     });
 
-    testWidgets('dismissing the confirmation with Keep Booking performs no cancellation', (tester) async {
+    testWidgets('tapping Cancel Booking or any cancellation dialog is never possible from My Bookings', (tester) async {
       var cancelCalled = false;
       final client = MockClient((request) async {
         final path = request.url.path;
@@ -329,23 +287,18 @@ void main() {
         return _json({'success': false}, status: 404);
       });
 
-      SharedPreferences.setMockInitialValues({'auth_token': 't', 'user_role': 'Customer'});
-      await http.runWithClient(
-        () async {
-          await tester.pumpWidget(const MaterialApp(home: MyBookingsScreen()));
-          await _settle(tester);
+      await _pumpScreen(tester, client);
 
-          await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
-          await _settle(tester);
-          expect(find.text('Cancel this booking?'), findsOneWidget);
-          await tester.tap(find.text('Keep Booking'));
-          await _settle(tester);
-        },
-        () => client,
-      );
+      expect(find.widgetWithText(ElevatedButton, 'Cancel Booking'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Cancel Booking'), findsNothing);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'View Booking Details'));
+      await _settle(tester);
+
+      expect(find.text('Cancel this booking?'), findsNothing);
+      expect(find.text('Keep Booking'), findsNothing);
 
       expect(cancelCalled, isFalse);
-      expect(find.text('TM-00001'), findsOneWidget);
     });
 
     testWidgets('a scheduled booking never renders team leader or driver fields on the card', (tester) async {
@@ -377,7 +330,7 @@ void main() {
       expect(find.textContaining('Est. ₱2,800.00'), findsOneWidget);
     });
 
-    testWidgets('a group of scheduled vehicles can be expanded to reveal siblings', (tester) async {
+    testWidgets('a group of scheduled vehicles shows every vehicle directly, with no hidden toggle', (tester) async {
       await _pumpScreen(
         tester,
         _clientFor(bookings: [
@@ -386,10 +339,96 @@ void main() {
         ]),
       );
 
-      expect(find.text('TM-00002'), findsNothing);
-      await tester.tap(find.textContaining('Show 1 other vehicle'));
+      expect(find.textContaining('Show'), findsNothing);
+      expect(find.textContaining('other vehicle'), findsNothing);
+      expect(find.textContaining('Light Duty'), findsWidgets);
+      expect(find.textContaining('Vehicle 1'), findsOneWidget);
+      expect(find.textContaining('Vehicle 2'), findsOneWidget);
+    });
+
+    testWidgets('tapping a grouped card opens the group overview, not the first vehicle\'s individual detail', (tester) async {
+      Object? capturedArgs;
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00001', status: 'scheduled', groupCode: 'GRP-1', serviceType: 'schedule'),
+          _booking(code: 'TM-00002', status: 'scheduled', groupCode: 'GRP-1', serviceType: 'schedule'),
+        ]),
+        onNavigate: (route, args) => capturedArgs = args,
+      );
+
+      await tester.tap(find.textContaining('Vehicle 1').first);
       await _settle(tester);
-      expect(find.text('Light Duty'), findsWidgets);
+
+      expect(capturedArgs, {'bookingCode': 'TM-00001', 'asGroupOverview': true});
+    });
+
+    testWidgets('a grouped card shows the combined price of every vehicle, not just the first one', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00301', status: 'requested', groupCode: 'GRP-2', computedTotal: 1500.0),
+          _booking(code: 'TM-00302', status: 'requested', groupCode: 'GRP-2', computedTotal: 900.0),
+        ]),
+      );
+
+      expect(find.text('Group Total'), findsOneWidget);
+      expect(find.textContaining('₱2,400.00'), findsOneWidget);
+    });
+
+    testWidgets('a group where every vehicle is cancelled shows Original Estimated Total in History, not Group Total', (tester) async {
+      final originalSize = tester.view.physicalSize;
+      final originalRatio = tester.view.devicePixelRatio;
+      tester.view.physicalSize = const Size(400, 1800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.physicalSize = originalSize;
+        tester.view.devicePixelRatio = originalRatio;
+      });
+
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00301', status: 'cancelled', groupCode: 'GRP-2', computedTotal: 1500.0),
+          _booking(code: 'TM-00302', status: 'cancelled', groupCode: 'GRP-2', computedTotal: 900.0),
+        ]),
+      );
+
+      await tester.tap(find.text('History'));
+      await _settle(tester);
+
+      expect(find.text('Original Estimated Total'), findsOneWidget);
+      expect(find.text('Group Total'), findsNothing);
+      expect(find.text('₱2,400.00'), findsOneWidget);
+    });
+
+    testWidgets('an active group with a mix of statuses still shows Group Total, not Original Estimated Total', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00301', status: 'requested', groupCode: 'GRP-2', computedTotal: 1500.0),
+          _booking(code: 'TM-00302', status: 'scheduled_confirmed', groupCode: 'GRP-2', computedTotal: 900.0),
+        ]),
+      );
+
+      expect(find.text('Group Total'), findsOneWidget);
+      expect(find.text('Original Estimated Total'), findsNothing);
+    });
+
+    testWidgets('the grouped card header is the shared group_code, not one vehicle singled out', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00301', status: 'requested', groupCode: 'GRP-2', groupBookingCode: 'TM-00301'),
+          _booking(code: 'TM-00302', status: 'requested', groupCode: 'GRP-2', groupBookingCode: 'TM-00301'),
+        ]),
+      );
+
+      final header = tester.getTopLeft(find.text('GRP-2'));
+      final vehicleCount = tester.getTopLeft(find.text('2 vehicles in this request'));
+      expect(vehicleCount.dy, greaterThan(header.dy));
+      expect(find.text('TM-00301'), findsNothing);
+      expect(find.text('TM-00302'), findsNothing);
     });
 
     testWidgets('a grouped card clearly states this is one request with N vehicles', (tester) async {
@@ -402,6 +441,44 @@ void main() {
       );
 
       expect(find.text('2 vehicles in this request'), findsOneWidget);
+    });
+
+    testWidgets('a grouped card always shows the group_code as the heading, never an individual vehicle\'s TM code', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00100', status: 'scheduled', groupCode: 'GRP-9', serviceType: 'schedule', groupBookingCode: 'TM-00100'),
+          _booking(code: 'TM-00200', status: 'requested', groupCode: 'GRP-9', serviceType: 'book_now', groupBookingCode: 'TM-00100'),
+        ]),
+      );
+
+      expect(find.text('GRP-9'), findsOneWidget);
+      expect(find.text('TM-00100'), findsNothing);
+      expect(find.text('TM-00200'), findsNothing);
+    });
+
+    testWidgets('after a sibling is cancelled, the remaining active vehicle\'s card still shows the group_code, not its own TM code', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00283', status: 'requested', groupCode: 'GRP-000042', groupBookingCode: 'TM-00283'),
+        ]),
+      );
+
+      expect(find.text('GRP-000042'), findsOneWidget);
+      expect(find.text('TM-00283'), findsNothing);
+    });
+
+    testWidgets('a grouped card shows the shared quotation number', (tester) async {
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00227', status: 'requested', groupCode: 'GRP-1', quotationNumber: 'QT-2026-0099'),
+          _booking(code: 'TM-00228', status: 'requested', groupCode: 'GRP-1', quotationNumber: 'QT-2026-0099'),
+        ]),
+      );
+
+      expect(find.text('Quotation: QT-2026-0099'), findsOneWidget);
     });
 
     testWidgets('a grouped card with no siblings uses singular grammar and hides the sibling toggle', (tester) async {
@@ -428,7 +505,7 @@ void main() {
       expect(find.textContaining('Light Duty'), findsNothing);
     });
 
-    testWidgets('cancelling a booking that belongs to a group warns siblings will not be cancelled', (tester) async {
+    testWidgets('a grouped card shows a single View Booking Details button, never a per-vehicle or group cancel control', (tester) async {
       await _pumpScreen(
         tester,
         _clientFor(bookings: [
@@ -437,32 +514,26 @@ void main() {
         ]),
       );
 
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
-      await _settle(tester);
-
-      expect(find.text('Cancel this booking?'), findsOneWidget);
-      expect(
-        find.text('This will cancel only this vehicle booking. Other vehicles in this request will not be cancelled.'),
-        findsOneWidget,
-      );
+      expect(find.widgetWithText(OutlinedButton, 'View Booking Details'), findsOneWidget);
+      expect(find.text('Cancel Booking'), findsNothing);
     });
 
-    testWidgets('cancelling a standalone booking shows no group warning', (tester) async {
+    testWidgets('tapping View Booking Details on a grouped card opens Group Booking Details, not the anchor\'s single-vehicle cancellation', (tester) async {
+      Object? capturedArgs;
       await _pumpScreen(
         tester,
         _clientFor(bookings: [
-          _booking(code: 'TM-00001', status: 'requested'),
+          _booking(code: 'TM-00227', status: 'requested', groupCode: 'GRP-1'),
+          _booking(code: 'TM-00228', status: 'scheduled', groupCode: 'GRP-1', serviceType: 'schedule'),
         ]),
+        onNavigate: (route, args) => capturedArgs = args,
       );
 
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Cancel Booking'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'View Booking Details'));
       await _settle(tester);
 
-      expect(find.text('Cancel this booking?'), findsOneWidget);
-      expect(
-        find.text('This will cancel only this vehicle booking. Other vehicles in this request will not be cancelled.'),
-        findsNothing,
-      );
+      expect(capturedArgs, {'bookingCode': 'TM-00227', 'asGroupOverview': true});
+      expect(find.text('Cancel this booking?'), findsNothing);
     });
 
     testWidgets('pagination uses a skeleton shape instead of a spinner while loading more history', (tester) async {
@@ -589,5 +660,53 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    testWidgets('returning from a pushed route refreshes the list so cancellations elsewhere stay consistent', (tester) async {
+      var historyCallCount = 0;
+      final client = MockClient((request) async {
+        final path = request.url.path;
+        if (path.endsWith('/v1/bookings/history')) {
+          historyCallCount++;
+          return _json({'data': [], 'meta': {'last_page': 1}});
+        }
+        if (path.endsWith('/v1/quotations/pending')) {
+          return _json({'data': null});
+        }
+        return _json({'success': false}, status: 404);
+      });
+
+      SharedPreferences.setMockInitialValues({'auth_token': 'test-token', 'user_role': 'Customer'});
+      await http.runWithClient(() async {
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorObservers: [appRouteObserver],
+            onGenerateRoute: (settings) {
+              if (settings.name == '/' || settings.name == null) {
+                return MaterialPageRoute(builder: (_) => const MyBookingsScreen());
+              }
+              return MaterialPageRoute(
+                builder: (context) => Scaffold(
+                  body: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('pushed-back'),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+        await _settle(tester);
+
+        expect(historyCallCount, 1);
+
+        Navigator.of(tester.element(find.byType(MyBookingsScreen))).pushNamed('/booking-detail');
+        await _settle(tester);
+
+        await tester.tap(find.text('pushed-back'));
+        await _settle(tester);
+
+        expect(historyCallCount, 2);
+      }, () => client);
+    });
   });
 }

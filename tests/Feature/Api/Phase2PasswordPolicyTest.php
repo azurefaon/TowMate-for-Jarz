@@ -33,7 +33,7 @@ it('18: customer registration rejects a password below the final policy', functi
 
 it('18b: customer registration accepts a password meeting the final policy', function () {
     passwordPolicyCustomerRole();
-    $email = 'policy18b@example.com';
+    $email = 'policy18b@gmail.com';
     Cache::put('reg_verified_' . $email, true, now()->addMinutes(15));
 
     $this->postJson('/api/register', [

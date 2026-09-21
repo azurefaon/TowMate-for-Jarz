@@ -9,10 +9,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const rows = document.querySelectorAll(".js-open-job-row");
     const searchInput = document.getElementById("jobsSearch");
 
-    // Both the active tab and the search box filter the same rendered page
-    // of rows (12/page — see JobsController::index()). Tab counts themselves
-    // come from server-side stats, not from counting visible rows, since
-    // pagination means not every matching job is in the DOM at once.
     function applyFilters() {
         const activeTabBtn = document.querySelector("#jobsTabs .rb-tab.is-active");
         const tab = activeTabBtn ? activeTabBtn.dataset.tab : "all";
@@ -52,6 +48,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const completedWrap = document.getElementById("drawer-completed-wrap");
     const distanceWrap = document.getElementById("drawer-distance-wrap");
     const unitTitle = document.getElementById("drawer-unit-title");
+    const vehiclesSection = document.getElementById("drawer-vehicles-section");
+    const vehiclesGrid = document.getElementById("drawer-vehicles-grid");
+    const vehiclePhotosSection = document.getElementById("drawer-vehicle-photos-section");
+    const vehiclePhotosGrid = document.getElementById("drawer-vehicle-photos-grid");
 
     let currentRow = null;
 
@@ -80,8 +80,6 @@ document.addEventListener("DOMContentLoaded", function () {
         fillField("drawer-pickup", row.dataset.pickup);
         fillField("drawer-dropoff", row.dataset.dropoff);
 
-        // distance_km is the existing authoritative booking field (see
-        // jobs.blade.php's data-distance-km) — not recalculated here.
         const distanceKm = row.dataset.distanceKm;
         const hasDistance = distanceKm !== undefined && distanceKm !== "";
         if (distanceWrap) distanceWrap.style.display = hasDistance ? "" : "none";
@@ -94,10 +92,66 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (unitTitle) unitTitle.textContent = isAwaiting ? "Unit Used at Service" : "Assigned Unit";
 
+        let groupVehicles = [];
+        try {
+            groupVehicles = JSON.parse(row.dataset.groupVehicles || "[]");
+        } catch (e) {
+            groupVehicles = [];
+        }
+        if (vehiclesSection && vehiclesGrid) {
+            vehiclesGrid.textContent = "";
+            if (groupVehicles.length > 1) {
+                groupVehicles.forEach(function (v) {
+                    const item = document.createElement("div");
+                    item.className = "jobs-drawer-item full-width";
+                    const label = document.createElement("span");
+                    label.className = "jobs-drawer-label";
+                    label.textContent = v.booking_code;
+                    const value = document.createElement("span");
+                    value.className = "jobs-drawer-value";
+                    value.textContent = v.unit + " · " + v.team_leader + " · " + v.status;
+                    item.appendChild(label);
+                    item.appendChild(value);
+                    vehiclesGrid.appendChild(item);
+                });
+                vehiclesSection.style.display = "";
+            } else {
+                vehiclesSection.style.display = "none";
+            }
+        }
+
+        let vehicleImages = [];
+        try {
+            vehicleImages = JSON.parse(row.dataset.vehicleImages || "[]");
+        } catch (e) {
+            vehicleImages = [];
+        }
+        if (vehiclePhotosSection && vehiclePhotosGrid) {
+            vehiclePhotosGrid.textContent = "";
+            if (vehicleImages.length > 0) {
+                vehicleImages.forEach(function (photo) {
+                    const link = document.createElement("a");
+                    link.className = "jobs-photo-thumb";
+                    link.href = photo.url;
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+                    const img = document.createElement("img");
+                    img.src = photo.url;
+                    img.alt = "Vehicle photo — " + (photo.booking_code || "");
+                    link.appendChild(img);
+                    vehiclePhotosGrid.appendChild(link);
+                });
+                vehiclePhotosSection.style.display = "";
+            } else {
+                vehiclePhotosSection.style.display = "none";
+            }
+        }
+
         if (completedWrap) completedWrap.style.display = isAwaiting ? "" : "none";
         if (isAwaiting) fillField("drawer-completed-at", row.dataset.serviceCompletedAt);
 
         const paymentReady = row.dataset.paymentReady === "1";
+        const isCash = row.dataset.paymentMethod === "Cash";
 
         if (paymentSection) paymentSection.style.display = isAwaiting ? "" : "none";
         if (isAwaiting) {
@@ -139,34 +193,43 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
                 if (submittedWrap) {
                     submittedWrap.style.display = "";
+                    fillField("drawer-amount-submitted-label", isCash ? "Cash Received" : "Amount Submitted");
                     fillField("drawer-amount-submitted", "₱" + row.dataset.amountSubmitted);
                 }
                 if (diffWrap) {
                     diffWrap.style.display = "";
                     const diff = submittedAmount - dueAmount;
-                    const sign = diff > 0 ? "+" : "";
-                    fillField("drawer-difference", "₱" + sign + diff.toFixed(2));
+                    if (isCash) {
+                        fillField("drawer-difference-label", "Change");
+                        fillField("drawer-difference", "₱" + diff.toFixed(2));
+                    } else {
+                        fillField("drawer-difference-label", "Difference");
+                        const sign = diff > 0 ? "+" : "";
+                        fillField("drawer-difference", "₱" + sign + diff.toFixed(2));
+                    }
                 }
                 if (paidWrap) paidWrap.style.display = "none";
             }
         }
 
         const hasProof = !!row.dataset.proofUrl;
-        const isCash = row.dataset.paymentMethod === "Cash";
         if (proofSection) proofSection.style.display = isAwaiting && paymentReady ? "" : "none";
         if (isAwaiting && paymentReady) {
-            if (hasProof && !isCash) {
+            if (hasProof) {
                 if (proofLink) proofLink.href = row.dataset.proofUrl;
                 if (proofImg) proofImg.src = row.dataset.proofUrl;
                 if (proofLink) proofLink.style.display = "";
-                if (cashNote) cashNote.style.display = "none";
-            } else {
-                if (proofLink) proofLink.style.display = "none";
-                if (cashNote) {
+            } else if (proofLink) {
+                proofLink.style.display = "none";
+            }
+            if (cashNote) {
+                if (isCash) {
                     cashNote.style.display = "";
                     cashNote.textContent = row.dataset.cashReceived
                         ? "Cash received: ₱" + row.dataset.cashReceived
                         : "Cash received on-site — no proof image required.";
+                } else {
+                    cashNote.style.display = "none";
                 }
             }
         }

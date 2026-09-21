@@ -189,6 +189,73 @@ it('exposes tab and subnav navigation markup for the client-side switcher', func
     $response->assertSee('data-tab="customer-content"', false);
 });
 
+it('renders price adjustment and additional charge settings fields with their real field names', function () {
+    $response = $this->actingAs(bsOwner())->get(route('superadmin.settings.index'));
+
+    $response->assertOk();
+    $response->assertSee('Price Adjustment Settings');
+    $response->assertSee('name="settings[dispatcher_discount_enabled]"', false);
+    $response->assertSee('name="settings[max_dispatcher_discount_percentage]"', false);
+    $response->assertSee('name="settings[dispatcher_discount_require_reason]"', false);
+    $response->assertSee('name="settings[price_adjustment_form]"', false);
+
+    $response->assertSee('Additional Charge Settings');
+    $response->assertSee('name="settings[max_additional_charge]"', false);
+    $response->assertSee('name="settings[additional_charge_require_reason]"', false);
+    $response->assertSee('name="settings[additional_charge_form]"', false);
+});
+
+it('does not render the inert owner-approval controls', function () {
+    $response = $this->actingAs(bsOwner())->get(route('superadmin.settings.index'));
+
+    $response->assertOk();
+    $response->assertDontSee('name="settings[dispatcher_discount_owner_approval_above_limit]"', false);
+    $response->assertDontSee('name="settings[additional_charge_owner_approval_above_limit]"', false);
+    $response->assertDontSee('Require Owner Approval Above Limit');
+    $response->assertDontSee('an Owner approval workflow is not yet implemented');
+});
+
+it('persists price adjustment settings only when that section is submitted', function () {
+    $this->actingAs(bsOwner())->post(route('superadmin.settings.update'), [
+        'settings' => [
+            'price_adjustment_form' => '1',
+            'max_dispatcher_discount_percentage' => '15',
+            'dispatcher_discount_enabled' => '1',
+        ],
+    ])->assertRedirect();
+
+    expect(\App\Models\SystemSetting::getValue('max_dispatcher_discount_percentage'))->toBe('15');
+    expect(\App\Models\SystemSetting::getValue('dispatcher_discount_enabled'))->toBe('1');
+    expect(\App\Models\SystemSetting::getValue('dispatcher_discount_require_reason'))->toBe('0');
+});
+
+it('persists additional charge settings only when that section is submitted', function () {
+    $this->actingAs(bsOwner())->post(route('superadmin.settings.update'), [
+        'settings' => [
+            'additional_charge_form' => '1',
+            'max_additional_charge' => '500',
+            'additional_charge_require_reason' => '1',
+        ],
+    ])->assertRedirect();
+
+    expect(\App\Models\SystemSetting::getValue('max_additional_charge'))->toBe('500');
+    expect(\App\Models\SystemSetting::getValue('additional_charge_require_reason'))->toBe('1');
+});
+
+it('does not reset price adjustment checkboxes when an unrelated section is submitted', function () {
+    \App\Models\SystemSetting::setValue('dispatcher_discount_enabled', '1');
+    \App\Models\SystemSetting::setValue('dispatcher_discount_require_reason', '1');
+
+    $this->actingAs(bsOwner())->post(route('superadmin.settings.update'), [
+        'settings' => [
+            'bank_name' => 'Untouched Bank',
+        ],
+    ])->assertRedirect();
+
+    expect(\App\Models\SystemSetting::getValue('dispatcher_discount_enabled'))->toBe('1');
+    expect(\App\Models\SystemSetting::getValue('dispatcher_discount_require_reason'))->toBe('1');
+});
+
 it('places the inline edit status before the save button so the button aligns right', function () {
     MobileService::create(['title' => 'BS Align Service', 'description' => 'D', 'display_order' => 0, 'is_active' => true]);
 

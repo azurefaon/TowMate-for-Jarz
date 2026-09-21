@@ -20,10 +20,7 @@ class TlCompletedScreen extends StatefulWidget {
 class _TlCompletedScreenState extends State<TlCompletedScreen> {
   bool _fetchingNext = false;
 
-  bool get _hasNextVehicle =>
-      widget.task.groupCode != null &&
-      widget.task.groupVehicleCount > 1 &&
-      widget.task.groupPosition < widget.task.groupVehicleCount;
+  bool get _hasNextVehicle => widget.task.hasClaimableSibling;
 
   Future<void> _getNextVehicle() async {
     setState(() => _fetchingNext = true);
@@ -64,7 +61,9 @@ class _TlCompletedScreenState extends State<TlCompletedScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Vehicle ${widget.task.groupPosition} Complete',
+              (widget.task.isGroupBooking && !_hasNextVehicle)
+                  ? 'Service Complete'
+                  : 'Vehicle ${widget.task.groupPosition} Complete',
               style: GoogleFonts.inter(
                   color: TmColors.black, fontSize: 22, letterSpacing: -0.5),
             ),
@@ -76,7 +75,6 @@ class _TlCompletedScreenState extends State<TlCompletedScreen> {
             const SizedBox(height: 32),
             _summaryCard(),
 
-            // ── Next vehicle section (group bookings) ────────────────
             if (_hasNextVehicle) ...[
               const SizedBox(height: 24),
               Container(

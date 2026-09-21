@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Events\CustomerInquirySent;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\PriceAdjustment;
 use App\Models\Quotation;
+use App\Models\TruckType;
+use App\Models\VehicleType;
 use App\Services\BookingService;
 use App\Services\QuotationService;
 use Illuminate\Http\JsonResponse;
@@ -42,16 +45,36 @@ class CustomerQuotationController extends Controller
         $distanceFee   = $this->bookingService->distanceFeeFor($distanceKm, (float) ($quotation->truckType?->per_km_rate ?? 0));
 
         $additionalFee = (float) ($quotation->additional_fee ?? 0);
-        $vatAmount     = $sourceBooking
-            ? $this->bookingService->applyVatAndAdjustment(
-                $this->bookingService->resolveTaxableSubtotal($sourceBooking),
-                $additionalFee,
-            )['vat_amount']
-            : round(((float) $quotation->estimated_price - $additionalFee) / 1.12 * 0.12, 2);
+        $discount      = (float) ($quotation->discount ?? 0);
+        $vatRate       = $this->bookingService->resolveVatRate(
+            $quotation->vat_rate !== null ? (float) $quotation->vat_rate : null,
+            $sourceBooking?->vat_amount !== null ? (float) $sourceBooking->vat_amount : null,
+            $sourceBooking?->vat_exclusive_total !== null ? (float) $sourceBooking->vat_exclusive_total : null,
+        );
+        $subtotal  = $sourceBooking
+            ? $this->bookingService->resolveTaxableSubtotal($sourceBooking)
+            : round(((float) $quotation->estimated_price - $additionalFee) / (1 + $vatRate), 2);
+        $vatAmount = round($subtotal * $vatRate, 2);
 
-        $additionalFeeNote = $sourceBooking?->dispatcher_note
-            ?? collect($quotation->price_change_log ?? [])->last()['reason']
-            ?? null;
+        $activeAdjustments = PriceAdjustment::forQuotation($quotation->quotation_number)
+            ->active()
+            ->orderBy('created_at')
+            ->get();
+        $additionalFeeNote = $activeAdjustments->isNotEmpty()
+            ? $activeAdjustments->pluck('reason')->filter()->implode('; ')
+            : ($sourceBooking?->dispatcher_note
+                ?? collect($quotation->price_change_log ?? [])->last()['reason']
+                ?? null);
+
+        $vehicleTypeIds = collect($quotation->extra_vehicles ?? [])->pluck('vehicle_type_id')->filter()->unique();
+        $vehicleTypeNames = VehicleType::whereIn('id', $vehicleTypeIds)->pluck('name', 'id');
+        $truckTypeIds = collect($quotation->extra_vehicles ?? [])->pluck('truck_type_id')->filter()->unique();
+        $truckTypeNames = TruckType::whereIn('id', $truckTypeIds)->pluck('name', 'id');
+        $extraVehicles = collect($quotation->extra_vehicles ?? [])->map(function ($ev) use ($vehicleTypeNames, $truckTypeNames) {
+            $ev['vehicle_name'] = $vehicleTypeNames->get($ev['vehicle_type_id'] ?? null);
+            $ev['truck_type_name'] = $ev['truck_type_name'] ?? $truckTypeNames->get($ev['truck_type_id'] ?? null);
+            return $ev;
+        })->values()->all();
 
         return response()->json(['data' => [
             'id'                  => $quotation->id,
@@ -61,7 +84,10 @@ class CustomerQuotationController extends Controller
             'base_rate'           => (float) ($sourceBooking?->base_rate ?? 0),
             'distance_km'         => $distanceKm,
             'distance_fee'        => $distanceFee,
+            'subtotal'            => $subtotal,
             'vat_amount'          => $vatAmount,
+            'vat_rate'            => $vatRate,
+            'discount'            => $discount,
             'additional_fee'      => $additionalFee,
             'additional_fee_note' => $additionalFeeNote,
             'pickup_address'      => $quotation->pickup_address,
@@ -75,6 +101,12 @@ class CustomerQuotationController extends Controller
             'sent_at'             => $quotation->sent_at?->toIso8601String(),
             'price_change_log'    => $quotation->price_change_log ?? [],
             'response_note'       => $quotation->response_note,
+            'extra_vehicles'      => $extraVehicles,
+            'price_adjustments'   => $activeAdjustments->map(fn(PriceAdjustment $a) => [
+                'type'   => $a->type,
+                'amount' => (float) $a->amount,
+                'reason' => $a->reason,
+            ])->values(),
         ]]);
     }
 

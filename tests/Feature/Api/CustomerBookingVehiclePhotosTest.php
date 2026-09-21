@@ -196,17 +196,18 @@ it('keeps separate photo sets for the primary vehicle and each Book Now extra ve
     ]));
 
     $response->assertCreated();
-    $booking = Booking::where('customer_id', $customer->id)->latest()->first();
+    $primaryBooking = Booking::where('customer_id', $customer->id)->where('truck_type_id', $truck->id)->latest()->first();
+    $sibling = Booking::where('customer_id', $customer->id)->where('truck_type_id', $extraTruck->id)->latest()->first();
 
-    $primaryPhotos = BookingVehiclePhoto::where('booking_id', $booking->id)->where('vehicle_slot', 0)->get();
-    $extraPhotos = BookingVehiclePhoto::where('booking_id', $booking->id)->where('vehicle_slot', 1)->get();
+    $primaryPhotos = BookingVehiclePhoto::where('booking_id', $primaryBooking->id)->where('vehicle_slot', 0)->get();
+    $extraPhotos = BookingVehiclePhoto::where('booking_id', $sibling->id)->where('vehicle_slot', 0)->get();
 
     expect($primaryPhotos)->toHaveCount(2);
     expect($extraPhotos)->toHaveCount(3);
     expect($primaryPhotos->pluck('path')->intersect($extraPhotos->pluck('path')))->toBeEmpty();
 });
 
-it('stores the Book Now extra vehicle photos on the primary booking row', function () {
+it('stores the Book Now extra vehicle photos on its own sibling booking row', function () {
     [$user, $customer] = bvpCustomer();
     $truck = bvpTruckType();
     $vehicle = bvpVehicleType($truck->id);
@@ -225,10 +226,11 @@ it('stores the Book Now extra vehicle photos on the primary booking row', functi
     ]));
 
     $response->assertCreated();
-    $booking = Booking::where('customer_id', $customer->id)->latest()->first();
+    $sibling = Booking::where('customer_id', $customer->id)->where('truck_type_id', $extraTruck->id)->latest()->first();
 
-    expect(Booking::where('customer_id', $customer->id)->count())->toBe(1);
-    expect(BookingVehiclePhoto::where('booking_id', $booking->id)->where('vehicle_slot', 1)->count())->toBe(2);
+    expect(Booking::where('customer_id', $customer->id)->count())->toBe(2);
+    expect($sibling)->not->toBeNull();
+    expect(BookingVehiclePhoto::where('booking_id', $sibling->id)->where('vehicle_slot', 0)->count())->toBe(2);
 });
 
 it('stores the Scheduled sibling vehicle photos on its own sibling booking row', function () {

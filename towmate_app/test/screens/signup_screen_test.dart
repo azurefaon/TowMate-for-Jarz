@@ -16,8 +16,8 @@ void main() {
   group('signup screen redesign invariants', () {
     test('renders the modern Create your account layout', () {
       expect(source.contains("'Create your account'"), isTrue);
-      expect(source.contains("'Request and track towing services with TowMate.'"), isTrue);
-      expect(source.contains('boxShadow'), isFalse);
+      expect(source.contains("'Request and track towing services with TowMate'"), isTrue);
+      expect(source.contains('boxShadow'), isTrue);
     });
 
     test('all real backend-required fields remain, no invented middle name field', () {
@@ -38,7 +38,7 @@ void main() {
     });
 
     test('Back to sign in and the Sign in link both route back to login', () {
-      expect(source.contains("'← Back to sign in'"), isTrue);
+      expect(source.contains("'Back to sign in'"), isTrue);
       expect(source.contains("'Sign in'"), isTrue);
       expect(source.contains('_goToLogin'), isTrue);
     });
@@ -54,7 +54,7 @@ void main() {
     test('the normal signup form and Create account CTA appear before the Google section', () {
       final formIndex = source.indexOf('Form(');
       final createAccountButtonIndex = source.indexOf("'Create account'");
-      final dividerIndex = source.indexOf('OrContinueDivider(');
+      final dividerIndex = source.indexOf('_AuthDivider(');
       final googleButtonIndex = source.indexOf('GoogleSignInButton(');
 
       expect(formIndex, greaterThan(-1));
@@ -114,7 +114,7 @@ void main() {
     });
 
     test('Google signup uses signup-specific wording, distinct from Login', () {
-      expect(source.contains("OrContinueDivider(label: 'or sign up with')"), isTrue);
+      expect(source.contains("_AuthDivider(label: 'or sign up with')"), isTrue);
       expect(source.contains("label: 'Sign up with Google'"), isTrue);
       expect(source.contains('webText: GoogleButtonText.signUp'), isTrue);
     });
@@ -129,25 +129,29 @@ void main() {
   });
 
   group('phone number field — numeric-only PH mobile format', () {
-    test('+63 is rendered as a fixed, non-editable prefix outside the controller value', () {
-      expect(source.contains("fixedPrefix: '+63'"), isTrue);
-      expect(source.contains('prefixIconConstraints'), isTrue);
+    test('+63 is rendered as a fixed, non-editable prefix outside the controller value, with no fake country selector', () {
+      final phoneFieldStart = source.indexOf('class _PhoneField');
+      final phoneFieldEnd = source.indexOf('class _AuthDivider');
+      final block = source.substring(phoneFieldStart, phoneFieldEnd);
+      expect(block.contains("'+63'"), isTrue);
+      expect(block.contains('TextEditingController'), isTrue);
       expect(source.contains("prefixText: '+63"), isFalse);
+      expect(block.contains('flag'), isFalse);
+      expect(block.contains('chevron'), isFalse);
+      expect(block.contains('DropdownButton'), isFalse);
     });
 
     test('the phone field requests a numeric/phone keyboard', () {
-      final phoneFieldIndex = source.indexOf("fixedPrefix: '+63'");
-      final fieldBlockStart = source.lastIndexOf('_Field(', phoneFieldIndex);
-      final fieldBlockEnd = source.indexOf(');', phoneFieldIndex);
-      final block = source.substring(fieldBlockStart, fieldBlockEnd);
+      final phoneFieldStart = source.indexOf('class _PhoneField');
+      final phoneFieldEnd = source.indexOf('class _AuthDivider');
+      final block = source.substring(phoneFieldStart, phoneFieldEnd);
       expect(block.contains('keyboardType: TextInputType.phone'), isTrue);
     });
 
     test('digit-only and 10-digit-max input formatters are wired to the phone field via the shared helper', () {
-      final phoneFieldIndex = source.indexOf("fixedPrefix: '+63'");
-      final fieldBlockStart = source.lastIndexOf('_Field(', phoneFieldIndex);
-      final fieldBlockEnd = source.indexOf('validator:', phoneFieldIndex);
-      final block = source.substring(fieldBlockStart, fieldBlockEnd);
+      final phoneFieldStart = source.indexOf('class _PhoneField');
+      final phoneFieldEnd = source.indexOf('class _AuthDivider');
+      final block = source.substring(phoneFieldStart, phoneFieldEnd);
       expect(block.contains('inputFormatters: PhMobilePhone.formatters'), isTrue);
       expect(validatorsSource.contains('FilteringTextInputFormatter.digitsOnly'), isTrue);
       expect(validatorsSource.contains('LengthLimitingTextInputFormatter(10)'), isTrue);

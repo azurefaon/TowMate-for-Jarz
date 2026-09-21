@@ -9,16 +9,19 @@ use App\Models\Customer;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\TeamLeaderAvailabilityService;
+use App\Services\UnitAvailabilityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MonitoringController extends Controller
 {
     protected TeamLeaderAvailabilityService $teamLeaderAvailability;
+    protected UnitAvailabilityService $unitAvailability;
 
-    public function __construct(TeamLeaderAvailabilityService $teamLeaderAvailability)
+    public function __construct(TeamLeaderAvailabilityService $teamLeaderAvailability, UnitAvailabilityService $unitAvailability)
     {
         $this->teamLeaderAvailability = $teamLeaderAvailability;
+        $this->unitAvailability = $unitAvailability;
     }
 
     protected array $activeStatuses = ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
@@ -191,9 +194,6 @@ class MonitoringController extends Controller
         $recentActivities = AuditLog::query()
             ->with('user')
             ->whereHas('user', function ($query) {
-                // Intentionally not visibleToOperations() here: this is a historical
-                // activity feed, so a since-deleted (anonymized) user's past actions
-                // should still show up, unlike every live/operational screen.
                 $query->whereNull('archived_at')->whereIn('role_id', [2, 3]);
             })
             ->latest('created_at')
@@ -216,8 +216,9 @@ class MonitoringController extends Controller
             ->whereNotIn('status', ['completed', 'cancelled', 'rejected'])
             ->count();
 
-        $availableUnitsCount = Unit::query()->where('status', 'available')->count();
-        $onJobUnitsCount = Unit::query()->where('status', 'on_job')->count();
+        $availabilityRows = $this->unitAvailability->evaluateAll();
+        $availableUnitsCount = $availabilityRows->filter(fn($row) => $row['operational_state'] !== 'maintenance' && $row['active_booking'] === null)->count();
+        $onJobUnitsCount = $availabilityRows->filter(fn($row) => $row['active_booking'] !== null)->count();
         $notAvailableUnitsCount = Unit::query()->where('status', 'maintenance')->count();
 
         $flaggedCustomers = Customer::query()

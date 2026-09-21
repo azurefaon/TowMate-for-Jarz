@@ -159,7 +159,7 @@ it('always creates the Customer role regardless of a client-submitted role_id', 
     clrRole(1, 'Owner');
     clrRole(5, 'Customer');
 
-    $email = 'regsec2-' . uniqid() . '@example.com';
+    $email = 'regsec2-' . uniqid() . '@gmail.com';
     Cache::put('reg_verified_' . $email, true, now()->addMinutes(15));
 
     $response = test()->postJson('/api/register', [
@@ -182,7 +182,7 @@ it('always creates the Customer role regardless of a client-submitted role_id', 
 it('ignores unexpected sensitive fields submitted on registration', function () {
     clrRole(5, 'Customer');
 
-    $email = 'regsec3-' . uniqid() . '@example.com';
+    $email = 'regsec3-' . uniqid() . '@gmail.com';
     Cache::put('reg_verified_' . $email, true, now()->addMinutes(15));
 
     $response = test()->postJson('/api/register', [

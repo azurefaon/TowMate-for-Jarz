@@ -1,31 +1,46 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>TowMate — Password Reset OTP</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TowMate Password Reset Code</title>
 </head>
-<body style="font-family:sans-serif;background:#f8fafc;margin:0;padding:32px;">
-    <div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;padding:32px;">
-        <div style="font-size:1.4rem;font-weight:700;color:#0f172a;margin-bottom:8px;">TowMate</div>
-        <div style="font-size:0.85rem;color:#64748b;margin-bottom:24px;border-bottom:1px solid #e2e8f0;padding-bottom:16px;">Password Reset</div>
-
-        <p style="color:#0f172a;font-size:0.95rem;">Hi {{ $user->full_name ?? $user->name }},</p>
-        <p style="color:#475569;font-size:0.9rem;">
-            We received a request to reset your password. Use the OTP below to proceed.
-        </p>
-
-        <div style="background:#f1f5f9;border:1px solid #e2e8f0;padding:24px;text-align:center;margin:24px 0;">
-            <div style="font-size:0.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Your OTP</div>
-            <div style="font-size:2.5rem;font-weight:700;font-family:monospace;color:#0f172a;letter-spacing:0.15em;">{{ $otp }}</div>
-            <div style="font-size:0.78rem;color:#94a3b8;margin-top:8px;">Valid for 10 minutes</div>
-        </div>
-
-        <p style="color:#64748b;font-size:0.82rem;">
-            If you did not request a password reset, you can safely ignore this email. Your password will not change.
-        </p>
-        <p style="color:#94a3b8;font-size:0.78rem;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:24px;">
-            &copy; {{ date('Y') }} TowMate. All rights reserved.
-        </p>
-    </div>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Inter',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0;">
+  <tr>
+    <td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.06);">
+        <!-- Header -->
+        <tr>
+          <td style="background:#1a1a1a;padding:28px 36px;text-align:center;">
+            <span style="font-size:28px;font-weight:700;color:#ffffff;">Tow</span><span style="font-size:28px;font-weight:700;color:#FFC107;">Mate</span>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 36px 28px;">
+            <p style="margin:0 0 8px;font-size:22px;font-weight:600;color:#1a1a1a;">Reset your password</p>
+            <p style="margin:0 0 28px;font-size:14px;color:#757575;line-height:1.6;">
+              Hi {{ $user->full_name ?? $user->name }}, we received a request to reset your TowMate password. Use the code below to continue. This code expires in <strong>10 minutes</strong>.
+            </p>
+            <!-- OTP block -->
+            <div style="background:#f5f5f5;border-radius:12px;padding:24px;text-align:center;margin-bottom:28px;">
+              <span style="font-size:42px;font-weight:700;letter-spacing:12px;color:#1a1a1a;">{{ $otp }}</span>
+            </div>
+            <p style="margin:0;font-size:13px;color:#9e9e9e;line-height:1.6;">
+              If you didn't request a password reset, you can safely ignore this email — your password will not change. Do not share this code with anyone.
+            </p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f5f5f5;padding:20px 36px;text-align:center;border-top:1px solid #e0e0e0;">
+            <p style="margin:0;font-size:12px;color:#9e9e9e;">&copy; {{ date('Y') }} TowMate. All rights reserved.</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
 </body>
 </html>

@@ -2,11 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:google_navigation_flutter/google_navigation_flutter.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
-import '../../services/api_service.dart';
+
+enum _NavStatus { initializing, permissionDenied, error, ready }
 
 class TlNavigateScreen extends StatefulWidget {
   const TlNavigateScreen({super.key, required this.task});
@@ -17,335 +17,336 @@ class TlNavigateScreen extends StatefulWidget {
 }
 
 class _TlNavigateScreenState extends State<TlNavigateScreen> {
-  GoogleMapController? _mapController;
-  LatLng? _currentPosition;
-  List<LatLng> _routePoints = [];
-  double? _distanceKm;
-  double? _durationMin;
-  StreamSubscription<Position>? _positionSub;
-  bool _initialCentered = false;
-  bool _loadingRoute = false;
-  LatLng? _pendingCameraTarget;
-  double _pendingCameraZoom = 15;
+  GoogleNavigationViewController? _viewController;
+  StreamSubscription<NavInfoEvent>? _navInfoSub;
+  _NavStatus _status = _NavStatus.initializing;
+  String? _errorMessage;
+  bool _sessionInitialized = false;
+  String? _destinationKeyStarted;
+  StepInfo? _currentStep;
+  int? _remainingMeters;
+  int? _remainingSeconds;
 
   LatLng get _pickupPoint =>
-      LatLng(widget.task.pickupLat, widget.task.pickupLng);
+      LatLng(latitude: widget.task.pickupLat, longitude: widget.task.pickupLng);
   LatLng get _dropoffPoint =>
-      LatLng(widget.task.dropoffLat, widget.task.dropoffLng);
-
-  bool get _hasValidDropoff =>
-      widget.task.dropoffLat != 0.0 || widget.task.dropoffLng != 0.0;
-
-  // Destination depends on what phase of the task we're in
-  LatLng get _destinationPoint {
-    return _isDropoffPhase ? _dropoffPoint : _pickupPoint;
-  }
+      LatLng(latitude: widget.task.dropoffLat, longitude: widget.task.dropoffLng);
 
   bool get _isDropoffPhase {
-    const dropoffStatuses = {
-      'on_job', 'arrived_dropoff', 'waiting_verification'
-    };
+    const dropoffStatuses = {'on_job', 'arrived_dropoff', 'waiting_verification'};
     return dropoffStatuses.contains(widget.task.status);
   }
+
+  LatLng get _destinationPoint => _isDropoffPhase ? _dropoffPoint : _pickupPoint;
 
   String get _destinationAddress =>
       _isDropoffPhase ? widget.task.dropoffAddress : widget.task.pickupAddress;
 
-  String get _destinationLabel =>
-      _isDropoffPhase ? 'Drop-off' : 'Pickup';
+  String get _destinationLabel => _isDropoffPhase ? 'Drop-off' : 'Pickup';
+
+  String get _destinationKey =>
+      '${_destinationPoint.latitude},${_destinationPoint.longitude}';
 
   @override
   void initState() {
     super.initState();
-    _startTracking();
+    _initializeNavigation();
   }
 
   @override
   void didUpdateWidget(TlNavigateScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Reload route when task status changes (e.g. on_the_way → on_job)
-    // which changes the destination from pickup to drop-off.
-    if (oldWidget.task.status != widget.task.status && _currentPosition != null) {
-      setState(() => _routePoints = []);
-      _loadRoute(_currentPosition!);
+    if (oldWidget.task.status != widget.task.status &&
+        _status == _NavStatus.ready) {
+      _setDestination();
     }
   }
 
-  Future<void> _startTracking() async {
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      await Geolocator.requestPermission();
-    }
-
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 8,
-      ),
-    ).listen((pos) {
-      if (!mounted) return;
-      final point = LatLng(pos.latitude, pos.longitude);
-      setState(() => _currentPosition = point);
-
-      if (!_initialCentered) {
-        _centerCameraOnce(point, zoom: 15);
-        _loadRoute(point);
-      }
+  Future<void> _initializeNavigation() async {
+    setState(() {
+      _status = _NavStatus.initializing;
+      _errorMessage = null;
     });
 
-    // Fallback: if stream takes too long, get a one-shot position
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      setState(() => _status = _NavStatus.permissionDenied);
+      return;
+    }
+
     try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 8),
+      if (!await GoogleMapsNavigator.areTermsAccepted()) {
+        final accepted = await GoogleMapsNavigator.showTermsAndConditionsDialog(
+          'Navigation Terms of Service',
+          'TowMate',
+        );
+        if (!accepted) {
+          if (!mounted) return;
+          setState(() {
+            _status = _NavStatus.error;
+            _errorMessage = 'Navigation terms must be accepted to continue.';
+          });
+          return;
+        }
+      }
+
+      await GoogleMapsNavigator.initializeNavigationSession(
+        taskRemovedBehavior: TaskRemovedBehavior.continueService,
+      );
+      _sessionInitialized = true;
+
+      if (!mounted) return;
+      setState(() => _status = _NavStatus.ready);
+    } on SessionInitializationException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _status = e.code == SessionInitializationError.locationPermissionMissing
+            ? _NavStatus.permissionDenied
+            : _NavStatus.error;
+        _errorMessage = switch (e.code) {
+          SessionInitializationError.notAuthorized =>
+            'Navigation could not start. Please contact support.',
+          SessionInitializationError.locationPermissionMissing =>
+            'Location permission is required to navigate.',
+          SessionInitializationError.termsNotAccepted =>
+            'Navigation terms must be accepted to continue.',
+        };
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _status = _NavStatus.error;
+        _errorMessage = 'Could not start navigation. Please try again.';
+      });
+    }
+  }
+
+  Future<void> _onViewCreated(GoogleNavigationViewController controller) async {
+    _viewController = controller;
+    try {
+      await controller.setMyLocationEnabled(true);
+    } catch (_) {}
+    await _setDestination();
+  }
+
+  Future<void> _setDestination() async {
+    if (_viewController == null) return;
+    if (_destinationKeyStarted == _destinationKey) return;
+
+    final label = _destinationLabel;
+    try {
+      final status = await GoogleMapsNavigator.setDestinations(
+        Destinations(
+          waypoints: [
+            NavigationWaypoint.withLatLngTarget(
+              title: label,
+              target: _destinationPoint,
+            ),
+          ],
+          displayOptions: NavigationDisplayOptions(
+            showDestinationMarkers: true,
+            showStopSigns: true,
+            showTrafficLights: true,
+          ),
         ),
       );
+
       if (!mounted) return;
-      final point = LatLng(pos.latitude, pos.longitude);
-      if (_currentPosition == null) {
-        setState(() => _currentPosition = point);
-        _centerCameraOnce(point, zoom: 15);
-        _loadRoute(point);
+      if (status == NavigationRouteStatus.statusOk) {
+        _destinationKeyStarted = _destinationKey;
+        await GoogleMapsNavigator.startGuidance();
+        _navInfoSub ??= GoogleMapsNavigator.setNavInfoListener(
+          _onNavInfo,
+          numNextStepsToPreview: 0,
+        );
+      } else {
+        setState(() {
+          _status = _NavStatus.error;
+          _errorMessage = 'Could not calculate a route to the $label location.';
+        });
       }
     } catch (_) {
-      // Fall back to centering on destination if GPS unavailable
       if (!mounted) return;
-      _centerCameraOnce(_destinationPoint, zoom: 14);
-    }
-  }
-
-  // Centers the camera exactly once, whichever happens last: getting a
-  // position/fallback target, or the GoogleMap platform view finishing
-  // initialization (onMapCreated). If the controller isn't ready yet, the
-  // target is queued and applied as soon as onMapCreated fires.
-  void _centerCameraOnce(LatLng target, {required double zoom}) {
-    if (_initialCentered) return;
-    _initialCentered = true;
-
-    if (_mapController != null) {
-      _mapController!.moveCamera(CameraUpdate.newLatLngZoom(target, zoom));
-    } else {
-      _pendingCameraTarget = target;
-      _pendingCameraZoom = zoom;
-    }
-  }
-
-  Future<void> _loadRoute(LatLng from) async {
-    setState(() => _loadingRoute = true);
-
-    final result = await ApiService.calculateRoute(
-      from.latitude, from.longitude,
-      _destinationPoint.latitude, _destinationPoint.longitude,
-    );
-
-    if (!mounted) return;
-    if (result['success'] == true) {
-      final coords = result['coordinates'] as List? ?? [];
-      final points = coords
-          .map((c) => LatLng(
-                (c[0] as num).toDouble(),
-                (c[1] as num).toDouble(),
-              ))
-          .toList();
       setState(() {
-        _routePoints = points;
-        _distanceKm = (result['distance_km'] as num?)?.toDouble();
-        _durationMin = result['duration_min'] != null
-            ? (result['duration_min'] as num).toDouble()
-            : null;
-        _loadingRoute = false;
+        _status = _NavStatus.error;
+        _errorMessage = 'Could not start guidance. Please try again.';
       });
-    } else {
-      setState(() => _loadingRoute = false);
     }
   }
 
-  void _recenter() {
-    if (_currentPosition != null) {
-      _mapController?.moveCamera(
-        CameraUpdate.newLatLngZoom(_currentPosition!, 15),
-      );
-    }
-  }
-
-  Future<void> _openInGoogleMaps() async {
-    final dest = _destinationPoint;
-    final uri = Uri.parse(
-      'https://www.google.com/maps/dir/?api=1'
-      '&destination=${dest.latitude},${dest.longitude}'
-      '&travelmode=driving',
-    );
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  void _onNavInfo(NavInfoEvent event) {
+    if (!mounted) return;
+    setState(() {
+      _currentStep = event.navInfo.currentStep;
+      _remainingMeters = event.navInfo.distanceToFinalDestinationMeters;
+      _remainingSeconds = event.navInfo.timeToFinalDestinationSeconds;
+    });
   }
 
   @override
   void dispose() {
-    _positionSub?.cancel();
+    _navInfoSub?.cancel();
+    if (_sessionInitialized) {
+      GoogleMapsNavigator.cleanup();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_status == _NavStatus.permissionDenied) {
+      return _StatusMessage(
+        icon: Icons.location_off_rounded,
+        title: 'Location permission needed',
+        message:
+            'Enable location access for TowMate in your device settings, then try again.',
+        onRetry: _initializeNavigation,
+      );
+    }
+
+    if (_status == _NavStatus.error) {
+      return _StatusMessage(
+        icon: Icons.error_outline_rounded,
+        title: 'Navigation unavailable',
+        message: _errorMessage ?? 'Something went wrong starting navigation.',
+        onRetry: _initializeNavigation,
+      );
+    }
+
+    if (_status == _NavStatus.initializing) {
+      return const Center(
+        child: CircularProgressIndicator(color: TmColors.yellow),
+      );
+    }
+
     return Column(
       children: [
         Expanded(
-          child: Stack(
-            children: [
-              GoogleMap(
-                initialCameraPosition: CameraPosition(
-                  target: _destinationPoint,
-                  zoom: 14,
-                ),
-                onMapCreated: (controller) {
-                  _mapController = controller;
-                  if (_pendingCameraTarget != null) {
-                    controller.moveCamera(CameraUpdate.newLatLngZoom(
-                        _pendingCameraTarget!, _pendingCameraZoom));
-                    _pendingCameraTarget = null;
-                  }
-                },
-                zoomControlsEnabled: false,
-                myLocationButtonEnabled: false,
-                markers: {
-                  Marker(
-                    markerId: const MarkerId('pickup'),
-                    position: _pickupPoint,
-                    icon: BitmapDescriptor.defaultMarkerWithHue(
-                        BitmapDescriptor.hueViolet),
-                    infoWindow: const InfoWindow(title: 'Pickup'),
-                  ),
-                  if (_hasValidDropoff)
-                    Marker(
-                      markerId: const MarkerId('dropoff'),
-                      position: _dropoffPoint,
-                      icon: BitmapDescriptor.defaultMarkerWithHue(
-                          BitmapDescriptor.hueYellow),
-                      infoWindow: const InfoWindow(title: 'Drop-off'),
-                    ),
-                  if (_currentPosition != null)
-                    Marker(
-                      markerId: const MarkerId('current'),
-                      position: _currentPosition!,
-                      icon: BitmapDescriptor.defaultMarkerWithHue(
-                          BitmapDescriptor.hueAzure),
-                      infoWindow: const InfoWindow(title: 'You'),
-                      zIndexInt: 2,
-                    ),
-                },
-                polylines: {
-                  if (_routePoints.isNotEmpty)
-                    Polyline(
-                      polylineId: const PolylineId('route'),
-                      points: _routePoints,
-                      color: TmColors.yellow,
-                      width: 4,
-                    ),
-                },
-              ),
-
-              // Loading route indicator
-              if (_loadingRoute)
-                Positioned(
-                  top: 12,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: TmColors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                color: TmColors.yellow),
-                          ),
-                          const SizedBox(width: 8),
-                          Text('Calculating route…',
-                              style: GoogleFonts.inter(
-                                  color: TmColors.grey700, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Recenter button
-              Positioned(
-                right: 14,
-                bottom: 14,
-                child: GestureDetector(
-                  onTap: _recenter,
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: TmColors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.my_location_rounded,
-                        color: TmColors.black, size: 20),
-                  ),
-                ),
-              ),
-            ],
+          child: GoogleMapsNavigationView(
+            onViewCreated: _onViewCreated,
+            initialCameraPosition: CameraPosition(
+              target: _destinationPoint,
+              zoom: 14,
+            ),
+            initialNavigationUIEnabledPreference:
+                NavigationUIEnabledPreference.automatic,
           ),
         ),
-
-        // Bottom info card
         _BottomCard(
           destinationLabel: _destinationLabel,
           destinationAddress: _destinationAddress,
-          distanceKm: _distanceKm,
-          durationMin: _durationMin,
+          instruction: _currentStep?.fullInstructions,
+          remainingMeters: _remainingMeters,
+          remainingSeconds: _remainingSeconds,
           isGpsActive: widget.task.isGpsPhase,
-          onNavigate: _openInGoogleMaps,
         ),
       ],
     );
   }
 }
 
-// ── Bottom card ────────────────────────────────────────────────────────────
+class _StatusMessage extends StatelessWidget {
+  const _StatusMessage({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.onRetry,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 44, color: TmColors.grey500),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                color: TmColors.black,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TmColors.black,
+                foregroundColor: TmColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                elevation: 0,
+              ),
+              child: Text(
+                'Try Again',
+                style:
+                    GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _BottomCard extends StatelessWidget {
   const _BottomCard({
     required this.destinationLabel,
     required this.destinationAddress,
-    this.distanceKm,
-    this.durationMin,
+    this.instruction,
+    this.remainingMeters,
+    this.remainingSeconds,
     required this.isGpsActive,
-    required this.onNavigate,
   });
 
   final String destinationLabel;
   final String destinationAddress;
-  final double? distanceKm;
-  final double? durationMin;
+  final String? instruction;
+  final int? remainingMeters;
+  final int? remainingSeconds;
   final bool isGpsActive;
-  final VoidCallback onNavigate;
+
+  String _formatDistance(int meters) {
+    if (meters >= 1000) {
+      return '${(meters / 1000).toStringAsFixed(1)} km';
+    }
+    return '$meters m';
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = (seconds / 60).round();
+    if (minutes >= 60) {
+      final hours = minutes ~/ 60;
+      final remMinutes = minutes % 60;
+      return '${hours}h ${remMinutes}m';
+    }
+    return '$minutes min';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -405,57 +406,53 @@ class _BottomCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (distanceKm != null || durationMin != null) ...[
+            if (instruction != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.turn_slight_right_rounded,
+                      size: 15, color: TmColors.grey700),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      instruction!,
+                      style: GoogleFonts.inter(
+                          color: TmColors.grey700, fontSize: 12.5),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (remainingMeters != null || remainingSeconds != null) ...[
               const SizedBox(height: 6),
               Row(
                 children: [
-                  if (distanceKm != null) ...[
+                  if (remainingMeters != null) ...[
                     const Icon(Icons.straighten_rounded,
                         size: 13, color: TmColors.grey500),
                     const SizedBox(width: 4),
                     Text(
-                      '${distanceKm!.toStringAsFixed(1)} km',
+                      _formatDistance(remainingMeters!),
                       style: GoogleFonts.inter(
                           color: TmColors.grey500, fontSize: 12),
                     ),
                   ],
-                  if (distanceKm != null && durationMin != null)
+                  if (remainingMeters != null && remainingSeconds != null)
                     const SizedBox(width: 14),
-                  if (durationMin != null) ...[
+                  if (remainingSeconds != null) ...[
                     const Icon(Icons.schedule_rounded,
                         size: 13, color: TmColors.grey500),
                     const SizedBox(width: 4),
                     Text(
-                      '${durationMin!.round()} min',
+                      _formatDuration(remainingSeconds!),
                       style: GoogleFonts.inter(
                           color: TmColors.grey500, fontSize: 12),
                     ),
                   ],
                 ],
-              ),
-            ],
-            if (isGpsActive) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: onNavigate,
-                  icon: const Icon(Icons.navigation_rounded, size: 18),
-                  label: Text(
-                    'Navigate',
-                    style: GoogleFonts.inter(
-                        fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: TmColors.black,
-                    foregroundColor: TmColors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 0,
-                  ),
-                ),
               ),
             ],
           ],

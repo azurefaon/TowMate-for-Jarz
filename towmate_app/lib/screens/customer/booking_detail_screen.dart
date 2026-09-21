@@ -6,12 +6,14 @@ import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../services/api_service.dart';
 import '../../widgets/booking_cancel_dialog.dart';
+import '../../widgets/group_cancel_sheet.dart';
 import '../../widgets/quotation_price_cards.dart';
 import '../../widgets/skeleton_box.dart';
 
 class BookingDetailScreen extends StatefulWidget {
-  const BookingDetailScreen({super.key, required this.bookingCode});
+  const BookingDetailScreen({super.key, required this.bookingCode, this.asGroupOverview = false});
   final String bookingCode;
+  final bool asGroupOverview;
 
   @override
   State<BookingDetailScreen> createState() => _BookingDetailScreenState();
@@ -22,6 +24,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   bool _loading = true;
   bool _fetchError = false;
   bool _cancelling = false;
+  bool _cancellingGroup = false;
   bool _loadingReceipt = false;
 
   static final _dateTime = DateFormat('MMM d, yyyy  h:mm a');
@@ -86,6 +89,40 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     }
   }
 
+  Future<void> _cancelGroup(BookingModel b) async {
+    final vehicles = b.groupVehicles ?? [];
+    final selectedCodes = await showGroupCancelSelectionSheet(context, vehicles: vehicles);
+    if (selectedCodes == null || selectedCodes.isEmpty || !mounted) return;
+
+    final selectedVehicles = vehicles.where((v) => selectedCodes.contains(v.bookingCode)).toList();
+    final confirmed = await showGroupCancelConfirmDialog(
+      context,
+      selected: selectedVehicles,
+      allVehicles: vehicles,
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _cancellingGroup = true);
+    final result = await ApiService.cancelGroupBookings(b.groupCode!, selectedCodes);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      setState(() => _cancellingGroup = false);
+      await _fetch();
+    } else {
+      await _fetch();
+      if (!mounted) return;
+      setState(() => _cancellingGroup = false);
+      final ineligible = result['ineligible'] as List?;
+      final message = ineligible != null && ineligible.isNotEmpty
+          ? 'One or more selected vehicles can no longer be cancelled. Please review and try again.'
+          : ((result['message'] as String?)?.isNotEmpty == true
+              ? result['message'] as String
+              : 'Failed to cancel selected vehicles. Please try again.');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -109,7 +146,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Booking Details',
+                      widget.asGroupOverview ? 'Group Booking Details' : 'Booking Details',
                       style: GoogleFonts.inter(
                         color: context.textPrimary,
                         fontSize: 17,
@@ -164,22 +201,37 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   Widget _body(BookingModel b) {
-    final effectiveTotal = b.finalTotal ?? b.computedTotal;
-    final canCancel = b.isCancellableByCustomer;
-    final showReceipt = b.status == 'completed';
-    final showRebook = b.status == 'completed' || b.status == 'cancelled';
-    final hasCrew = b.teamLeaderName != null || b.driverName != null;
+    final groupTotals = b.groupTotals;
+    final isGroupPricing = widget.asGroupOverview && groupTotals != null;
+    final effectiveTotal = isGroupPricing ? groupTotals.finalTotal : (b.finalTotal ?? b.computedTotal);
+    final activeVehicleCount = b.groupActiveVehicleCount;
+    final totalVehicleCount = b.groupTotalVehicleCount;
+    final isCancelled = b.status == 'cancelled';
+    final totalLabel = isGroupPricing
+        ? (b.groupTotalLabel == 'Remaining Total'
+            ? 'Remaining Total ($activeVehicleCount active vehicle${activeVehicleCount == 1 ? '' : 's'})'
+            : 'Group Total ($totalVehicleCount vehicle${totalVehicleCount == 1 ? '' : 's'})')
+        : isCancelled
+            ? (b.pricingIsProvisional ? 'Original Estimated Amount' : 'Original Agreed Amount')
+            : 'Total Amount';
+    final canCancel = !widget.asGroupOverview && b.isCancellableByCustomer;
+    final showReceipt = !widget.asGroupOverview && b.status == 'completed';
+    final showRebook = !widget.asGroupOverview && (b.status == 'completed' || b.status == 'cancelled');
+    final hasCrew = !widget.asGroupOverview && (b.teamLeaderName != null || b.driverName != null);
+    final groupVehicles = b.groupVehicles ?? const <GroupVehicleBreakdown>[];
+    final canCancelGroup = widget.asGroupOverview &&
+        groupVehicles.any((v) => v.isCancellableByCustomer);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _BookingStatusCard(booking: b),
+          widget.asGroupOverview ? _GroupStatusCard(booking: b) : _BookingStatusCard(booking: b),
           const SizedBox(height: 20),
 
           Text(
-            'Total Amount',
+            totalLabel,
             style: GoogleFonts.inter(
               color: secondaryTextColor(context),
               fontSize: 11.5,
@@ -199,7 +251,32 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           ),
           const SizedBox(height: 18),
 
-          if (b.baseRate != null) ...[
+          if (isGroupPricing) ...[
+            if (b.pricingIsProvisional)
+              _ProvisionalPriceCard(
+                baseRate: groupTotals.baseRate,
+                finalTotal: groupTotals.finalTotal,
+                combinedVehicleCount: activeVehicleCount,
+              )
+            else
+              PriceBreakdownCard(
+                baseRate: groupTotals.baseRate,
+                distanceFee: (groupTotals.computedTotal - groupTotals.baseRate).clamp(0, double.infinity).toDouble(),
+                distanceKm: b.distanceKm ?? 0,
+                subtotal: groupTotals.computedTotal,
+                vatAmount: groupTotals.vatAmount,
+                vatRate: groupTotals.vatAmount > 0 && groupTotals.computedTotal > 0
+                    ? (groupTotals.vatAmount / groupTotals.computedTotal)
+                    : 0.12,
+                finalTotal: groupTotals.finalTotal,
+                combinedVehicleCount: activeVehicleCount,
+              ),
+            if (b.groupVehicles != null && b.groupVehicles!.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              _GroupVehiclesSection(vehicles: b.groupVehicles!),
+            ],
+            const SizedBox(height: 20),
+          ] else if (b.baseRate != null) ...[
             if (b.pricingIsProvisional)
               _ProvisionalPriceCard(baseRate: b.baseRate!, finalTotal: effectiveTotal ?? 0)
             else
@@ -207,8 +284,12 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                 baseRate: b.baseRate!,
                 distanceFee: b.distanceFee ?? 0,
                 distanceKm: b.distanceKm ?? 0,
+                subtotal: b.computedTotal ?? (b.baseRate! + (b.distanceFee ?? 0)),
                 vatAmount: b.vatAmount ?? 0,
-                additionalFee: b.additionalFee ?? 0,
+                vatRate: (b.vatAmount ?? 0) > 0 && (b.computedTotal ?? 0) > 0
+                    ? (b.vatAmount! / b.computedTotal!)
+                    : 0.12,
+                finalTotal: effectiveTotal ?? 0,
               ),
             const SizedBox(height: 20),
           ],
@@ -218,18 +299,19 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             dropoffAddress: b.dropoffAddress,
             truckTypeName: b.displayVehicleName,
             distanceKm: b.distanceKm ?? 0,
+            showVehicleInfoRow: !widget.asGroupOverview,
           ),
           const SizedBox(height: 20),
 
           _ServiceDetailsCard(booking: b),
 
-          if (b.groupSiblings != null && b.groupSiblings!.isNotEmpty) ...[
+          if (!widget.asGroupOverview && b.groupSiblings != null && b.groupSiblings!.isNotEmpty) ...[
             const SizedBox(height: 20),
             _GroupSiblingsCard(current: b, siblings: b.groupSiblings!),
           ],
           const SizedBox(height: 20),
 
-          _TimelineCard(booking: b),
+          if (!widget.asGroupOverview) _TimelineCard(booking: b),
 
           if (hasCrew) ...[
             const SizedBox(height: 20),
@@ -242,7 +324,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ),
           ],
 
-          if (b.paymentMethod != null) ...[
+          if (!widget.asGroupOverview && b.paymentMethod != null) ...[
             const SizedBox(height: 20),
             _DetailCard(
               title: 'PAYMENT',
@@ -280,7 +362,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ),
           ],
 
-          if (b.arrivalPhotoUrl != null || b.dropoffPhotoUrl != null) ...[
+          if (!widget.asGroupOverview && (b.arrivalPhotoUrl != null || b.dropoffPhotoUrl != null)) ...[
             const SizedBox(height: 20),
             Text('PHOTOS', style: sectionEyebrowStyle(context)),
             const SizedBox(height: 8),
@@ -309,6 +391,31 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               child: _cancelling
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: TmColors.white),
+                    )
+                  : Text(
+                      'Cancel Booking',
+                      style: GoogleFonts.inter(color: TmColors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+            ),
+          ],
+
+          if (canCancelGroup) ...[
+            const SizedBox(height: 28),
+            ElevatedButton(
+              onPressed: _cancellingGroup ? null : () => _cancelGroup(b),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TmColors.destructive,
+                foregroundColor: TmColors.white,
+                disabledBackgroundColor: TmColors.destructive.withValues(alpha: 0.6),
+                minimumSize: const Size(double.infinity, 52),
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: _cancellingGroup
                   ? const SizedBox(
                       height: 20,
                       width: 20,
@@ -475,6 +582,55 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       };
 }
 
+class _GroupStatusCard extends StatelessWidget {
+  const _GroupStatusCard({required this.booking});
+  final BookingModel booking;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusText = booking.groupActiveStatusText;
+    final Color statusColor;
+    if (booking.groupAllCancelled) {
+      statusColor = TmColors.error;
+    } else if (booking.groupAllCompleted) {
+      statusColor = TmColors.success;
+    } else {
+      statusColor = context.textPrimary;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: context.surface, borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Group Request',
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.1,
+            ),
+          ),
+          if (booking.groupCode != null && booking.groupCode!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              booking.groupCode!,
+              style: GoogleFonts.inter(color: context.textPrimary, fontSize: 11.5, fontWeight: FontWeight.w500),
+            ),
+          ],
+          const SizedBox(height: 2),
+          Text(
+            statusText,
+            style: GoogleFonts.inter(color: statusColor, fontSize: 11.5, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BookingStatusCard extends StatelessWidget {
   const _BookingStatusCard({required this.booking});
   final BookingModel booking;
@@ -563,7 +719,9 @@ class _BookingStatusCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  booking.bookingCode,
+                  booking.displayVehicleName.isNotEmpty
+                      ? '${booking.bookingCode} · ${booking.displayVehicleName}'
+                      : booking.bookingCode,
                   style: GoogleFonts.inter(color: context.textPrimary, fontSize: 11.5, fontWeight: FontWeight.w500),
                 ),
                 if (isBucketed && booking.scheduledFor != null) ...[
@@ -592,6 +750,8 @@ class _ServiceDetailsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isScheduled = booking.serviceType == 'schedule';
     final rows = <_DetailRow>[
+      if (booking.quotationNumber != null && booking.quotationNumber!.isNotEmpty)
+        _DetailRow('Quotation No.', booking.quotationNumber!),
       _DetailRow('Service Type', isScheduled ? 'Scheduled' : 'Book Now'),
       if (isScheduled && booking.scheduledFor != null)
         _DetailRow('Scheduled For', _scheduledFmt.format(booking.scheduledFor!.toLocal())),
@@ -717,13 +877,18 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _ProvisionalPriceCard extends StatelessWidget {
-  const _ProvisionalPriceCard({required this.baseRate, required this.finalTotal});
+  const _ProvisionalPriceCard({required this.baseRate, required this.finalTotal, this.combinedVehicleCount});
   final double baseRate;
   final double finalTotal;
+  final int? combinedVehicleCount;
 
   @override
   Widget build(BuildContext context) {
     final vat = finalTotal - baseRate;
+    final isCombined = (combinedVehicleCount ?? 1) > 1;
+    final baseLabel = isCombined
+        ? 'Estimated Base Rate (combined · $combinedVehicleCount vehicles)'
+        : 'Estimated Base Rate';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -739,7 +904,7 @@ class _ProvisionalPriceCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              PriceLine(label: 'Estimated Base Rate', amount: formatPeso(baseRate)),
+              PriceLine(label: baseLabel, amount: formatPeso(baseRate)),
               PriceLine(label: 'Estimated VAT', amount: formatPeso(vat)),
               const SizedBox(height: 6),
               Divider(color: context.divider, height: 1),
@@ -754,6 +919,96 @@ class _ProvisionalPriceCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _GroupVehiclesSection extends StatelessWidget {
+  const _GroupVehiclesSection({required this.vehicles});
+  final List<GroupVehicleBreakdown> vehicles;
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...vehicles]..sort((a, b) => a.bookingCode.compareTo(b.bookingCode));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('VEHICLES IN THIS GROUP', style: sectionEyebrowStyle(context)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: context.card,
+            border: Border.all(color: context.divider),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (int i = 0; i < sorted.length; i++) ...[
+                if (i > 0) ...[
+                  const SizedBox(height: 10),
+                  Divider(color: context.divider, height: 1),
+                  const SizedBox(height: 10),
+                ],
+                _GroupVehicleBreakdownRow(index: i + 1, vehicle: sorted[i]),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GroupVehicleBreakdownRow extends StatelessWidget {
+  const _GroupVehicleBreakdownRow({required this.index, required this.vehicle});
+  final int index;
+  final GroupVehicleBreakdown vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    final price = vehicle.finalTotal;
+    final priceLabel = price != null
+        ? '${vehicle.pricingIsProvisional ? 'Est. ' : ''}₱${NumberFormat('#,##0.00', 'en_PH').format(price)}'
+        : '—';
+
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, '/booking-detail', arguments: vehicle.bookingCode),
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Vehicle $index · ${vehicle.displayVehicleName}',
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${vehicle.bookingCode} · ${vehicle.humanStatus}',
+                  style: GoogleFonts.inter(color: secondaryTextColor(context), fontSize: 12, letterSpacing: 0.1),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  priceLabel,
+                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: context.textTertiary, size: 20),
+        ],
+      ),
     );
   }
 }
