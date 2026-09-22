@@ -115,6 +115,17 @@ if (!function_exists('protected_file_url')) {
     }
 }
 
+if (!function_exists('mobile_content_url')) {
+    function mobile_content_url(?string $path): ?string
+    {
+        if (!filled($path)) {
+            return null;
+        }
+
+        return url('/api/media/mobile/'.basename($path));
+    }
+}
+
 if (!function_exists('is_public_email')) {
     function is_public_email(?string $email): bool
     {

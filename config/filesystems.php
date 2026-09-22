@@ -33,6 +33,13 @@ return [
             'report' => false,
         ],
 
+        'mobile_content' => [
+            'driver' => 'local',
+            'root' => env('APK_STORAGE_PATH', storage_path('app/apk-releases')).'/mobile',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

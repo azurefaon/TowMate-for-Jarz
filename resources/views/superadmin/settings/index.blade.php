@@ -592,7 +592,9 @@
                         <div class="settings-field">
                             <label>Home / Hero</label>
                             @if (!empty($settings['mobile_hero_image']))
-                                <img class="preview-img" src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($settings['mobile_hero_image']) }}" alt="">
+                                <img class="preview-img"
+                                    src="{{ mobile_content_url($settings['mobile_hero_image']) }}"
+                                    alt="">
                             @endif
                             <input type="file" name="mobile_hero_image" accept="image/*">
                             <p class="field-help">Shown on the public Home hero section.</p>
@@ -600,7 +602,9 @@
                         <div class="settings-field">
                             <label>Services / Page</label>
                             @if (!empty($settings['mobile_services_image']))
-                                <img class="preview-img" src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($settings['mobile_services_image']) }}" alt="">
+                                <img class="preview-img"
+                                    src="{{ mobile_content_url($settings['mobile_services_image']) }}"
+                                    alt="">
                             @endif
                             <input type="file" name="mobile_services_image" accept="image/*">
                             <p class="field-help">Shown on the public Services page.</p>
@@ -608,7 +612,9 @@
                         <div class="settings-field">
                             <label>Emergency / Booking</label>
                             @if (!empty($settings['mobile_emergency_image']))
-                                <img class="preview-img" src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($settings['mobile_emergency_image']) }}" alt="">
+                                <img class="preview-img"
+                                    src="{{ mobile_content_url($settings['mobile_emergency_image']) }}"
+                                    alt="">
                             @endif
                             <input type="file" name="mobile_emergency_image" accept="image/*">
                             <p class="field-help">Shown on the Emergency Towing call-to-action.</p>
@@ -616,7 +622,9 @@
                         <div class="settings-field">
                             <label>About / Company</label>
                             @if (!empty($settings['mobile_about_image']))
-                                <img class="preview-img" src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($settings['mobile_about_image']) }}" alt="">
+                                <img class="preview-img"
+                                    src="{{ mobile_content_url($settings['mobile_about_image']) }}"
+                                    alt="">
                             @endif
                             <input type="file" name="mobile_about_image" accept="image/*">
                             <p class="field-help">Shown on the About page.</p>

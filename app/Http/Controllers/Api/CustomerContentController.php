@@ -16,18 +16,16 @@ class CustomerContentController extends Controller
 {
     private function imageUrl(?string $path): ?string
     {
-        return filled($path) ? url('/api/media/mobile/'.basename($path)) : null;
+        return mobile_content_url($path);
     }
 
     public function media(string $filename): StreamedResponse
     {
-        $path = 'mobile/'.$filename;
-
-        if (! Storage::disk('public')->exists($path)) {
+        if (! Storage::disk('mobile_content')->exists($filename)) {
             abort(404);
         }
 
-        return Storage::disk('public')->response($path);
+        return Storage::disk('mobile_content')->response($filename);
     }
 
     public function index(): JsonResponse

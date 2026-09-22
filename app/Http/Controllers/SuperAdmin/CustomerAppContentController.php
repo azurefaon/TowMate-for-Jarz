@@ -145,7 +145,7 @@ class CustomerAppContentController extends Controller
         $service = MobileService::create([
             'title' => $this->clean($validated['title']),
             'description' => $this->clean($validated['description']),
-            'image_path' => $request->hasFile('image') ? $request->file('image')->store('mobile', 'public') : null,
+            'image_path' => $request->hasFile('image') ? $request->file('image')->store('', 'mobile_content') : null,
             'category' => $this->clean($validated['category'] ?? null),
             'availability_note' => $this->clean($validated['availability_note'] ?? null),
             'display_order' => $validated['display_order'] ?? ((int) MobileService::max('display_order') + 1),
@@ -193,7 +193,7 @@ class CustomerAppContentController extends Controller
         $service->update([
             'title' => $this->clean($validated['title']),
             'description' => $this->clean($validated['description']),
-            'image_path' => $request->hasFile('image') ? $request->file('image')->store('mobile', 'public') : $service->image_path,
+            'image_path' => $request->hasFile('image') ? $request->file('image')->store('', 'mobile_content') : $service->image_path,
             'category' => $this->clean($validated['category'] ?? null),
             'availability_note' => $this->clean($validated['availability_note'] ?? null),
             'display_order' => $validated['display_order'] ?? $service->display_order,
@@ -439,7 +439,7 @@ class CustomerAppContentController extends Controller
 
         foreach (['mobile_hero_image', 'mobile_services_image', 'mobile_emergency_image', 'mobile_about_image'] as $key) {
             if ($request->hasFile($key)) {
-                SystemSetting::setValue($key, $request->file($key)->store('mobile', 'public'));
+                SystemSetting::setValue($key, $request->file($key)->store('', 'mobile_content'));
             }
         }
 

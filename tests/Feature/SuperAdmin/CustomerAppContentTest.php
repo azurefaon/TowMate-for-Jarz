@@ -280,7 +280,7 @@ it('P: moving the first service up, or the last service down, is a safe no-op', 
 });
 
 it('Q: Owner can upload a service image, and the public API exposes a full URL', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.services.store'), [
@@ -290,7 +290,7 @@ it('Q: Owner can upload a service image, and the public API exposes a full URL',
     ])->assertRedirect();
 
     $service = MobileService::where('title', 'Emergency Towing')->firstOrFail();
-    Storage::disk('public')->assertExists($service->image_path);
+    Storage::disk('mobile_content')->assertExists($service->image_path);
 
     $response = $this->getJson('/api/v1/customer/content');
     $apiService = collect($response->json('services'))->firstWhere('title', 'Emergency Towing');
@@ -309,7 +309,7 @@ it('R: a service with no uploaded image exposes a null image_url instead of fail
 });
 
 it('S: updating a service without a new file keeps its existing image', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
     $service = MobileService::create([
         'title' => 'Towing', 'description' => 'D', 'image_path' => 'mobile/existing.jpg', 'is_active' => true,
@@ -323,7 +323,7 @@ it('S: updating a service without a new file keeps its existing image', function
 });
 
 it('T: Owner can upload the Home hero image and the About image, reflected in the public API', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -333,8 +333,8 @@ it('T: Owner can upload the Home hero image and the About image, reflected in th
 
     $heroPath = SystemSetting::getValue('mobile_hero_image');
     $aboutPath = SystemSetting::getValue('mobile_about_image');
-    Storage::disk('public')->assertExists($heroPath);
-    Storage::disk('public')->assertExists($aboutPath);
+    Storage::disk('mobile_content')->assertExists($heroPath);
+    Storage::disk('mobile_content')->assertExists($aboutPath);
 
     $response = $this->getJson('/api/v1/customer/content');
     $response->assertOk();
@@ -352,7 +352,7 @@ it('U: no hero/about image configured returns null image URLs instead of failing
 });
 
 it('V: a non-Owner cannot upload App Images', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $dispatcher = cmsDispatcher();
 
     $this->actingAs($dispatcher)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -363,7 +363,7 @@ it('V: a non-Owner cannot upload App Images', function () {
 });
 
 it('W: a non-image file upload is rejected by validation', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.services.store'), [
@@ -376,7 +376,7 @@ it('W: a non-image file upload is rejected by validation', function () {
 });
 
 it('X: the hero and about image URLs resolve through the public media route with real bytes', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -396,7 +396,7 @@ it('X: the hero and about image URLs resolve through the public media route with
 });
 
 it('Y: a service image URL resolves through the same public media route', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.services.store'), [
@@ -416,7 +416,7 @@ it('Y: a service image URL resolves through the same public media route', functi
 });
 
 it('Z: the public media route 404s safely for a filename that does not exist', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
 
     $this->get('/api/media/mobile/does-not-exist.jpg')->assertNotFound();
 });
@@ -440,7 +440,7 @@ it('AB: the local-dev CORS origin pattern matches only localhost/127.0.0.1 and n
 });
 
 it('AC: Home Hero, Emergency, and About each expose their own independent image field', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -467,7 +467,7 @@ it('AC: Home Hero, Emergency, and About each expose their own independent image 
 });
 
 it('AD: uploading only the Home Hero image does not populate the Emergency image', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -487,7 +487,7 @@ it('AE: no Emergency image configured returns a null URL instead of failing', fu
 });
 
 it('AF: Owner can upload and later replace the Emergency image', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -504,11 +504,11 @@ it('AF: Owner can upload and later replace the Emergency image', function () {
         ->and($secondPath)->not->toBeNull()
         ->and($secondPath)->not->toBe($firstPath);
 
-    Storage::disk('public')->assertExists($secondPath);
+    Storage::disk('mobile_content')->assertExists($secondPath);
 });
 
 it('AG: a non-Owner cannot upload the Emergency image', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $dispatcher = cmsDispatcher();
 
     $this->actingAs($dispatcher)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -519,7 +519,7 @@ it('AG: a non-Owner cannot upload the Emergency image', function () {
 });
 
 it('AH: a non-image file for the Emergency image is rejected by validation', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -542,7 +542,7 @@ it('AI: an active service appears in the public API in display order, and an ina
 });
 
 it('AJ: Owner can upload the Services/Page image, reflected in the public API', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -550,7 +550,7 @@ it('AJ: Owner can upload the Services/Page image, reflected in the public API', 
     ])->assertRedirect();
 
     $servicesPath = SystemSetting::getValue('mobile_services_image');
-    Storage::disk('public')->assertExists($servicesPath);
+    Storage::disk('mobile_content')->assertExists($servicesPath);
 
     $response = $this->getJson('/api/v1/customer/content');
 
@@ -565,7 +565,7 @@ it('AK: no Services image configured returns a null URL instead of failing', fun
 });
 
 it('AL: the Services image is independent from Home Hero, Emergency, and About', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -587,7 +587,7 @@ it('AL: the Services image is independent from Home Hero, Emergency, and About',
 });
 
 it('AM: a non-Owner cannot upload the Services image', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $dispatcher = cmsDispatcher();
 
     $this->actingAs($dispatcher)->post(route('superadmin.settings.customer-content.images.update'), [
@@ -598,7 +598,7 @@ it('AM: a non-Owner cannot upload the Services image', function () {
 });
 
 it('AN: a non-image file for the Services image is rejected by validation', function () {
-    Storage::fake('public');
+    Storage::fake('mobile_content');
     $owner = cmsOwner();
 
     $this->actingAs($owner)->post(route('superadmin.settings.customer-content.images.update'), [
