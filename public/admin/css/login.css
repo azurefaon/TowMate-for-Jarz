@@ -1,3 +1,7 @@
+:root {
+    --nav-height: 72px;
+}
+
 * {
     box-sizing: border-box;
 }
@@ -27,6 +31,9 @@ body {
 }
 
 .jarz-nav {
+    position: sticky;
+    top: 0;
+    z-index: 40;
     background: #171717;
     padding: 18px 40px;
 }
@@ -474,48 +481,64 @@ body {
 }
 
 .jarz-about {
-    background: #ffffff;
-    padding: 72px 24px;
+    background: #f2f2f2;
+    padding: 40px 24px;
 }
 
 .jarz-about-inner {
-    max-width: 680px;
+    max-width: 1100px;
     margin: 0 auto;
-    text-align: center;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
 }
 
-.jarz-about .jarz-section-heading {
+.jarz-about-heading {
+    margin: 4px 0 10px;
+    font-size: 1.625rem;
+    font-weight: 700;
     color: #171717;
 }
 
 .jarz-about-copy {
     margin: 0;
-    font-size: 1rem;
-    line-height: 1.75;
+    font-size: 0.9375rem;
+    line-height: 1.65;
     color: #525252;
 }
 
+.jarz-about-image {
+    display: block;
+    width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    border-radius: 12px;
+}
+
 .jarz-services {
-    background: #f2f2f2;
-    padding: 72px 24px;
+    background: #ffffff;
+    padding: 40px 24px;
 }
 
 .jarz-services-inner {
-    max-width: 900px;
+    max-width: 1100px;
     margin: 0 auto;
     text-align: center;
 }
 
-.jarz-services .jarz-section-heading {
+.jarz-services-heading {
+    margin: 4px 0 4px;
+    font-size: 1.625rem;
+    font-weight: 700;
     color: #171717;
-    margin-bottom: 8px;
 }
 
 .jarz-services-cards {
-    margin-top: 32px;
+    margin-top: 20px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
+    gap: 20px;
     text-align: left;
 }
 
@@ -523,21 +546,319 @@ body {
     background: #ffffff;
     border: 1px solid #e5e5e5;
     border-radius: 10px;
-    padding: 32px 24px;
+    padding: 20px;
+}
+
+.jarz-service-icon {
+    width: 24px;
+    height: 24px;
+    color: #171717;
+    margin-bottom: 10px;
 }
 
 .jarz-service-name {
-    margin: 0 0 12px;
-    font-size: 1.125rem;
+    margin: 0 0 6px;
+    font-size: 1rem;
     font-weight: 700;
     color: #171717;
 }
 
 .jarz-service-copy {
     margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #404040;
+}
+
+.jarz-nav-links a.is-active {
+    color: #facc15;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #facc15;
+}
+
+#home,
+#get-towmate,
+#about-us,
+#our-services {
+    scroll-margin-top: 88px;
+}
+
+.jarz-hero--public {
+    min-height: calc(100dvh - var(--nav-height));
+    justify-content: flex-start;
+    padding: 48px 40px;
+}
+
+.jarz-hero--public .jarz-hero-inner {
+    justify-content: flex-start;
+    max-width: 1280px;
+    margin: 0 auto;
+}
+
+.jarz-public-hero-content {
+    max-width: 620px;
+    color: #ffffff;
+}
+
+.jarz-hero-eyebrow {
+    margin: 0 0 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #facc15;
+}
+
+.jarz-hero-heading {
+    margin: 0 0 12px;
+    font-size: 2.25rem;
+    font-weight: 800;
+    line-height: 1.15;
+    color: #ffffff;
+}
+
+.jarz-hero-copy {
+    margin: 0 0 20px;
+    max-width: 480px;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: #e5e5e5;
+}
+
+.jarz-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.jarz-hero-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    padding: 0 24px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.jarz-hero-btn--primary {
+    background: #facc15;
+    color: #171717;
+    border: 1px solid #facc15;
+}
+
+.jarz-hero-btn--primary:hover {
+    background: #eab308;
+    border-color: #eab308;
+}
+
+.jarz-hero-btn--secondary {
+    background: transparent;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.jarz-hero-btn--secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.jarz-hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+}
+
+.jarz-hero-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: #f5f5f5;
+}
+
+.jarz-hero-badge svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: #facc15;
+}
+
+.jarz-gettowmate {
+    background: #ffffff;
+    padding: 40px 24px;
+}
+
+.jarz-gettowmate-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1.4fr 0.6fr;
+    gap: 48px;
+    align-items: start;
+}
+
+.jarz-gettowmate-eyebrow {
+    margin: 0 0 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #8a8a8a;
+}
+
+.jarz-gettowmate-heading {
+    margin: 0 0 10px;
+    font-size: 1.625rem;
+    font-weight: 700;
+    color: #171717;
+}
+
+.jarz-gettowmate-copy {
+    margin: 0 0 18px;
     font-size: 0.9375rem;
     line-height: 1.6;
-    color: #404040;
+    color: #525252;
+}
+
+.jarz-gettowmate-unavailable {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: #737373;
+}
+
+.jarz-download-list {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+}
+
+.jarz-download-option {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    background: #facc15;
+    color: #171717;
+    text-decoration: none;
+    border: 1px solid #facc15;
+}
+
+.jarz-download-option:hover {
+    background: #eab308;
+    border-color: #eab308;
+}
+
+.jarz-download-option.is-disabled {
+    background: #ffffff;
+    color: #171717;
+    border-color: #d4d4d4;
+    cursor: not-allowed;
+}
+
+.jarz-download-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.jarz-download-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.jarz-download-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.jarz-download-meta {
+    font-size: 0.6875rem;
+    opacity: 0.85;
+}
+
+.jarz-qr-col {
+    border-left: 1px solid #e5e5e5;
+    padding-left: 48px;
+}
+
+.jarz-qr-box {
+    text-align: center;
+}
+
+.jarz-qr-heading {
+    margin: 0 0 14px;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: #171717;
+}
+
+.jarz-qr-image {
+    display: block;
+    width: 130px;
+    height: 130px;
+    margin: 0 auto 14px;
+}
+
+.jarz-qr-caption {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #525252;
+}
+
+.jarz-footer {
+    background: #171717;
+    padding: 32px 24px;
+}
+
+.jarz-footer-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.jarz-footer-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.jarz-footer-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.jarz-footer-tagline {
+    font-size: 0.8125rem;
+    color: #b8b8b8;
+}
+
+.jarz-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+}
+
+.jarz-footer-links a {
+    font-size: 0.875rem;
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.jarz-footer-links a:hover {
+    color: #facc15;
 }
 
 a:focus-visible,
@@ -546,7 +867,39 @@ button:focus-visible {
     outline-offset: 2px;
 }
 
+@media (max-width: 900px) {
+    .jarz-hero-heading {
+        font-size: 2.25rem;
+    }
+
+    .jarz-gettowmate-inner {
+        grid-template-columns: 1fr;
+    }
+
+    .jarz-qr-col {
+        display: flex;
+        justify-content: center;
+        border-left: none;
+        border-top: 1px solid #e5e5e5;
+        padding-left: 0;
+        padding-top: 24px;
+        margin-top: 24px;
+    }
+
+    .jarz-about-inner {
+        grid-template-columns: 1fr;
+    }
+
+    .jarz-services-cards {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 @media (max-width: 640px) {
+    :root {
+        --nav-height: 64px;
+    }
+
     .jarz-nav {
         padding: 14px 20px;
     }
@@ -560,12 +913,16 @@ button:focus-visible {
         font-size: 0.9375rem;
     }
 
+    .jarz-nav-inner {
+        gap: 12px;
+    }
+
     .jarz-nav-links {
-        gap: 18px;
+        gap: 12px;
     }
 
     .jarz-nav-links a {
-        font-size: 0.8125rem;
+        font-size: 0.75rem;
     }
 
     .jarz-hero {
@@ -577,10 +934,14 @@ button:focus-visible {
         padding: 32px 24px;
     }
 
-    .jarz-getapp,
-    .jarz-about,
-    .jarz-services {
+    .jarz-getapp {
         padding: 56px 16px;
+    }
+
+    .jarz-about,
+    .jarz-services,
+    .jarz-gettowmate {
+        padding: 32px 16px;
     }
 
     .jarz-section-heading {
@@ -594,5 +955,60 @@ button:focus-visible {
 
     .jarz-services-cards {
         grid-template-columns: 1fr;
+    }
+
+    .jarz-download-list {
+        flex-direction: column;
+    }
+
+    .jarz-hero--public {
+        min-height: calc(100dvh - var(--nav-height));
+        padding: 32px 16px;
+    }
+
+    .jarz-hero-heading {
+        font-size: 1.75rem;
+    }
+
+    .jarz-hero-copy {
+        font-size: 0.9375rem;
+    }
+
+    .jarz-hero-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .jarz-hero-btn {
+        width: 100%;
+    }
+
+    .jarz-hero-badges {
+        gap: 20px;
+    }
+
+    .jarz-gettowmate-heading,
+    .jarz-about-heading,
+    .jarz-services-heading {
+        font-size: 1.5rem;
+    }
+
+    .jarz-footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 420px) {
+    .jarz-brand-name {
+        display: none;
+    }
+
+    .jarz-nav-links {
+        gap: 10px;
+    }
+
+    .jarz-nav-links a {
+        font-size: 0.6875rem;
     }
 }

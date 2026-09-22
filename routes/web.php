@@ -16,6 +16,7 @@ use App\Http\Controllers\ControlCenterController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\AndroidDownloadController;
+use App\Http\Controllers\PublicSiteController;
 
 use App\Http\Controllers\Admin\AvailableUnitsController;
 use App\Http\Controllers\Admin\DashboardController as AdminController;
@@ -49,7 +50,7 @@ use App\Http\Controllers\SystemAdmin\SecurityMonitorController;
 use App\Http\Controllers\SystemAdmin\SystemSettingsController as SystemAdminSystemSettingsController;
 use App\Http\Controllers\SystemAdmin\UserManagementController;
 
-Route::redirect('/', '/login')->name('landing');
+Route::get('/', [PublicSiteController::class, 'index'])->name('landing');
 
 Route::get('/download/android', [AndroidDownloadController::class, 'show'])
     ->middleware('throttle:30,1')
@@ -57,6 +58,9 @@ Route::get('/download/android', [AndroidDownloadController::class, 'show'])
 
 Route::get('/app', [AndroidDownloadController::class, 'landing'])
     ->name('app.download');
+
+Route::get('/mobile-app/qr-code', [\App\Http\Controllers\SuperAdmin\SystemSettingsController::class, 'mobileAppQrCode'])
+    ->name('public.mobile-app.qr-code');
 
 Route::prefix('geo')
     ->name('geo.')
