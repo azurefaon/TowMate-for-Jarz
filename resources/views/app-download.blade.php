@@ -16,10 +16,10 @@
 
     <nav class="jarz-nav jarz-nav--login">
         <div class="jarz-nav-inner">
-            <a href="{{ route('login') }}" class="jarz-brand">
+            <div class="jarz-brand">
                 <img src="{{ asset('dispatcher/images/jarz-logo.png') }}" alt="JARZ Towing Services" class="jarz-brand-logo">
                 <span class="jarz-brand-name">JARZ Towing Services</span>
-            </a>
+            </div>
         </div>
     </nav>
 
