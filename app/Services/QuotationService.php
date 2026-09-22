@@ -235,6 +235,10 @@ class QuotationService
                     'service_type'        => $quotation->service_type,
                     'scheduled_date'      => $quotation->scheduled_date?->toDateString(),
                     'scheduled_time'      => $quotation->scheduled_time,
+                    'scheduled_for'       => $this->bookingService()->combineScheduledDateTime(
+                        $quotation->scheduled_date?->toDateString(),
+                        $quotation->scheduled_time,
+                    ),
                     'scheduled_expires_at' => $isScheduled ? now()->addDays(7) : null,
                     'status'              => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
                     'customer_approved_at' => now(),
@@ -336,6 +340,7 @@ class QuotationService
                     'service_type' => $evServiceType,
                     'scheduled_date' => $evDate,
                     'scheduled_time' => $evTime,
+                    'scheduled_for' => $this->bookingService()->combineScheduledDateTime($evDate, $evTime),
                     'scheduled_expires_at' => $evScheduled ? now()->addDays(7) : null,
                     'status' => $evScheduled ? 'scheduled_confirmed' : 'confirmed',
                     'customer_approved_at' => now(),

@@ -1187,9 +1187,7 @@ class DispatchController extends Controller
             $booking->update($this->bookingService->filterPayloadForTable('bookings', [
                 'scheduled_date' => $validated['new_scheduled_date'],
                 'scheduled_time' => $validated['new_scheduled_time'],
-                
-                
-                
+                'scheduled_for' => $newScheduledFor,
                 'selected_unit_id' => null,
             ]));
 

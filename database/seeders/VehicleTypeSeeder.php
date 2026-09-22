@@ -66,17 +66,32 @@ class VehicleTypeSeeder extends Seeder
 
         foreach ($lightVehicles as $data) {
             $vt = VehicleType::updateOrCreate(['name' => $data['name']], array_merge($data, ['status' => 'active']));
-            if ($light) $vt->truckTypes()->syncWithoutDetaching([$light->id]);
+            if ($light) {
+                $vt->truckTypes()->syncWithoutDetaching([$light->id]);
+                if (blank($vt->required_truck_type_id)) {
+                    $vt->update(['required_truck_type_id' => $light->id]);
+                }
+            }
         }
 
         foreach ($mediumVehicles as $data) {
             $vt = VehicleType::updateOrCreate(['name' => $data['name']], array_merge($data, ['status' => 'active']));
-            if ($medium) $vt->truckTypes()->syncWithoutDetaching([$medium->id]);
+            if ($medium) {
+                $vt->truckTypes()->syncWithoutDetaching([$medium->id]);
+                if (blank($vt->required_truck_type_id)) {
+                    $vt->update(['required_truck_type_id' => $medium->id]);
+                }
+            }
         }
 
         foreach ($heavyVehicles as $data) {
             $vt = VehicleType::updateOrCreate(['name' => $data['name']], array_merge($data, ['status' => 'active']));
-            if ($heavy) $vt->truckTypes()->syncWithoutDetaching([$heavy->id]);
+            if ($heavy) {
+                $vt->truckTypes()->syncWithoutDetaching([$heavy->id]);
+                if (blank($vt->required_truck_type_id)) {
+                    $vt->update(['required_truck_type_id' => $heavy->id]);
+                }
+            }
         }
 
         // Deactivate old vehicle types that no longer fit the MMDA classification

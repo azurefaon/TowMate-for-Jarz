@@ -47,9 +47,6 @@ test('the Users index no longer shows the Account Access Requests panel', functi
 
     User::factory()->create([
         'role_id' => 2,
-        'password_request_status' => 'pending',
-        'password_requested_at' => now(),
-        'password_request_note' => 'Historical, pre-cleanup request.',
     ]);
 
     $this->actingAs($systemAdmin)

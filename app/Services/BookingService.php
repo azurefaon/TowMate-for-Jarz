@@ -1069,8 +1069,13 @@ class BookingService
             return null;
         }
 
-        $scheduledDate = trim((string) ($data['scheduled_date'] ?? ''));
-        $scheduledTime = trim((string) ($data['scheduled_time'] ?? '')) ?: '00:00';
+        return $this->combineScheduledDateTime($data['scheduled_date'] ?? null, $data['scheduled_time'] ?? null);
+    }
+
+    public function combineScheduledDateTime($scheduledDate, $scheduledTime): ?Carbon
+    {
+        $scheduledDate = trim((string) ($scheduledDate ?? ''));
+        $scheduledTime = trim((string) ($scheduledTime ?? '')) ?: '00:00';
 
         if ($scheduledDate === '') {
             return null;
