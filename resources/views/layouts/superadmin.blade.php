@@ -103,32 +103,59 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 4px;
+            padding: 5px 8px;
             background: transparent;
             border: none;
+            border-radius: 8px;
         }
 
         .sa-profile-avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 999px;
+            width: 34px;
+            height: 34px;
+            flex-shrink: 0;
+            border-radius: 50%;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: var(--jarz-accent);
-            color: #171717;
-            font-weight: 600;
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .sa-profile-avatar i {
+            width: 18px;
+            height: 18px;
+        }
+
+        .sa-profile-chevron {
+            width: 14px;
+            height: 14px;
+            color: #9ca3af;
         }
 
         .sa-profile-dropdown {
             position: absolute;
             right: 0;
-            top: calc(100% + 8px);
-            min-width: 180px;
-            padding: 6px;
+            top: calc(100% + 10px);
+            min-width: 220px;
+            padding: 8px;
             background: #ffffff;
             border: 1px solid var(--jarz-line);
+            border-radius: 12px;
+            box-shadow: 0 12px 28px rgba(17, 24, 39, 0.12);
             z-index: 40;
+        }
+
+        .sa-profile-menu-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 8px 10px;
+        }
+
+        .sa-profile-menu-divider {
+            border: none;
+            border-top: 1px solid var(--jarz-line);
+            margin: 4px 0 6px;
         }
 
         .sa-profile-dropdown a,
@@ -139,25 +166,42 @@
             gap: 8px;
             padding: 10px 12px;
             border: 0;
+            border-radius: 8px;
             background: transparent;
             color: var(--jarz-text);
             text-decoration: none;
             cursor: pointer;
+            font-size: 0.86rem;
+        }
+
+        .sa-profile-dropdown a i,
+        .sa-profile-dropdown button i {
+            width: 16px;
+            height: 16px;
+            color: #6b7280;
         }
 
         .sa-profile-dropdown a:hover,
         .sa-profile-dropdown button:hover {
-            background: #f5f5f5;
+            background: #f3f4f6;
         }
 
-        .sa-profile-meta strong {
+        .sa-profile-meta strong,
+        .sa-profile-menu-meta strong {
             display: block;
-            font-size: 0.92rem;
-            font-weight: 500;
+            font-size: 0.88rem;
+            font-weight: 600;
             line-height: 1.2;
         }
 
-        .sa-profile-meta small {
+        .sa-profile-menu-meta {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+            min-width: 0;
+        }
+
+        .sa-profile-menu-meta small {
             display: block;
             margin-top: 2px;
             color: var(--jarz-muted);
@@ -165,6 +209,10 @@
         }
 
         .sa-profile-dropdown .sa-logout-trigger {
+            color: var(--jarz-danger);
+        }
+
+        .sa-profile-dropdown .sa-logout-trigger i {
             color: var(--jarz-danger);
         }
 
@@ -477,15 +525,29 @@
 
         <div class="sa-topbar">
             <details class="sa-profile-menu">
-                <summary class="sa-profile-trigger">
-                    <span class="sa-profile-avatar">{{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}</span>
-                    <div class="sa-profile-meta">
+                <summary class="sa-profile-trigger" aria-label="Open profile menu" aria-haspopup="true">
+                    <span class="sa-profile-avatar">
+                        <i data-lucide="user"></i>
+                    </span>
+                    <span class="sa-profile-meta">
                         <strong>{{ auth()->user()->full_name ?? auth()->user()->name }}</strong>
-                        <small>Company Owner</small>
-                    </div>
+                    </span>
+                    <i data-lucide="chevron-down" class="sa-profile-chevron"></i>
                 </summary>
 
                 <div class="sa-profile-dropdown">
+                    <div class="sa-profile-menu-head">
+                        <span class="sa-profile-avatar">
+                            <i data-lucide="user"></i>
+                        </span>
+                        <span class="sa-profile-menu-meta">
+                            <strong>{{ auth()->user()->full_name ?? auth()->user()->name }}</strong>
+                            <small>Company Owner</small>
+                        </span>
+                    </div>
+
+                    <hr class="sa-profile-menu-divider">
+
                     <a href="{{ route('profile.edit') }}">
                         <i data-lucide="settings"></i>
                         <span>Settings</span>

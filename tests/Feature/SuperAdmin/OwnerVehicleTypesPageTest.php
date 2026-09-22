@@ -121,12 +121,16 @@ it('preserves the status filter', function () {
     $response->assertDontSee('data-name="' . $active->name . '"', false);
 });
 
-it('keeps add vehicle type available in the toolbar', function () {
+it('keeps add vehicle type available within each category instead of the toolbar', function () {
+    $type = vtVehicleType();
+
     $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index'));
+    $content = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('id="vcAddBtn"', false);
-    $response->assertSee('Add Vehicle Type');
+    expect($content)->not->toContain('id="vcAddBtn"');
+    expect($content)->toContain('js-vc-add-vehicle-btn');
+    expect($content)->toContain('Add Vehicle Type');
     $response->assertSee('action="' . route('superadmin.vehicle-types.store') . '"', false);
 });
 

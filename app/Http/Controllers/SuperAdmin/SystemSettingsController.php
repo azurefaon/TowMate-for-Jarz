@@ -57,6 +57,10 @@ class SystemSettingsController extends Controller
             'settings.max_dispatcher_discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'settings.max_additional_charge' => ['nullable', 'numeric', 'min:0'],
             'settings.vat_rate_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'settings.company_name' => ['required_with:settings.business_info_form', 'string', 'max:255'],
+            'settings.company_email' => ['required_with:settings.business_info_form', 'email:rfc', 'max:150'],
+            'settings.company_phone' => ['required_with:settings.business_info_form', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{5,20}$/'],
+            'settings.company_address' => ['required_with:settings.business_info_form', 'string', 'max:255'],
         ]);
 
         $settings = $request->input('settings', []);
@@ -70,7 +74,7 @@ class SystemSettingsController extends Controller
             $settings['additional_charge_require_reason'] = $request->boolean('settings.additional_charge_require_reason') ? '1' : '0';
         }
 
-        unset($settings['price_adjustment_form'], $settings['additional_charge_form']);
+        unset($settings['price_adjustment_form'], $settings['additional_charge_form'], $settings['business_info_form']);
 
         foreach (['company_logo', 'secondary_logo', 'signature_image'] as $fileKey) {
             if ($request->hasFile($fileKey)) {

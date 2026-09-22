@@ -56,7 +56,7 @@ function odmBooking(array $overrides = []): Booking
     ], $overrides));
 }
 
-it('shows a 25 percent cancellation rate for 8 valid bookings with 2 cancelled', function () {
+it('shows the correct completed jobs count excluding cancelled bookings', function () {
     foreach (range(1, 6) as $unused) {
         odmBooking(['status' => 'completed']);
     }
@@ -66,15 +66,16 @@ it('shows a 25 percent cancellation rate for 8 valid bookings with 2 cancelled',
     $response = $this->actingAs(odmOwner())->get(route('superadmin.dashboard'));
 
     $response->assertOk();
-    $response->assertSee('25.0%');
+    $response->assertSee('₱10,800.00');
+    $response->assertSeeInOrder(['Completed Jobs', '6']);
 });
 
-it('shows the correct average revenue per job for completed jobs', function () {
+it('shows the correct monthly revenue total for completed jobs', function () {
     odmBooking(['status' => 'completed', 'final_total' => 2000]);
     odmBooking(['status' => 'completed', 'final_total' => 4000]);
 
     $response = $this->actingAs(odmOwner())->get(route('superadmin.dashboard'));
 
     $response->assertOk();
-    $response->assertSee('₱3,000.00');
+    $response->assertSee('₱6,000.00');
 });

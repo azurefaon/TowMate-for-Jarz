@@ -17,11 +17,19 @@ class PersonnelController extends Controller
     {
     }
 
-    public function index()
+    public function index(Request $request)
     {
+        $filters = [
+            'search' => trim((string) $request->query('search', '')),
+            'role' => trim((string) $request->query('role', '')),
+        ];
+
+        $page = max(1, (int) $request->query('page', 1));
+
         return view('superadmin.personnel.index', [
-            'personnel' => $this->personnel->listPersonnel(),
+            'personnel' => $this->personnel->listPersonnel($filters['search'], $filters['role'], 7, $page),
             'units' => Unit::whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
+            'filters' => $filters,
         ]);
     }
 

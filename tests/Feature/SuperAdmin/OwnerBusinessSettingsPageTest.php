@@ -55,7 +55,7 @@ it('renders the pricing and payment primary tab', function () {
     $response = $this->actingAs(bsOwner())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
-    $response->assertSee('Pricing &amp; Payment', false);
+    $response->assertSee('Company Settings');
     $response->assertSee('id="user-limits"', false);
 });
 
@@ -269,4 +269,69 @@ it('places the inline edit status before the save button so the button aligns ri
     expect($statusPos)->not->toBeFalse();
     expect($buttonPos)->not->toBeFalse();
     expect($statusPos)->toBeLessThan($buttonPos);
+});
+
+it('preserves the tab query string when redirecting back after a company settings save', function () {
+    $owner = bsOwner();
+    $referer = route('superadmin.settings.index', ['tab' => 'user-limits']);
+
+    $this->actingAs($owner)
+        ->from($referer)
+        ->post(route('superadmin.settings.update'), [
+            'settings' => ['bank_name' => 'BS Test Bank'],
+        ])
+        ->assertRedirect($referer);
+});
+
+it('preserves the mobile app tab when toggling the android app status', function () {
+    $owner = bsOwner();
+    $referer = route('superadmin.settings.index', ['tab' => 'mobile-app']);
+
+    $this->actingAs($owner)
+        ->from($referer)
+        ->patch(route('superadmin.settings.mobile-app.toggle'))
+        ->assertRedirect($referer);
+});
+
+it('preserves the mobile app tab when an apk upload fails validation', function () {
+    $owner = bsOwner();
+    $referer = route('superadmin.settings.index', ['tab' => 'mobile-app']);
+
+    $this->actingAs($owner)
+        ->from($referer)
+        ->post(route('superadmin.settings.upload-apk'), [])
+        ->assertRedirect($referer)
+        ->assertSessionHasErrors(['apk_file']);
+});
+
+it('preserves the customer app content tab and services sub-tab when reordering a service', function () {
+    $owner = bsOwner();
+    $service = MobileService::create(['title' => 'BS Order Service', 'description' => 'D', 'display_order' => 0, 'is_active' => true]);
+    $referer = route('superadmin.settings.index', ['tab' => 'customer-content', 'sub' => 'mc-services']);
+
+    $this->actingAs($owner)
+        ->from($referer)
+        ->patch(route('superadmin.settings.customer-content.services.move', $service), ['direction' => 'down'])
+        ->assertRedirect($referer);
+});
+
+it('preserves the customer app content tab and how it works sub-tab when toggling a step', function () {
+    $owner = bsOwner();
+    $step = MobileHowItWorksStep::create(['step_title' => 'BS Toggle Step', 'step_description' => 'D', 'display_order' => 0, 'is_active' => true]);
+    $referer = route('superadmin.settings.index', ['tab' => 'customer-content', 'sub' => 'mc-how-it-works']);
+
+    $this->actingAs($owner)
+        ->from($referer)
+        ->patch(route('superadmin.settings.customer-content.how-it-works.toggle', $step))
+        ->assertRedirect($referer);
+});
+
+it('preserves the customer app content tab and coverage areas sub-tab when adding a coverage area', function () {
+    $owner = bsOwner();
+    $referer = route('superadmin.settings.index', ['tab' => 'customer-content', 'sub' => 'mc-coverage-areas']);
+
+    $this->actingAs($owner)
+        ->from($referer)
+        ->post(route('superadmin.settings.customer-content.coverage-areas.store'), ['name' => 'BS New Area'])
+        ->assertRedirect($referer);
 });

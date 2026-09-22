@@ -10,82 +10,120 @@
     <div class="page-top">
         <div>
             <h1>Dashboard</h1>
-            <p>Business performance for {{ $periodLabel }}.</p>
+            <p>Business overview for {{ $periodLabel }}.</p>
         </div>
     </div>
 
-    <div class="owner-kpi-row">
-        <div class="owner-kpi">
-            <span class="owner-kpi-label">Revenue This Month</span>
-            <div class="owner-kpi-value">₱{{ number_format($revenueThisMonth, 2) }}</div>
+    <div class="od-summary-grid">
+        <div class="od-summary-card">
+            <span class="od-summary-label">Monthly Revenue</span>
+            <div class="od-summary-value">₱{{ number_format($revenueThisMonth, 2) }}</div>
+            <span class="od-summary-note">{{ $periodLabel }}</span>
         </div>
 
-        <div class="owner-kpi">
-            <span class="owner-kpi-label">Completed Jobs</span>
-            <div class="owner-kpi-value">{{ number_format($completedJobsCount) }}</div>
+        <div class="od-summary-card">
+            <span class="od-summary-label">Completed Jobs</span>
+            <div class="od-summary-value">{{ number_format($completedJobsCount) }}</div>
+            <span class="od-summary-note">This month</span>
         </div>
 
-        <div class="owner-kpi">
-            <span class="owner-kpi-label">Avg. Revenue / Job</span>
-            <div class="owner-kpi-value">₱{{ number_format($averageRevenuePerJob, 2) }}</div>
+        <div class="od-summary-card">
+            <span class="od-summary-label">Active Jobs</span>
+            <div class="od-summary-value">{{ number_format($activeJobsCount) }}</div>
+            <span class="od-summary-note">Currently in progress</span>
         </div>
 
-        <div class="owner-kpi">
-            <span class="owner-kpi-label">Cancellation Rate</span>
-            <div class="owner-kpi-value">{{ number_format($cancellationRate, 1) }}%</div>
-        </div>
-
-        <div class="owner-kpi">
-            <span class="owner-kpi-label">Current Fleet Utilization</span>
-            <div class="owner-kpi-value">{{ number_format($fleetUtilization, 1) }}%</div>
-            <span class="owner-kpi-note">Live — not affected by the selected period</span>
+        <div class="od-summary-card">
+            <span class="od-summary-label">Available Units</span>
+            <div class="od-summary-value">{{ number_format($availableUnitsCount) }}</div>
+            <span class="od-summary-note">Ready for dispatch</span>
         </div>
     </div>
 
-    <div class="owner-grid owner-grid--analytics">
-        <div class="owner-panel">
-            <h2>Revenue Trend (7 days)</h2>
-            <canvas id="revenueTrendChart"></canvas>
+    <div class="od-row">
+        <div class="od-panel">
+            <div class="od-panel-header">
+                <h2>Operations Overview</h2>
+            </div>
+
+            <div class="od-overview-list">
+                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
+                    <span>Pending Bookings</span>
+                    <span class="od-overview-count">{{ number_format($pendingBookingsCount) }}</span>
+                </a>
+                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
+                    <span>Scheduled Bookings</span>
+                    <span class="od-overview-count">{{ number_format($scheduledBookingsCount) }}</span>
+                </a>
+                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
+                    <span>Active Jobs</span>
+                    <span class="od-overview-count">{{ number_format($activeJobsCount) }}</span>
+                </a>
+                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
+                    <span>Jobs for Verification</span>
+                    <span class="od-overview-count">{{ number_format($verificationBookingsCount) }}</span>
+                </a>
+                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
+                    <span>Returned Jobs</span>
+                    <span class="od-overview-count">{{ number_format($returnedJobsCount) }}</span>
+                </a>
+            </div>
         </div>
 
-        <div class="owner-panel">
-            <h2>Bookings This Week</h2>
-            @if (array_sum($weekBookings) > 0)
-                <canvas id="bookingChart"></canvas>
-            @else
-                <div class="owner-chart-empty">
-                    <p>No booking activity recorded this week.</p>
-                </div>
-            @endif
+        <div class="od-panel">
+            <div class="od-panel-header">
+                <h2>Revenue Trend</h2>
+                <span class="od-panel-note">Last 7 days</span>
+            </div>
+            <canvas id="revenueTrendChart" class="od-chart"></canvas>
         </div>
     </div>
 
-    <div class="owner-grid owner-grid--summary">
-        <div class="owner-panel">
-            <h2>Revenue by Truck Type</h2>
-            @forelse ($revenueByTruckType as $row)
-                <div class="owner-list-row">
-                    <span>{{ $row['name'] }}</span>
-                    <span>₱{{ number_format($row['revenue'], 2) }}</span>
-                </div>
-            @empty
-                <p class="owner-empty">No completed jobs this month yet.</p>
-            @endforelse
+    <div class="od-row">
+        <div class="od-panel">
+            <div class="od-panel-header">
+                <h2>Recent Activity</h2>
+                <a href="{{ route('superadmin.reports.activity') }}" class="od-panel-link">View All</a>
+            </div>
+
+            <div class="od-activity-list">
+                @forelse ($recentActivity as $activity)
+                    <div class="od-activity-row">
+                        <div>
+                            <strong>{{ $activity['title'] }}</strong>
+                            <span class="od-activity-sub">{{ $activity['reference'] }}</span>
+                        </div>
+                        <span class="od-activity-time">{{ $activity['created_at']?->format('M j, Y g:i A') }}</span>
+                    </div>
+                @empty
+                    <p class="od-empty">No recent activity recorded yet.</p>
+                @endforelse
+            </div>
         </div>
 
-        <div class="owner-panel">
-            <h2>Top Performing Units</h2>
-            @forelse ($topUnits as $row)
-                <div class="owner-list-row">
-                    <span>{{ $row['name'] }}</span>
-                    <span class="owner-list-row-stat">
-                        {{ $row['trips'] }} trips<br>
-                        ₱{{ number_format($row['revenue'], 2) }}
-                    </span>
-                </div>
-            @empty
-                <p class="owner-empty">No completed jobs this month yet.</p>
-            @endforelse
+        <div class="od-panel">
+            <div class="od-panel-header">
+                <h2>Quick Access</h2>
+            </div>
+
+            <div class="od-quick-grid">
+                <a href="{{ route('superadmin.bookings.index') }}" class="od-quick-item">
+                    <strong>Manage Bookings</strong>
+                    <span>View and handle all bookings</span>
+                </a>
+                <a href="{{ route('superadmin.unit-truck.index') }}" class="od-quick-item">
+                    <strong>Manage Units</strong>
+                    <span>View and update units</span>
+                </a>
+                <a href="{{ route('superadmin.personnel.index') }}" class="od-quick-item">
+                    <strong>Manage Personnel</strong>
+                    <span>Add or edit personnel records</span>
+                </a>
+                <a href="{{ route('superadmin.reports.index') }}" class="od-quick-item">
+                    <strong>View Reports</strong>
+                    <span>Revenue, performance and more</span>
+                </a>
+            </div>
         </div>
     </div>
 @endsection
@@ -99,11 +137,7 @@
                 new Chart(revenueTrendCanvas, {
                     type: 'line',
                     data: {
-                        labels: [6, 5, 4, 3, 2, 1, 0].map(d => {
-                            const date = new Date();
-                            date.setDate(date.getDate() - d);
-                            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                        }),
+                        labels: @json($revenueTrendLabels),
                         datasets: [{
                             label: 'Revenue',
                             data: @json($revenueTrend),
@@ -113,11 +147,12 @@
                             fill: false,
                             pointBackgroundColor: '#facc15',
                             pointBorderColor: '#facc15',
-                            pointRadius: 4,
+                            pointRadius: 3,
                         }]
                     },
                     options: {
                         responsive: true,
+                        maintainAspectRatio: false,
                         plugins: { legend: { display: false } },
                         scales: {
                             y: {
@@ -133,39 +168,6 @@
                     }
                 });
             }
-
-            const bookingCanvas = document.getElementById('bookingChart');
-            if (bookingCanvas) {
-                new Chart(bookingCanvas, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                        datasets: [{
-                            label: 'Bookings',
-                            data: @json($weekBookings),
-                            backgroundColor: '#facc15',
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: { stepSize: 1 },
-                                grid: { color: '#f0f0f0' },
-                                border: { display: false },
-                            },
-                            x: {
-                                grid: { display: false },
-                                border: { display: false },
-                            },
-                        }
-                    }
-                });
-            }
-
-            if (typeof lucide !== 'undefined') lucide.createIcons();
         });
     </script>
 @endpush

@@ -1311,17 +1311,23 @@ class DispatchController extends Controller
         if ($sourceBooking && $sourceBooking->group_code) {
             $groupSiblings = \App\Models\Booking::where('group_code', $sourceBooking->group_code)
                 ->where('id', '!=', $sourceBooking->id)
+                ->where('status', '!=', 'cancelled')
+                ->where('pickup_address', $sourceBooking->pickup_address)
+                ->where('dropoff_address', $sourceBooking->dropoff_address)
                 ->with('truckType')
-                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'scheduled_date', 'scheduled_time', 'group_code', 'final_total'])
+                ->get(['id', 'booking_code', 'status', 'service_type', 'truck_type_id', 'base_rate', 'per_km_rate', 'scheduled_date', 'scheduled_time', 'group_code', 'final_total'])
                 ->map(fn($b) => [
-                    'booking_code'   => $b->booking_code,
-                    'status'         => $b->status,
-                    'service_type'   => $b->service_type,
-                    'truck_type'     => $b->truckType?->name ?? 'Unknown',
-                    'truck_class'    => $b->truckType?->class ?? null,
-                    'scheduled_date' => $b->scheduled_date,
-                    'scheduled_time' => $b->scheduled_time,
-                    'final_total'    => (float) $b->final_total,
+                    'booking_code'    => $b->booking_code,
+                    'status'          => $b->status,
+                    'service_type'    => $b->service_type,
+                    'truck_type'      => $b->truckType?->name ?? 'Unknown',
+                    'truck_type_name' => $b->truckType?->name ?? 'Unknown',
+                    'truck_class'     => $b->truckType?->class ?? null,
+                    'base_rate'       => (float) $b->base_rate,
+                    'per_km_rate'     => (float) $b->per_km_rate,
+                    'scheduled_date'  => $b->scheduled_date,
+                    'scheduled_time'  => $b->scheduled_time,
+                    'final_total'     => (float) $b->final_total,
                 ])
                 ->values()
                 ->toArray();

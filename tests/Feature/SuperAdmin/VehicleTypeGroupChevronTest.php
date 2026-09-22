@@ -129,12 +129,13 @@ it('does not animate the chevron or row background', function () {
     }
 });
 
-it('indents category rows under their truck type and vehicle rows further under their category', function () {
+it('indents category rows under their truck type with a visible nesting guide, and lists vehicle rows under their category', function () {
     $categoriesWrapperRule = vgcCssRule('.vc-group-categories');
     $vehicleListRule = vgcCssRule('.vc-vehicle-list');
 
-    expect($categoriesWrapperRule)->toContain('margin: 12px 0 0 12px');
-    expect($vehicleListRule)->toContain('margin: 10px 0 0 12px');
+    expect($categoriesWrapperRule)->toContain('padding-left: 16px');
+    expect($categoriesWrapperRule)->toContain('border-left: 2px solid');
+    expect($vehicleListRule)->not->toBeEmpty();
 });
 
 it('keeps the vehicle name growing to push the count and chevron to the right edge', function () {
@@ -164,7 +165,7 @@ it('keeps the row structure and vehicle count markup unchanged for the chevron t
     $content = $response->getContent();
 
     $response->assertOk();
-    expect($content)->toContain('<details class="vc-group-trucktype" data-accordion-group="vc-main-trucktype"');
+    expect($content)->toMatch('/<details class="vc-group-trucktype" data-truck-type-id="\d+" data-accordion-group="vc-main-trucktype"/');
     expect($content)->toMatch('/<details class="vc-group-category" data-accordion-group="vc-main-category-\d+"/');
     expect($content)->toContain('<span class="vc-count">1</span>');
 });

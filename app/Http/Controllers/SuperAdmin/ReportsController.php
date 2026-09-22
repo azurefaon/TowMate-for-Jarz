@@ -161,14 +161,27 @@ class ReportsController extends Controller
         [$start, $end, $period, $customRange] = $this->resolveRange($request);
         $filters = $this->resolveFilters($request);
 
-        $summary = $this->buildSummary($start, $end, $filters);
+        $revenueSummary = $this->metrics->revenueSummary($start, $end, $filters);
 
         $revenueByTruckType = $this->metrics->revenueByTruckType($start, $end, $filters)
             ->map(fn (array $row) => ['truck_type_name' => $row['truck_type_name'], 'trips' => $row['jobs'], 'revenue' => $row['revenue']]);
 
+        $topUnits = $this->metrics->unitPerformance($start, $end, $filters, 5)
+            ->map(fn (array $row) => ['unit_name' => $row['unit_name'], 'trips' => $row['completed_jobs'], 'revenue' => $row['revenue']]);
+
         $revenueTrend = $this->buildRevenueTrend($start, $end, $filters);
 
-        return view('superadmin.revenue.index', array_merge($summary, [
+        return view('superadmin.revenue.index', [
+            'start' => Carbon::parse($start),
+            'end' => Carbon::parse($end),
+            'completedCount' => $revenueSummary['completedCount'],
+            'financial' => [
+                'totalRevenue' => $revenueSummary['totalRevenue'],
+                'averagePerBooking' => $revenueSummary['averagePerBooking'],
+                'vatCollected' => $revenueSummary['vatCollected'],
+                'additionalFees' => $revenueSummary['additionalFees'],
+                'cashReceived' => $revenueSummary['cashReceived'],
+            ],
             'period' => $period,
             'customRange' => $customRange,
             'fromInput' => $request->query('from'),
@@ -176,9 +189,9 @@ class ReportsController extends Controller
             'filters' => $filters,
             'truckTypes' => TruckType::orderBy('name')->get(['id', 'name']),
             'revenueByTruckType' => $revenueByTruckType,
-            'topUnits' => $summary['vehicleReport']->take(5)->values(),
+            'topUnits' => $topUnits,
             'revenueTrend' => $revenueTrend,
-        ]));
+        ]);
     }
 
     protected function buildRevenueTrend($start, $end, array $filters = []): array
@@ -187,12 +200,13 @@ class ReportsController extends Controller
         $end = Carbon::parse($end)->endOfDay();
 
         $rows = Booking::query()
-            ->whereBetween('created_at', [$start, $end])
             ->where('status', 'completed')
+            ->whereNotNull('completed_at')
+            ->whereBetween('completed_at', [$start, $end])
             ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
             ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
             ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']))
-            ->selectRaw('DATE(created_at) as day, sum(final_total) as revenue')
+            ->selectRaw('DATE(completed_at) as day, sum(final_total) as revenue')
             ->groupBy('day')
             ->pluck('revenue', 'day');
 

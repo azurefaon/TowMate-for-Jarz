@@ -1,64 +1,211 @@
-.owner-kpi-row {
+.od-summary-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 32px;
-    margin-bottom: 40px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
-.owner-kpi-note {
-    display: block;
-    margin-top: 2px;
-    font-size: 0.72rem;
-    color: #8a8a8a;
+.od-summary-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 20px;
+    background: var(--sa-surface);
+    border: 1px solid var(--sa-border);
 }
 
-.owner-grid--analytics {
-    grid-template-columns: 1.2fr 1fr;
+.od-summary-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--sa-muted);
+}
+
+.od-summary-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--sa-text);
+    line-height: 1.1;
+}
+
+.od-summary-note {
+    font-size: 0.78rem;
+    color: var(--sa-muted);
+}
+
+.od-row {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
     align-items: stretch;
 }
 
-.owner-list-row {
+.od-panel {
     display: flex;
+    flex-direction: column;
+    background: var(--sa-surface);
+    border: 1px solid var(--sa-border);
+    padding: 20px;
+    min-width: 0;
+}
+
+.od-panel-header {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: baseline;
-    gap: 24px;
-    max-width: 420px;
-    padding: 9px 0;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.od-panel-header h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--sa-text);
+}
+
+.od-panel-note {
+    font-size: 0.8rem;
+    color: var(--sa-muted);
+}
+
+.od-panel-link {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--sa-text);
+    text-decoration: none;
+}
+
+.od-panel-link:hover {
+    text-decoration: underline;
+}
+
+.od-overview-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.od-overview-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--sa-border);
+    color: var(--sa-text);
+    text-decoration: none;
+    font-size: 0.92rem;
+}
+
+.od-overview-row:last-child {
+    border-bottom: none;
+}
+
+.od-overview-row:hover {
+    color: var(--sa-primary);
+}
+
+.od-overview-count {
+    font-weight: 600;
+}
+
+.od-chart {
+    flex: 1;
+    max-height: 220px;
+}
+
+.od-activity-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.od-activity-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--sa-border);
+}
+
+.od-activity-row:last-child {
+    border-bottom: none;
+}
+
+.od-activity-row strong {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--sa-text);
+}
+
+.od-activity-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.82rem;
+    color: var(--sa-muted);
+}
+
+.od-activity-time {
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    color: var(--sa-muted);
+    white-space: nowrap;
+}
+
+.od-quick-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.od-quick-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 16px;
+    border: 1px solid var(--sa-border);
+    color: var(--sa-text);
+    text-decoration: none;
+}
+
+.od-quick-item:hover {
+    border-color: var(--sa-primary);
+}
+
+.od-quick-item span {
+    font-size: 0.8rem;
+    color: var(--sa-muted);
+}
+
+.od-empty {
+    margin: 0;
+    padding: 4px 0 8px;
+    color: var(--sa-muted);
     font-size: 0.9rem;
-    color: #171717;
-}
-
-.owner-list-row-stat {
-    text-align: right;
-    color: #525252;
-    font-size: 0.85rem;
-    line-height: 1.5;
-}
-
-#bookingChart,
-#revenueTrendChart {
-    max-height: 240px;
 }
 
 @media (max-width: 1200px) {
-    .owner-kpi-row {
-        grid-template-columns: repeat(3, 1fr);
+    .od-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
 @media (max-width: 900px) {
-    .owner-grid--analytics {
+    .od-row {
         grid-template-columns: 1fr;
     }
 
-    .owner-list-row {
-        max-width: none;
+    .od-quick-grid {
+        grid-template-columns: 1fr;
     }
 }
 
 @media (max-width: 640px) {
-    .owner-kpi-row {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 24px;
+    .od-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .od-activity-row {
+        flex-direction: column;
     }
 }

@@ -10,97 +10,88 @@
     <div class="page-top revenue-header">
         <div>
             <h1>Revenue</h1>
-            <p>Completed and collected revenue from {{ $start->format('M j') }}&ndash;{{ $end->format('M j, Y') }}.</p>
+            <p>View completed and collected revenue for your selected period.</p>
         </div>
 
         <div class="revenue-toolbar">
-            <span class="revenue-toolbar-label">Reporting Period</span>
+            <details class="revenue-range-menu">
+                <summary class="revenue-range-trigger">
+                    <i data-lucide="calendar"></i>
+                    <span>{{ $start->format('M j, Y') }} &ndash; {{ $end->format('M j, Y') }}</span>
+                    <i data-lucide="chevron-down"></i>
+                </summary>
 
-            <div class="revenue-period-group" role="group" aria-label="Reporting period">
-                @foreach (['today' => ['Today', 'calendar'], 'week' => ['This Week', 'calendar-days'], 'month' => ['This Month', 'calendar-range'], 'quarter' => ['Quarter', 'bar-chart-2']] as $value => $meta)
-                    <a href="{{ route('superadmin.revenue.index', ['period' => $value]) }}"
-                        class="{{ ! $customRange && $period === $value ? 'active' : '' }}">
-                        <i data-lucide="{{ $meta[1] }}"></i>
-                        <span>{{ $meta[0] }}</span>
-                    </a>
-                @endforeach
-                <button type="button" id="revenueCustomToggle" class="{{ $customRange ? 'active' : '' }}">
-                    <i data-lucide="calendar-plus"></i>
-                    <span>Custom</span>
-                </button>
-            </div>
+                <div class="revenue-range-dropdown">
+                    <form class="revenue-range-form" method="GET" action="{{ route('superadmin.revenue.index') }}">
+                        <label>
+                            <span>From</span>
+                            <input type="date" name="from" value="{{ $fromInput }}">
+                        </label>
+                        <label>
+                            <span>To</span>
+                            <input type="date" name="to" value="{{ $toInput }}">
+                        </label>
+                        <button type="submit" class="revenue-apply-btn">Apply</button>
+                    </form>
+                </div>
+            </details>
 
-            <form class="revenue-range-form" method="GET" action="{{ route('superadmin.revenue.index') }}"
-                id="revenueRangeForm" @if (! $customRange) hidden @endif>
-                <label>
-                    <span>From</span>
-                    <input type="date" name="from" value="{{ $fromInput }}">
-                </label>
-                <label>
-                    <span>To</span>
-                    <input type="date" name="to" value="{{ $toInput }}">
-                </label>
-                <button type="submit" class="revenue-apply-btn">Apply</button>
-            </form>
+            <a href="{{ route('superadmin.revenue.index') }}" class="revenue-reset-btn">Reset</a>
         </div>
     </div>
 
-    <div class="revenue-metric-row revenue-metric-row--primary">
-        <div class="owner-kpi">
+    <div class="revenue-metrics">
+        <div class="revenue-metric">
             <span class="owner-kpi-label">Completed Revenue</span>
-            <div class="owner-kpi-value owner-kpi-value--primary">₱{{ number_format($financial['totalRevenue'], 2) }}</div>
+            <div class="owner-kpi-value">₱{{ number_format($financial['totalRevenue'], 2) }}</div>
         </div>
 
-        <div class="owner-kpi">
+        <div class="revenue-metric">
             <span class="owner-kpi-label">Completed Jobs</span>
-            <div class="owner-kpi-value owner-kpi-value--primary">{{ number_format($completedCount) }}</div>
+            <div class="owner-kpi-value">{{ number_format($completedCount) }}</div>
         </div>
 
-        <div class="owner-kpi">
+        <div class="revenue-metric">
             <span class="owner-kpi-label">Avg. Revenue / Job</span>
-            <div class="owner-kpi-value owner-kpi-value--primary">₱{{ number_format($financial['averagePerBooking'], 2) }}</div>
+            <div class="owner-kpi-value">₱{{ number_format($financial['averagePerBooking'], 2) }}</div>
         </div>
-    </div>
 
-    <div class="revenue-metric-row revenue-metric-row--secondary">
-        <div class="owner-kpi">
+        <div class="revenue-metric">
             <span class="owner-kpi-label">VAT Collected</span>
-            <div class="owner-kpi-value owner-kpi-value--secondary">₱{{ number_format($financial['vatCollected'], 2) }}</div>
+            <div class="owner-kpi-value">₱{{ number_format($financial['vatCollected'], 2) }}</div>
         </div>
 
-        <div class="owner-kpi">
+        <div class="revenue-metric">
             <span class="owner-kpi-label">Additional Fees</span>
-            <div class="owner-kpi-value owner-kpi-value--secondary">₱{{ number_format($financial['additionalFees'], 2) }}</div>
+            <div class="owner-kpi-value">₱{{ number_format($financial['additionalFees'], 2) }}</div>
         </div>
 
-        <div class="owner-kpi">
+        <div class="revenue-metric">
             <span class="owner-kpi-label">Cash Received</span>
-            <div class="owner-kpi-value owner-kpi-value--secondary">₱{{ number_format($financial['cashReceived'], 2) }}</div>
+            <div class="owner-kpi-value">₱{{ number_format($financial['cashReceived'], 2) }}</div>
         </div>
     </div>
 
     <p class="revenue-note">Figures reflect completed, paid jobs only. Open quotations and in-progress bookings are excluded.</p>
 
-    <div class="owner-panel revenue-trend-panel">
-        <h2><i data-lucide="trending-up"></i> Revenue Trend</h2>
-        @if (collect($revenueTrend)->sum('revenue') > 0)
-            <canvas id="revenueTrendChartPage"></canvas>
-        @else
-            <div class="owner-chart-empty">
-                <p>No completed revenue recorded for this period.</p>
-            </div>
-        @endif
-    </div>
+    <div class="owner-grid revenue-grid-primary">
+        <div class="owner-panel revenue-trend-panel">
+            <h2>Revenue Trend</h2>
+            @if (collect($revenueTrend)->sum('revenue') > 0)
+                <canvas id="revenueTrendChartPage"></canvas>
+            @else
+                <div class="owner-chart-empty">
+                    <p>No completed revenue recorded for this period.</p>
+                </div>
+            @endif
+        </div>
 
-    <h2 class="revenue-section-title"><i data-lucide="bar-chart-2"></i> Revenue Breakdown</h2>
-
-    <div class="owner-grid">
         <div class="owner-panel">
-            <h3>Revenue by Truck Type</h3>
+            <h2>Revenue Breakdown</h2>
             @if ($revenueByTruckType->isNotEmpty())
                 <div class="revenue-table-head">
                     <span>Truck Type</span>
-                    <span>Jobs</span>
+                    <span>Completed Jobs</span>
                     <span>Revenue</span>
                 </div>
                 @foreach ($revenueByTruckType as $row)
@@ -114,26 +105,26 @@
                 <p class="owner-empty">No completed jobs recorded for this period.</p>
             @endif
         </div>
+    </div>
 
-        <div class="owner-panel">
-            <h3><i data-lucide="trophy"></i> Top Performing Units</h3>
-            @if ($topUnits->isNotEmpty())
-                <div class="revenue-table-head">
-                    <span>Unit</span>
-                    <span>Jobs</span>
-                    <span>Revenue</span>
+    <div class="owner-panel revenue-top-units-panel">
+        <h2>Top Performing Units</h2>
+        @if ($topUnits->isNotEmpty())
+            <div class="revenue-table-head">
+                <span>Unit Name</span>
+                <span>Completed Jobs</span>
+                <span>Revenue</span>
+            </div>
+            @foreach ($topUnits as $row)
+                <div class="revenue-table-row">
+                    <span>{{ $row['unit_name'] }}</span>
+                    <span>{{ $row['trips'] }}</span>
+                    <span>₱{{ number_format($row['revenue'], 2) }}</span>
                 </div>
-                @foreach ($topUnits as $row)
-                    <div class="revenue-table-row">
-                        <span>{{ $row['unit_name'] }}</span>
-                        <span>{{ $row['trips'] }}</span>
-                        <span>₱{{ number_format($row['revenue'], 2) }}</span>
-                    </div>
-                @endforeach
-            @else
-                <p class="owner-empty">No completed unit activity recorded for this period.</p>
-            @endif
-        </div>
+            @endforeach
+        @else
+            <p class="owner-empty">No completed unit activity recorded for this period.</p>
+        @endif
     </div>
 @endsection
 
@@ -141,14 +132,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const toggle = document.getElementById('revenueCustomToggle');
-            const form = document.getElementById('revenueRangeForm');
-            if (toggle && form) {
-                toggle.addEventListener('click', function() {
-                    form.hidden = !form.hidden;
-                });
-            }
-
             const canvas = document.getElementById('revenueTrendChartPage');
             if (canvas) {
                 const revenueData = @json(collect($revenueTrend)->pluck('revenue'));

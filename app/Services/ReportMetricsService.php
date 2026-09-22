@@ -170,6 +170,23 @@ class ReportMetricsService
         ];
     }
 
+    public function revenueSummary($start, $end, array $filters = []): array
+    {
+        $bookings = $this->completedPaidJobsQuery($start, $end, $filters)->get();
+
+        $revenue = round($bookings->sum(fn (Booking $b) => $this->allocatedRevenue($b)), 2);
+        $completedJobs = $bookings->count();
+
+        return [
+            'totalRevenue' => $revenue,
+            'completedCount' => $completedJobs,
+            'averagePerBooking' => $completedJobs > 0 ? $revenue / $completedJobs : 0.0,
+            'additionalFees' => (float) $bookings->sum('additional_fee'),
+            'vatCollected' => (float) $bookings->sum('vat_amount'),
+            'cashReceived' => (float) $bookings->sum('cash_received'),
+        ];
+    }
+
     public function averageRevenuePerJob($start, $end, array $filters = []): array
     {
         $bookings = $this->completedPaidJobsQuery($start, $end, $filters)->get();

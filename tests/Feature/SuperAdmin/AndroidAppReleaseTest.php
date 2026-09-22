@@ -187,7 +187,7 @@ it('renders the mobile app tab on the owner settings page', function () {
     $response->assertOk();
     $response->assertSee('Mobile App');
     $response->assertSee('id="mobile-app"', false);
-    $response->assertSee('Update APK');
+    $response->assertSee('Upload Android App');
     $response->assertSee('action="' . route('superadmin.settings.upload-apk') . '"', false);
 });
 
@@ -225,7 +225,7 @@ it('keeps the existing owner settings tabs and content working alongside the new
     $response = $this->actingAs(androidOwner())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
-    $response->assertSee('Pricing &amp; Payment', false);
+    $response->assertSee('Company Settings');
     $response->assertSee('Customer App Content');
     $response->assertSee('id="user-limits"', false);
     $response->assertSee('id="customer-content"', false);

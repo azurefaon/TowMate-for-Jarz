@@ -8,20 +8,11 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
     background: #f5f5f5;
     border: 1px solid #e5e5e5;
     border-radius: 6px;
     padding: 12px;
-}
-
-.ba-toolbar-left,
-.ba-toolbar-right {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
 }
 
 .ba-search {
@@ -32,8 +23,9 @@
     border: 1px solid #a3a3a3;
     padding: 0 14px;
     border-radius: 6px;
-    width: 280px;
-    height: 44px;
+    flex: 1 1 220px;
+    min-width: 220px;
+    height: 38px;
 }
 
 .ba-search:hover {
@@ -63,72 +55,6 @@
 
 .ba-search input::placeholder {
     color: #8a8a8a;
-}
-
-.ba-date {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: #ffffff;
-    border: 1px solid #a3a3a3;
-    border-radius: 6px;
-    padding: 0 10px;
-    height: 44px;
-}
-
-.ba-date input[type="date"] {
-    border: none;
-    outline: none;
-    background: transparent;
-    font-size: 0.85rem;
-    color: #171717;
-    height: 100%;
-}
-
-.ba-date:focus-within {
-    border-color: #171717;
-    box-shadow: 0 0 0 2px rgba(23, 23, 23, 0.10);
-}
-
-.ba-date-sep {
-    color: #8a8a8a;
-    font-size: 0.85rem;
-}
-
-.ba-apply-btn {
-    display: inline-flex;
-    align-items: center;
-    height: 44px;
-    padding: 0 20px;
-    background: #171717;
-    color: #ffffff;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-}
-
-.ba-apply-btn:hover {
-    background: #000000;
-}
-
-.ba-apply-btn:focus-visible {
-    outline: 2px solid #171717;
-    outline-offset: 2px;
-}
-
-.ba-clear-link {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: #525252;
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.ba-clear-link:hover {
-    color: #171717;
-    text-decoration: underline;
 }
 
 .ba-section {
@@ -364,19 +290,18 @@ a.owner-pagination-btn:focus-visible {
     }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 640px) {
     .ba-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .ba-toolbar-left,
-    .ba-toolbar-right {
-        flex-direction: column;
         align-items: stretch;
     }
 
     .ba-search {
+        flex: 1 1 100%;
+    }
+
+    .ba-toolbar .custom-select,
+    .ba-toolbar .custom-select-trigger,
+    .ba-toolbar .date-range-trigger {
         width: 100%;
     }
 }

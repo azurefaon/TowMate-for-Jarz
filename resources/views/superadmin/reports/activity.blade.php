@@ -15,47 +15,36 @@
             </div>
         </div>
 
-        <form method="GET" action="{{ route('superadmin.reports.activity') }}" class="ba-toolbar">
-            <div class="ba-toolbar-left">
-                <div class="ba-search">
-                    <i data-lucide="search"></i>
-                    <input type="text" name="search" value="{{ $search }}" placeholder="Search description or reference">
-                </div>
-
-                <select name="category" data-custom>
-                    <option value="">All Activity</option>
-                    @foreach ($categories as $value => $label)
-                        <option value="{{ $value }}" {{ $category === $value ? 'selected' : '' }}>{{ $label }}</option>
-                    @endforeach
-                </select>
-
-                <select name="entity_type" data-custom>
-                    <option value="">All Records</option>
-                    @foreach ($entityTypes as $type)
-                        <option value="{{ $type }}" {{ $entityType === $type ? 'selected' : '' }}>{{ trim(preg_replace('/(?<!^)[A-Z]/', ' $0', $type)) }}</option>
-                    @endforeach
-                </select>
-
-                <select name="user_id" data-custom>
-                    <option value="">All Users</option>
-                    @foreach ($actors as $actor)
-                        <option value="{{ $actor->id }}" {{ (string) $actorId === (string) $actor->id ? 'selected' : '' }}>{{ $actor->full_name }}</option>
-                    @endforeach
-                </select>
+        <form method="GET" action="{{ route('superadmin.reports.activity') }}" class="ba-toolbar" id="baFilterForm">
+            <div class="ba-search">
+                <i data-lucide="search"></i>
+                <input type="text" name="search" value="{{ $search }}" placeholder="Search description or reference">
             </div>
 
-            <div class="ba-toolbar-right">
-                <div class="ba-date">
-                    <input type="date" name="from" value="{{ $fromInput }}">
-                    <span class="ba-date-sep">–</span>
-                    <input type="date" name="to" value="{{ $toInput }}">
-                </div>
+            <select name="category" data-custom>
+                <option value="">All Activity</option>
+                @foreach ($categories as $value => $label)
+                    <option value="{{ $value }}" {{ $category === $value ? 'selected' : '' }}>{{ $label }}</option>
+                @endforeach
+            </select>
 
-                <button type="submit" class="ba-apply-btn">Apply</button>
+            <select name="entity_type" data-custom>
+                <option value="">All Records</option>
+                @foreach ($entityTypes as $type)
+                    <option value="{{ $type }}" {{ $entityType === $type ? 'selected' : '' }}>{{ trim(preg_replace('/(?<!^)[A-Z]/', ' $0', $type)) }}</option>
+                @endforeach
+            </select>
 
-                @if ($category || $entityType || $actorId || $search || $fromInput || $toInput)
-                    <a href="{{ route('superadmin.reports.activity') }}" class="ba-clear-link">Clear</a>
-                @endif
+            <select name="user_id" data-custom>
+                <option value="">All Users</option>
+                @foreach ($actors as $actor)
+                    <option value="{{ $actor->id }}" {{ (string) $actorId === (string) $actor->id ? 'selected' : '' }}>{{ $actor->full_name }}</option>
+                @endforeach
+            </select>
+
+            <div class="date-range-picker" data-range-picker id="baDateRangePicker">
+                <input type="date" name="from" data-role="from" value="{{ $fromInput }}">
+                <input type="date" name="to" data-role="to" value="{{ $toInput }}">
             </div>
         </form>
 
@@ -140,3 +129,33 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.getElementById('baFilterForm');
+            if (!form) return;
+
+            form.querySelectorAll('select').forEach(function (select) {
+                select.addEventListener('change', function () {
+                    form.submit();
+                });
+            });
+
+            form.querySelectorAll('input[type="date"]').forEach(function (input) {
+                input.addEventListener('change', function () {
+                    form.submit();
+                });
+            });
+
+            const searchInput = form.querySelector('input[name="search"]');
+            let searchTimer;
+            searchInput?.addEventListener('input', function () {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () {
+                    form.submit();
+                }, 500);
+            });
+        });
+    </script>
+@endpush

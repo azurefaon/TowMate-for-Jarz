@@ -8,139 +8,63 @@
 @endpush
 
 @section('content')
-    <div class="personnel-page" data-base-url="{{ url('/superadmin/personnel-records') }}">
+    <div class="personnel-page" id="ppPage"
+        data-index-url="{{ route('superadmin.personnel.index') }}"
+        data-store-url="{{ route('superadmin.personnel-records.store') }}"
+        data-search="{{ $filters['search'] }}"
+        data-role="{{ $filters['role'] }}">
         <div class="page-top">
             <div>
                 <h1>Personnel</h1>
-                <p>Master Driver and Pahinante/Crew records, Team Leader Home Unit assignment, and normal roster placement.</p>
+                <p>Manage team leaders, drivers, and crew members, and their unit assignments.</p>
             </div>
         </div>
 
+        <div class="type-feedback type-feedback--success" id="personnelSuccessAlert" style="display:none;"></div>
+
         @if (session('success'))
-            <div class="type-feedback type-feedback--success" id="personnelSuccessAlert">{{ session('success') }}</div>
+            <div class="type-feedback type-feedback--success" id="personnelSessionAlert">{{ session('success') }}</div>
         @endif
 
         @include('superadmin.fleet._tabs')
 
-        <div class="pp-toolbar">
-            <button type="button" class="pp-add-btn" id="ppAddBtn">Add Personnel</button>
-        </div>
+        <form method="GET" id="ppFilterForm" class="pp-toolbar">
+            <div class="pp-toolbar-left">
+                <div class="search-box">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="ppSearchInput" name="search" value="{{ $filters['search'] }}" placeholder="Search personnel...">
+                </div>
 
-        <div class="table-card">
+                <select name="role" id="ppRoleFilter" data-custom>
+                    <option value="">All roles</option>
+                    @foreach (\App\Services\PersonnelService::ROLE_FILTERS as $value => $label)
+                        <option value="{{ $value }}" {{ $filters['role'] === $value ? 'selected' : '' }}>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <button type="button" class="pp-add-btn" id="ppAddBtn">Add Personnel</button>
+        </form>
+
+        <div class="table-card" id="ppTableCard">
             <div class="table-scroll">
                 <table class="modern-table">
                     <thead>
                         <tr>
                             <th>Personnel</th>
-                            <th>Role</th>
-                            <th>Home Unit</th>
-                            <th>Availability</th>
-                            <th>Status</th>
-                            <th class="u-actions-col"></th>
+                            <th>Unit Assignment</th>
+                            <th>Assignment Status</th>
+                            <th class="u-actions-col">Action</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        @forelse ($personnel as $row)
-                            <tr>
-                                <td data-label="Personnel">
-                                    <span class="cell-main">{{ $row['full_name'] }}</span>
-                                    @if ($row['reference'])
-                                        <span class="cell-sub">{{ $row['reference'] }}</span>
-                                    @else
-                                        <span class="cell-sub">Personnel record</span>
-                                    @endif
-                                </td>
-
-                                <td data-label="Role">{{ $row['role_label'] }}</td>
-
-                                <td data-label="Home Unit">
-                                    <span class="cell-main">{{ $row['home_unit']->name ?? 'Not set' }}</span>
-                                    @if ($row['borrowed'])
-                                        <span class="cell-sub">Currently: {{ $row['current_unit']->name }} (Borrowed)</span>
-                                    @elseif ($row['current_unit'] && (! $row['home_unit'] || $row['current_unit']->id !== $row['home_unit']->id))
-                                        <span class="cell-sub">Currently: {{ $row['current_unit']->name }}</span>
-                                    @endif
-                                </td>
-
-                                <td data-label="Availability">
-                                    <span class="status-text status-{{ strtolower($row['availability']) }}">{{ $row['availability'] }}</span>
-                                </td>
-
-                                <td data-label="Status">
-                                    <span class="status-text status-{{ strtolower($row['status']) }}">{{ $row['status'] }}</span>
-                                </td>
-
-                                <td data-label="Actions">
-                                    <div class="row-actions">
-                                        @if ($row['type'] === 'personnel')
-                                            <form method="POST" action="{{ route('superadmin.personnel-records.home-unit', $row['id']) }}" class="home-unit-form">
-                                                @csrf
-                                                @method('PATCH')
-                                                <select name="home_unit_id">
-                                                    <option value="">Not set</option>
-                                                    @foreach ($units as $unit)
-                                                        <option value="{{ $unit->id }}" {{ (int) ($row['home_unit']->id ?? 0) === $unit->id ? 'selected' : '' }}>
-                                                            {{ $unit->name }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                                <button type="submit" class="home-unit-save">Save</button>
-                                            </form>
-
-                                            <button type="button" class="edit-link-btn js-pp-edit"
-                                                data-id="{{ $row['id'] }}"
-                                                data-first-name="{{ $row['model']->first_name }}"
-                                                data-middle-name="{{ $row['model']->middle_name }}"
-                                                data-last-name="{{ $row['model']->last_name }}"
-                                                data-role="{{ $row['model']->role }}">
-                                                Edit
-                                            </button>
-
-                                            <form method="POST" action="{{ route('superadmin.personnel-records.toggle', $row['id']) }}">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="toggle-btn">
-                                                    {{ $row['status'] === 'Active' ? 'Deactivate' : 'Activate' }}
-                                                </button>
-                                            </form>
-                                        @else
-                                            <form method="POST" action="{{ route('superadmin.personnel.home-unit', $row['id']) }}" class="home-unit-form">
-                                                @csrf
-                                                @method('PATCH')
-                                                <select name="home_unit_id">
-                                                    <option value="">Not set</option>
-                                                    @foreach ($units as $unit)
-                                                        <option value="{{ $unit->id }}" {{ (int) ($row['home_unit']->id ?? 0) === $unit->id ? 'selected' : '' }}>
-                                                            {{ $unit->name }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                                <button type="submit" class="home-unit-save">Save</button>
-                                            </form>
-
-                                            <form method="POST" action="{{ route('superadmin.personnel.toggle', $row['id']) }}">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="toggle-btn">
-                                                    {{ $row['status'] === 'Active' ? 'Deactivate' : 'Activate' }}
-                                                </button>
-                                            </form>
-                                        @endif
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6">
-                                    <div class="empty-row">
-                                        <span class="empty-row-title">No personnel records yet</span>
-                                        <span class="empty-row-hint">Add a Driver or Pahinante, or check Team Leader accounts.</span>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforelse
+                    <tbody id="ppTableBody">
+                        @include('superadmin.personnel._rows', ['personnel' => $personnel])
                     </tbody>
                 </table>
+            </div>
+
+            <div class="pp-table-footer" id="ppTableFooter">
+                @include('superadmin.personnel._footer', ['personnel' => $personnel])
             </div>
         </div>
     </div>
@@ -176,14 +100,14 @@
                     <label for="ppRole">Role</label>
                     <select name="role" id="ppRole" required>
                         <option value="driver">Driver</option>
-                        <option value="crew">Pahinante</option>
+                        <option value="crew">Crew Member</option>
                     </select>
                 </div>
 
                 <div class="pp-form-group" id="ppHomeUnitGroup">
-                    <label for="ppHomeUnit">Home Unit (optional)</label>
+                    <label for="ppHomeUnit">Regular Unit (optional)</label>
                     <select name="home_unit_id" id="ppHomeUnit">
-                        <option value="">Not set</option>
+                        <option value="">Not Assigned</option>
                         @foreach ($units as $unit)
                             <option value="{{ $unit->id }}">{{ $unit->name }}</option>
                         @endforeach
@@ -197,60 +121,122 @@
             </form>
         </div>
     </div>
+
+    <div class="pp-modal" id="ppManageModal">
+        <div class="pp-modal-card pp-modal-card--wide">
+            <div class="pp-modal-header">
+                <div>
+                    <h2 id="pmName">&nbsp;</h2>
+                    <p class="pp-modal-subtitle">
+                        <span id="pmRoleLabel"></span>
+                        <span id="pmReferenceWrap"> &middot; <span id="pmReference"></span></span>
+                    </p>
+                </div>
+                <span class="status-text" id="pmStatusBadge"></span>
+                <button type="button" class="pp-modal-close" data-close-pp-modal aria-label="Close">&times;</button>
+            </div>
+
+            <form method="POST" id="pmForm">
+                @csrf
+
+                <div class="pp-modal-section">
+                    <div class="pp-modal-section-head">
+                        <h3>Personal Information</h3>
+                    </div>
+
+                    <div class="pp-form-row" id="pmEditableInfo">
+                        <div class="pp-form-group">
+                            <label for="pmFirstName">First Name</label>
+                            <input type="text" name="first_name" id="pmFirstName" required>
+                        </div>
+                        <div class="pp-form-group">
+                            <label for="pmLastName">Last Name</label>
+                            <input type="text" name="last_name" id="pmLastName" required>
+                        </div>
+                    </div>
+                    <div class="pp-form-group" id="pmMiddleNameGroup">
+                        <label for="pmMiddleName">Middle Name (optional)</label>
+                        <input type="text" name="middle_name" id="pmMiddleName">
+                    </div>
+                    <div class="pp-form-group" id="pmRoleGroup">
+                        <label for="pmRole">Role</label>
+                        <select name="role" id="pmRole">
+                            <option value="driver">Driver</option>
+                            <option value="crew">Crew Member</option>
+                        </select>
+                    </div>
+
+                    <div class="pp-readonly-grid" id="pmReadonlyInfo">
+                        <div class="pp-readonly-field">
+                            <span>First Name</span>
+                            <strong id="pmRoFirst"></strong>
+                        </div>
+                        <div class="pp-readonly-field">
+                            <span>Middle Name</span>
+                            <strong id="pmRoMiddle"></strong>
+                        </div>
+                        <div class="pp-readonly-field">
+                            <span>Last Name</span>
+                            <strong id="pmRoLast"></strong>
+                        </div>
+                        <div class="pp-readonly-field">
+                            <span>Role</span>
+                            <strong id="pmRoRole"></strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pp-modal-section">
+                    <div class="pp-modal-section-head">
+                        <h3>Unit Assignment</h3>
+                    </div>
+
+                    <div class="pp-form-group">
+                        <label for="pmHomeUnit">Regular Unit</label>
+                        <select name="home_unit_id" id="pmHomeUnit">
+                            <option value="">Not Assigned</option>
+                            @foreach ($units as $unit)
+                                <option value="{{ $unit->id }}">{{ $unit->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="pp-static-field">
+                        <span>Current Unit</span>
+                        <strong id="pmCurrentUnit">Not Assigned</strong>
+                    </div>
+
+                    <div class="pp-static-field">
+                        <span>Assignment Status</span>
+                        <strong class="status-text" id="pmAssignmentStatus"></strong>
+                    </div>
+                </div>
+
+                <div class="pp-modal-footer pp-modal-footer--split">
+                    <button type="button" class="pp-btn-danger" id="pmToggleBtn"></button>
+
+                    <div class="pp-modal-footer-actions">
+                        <button type="button" class="pp-btn-cancel" data-close-pp-modal>Cancel</button>
+                        <button type="submit" class="pp-btn-save">Save Changes</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="pp-modal pp-confirm-modal" id="ppConfirmModal">
+        <div class="pp-modal-card pp-modal-card--confirm">
+            <p class="pp-confirm-title" id="ppConfirmTitle">Deactivate Personnel</p>
+            <p class="pp-confirm-text" id="ppConfirmText"></p>
+
+            <div class="pp-modal-footer">
+                <button type="button" class="pp-btn-cancel" id="ppConfirmCancel">Cancel</button>
+                <button type="button" class="pp-btn-save pp-btn-save--danger" id="ppConfirmProceed">Confirm</button>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const alertEl = document.getElementById('personnelSuccessAlert');
-            if (alertEl) {
-                setTimeout(() => {
-                    alertEl.classList.add('fade-out');
-                    setTimeout(() => alertEl.remove(), 300);
-                }, 3500);
-            }
-
-            const baseUrl = document.querySelector('.personnel-page').dataset.baseUrl;
-            const modal = document.getElementById('ppModal');
-            const form = document.getElementById('ppForm');
-            const methodField = document.getElementById('ppFormMethod');
-            const homeUnitGroup = document.getElementById('ppHomeUnitGroup');
-            const title = document.getElementById('ppModalTitle');
-
-            function openModal() {
-                modal.classList.add('is-open');
-            }
-
-            function closeModal() {
-                modal.classList.remove('is-open');
-                form.reset();
-            }
-
-            document.getElementById('ppAddBtn').addEventListener('click', function() {
-                title.textContent = 'Add Personnel';
-                form.action = baseUrl;
-                methodField.value = 'POST';
-                homeUnitGroup.style.display = '';
-                openModal();
-            });
-
-            document.querySelectorAll('.js-pp-edit').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    title.textContent = 'Edit Personnel';
-                    form.action = baseUrl + '/' + btn.dataset.id;
-                    methodField.value = 'PUT';
-                    homeUnitGroup.style.display = 'none';
-                    document.getElementById('ppFirstName').value = btn.dataset.firstName || '';
-                    document.getElementById('ppMiddleName').value = btn.dataset.middleName || '';
-                    document.getElementById('ppLastName').value = btn.dataset.lastName || '';
-                    document.getElementById('ppRole').value = btn.dataset.role || 'driver';
-                    openModal();
-                });
-            });
-
-            document.querySelectorAll('[data-close-pp-modal]').forEach(function(el) {
-                el.addEventListener('click', closeModal);
-            });
-        });
-    </script>
+    <script src="{{ asset('admin/js/personnel.js') }}?v={{ filemtime(public_path('admin/js/personnel.js')) }}" defer></script>
 @endpush

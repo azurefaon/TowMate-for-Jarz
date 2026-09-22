@@ -589,6 +589,8 @@ class CustomerBookingController extends Controller
                     ->get(['id', 'base_rate', 'per_km_rate'])
                     ->keyBy('id');
 
+                $scheduleLineItems = [];
+
                 foreach ($scheduleExtras as $ev) {
                     $evTruckType = $scheduleExtraTruckTypes->get($ev['truck_type_id'] ?? 0);
                     if (!$evTruckType) continue;
@@ -630,7 +632,22 @@ class CustomerBookingController extends Controller
                     $siblingFiles = $extraFilesByIndex[$ev['_index']] ?? [];
                     $siblingPaths = $this->bookingService->storeVehiclePhotosFor($sibling, 0, $siblingFiles);
                     $storedPhotoPaths = array_merge($storedPhotoPaths, $siblingPaths);
+
+                    $scheduleLineItems[] = [
+                        'booking_id'       => $sibling->id,
+                        'vehicle_type_id'  => $ev['vehicle_type_id'] ?? null,
+                        'truck_type_id'    => $ev['truck_type_id'],
+                        'service_type'     => $ev['service_type'],
+                        'base_rate'        => $evPricing['base_rate'],
+                        'distance_fee'     => $evPricing['distance_fee'],
+                        'vat_amount'       => $evPricing['vat_amount'],
+                        'vat_rate'         => $evPricing['vat_rate'],
+                        'final_total'      => $evPricing['final_total'],
+                        'estimated_price'  => $evPricing['final_total'],
+                    ];
                 }
+
+                $booking->update(['extra_vehicles' => $scheduleLineItems]);
             }
 
             DB::commit();

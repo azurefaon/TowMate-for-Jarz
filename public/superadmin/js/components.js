@@ -163,6 +163,19 @@
             viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
             var hoverDate = null;
 
+            function positionPopup() {
+                popup.style.left = '0';
+                popup.style.right = 'auto';
+
+                var wrapRect = wrap.getBoundingClientRect();
+                var popupWidth = popup.offsetWidth;
+
+                if (wrapRect.left + popupWidth > window.innerWidth - 8) {
+                    popup.style.left = 'auto';
+                    popup.style.right = '0';
+                }
+            }
+
             function updateTriggerLabel() {
                 if (rangeStart && rangeEnd) {
                     labelEl.textContent = formatShort(rangeStart) + ' – ' + formatShort(rangeEnd);
@@ -322,6 +335,8 @@
                         window.setTimeout(commitRange, 260);
                     });
                 });
+
+                positionPopup();
             }
 
             trigger.addEventListener('click', function () {
@@ -329,6 +344,10 @@
                 closeAllPanels(wrap);
                 wrap.classList.toggle('is-open', willOpen);
                 if (willOpen) renderCalendar();
+            });
+
+            window.addEventListener('resize', function () {
+                if (wrap.classList.contains('is-open')) positionPopup();
             });
 
             updateTriggerLabel();

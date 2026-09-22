@@ -1,73 +1,46 @@
-.reporting-toolbar {
+.reports-card {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 24px;
+}
+
+.reports-filters-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.reports-filter-group {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    gap: 10px;
-}
-
-.reporting-toolbar-label {
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #525252;
-}
-
-.reporting-controls-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.reporting-period-group {
-    display: flex;
-    align-items: stretch;
     gap: 8px;
 }
 
-.reporting-period-group a,
-.reporting-period-group button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    font: inherit;
-    font-size: 0.85rem;
+.reports-filter-label {
+    font-size: 0.78rem;
     font-weight: 500;
-    color: #171717;
-    background: #ffffff;
-    border: 1px solid #171717;
-    border-radius: 4px;
-    text-decoration: none;
-    cursor: pointer;
+    color: #525252;
+}
+
+.reports-chart-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.reports-chart-panel-head h2 {
+    margin: 0;
+}
+
+.reports-chart-range {
+    font-size: 0.82rem;
+    color: #525252;
     white-space: nowrap;
-}
-
-.reporting-period-group svg {
-    width: 15px;
-    height: 15px;
-    flex-shrink: 0;
-}
-
-.reporting-period-group a:hover,
-.reporting-period-group button:hover {
-    background: #171717;
-    color: #ffffff;
-}
-
-.reporting-period-group a.active,
-.reporting-period-group button.active {
-    background: #facc15;
-    color: #171717;
-    border-color: #171717;
-    font-weight: 600;
-}
-
-.reporting-period-group a:focus-visible,
-.reporting-period-group button:focus-visible {
-    outline: 2px solid #171717;
-    outline-offset: 2px;
 }
 
 .reporting-truck-select {
@@ -84,64 +57,18 @@
     outline-offset: 2px;
 }
 
-.reporting-range-form {
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
-}
-
-.reporting-range-form[hidden] {
-    display: none;
-}
-
-.reporting-range-form label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: #525252;
-}
-
-.reporting-range-form input[type="date"] {
-    border: 1px solid #171717;
-    padding: 6px 8px;
-    font-size: 0.85rem;
-    color: #171717;
-    background: #ffffff;
-    border-radius: 4px;
-}
-
-.reporting-range-form input[type="date"]:focus-visible {
-    outline: 2px solid #171717;
-    outline-offset: 2px;
-}
-
-.reporting-apply-btn {
-    padding: 7px 16px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #ffffff;
-    background: #171717;
-    border: 1px solid #171717;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.reporting-apply-btn:hover {
-    background: #000000;
-}
-
-.reporting-apply-btn:focus-visible {
-    outline: 2px solid #171717;
-    outline-offset: 2px;
-}
-
 .reports-metric-row {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 24px 32px;
-    margin-bottom: 40px;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.reports-metric-row .owner-kpi {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 18px 20px;
 }
 
 .reports-metric-row .owner-kpi-value.is-positive {
@@ -153,7 +80,7 @@
 }
 
 .reports-chart-panel {
-    margin-bottom: 40px;
+    margin-bottom: 24px;
 }
 
 .reports-section-title {
@@ -164,14 +91,6 @@
     font-size: 1.05rem;
     font-weight: 600;
     color: #171717;
-}
-
-.reports-section {
-    margin-bottom: 44px;
-}
-
-.reports-section--tight {
-    margin-bottom: 0;
 }
 
 .reports-section-title svg,
@@ -188,11 +107,25 @@
     gap: 8px;
 }
 
-.reports-summary-grid {
+.reports-main-grid {
     display: grid;
-    grid-template-columns: 1.85fr 1fr;
-    gap: 56px;
-    margin-bottom: 44px;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+    align-items: start;
+}
+
+.reports-side-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.reports-bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
 }
 
 .reports-table-head,
@@ -244,29 +177,20 @@
 
 .reports-table--pipeline .reports-table-head,
 .reports-table--pipeline .reports-table-row {
-    grid-template-columns: 1fr 70px 70px;
-    column-gap: 20px;
-    max-width: 420px;
-}
-
-.reports-table--truck {
-    max-width: 760px;
+    grid-template-columns: 1fr 60px 70px;
+    column-gap: 16px;
 }
 
 .reports-table--truck .reports-table-head,
 .reports-table--truck .reports-table-row {
-    grid-template-columns: 1.5fr 70px 90px 90px 120px;
-    column-gap: 16px;
-}
-
-.reports-table--fleet {
-    max-width: 880px;
+    grid-template-columns: 1.3fr 55px 80px 80px 100px;
+    column-gap: 12px;
 }
 
 .reports-table--fleet .reports-table-head,
 .reports-table--fleet .reports-table-row {
-    grid-template-columns: 1.4fr 1.1fr 70px 90px 120px;
-    column-gap: 16px;
+    grid-template-columns: 1.4fr 1.1fr 60px 80px 110px;
+    column-gap: 14px;
 }
 
 .reports-status-completed {
@@ -275,10 +199,6 @@
 
 .reports-status-cancelled {
     color: #b91c1c;
-}
-
-.reports-financial-list {
-    max-width: 360px;
 }
 
 .reports-financial-row {
@@ -350,8 +270,8 @@
     padding: 8px 16px;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #ffffff;
-    background: #171717;
+    color: #171717;
+    background: #facc15;
     border: 1px solid #171717;
     border-radius: 4px;
     text-decoration: none;
@@ -363,7 +283,7 @@
 }
 
 .reports-detail-link:hover {
-    background: #000000;
+    background: #eab308;
 }
 
 .reports-detail-link:focus-visible {
@@ -387,38 +307,29 @@
         align-items: flex-start;
     }
 
-    .reporting-toolbar {
-        align-items: flex-start;
+    .reports-filters-row {
         width: 100%;
     }
 
-    .reports-summary-grid {
+    .reports-main-grid,
+    .reports-bottom-grid {
         grid-template-columns: 1fr;
-        gap: 40px;
-    }
-
-    .reports-section--tight {
-        margin-bottom: 40px;
-    }
-
-    .reports-section--tight:last-child {
-        margin-bottom: 0;
+        gap: 20px;
     }
 
     .reports-table--truck,
     .reports-table--fleet {
-        max-width: none;
         overflow-x: auto;
     }
 
     .reports-table--truck .reports-table-head,
     .reports-table--truck .reports-table-row {
-        min-width: 620px;
+        min-width: 560px;
     }
 
     .reports-table--fleet .reports-table-head,
     .reports-table--fleet .reports-table-row {
-        min-width: 680px;
+        min-width: 620px;
     }
 }
 
@@ -427,11 +338,25 @@
         grid-template-columns: 1fr;
     }
 
-    .reporting-period-group {
-        flex-wrap: wrap;
+    .reports-card {
+        padding: 18px;
     }
 
-    .reporting-range-form {
-        flex-wrap: wrap;
+    .reports-filters-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+    }
+
+    .reports-filters-row .date-range-trigger,
+    .reports-filters-row .custom-select,
+    .reports-filters-row .custom-select-trigger {
+        width: 100%;
+    }
+
+    .reports-chart-panel-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Personnel;
 use App\Models\Unit;
 use App\Models\User;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 class PersonnelService
@@ -18,7 +19,13 @@ class PersonnelService
 
     public const PERSONNEL_ROLE_LABELS = [
         'driver' => 'Driver',
-        'crew' => 'Pahinante',
+        'crew' => 'Crew Member',
+    ];
+
+    public const ROLE_FILTERS = [
+        'team_leader' => 'Team Leader',
+        'driver' => 'Driver',
+        'crew' => 'Crew Member',
     ];
 
     public function __construct(
@@ -27,7 +34,7 @@ class PersonnelService
     ) {
     }
 
-    public function listPersonnel(): Collection
+    public function listPersonnel(string $search = '', string $roleFilter = '', int $perPage = 7, int $page = 1): LengthAwarePaginator
     {
         $accounts = User::whereIn('role_id', self::ACCOUNT_ROLE_IDS)
             ->whereNull('archived_at')
@@ -41,7 +48,30 @@ class PersonnelService
             ->get()
             ->map(fn (Personnel $record) => $this->presentRecord($record));
 
-        return $accounts->concat($records)->sortBy('full_name')->values();
+        $all = $accounts->concat($records)->sortBy('full_name')->values();
+
+        $search = trim($search);
+        if ($search !== '') {
+            $needle = mb_strtolower($search);
+            $all = $all->filter(function (array $row) use ($needle) {
+                return str_contains(mb_strtolower($row['full_name']), $needle)
+                    || str_contains(mb_strtolower((string) $row['reference']), $needle);
+            })->values();
+        }
+
+        if ($roleFilter !== '' && array_key_exists($roleFilter, self::ROLE_FILTERS)) {
+            $all = $all->filter(fn (array $row) => $row['role_key'] === $roleFilter)->values();
+        }
+
+        $page = max(1, $page);
+
+        return new LengthAwarePaginator(
+            $all->forPage($page, $perPage)->values(),
+            $all->count(),
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
     }
 
     protected function presentAccount(User $person): array
@@ -56,10 +86,12 @@ class PersonnelService
             'full_name' => $person->full_name,
             'reference' => $person->user_code,
             'role_label' => self::ACCOUNT_ROLE_LABELS[(int) $person->role_id] ?? 'Personnel',
+            'role_key' => (int) $person->role_id === 3 ? 'team_leader' : 'driver',
             'home_unit' => $homeUnit,
             'current_unit' => $currentUnit,
             'borrowed' => $borrowed,
             'availability' => $this->resolveAccountAvailability($person, $currentUnit, $borrowed),
+            'assignment_status' => $this->resolveAssignmentStatus($currentUnit, $borrowed),
             'status' => $person->archived_at ? 'Archived' : ($person->personnel_enabled ? 'Active' : 'Inactive'),
             'editable' => false,
             'model' => $person,
@@ -78,14 +110,25 @@ class PersonnelService
             'full_name' => $record->full_name,
             'reference' => null,
             'role_label' => self::PERSONNEL_ROLE_LABELS[$record->role] ?? ucfirst($record->role),
+            'role_key' => $record->role === 'driver' ? 'driver' : 'crew',
             'home_unit' => $homeUnit,
             'current_unit' => $currentUnit,
             'borrowed' => $borrowed,
             'availability' => $this->resolveRecordAvailability($currentUnit, $borrowed),
+            'assignment_status' => $this->resolveAssignmentStatus($currentUnit, $borrowed),
             'status' => $record->personnel_status === 'active' ? 'Active' : 'Inactive',
             'editable' => true,
             'model' => $record,
         ];
+    }
+
+    protected function resolveAssignmentStatus(?Unit $currentUnit, bool $borrowed): string
+    {
+        if ($borrowed) {
+            return 'Borrowed';
+        }
+
+        return $currentUnit ? 'Assigned' : 'Unassigned';
     }
 
     protected function findCurrentUnitForRecord(Personnel $record): ?Unit

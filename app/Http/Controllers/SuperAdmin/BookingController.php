@@ -117,7 +117,10 @@ class BookingController extends Controller
 
         $bookings = $query->latest()->paginate(10)->withQueryString();
 
-        return view('superadmin.bookings.index', compact('bookings', 'filters', 'stats', 'rangeLabel'));
+        $rangeFrom = $filters['from'] !== '' ? $filters['from'] : $periodStart->toDateString();
+        $rangeTo = $filters['to'] !== '' ? $filters['to'] : $periodEnd->toDateString();
+
+        return view('superadmin.bookings.index', compact('bookings', 'filters', 'stats', 'rangeLabel', 'rangeFrom', 'rangeTo'));
     }
 
     public function show($id)
@@ -129,13 +132,27 @@ class BookingController extends Controller
             'receipt'
         ])
             ->where('booking_code', $id)
-            ->orWhere('id', $id)
+            ->when(is_numeric($id), fn ($query) => $query->orWhere('id', $id))
             ->firstOrFail();
+
+        $paymentMethodLabel = match ($booking->payment_method) {
+            'gcash' => 'GCash',
+            'bank_transfer' => 'Bank Transfer',
+            'cash' => 'Cash',
+            default => null,
+        };
 
         return response()->json([
             'booking_code' => $booking->job_code,
+            'status' => $booking->status,
+            'status_label' => ucfirst(str_replace('_', ' ', $booking->status)),
+            'created_at' => $booking->created_at
+                ? $booking->created_at->timezone(config('app.timezone', 'Asia/Manila'))->format('M j, Y \a\t g:i A')
+                : null,
             'customer' => [
                 'full_name' => $booking->customer->full_name ?? 'N/A',
+                'phone' => $booking->customer->phone ?? null,
+                'email' => $booking->customer->email ?? null,
             ],
             'truck_type' => [
                 'name' => $booking->truckType->name ?? 'N/A',
@@ -144,11 +161,17 @@ class BookingController extends Controller
                 'name' => $booking->unit->name,
                 'plate_number' => $booking->unit->plate_number,
             ] : null,
+            'scheduled_for' => $booking->scheduled_for
+                ? $booking->scheduled_for->timezone(config('app.timezone', 'Asia/Manila'))->format('M j, Y \a\t g:i A')
+                : null,
             'pickup_address' => $booking->pickup_address,
             'dropoff_address' => $booking->dropoff_address,
             'distance_km' => $booking->distance_km,
             'final_total' => $booking->final_total,
-            'status' => $booking->status,
+            'additional_fee' => $booking->additional_fee,
+            'payment_method' => $paymentMethodLabel,
+            'payment_status' => $booking->payment_submitted_at ? 'Submitted' : null,
+            'notes' => $booking->notes,
             'receipt' => $booking->receipt ? [
                 'receipt_code' => $booking->receipt->receipt_code ?? $booking->receipt->receipt_number,
                 'pdf_url' => app(\App\Services\DocumentGenerationService::class)->publicDocumentUrl($booking->receipt->pdf_path),

@@ -1917,6 +1917,16 @@
                                                     ? 'Starts in ' . $schScheduledFor->diffForHumans(null, true)
                                                     : 'Overdue by ' . $schScheduledFor->diffForHumans(null, true))
                                                 : 'Schedule pending';
+
+                                            $schRoster = $schGroupBookings
+                                                ->map(fn($b) => [
+                                                    'booking_code' => $b->booking_code,
+                                                    'truck_type_name' => $b->truckType?->name ?? 'Unknown',
+                                                    'base_rate' => (float) $b->base_rate,
+                                                    'per_km_rate' => (float) $b->per_km_rate,
+                                                ])
+                                                ->values()
+                                                ->toArray();
                                         @endphp
                                         <tr class="jobs-row" onclick="window.openBookingDrawer(this)" tabindex="0"
                                             aria-label="Open {{ $sch->booking_code }}, {{ $sch->customer->full_name ?? 'Guest' }}"
@@ -1956,7 +1966,8 @@
                                             data-quotation-id="{{ $sch->active_quotation_id ?? '' }}"
                                             data-quotation-number="{{ $sch->active_quotation_number ?? '' }}"
                                             data-quotation-status="{{ $sch->active_quotation_status ?? '' }}"
-                                            data-price-change-log="{{ json_encode($sch->active_quotation_price_change_log ?? []) }}">
+                                            data-price-change-log="{{ json_encode($sch->active_quotation_price_change_log ?? []) }}"
+                                            data-group-roster="{{ json_encode($schRoster) }}">
                                             <td>
                                                 <div class="jobs-cell-primary jobs-booking-code">{{ $sch->booking_code }}{{ $schCount > 1 ? ' (+' . ($schCount - 1) . ')' : '' }}</div>
                                                 <div class="jobs-cell-secondary">{{ $sch->customer->full_name ?? 'Guest' }}</div>

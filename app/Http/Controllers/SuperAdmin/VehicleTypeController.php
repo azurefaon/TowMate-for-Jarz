@@ -68,6 +68,7 @@ class VehicleTypeController extends Controller
         $categoryFilter = $request->input('category');
         $statusFilter = $request->input('status');
         $autoExpand = $searchTerm !== '';
+        $isFiltering = $searchTerm !== '' || $categoryFilter || $statusFilter;
 
         $vehicles = VehicleType::withCount('bookings')
             ->when($searchTerm !== '', function ($query) use ($searchTerm) {
@@ -108,7 +109,7 @@ class VehicleTypeController extends Controller
                 ];
             }
 
-            if (empty($categoryGroups)) {
+            if (empty($categoryGroups) && $isFiltering) {
                 continue;
             }
 
@@ -165,7 +166,9 @@ class VehicleTypeController extends Controller
         $vehicleCategories = VehicleCategory::orderBy('name')->get();
 
         $mainGroups = $this->buildMainGroups($truckTypes, $vehicleCategories, $request);
-        $hasResults = collect($mainGroups)->contains(fn ($group) => collect($group['categories'])->contains(fn ($cat) => $cat['vehicles']->isNotEmpty()));
+        $hasResults = $request->hasAny(['search', 'category', 'status'])
+            ? collect($mainGroups)->contains(fn ($group) => collect($group['categories'])->contains(fn ($cat) => $cat['vehicles']->isNotEmpty()))
+            : ! empty($mainGroups);
 
         return view('superadmin.vehicle-types.index', compact(
             'truckTypes',

@@ -159,6 +159,12 @@
         } catch (e) {
             priceChangeLog = [];
         }
+        var groupRoster = [];
+        try {
+            groupRoster = JSON.parse(d.groupRoster || "[]");
+        } catch (e) {
+            groupRoster = [];
+        }
 
         return {
             isMockPreview: d.mockPreview === "1",
@@ -213,6 +219,7 @@
 
             priceChangeLog: priceChangeLog,
             groupVehicles: [],
+            groupRoster: groupRoster,
         };
     }
 
@@ -330,6 +337,25 @@
                     assignment_busy: false,
                 });
             });
+        }
+        if (Array.isArray(data.group_siblings)) {
+            state.groupRoster = [
+                {
+                    booking_code: state.bookingCode,
+                    truck_type_name: state.truckType,
+                    base_rate: state.baseRate,
+                    per_km_rate: state.perKmRate,
+                },
+            ].concat(
+                data.group_siblings.map(function (sib) {
+                    return {
+                        booking_code: sib.booking_code,
+                        truck_type_name: sib.truck_type_name || sib.truck_type,
+                        base_rate: parseFloat(sib.base_rate) || 0,
+                        per_km_rate: parseFloat(sib.per_km_rate) || 0,
+                    };
+                }),
+            );
         }
         if (typeof data.estimated_price !== "undefined") {
             state.currentPrice =
@@ -960,6 +986,110 @@
         );
     }
 
+    function previewVehicleTotal(vehicle, s) {
+        var km = parseFloat(s.distanceKm) || 0;
+        var distFeeKm = Math.max(0, km - 4);
+        var distFee =
+            km > 0 ? distFeeKm * (parseFloat(vehicle.per_km_rate) || 0) : 0;
+        var base = parseFloat(vehicle.base_rate) || 0;
+        var vatRate = s.vatRate || 0.12;
+        var subtotal = base + distFee;
+        return Number((subtotal + subtotal * vatRate).toFixed(2));
+    }
+
+    function unpricedGroupVehicles(s) {
+        if (!s.groupRoster || s.groupRoster.length < 2) return [];
+        var pricedCodes = {};
+        (s.groupVehicles || []).forEach(function (vehicle) {
+            pricedCodes[String(vehicle.booking_code)] = true;
+        });
+        return s.groupRoster.filter(function (vehicle) {
+            return (
+                String(vehicle.booking_code) !== String(s.bookingCode) &&
+                !pricedCodes[String(vehicle.booking_code)]
+            );
+        });
+    }
+
+    function unpricedVehiclesSectionHtml(s) {
+        var eff = effectiveStatus(s);
+        if (!s.isScheduled || (eff !== "new" && eff !== "draft")) return "";
+        var pending = unpricedGroupVehicles(s);
+        if (!pending.length) return "";
+
+        var rows = pending
+            .map(function (vehicle) {
+                return (
+                    '<div class="rb-group-vehicle" data-unpriced-vehicle="' +
+                    esc(vehicle.booking_code) +
+                    '">' +
+                    '<div class="rb-group-vehicle-head">' +
+                    '<div class="rb-group-vehicle-title">' +
+                    esc(vehicle.truck_type_name || "Vehicle") +
+                    "</div>" +
+                    '<div class="rb-group-vehicle-meta">' +
+                    esc(vehicle.booking_code) +
+                    " · Est. " +
+                    peso(previewVehicleTotal(vehicle, s)) +
+                    " · Needs pricing</div>" +
+                    "</div>" +
+                    '<button type="button" class="rb-btn rb-btn-primary" data-price-vehicle="' +
+                    esc(vehicle.booking_code) +
+                    '"' +
+                    (vehicle._busy ? " disabled" : "") +
+                    ">" +
+                    (vehicle._busy ? "Pricing…" : "Price this vehicle") +
+                    "</button>" +
+                    "</div>"
+                );
+            })
+            .join("");
+
+        return (
+            '<div class="rb-section"><h4>Other vehicles in this group</h4><div class="rb-group-vehicle-list">' +
+            rows +
+            "</div></div>"
+        );
+    }
+
+    function submitPriceVehicle(vehicle) {
+        var s = state;
+        if (vehicle._busy) return;
+        vehicle._busy = true;
+        renderDrawer();
+
+        apiCall(
+            fillRoute(window.RB_ROUTES.saveDraft, vehicle.booking_code),
+            "POST",
+            {
+                price: previewVehicleTotal(vehicle, s),
+                additional_fee: 0,
+                distance_km: s.distanceKm || null,
+            },
+        )
+            .then(function (res) {
+                vehicle._busy = false;
+                if (state !== s) return;
+                if (!res.ok) {
+                    showDrawerNetworkError(res.data && res.data.message);
+                    renderDrawer();
+                    return;
+                }
+                if (res.data && res.data.quotation_id)
+                    s.quotationId = res.data.quotation_id;
+                if (res.data && res.data.quotation_status)
+                    s.quotationStatus = res.data.quotation_status;
+                refreshDrawerFromServer(
+                    res.data && res.data.quotation_id,
+                ).catch(function () {});
+            })
+            .catch(function () {
+                vehicle._busy = false;
+                if (state === s) renderDrawer();
+                showDrawerNetworkError();
+            });
+    }
+
     function unitCardHtml(u, isRecommended, isSelected) {
         var star = isRecommended
             ? '<span class="rb-unit-star rb-is-rec">' +
@@ -1408,6 +1538,7 @@
             routeSectionHtml(s) +
             customerNoteSectionHtml(s) +
             pricingSectionHtml(s) +
+            unpricedVehiclesSectionHtml(s) +
             unitsSectionHtml(s) +
             historyTimelineSectionHtml(s) +
             "</div>" +
@@ -1665,6 +1796,19 @@
                         );
                     });
                     if (vehicle) submitGroupDispatch(vehicle);
+                };
+            });
+        document
+            .querySelectorAll("[data-price-vehicle]")
+            .forEach(function (el) {
+                el.onclick = function () {
+                    var vehicle = (s.groupRoster || []).find(function (item) {
+                        return (
+                            String(item.booking_code) ===
+                            String(el.dataset.priceVehicle)
+                        );
+                    });
+                    if (vehicle) submitPriceVehicle(vehicle);
                 };
             });
         byId("rbRescheduleBtn", function (el) {
@@ -2409,7 +2553,7 @@
         var s = state;
         rbConfirm(
             "Undo adjustment? This will remove the adjustment from the current quotation. The action will remain recorded in Price History.",
-            { title: "Undo adjustment", okLabel: "Confirm Undo" },
+            { title: "Undo adjustment", okLabel: "Undo adjustment" },
         ).then(function (ok) {
             if (!ok) return;
             setBusy(true);

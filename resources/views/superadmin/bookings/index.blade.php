@@ -18,46 +18,32 @@
         </div>
 
         <form method="GET" class="booking-toolbar" id="bookingFiltersForm">
-            <div class="booking-toolbar-left">
-                <div class="booking-field">
-                    <label class="booking-field-label" for="bookingStatusSelect">Status</label>
-                    <select name="status" id="bookingStatusSelect" data-custom>
-                        <option value="" {{ $filters['status'] === '' ? 'selected' : '' }}>All statuses</option>
-                        <option value="needs_attention" {{ $filters['status'] === 'needs_attention' ? 'selected' : '' }}>
-                            Needs Attention</option>
-                        <option value="completed" {{ $filters['status'] === 'completed' ? 'selected' : '' }}>Completed
-                        </option>
-                        <option value="scheduled" {{ $filters['status'] === 'scheduled' ? 'selected' : '' }}>Scheduled
-                        </option>
-                        <option value="on_job" {{ $filters['status'] === 'on_job' ? 'selected' : '' }}>On Job</option>
-                        <option value="returned" {{ $filters['status'] === 'returned' ? 'selected' : '' }}>Returned</option>
-                    </select>
-                </div>
+            <div class="booking-field">
+                <label class="booking-field-label" for="bookingStatusSelect">Status</label>
+                <select name="status" id="bookingStatusSelect" data-custom>
+                    <option value="" {{ $filters['status'] === '' ? 'selected' : '' }}>All statuses</option>
+                    <option value="needs_attention" {{ $filters['status'] === 'needs_attention' ? 'selected' : '' }}>Needs Attention</option>
+                    <option value="completed" {{ $filters['status'] === 'completed' ? 'selected' : '' }}>Completed</option>
+                    <option value="scheduled" {{ $filters['status'] === 'scheduled' ? 'selected' : '' }}>Scheduled</option>
+                    <option value="on_job" {{ $filters['status'] === 'on_job' ? 'selected' : '' }}>On Job</option>
+                    <option value="returned" {{ $filters['status'] === 'returned' ? 'selected' : '' }}>Returned</option>
+                </select>
+            </div>
 
-                <div class="booking-field">
-                    <label class="booking-field-label" for="bookingSearchInput">Search</label>
-                    <div class="search-box">
-                        <i data-lucide="search"></i>
-                        <input type="text" id="bookingSearchInput" name="search" value="{{ $filters['search'] }}"
-                            placeholder="Search bookings, customers, or locations">
-                    </div>
+            <div class="booking-field booking-field--grow">
+                <label class="booking-field-label" for="bookingSearchInput">Search</label>
+                <div class="search-box">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="bookingSearchInput" name="search" value="{{ $filters['search'] }}"
+                        placeholder="Search bookings, customers, or locations">
                 </div>
             </div>
 
-            <div class="booking-toolbar-right">
-                <div class="booking-field">
-                    <label class="booking-field-label">Date Range</label>
-                    <div class="booking-daterange-group">
-                        <div class="date-range-picker" data-range-picker id="bookingDateRangePicker">
-                            <input type="date" name="from" data-role="from" value="{{ $filters['from'] }}">
-                            <input type="date" name="to" data-role="to" value="{{ $filters['to'] }}">
-                        </div>
-
-                        <button type="button" id="bookingRangeApply"
-                            class="booking-range-btn booking-range-btn--apply">Apply</button>
-                        <button type="button" id="bookingRangeClear"
-                            class="booking-range-btn booking-range-btn--clear">Clear</button>
-                    </div>
+            <div class="booking-field">
+                <label class="booking-field-label">Date Range</label>
+                <div class="date-range-picker" data-range-picker id="bookingDateRangePicker">
+                    <input type="date" name="from" data-role="from" value="{{ $rangeFrom }}">
+                    <input type="date" name="to" data-role="to" value="{{ $rangeTo }}">
                 </div>
             </div>
         </form>
@@ -69,17 +55,10 @@
 
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>Booking</th>
                             <th>Customer</th>
-                            <th>Truck Type</th>
-                            <th>Unit</th>
-                            <th>Pickup</th>
-                            <th>Drop-off</th>
-                            <th class="align-right">Distance</th>
-                            <th>Booked On</th>
-                            <th class="align-right">Total</th>
                             <th>Status</th>
-                            <th></th>
+                            <th class="align-right">Action</th>
                         </tr>
                     </thead>
 
@@ -89,18 +68,18 @@
                             @php
                                 $statusClass = match (true) {
                                     $booking->status === 'completed' => 'is-completed',
-                                    $booking->status === 'cancelled' => 'is-cancelled',
-                                    in_array($booking->status, ['scheduled', 'scheduled_confirmed'], true)
-                                        => 'is-muted',
+                                    in_array($booking->status, ['cancelled', 'rejected'], true) => 'is-cancelled',
+                                    in_array($booking->status, ['requested', 'reviewed'], true) => 'is-requested',
+                                    in_array($booking->status, ['scheduled', 'scheduled_confirmed'], true) => 'is-scheduled',
+                                    in_array($booking->status, ['accepted', 'assigned', 'on_the_way', 'arrived_pickup', 'in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff', 'waiting_verification', 'payment_pending', 'payment_submitted'], true) => 'is-onjob',
                                     default => 'is-neutral',
                                 };
                             @endphp
-                            <tr onclick="openBooking('{{ $booking->job_code }}')" tabindex="0"
-                                onkeydown="if(event.key==='Enter'){openBooking('{{ $booking->job_code }}')}">
+                            <tr class="booking-row" data-job-code="{{ $booking->job_code }}" tabindex="0">
 
                                 <td>
                                     <span class="cell-main">{{ $booking->job_code }}</span>
-                                    <span class="cell-sub">{{ $booking->service_mode_label }}</span>
+                                    <span class="cell-sub">{{ $booking->truckType->name }}</span>
                                 </td>
 
                                 <td>
@@ -108,51 +87,18 @@
                                 </td>
 
                                 <td>
-                                    <span class="cell-main">{{ $booking->truckType->name }}</span>
-                                </td>
-
-                                <td>
-                                    <span class="cell-main">{{ $booking->unit->name ?? 'Unassigned' }}</span>
-                                </td>
-
-                                <td class="location">
-                                    <span class="cell-main"
-                                        title="{{ $booking->pickup_address }}">{{ $booking->pickup_address }}</span>
-                                </td>
-                                <td class="location">
-                                    <span class="cell-main"
-                                        title="{{ $booking->dropoff_address }}">{{ $booking->dropoff_address }}</span>
-                                </td>
-
-                                <td class="align-right">
-                                    <span class="cell-main">{{ $booking->distance_km }} km</span>
-                                </td>
-
-                                <td>
-                                    <span
-                                        class="cell-main">{{ optional($booking->created_at)?->timezone(config('app.timezone', 'Asia/Manila'))->format('M d, Y') }}</span>
-                                    <span
-                                        class="cell-sub">{{ optional($booking->created_at)?->timezone(config('app.timezone', 'Asia/Manila'))->format('g:i A') }}</span>
-                                </td>
-
-                                <td class="align-right">
-                                    <span class="cell-main">₱{{ number_format($booking->final_total, 2) }}</span>
-                                </td>
-
-                                <td>
                                     <span
                                         class="status-text {{ $statusClass }}">{{ ucfirst(str_replace('_', ' ', $booking->status)) }}</span>
                                 </td>
 
-                                <td onclick="event.stopPropagation()">
-                                    <button type="button" onclick="openBooking('{{ $booking->job_code }}')"
-                                        class="view-btn">View</button>
+                                <td class="align-right">
+                                    <button type="button" class="view-btn" data-job-code="{{ $booking->job_code }}">View</button>
                                 </td>
 
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="empty-row">
+                                <td colspan="4" class="empty-row">
                                     <i data-lucide="inbox" class="empty-row-icon"></i>
                                     <span class="empty-row-title">No bookings found for the selected filters.</span>
                                     <span class="empty-row-hint">Try adjusting your search, status, or date range.</span>
@@ -175,123 +121,205 @@
 
     </div>
 
-    <div id="bookingModal" class="booking-modal">
+    <div class="booking-drawer-overlay" id="bookingDrawerOverlay" onclick="closeBooking()"></div>
 
-        <div class="booking-modal-content">
+    <aside class="booking-drawer" id="bookingDrawer" role="dialog" aria-modal="true" aria-labelledby="bd_title">
 
-            <div class="modal-header">
-                <h2 id="m_id"></h2>
-                <button onclick="closeBooking()">✕</button>
+        <div class="booking-drawer-header">
+            <h2 id="bd_title">Booking Details</h2>
+            <button type="button" class="booking-drawer-close" onclick="closeBooking()" aria-label="Close">✕</button>
+        </div>
+
+        <div class="booking-drawer-summary">
+            <span class="booking-drawer-id" id="bd_id"></span>
+            <span class="status-text" id="bd_status"></span>
+        </div>
+        <p class="booking-drawer-meta" id="bd_created"></p>
+
+        <div class="booking-drawer-error" id="bd_error" style="display:none;"></div>
+
+        <div class="booking-drawer-body" id="bd_body">
+
+            <div class="booking-drawer-card">
+                <h3>Customer Information</h3>
+                <div class="booking-drawer-row"><span>Name</span><strong id="bd_customer_name"></strong></div>
+                <div class="booking-drawer-row"><span>Phone</span><strong id="bd_customer_phone"></strong></div>
+                <div class="booking-drawer-row"><span>Email</span><strong id="bd_customer_email"></strong></div>
             </div>
 
-            <div class="modal-grid">
-
-                <div class="modal-card">
-
-                    <div class="modal-section">
-                        <span class="label">Customer</span>
-                        <h3 id="m_customer"></h3>
-                    </div>
-
-                    <div class="modal-section">
-                        <span class="label">Truck</span>
-                        <h3 id="m_truck"></h3>
-                    </div>
-
-                    <div class="modal-section">
-                        <span class="label">Assigned Unit</span>
-                        <h3 id="m_unit"></h3>
-                    </div>
-
-                    <div class="divider"></div>
-
-                    <div class="modal-section">
-                        <span class="label">Pickup</span>
-                        <p id="m_pickup"></p>
-                    </div>
-
-                    <div class="modal-section">
-                        <span class="label">Drop-off</span>
-                        <p id="m_dropoff"></p>
-                    </div>
-
-                    <div class="divider"></div>
-
-                    <div class="modal-inline">
-                        <div>
-                            <span class="label">Distance</span>
-                            <h4 id="m_distance"></h4>
-                        </div>
-                        <div>
-                            <span class="label">Total</span>
-                            <h4 id="m_total"></h4>
-                        </div>
-                    </div>
-
-                    <span id="m_status" class="status-text"></span>
-
-                </div>
-
-                <div class="modal-card receipt">
-
-                    <span class="label">Receipt</span>
-                    <h3 id="m_receipt"></h3>
-
-                    <a id="m_download" class="download-btn" target="_blank" rel="noopener noreferrer">Download
-                        Receipt</a>
-
-                </div>
-
+            <div class="booking-drawer-card">
+                <h3>Booking Information</h3>
+                <div class="booking-drawer-row"><span>Truck Type</span><strong id="bd_truck_type"></strong></div>
+                <div class="booking-drawer-row"><span>Status</span><strong class="status-text" id="bd_status_2"></strong></div>
+                <div class="booking-drawer-row"><span>Unit</span><strong id="bd_unit"></strong></div>
+                <div class="booking-drawer-row"><span>Booked On</span><strong id="bd_booked_on"></strong></div>
+                <div class="booking-drawer-row"><span>Scheduled For</span><strong id="bd_scheduled_for"></strong></div>
+                <div class="booking-drawer-row"><span>Reference No.</span><strong id="bd_reference"></strong></div>
             </div>
 
-            <div class="modal-footer">
-                <button onclick="closeBooking()" class="close-btn">Close</button>
+            <div class="booking-drawer-card">
+                <h3>Location Details</h3>
+                <div class="booking-drawer-row booking-drawer-row--block">
+                    <span>Pickup Location</span><strong id="bd_pickup"></strong>
+                </div>
+                <div class="booking-drawer-row booking-drawer-row--block">
+                    <span>Drop-off Location</span><strong id="bd_dropoff"></strong>
+                </div>
+                <div class="booking-drawer-row"><span>Distance</span><strong id="bd_distance"></strong></div>
+            </div>
+
+            <div class="booking-drawer-card">
+                <h3>Financial Details</h3>
+                <div class="booking-drawer-row"><span>Total Amount</span><strong id="bd_total"></strong></div>
+                <div class="booking-drawer-row"><span>Payment Method</span><strong id="bd_payment_method"></strong></div>
+                <div class="booking-drawer-row"><span>Payment Status</span><strong id="bd_payment_status"></strong></div>
+                <div class="booking-drawer-row"><span>Additional Fees</span><strong id="bd_additional_fee"></strong></div>
+                <div class="booking-drawer-row booking-drawer-row--block">
+                    <span>Notes</span><strong id="bd_notes"></strong>
+                </div>
+                <a id="bd_download" class="download-btn" target="_blank" rel="noopener noreferrer" style="display:none;">Download Receipt</a>
             </div>
 
         </div>
 
-    </div>
+        <div class="booking-drawer-footer">
+            <button type="button" onclick="closeBooking()" class="close-btn">Close</button>
+        </div>
+
+    </aside>
 @endsection
 
 
 @push('scripts')
     <script>
+        function statusClassFor(status) {
+            if (status === 'completed') return 'is-completed';
+            if (['cancelled', 'rejected'].includes(status)) return 'is-cancelled';
+            if (['requested', 'reviewed'].includes(status)) return 'is-requested';
+            if (['scheduled', 'scheduled_confirmed'].includes(status)) return 'is-scheduled';
+            if (['accepted', 'assigned', 'on_the_way', 'arrived_pickup', 'in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff', 'waiting_verification', 'payment_pending', 'payment_submitted'].includes(status)) return 'is-onjob';
+            return 'is-neutral';
+        }
+
+        function showBookingError(message) {
+            const errorEl = document.getElementById('bd_error');
+            const bodyEl = document.getElementById('bd_body');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            bodyEl.style.display = 'none';
+        }
+
+        function clearBookingError() {
+            const errorEl = document.getElementById('bd_error');
+            const bodyEl = document.getElementById('bd_body');
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+            bodyEl.style.display = '';
+        }
+
+        function openBookingDrawer() {
+            document.getElementById('bookingDrawerOverlay').classList.add('is-open');
+            document.getElementById('bookingDrawer').classList.add('is-open');
+        }
+
         function openBooking(id) {
-            fetch(`/superadmin/bookings/${id}`)
-                .then(res => res.json())
+            if (!id) return;
+
+            clearBookingError();
+            openBookingDrawer();
+
+            fetch(`/superadmin/bookings/${encodeURIComponent(id)}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error('Failed to load booking ' + id);
+                    }
+                    return res.json();
+                })
                 .then(data => {
+                    document.getElementById('bd_id').innerText = data.booking_code ?? id;
 
-                    document.getElementById('m_id').innerText = data.booking_code ?? data.id
-                    document.getElementById('m_customer').innerText = data.customer.full_name
-                    document.getElementById('m_truck').innerText = data.truck_type.name
-                    document.getElementById('m_unit').innerText = data.unit?.name ?? "Unassigned"
+                    const statusText = data.status_label ?? data.status;
+                    const statusClass = statusClassFor(data.status);
 
-                    document.getElementById('m_pickup').innerText = data.pickup_address
-                    document.getElementById('m_dropoff').innerText = data.dropoff_address
+                    const statusEl = document.getElementById('bd_status');
+                    statusEl.innerText = statusText;
+                    statusEl.className = 'status-text ' + statusClass;
 
-                    document.getElementById('m_distance').innerText = data.distance_km + " km"
-                    document.getElementById('m_total').innerText = "₱" + data.final_total
-                    document.getElementById('m_status').innerText = data.status
+                    const statusEl2 = document.getElementById('bd_status_2');
+                    statusEl2.innerText = statusText;
+                    statusEl2.className = 'status-text ' + statusClass;
 
+                    document.getElementById('bd_created').innerText = data.created_at ? `Created on ${data.created_at}` : '';
+
+                    document.getElementById('bd_customer_name').innerText = data.customer?.full_name ?? '—';
+                    document.getElementById('bd_customer_phone').innerText = data.customer?.phone ?? '—';
+                    document.getElementById('bd_customer_email').innerText = data.customer?.email ?? '—';
+
+                    document.getElementById('bd_truck_type').innerText = data.truck_type?.name ?? '—';
+                    document.getElementById('bd_unit').innerText = data.unit?.name ?? 'Unassigned';
+                    document.getElementById('bd_booked_on').innerText = data.created_at ?? '—';
+                    document.getElementById('bd_scheduled_for').innerText = data.scheduled_for ?? '—';
+                    document.getElementById('bd_reference').innerText = data.booking_code ?? id;
+
+                    document.getElementById('bd_pickup').innerText = data.pickup_address ?? '—';
+                    document.getElementById('bd_dropoff').innerText = data.dropoff_address ?? '—';
+                    document.getElementById('bd_distance').innerText = data.distance_km ? `${data.distance_km} km` : '—';
+
+                    document.getElementById('bd_total').innerText = data.final_total ? `₱${Number(data.final_total).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '—';
+                    document.getElementById('bd_payment_method').innerText = data.payment_method ?? '—';
+                    document.getElementById('bd_payment_status').innerText = data.payment_status ?? '—';
+                    document.getElementById('bd_additional_fee').innerText = data.additional_fee ? `₱${Number(data.additional_fee).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '₱0.00';
+                    document.getElementById('bd_notes').innerText = data.notes ?? '—';
+
+                    const download = document.getElementById('bd_download');
                     if (data.receipt) {
-                        document.getElementById('m_receipt').innerText = data.receipt.receipt_code ?? data.receipt
-                            .receipt_number
-                        document.getElementById('m_download').href = data.receipt.pdf_url
-                        document.getElementById('m_download').target = "_blank"
-                        document.getElementById('m_download').rel = "noopener noreferrer"
-                        document.getElementById('m_download').style.display = "inline-flex"
+                        download.href = data.receipt.pdf_url;
+                        download.style.display = 'inline-block';
                     } else {
-                        document.getElementById('m_receipt').innerText = "No receipt"
-                        document.getElementById('m_download').style.display = "none"
+                        download.style.display = 'none';
                     }
 
-                    document.getElementById('bookingModal').style.display = "flex"
+                    clearBookingError();
                 })
+                .catch(() => {
+                    showBookingError('Unable to load booking details. Please try again.');
+                });
         }
 
         function closeBooking() {
-            document.getElementById('bookingModal').style.display = "none"
+            document.getElementById('bookingDrawerOverlay').classList.remove('is-open');
+            document.getElementById('bookingDrawer').classList.remove('is-open');
         }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeBooking();
+        });
+
+        document.addEventListener('click', (event) => {
+            const viewBtn = event.target.closest('.view-btn');
+            if (viewBtn) {
+                openBooking(viewBtn.dataset.jobCode);
+                return;
+            }
+
+            const row = event.target.closest('.booking-row');
+            if (row) {
+                openBooking(row.dataset.jobCode);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') return;
+            const row = event.target.closest('.booking-row');
+            if (row) {
+                openBooking(row.dataset.jobCode);
+            }
+        });
 
         const bookingPage = document.getElementById('bookingPage');
         const bookingFiltersForm = document.getElementById('bookingFiltersForm');
@@ -378,14 +406,15 @@
             }));
         });
 
-        document.getElementById('bookingRangeApply')?.addEventListener('click', () => {
-            refreshBookings(buildFilterUrl({
-                page: 1
-            }));
-        });
+        const bookingFromInput = document.querySelector('#bookingDateRangePicker [data-role="from"]');
+        const bookingToInput = document.querySelector('#bookingDateRangePicker [data-role="to"]');
 
-        document.getElementById('bookingRangeClear')?.addEventListener('click', () => {
-            window.location.href = bookingIndexUrl;
+        bookingToInput?.addEventListener('change', () => {
+            if (bookingFromInput?.value && bookingToInput.value) {
+                refreshBookings(buildFilterUrl({
+                    page: 1
+                }));
+            }
         });
 
         document.addEventListener('click', (event) => {

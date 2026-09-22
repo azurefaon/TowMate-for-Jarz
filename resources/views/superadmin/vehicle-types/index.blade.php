@@ -26,50 +26,27 @@
         @include('superadmin.fleet._tabs')
 
         <form method="GET" id="vcFilterForm" class="vc-toolbar">
-            <div class="vc-toolbar-search">
-                <div class="search-box">
-                    <i data-lucide="search"></i>
-                    <input type="text" name="search" id="vcSearch" value="{{ request('search') }}" placeholder="Search vehicle types...">
-                </div>
+            <div class="search-box">
+                <i data-lucide="search"></i>
+                <input type="text" name="search" id="vcSearch" value="{{ request('search') }}" placeholder="Search vehicle types...">
             </div>
 
-            <div class="vc-toolbar-primary">
-                <button type="button" class="vc-add-btn" id="vcAddBtn">
-                    <i data-lucide="plus"></i>
-                    Add Vehicle Type
-                </button>
-            </div>
+            <select name="category" id="vcCategoryFilter" data-custom>
+                <option value="">All Categories</option>
+                @foreach ($vehicleCategories as $cat)
+                    <option value="{{ $cat->slug }}" {{ request('category') === $cat->slug ? 'selected' : '' }}>{{ $cat->name }}</option>
+                @endforeach
+            </select>
 
-            <div class="vc-toolbar-filters">
-                <select name="category" id="vcCategoryFilter" data-custom>
-                    <option value="">All Categories</option>
-                    @foreach ($vehicleCategories as $cat)
-                        <option value="{{ $cat->slug }}" {{ request('category') === $cat->slug ? 'selected' : '' }}>{{ $cat->name }}</option>
-                    @endforeach
-                </select>
+            <select name="status" id="vcStatusFilter" data-custom>
+                <option value="">All Statuses</option>
+                <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
+                <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
+            </select>
 
-                <select name="status" id="vcStatusFilter" data-custom>
-                    <option value="">All Statuses</option>
-                    <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
-                    <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
-                </select>
-
-                @if (request()->hasAny(['search', 'category', 'status']))
-                    <a href="{{ route('superadmin.vehicle-types.index') }}" class="vc-filter-reset">Reset</a>
-                @endif
-            </div>
-
-            <div class="vc-toolbar-secondary">
-                <button type="button" class="vc-arrange-btn" id="vcCategoriesBtn">Manage categories</button>
-
-                <div class="vc-order-toggle" id="vcOrderToggle">
-                    <button type="button" class="vc-arrange-btn" id="vcEditOrderBtn">Edit order</button>
-                    <div class="vc-order-actions" id="vcOrderActions">
-                        <button type="button" class="vc-btn-cancel" id="vcOrderCancelBtn">Cancel</button>
-                        <button type="button" class="vc-btn-save" id="vcOrderSaveBtn">Save order</button>
-                    </div>
-                </div>
-            </div>
+            @if (request()->hasAny(['search', 'category', 'status']))
+                <a href="{{ route('superadmin.vehicle-types.index') }}" class="vc-filter-reset">Reset</a>
+            @endif
         </form>
 
         <p class="vc-order-hint" id="vcOrderBar">
@@ -81,16 +58,52 @@
             @if ($hasResults)
                 <div class="vc-groups" id="vcGroups">
                     @foreach ($mainGroups as $group)
-                        <details class="vc-group-trucktype" data-accordion-group="vc-main-trucktype" {{ $group['open'] ? 'open' : '' }}>
+                        @php($vehicleTotal = collect($group['categories'])->sum(fn ($catGroup) => $catGroup['vehicles']->count()))
+                        <details class="vc-group-trucktype" data-truck-type-id="{{ $group['truckType']->id }}" data-accordion-group="vc-main-trucktype" {{ $group['open'] ? 'open' : '' }}>
                             <summary>
                                 <span>{{ $group['truckType']->name }}</span>
+                                <div class="vc-header-actions">
+                                    @if ($group['truckType']->id)
+                                        <button type="button" class="vc-mini-btn js-vc-add-category-btn" data-truck-type-name="{{ $group['truckType']->name }}">
+                                            <i data-lucide="plus"></i>
+                                            Add Category
+                                        </button>
+
+                                        <div class="vc-order-mini-toggle">
+                                            <button type="button" class="vc-mini-btn js-vc-edit-order-btn">
+                                                <i data-lucide="arrow-up-down"></i>
+                                                Edit Order
+                                            </button>
+                                            <div class="vc-order-mini-actions js-vc-order-actions">
+                                                <button type="button" class="vc-btn-cancel vc-btn-cancel--sm js-vc-order-cancel">Cancel</button>
+                                                <button type="button" class="vc-btn-save vc-btn-save--sm js-vc-order-save">Save Order</button>
+                                            </div>
+                                        </div>
+                                    @endif
+                                    <span class="vc-count">{{ $vehicleTotal }} vehicle{{ $vehicleTotal === 1 ? '' : 's' }}</span>
+                                </div>
                             </summary>
+                            @if (empty($group['categories']))
+                                <div class="vc-group-empty">
+                                    <span>No categories yet for this truck type.</span>
+                                </div>
+                            @else
                             <div class="vc-group-categories">
                                 @foreach ($group['categories'] as $catGroup)
                                     <details class="vc-group-category" data-accordion-group="vc-main-category-{{ $group['truckType']->id }}" {{ $catGroup['open'] ? 'open' : '' }}>
                                         <summary data-slug="{{ $catGroup['category']->slug }}">
                                             <span>{{ $catGroup['category']->name }}</span>
-                                            <span class="vc-count">{{ $catGroup['vehicles']->count() }}</span>
+                                            <div class="vc-header-actions">
+                                                @if ($group['truckType']->id && $catGroup['category']->slug)
+                                                    <button type="button" class="vc-mini-btn js-vc-add-vehicle-btn"
+                                                        data-category-slug="{{ $catGroup['category']->slug }}"
+                                                        data-truck-type-id="{{ $group['truckType']->id }}">
+                                                        <i data-lucide="plus"></i>
+                                                        Add Vehicle Type
+                                                    </button>
+                                                @endif
+                                                <span class="vc-count">{{ $catGroup['vehicles']->count() }}</span>
+                                            </div>
                                         </summary>
                                         <div class="vc-vehicle-list"
                                             data-truck-type-id="{{ $group['truckType']->id }}"
@@ -168,6 +181,7 @@
                                     </details>
                                 @endforeach
                             </div>
+                            @endif
                         </details>
                     @endforeach
                 </div>
@@ -323,34 +337,26 @@
         </div>
     </div>
 
-    <div class="vc-modal" id="categoriesModal">
+    <div class="vc-modal vc-modal--sm" id="addCategoryModal">
         <div class="vc-modal-card">
             <div class="vc-modal-header">
                 <div>
-                    <h2>Manage Categories</h2>
-                    <p>Add or rename the categories vehicle types are grouped under.</p>
+                    <h2 id="addCategoryModalTitle">Add Category</h2>
                 </div>
-                <button type="button" class="vc-modal-close" data-close-modal="categoriesModal" aria-label="Close">
+                <button type="button" class="vc-modal-close" data-close-modal="addCategoryModal" aria-label="Close">
                     <i data-lucide="x"></i>
                 </button>
             </div>
 
-            <div class="vc-arrange-category-list" id="arrangeCategoryList">
-                @foreach ($vehicleCategories as $cat)
-                    <div class="vc-arrange-category-row" data-category-id="{{ $cat->id }}">
-                        <input type="text" class="vc-arrange-category-input" value="{{ $cat->name }}">
-                        <button type="button" class="vc-arrange-category-save" data-id="{{ $cat->id }}">Save</button>
-                    </div>
-                @endforeach
+            <div class="vc-form-group">
+                <label for="addCategoryName">Category name<span class="vc-required" aria-hidden="true">*</span></label>
+                <input type="text" id="addCategoryName" placeholder="e.g. Off-Road">
             </div>
-            <div class="vc-arrange-category-add">
-                <input type="text" id="arrangeNewCategoryName" placeholder="New category name">
-                <button type="button" id="arrangeAddCategoryBtn">Add category</button>
-            </div>
-            <span class="vc-form-hint" id="arrangeCategoryFeedback"></span>
+            <span class="vc-form-hint" id="addCategoryFeedback"></span>
 
             <div class="vc-modal-footer">
-                <button type="button" class="vc-btn-cancel" data-close-modal="categoriesModal">Close</button>
+                <button type="button" class="vc-btn-cancel" data-close-modal="addCategoryModal">Close</button>
+                <button type="button" class="vc-btn-save" id="addCategorySaveBtn">Save</button>
             </div>
         </div>
     </div>

@@ -66,7 +66,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    document.getElementById("vcAddBtn")?.addEventListener("click", () => {
+    document.addEventListener("click", (e) => {
+        const trigger = e.target.closest(".js-vc-add-vehicle-btn");
+        if (!trigger) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const categorySelect = document.getElementById("addVcCategory");
+        const truckSelect = document.getElementById("addVcRequiredTruckType");
+        if (categorySelect) categorySelect.value = trigger.dataset.categorySlug || "";
+        if (truckSelect) truckSelect.value = trigger.dataset.truckTypeId || "";
+
         showModal(document.getElementById("addModal"));
     });
 
@@ -124,24 +134,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const categoriesUrl = page.dataset.categoriesUrl;
     const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
-    const arrangeCategoryList = document.getElementById("arrangeCategoryList");
 
-    document.getElementById("vcCategoriesBtn")?.addEventListener("click", () => {
-        const feedback = document.getElementById("arrangeCategoryFeedback");
+    document.addEventListener("click", (e) => {
+        const trigger = e.target.closest(".js-vc-add-category-btn");
+        if (!trigger) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const title = document.getElementById("addCategoryModalTitle");
+        const truckTypeName = trigger.dataset.truckTypeName;
+        if (title) title.textContent = truckTypeName ? `Add Category to ${truckTypeName}` : "Add Category";
+
+        const input = document.getElementById("addCategoryName");
+        if (input) input.value = "";
+
+        const feedback = document.getElementById("addCategoryFeedback");
         if (feedback) feedback.textContent = "";
 
-        showModal(document.getElementById("categoriesModal"));
+        showModal(document.getElementById("addCategoryModal"));
     });
 
-    const vcGroups = document.getElementById("vcGroups");
     const orderBar = document.getElementById("vcOrderBar");
-    const editOrderBtn = document.getElementById("vcEditOrderBtn");
-    const orderActions = document.getElementById("vcOrderActions");
     const filterControls = ["vcSearch", "vcCategoryFilter", "vcStatusFilter"].map((id) => document.getElementById(id));
-    const toolbarButtons = ["vcCategoriesBtn", "vcAddBtn"].map((id) => document.getElementById(id));
+    let editingTruckTypeId = null;
 
-    const wireVehicleDragHandlers = () => {
-        document.querySelectorAll(".vc-vehicle-list").forEach((list) => {
+    const truckTypeGroupEl = (truckTypeId) =>
+        document.querySelector(`.vc-group-trucktype[data-truck-type-id="${truckTypeId}"]`);
+
+    const wireVehicleDragHandlers = (scope) => {
+        (scope || document).querySelectorAll(".vc-vehicle-list").forEach((list) => {
             list.querySelectorAll('.vc-vehicle-row[data-status="active"]').forEach((row) => {
                 if (row.dataset.dragWired) return;
                 row.dataset.dragWired = "1";
@@ -183,47 +204,80 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
-    const setEditOrderMode = (active) => {
-        vcGroups?.classList.toggle("vc-editing-order", active);
-        if (orderBar) orderBar.classList.toggle("is-open", active);
-        if (editOrderBtn) editOrderBtn.style.display = active ? "none" : "";
-        if (orderActions) orderActions.classList.toggle("is-open", active);
+    const setControlsDisabled = (disabled) => {
         filterControls.forEach((control) => {
-            if (control) control.disabled = active;
+            if (control) control.disabled = disabled;
         });
-        toolbarButtons.forEach((button) => {
-            if (button) button.disabled = active;
+        document.querySelectorAll(".js-vc-add-category-btn, .js-vc-edit-order-btn, .js-vc-add-vehicle-btn").forEach((button) => {
+            button.disabled = disabled;
         });
     };
 
-    const enterEditOrderMode = () => {
-        wireVehicleDragHandlers();
+    const setEditOrderMode = (truckTypeId, active) => {
+        const group = truckTypeGroupEl(truckTypeId);
+        if (!group) return;
+
+        group.classList.toggle("vc-editing-order", active);
+        if (orderBar) orderBar.classList.toggle("is-open", active);
+        group.querySelectorAll(".js-vc-edit-order-btn").forEach((button) => {
+            button.style.display = active ? "none" : "";
+        });
+        group.querySelectorAll(".js-vc-order-actions").forEach((actions) => {
+            actions.classList.toggle("is-open", active);
+        });
+        setControlsDisabled(active);
+        editingTruckTypeId = active ? truckTypeId : null;
+    };
+
+    const enterEditOrderMode = (truckTypeId) => {
+        const group = truckTypeGroupEl(truckTypeId);
+        if (!group) return;
+        group.open = true;
+        wireVehicleDragHandlers(group);
         const feedback = document.getElementById("vcOrderFeedback");
         if (feedback) feedback.textContent = "";
-        setEditOrderMode(true);
+        setEditOrderMode(truckTypeId, true);
     };
 
-    editOrderBtn?.addEventListener("click", () => {
+    document.addEventListener("click", (e) => {
+        const trigger = e.target.closest(".js-vc-edit-order-btn");
+        if (!trigger) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const truckTypeId = trigger.closest(".vc-group-trucktype")?.dataset.truckTypeId;
+        if (!truckTypeId) return;
+
         const params = new URLSearchParams(window.location.search);
         if (params.has("search") || params.has("category") || params.has("status")) {
-            window.location.href = `${baseUrl}?edit_order=1`;
+            window.location.href = `${baseUrl}?edit_order=${truckTypeId}`;
             return;
         }
-        enterEditOrderMode();
+        enterEditOrderMode(truckTypeId);
     });
 
-    document.getElementById("vcOrderCancelBtn")?.addEventListener("click", () => {
+    document.addEventListener("click", (e) => {
+        const trigger = e.target.closest(".js-vc-order-cancel");
+        if (!trigger) return;
+        e.preventDefault();
+        e.stopPropagation();
         window.location.reload();
     });
 
-    document.getElementById("vcOrderSaveBtn")?.addEventListener("click", () => {
-        const groups = [...document.querySelectorAll(".vc-vehicle-list")]
+    document.addEventListener("click", (e) => {
+        const trigger = e.target.closest(".js-vc-order-save");
+        if (!trigger) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const group = truckTypeGroupEl(editingTruckTypeId);
+        const groups = [...(group?.querySelectorAll(".vc-vehicle-list") || [])]
             .map((list) => ({
                 required_truck_type_id: parseInt(list.dataset.truckTypeId, 10),
                 category: list.dataset.category,
                 vehicle_ids: [...list.querySelectorAll('.vc-vehicle-row[data-status="active"]')].map((row) => parseInt(row.dataset.id, 10)),
             }))
-            .filter((group) => group.vehicle_ids.length > 0);
+            .filter((g) => g.vehicle_ids.length > 0);
 
         const feedback = document.getElementById("vcOrderFeedback");
         if (feedback) feedback.textContent = "Saving...";
@@ -251,14 +305,15 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     });
 
-    if (new URLSearchParams(window.location.search).get("edit_order") === "1") {
-        enterEditOrderMode();
+    const editOrderParam = new URLSearchParams(window.location.search).get("edit_order");
+    if (editOrderParam) {
+        enterEditOrderMode(editOrderParam);
         window.history.replaceState(null, "", baseUrl);
     }
 
-    document.getElementById("arrangeAddCategoryBtn")?.addEventListener("click", () => {
-        const input = document.getElementById("arrangeNewCategoryName");
-        const feedback = document.getElementById("arrangeCategoryFeedback");
+    document.getElementById("addCategorySaveBtn")?.addEventListener("click", () => {
+        const input = document.getElementById("addCategoryName");
+        const feedback = document.getElementById("addCategoryFeedback");
         const name = input?.value.trim();
 
         if (!name) {
@@ -284,28 +339,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
 
                 const category = data.category;
-                if (feedback) feedback.textContent = `Added "${category.name}".`;
-                if (input) input.value = "";
-
-                const row = document.createElement("div");
-                row.className = "vc-arrange-category-row";
-                row.dataset.categoryId = category.id;
-
-                const nameInput = document.createElement("input");
-                nameInput.type = "text";
-                nameInput.className = "vc-arrange-category-input";
-                nameInput.value = category.name;
-
-                const saveButton = document.createElement("button");
-                saveButton.type = "button";
-                saveButton.className = "vc-arrange-category-save";
-                saveButton.dataset.id = category.id;
-                saveButton.textContent = "Save";
-
-                row.appendChild(nameInput);
-                row.appendChild(saveButton);
-                arrangeCategoryList?.appendChild(row);
-                wireCategorySave(saveButton);
 
                 ["addVcCategory", "editVcCategory", "vcCategoryFilter"].forEach((selectId) => {
                     const select = document.getElementById(selectId);
@@ -315,63 +348,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     option.textContent = category.name;
                     select.appendChild(option);
                 });
+
+                if (input) input.value = "";
+                hideModal(document.getElementById("addCategoryModal"));
             })
             .catch(() => {
                 if (feedback) feedback.textContent = "Could not add the category.";
             });
     });
-
-    function wireCategorySave(button) {
-        button?.addEventListener("click", () => {
-            const row = button.closest(".vc-arrange-category-row");
-            const input = row?.querySelector(".vc-arrange-category-input");
-            const feedback = document.getElementById("arrangeCategoryFeedback");
-            const name = input?.value.trim();
-            const id = button.dataset.id;
-
-            if (!name) {
-                if (feedback) feedback.textContent = "Enter a category name.";
-                return;
-            }
-
-            fetch(`${categoriesUrl}/${id}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                    "X-CSRF-TOKEN": csrfToken(),
-                },
-                body: JSON.stringify({ name }),
-            })
-                .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-                .then(({ ok, data }) => {
-                    if (!ok) {
-                        const message = data?.errors?.name?.[0] || data?.message || "Could not rename the category.";
-                        if (feedback) feedback.textContent = message;
-                        return;
-                    }
-
-                    const category = data.category;
-                    if (feedback) feedback.textContent = `Renamed to "${category.name}".`;
-
-                    document.querySelectorAll(`option[value="${category.slug}"]`).forEach((option) => {
-                        option.textContent = category.name;
-                    });
-
-                    document.querySelectorAll(".vc-group-category > summary").forEach((summary) => {
-                        if (summary.dataset.slug === category.slug) {
-                            const nameSpan = summary.querySelector("span:first-child");
-                            if (nameSpan) nameSpan.textContent = category.name;
-                        }
-                    });
-                })
-                .catch(() => {
-                    if (feedback) feedback.textContent = "Could not rename the category.";
-                });
-        });
-    }
-
-    document.querySelectorAll(".vc-arrange-category-save").forEach(wireCategorySave);
 
     const filterForm = document.getElementById("vcFilterForm");
     const searchInput = document.getElementById("vcSearch");

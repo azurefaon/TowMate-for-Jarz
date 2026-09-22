@@ -53,20 +53,25 @@ function vaoOrderedActiveNames(): array
         ->all();
 }
 
-it('renders the edit order button and inline order bar controls on the vehicle types page', function () {
+it('renders the edit order control and inline order bar within each truck type header', function () {
     $owner = vaoOwner();
+    $truckType = vaoTruckType();
+    vaoVehicleType(['required_truck_type_id' => $truckType->id]);
 
     $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
+    $content = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('id="vcEditOrderBtn"', false);
-    $response->assertSee('Edit order');
     $response->assertSee('id="vcOrderBar"', false);
-    $response->assertSee('id="vcOrderSaveBtn"', false);
-    $response->assertSee('Save order');
-    $response->assertSee('id="vcOrderCancelBtn"', false);
-    $response->assertSee('id="vcCategoriesBtn"', false);
-    $response->assertSee('Manage categories');
+    expect($content)->toContain('js-vc-edit-order-btn');
+    expect($content)->toContain('Edit Order');
+    expect($content)->toContain('js-vc-order-save');
+    expect($content)->toContain('Save Order');
+    expect($content)->toContain('js-vc-order-cancel');
+    expect($content)->toContain('js-vc-add-category-btn');
+    expect($content)->toContain('Add Category');
+    expect($content)->not->toContain('id="vcCategoriesBtn"');
+    expect($content)->not->toContain('id="vcEditOrderBtn"');
 });
 
 it('does not render a separate arrange order modal anymore', function () {
@@ -107,84 +112,96 @@ it('only renders a drag handle for active vehicle rows', function () {
     expect(substr_count($content, 'class="vc-drag-handle"'))->toBe(1);
 });
 
-it('keeps the manage categories modal hidden by default', function () {
+it('keeps the small add category modal hidden by default and drops the bulk categories modal', function () {
     $owner = vaoOwner();
 
     $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
     $content = $response->getContent();
 
     $response->assertOk();
-    expect($content)->toContain('<div class="vc-modal" id="categoriesModal">');
-    expect($content)->not->toContain('<div class="vc-modal is-open" id="categoriesModal">');
+    expect($content)->toContain('<div class="vc-modal vc-modal--sm" id="addCategoryModal">');
+    expect($content)->not->toContain('is-open" id="addCategoryModal"');
+    expect($content)->not->toContain('id="categoriesModal"');
+    expect($content)->not->toContain('vc-arrange-category');
 });
 
-it('lays the toolbar out as a balanced two-column grid with search/add on row one and filters/actions on row two', function () {
+it('shows a newly created truck type with zero vehicles instead of hiding it', function () {
+    $owner = vaoOwner();
+    $withVehicles = vaoTruckType(['name' => 'VAO Has Vehicles']);
+    vaoVehicleType(['required_truck_type_id' => $withVehicles->id]);
+    $empty = vaoTruckType(['name' => 'DAWDAawdadwa', 'class' => null]);
+
+    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
+    $content = $response->getContent();
+
+    $response->assertOk();
+    expect($content)->toContain($empty->name);
+    expect($content)->toContain('No categories yet for this truck type.');
+
+    $emptyGroupPos = strpos($content, 'data-truck-type-id="' . $empty->id . '"');
+    $withVehiclesGroupPos = strpos($content, 'data-truck-type-id="' . $withVehicles->id . '"');
+    expect([$emptyGroupPos, $withVehiclesGroupPos])->each->not->toBeFalse();
+});
+
+it('still hides truck types with no matching results while a filter is active', function () {
+    $owner = vaoOwner();
+    $withVehicles = vaoTruckType(['name' => 'VAO Filter Match']);
+    vaoVehicleType(['required_truck_type_id' => $withVehicles->id, 'name' => 'VAO Findable']);
+    $empty = vaoTruckType(['name' => 'VAO Filter Empty']);
+
+    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index', ['search' => 'Findable']));
+    $content = $response->getContent();
+
+    $response->assertOk();
+    expect($content)->toContain('data-truck-type-id="' . $withVehicles->id . '"');
+    expect($content)->not->toContain('data-truck-type-id="' . $empty->id . '"');
+});
+
+it('lays the toolbar out in one row: search, category, then status, with no global add button', function () {
     $owner = vaoOwner();
 
     $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
     $content = $response->getContent();
 
     $response->assertOk();
-    expect($content)->toContain('vc-toolbar-search');
-    expect($content)->toContain('vc-toolbar-primary');
-    expect($content)->toContain('vc-toolbar-filters');
-    expect($content)->toContain('vc-toolbar-secondary');
 
     $searchPos = strpos($content, 'id="vcSearch"');
-    $addPos = strpos($content, 'id="vcAddBtn"');
     $categoryFilterPos = strpos($content, 'id="vcCategoryFilter"');
     $statusFilterPos = strpos($content, 'id="vcStatusFilter"');
-    $categoriesPos = strpos($content, 'id="vcCategoriesBtn"');
-    $togglePos = strpos($content, 'id="vcOrderToggle"');
-    $editOrderPos = strpos($content, 'id="vcEditOrderBtn"');
-    $orderActionsPos = strpos($content, 'id="vcOrderActions"');
-    $cancelPos = strpos($content, 'id="vcOrderCancelBtn"');
-    $savePos = strpos($content, 'id="vcOrderSaveBtn"');
 
-    expect([$searchPos, $addPos, $categoryFilterPos, $statusFilterPos, $categoriesPos, $togglePos, $editOrderPos, $orderActionsPos, $cancelPos, $savePos])->each->not->toBeFalse();
-    expect($searchPos)->toBeLessThan($addPos);
-    expect($addPos)->toBeLessThan($categoryFilterPos);
+    expect([$searchPos, $categoryFilterPos, $statusFilterPos])->each->not->toBeFalse();
+    expect($searchPos)->toBeLessThan($categoryFilterPos);
     expect($categoryFilterPos)->toBeLessThan($statusFilterPos);
-    expect($statusFilterPos)->toBeLessThan($categoriesPos);
-    expect($categoriesPos)->toBeLessThan($togglePos);
-    expect($togglePos)->toBeLessThan($editOrderPos);
-    expect($editOrderPos)->toBeLessThan($orderActionsPos);
-    expect($orderActionsPos)->toBeLessThan($cancelPos);
-    expect($cancelPos)->toBeLessThan($savePos);
+    expect($content)->not->toContain('id="vcAddBtn"');
 });
 
-it('uses a two-column css grid for the toolbar instead of a single stacked column', function () {
+it('lays the toolbar out as a single wrapping flex row', function () {
     $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
 
     preg_match('/\.vc-toolbar\s*\{[^}]*\}/s', $css, $toolbarRule);
 
     expect($toolbarRule)->not->toBeEmpty();
-    expect($toolbarRule[0])->toContain('display: grid');
-    expect($toolbarRule[0])->toContain('"search primary"');
-    expect($toolbarRule[0])->toContain('"filters secondary"');
+    expect($toolbarRule[0])->toContain('display: flex');
+    expect($toolbarRule[0])->toContain('flex-wrap: wrap');
+    expect($toolbarRule[0])->not->toContain('flex-direction: column');
 });
 
-it('does not use space-between on the toolbar row groups', function () {
+it('does not use space-between on the toolbar row', function () {
     $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
 
-    foreach (['.vc-toolbar-search', '.vc-toolbar-primary', '.vc-toolbar-filters', '.vc-toolbar-secondary'] as $selector) {
-        preg_match('/' . preg_quote($selector, '/') . '\s*\{[^}]*\}/s', $css, $rule);
+    preg_match('/\.vc-toolbar\s*\{[^}]*\}/s', $css, $rule);
 
-        expect($rule)->not->toBeEmpty();
-        expect($rule[0])->not->toContain('space-between');
-    }
+    expect($rule)->not->toBeEmpty();
+    expect($rule[0])->not->toContain('space-between');
 });
 
-it('right-aligns the add vehicle type button and the manage categories and edit order group', function () {
+it('lets toolbar controls wrap onto additional rows without a fixed row height', function () {
     $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
 
-    preg_match('/\.vc-toolbar-primary\s*\{[^}]*\}/s', $css, $primaryRule);
-    preg_match('/\.vc-toolbar-secondary\s*\{[^}]*\}/s', $css, $secondaryRule);
+    preg_match('/\.vc-toolbar\s*\{[^}]*\}/s', $css, $toolbarRule);
 
-    expect($primaryRule)->not->toBeEmpty();
-    expect($secondaryRule)->not->toBeEmpty();
-    expect($primaryRule[0])->toContain('justify-content: flex-end');
-    expect($secondaryRule[0])->toContain('justify-content: flex-end');
+    expect($toolbarRule)->not->toBeEmpty();
+    expect($toolbarRule[0])->not->toMatch('/(?<![a-z-])height:\s*\d/');
 });
 
 it('does not use a fixed pixel width for the search box that could overlap other toolbar controls', function () {
@@ -258,6 +275,21 @@ it('renders vehicle groups directly on the page instead of inside a nested scrol
     expect($groupsRule)->not->toBeEmpty();
     expect($groupsRule[0])->not->toContain('overflow-y');
     expect($groupsRule[0])->not->toContain('max-height');
+});
+
+it('gives each truck type its own add category trigger for the small add category modal', function () {
+    $owner = vaoOwner();
+    $truckType = vaoTruckType();
+    vaoVehicleType(['required_truck_type_id' => $truckType->id]);
+
+    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
+    $content = $response->getContent();
+
+    $response->assertOk();
+    expect($content)->toContain('data-truck-type-name="' . $truckType->name . '"');
+    expect(substr_count($content, 'id="addCategoryModal"'))->toBe(1);
+    expect(substr_count($content, 'id="addCategoryName"'))->toBe(1);
+    expect(substr_count($content, 'id="addCategorySaveBtn"'))->toBe(1);
 });
 
 it('creates a new category with a generated slug', function () {

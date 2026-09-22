@@ -52,13 +52,10 @@
 }
 
 .vc-toolbar {
-    display: grid;
-    grid-template-columns: minmax(260px, 420px) auto;
-    grid-template-areas:
-        "search primary"
-        "filters secondary";
+    display: flex;
     align-items: center;
-    gap: 10px 20px;
+    flex-wrap: wrap;
+    gap: 12px;
     background: #f5f5f5;
     border: 1px solid #e5e5e5;
     border-radius: 6px;
@@ -66,32 +63,9 @@
     margin-bottom: 16px;
 }
 
-.vc-toolbar-search {
-    grid-area: search;
-    display: flex;
-}
-
-.vc-toolbar-primary {
-    grid-area: primary;
-    display: flex;
-    justify-content: flex-end;
-}
-
-.vc-toolbar-filters {
-    grid-area: filters;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.vc-toolbar-secondary {
-    grid-area: secondary;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 12px;
+.vc-toolbar .search-box {
+    flex: 1 1 260px;
+    max-width: 560px;
 }
 
 .vc-page .search-box {
@@ -149,36 +123,6 @@
 .vc-filter-reset:hover {
     color: #171717;
     text-decoration: underline;
-}
-
-.vc-add-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    height: 44px;
-    padding: 0 16px;
-    background: #facc15;
-    color: #171717;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.vc-add-btn:hover {
-    background: #eab308;
-}
-
-.vc-add-btn:focus-visible {
-    outline: 2px solid #171717;
-    outline-offset: 2px;
-}
-
-.vc-add-btn svg {
-    width: 16px;
-    height: 16px;
 }
 
 .vc-page .table-card {
@@ -267,7 +211,7 @@
 }
 
 .status-text.status-inactive {
-    color: #b91c1c;
+    color: #171717;
 }
 
 .u-actions-col {
@@ -309,6 +253,8 @@
 
 .u-menu-dropdown {
     position: fixed;
+    top: 0;
+    left: 0;
     z-index: 60;
     min-width: 190px;
     background: #ffffff;
@@ -518,8 +464,9 @@
     overflow-y: auto;
 }
 
-.vc-confirm-modal .vc-modal-card {
-    max-width: min(420px, calc(100vw - 32px));
+.vc-confirm-modal .vc-modal-card,
+.vc-modal--sm .vc-modal-card {
+    max-width: min(400px, calc(100vw - 32px));
 }
 
 .vc-modal-header {
@@ -847,22 +794,11 @@
 }
 
 @media (max-width: 640px) {
-    .vc-toolbar {
-        grid-template-columns: 1fr;
-        grid-template-areas:
-            "search"
-            "primary"
-            "filters"
-            "secondary";
-    }
-
-    .vc-toolbar-primary,
-    .vc-toolbar-secondary {
-        justify-content: flex-start;
-    }
-
-    .vc-add-btn {
-        flex: 1 1 auto;
+    .vc-toolbar .search-box,
+    .vc-toolbar select {
+        flex: 1 1 100%;
+        max-width: none;
+        width: 100%;
     }
 }
 
@@ -879,34 +815,69 @@
     }
 }
 
-.vc-arrange-btn {
+.vc-mini-btn {
     display: inline-flex;
     align-items: center;
-    height: 44px;
-    padding: 0 16px;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
     background: #ffffff;
     color: #171717;
     border: 1px solid #d4d4d4;
     border-radius: 6px;
-    font-size: 0.88rem;
+    font-size: 0.78rem;
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
 }
 
-.vc-arrange-btn:hover {
+.vc-mini-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.vc-mini-btn:hover {
     background: #f5f5f5;
 }
 
-.vc-arrange-btn:focus-visible {
+.vc-mini-btn:focus-visible {
     outline: 2px solid #171717;
     outline-offset: 2px;
 }
 
-.vc-arrange-btn:disabled {
+.vc-mini-btn:disabled {
     color: #a3a3a3;
     cursor: not-allowed;
     background: #ffffff;
+}
+
+.vc-header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.vc-order-mini-toggle {
+    display: inline-flex;
+    align-items: center;
+}
+
+.vc-order-mini-actions {
+    display: none;
+    align-items: center;
+    gap: 8px;
+}
+
+.vc-order-mini-actions.is-open {
+    display: flex;
+}
+
+.vc-btn-cancel--sm,
+.vc-btn-save--sm {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 0.78rem;
 }
 
 .vc-order-hint {
@@ -928,83 +899,6 @@
     margin: 0;
 }
 
-.vc-order-toggle {
-    display: inline-flex;
-    align-items: center;
-}
-
-.vc-order-actions {
-    display: none;
-    align-items: center;
-    gap: 10px;
-}
-
-.vc-order-actions.is-open {
-    display: flex;
-}
-
-.vc-arrange-category-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-
-.vc-arrange-category-row {
-    display: flex;
-    gap: 8px;
-}
-
-.vc-arrange-category-input {
-    flex: 1;
-    height: 38px;
-    padding: 0 10px;
-    border: 1px solid #d4d4d4;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    color: #171717;
-    background: #ffffff;
-}
-
-.vc-arrange-category-input:focus-visible {
-    outline: 2px solid #171717;
-    outline-offset: 1px;
-}
-
-.vc-arrange-category-save,
-.vc-arrange-category-add button {
-    height: 38px;
-    padding: 0 14px;
-    border: 1px solid #d4d4d4;
-    border-radius: 6px;
-    background: #ffffff;
-    color: #171717;
-    font-size: 0.82rem;
-    font-weight: 500;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.vc-arrange-category-save:hover,
-.vc-arrange-category-add button:hover {
-    background: #f5f5f5;
-}
-
-.vc-arrange-category-add {
-    display: flex;
-    gap: 8px;
-}
-
-.vc-arrange-category-add input {
-    flex: 1;
-    height: 38px;
-    padding: 0 10px;
-    border: 1px solid #d4d4d4;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    color: #171717;
-    background: #ffffff;
-}
 
 .vc-count {
     font-size: 0.75rem;
@@ -1022,6 +916,8 @@
     margin: -10px -6px;
     border-radius: 6px;
     min-height: 24px;
+    flex-wrap: wrap;
+    row-gap: 8px;
 }
 
 .vc-group-trucktype > summary > span:first-child,
@@ -1097,10 +993,20 @@
 }
 
 .vc-group-categories {
-    margin: 12px 0 0 12px;
+    margin: 12px 0 0 6px;
+    padding-left: 16px;
+    border-left: 2px solid #e5e5e5;
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+.vc-group-empty {
+    margin: 12px 0 0 6px;
+    padding: 10px 16px;
+    border-left: 2px solid #e5e5e5;
+    font-size: 0.85rem;
+    color: #737373;
 }
 
 .vc-group-category > summary {
@@ -1119,20 +1025,23 @@
 }
 
 .vc-vehicle-list {
-    margin: 10px 0 0 12px;
+    margin: 8px 0 0 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
 }
 
 .vc-vehicle-row {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 12px;
-    border: 1px solid #e5e5e5;
-    border-radius: 6px;
-    background: #ffffff;
+    padding: 10px 4px;
+    border: none;
+    border-bottom: 1px solid #ededed;
+    background: transparent;
+}
+
+.vc-vehicle-row:last-child {
+    border-bottom: none;
 }
 
 .vc-vehicle-row .cell-main {
@@ -1175,11 +1084,11 @@
         0 14px, 8px 14px;
 }
 
-.vc-groups.vc-editing-order .vc-vehicle-row[data-status="active"] .vc-drag-handle {
+.vc-group-trucktype.vc-editing-order .vc-vehicle-row[data-status="active"] .vc-drag-handle {
     display: inline-block;
 }
 
-.vc-groups.vc-editing-order .vc-vehicle-row[data-status="active"] {
+.vc-group-trucktype.vc-editing-order .vc-vehicle-row[data-status="active"] {
     cursor: grab;
 }
 
@@ -1197,8 +1106,12 @@
         text-align: left;
     }
 
-    .vc-arrange-category-add {
-        flex-direction: column;
+    .vc-header-actions {
+        flex-basis: 100%;
+    }
+
+    .vc-order-mini-toggle {
+        flex-wrap: wrap;
     }
 }
 

@@ -96,14 +96,14 @@ it('no longer renders the old period preset buttons or the filter-summary text',
 });
 
 it('defaults to today when no filters are supplied', function () {
-    bookingsCreate(['final_total' => 4321.00, 'created_at' => now()]);
-    bookingsCreate(['final_total' => 9999.00, 'created_at' => now()->subDays(5)]);
+    $inBooking = bookingsCreate(['final_total' => 4321.00, 'created_at' => now()]);
+    $outBooking = bookingsCreate(['final_total' => 9999.00, 'created_at' => now()->subDays(5)]);
 
     $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index'));
 
     $response->assertOk();
-    $response->assertSee('₱4,321.00');
-    $response->assertDontSee('₱9,999.00');
+    $response->assertSee($inBooking->job_code);
+    $response->assertDontSee($outBooking->job_code);
 });
 
 it('continues to support the existing week and month period presets', function () {
@@ -111,11 +111,11 @@ it('continues to support the existing week and month period presets', function (
 
     $weekResponse = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['period' => 'week']));
     $weekResponse->assertOk();
-    $weekResponse->assertDontSee('₱5,555.00');
+    $weekResponse->assertDontSee($booking->job_code);
 
     $monthResponse = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['period' => 'month']));
     $monthResponse->assertOk();
-    $monthResponse->assertSee('₱5,555.00');
+    $monthResponse->assertSee($booking->job_code);
 });
 
 it('filters bookings by an explicit custom date range inclusive of both endpoints', function () {
@@ -131,24 +131,24 @@ it('filters bookings by an explicit custom date range inclusive of both endpoint
     ]));
 
     $response->assertOk();
-    $response->assertSee('₱1,111.00');
-    $response->assertDontSee('₱2,222.00');
+    $response->assertSee($inRange->job_code);
+    $response->assertDontSee($outOfRange->job_code);
 });
 
 it('falls back to the default period when only one side of the date range is supplied', function () {
-    bookingsCreate(['final_total' => 3333.00, 'created_at' => now()]);
+    $booking = bookingsCreate(['final_total' => 3333.00, 'created_at' => now()]);
 
     $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
         'from' => now()->toDateString(),
     ]));
 
     $response->assertOk();
-    $response->assertSee('₱3,333.00');
+    $response->assertSee($booking->job_code);
 });
 
 it('continues to support filtering bookings by status', function () {
-    bookingsCreate(['final_total' => 6001.00, 'status' => 'completed', 'created_at' => now()]);
-    bookingsCreate(['final_total' => 6002.00, 'status' => 'scheduled', 'created_at' => now()]);
+    $completedBooking = bookingsCreate(['final_total' => 6001.00, 'status' => 'completed', 'created_at' => now()]);
+    $scheduledBooking = bookingsCreate(['final_total' => 6002.00, 'status' => 'scheduled', 'created_at' => now()]);
 
     $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
         'period' => 'today',
@@ -156,8 +156,8 @@ it('continues to support filtering bookings by status', function () {
     ]));
 
     $response->assertOk();
-    $response->assertSee('₱6,001.00');
-    $response->assertDontSee('₱6,002.00');
+    $response->assertSee($completedBooking->job_code);
+    $response->assertDontSee($scheduledBooking->job_code);
 });
 
 it('renders the status filter as a single dropdown with the currently supported values', function () {
@@ -175,19 +175,19 @@ it('renders the status filter as a single dropdown with the currently supported 
 });
 
 it('filters bookings to needs-attention records combining requested and reviewed statuses', function () {
-    bookingsCreate(['final_total' => 8101.00, 'status' => 'requested', 'created_at' => now()]);
-    bookingsCreate(['final_total' => 8102.00, 'status' => 'reviewed', 'created_at' => now()]);
-    bookingsCreate(['final_total' => 8103.00, 'status' => 'completed', 'created_at' => now()]);
-    bookingsCreate(['final_total' => 8104.00, 'status' => 'scheduled', 'created_at' => now()]);
+    $requested = bookingsCreate(['final_total' => 8101.00, 'status' => 'requested', 'created_at' => now()]);
+    $reviewed = bookingsCreate(['final_total' => 8102.00, 'status' => 'reviewed', 'created_at' => now()]);
+    $completed = bookingsCreate(['final_total' => 8103.00, 'status' => 'completed', 'created_at' => now()]);
+    $scheduled = bookingsCreate(['final_total' => 8104.00, 'status' => 'scheduled', 'created_at' => now()]);
 
     $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['status' => 'needs_attention']));
 
     $response->assertOk();
     $response->assertSee('<option value="needs_attention" selected>Needs Attention</option>', false);
-    $response->assertSee('₱8,101.00');
-    $response->assertSee('₱8,102.00');
-    $response->assertDontSee('₱8,103.00');
-    $response->assertDontSee('₱8,104.00');
+    $response->assertSee($requested->job_code);
+    $response->assertSee($reviewed->job_code);
+    $response->assertDontSee($completed->job_code);
+    $response->assertDontSee($scheduled->job_code);
 });
 
 it('composes the needs-attention filter with search', function () {
@@ -197,7 +197,7 @@ it('composes the needs-attention filter with search', function () {
         'email' => 'bookings-needs-attention-' . uniqid() . '@example.com',
     ]);
 
-    Booking::create([
+    $matchingBooking = Booking::create([
         'customer_id' => $customer->id,
         'truck_type_id' => bookingsTruckType()->id,
         'pickup_address' => 'Pickup A', 'dropoff_address' => 'Dropoff B', 'distance_km' => 5,
@@ -206,7 +206,7 @@ it('composes the needs-attention filter with search', function () {
         'status' => 'requested',
     ]);
 
-    bookingsCreate(['final_total' => 8202.00, 'status' => 'reviewed', 'created_at' => now()]);
+    $otherBooking = bookingsCreate(['final_total' => 8202.00, 'status' => 'reviewed', 'created_at' => now()]);
 
     $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
         'search' => $customer->full_name,
@@ -214,14 +214,14 @@ it('composes the needs-attention filter with search', function () {
     ]));
 
     $response->assertOk();
-    $response->assertSee('₱8,201.00');
-    $response->assertDontSee('₱8,202.00');
+    $response->assertSee($matchingBooking->job_code);
+    $response->assertDontSee($otherBooking->job_code);
     $response->assertSee('<option value="needs_attention" selected>Needs Attention</option>', false);
 });
 
 it('composes the needs-attention filter with a custom date range', function () {
-    bookingsCreate(['final_total' => 8301.00, 'status' => 'requested', 'created_at' => now()->subDays(2)]);
-    bookingsCreate(['final_total' => 8302.00, 'status' => 'requested', 'created_at' => now()->subDays(20)]);
+    $inRange = bookingsCreate(['final_total' => 8301.00, 'status' => 'requested', 'created_at' => now()->subDays(2)]);
+    $outOfRange = bookingsCreate(['final_total' => 8302.00, 'status' => 'requested', 'created_at' => now()->subDays(20)]);
 
     $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
         'from' => now()->subDays(2)->toDateString(),
@@ -230,24 +230,24 @@ it('composes the needs-attention filter with a custom date range', function () {
     ]));
 
     $response->assertOk();
-    $response->assertSee('₱8,301.00');
-    $response->assertDontSee('₱8,302.00');
+    $response->assertSee($inRange->job_code);
+    $response->assertDontSee($outOfRange->job_code);
     $response->assertSee('<option value="needs_attention" selected>Needs Attention</option>', false);
 });
 
 it('supports each currently supported status option from the dropdown', function () {
-    bookingsCreate(['final_total' => 7101.00, 'status' => 'scheduled', 'created_at' => now()]);
-    bookingsCreate(['final_total' => 7102.00, 'status' => 'on_job', 'created_at' => now()]);
-    bookingsCreate(['final_total' => 7103.00, 'status' => 'returned', 'returned_at' => now(), 'created_at' => now()]);
+    $scheduledBooking = bookingsCreate(['final_total' => 7101.00, 'status' => 'scheduled', 'created_at' => now()]);
+    $onJobBooking = bookingsCreate(['final_total' => 7102.00, 'status' => 'on_job', 'created_at' => now()]);
+    $returnedBooking = bookingsCreate(['final_total' => 7103.00, 'status' => 'returned', 'returned_at' => now(), 'created_at' => now()]);
 
     $scheduled = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['status' => 'scheduled']));
-    $scheduled->assertOk()->assertSee('₱7,101.00')->assertDontSee('₱7,102.00');
+    $scheduled->assertOk()->assertSee($scheduledBooking->job_code)->assertDontSee($onJobBooking->job_code);
 
     $onJob = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['status' => 'on_job']));
-    $onJob->assertOk()->assertSee('₱7,102.00')->assertDontSee('₱7,101.00');
+    $onJob->assertOk()->assertSee($onJobBooking->job_code)->assertDontSee($scheduledBooking->job_code);
 
     $returned = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['status' => 'returned']));
-    $returned->assertOk()->assertSee('₱7,103.00')->assertDontSee('₱7,101.00');
+    $returned->assertOk()->assertSee($returnedBooking->job_code)->assertDontSee($scheduledBooking->job_code);
 });
 
 it('persists the status filter alongside an active search term', function () {
@@ -257,7 +257,7 @@ it('persists the status filter alongside an active search term', function () {
         'email' => 'bookings-persist-' . uniqid() . '@example.com',
     ]);
 
-    Booking::create([
+    $completedBooking = Booking::create([
         'customer_id' => $customer->id,
         'truck_type_id' => bookingsTruckType()->id,
         'pickup_address' => 'Pickup A', 'dropoff_address' => 'Dropoff B', 'distance_km' => 5,
@@ -266,7 +266,7 @@ it('persists the status filter alongside an active search term', function () {
         'status' => 'completed',
     ]);
 
-    Booking::create([
+    $scheduledBooking = Booking::create([
         'customer_id' => $customer->id,
         'truck_type_id' => bookingsTruckType()->id,
         'pickup_address' => 'Pickup A', 'dropoff_address' => 'Dropoff B', 'distance_km' => 5,
@@ -281,14 +281,14 @@ it('persists the status filter alongside an active search term', function () {
     ]));
 
     $response->assertOk();
-    $response->assertSee('₱7,201.00');
-    $response->assertDontSee('₱7,202.00');
+    $response->assertSee($completedBooking->job_code);
+    $response->assertDontSee($scheduledBooking->job_code);
     $response->assertSee('<option value="completed" selected>Completed</option>', false);
 });
 
 it('persists the status filter alongside a custom date range', function () {
-    bookingsCreate(['final_total' => 7301.00, 'status' => 'completed', 'created_at' => now()->subDays(2)]);
-    bookingsCreate(['final_total' => 7302.00, 'status' => 'scheduled', 'created_at' => now()->subDays(2)]);
+    $completedBooking = bookingsCreate(['final_total' => 7301.00, 'status' => 'completed', 'created_at' => now()->subDays(2)]);
+    $scheduledBooking = bookingsCreate(['final_total' => 7302.00, 'status' => 'scheduled', 'created_at' => now()->subDays(2)]);
 
     $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
         'from' => now()->subDays(2)->toDateString(),
@@ -297,8 +297,8 @@ it('persists the status filter alongside a custom date range', function () {
     ]));
 
     $response->assertOk();
-    $response->assertSee('₱7,301.00');
-    $response->assertDontSee('₱7,302.00');
+    $response->assertSee($completedBooking->job_code);
+    $response->assertDontSee($scheduledBooking->job_code);
     $response->assertSee('<option value="completed" selected>Completed</option>', false);
 });
 
@@ -310,7 +310,7 @@ it('continues to support searching bookings by customer name', function () {
     ]);
     $truckType = bookingsTruckType();
 
-    Booking::create([
+    $matchingBooking = Booking::create([
         'customer_id' => $customer->id,
         'truck_type_id' => $truckType->id,
         'pickup_address' => 'Pickup A', 'dropoff_address' => 'Dropoff B', 'distance_km' => 5,
@@ -319,15 +319,15 @@ it('continues to support searching bookings by customer name', function () {
         'status' => 'completed',
     ]);
 
-    bookingsCreate(['final_total' => 8000.00]);
+    $otherBooking = bookingsCreate(['final_total' => 8000.00]);
 
     $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
         'search' => $customer->full_name,
     ]));
 
     $response->assertOk();
-    $response->assertSee('₱7,000.00');
-    $response->assertDontSee('₱8,000.00');
+    $response->assertSee($matchingBooking->job_code);
+    $response->assertDontSee($otherBooking->job_code);
 });
 
 it('renders an empty date range safely', function () {

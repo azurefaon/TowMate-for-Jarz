@@ -640,7 +640,6 @@ textarea {
     outline: none;
 }
 
-.superadmin-shell .settings-tab.active,
 .superadmin-shell .status.requested,
 .superadmin-shell .status.assigned,
 .superadmin-shell .status.on_job,
@@ -907,6 +906,7 @@ textarea {
     top: calc(100% + 8px);
     left: 0;
     width: 300px;
+    max-width: calc(100vw - 32px);
     padding: 16px;
     background: #ffffff;
     border: 1px solid #171717;
