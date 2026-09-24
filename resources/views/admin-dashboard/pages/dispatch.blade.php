@@ -1352,6 +1352,132 @@
 
         .rb-qcard-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 2px; }
 
+        .rtn-strip { background: #FFF3CD; border: 1px solid #F5D90A; border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+        .rtn-strip-text { font-size: 13.5px; font-weight: 600; color: #111111; }
+        .rtn-strip-since { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #6b7280; text-transform: uppercase; white-space: nowrap; }
+
+        .rtn-wrap { width: 100%; align-self: stretch; display: flex; flex-direction: column; }
+        .rtn-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid #e5e7eb; margin-bottom: 16px; }
+        .rtn-header-left { display: flex; align-items: center; gap: 10px; }
+        .rtn-job-code { font-size: 18px; font-weight: 800; color: #111111; letter-spacing: -0.01em; }
+        .rtn-mode-badge { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; background: #F6F7F9; color: #475569; padding: 4px 9px; border-radius: 999px; }
+        .rtn-header-right { display: flex; align-items: center; gap: 10px; }
+        .rtn-returned-badge { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; background: #ea580c; color: #ffffff; padding: 5px 11px; border-radius: 999px; }
+        .rtn-timestamp { font-size: 12px; color: #6b7280; font-weight: 500; white-space: nowrap; }
+
+        .rtn-info-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; margin-bottom: 16px; }
+        .rtn-panel { background: #F6F7F9; border-radius: 12px; border-left: 3px solid #111111; padding: 14px; }
+        .rtn-panel-label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6b7280; margin-bottom: 6px; }
+        .rtn-customer-name { display: block; font-size: 16px; font-weight: 800; color: #111111; margin-bottom: 4px; }
+        .rtn-customer-line { display: block; font-size: 12.5px; color: #374151; font-weight: 500; margin-bottom: 2px; }
+        .rtn-vehicle-chip { display: inline-block; margin-top: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: #FACC15; color: #111111; padding: 4px 9px; border-radius: 999px; }
+
+        .rtn-route { padding: 4px 4px 4px 8px; }
+        .rtn-route-point { display: flex; gap: 10px; padding-bottom: 14px; position: relative; }
+        .rtn-route-point:last-child { padding-bottom: 0; }
+        .rtn-route-dot { width: 9px; height: 9px; border-radius: 50%; background: #111111; margin-top: 5px; flex-shrink: 0; }
+        .rtn-route-point--end .rtn-route-dot { background: #ea580c; border: 2px solid #111111; }
+        .rtn-route-point:not(:last-child)::before { content: ''; position: absolute; left: 4px; top: 18px; width: 1px; height: calc(100% - 10px); background: #d1d5db; }
+        .rtn-route-tag { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #6b7280; margin-bottom: 2px; }
+        .rtn-route-address { display: block; font-size: 14px; font-weight: 700; color: #111111; }
+
+        .rtn-incident { background: #F6F7F9; border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+        .rtn-incident-title { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #111111; margin-bottom: 10px; }
+        .rtn-incident-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .rtn-incident-value { display: block; font-size: 14px; font-weight: 700; color: #111111; margin-top: 4px; }
+        .rtn-incident-value--warn { color: #b91c1c; }
+        .rtn-incident-sub { display: block; font-size: 11px; color: #6b7280; font-weight: 600; margin-top: 3px; }
+        .rtn-remark { background: #ffffff; border-radius: 10px; padding: 12px 14px; margin-top: 12px; }
+        .rtn-remark p { font-size: 13.5px; font-style: italic; color: #111111; margin: 4px 0 0; line-height: 1.5; }
+
+        .rtn-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid #e5e7eb; }
+        .rtn-footer-note { font-size: 12px; color: #6b7280; font-weight: 500; }
+        .rtn-footer-actions { display: flex; gap: 10px; }
+        .rtn-btn-secondary { background: #ffffff; border: 1px solid #111111; color: #111111; font-size: 13px; font-weight: 700; padding: 10px 18px; border-radius: 9px; cursor: pointer; }
+        .rtn-btn-secondary:hover { background: #F6F7F9; }
+        .rtn-btn-primary { background: #FACC15; color: #111111; border: none; font-size: 13px; font-weight: 800; padding: 10px 20px; border-radius: 9px; cursor: pointer; }
+        .rtn-btn-primary:hover { background: #eab308; }
+        .rtn-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+        @media (max-width: 900px) {
+            .rtn-info-grid { grid-template-columns: 1fr; }
+            .rtn-incident-grid { grid-template-columns: 1fr; }
+        }
+
+        .rtn-modal-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(15, 23, 42, .55); display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .rtn-modal-card { background: #ffffff; width: 100%; max-width: 920px; max-height: 88vh; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; }
+        .rtn-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #e5e7eb; }
+        .rtn-modal-title { display: block; font-size: 16px; font-weight: 800; color: #111111; }
+        .rtn-modal-subtitle { display: block; font-size: 12px; color: #6b7280; font-weight: 600; margin-top: 2px; }
+        .rtn-modal-close { background: #F6F7F9; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; color: #111111; cursor: pointer; line-height: 1; }
+        .rtn-modal-close:hover { background: #e5e7eb; }
+        .rtn-modal-summary { display: flex; gap: 22px; padding: 12px 22px; background: #FAFAFA; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+        .rtn-modal-summary-row { display: flex; flex-direction: column; gap: 2px; }
+        .rtn-modal-summary-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #9ca3af; }
+        .rtn-modal-summary-value { font-size: 13px; font-weight: 700; color: #111111; }
+        .rtn-modal-body { overflow-y: auto; flex: 1; }
+        .rtn-modal-body--single { display: block; }
+        .rtn-modal-list-col { padding: 18px 22px; }
+        .rtn-modal-list-col--full { border-right: none; }
+        .rtn-modal-list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+        .rtn-modal-list-head .rtn-modal-section-title { margin-bottom: 0; }
+        .rtn-view-map-btn { padding: 8px 16px; font-size: 12px; }
+        .rtn-search-input { width: 100%; box-sizing: border-box; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #111111; margin-bottom: 12px; }
+        .rtn-search-input:focus { outline: none; border-color: #FACC15; }
+        .rtn-modal-section-title { font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #111111; margin-bottom: 10px; }
+        .rtn-modal-section-title--muted { color: #9ca3af; margin-top: 18px; }
+        .rtn-modal-empty { font-size: 12.5px; color: #6b7280; padding: 14px 0; }
+        .rtn-modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 22px; border-top: 1px solid #e5e7eb; flex-wrap: wrap; }
+        .rtn-modal-footer-note { font-size: 12px; color: #b91c1c; font-weight: 600; }
+        .rtn-modal-footer-actions { display: flex; gap: 10px; margin-left: auto; }
+
+        .rtn-tl-list { display: flex; flex-direction: column; gap: 8px; }
+        .rtn-tl-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; cursor: pointer; transition: border-color .12s ease, background .12s ease; }
+        .rtn-tl-card:hover { border-color: #FACC15; }
+        .rtn-tl-card.is-selected { border-color: #FACC15; background: #FFFBEB; }
+        .rtn-tl-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+        .rtn-tl-name-row { display: flex; align-items: center; gap: 6px; }
+        .rtn-tl-name { font-size: 13.5px; font-weight: 800; color: #111111; }
+        .rtn-tl-role { font-size: 10px; font-weight: 700; background: #F6F7F9; color: #6b7280; padding: 2px 7px; border-radius: 999px; }
+        .rtn-tl-available { font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; background: #16a34a; color: #ffffff; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+        .rtn-tl-unit { display: block; font-size: 12px; color: #374151; font-weight: 500; margin-top: 4px; }
+        .rtn-tl-expand-btn { background: none; border: none; font-size: 11px; font-weight: 700; color: #6b7280; cursor: pointer; padding: 6px 0 0; }
+        .rtn-tl-crew { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+        .rtn-tl-card.is-expanded .rtn-tl-crew { display: block; }
+        .rtn-tl-crew-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 3px 0; }
+        .rtn-tl-crew-label { color: #9ca3af; font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
+        .rtn-tl-crew-value { color: #111111; font-weight: 600; text-align: right; }
+        .rtn-select-tl-inline { margin-top: 10px; width: 100%; background: #111111; color: #ffffff; border: none; font-size: 12px; font-weight: 700; padding: 8px 0; border-radius: 8px; cursor: pointer; }
+        .rtn-select-tl-inline:hover { background: #000000; }
+        .rtn-select-tl-inline.is-selected { background: #FACC15; color: #111111; }
+
+        .rtn-pagination { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+        .rtn-page-btn { background: #F6F7F9; border: none; width: 28px; height: 28px; border-radius: 8px; font-size: 12px; font-weight: 700; color: #374151; cursor: pointer; }
+        .rtn-page-btn.is-active { background: #111111; color: #ffffff; }
+        .rtn-page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+        .rtn-busy-list { display: flex; flex-direction: column; gap: 6px; }
+        .rtn-busy-card { border: 1px solid #f1f5f9; border-radius: 10px; padding: 9px 11px; font-size: 12px; }
+        .rtn-busy-name { font-weight: 700; color: #111111; }
+        .rtn-busy-sub { color: #9ca3af; font-weight: 500; }
+
+        .rtn-map-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: #6b7280; font-weight: 600; }
+        .rtn-zone-chips { display: flex; gap: 6px; }
+        .rtn-map { width: 100%; height: 220px; border-radius: 12px; background: #F6F7F9; }
+        .rtn-roster-title { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #9ca3af; margin-top: 4px; }
+        .rtn-roster { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 160px; }
+
+        .rtn-map-modal-overlay { position: fixed; inset: 0; z-index: 10060; background: rgba(15, 23, 42, .65); display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .rtn-map-modal-card { background: #ffffff; width: 88vw; max-width: 1280px; height: 76vh; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; }
+        .rtn-map-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+        .rtn-map-modal-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 10px; flex: 1; overflow: hidden; }
+        .rtn-map--workspace { flex: 1; height: auto; min-height: 320px; }
+        .rtn-roster--workspace { max-height: 140px; flex-shrink: 0; }
+
+        @media (max-width: 760px) {
+            .rtn-map-modal-card { width: 96vw; height: 88vh; }
+        }
+
         @media (max-width: 640px) {
             .rb-drawer { max-width: 100%; right: -100%; }
             .rb-grid, .rb-grid-row { grid-template-columns: 1fr; }
@@ -1404,6 +1530,21 @@
                 <div class="incoming-section incoming-list" id="incomingList" data-default-filter="book-now"
                         data-assign-url-template="{{ url('/admin-dashboard/booking/__BOOKING__/assign') }}"
                         style="display:none;">
+
+                        @php
+                            $rtnCount = $queueCounts['returned'] ?? 0;
+                            $rtnOldest = $rtnCount > 0
+                                ? $incomingRequests->filter(fn($b) => $b->needs_reassignment)->sortBy(fn($b) => $b->returned_at)->first()
+                                : null;
+                        @endphp
+                        @if ($rtnCount > 0)
+                            <div class="rtn-strip">
+                                <span class="rtn-strip-text">{{ $rtnCount }} {{ $rtnCount > 1 ? 'tasks' : 'task' }} returned by field crew {{ $rtnCount > 1 ? 'require' : 'requires' }} dispatcher review and reassignment.</span>
+                                @if ($rtnOldest && $rtnOldest->returned_at)
+                                    <span class="rtn-strip-since">Awaiting review since {{ $rtnOldest->returned_at->format('g:i A') }}</span>
+                                @endif
+                            </div>
+                        @endif
 
                         @forelse($groupedIncoming as $groupCode => $groupBookings)
                             @php $isMultiGroup = $groupBookings->count() > 1; @endphp
@@ -1554,8 +1695,99 @@
                                     data-vehicle-image-url="{{ $cj_vehicleImgUrl }}"
                                     data-truck-type-base-rate="{{ $booking->unit->truckType->base_rate ?? ($booking->base_rate ?? 0) }}"
                                     data-pickup-lat="{{ $booking->pickup_lat ?? '' }}"
-                                    data-pickup-lng="{{ $booking->pickup_lng ?? '' }}">
+                                    data-pickup-lng="{{ $booking->pickup_lng ?? '' }}"
+                                    data-customer="{{ e($booking->customer->full_name ?? 'Guest') }}"
+                                    data-phone="{{ e($booking->customer->phone ?? 'N/A') }}">
 
+                                @if ($queueBucket === 'returned')
+                                    @php
+                                        $rtnUnit = $booking->unit;
+                                        $rtnTl = $booking->returnedByTeamLeader;
+                                    @endphp
+                                    <div class="rtn-wrap">
+                                        <div class="rtn-header">
+                                            <div class="rtn-header-left">
+                                                <span class="rtn-job-code">{{ $booking->job_code }}</span>
+                                                <span class="rtn-mode-badge">{{ $booking->service_type === 'schedule' ? 'Scheduled Booking' : 'Intermediate Booking' }}</span>
+                                            </div>
+                                            <div class="rtn-header-right">
+                                                <span class="rtn-returned-badge">Returned</span>
+                                                <span class="rtn-timestamp">{{ optional($booking->returned_at)->format('M j, g:i A') ?? '—' }}</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="rtn-main">
+                                                <div class="rtn-info-grid">
+                                                    <div class="rtn-panel">
+                                                        <span class="rtn-panel-label">Customer Information</span>
+                                                        <span class="rtn-customer-name">{{ $booking->customer->full_name ?? 'Guest' }}</span>
+                                                        <span class="rtn-customer-line">{{ $booking->customer->phone ?? 'N/A' }}</span>
+                                                        @if (filled($booking->customer->email ?? null))
+                                                            <span class="rtn-customer-line">{{ $booking->customer->email }}</span>
+                                                        @endif
+                                                        <span class="rtn-vehicle-chip">Vehicle Class: {{ strtoupper($booking->truckType->name ?? 'Unknown') }}</span>
+                                                    </div>
+                                                    <div class="rtn-panel rtn-route">
+                                                        <span class="rtn-panel-label">Transit Manifest</span>
+                                                        <div class="rtn-route-point">
+                                                            <div class="rtn-route-dot"></div>
+                                                            <div>
+                                                                <span class="rtn-route-tag">Pickup Station</span>
+                                                                <span class="rtn-route-address">{{ $booking->pickup_address ?? 'Unknown Pickup' }}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="rtn-route-point rtn-route-point--end">
+                                                            <div class="rtn-route-dot"></div>
+                                                            <div>
+                                                                <span class="rtn-route-tag">Drop-off Destination</span>
+                                                                <span class="rtn-route-address">{{ $booking->dropoff_address ?? 'Unknown Dropoff' }}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="rtn-incident">
+                                                    <div class="rtn-incident-title">Crew Return Incident Report</div>
+                                                    <div class="rtn-incident-grid">
+                                                        <div>
+                                                            <span class="rtn-panel-label">Returned By</span>
+                                                            <span class="rtn-incident-value">{{ $rtnTl->full_name ?? ($rtnTl->name ?? 'Team Leader') }}</span>
+                                                            <span class="rtn-incident-sub">Team Leader</span>
+                                                        </div>
+                                                        <div>
+                                                            <span class="rtn-panel-label">Return Cause</span>
+                                                            <span class="rtn-incident-value rtn-incident-value--warn">{{ $booking->return_reason ?? 'Needs reassignment' }}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span class="rtn-panel-label">Associated Unit</span>
+                                                            <span class="rtn-incident-value">{{ $rtnUnit->name ?? '—' }}</span>
+                                                            <span class="rtn-incident-sub">Status: {{ $rtnUnit ? ucfirst(str_replace('_', ' ', $rtnUnit->status)) : '—' }}</span>
+                                                        </div>
+                                                    </div>
+                                                    @if (filled($booking->return_notes))
+                                                        <div class="rtn-remark">
+                                                            <span class="rtn-panel-label">Driver Field Remark</span>
+                                                            <p>&ldquo;{{ $booking->return_notes }}&rdquo;</p>
+                                                        </div>
+                                                    @endif
+                                                </div>
+
+                                                <div class="rtn-footer">
+                                                    <span class="rtn-footer-note">Reassignment releases this task back into normal dispatch.</span>
+                                                    <div class="rtn-footer-actions">
+                                                        <button type="button" class="rtn-btn-secondary"
+                                                            onclick="event.stopPropagation(); openCustomerBookingPanel(this.closest('.incoming-card'))">
+                                                            View Details
+                                                        </button>
+                                                        <button type="button" class="rtn-btn-primary rtn-reassign-open-btn"
+                                                            data-id="{{ $booking->job_code }}">
+                                                            Reassign Task
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                    </div>
+                                @else
                                     <div class="incoming-left">
 
                                         @if ($cj_vehicleImgUrl)
@@ -1709,6 +1941,7 @@
                                             </button>
                                         @endif
                                     </div>
+                                @endif
 
                                 </div>
                             @endforeach
@@ -2006,6 +2239,88 @@
                 </div>
 
                 @include('admin-dashboard.pages._quotations-section')
+
+                @php
+                    $rtnBusyLeaders = $teamLeaderStatuses
+                        ->filter(fn($leader) => ($leader['workload'] ?? null) === 'busy')
+                        ->values();
+                @endphp
+                <script type="application/json" id="rtnAvailableUnitsData">{!! json_encode($availableUnits) !!}</script>
+                <script type="application/json" id="rtnBusyLeadersData">{!! json_encode($rtnBusyLeaders) !!}</script>
+
+                <div id="rtnReassignModal" class="rtn-modal-overlay" style="display:none;" aria-hidden="true" role="dialog" aria-modal="true">
+                    <div class="rtn-modal-card">
+                        <div class="rtn-modal-header">
+                            <div>
+                                <span class="rtn-modal-title">Reassign Task</span>
+                                <span class="rtn-modal-subtitle" id="rtnModalBookingCode">—</span>
+                            </div>
+                            <button type="button" class="rtn-modal-close" id="rtnModalCloseBtn">&times;</button>
+                        </div>
+
+                        <div class="rtn-modal-summary">
+                            <div class="rtn-modal-summary-row">
+                                <span class="rtn-modal-summary-label">Customer</span>
+                                <span class="rtn-modal-summary-value" id="rtnModalCustomer">—</span>
+                            </div>
+                            <div class="rtn-modal-summary-row">
+                                <span class="rtn-modal-summary-label">Pickup</span>
+                                <span class="rtn-modal-summary-value" id="rtnModalPickup">—</span>
+                            </div>
+                            <div class="rtn-modal-summary-row">
+                                <span class="rtn-modal-summary-label">Drop-off</span>
+                                <span class="rtn-modal-summary-value" id="rtnModalDropoff">—</span>
+                            </div>
+                        </div>
+
+                        <div class="rtn-modal-body rtn-modal-body--single">
+                            <div class="rtn-modal-list-col rtn-modal-list-col--full">
+                                <div class="rtn-modal-list-head">
+                                    <div class="rtn-modal-section-title">Available Team Leaders</div>
+                                    <button type="button" class="rtn-btn-secondary rtn-view-map-btn" id="rtnViewMapBtn">View Map</button>
+                                </div>
+                                <input type="text" class="rtn-search-input" id="rtnSearchInput" placeholder="Search Team Leader, Unit, or Driver...">
+                                <div class="rtn-modal-empty" id="rtnModalEmpty" style="display:none;">No eligible Team Leaders are currently available for this vehicle type.</div>
+                                <div class="rtn-tl-list" id="rtnTlList"></div>
+                                <div class="rtn-pagination" id="rtnPagination"></div>
+
+                                <div class="rtn-busy-section" id="rtnBusySection" style="display:none;">
+                                    <div class="rtn-modal-section-title rtn-modal-section-title--muted">Currently On a Task</div>
+                                    <div class="rtn-busy-list" id="rtnBusyList"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rtn-modal-footer">
+                            <span class="rtn-modal-footer-note" id="rtnModalError"></span>
+                            <div class="rtn-modal-footer-actions">
+                                <button type="button" class="rtn-btn-secondary" id="rtnModalCancelBtn">Cancel</button>
+                                <button type="button" class="rtn-btn-primary" id="rtnModalConfirmBtn" disabled>Confirm Reassignment</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="rtnMapModal" class="rtn-map-modal-overlay" style="display:none;" aria-hidden="true" role="dialog" aria-modal="true">
+                    <div class="rtn-map-modal-card">
+                        <div class="rtn-map-modal-header">
+                            <div>
+                                <span class="rtn-modal-title">Live Tracking</span>
+                                <span class="rtn-modal-subtitle" id="rtnMapModalBookingCode">—</span>
+                            </div>
+                            <button type="button" class="rtn-modal-close" id="rtnMapModalCloseBtn">&times;</button>
+                        </div>
+                        <div class="rtn-map-modal-body">
+                            <div class="rtn-map-header">
+                                <span id="trackingMeta">—</span>
+                                <div id="zoneFilterChips" class="rtn-zone-chips"></div>
+                            </div>
+                            <div id="dispatchLiveMap" class="rtn-map rtn-map--workspace"></div>
+                            <div class="rtn-roster-title">Trackable Units</div>
+                            <div id="trackingRoster" class="rtn-roster rtn-roster--workspace"></div>
+                        </div>
+                    </div>
+                </div>
 
                 <div id="actionModal" class="hidden" aria-hidden="true" role="dialog" aria-modal="true">
                     <div class="modal-card">
@@ -3167,6 +3482,364 @@
                         okBtn.disabled = false;
                         okBtn.innerHTML = 'Mark as Completed';
                     });
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            var rtn = {
+                bookingId: null,
+                assignUrl: null,
+                units: [],
+                busy: [],
+                page: 1,
+                perPage: 5,
+                selectedUnitId: null,
+                pickupLat: null,
+                pickupLng: null,
+                query: '',
+            };
+
+            function rtnFilteredUnits() {
+                var q = rtn.query.trim().toLowerCase();
+                if (!q) return rtn.units;
+                return rtn.units.filter(function (unit) {
+                    var haystack = [
+                        unit.team_leader_name,
+                        unit.driver_name,
+                        unit.label,
+                    ].concat(Array.isArray(unit.crew_names) ? unit.crew_names : [])
+                        .join(' ')
+                        .toLowerCase();
+                    return haystack.indexOf(q) > -1;
+                });
+            }
+
+            function rtnReadJson(id) {
+                var node = document.getElementById(id);
+                if (!node) return [];
+                try {
+                    return JSON.parse(node.textContent || '[]') || [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            function rtnEscape(text) {
+                var div = document.createElement('div');
+                div.textContent = text == null ? '' : String(text);
+                return div.innerHTML;
+            }
+
+            function rtnCrewRow(label, value) {
+                if (!value) return '';
+                return '<div class="rtn-tl-crew-row"><span class="rtn-tl-crew-label">' + rtnEscape(label) +
+                    '</span><span class="rtn-tl-crew-value">' + rtnEscape(value) + '</span></div>';
+            }
+
+            function rtnRenderTlList() {
+                var listEl = document.getElementById('rtnTlList');
+                var emptyEl = document.getElementById('rtnModalEmpty');
+                var pagEl = document.getElementById('rtnPagination');
+                if (!listEl) return;
+
+                var filtered = rtnFilteredUnits();
+
+                if (!filtered.length) {
+                    listEl.innerHTML = '';
+                    pagEl.innerHTML = '';
+                    if (emptyEl) {
+                        emptyEl.textContent = rtn.query.trim()
+                            ? 'No available Team Leaders match your search.'
+                            : 'No eligible Team Leaders are currently available for this vehicle type.';
+                        emptyEl.style.display = 'block';
+                    }
+                    return;
+                }
+                if (emptyEl) emptyEl.style.display = 'none';
+
+                var totalPages = Math.max(1, Math.ceil(filtered.length / rtn.perPage));
+                if (rtn.page > totalPages) rtn.page = totalPages;
+                var start = (rtn.page - 1) * rtn.perPage;
+                var pageUnits = filtered.slice(start, start + rtn.perPage);
+
+                listEl.innerHTML = pageUnits.map(function (unit) {
+                    var crewNames = Array.isArray(unit.crew_names) ? unit.crew_names : [];
+                    var isSelected = String(rtn.selectedUnitId) === String(unit.id);
+                    return '<div class="rtn-tl-card' + (isSelected ? ' is-selected' : '') + '" data-unit-id="' + unit.id + '">' +
+                        '<div class="rtn-tl-top">' +
+                        '<div class="rtn-tl-name-row"><span class="rtn-tl-name">' + rtnEscape(unit.team_leader_name) + '</span><span class="rtn-tl-role">TL</span></div>' +
+                        '<span class="rtn-tl-available">Available</span>' +
+                        '</div>' +
+                        '<span class="rtn-tl-unit">' + rtnEscape(unit.label) + ' &middot; ' + rtnEscape(unit.truck_type) + '</span>' +
+                        '<button type="button" class="rtn-tl-expand-btn">Show crew details</button>' +
+                        '<div class="rtn-tl-crew">' +
+                        rtnCrewRow('Team Leader', unit.team_leader_name) +
+                        rtnCrewRow('Driver', unit.driver_name) +
+                        (crewNames.length ? rtnCrewRow('Crew', crewNames.join(', ')) : '') +
+                        rtnCrewRow('Unit', unit.label) +
+                        rtnCrewRow('Vehicle Type', unit.truck_type) +
+                        rtnCrewRow('Current Status', unit.status_summary) +
+                        '</div>' +
+                        '<button type="button" class="rtn-select-tl-inline' + (isSelected ? ' is-selected' : '') + '">' +
+                        (isSelected ? 'Selected' : 'Select This Team Leader') +
+                        '</button>' +
+                        '</div>';
+                }).join('');
+
+                if (totalPages <= 1) {
+                    pagEl.innerHTML = '';
+                    return;
+                }
+
+                var html = '<button type="button" class="rtn-page-btn" data-page="' + (rtn.page - 1) + '"' + (rtn.page === 1 ? ' disabled' : '') + '>&lsaquo;</button>';
+                for (var p = 1; p <= totalPages; p++) {
+                    html += '<button type="button" class="rtn-page-btn' + (p === rtn.page ? ' is-active' : '') + '" data-page="' + p + '">' + p + '</button>';
+                }
+                html += '<button type="button" class="rtn-page-btn" data-page="' + (rtn.page + 1) + '"' + (rtn.page === totalPages ? ' disabled' : '') + '>&rsaquo;</button>';
+                pagEl.innerHTML = html;
+            }
+
+            function rtnRenderBusyList() {
+                var section = document.getElementById('rtnBusySection');
+                var listEl = document.getElementById('rtnBusyList');
+                if (!section || !listEl) return;
+
+                if (!rtn.busy.length) {
+                    section.style.display = 'none';
+                    return;
+                }
+
+                section.style.display = 'block';
+                listEl.innerHTML = rtn.busy.map(function (leader) {
+                    var parts = [];
+                    if (leader.unit_name) parts.push(leader.unit_name);
+                    if (leader.active_booking_status_label) parts.push(leader.active_booking_status_label);
+                    if (leader.zone_name) parts.push(leader.zone_name);
+                    return '<div class="rtn-busy-card"><div class="rtn-busy-name">' + rtnEscape(leader.name) +
+                        '</div><div class="rtn-busy-sub">' + rtnEscape(parts.join(' · ') || 'On an active task') + '</div></div>';
+                }).join('');
+            }
+
+            function rtnUpdateConfirmState() {
+                var btn = document.getElementById('rtnModalConfirmBtn');
+                if (btn) btn.disabled = !rtn.selectedUnitId;
+            }
+
+            function rtnSelectUnit(unitId) {
+                rtn.selectedUnitId = unitId;
+                rtnRenderTlList();
+                rtnUpdateConfirmState();
+            }
+
+            function rtnOpenModal(card) {
+                var modal = document.getElementById('rtnReassignModal');
+                if (!modal || !card) return;
+
+                rtn.bookingId = card.getAttribute('data-id');
+                rtn.assignUrl = '/admin-dashboard/booking/' + rtn.bookingId + '/assign';
+                rtn.units = rtnReadJson('rtnAvailableUnitsData');
+                rtn.busy = rtnReadJson('rtnBusyLeadersData');
+                rtn.page = 1;
+                rtn.selectedUnitId = null;
+                rtn.query = '';
+                rtn.pickupLat = parseFloat(card.getAttribute('data-pickup-lat'));
+                rtn.pickupLng = parseFloat(card.getAttribute('data-pickup-lng'));
+
+                document.getElementById('rtnModalBookingCode').textContent = rtn.bookingId;
+                document.getElementById('rtnModalCustomer').textContent = card.getAttribute('data-customer-name') || card.getAttribute('data-customer') || '—';
+                document.getElementById('rtnModalPickup').textContent = card.getAttribute('data-pickup') || '—';
+                document.getElementById('rtnModalDropoff').textContent = card.getAttribute('data-dropoff') || '—';
+                document.getElementById('rtnModalError').textContent = '';
+                var searchInput = document.getElementById('rtnSearchInput');
+                if (searchInput) searchInput.value = '';
+
+                rtnRenderTlList();
+                rtnRenderBusyList();
+                rtnUpdateConfirmState();
+
+                modal.style.display = 'flex';
+                modal.setAttribute('aria-hidden', 'false');
+            }
+
+            function rtnCloseModal() {
+                var modal = document.getElementById('rtnReassignModal');
+                if (!modal) return;
+                modal.style.display = 'none';
+                modal.setAttribute('aria-hidden', 'true');
+                rtnCloseMapModal();
+            }
+
+            function rtnOpenMapModal() {
+                var modal = document.getElementById('rtnMapModal');
+                if (!modal) return;
+
+                document.getElementById('rtnMapModalBookingCode').textContent = rtn.bookingId || '—';
+                modal.style.display = 'flex';
+                modal.setAttribute('aria-hidden', 'false');
+
+                if (typeof window.rtnStartMapPolling === 'function') {
+                    window.rtnStartMapPolling();
+                }
+
+                setTimeout(function () {
+                    var center = (!isNaN(rtn.pickupLat) && !isNaN(rtn.pickupLng))
+                        ? { lat: rtn.pickupLat, lng: rtn.pickupLng }
+                        : null;
+                    if (typeof window.rtnResizeLiveMap === 'function') {
+                        window.rtnResizeLiveMap(center);
+                    }
+                    if (center && typeof window.sortRosterByPickup === 'function') {
+                        window.sortRosterByPickup(center.lat, center.lng);
+                    }
+                }, 80);
+            }
+
+            function rtnCloseMapModal() {
+                var modal = document.getElementById('rtnMapModal');
+                if (!modal) return;
+                modal.style.display = 'none';
+                modal.setAttribute('aria-hidden', 'true');
+                if (typeof window.rtnStopMapPolling === 'function') {
+                    window.rtnStopMapPolling();
+                }
+            }
+
+            function rtnConfirmReassign() {
+                if (!rtn.selectedUnitId || !rtn.bookingId) return;
+                var btn = document.getElementById('rtnModalConfirmBtn');
+                var errorEl = document.getElementById('rtnModalError');
+                if (btn) btn.disabled = true;
+                if (errorEl) errorEl.textContent = '';
+
+                var csrfNode = document.querySelector('meta[name="csrf-token"]');
+                fetch(rtn.assignUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfNode ? csrfNode.getAttribute('content') || '' : '',
+                    },
+                    body: JSON.stringify({
+                        action: 'accept',
+                        assigned_unit_id: rtn.selectedUnitId,
+                    }),
+                })
+                    .then(function (response) {
+                        return response.json().catch(function () { return {}; }).then(function (data) {
+                            return { ok: response.ok, data: data };
+                        });
+                    })
+                    .then(function (result) {
+                        if (!result.ok || !result.data.success) {
+                            throw new Error(result.data.message || 'Failed to reassign this task.');
+                        }
+                        try {
+                            sessionStorage.setItem('rbReopenQueueFilter', 'returned');
+                        } catch (e) {}
+                        window.location.reload();
+                    })
+                    .catch(function (err) {
+                        if (errorEl) errorEl.textContent = err.message || 'Something went wrong.';
+                        if (btn) btn.disabled = false;
+                    });
+            }
+
+            window.rtnHandleMarkerClick = function (unit, marker, map) {
+                if (!unit) return;
+                var eligible = rtn.units.find(function (u) { return String(u.id) === String(unit.unit_id); });
+                var modalOpen = document.getElementById('rtnReassignModal').style.display === 'flex';
+                var statusLine = unit.job_status_label ? unit.job_status_label : 'Available';
+                var content = '<div style="font-family:inherit;font-size:12.5px;min-width:180px;">' +
+                    '<div style="font-weight:800;color:#111111;margin-bottom:4px;">' + rtnEscape(unit.team_leader_name) + '</div>' +
+                    '<div style="color:#374151;">' + rtnEscape(unit.unit_name) + (unit.truck_type_name ? ' &middot; ' + rtnEscape(unit.truck_type_name) : '') + '</div>' +
+                    '<div style="color:#6b7280;margin-top:2px;">' + rtnEscape(statusLine) + '</div>' +
+                    (modalOpen && eligible ? '<button type="button" id="rtnMarkerAssignBtn" style="margin-top:8px;width:100%;background:#111111;color:#fff;border:none;border-radius:8px;padding:7px 0;font-weight:700;cursor:pointer;">Assign to This Team Leader</button>' : '') +
+                    '</div>';
+                var infoWindow = new google.maps.InfoWindow({ content: content });
+                infoWindow.open({ anchor: marker, map: map });
+                if (modalOpen && eligible) {
+                    google.maps.event.addListenerOnce(infoWindow, 'domready', function () {
+                        var assignBtn = document.getElementById('rtnMarkerAssignBtn');
+                        if (assignBtn) {
+                            assignBtn.addEventListener('click', function () {
+                                rtnSelectUnit(eligible.id);
+                                infoWindow.close();
+                            });
+                        }
+                    });
+                }
+            };
+
+            document.addEventListener('click', function (e) {
+                var openBtn = e.target.closest('.rtn-reassign-open-btn');
+                if (openBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    rtnOpenModal(openBtn.closest('.incoming-card'));
+                    return;
+                }
+
+                if (e.target.closest('#rtnModalCloseBtn') || e.target.closest('#rtnModalCancelBtn')) {
+                    rtnCloseModal();
+                    return;
+                }
+
+                if (e.target.id === 'rtnReassignModal') {
+                    rtnCloseModal();
+                    return;
+                }
+
+                if (e.target.closest('#rtnModalConfirmBtn')) {
+                    rtnConfirmReassign();
+                    return;
+                }
+
+                if (e.target.closest('#rtnViewMapBtn')) {
+                    rtnOpenMapModal();
+                    return;
+                }
+
+                if (e.target.closest('#rtnMapModalCloseBtn')) {
+                    rtnCloseMapModal();
+                    return;
+                }
+
+                if (e.target.id === 'rtnMapModal') {
+                    rtnCloseMapModal();
+                    return;
+                }
+
+                var pageBtn = e.target.closest('.rtn-page-btn');
+                if (pageBtn && !pageBtn.disabled) {
+                    rtn.page = parseInt(pageBtn.getAttribute('data-page'), 10) || 1;
+                    rtnRenderTlList();
+                    return;
+                }
+
+                var expandBtn = e.target.closest('.rtn-tl-expand-btn');
+                if (expandBtn) {
+                    var expandCard = expandBtn.closest('.rtn-tl-card');
+                    if (expandCard) {
+                        var expanded = expandCard.classList.toggle('is-expanded');
+                        expandBtn.textContent = expanded ? 'Hide crew details' : 'Show crew details';
+                    }
+                    return;
+                }
+
+                var selectBtn = e.target.closest('.rtn-select-tl-inline');
+                if (selectBtn) {
+                    var selectCard = selectBtn.closest('.rtn-tl-card');
+                    if (selectCard) rtnSelectUnit(selectCard.getAttribute('data-unit-id'));
+                    return;
+                }
+            });
+
+            document.addEventListener('input', function (e) {
+                if (e.target.id !== 'rtnSearchInput') return;
+                rtn.query = e.target.value || '';
+                rtn.page = 1;
+                rtnRenderTlList();
             });
         })();
     </script>

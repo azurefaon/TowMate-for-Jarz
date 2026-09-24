@@ -302,15 +302,24 @@ class DispatchController extends Controller
             ->get(['id', 'booking_code', 'selected_unit_id'])
             ->keyBy('selected_unit_id');
 
-        $availableUnitProfiles = Unit::with(['truckType', 'driver', 'teamLeader'])
+        $availableUnitCandidates = Unit::with(['truckType', 'driver', 'teamLeader'])
             ->where('status', 'available')
             ->whereNotNull('team_leader_id')
             ->orderBy('name')
-            ->get()
-            ->filter(fn (Unit $unit) => $this->unitAvailability->hasDriver($unit))
-            ->map(function (Unit $unit) use ($busyTeamLeaderIds, $reservedUnitBookings) {
+            ->get();
+
+        $availabilityByUnitId = $this->unitAvailability->evaluateMany($availableUnitCandidates);
+
+        $availableUnitProfiles = $availableUnitCandidates
+            ->map(function (Unit $unit) use ($busyTeamLeaderIds, $reservedUnitBookings, $availabilityByUnitId) {
                 $teamLeaderId = (int) ($unit->team_leader_id ?? 0);
-                $hasReadyLeader = $teamLeaderId > 0 && ! $busyTeamLeaderIds->contains($teamLeaderId);
+                $override = $unit->teamLeader ? $this->teamLeaderAvailability->operationalOverride($unit->teamLeader) : null;
+                $overrideStatus = $override['status'] ?? null;
+                $isAvailableForDispatch = (bool) ($availabilityByUnitId->get($unit->id)['available'] ?? false);
+                $hasReadyLeader = $teamLeaderId > 0
+                    && $isAvailableForDispatch
+                    && ! $busyTeamLeaderIds->contains($teamLeaderId)
+                    && ! in_array($overrideStatus, ['busy', 'unavailable'], true);
                 $coverage = $this->resolveUnitCoverageProfile($unit);
 
                 return [

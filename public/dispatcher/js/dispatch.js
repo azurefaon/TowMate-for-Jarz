@@ -219,6 +219,15 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    window.rtnResizeLiveMap = function (center) {
+        if (!liveMap) return;
+        google.maps.event.trigger(liveMap, "resize");
+        if (center && center.lat && center.lng) {
+            liveMap.setCenter(center);
+            liveMap.setZoom(12);
+        }
+    };
+
     // Collapsible tracking panel toggle
     var trackingToggleBtn = document.getElementById("trackingToggleBtn");
     var trackingBody = document.getElementById("trackingBody");
@@ -1270,6 +1279,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         if (unitMarkers[u.unit_id]) {
                             unitMarkers[u.unit_id].marker.setPosition(position);
                             unitMarkers[u.unit_id].infoWindow.setContent(tooltipText);
+                            unitMarkers[u.unit_id].data = u;
                         } else {
                             var marker = new google.maps.Marker({
                                 position: position,
@@ -1277,10 +1287,10 @@ document.addEventListener("DOMContentLoaded", function () {
                                 icon: {
                                     path: google.maps.SymbolPath.CIRCLE,
                                     scale: 7,
-                                    fillColor: "#FFCC14",
+                                    fillColor: u.job_status ? "#111111" : "#ea580c",
                                     fillOpacity: 1,
-                                    strokeColor: "#111",
-                                    strokeWeight: 1.5,
+                                    strokeColor: "#ffffff",
+                                    strokeWeight: 2,
                                 },
                             });
                             var infoWindow = new google.maps.InfoWindow({
@@ -1293,7 +1303,12 @@ document.addEventListener("DOMContentLoaded", function () {
                             marker.addListener("mouseout", function () {
                                 infoWindow.close();
                             });
-                            unitMarkers[u.unit_id] = { marker: marker, infoWindow: infoWindow };
+                            marker.addListener("click", function () {
+                                if (typeof window.rtnHandleMarkerClick === "function") {
+                                    window.rtnHandleMarkerClick(unitMarkers[u.unit_id].data, marker, liveMap);
+                                }
+                            });
+                            unitMarkers[u.unit_id] = { marker: marker, infoWindow: infoWindow, data: u };
                         }
                     }
                 });
@@ -1313,8 +1328,18 @@ document.addEventListener("DOMContentLoaded", function () {
             .catch(function () {});
         }
 
-        poll(); // run immediately on load
-        window.setInterval(poll, 10000);
+        var pollTimer = null;
+        window.rtnStartMapPolling = function () {
+            if (pollTimer) return;
+            poll();
+            pollTimer = window.setInterval(poll, 10000);
+        };
+        window.rtnStopMapPolling = function () {
+            if (pollTimer) {
+                window.clearInterval(pollTimer);
+                pollTimer = null;
+            }
+        };
     }
 
     function startPolling() {
