@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const backdrop = document.getElementById("jobsDrawerBackdrop");
     const closeBtn = document.getElementById("jobsDrawerClose");
     const confirmBtn = document.getElementById("drawerConfirmPaymentBtn");
+    const reassignBtn = document.getElementById("drawerReassignBtn");
 
     const paymentSection = document.getElementById("drawer-payment-section");
     const proofSection = document.getElementById("drawer-proof-section");
@@ -249,6 +250,13 @@ document.addEventListener("DOMContentLoaded", function () {
             if (span) span.textContent = "Confirm Payment";
         }
 
+        // Only offered while the booking's raw status is exactly "assigned" —
+        // the "assigned" bucket also covers "accepted", so the bucket alone
+        // isn't precise enough to gate this.
+        if (reassignBtn) {
+            reassignBtn.style.display = row.dataset.status === "assigned" ? "" : "none";
+        }
+
         if (typeof lucide !== "undefined") lucide.createIcons();
 
         drawer.classList.add("is-open");
@@ -312,6 +320,172 @@ document.addEventListener("DOMContentLoaded", function () {
             if (span) span.textContent = "Error — retry";
             confirmBtn.disabled = false;
         }
+    });
+
+    // ---- Reassign Task (dispatcher correction of an accidental assignment) ----
+    const jrModal = document.getElementById("jrReassignModal");
+    const jrModalBookingCode = document.getElementById("jrModalBookingCode");
+    const jrModalCloseBtn = document.getElementById("jrModalCloseBtn");
+    const jrCurrentUnit = document.getElementById("jrCurrentUnit");
+    const jrCurrentTl = document.getElementById("jrCurrentTl");
+    const jrUnitSelect = document.getElementById("jrUnitSelect");
+    const jrEmptyState = document.getElementById("jrEmptyState");
+    const jrReasonSelect = document.getElementById("jrReasonSelect");
+    const jrNotesInput = document.getElementById("jrNotesInput");
+    const jrNotesRequiredHint = document.getElementById("jrNotesRequiredHint");
+    const jrModalError = document.getElementById("jrModalError");
+    const jrModalCancelBtn = document.getElementById("jrModalCancelBtn");
+    const jrModalConfirmBtn = document.getElementById("jrModalConfirmBtn");
+
+    function closeReassignModal() {
+        if (!jrModal) return;
+        jrModal.style.display = "none";
+        jrModal.setAttribute("aria-hidden", "true");
+    }
+
+    function validateReassignForm() {
+        if (!jrModalConfirmBtn) return;
+        const hasUnit = !!(jrUnitSelect && jrUnitSelect.value);
+        const reason = jrReasonSelect ? jrReasonSelect.value : "";
+        const notes = jrNotesInput ? jrNotesInput.value.trim() : "";
+        const needsNotes = reason === "Other";
+
+        if (jrNotesRequiredHint) jrNotesRequiredHint.style.display = needsNotes ? "" : "none";
+
+        jrModalConfirmBtn.disabled = !hasUnit || !reason || (needsNotes && !notes);
+    }
+
+    async function openReassignModal() {
+        if (!jrModal || !currentRow) return;
+
+        const optionsUrl = currentRow.dataset.reassignOptionsUrl;
+        if (!optionsUrl) return;
+
+        if (jrModalBookingCode) jrModalBookingCode.textContent = currentRow.dataset.bookingCode || "—";
+        if (jrCurrentUnit) jrCurrentUnit.textContent = currentRow.dataset.unit || "—";
+        if (jrCurrentTl) jrCurrentTl.textContent = currentRow.dataset.teamleader || "—";
+        if (jrReasonSelect) jrReasonSelect.value = "";
+        if (jrNotesInput) jrNotesInput.value = "";
+        if (jrModalError) jrModalError.textContent = "";
+        if (jrUnitSelect) jrUnitSelect.innerHTML = '<option value="">Loading options…</option>';
+        if (jrEmptyState) jrEmptyState.style.display = "none";
+        if (jrModalConfirmBtn) jrModalConfirmBtn.disabled = true;
+
+        jrModal.style.display = "flex";
+        jrModal.setAttribute("aria-hidden", "false");
+
+        try {
+            const res = await fetch(optionsUrl, {
+                headers: { Accept: "application/json" },
+            });
+            const data = await res.json();
+
+            if (!data.success) {
+                if (jrUnitSelect) jrUnitSelect.innerHTML = '<option value="">—</option>';
+                if (jrModalError) jrModalError.textContent = data.message || "This booking can no longer be reassigned from here.";
+                return;
+            }
+
+            if (jrCurrentUnit && data.current) jrCurrentUnit.textContent = data.current.unit_name || "—";
+            if (jrCurrentTl && data.current) jrCurrentTl.textContent = data.current.team_leader_name || "—";
+
+            const options = data.options || [];
+            if (jrUnitSelect) {
+                jrUnitSelect.innerHTML = "";
+                const placeholder = document.createElement("option");
+                placeholder.value = "";
+                placeholder.textContent = options.length ? "Select a unit / team leader…" : "No eligible units available";
+                jrUnitSelect.appendChild(placeholder);
+                options.forEach(function (opt) {
+                    const el = document.createElement("option");
+                    el.value = String(opt.unit_id);
+                    el.textContent = opt.label;
+                    jrUnitSelect.appendChild(el);
+                });
+            }
+            if (jrEmptyState) jrEmptyState.style.display = options.length ? "none" : "";
+        } catch (e) {
+            if (jrUnitSelect) jrUnitSelect.innerHTML = '<option value="">—</option>';
+            if (jrModalError) jrModalError.textContent = "Could not load reassignment options. Try again.";
+        }
+
+        validateReassignForm();
+    }
+
+    reassignBtn?.addEventListener("click", openReassignModal);
+    jrModalCloseBtn?.addEventListener("click", closeReassignModal);
+    jrModalCancelBtn?.addEventListener("click", closeReassignModal);
+    jrModal?.addEventListener("click", function (e) {
+        if (e.target === jrModal) closeReassignModal();
+    });
+    jrUnitSelect?.addEventListener("change", validateReassignForm);
+    jrReasonSelect?.addEventListener("change", validateReassignForm);
+    jrNotesInput?.addEventListener("input", validateReassignForm);
+
+    jrModalConfirmBtn?.addEventListener("click", async function () {
+        if (!currentRow || jrModalConfirmBtn.disabled) return;
+
+        const reassignUrl = currentRow.dataset.reassignUrl;
+        if (!reassignUrl) return;
+
+        jrModalConfirmBtn.disabled = true;
+        jrModalConfirmBtn.textContent = "Reassigning…";
+        if (jrModalError) jrModalError.textContent = "";
+
+        try {
+            const res = await fetch(reassignUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": csrfToken,
+                    Accept: "application/json",
+                },
+                body: JSON.stringify({
+                    assigned_unit_id: jrUnitSelect ? jrUnitSelect.value : "",
+                    reason: jrReasonSelect ? jrReasonSelect.value : "",
+                    notes: jrNotesInput ? jrNotesInput.value.trim() : "",
+                }),
+            });
+            const data = await res.json();
+
+            if (!data.success) {
+                if (jrModalError) jrModalError.textContent = data.message || "Could not reassign this task.";
+                jrModalConfirmBtn.disabled = false;
+                jrModalConfirmBtn.textContent = "Confirm Reassignment";
+                return;
+            }
+
+            // Update the row + drawer in place — no full reload needed since
+            // the booking's status/bucket doesn't change, only ownership.
+            currentRow.dataset.unit = data.unit_name || "";
+            currentRow.dataset.teamleader = data.team_leader_name || "";
+            currentRow.dataset.driver = data.driver_name || "";
+
+            const unitCell = currentRow.cells ? currentRow.cells[2] : null;
+            if (unitCell) {
+                const primary = unitCell.querySelector(".jobs-cell-primary");
+                const secondary = unitCell.querySelector(".jobs-cell-secondary");
+                if (primary) primary.textContent = data.unit_name || "Unassigned";
+                if (secondary) secondary.textContent = data.team_leader_name || "Unassigned";
+            }
+
+            fillField("drawer-unit", data.unit_name);
+            fillField("drawer-teamleader", data.team_leader_name);
+            fillField("drawer-driver", data.driver_name);
+            if (jrCurrentUnit) jrCurrentUnit.textContent = data.unit_name || "—";
+            if (jrCurrentTl) jrCurrentTl.textContent = data.team_leader_name || "—";
+
+            jrModalConfirmBtn.textContent = "Confirm Reassignment";
+            closeReassignModal();
+        } catch (e) {
+            if (jrModalError) jrModalError.textContent = "Error — retry.";
+            jrModalConfirmBtn.disabled = false;
+            jrModalConfirmBtn.textContent = "Confirm Reassignment";
+        }
+    });
+
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && jrModal && jrModal.style.display !== "none") closeReassignModal();
     });
 
     const params = new URLSearchParams(window.location.search);

@@ -105,28 +105,47 @@ class TLTaskController extends Controller
 
     public function accept(Booking $booking, Request $request): JsonResponse
     {
-        if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
-            return response()->json(['success' => false, 'message' => 'This task is not assigned to you.'], 403);
+        $teamLeaderId = $request->user()->id;
+
+        // Locked so a dispatcher reassignment racing this request can't be
+        // silently overwritten by a stale accept() — whichever gets the row
+        // lock first wins, and the loser re-checks fresh state and fails cleanly.
+        $result = DB::transaction(function () use ($booking, $teamLeaderId) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+            if (! $locked) {
+                return ['status' => 404, 'message' => 'Task not found.'];
+            }
+
+            if ((int) $locked->assigned_team_leader_id !== $teamLeaderId) {
+                return ['status' => 403, 'message' => 'This task is not assigned to you.'];
+            }
+
+            if ($locked->status !== 'assigned') {
+                return ['status' => 409, 'message' => 'Task is no longer available.'];
+            }
+
+            $locked->update([
+                'status'      => 'accepted',
+                'assigned_at' => now(),
+            ]);
+
+            $locked->load(['customer', 'truckType', 'unit']);
+
+            return ['status' => 200, 'booking' => $locked];
+        });
+
+        if ($result['status'] !== 200) {
+            return response()->json(['success' => false, 'message' => $result['message']], $result['status']);
         }
-
-        if ($booking->status !== 'assigned') {
-            return response()->json(['success' => false, 'message' => 'Task is no longer available.'], 409);
-        }
-
-        $booking->update([
-            'status'      => 'accepted',
-            'assigned_at' => now(),
-        ]);
-
-        $booking->load(['customer', 'truckType', 'unit']);
 
         try {
-            BookingStatusUpdated::safeFire($booking);
+            BookingStatusUpdated::safeFire($result['booking']);
         } catch (\Throwable) {}
 
         return response()->json([
             'success' => true,
-            'data'    => $this->formatTask($booking),
+            'data'    => $this->formatTask($result['booking']),
             'message' => 'Task accepted.',
         ]);
     }
@@ -140,74 +159,99 @@ class TLTaskController extends Controller
             'is_demo'  => 'nullable|boolean',
         ]);
 
-        if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
-            return response()->json(['success' => false, 'message' => 'This task is not assigned to you.'], 403);
-        }
-
         $newStatus = $validated['status'];
-        $allowed   = self::VALID_TRANSITIONS[$booking->status] ?? [];
-
-        if (! in_array($newStatus, $allowed)) {
-            return response()->json([
-                'success' => false,
-                'message' => "Cannot transition from '{$booking->status}' to '{$newStatus}'.",
-            ], 422);
-        }
-
+        $teamLeaderId = $request->user()->id;
         $isDemo = $request->boolean('is_demo');
-        if ($isDemo && ! config('towmate.demo_arrival_enabled')) {
-            return response()->json(['success' => false, 'message' => 'Demo arrival is not enabled.'], 403);
-        }
 
-        $arrivalClaim = self::ARRIVAL_CLAIMS[$booking->status] ?? null;
-        $isDemoArrival = false;
-        if ($arrivalClaim && $arrivalClaim[0] === $newStatus) {
-            $isDemoArrival = $isDemo;
+        // Locked so a dispatcher reassignment (or another in-flight status
+        // update) racing this request can't be silently overwritten — the
+        // ownership and transition checks are re-run against the row's
+        // current state, not the possibly-stale route-bound $booking.
+        //
+        // Check order (ownership -> transition validity -> demo flag ->
+        // arrival GPS) is preserved exactly as before the locking change: an
+        // invalid transition (e.g. a duplicate arrived_pickup -> arrived_pickup
+        // retry) must short-circuit to 422 before the demo flag is ever
+        // evaluated, regardless of whether demo mode is enabled.
+        $result = DB::transaction(function () use ($booking, $newStatus, $teamLeaderId, $isDemo, $validated) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
 
-            if (! $isDemo) {
-                [, $latField, $lngField] = $arrivalClaim;
-                $targetLat = (float) $booking->{$latField};
-                $targetLng = (float) $booking->{$lngField};
+            if (! $locked) {
+                return ['status' => 404, 'message' => 'Task not found.'];
+            }
 
-                if (! isset($validated['lat'], $validated['lng'])) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Location is required to confirm arrival.',
-                    ], 422);
-                }
+            if ((int) $locked->assigned_team_leader_id !== $teamLeaderId) {
+                return ['status' => 403, 'message' => 'This task is not assigned to you.'];
+            }
 
-                $distanceMeters = $this->haversineMeters(
-                    (float) $validated['lat'],
-                    (float) $validated['lng'],
-                    $targetLat,
-                    $targetLng,
-                );
+            $allowed = self::VALID_TRANSITIONS[$locked->status] ?? [];
 
-                if ($distanceMeters > self::ARRIVAL_RADIUS_METERS) {
-                    $distanceLabel = $distanceMeters >= 1000
-                        ? round($distanceMeters / 1000, 1) . 'km'
-                        : round($distanceMeters) . 'm';
+            if (! in_array($newStatus, $allowed)) {
+                return [
+                    'status' => 422,
+                    'message' => "Cannot transition from '{$locked->status}' to '{$newStatus}'.",
+                ];
+            }
 
-                    return response()->json([
-                        'success' => false,
-                        'message' => "You appear to be ~{$distanceLabel} from the location. Move closer and try again.",
-                    ], 422);
+            if ($isDemo && ! config('towmate.demo_arrival_enabled')) {
+                return ['status' => 403, 'message' => 'Demo arrival is not enabled.'];
+            }
+
+            $arrivalClaim = self::ARRIVAL_CLAIMS[$locked->status] ?? null;
+            $isDemoArrival = false;
+            if ($arrivalClaim && $arrivalClaim[0] === $newStatus) {
+                $isDemoArrival = $isDemo;
+
+                if (! $isDemo) {
+                    [, $latField, $lngField] = $arrivalClaim;
+                    $targetLat = (float) $locked->{$latField};
+                    $targetLng = (float) $locked->{$lngField};
+
+                    if (! isset($validated['lat'], $validated['lng'])) {
+                        return ['status' => 422, 'message' => 'Location is required to confirm arrival.'];
+                    }
+
+                    $distanceMeters = $this->haversineMeters(
+                        (float) $validated['lat'],
+                        (float) $validated['lng'],
+                        $targetLat,
+                        $targetLng,
+                    );
+
+                    if ($distanceMeters > self::ARRIVAL_RADIUS_METERS) {
+                        $distanceLabel = $distanceMeters >= 1000
+                            ? round($distanceMeters / 1000, 1) . 'km'
+                            : round($distanceMeters) . 'm';
+
+                        return [
+                            'status' => 422,
+                            'message' => "You appear to be ~{$distanceLabel} from the location. Move closer and try again.",
+                        ];
+                    }
                 }
             }
+
+            $updates = ['status' => $newStatus];
+
+            if ($newStatus === 'completed') {
+                $updates['completed_at'] = now();
+            }
+
+            $locked->update($updates);
+            $locked->load(['customer', 'truckType', 'unit']);
+
+            return ['status' => 200, 'booking' => $locked, 'isDemoArrival' => $isDemoArrival];
+        });
+
+        if ($result['status'] !== 200) {
+            return response()->json(['success' => false, 'message' => $result['message']], $result['status']);
         }
 
-        $updates = ['status' => $newStatus];
+        $booking = $result['booking'];
 
-        if ($newStatus === 'completed') {
-            $updates['completed_at'] = now();
-        }
-
-        $booking->update($updates);
-        $booking->load(['customer', 'truckType', 'unit']);
-
-        if ($isDemoArrival) {
+        if ($result['isDemoArrival']) {
             AuditLog::create([
-                'user_id'     => $request->user()->id,
+                'user_id'     => $teamLeaderId,
                 'action'      => 'demo_arrival_confirmed',
                 'entity_type' => 'Booking',
                 'entity_id'   => $booking->id,
@@ -218,7 +262,7 @@ class TLTaskController extends Controller
 
         if ($newStatus === 'arrived_dropoff' && ! $this->isNormalizedGroupBooking($booking) && ! $booking->currentInvoice()->exists()) {
             try {
-                $this->issueInvoice($booking, $request->user()->id);
+                $this->issueInvoice($booking, $teamLeaderId);
             } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
             }
         }

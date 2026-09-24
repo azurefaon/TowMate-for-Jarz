@@ -12,9 +12,11 @@ use App\Models\User;
 use App\Services\CustomerNotificationService;
 use App\Services\DocumentGenerationService;
 use App\Services\TeamLeaderAvailabilityService;
+use App\Services\UnitAvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rule;
 
 class JobsController extends Controller
 {
@@ -25,6 +27,22 @@ class JobsController extends Controller
     ];
 
     protected array $verificationStatuses = ['waiting_verification', 'payment_pending', 'payment_submitted'];
+
+    /**
+     * Correcting an accidental initial assignment is only safe before the Team
+     * Leader has accepted — nothing customer-facing has happened yet and no
+     * GPS/arrival milestones exist to unwind. Once accepted, dispatchers must
+     * use the normal Returned flow instead.
+     */
+    public const REASSIGNABLE_STATUS = 'assigned';
+
+    public const REASSIGN_REASONS = [
+        'Wrong TL / Unit selected',
+        'Assigned TL unavailable',
+        'Vehicle / unit issue',
+        'Dispatch adjustment',
+        'Other',
+    ];
 
     public function index()
     {
@@ -278,5 +296,249 @@ class JobsController extends Controller
             'success' => true,
             'message' => 'Payment confirmed. Job completed and receipt sent to customer.',
         ]);
+    }
+
+    /**
+     * Fresh unit/team-leader options for the Reassign Task modal — fetched on
+     * open rather than reused from the page's initial load, since availability
+     * can change between when the Active Jobs table rendered and when the
+     * dispatcher opens the drawer.
+     */
+    public function reassignOptions(Booking $booking, UnitAvailabilityService $unitAvailability, TeamLeaderAvailabilityService $teamLeaderAvailability)
+    {
+        if ($booking->status !== self::REASSIGNABLE_STATUS) {
+            return response()->json([
+                'success' => false,
+                'message' => $this->reassignBlockedMessage($booking->status),
+            ], 409);
+        }
+
+        $booking->loadMissing(['unit', 'assignedTeamLeader']);
+
+        $candidateUnits = Unit::with(['truckType', 'driver', 'teamLeader'])
+            ->whereNull('archived_at')
+            // Matches the literal status the /admin-dashboard/dispatch picker
+            // requires (DispatchController::index()) — not just "not in
+            // maintenance". UnitAvailabilityService deliberately treats
+            // Unit.status as maintenance-only, so this is enforced separately.
+            ->where('status', 'available')
+            ->where('truck_type_id', $booking->truck_type_id)
+            ->whereNotNull('team_leader_id')
+            ->where('id', '!=', $booking->assigned_unit_id)
+            ->orderBy('name')
+            ->get();
+
+        $evaluated = $unitAvailability->evaluateMany($candidateUnits);
+
+        $options = $candidateUnits
+            ->filter(function (Unit $unit) use ($evaluated, $teamLeaderAvailability) {
+                if (! ($evaluated->get($unit->id)['available'] ?? false)) {
+                    return false;
+                }
+
+                // Matches DispatchController::index()'s picker: a dispatcher-set
+                // busy/unavailable override on the Team Leader excludes the unit
+                // there too — UnitAvailabilityService doesn't know about overrides.
+                $override = $unit->teamLeader ? $teamLeaderAvailability->operationalOverride($unit->teamLeader) : null;
+
+                return ! in_array($override['status'] ?? null, ['busy', 'unavailable'], true);
+            })
+            ->map(function (Unit $unit) {
+                $teamLeaderName = $unit->teamLeader?->full_name ?? $unit->teamLeader?->name ?? 'Unassigned';
+
+                return [
+                    'unit_id' => $unit->id,
+                    'unit_name' => $unit->name,
+                    'plate_number' => $unit->plate_number,
+                    'team_leader_id' => $unit->team_leader_id,
+                    'team_leader_name' => $teamLeaderName,
+                    'driver_name' => $unit->driver?->full_name ?? $unit->driver?->name ?? $unit->driver_name ?? null,
+                    'label' => trim(($unit->name ?? 'Unit') . ' · ' . $teamLeaderName),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'current' => [
+                'unit_id' => $booking->assigned_unit_id,
+                'unit_name' => $booking->unit?->name,
+                'team_leader_id' => $booking->assigned_team_leader_id,
+                'team_leader_name' => $booking->assignedTeamLeader?->full_name ?? $booking->assignedTeamLeader?->name,
+            ],
+            'options' => $options,
+            'reasons' => self::REASSIGN_REASONS,
+        ]);
+    }
+
+    /**
+     * Dispatcher-initiated correction of an accidental initial assignment.
+     * Deliberately kept separate from DispatchController::assignBooking() —
+     * this only ever swaps assignment ownership on a booking that stays
+     * 'assigned'; it never touches quotation, payment, or Returned-flow state.
+     */
+    public function reassign(Request $request, Booking $booking, UnitAvailabilityService $unitAvailability, TeamLeaderAvailabilityService $teamLeaderAvailability)
+    {
+        $validated = $request->validate([
+            'assigned_unit_id' => ['required', 'integer', 'exists:units,id'],
+            'reason' => ['required', 'string', Rule::in(self::REASSIGN_REASONS)],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        if ($validated['reason'] === 'Other' && blank($validated['notes'] ?? null)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please add a note describing the reason.',
+                'errors' => ['notes' => ['Notes are required when selecting "Other".']],
+            ], 422);
+        }
+
+        $notes = filled($validated['notes'] ?? null) ? trim(strip_tags((string) $validated['notes'])) : null;
+
+        return DB::transaction(function () use ($booking, $validated, $notes, $unitAvailability, $teamLeaderAvailability) {
+            // Never trust the status/ownership read before the lock — a concurrent
+            // dispatcher reassignment or a TL accept() could have already landed.
+            $locked = Booking::whereKey($booking->id)->lockForUpdate()->first();
+
+            if (! $locked) {
+                return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
+            }
+
+            if ($locked->status !== self::REASSIGNABLE_STATUS) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $this->reassignBlockedMessage($locked->status),
+                ], 409);
+            }
+
+            if ((int) $validated['assigned_unit_id'] === (int) $locked->assigned_unit_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Select a different unit/team leader — this is already the current assignment.',
+                ], 422);
+            }
+
+            $selectedUnit = Unit::with(['teamLeader', 'truckType', 'driver'])
+                ->where('id', $validated['assigned_unit_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if (! $selectedUnit || $selectedUnit->archived_at || empty($selectedUnit->team_leader_id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Selected unit no longer has a Team Leader assigned.',
+                ], 422);
+            }
+
+            // Re-verified independently of reassignOptions()'s query filter —
+            // stale modal data (unit went to maintenance/on a job after the
+            // dispatcher opened the modal) must not slip through on submit.
+            if ($selectedUnit->status !== 'available') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Selected unit is no longer available. Please choose another.',
+                ], 422);
+            }
+
+            if ((int) $selectedUnit->truck_type_id !== (int) $locked->truck_type_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This unit is not compatible with the booking vehicle.',
+                ], 422);
+            }
+
+            // Re-verified independently for the same reason — a dispatcher
+            // could mark this Team Leader busy/unavailable after the modal
+            // was opened but before this submit landed.
+            $override = $teamLeaderAvailability->operationalOverride($selectedUnit->teamLeader);
+            if (in_array($override['status'] ?? null, ['busy', 'unavailable'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This Team Leader is currently marked ' . $override['status'] . ' by dispatch and cannot be assigned.',
+                ], 422);
+            }
+
+            $evaluation = $unitAvailability->evaluate($selectedUnit);
+            if (! ($evaluation['available'] ?? false)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This Team Leader/unit is no longer available. Please choose another.',
+                ], 422);
+            }
+
+            $locked->loadMissing(['unit', 'assignedTeamLeader']);
+            $previousUnit = $locked->unit;
+            $previousTeamLeader = $locked->assignedTeamLeader;
+
+            $oldValue = [
+                'status' => $locked->status,
+                'unit_id' => $locked->assigned_unit_id,
+                'unit_name' => $previousUnit?->name,
+                'team_leader_id' => $locked->assigned_team_leader_id,
+                'team_leader_name' => $previousTeamLeader?->full_name ?? $previousTeamLeader?->name,
+                'assigned_at' => $locked->assigned_at?->toIso8601String(),
+            ];
+
+            $locked->update([
+                'assigned_unit_id' => $selectedUnit->id,
+                'assigned_team_leader_id' => $selectedUnit->team_leader_id,
+                'assigned_at' => now(),
+                // Clears any stale driver-name override left over from the previous
+                // unit — mirrors the same cleanup DispatchController::assignBooking()
+                // already does whenever assignment ownership changes.
+                'driver_name' => null,
+            ]);
+
+            $locked->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader', 'unit.driver', 'assignedTeamLeader']);
+
+            $newTeamLeaderName = $selectedUnit->teamLeader?->full_name ?? $selectedUnit->teamLeader?->name;
+
+            $newValue = [
+                'unit_id' => $selectedUnit->id,
+                'unit_name' => $selectedUnit->name,
+                'team_leader_id' => $selectedUnit->team_leader_id,
+                'team_leader_name' => $newTeamLeaderName,
+                'reason' => $validated['reason'],
+                'notes' => $notes,
+            ];
+
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'dispatcher_reassigned',
+                'category' => 'dispatch',
+                'entity_type' => 'Booking',
+                'entity_id' => $locked->id,
+                'reference' => $locked->job_code,
+                'description' => 'Reassigned from ' . ($oldValue['team_leader_name'] ?? 'N/A') . ' (' . ($oldValue['unit_name'] ?? 'N/A') . ') to '
+                    . ($newTeamLeaderName ?? 'N/A') . ' (' . $selectedUnit->name . ') — ' . $validated['reason'],
+                'old_value' => $oldValue,
+                'new_value' => $newValue,
+            ]);
+
+            BookingStatusUpdated::safeFire($locked);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Task reassigned. The previous Team Leader no longer has access to this booking.',
+                'status' => $locked->status,
+                'unit_id' => $locked->assigned_unit_id,
+                'unit_name' => $locked->unit?->name,
+                'team_leader_id' => $locked->assigned_team_leader_id,
+                'team_leader_name' => $locked->assignedTeamLeader?->full_name ?? $locked->assignedTeamLeader?->name,
+                'driver_name' => $locked->driver_name
+                    ?? $locked->unit?->driver?->full_name
+                    ?? $locked->unit?->driver?->name
+                    ?? $locked->unit?->driver_name,
+            ]);
+        });
+    }
+
+    private function reassignBlockedMessage(string $status): string
+    {
+        if ($status === 'accepted') {
+            return 'This task was already accepted by the Team Leader and can no longer be reassigned from here.';
+        }
+
+        return 'This booking is no longer in the Assigned state — it can\'t be reassigned from here anymore.';
     }
 }

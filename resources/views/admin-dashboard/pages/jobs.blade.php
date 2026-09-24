@@ -127,8 +127,11 @@
                     <tr class="jobs-row js-open-job-row" tabindex="0"
                         aria-label="Open {{ $job->booking_code }}, {{ $customer }}"
                         data-bucket="{{ $bucket }}"
+                        data-status="{{ $job->status }}"
                         data-booking-code="{{ $job->booking_code }}"
                         data-confirm-url="{{ route('admin.jobs.confirm-payment', $job) }}"
+                        data-reassign-options-url="{{ route('admin.jobs.reassign-options', $job) }}"
+                        data-reassign-url="{{ route('admin.jobs.reassign', $job) }}"
                         data-customer="{{ $customer }}"
                         data-phone="{{ $custPhone }}"
                         data-email="{{ $custEmail }}"
@@ -343,10 +346,75 @@
             </div>
 
             <div class="jobs-drawer-foot">
+                <button type="button" id="drawerReassignBtn" class="btn rtn-btn-secondary" style="display:none;">
+                    <i data-lucide="repeat"></i>
+                    <span>Reassign Task</span>
+                </button>
                 <button type="button" id="drawerConfirmPaymentBtn" class="btn btn-confirm-payment" style="display:none;">
                     <i data-lucide="check-circle"></i>
                     <span>Confirm Payment</span>
                 </button>
+            </div>
+        </div>
+
+        {{-- Reassign Task modal: only ever offered while status is exactly
+             'assigned' — before the Team Leader has accepted, nothing
+             customer-facing has happened yet and there's nothing to unwind. --}}
+        <div id="jrReassignModal" class="rtn-modal-overlay" style="display:none;" aria-hidden="true" role="dialog" aria-modal="true">
+            <div class="rtn-modal-card">
+                <div class="rtn-modal-header">
+                    <div>
+                        <span class="rtn-modal-title">Reassign Task</span>
+                        <span class="rtn-modal-subtitle" id="jrModalBookingCode">—</span>
+                    </div>
+                    <button type="button" class="rtn-modal-close" id="jrModalCloseBtn">&times;</button>
+                </div>
+
+                <div class="rtn-modal-summary">
+                    <div class="rtn-modal-summary-row">
+                        <span class="rtn-modal-summary-label">Current Unit</span>
+                        <span class="rtn-modal-summary-value" id="jrCurrentUnit">—</span>
+                    </div>
+                    <div class="rtn-modal-summary-row">
+                        <span class="rtn-modal-summary-label">Current Team Leader</span>
+                        <span class="rtn-modal-summary-value" id="jrCurrentTl">—</span>
+                    </div>
+                </div>
+
+                <div class="rtn-modal-body rtn-modal-body--single">
+                    <div class="rtn-modal-list-col rtn-modal-list-col--full">
+                        <div class="rtn-modal-section-title">New Unit / Team Leader</div>
+                        <select id="jrUnitSelect" class="rtn-search-input">
+                            <option value="">Loading options…</option>
+                        </select>
+                        <div class="rtn-modal-empty" id="jrEmptyState" style="display:none;">No other ready unit is currently available for this vehicle type.</div>
+
+                        <div class="rtn-modal-section-title" style="margin-top:16px;">Reason <span style="color:#b91c1c;">*</span></div>
+                        <select id="jrReasonSelect" class="rtn-search-input">
+                            <option value="">Select a reason…</option>
+                            @foreach (\App\Http\Controllers\Admin\JobsController::REASSIGN_REASONS as $reason)
+                                <option value="{{ $reason }}">{{ $reason }}</option>
+                            @endforeach
+                        </select>
+
+                        <div class="rtn-modal-section-title" style="margin-top:16px;">
+                            Notes <span id="jrNotesRequiredHint" style="display:none; color:#b91c1c;">(required for "Other")</span>
+                        </div>
+                        <textarea id="jrNotesInput" class="rtn-search-input" rows="3" placeholder="Optional notes…"></textarea>
+
+                        <p class="jobs-cell-secondary" style="margin-top:14px;">
+                            The current Team Leader will immediately lose access to this task. The booking itself stays active and the customer will not be notified again.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="rtn-modal-footer">
+                    <span class="rtn-modal-footer-note" id="jrModalError"></span>
+                    <div class="rtn-modal-footer-actions">
+                        <button type="button" class="rtn-btn-secondary" id="jrModalCancelBtn">Cancel</button>
+                        <button type="button" class="rtn-btn-primary" id="jrModalConfirmBtn" disabled>Confirm Reassignment</button>
+                    </div>
+                </div>
             </div>
         </div>
 

@@ -70,7 +70,7 @@ class AuditLogService
 
     public const BUSINESS_ACTIONS = [
         'create_booking', 'update_booking', 'delete_booking',
-        'booking_assigned', 'booking_reassigned', 'booking_status_override',
+        'booking_assigned', 'booking_reassigned', 'dispatcher_reassigned', 'booking_status_override',
         'booking_cancelled_by_customer', 'booking_rejected', 'booking_rescheduled',
         'scheduled_booking_cancelled_by_dispatcher', 'demo_arrival_confirmed',
         'payment_confirmed', 'payment_submitted', 'service_fee_applied', 'invoice_voided',
@@ -113,7 +113,7 @@ class AuditLogService
             str_contains($action, 'restored') => 'restore',
             str_contains($action, 'purged') || str_contains($action, 'permanently_deleted') || str_contains($action, 'deleted') || str_contains($action, 'anonymized') => 'delete',
             str_contains($action, 'registered') || str_contains($action, 'created') => 'create',
-            in_array($action, ['booking_assigned', 'booking_reassigned', 'unit_assigned', 'unit_removed', 'crew_borrowed', 'crew_returned', 'team_leader_reassigned'], true) => 'assignment_change',
+            in_array($action, ['booking_assigned', 'booking_reassigned', 'dispatcher_reassigned', 'unit_assigned', 'unit_removed', 'crew_borrowed', 'crew_returned', 'team_leader_reassigned'], true) => 'assignment_change',
             str_starts_with($action, 'quotation_') => 'quotation_change',
             str_contains($action, 'status') || $action === 'payment_confirmed' => 'status_change',
             str_starts_with($action, 'password_') || str_contains($action, 'backup') => 'system',
