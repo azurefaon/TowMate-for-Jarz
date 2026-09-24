@@ -1775,9 +1775,9 @@
                                                 <div class="rtn-footer">
                                                     <span class="rtn-footer-note">Reassignment releases this task back into normal dispatch.</span>
                                                     <div class="rtn-footer-actions">
-                                                        <button type="button" class="rtn-btn-secondary"
-                                                            onclick="event.stopPropagation(); openCustomerBookingPanel(this.closest('.incoming-card'))">
-                                                            View Details
+                                                        <button type="button" class="btn-reject"
+                                                            data-id="{{ $booking->job_code }}" data-action="reject">
+                                                            Cancel Booking
                                                         </button>
                                                         <button type="button" class="rtn-btn-primary rtn-reassign-open-btn"
                                                             data-id="{{ $booking->job_code }}">
@@ -2508,8 +2508,9 @@
                         </div>
 
                         <div id="rejectReasonWrapper" class="modal-input modal-field">
-                            <label for="rejectReasonInput" class="field-label">Rejection reason</label>
+                            <label for="rejectReasonInput" class="field-label">Rejection reason <span style="color:#dc2626;">*</span></label>
                             <input type="text" id="rejectReasonInput" placeholder="Enter rejection reason..." />
+                            <small class="inline-field-error" id="rejectReasonInputError"></small>
                         </div>
 
                         <div id="quoteValidationSummary" class="quote-validation-summary" aria-live="polite"></div>

@@ -249,6 +249,12 @@ document.addEventListener("DOMContentLoaded", function () {
     initializeUnitSelector();
     initializeComputationInputs();
 
+    if (rejectReasonInput) {
+        rejectReasonInput.addEventListener("input", function () {
+            clearFieldError(this);
+        });
+    }
+
     clearZeroLikeOnFocus(distanceInput);
     clearZeroLikeOnFocus(discountPercentInput);
     clearZeroLikeOnFocus(priceInput);
@@ -2166,6 +2172,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (rejectReasonInput) {
             rejectReasonInput.value = "";
+            clearFieldError(rejectReasonInput);
         }
 
         if (priceInput) {
@@ -2320,15 +2327,17 @@ document.addEventListener("DOMContentLoaded", function () {
         var parsedQuote = parseNumericPrice(quotedPrice);
 
         if (state.selectedAction === "reject" && !reason) {
-            showNotification(
-                "Please enter a rejection reason before rejecting the booking.",
-                "error",
-            );
+            setFieldError(rejectReasonInput, "Rejection reason is required.");
+            showNotification("Rejection reason is required.", "error");
 
             if (rejectReasonInput) {
                 rejectReasonInput.focus();
             }
             return;
+        }
+
+        if (state.selectedAction === "reject" && reason) {
+            clearFieldError(rejectReasonInput);
         }
 
         if (state.selectedAction === "accept" && !validateAcceptForm(true)) {

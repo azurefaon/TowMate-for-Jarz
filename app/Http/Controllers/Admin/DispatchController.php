@@ -1036,6 +1036,13 @@ class DispatchController extends Controller
                 $isAcceptedGroupCancellation = $acceptedGroupQuotation !== null;
             }
 
+            if ($isReturnedTask && $rejectionReason === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Rejection reason is required.',
+                ], 422);
+            }
+
             if (($isScheduledCancellation || $isGroupedSentCancellation || $isAcceptedGroupCancellation) && $rejectionReason === '') {
                 return response()->json([
                     'success' => false,
