@@ -1375,15 +1375,23 @@
                 <div class="rb-tabs" id="dispatchQueueTabs">
 
                     <button type="button" class="queue-filter-btn rb-tab is-active" data-filter="book-now">
-                        <span>Book Now</span>
+                        <span>Intermediate Booking</span>
                         <span class="queue-tab-count rb-tab-count {{ ($queueCounts['book-now'] ?? 0) > 0 ? 'has-count' : '' }}"
                             data-count-for="book-now">
                             {{ $queueCounts['book-now'] ?? 0 }}
                         </span>
                     </button>
 
+                    <button type="button" class="queue-filter-btn rb-tab" data-filter="returned">
+                        <span>Returned</span>
+                        <span class="queue-tab-count rb-tab-count {{ ($queueCounts['returned'] ?? 0) > 0 ? 'has-count' : '' }}"
+                            data-count-for="returned">
+                            {{ $queueCounts['returned'] ?? 0 }}
+                        </span>
+                    </button>
+
                     <button type="button" class="queue-filter-btn rb-tab" data-filter="scheduled">
-                        <span>Scheduled</span>
+                        <span>Scheduled Booking</span>
                         <span class="queue-tab-count rb-tab-count {{ ($queueCounts['scheduled'] ?? 0) > 0 ? 'has-count' : '' }}"
                             data-count-for="scheduled">
                             {{ $queueCounts['scheduled'] ?? 0 }}
@@ -1606,6 +1614,10 @@
                                                     {{ $booking->returnedByTeamLeader->full_name ?? ($booking->returnedByTeamLeader->name ?? 'Team Leader') }}</span>
                                                 <span><strong>Reason:</strong>
                                                     {{ $booking->return_reason ?? 'Needs reassignment.' }}</span>
+                                                @if (filled($booking->return_notes))
+                                                    <span><strong>Notes:</strong>
+                                                        {{ $booking->return_notes }}</span>
+                                                @endif
                                             </div>
 
                                             @if (isset($booking->return_reason_parsed))
