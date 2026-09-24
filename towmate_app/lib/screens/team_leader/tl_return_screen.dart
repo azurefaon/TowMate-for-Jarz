@@ -14,12 +14,10 @@ class TlReturnScreen extends StatefulWidget {
 
 class _TlReturnScreenState extends State<TlReturnScreen> {
   static const _reasons = [
-    'Customer not available',
-    'Vehicle not accessible',
-    'Wrong vehicle information',
-    'Customer cancelled',
-    'Safety concern at location',
-    'Truck breakdown',
+    'Vehicle/Unit Issue',
+    'Cannot Reach Pickup Location',
+    'Incorrect Task Details',
+    'Customer/Location Issue',
     'Other',
   ];
 

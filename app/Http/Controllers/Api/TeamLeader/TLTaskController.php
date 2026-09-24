@@ -17,10 +17,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rule;
 
 class TLTaskController extends Controller
 {
     private const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected', 'returned'];
+
+    public const RETURN_REASONS = [
+        'Vehicle/Unit Issue',
+        'Cannot Reach Pickup Location',
+        'Incorrect Task Details',
+        'Customer/Location Issue',
+        'Other',
+    ];
 
     private const TL_TASK_STATUSES = [
         'assigned', 'accepted', 'on_the_way', 'arrived_pickup',
@@ -240,42 +249,74 @@ class TLTaskController extends Controller
 
     public function returnTask(Booking $booking, Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'reason' => 'required|string|max:500',
-            'notes'  => 'nullable|string|max:1000',
-        ]);
+        $teamLeaderId = $request->user()->id;
 
-        if ((int) $booking->assigned_team_leader_id !== $request->user()->id) {
+        if ((int) $booking->assigned_team_leader_id !== $teamLeaderId) {
             return response()->json(['success' => false, 'message' => 'This task is not assigned to you.'], 403);
         }
 
-        if (in_array($booking->status, self::TERMINAL_STATUSES)) {
-            return response()->json(['success' => false, 'message' => 'Task is already in a terminal state.'], 409);
-        }
-
-        $booking->update([
-            'status'                    => 'returned',
-            'returned_at'               => now(),
-            'return_reason'             => $validated['reason'],
-            'returned_by_team_leader_id' => $request->user()->id,
-            'pickup_notes'              => $booking->pickup_notes
-                ? $booking->pickup_notes . "\nReturn note: " . ($validated['notes'] ?? '')
-                : ($validated['notes'] ?? null),
+        $validated = $request->validate([
+            'reason' => ['required', 'string', Rule::in(self::RETURN_REASONS)],
+            'notes'  => 'nullable|string|max:1000',
         ]);
 
-        if ($booking->assigned_unit_id) {
-            Unit::where('id', $booking->assigned_unit_id)
-                ->where('status', 'on_job')
-                ->update(['status' => 'available']);
-        } else {
-            Unit::where('team_leader_id', $request->user()->id)
-                ->where('status', 'on_job')
-                ->update(['status' => 'available']);
+        $result = DB::transaction(function () use ($booking, $validated, $teamLeaderId) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+            if ((int) $locked->assigned_team_leader_id !== $teamLeaderId) {
+                return ['status' => 403, 'message' => 'This task is not assigned to you.'];
+            }
+
+            if (in_array($locked->status, self::TERMINAL_STATUSES)) {
+                return ['status' => 409, 'message' => 'Task is already in a terminal state.'];
+            }
+
+            $locked->update([
+                'status'                     => 'returned',
+                'returned_at'                => now(),
+                'return_reason'              => $validated['reason'],
+                'return_notes'               => $validated['notes'] ?? null,
+                'returned_by_team_leader_id' => $teamLeaderId,
+            ]);
+
+            if ($locked->assigned_unit_id) {
+                Unit::where('id', $locked->assigned_unit_id)
+                    ->where('status', 'on_job')
+                    ->update(['status' => 'available']);
+            } else {
+                Unit::where('team_leader_id', $teamLeaderId)
+                    ->where('status', 'on_job')
+                    ->update(['status' => 'available']);
+            }
+
+            AuditLog::create([
+                'user_id'     => $teamLeaderId,
+                'action'      => 'task_returned',
+                'category'    => 'dispatch',
+                'entity_type' => 'Booking',
+                'entity_id'   => $locked->id,
+                'reference'   => $locked->job_code,
+                'description' => 'Team Leader returned task: ' . $validated['reason'],
+                'old_value'   => [
+                    'team_leader_id' => $teamLeaderId,
+                    'unit_id'        => $locked->assigned_unit_id,
+                ],
+                'new_value'   => [
+                    'return_reason' => $validated['reason'],
+                    'return_notes'  => $validated['notes'] ?? null,
+                ],
+            ]);
+
+            $locked->load(['customer', 'truckType', 'unit']);
+
+            return ['status' => 200, 'booking' => $locked];
+        });
+
+        if ($result['status'] !== 200) {
+            return response()->json(['success' => false, 'message' => $result['message']], $result['status']);
         }
 
-        $booking->load(['customer', 'truckType', 'unit']);
-
-        try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
+        try { BookingStatusUpdated::safeFire($result['booking']); } catch (\Throwable) {}
 
         return response()->json(['success' => true, 'message' => 'Task returned successfully.']);
     }

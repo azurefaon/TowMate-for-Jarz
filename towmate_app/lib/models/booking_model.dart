@@ -23,6 +23,7 @@ String humanStatusLabel(String status) {
     'cancelled'            => 'Cancelled',
     'rejected'             => 'Rejected',
     'not_responding'       => 'You did not respond',
+    'returned'             => 'Reassigning team leader',
     _                      => status,
   };
 }

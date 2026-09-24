@@ -747,7 +747,7 @@ bool _isCommitted(String status) {
   const committed = {
     'confirmed', 'scheduled_confirmed', 'accepted', 'assigned',
     'on_the_way', 'arrived_pickup', 'in_progress', 'loading_vehicle',
-    'on_job', 'arrived_dropoff', 'waiting_verification', 'completed',
+    'on_job', 'arrived_dropoff', 'waiting_verification', 'completed', 'returned',
   };
   return committed.contains(status);
 }

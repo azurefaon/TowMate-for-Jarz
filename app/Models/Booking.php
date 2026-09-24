@@ -87,6 +87,7 @@ class Booking extends Model
         'customer_verification_note',
         'returned_at',
         'return_reason',
+        'return_notes',
         'returned_by_team_leader_id',
 
         'completion_otp',
@@ -412,13 +413,7 @@ class Booking extends Model
 
     public function getNeedsReassignmentAttribute(): bool
     {
-        if ($this->status === 'confirmed') {
-            return false;
-        }
-
-        return !is_null($this->returned_at)
-            && !empty($this->return_reason)
-            && in_array($this->status, ['accepted', 'assigned']);
+        return $this->status === 'returned';
     }
 
     public function getScheduleWindowLabelAttribute(): string

@@ -40,7 +40,7 @@ class DispatchController extends Controller
     protected UnitAvailabilityService $unitAvailability;
 
     protected array $reviewableStatuses = Booking::REVIEWABLE_STATUSES;
-    protected array $operationallyAssignedStatuses = ['confirmed', 'scheduled_confirmed', 'assigned'];
+    protected array $operationallyAssignedStatuses = ['confirmed', 'scheduled_confirmed', 'assigned', 'returned'];
 
     public function __construct(
         BookingService $bookingService,
@@ -76,23 +76,11 @@ class DispatchController extends Controller
     {
 
         $queueBase = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'returnedByTeamLeader'])
-            ->where(function ($query) {
-
-                $query->whereIn('status', ['accepted', 'assigned'])
-                    ->orWhere(function ($returnedQuery) {
-                        $returnedQuery->whereIn('status', ['accepted', 'assigned'])
-                            ->whereNotNull('returned_at');
-                    });
-            })
+            ->whereIn('status', ['accepted', 'assigned', 'returned'])
             ->get();
 
         $returnedRequests = $queueBase
-            ->filter(function (Booking $booking) {
-                return in_array($booking->status, ['accepted', 'assigned'])
-                    && $booking->needs_reassignment === true
-                    && !is_null($booking->returned_at)
-                    && !empty($booking->return_reason);
-            })
+            ->filter(fn(Booking $booking) => $booking->needs_reassignment === true)
             ->sortByDesc(fn(Booking $booking) => $booking->returned_at?->getTimestamp() ?? 0)
             ->values()
             ->map(function (Booking $booking) {
@@ -641,13 +629,7 @@ class DispatchController extends Controller
     public function pendingBookingsCount()
     {
         return response()->json([
-            'count' => Booking::where(function ($query) {
-                $query->whereIn('status', ['requested', 'reviewed', 'delayed'])
-                    ->orWhere(function ($returnedQuery) {
-                        $returnedQuery->whereIn('status', ['confirmed', 'accepted', 'assigned'])
-                            ->whereNotNull('returned_at');
-                    });
-            })->count(),
+            'count' => Booking::whereIn('status', ['requested', 'reviewed', 'delayed', 'returned'])->count(),
             'scheduled_count' => Booking::where('status', 'scheduled')->count(),
         ]);
     }
@@ -824,24 +806,8 @@ class DispatchController extends Controller
                     : null;
 
                 if ($isReturnedTask) {
-                    $booking->update($this->bookingService->filterPayloadForTable('bookings', [
-                        'status' => 'confirmed',
-                        'assigned_unit_id' => null,
-                        'assigned_team_leader_id' => null,
-                        'assigned_at' => now(),
-                        'driver_name' => null,
-                        'dispatcher_note' => $dispatcherNote,
-                        'returned_at' => null,
-                        'return_reason' => null,
-                        'returned_by_team_leader_id' => null,
-                        'customer_verification_status' => null,
-                        'customer_verified_at' => null,
-                        'completion_requested_at' => null,
-                        'customer_verification_note' => null,
-                    ]));
-
-                    $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
-                    BookingStatusUpdated::safeFire($booking);
+                    $previousTeamLeader = $booking->assignedTeamLeader;
+                    $previousUnit = $booking->unit;
 
                     AuditLog::create([
                         'user_id'     => auth()->id(),
@@ -851,7 +817,42 @@ class DispatchController extends Controller
                         'entity_id'   => $booking->id,
                         'reference'   => $booking->job_code,
                         'description' => 'Returned task reassigned to unit ' . ($selectedUnit?->name ?? 'N/A'),
+                        'old_value'   => [
+                            'team_leader_id'   => $booking->returned_by_team_leader_id ?? $booking->assigned_team_leader_id,
+                            'team_leader_name' => $previousTeamLeader?->full_name ?? $previousTeamLeader?->name,
+                            'unit_id'          => $booking->assigned_unit_id,
+                            'unit_name'        => $previousUnit?->name,
+                            'return_reason'    => $booking->return_reason,
+                            'return_notes'     => $booking->return_notes,
+                            'returned_at'      => $booking->returned_at?->toIso8601String(),
+                        ],
+                        'new_value'   => [
+                            'team_leader_id'   => $selectedUnit?->teamLeader?->id,
+                            'team_leader_name' => $selectedUnit?->teamLeader?->full_name ?? $selectedUnit?->teamLeader?->name,
+                            'unit_id'          => $selectedUnit?->id,
+                            'unit_name'        => $selectedUnit?->name,
+                        ],
                     ]);
+
+                    $booking->update($this->bookingService->filterPayloadForTable('bookings', [
+                        'status' => 'assigned',
+                        'assigned_unit_id' => $selectedUnit?->id,
+                        'assigned_team_leader_id' => $selectedUnit?->teamLeader?->id,
+                        'assigned_at' => now(),
+                        'driver_name' => null,
+                        'dispatcher_note' => $dispatcherNote,
+                        'returned_at' => null,
+                        'return_reason' => null,
+                        'return_notes' => null,
+                        'returned_by_team_leader_id' => null,
+                        'customer_verification_status' => null,
+                        'customer_verified_at' => null,
+                        'completion_requested_at' => null,
+                        'customer_verification_note' => null,
+                    ]));
+
+                    $booking->refresh()->loadMissing(['customer', 'truckType', 'unit.teamLeader']);
+                    BookingStatusUpdated::safeFire($booking);
 
                     return response()->json([
                         'success' => true,
@@ -1043,10 +1044,22 @@ class DispatchController extends Controller
                 'rejection_reason' => $rejectionReason,
             ];
 
+            $returnedTaskAuditSnapshot = null;
             if ($isReturnedTask) {
+                $returnedTaskAuditSnapshot = [
+                    'team_leader_id'   => $booking->returned_by_team_leader_id ?? $booking->assigned_team_leader_id,
+                    'team_leader_name' => $booking->returnedByTeamLeader?->full_name ?? $booking->returnedByTeamLeader?->name,
+                    'unit_id'          => $booking->assigned_unit_id,
+                    'unit_name'        => $booking->unit?->name,
+                    'return_reason'    => $booking->return_reason,
+                    'return_notes'     => $booking->return_notes,
+                    'returned_at'      => $booking->returned_at?->toIso8601String(),
+                ];
+
                 $updatePayload = array_merge($updatePayload, [
                     'returned_at' => null,
                     'return_reason' => null,
+                    'return_notes' => null,
                     'returned_by_team_leader_id' => null,
                     'assigned_team_leader_id' => null,
                     'assigned_unit_id' => null,
@@ -1065,6 +1078,7 @@ class DispatchController extends Controller
                 'entity_id'   => $booking->id,
                 'reference'   => $booking->job_code,
                 'description' => $rejectionReason,
+                'old_value'   => $returnedTaskAuditSnapshot,
             ]);
 
             $this->syncCustomerRiskFlag($booking->customer, $rejectionReason);
