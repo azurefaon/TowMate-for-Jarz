@@ -22,6 +22,7 @@
             <button class="settings-tab active" data-tab="user-limits">Company Settings</button>
             <button class="settings-tab" data-tab="customer-content">Customer App Content</button>
             <button class="settings-tab" data-tab="mobile-app">Mobile App</button>
+            <button class="settings-tab" data-tab="legal-policies">Legal &amp; Policies</button>
         </div>
 
         <div class="settings-content active" id="user-limits">
@@ -972,6 +973,86 @@
                     <h4>About Versioning</h4>
                     <p>Version Name is entered manually with each APK/IPA upload. Automatic version incrementing isn't enabled yet.</p>
                 </div>
+            </div>
+        </div>
+
+        <div class="settings-content" id="legal-policies">
+            <div class="settings-section">
+                <div class="settings-section-head">
+                    <h3>Terms of Use</h3>
+                    <p>Shown to customers in the mobile app. Publishing a new version requires every customer to
+                        review and re-accept before their next sign-in.</p>
+                </div>
+
+                <form method="POST" action="{{ route('superadmin.settings.update') }}">
+                    @csrf
+                    <input type="hidden" name="settings[legal_terms_form]" value="1">
+
+                    <div class="settings-grid">
+                        <div class="settings-field">
+                            <label for="terms_of_use_version">Version</label>
+                            <input type="text" id="terms_of_use_version" name="settings[terms_of_use_version]"
+                                maxlength="20"
+                                value="{{ old('settings.terms_of_use_version', $settings['terms_of_use_version'] ?? '') }}"
+                                required>
+                            @error('settings.terms_of_use_version') <small class="error-text">{{ $message }}</small> @enderror
+                        </div>
+
+                        <div class="settings-field" style="grid-column: 1 / -1;">
+                            <label for="terms_of_use_content">Document Text</label>
+                            <textarea id="terms_of_use_content" name="settings[terms_of_use_content]" rows="16"
+                                maxlength="20000"
+                                required>{{ old('settings.terms_of_use_content', $settings['terms_of_use_content'] ?? '') }}</textarea>
+                            <p class="field-help">Start a new section with a line beginning in <code>##</code>, e.g.
+                                <code>## 1. Account Registration</code>.</p>
+                            @error('settings.terms_of_use_content') <small class="error-text">{{ $message }}</small> @enderror
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button type="submit" class="settings-save">Publish Terms of Use</button>
+                    </div>
+                </form>
+            </div>
+
+            <hr class="settings-divider">
+
+            <div class="settings-section">
+                <div class="settings-section-head">
+                    <h3>Privacy Policy</h3>
+                    <p>Shown to customers in the mobile app. Publishing a new version requires every customer to
+                        review and re-accept before their next sign-in.</p>
+                </div>
+
+                <form method="POST" action="{{ route('superadmin.settings.update') }}">
+                    @csrf
+                    <input type="hidden" name="settings[legal_privacy_form]" value="1">
+
+                    <div class="settings-grid">
+                        <div class="settings-field">
+                            <label for="privacy_policy_version">Version</label>
+                            <input type="text" id="privacy_policy_version" name="settings[privacy_policy_version]"
+                                maxlength="20"
+                                value="{{ old('settings.privacy_policy_version', $settings['privacy_policy_version'] ?? '') }}"
+                                required>
+                            @error('settings.privacy_policy_version') <small class="error-text">{{ $message }}</small> @enderror
+                        </div>
+
+                        <div class="settings-field" style="grid-column: 1 / -1;">
+                            <label for="privacy_policy_content">Document Text</label>
+                            <textarea id="privacy_policy_content" name="settings[privacy_policy_content]" rows="16"
+                                maxlength="20000"
+                                required>{{ old('settings.privacy_policy_content', $settings['privacy_policy_content'] ?? '') }}</textarea>
+                            <p class="field-help">Start a new section with a line beginning in <code>##</code>, e.g.
+                                <code>## 1. Information You Provide</code>.</p>
+                            @error('settings.privacy_policy_content') <small class="error-text">{{ $message }}</small> @enderror
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button type="submit" class="settings-save">Publish Privacy Policy</button>
+                    </div>
+                </form>
             </div>
         </div>
 

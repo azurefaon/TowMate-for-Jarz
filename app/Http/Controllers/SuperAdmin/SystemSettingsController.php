@@ -61,6 +61,10 @@ class SystemSettingsController extends Controller
             'settings.company_email' => ['required_with:settings.business_info_form', 'email:rfc', 'max:150'],
             'settings.company_phone' => ['required_with:settings.business_info_form', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{5,20}$/'],
             'settings.company_address' => ['required_with:settings.business_info_form', 'string', 'max:255'],
+            'settings.terms_of_use_version' => ['required_with:settings.legal_terms_form', 'string', 'max:20'],
+            'settings.terms_of_use_content' => ['required_with:settings.legal_terms_form', 'string', 'max:20000'],
+            'settings.privacy_policy_version' => ['required_with:settings.legal_privacy_form', 'string', 'max:20'],
+            'settings.privacy_policy_content' => ['required_with:settings.legal_privacy_form', 'string', 'max:20000'],
         ]);
 
         $settings = $request->input('settings', []);
@@ -74,7 +78,13 @@ class SystemSettingsController extends Controller
             $settings['additional_charge_require_reason'] = $request->boolean('settings.additional_charge_require_reason') ? '1' : '0';
         }
 
-        unset($settings['price_adjustment_form'], $settings['additional_charge_form'], $settings['business_info_form']);
+        unset(
+            $settings['price_adjustment_form'],
+            $settings['additional_charge_form'],
+            $settings['business_info_form'],
+            $settings['legal_terms_form'],
+            $settings['legal_privacy_form'],
+        );
 
         foreach (['company_logo', 'secondary_logo', 'signature_image'] as $fileKey) {
             if ($request->hasFile($fileKey)) {
@@ -89,6 +99,26 @@ class SystemSettingsController extends Controller
                 'entity_type' => 'SystemSetting',
                 'reference' => 'vat_rate_percentage',
                 'description' => 'VAT rate changed to ' . $settings['vat_rate_percentage'] . '%.',
+            ]);
+        }
+
+        if (array_key_exists('terms_of_use_version', $settings) && filled($settings['terms_of_use_version'])) {
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'terms_of_use_updated',
+                'entity_type' => 'SystemSetting',
+                'reference' => 'terms_of_use_version',
+                'description' => 'Terms of Use published as version ' . $settings['terms_of_use_version'] . '.',
+            ]);
+        }
+
+        if (array_key_exists('privacy_policy_version', $settings) && filled($settings['privacy_policy_version'])) {
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'privacy_policy_updated',
+                'entity_type' => 'SystemSetting',
+                'reference' => 'privacy_policy_version',
+                'description' => 'Privacy Policy published as version ' . $settings['privacy_policy_version'] . '.',
             ]);
         }
 
