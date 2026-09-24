@@ -1630,10 +1630,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     });
                 }
 
-                showNotification(
-                    result.data.message || "Booking action completed.",
-                    action === "accept" ? "success" : "error",
-                );
+                if (action === "accept") {
+                    showNotification(
+                        result.data.message || "Booking action completed.",
+                        "success",
+                    );
+                }
 
                 // After starting a job (confirmed booking), redirect to active jobs page
                 if (action === "accept" && isConfirmedBooking) {
