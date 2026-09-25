@@ -723,11 +723,11 @@
                                 <p>{{ $booking->unit->teamLeader->full_name ?? $booking->unit->teamLeader->name }}</p>
                             </div>
                         @endif
-                        @if ($booking->unit)
+                        @if ($booking->display_unit_name)
                             <div class="detail-item">
                                 <label>Assigned Unit</label>
-                                <p>{{ $booking->unit->name }}
-                                    {{ $booking->unit->plate_number ? '· ' . $booking->unit->plate_number : '' }}</p>
+                                <p>{{ $booking->display_unit_name }}
+                                    {{ $booking->display_unit_plate_number ? '· ' . $booking->display_unit_plate_number : '' }}</p>
                             </div>
                         @endif
                     </div>

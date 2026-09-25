@@ -135,12 +135,12 @@ it('restore actually clears archived_at via the existing route and method', func
     $this->assertDatabaseHas('units', ['id' => $unit->id, 'archived_at' => null]);
 });
 
-it('blocks permanent delete when the unit has booking history', function () {
+it('permanently deletes a unit referenced only by a completed historical booking, nulling its FK and keeping the snapshot', function () {
     $owner = auOwner();
-    $unit = auArchivedUnit();
+    $unit = auArchivedUnit(['name' => 'AU Completed Job Unit', 'plate_number' => 'CMP1234']);
     $customer = auCustomer();
 
-    Booking::create([
+    $booking = Booking::create([
         'customer_id' => $customer->id,
         'truck_type_id' => $unit->truck_type_id,
         'assigned_unit_id' => $unit->id,
@@ -152,9 +152,167 @@ it('blocks permanent delete when the unit has booking history', function () {
 
     $response = $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unit->id));
 
+    $response->assertRedirect(route('superadmin.units.archived'));
+    $this->assertDatabaseMissing('units', ['id' => $unit->id]);
+    $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'assigned_unit_id' => null]);
+    expect($booking->fresh()->display_unit_name)->toBe('AU Completed Job Unit')
+        ->and($booking->fresh()->display_unit_plate_number)->toBe('CMP1234');
+});
+
+it('blocks permanent delete when the unit is referenced by an active operational booking', function () {
+    $owner = auOwner();
+    $unit = auArchivedUnit();
+    $customer = auCustomer();
+
+    Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $unit->truck_type_id,
+        'assigned_unit_id' => $unit->id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'on_the_way',
+    ]);
+
+    $response = $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unit->id));
+
     $response->assertRedirect();
     $response->assertSessionHas('error');
     $this->assertDatabaseHas('units', ['id' => $unit->id]);
+});
+
+it('blocks permanent delete when a historical booking is missing its unit snapshot', function () {
+    $owner = auOwner();
+    $unit = auArchivedUnit(['name' => 'AU No Snapshot Unit', 'plate_number' => 'NSN1234']);
+    $customer = auCustomer();
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $unit->truck_type_id,
+        'assigned_unit_id' => $unit->id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'completed',
+    ]);
+
+    \Illuminate\Support\Facades\DB::table('bookings')->where('id', $booking->id)->update([
+        'assigned_unit_name' => null,
+        'assigned_unit_plate_number' => null,
+    ]);
+
+    $response = $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unit->id));
+
+    $response->assertRedirect();
+    $response->assertSessionHas('error');
+    $this->assertDatabaseHas('units', ['id' => $unit->id]);
+});
+
+it('permanently deletes a unit referenced only through a terminal selected_unit_id booking when its snapshot is complete', function () {
+    $owner = auOwner();
+    $unit = auArchivedUnit(['name' => 'AU Selected Snapshot Unit', 'plate_number' => 'SEL1234']);
+    $customer = auCustomer();
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $unit->truck_type_id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'requested',
+    ]);
+
+    \Illuminate\Support\Facades\DB::table('bookings')->where('id', $booking->id)->update([
+        'status' => 'cancelled',
+        'selected_unit_id' => $unit->id,
+        'selected_unit_name' => $unit->name,
+        'selected_unit_plate_number' => $unit->plate_number,
+    ]);
+
+    $response = $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unit->id));
+
+    $response->assertRedirect(route('superadmin.units.archived'));
+    $this->assertDatabaseMissing('units', ['id' => $unit->id]);
+    $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'selected_unit_id' => null]);
+    expect($booking->fresh()->selected_unit_name)->toBe('AU Selected Snapshot Unit')
+        ->and($booking->fresh()->selected_unit_plate_number)->toBe('SEL1234');
+});
+
+it('blocks permanent delete when a terminal selected_unit_id booking is missing its snapshot', function () {
+    $owner = auOwner();
+    $unit = auArchivedUnit();
+    $customer = auCustomer();
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $unit->truck_type_id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'requested',
+    ]);
+
+    \Illuminate\Support\Facades\DB::table('bookings')->where('id', $booking->id)->update([
+        'status' => 'cancelled',
+        'selected_unit_id' => $unit->id,
+        'selected_unit_name' => null,
+        'selected_unit_plate_number' => null,
+    ]);
+
+    $response = $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unit->id));
+
+    $response->assertRedirect();
+    $response->assertSessionHas('error');
+    $this->assertDatabaseHas('units', ['id' => $unit->id]);
+});
+
+it('revalidates booking references fresh at delete time instead of trusting an earlier page load', function () {
+    $owner = auOwner();
+    $unit = auArchivedUnit();
+    $customer = auCustomer();
+
+    $indexResponse = $this->actingAs($owner)->get(route('superadmin.units.archived'));
+    $indexResponse->assertOk();
+
+    Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $unit->truck_type_id,
+        'assigned_unit_id' => $unit->id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'on_the_way',
+    ]);
+
+    $response = $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unit->id));
+
+    $response->assertRedirect();
+    $response->assertSessionHas('error');
+    $this->assertDatabaseHas('units', ['id' => $unit->id]);
+});
+
+it('does not write an audit log entry when permanent delete is blocked', function () {
+    $owner = auOwner();
+    $unit = auArchivedUnit();
+    $customer = auCustomer();
+
+    Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $unit->truck_type_id,
+        'assigned_unit_id' => $unit->id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'on_the_way',
+    ]);
+
+    $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unit->id));
+
+    $this->assertDatabaseMissing('audit_logs', [
+        'entity_type' => 'Unit',
+        'entity_id' => $unit->id,
+        'action' => 'unit_permanently_deleted',
+    ]);
 });
 
 it('blocks permanent delete when the unit has an active crew loan', function () {
@@ -186,6 +344,144 @@ it('permanently deletes an archived unit with no booking history or active loans
 
     $response->assertRedirect(route('superadmin.units.archived'));
     $this->assertDatabaseMissing('units', ['id' => $unit->id]);
+});
+
+it('blocks permanent delete when the unit is only referenced via selected_unit_id', function () {
+    $owner = auOwner();
+    $unit = auArchivedUnit();
+    $customer = auCustomer();
+
+    tap(new Booking())->forceFill([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $unit->truck_type_id,
+        'selected_unit_id' => $unit->id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'quoted',
+    ])->save();
+
+    $response = $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unit->id));
+
+    $response->assertRedirect();
+    $response->assertSessionHas('error');
+    $this->assertDatabaseHas('units', ['id' => $unit->id]);
+});
+
+it('stores a historical unit name and plate snapshot when a booking is assigned a unit', function () {
+    $customer = auCustomer();
+    $unit = Unit::create([
+        'name' => 'AU Snapshot Unit',
+        'plate_number' => 'ABC1234',
+        'truck_type_id' => auTruckType()->id,
+        'status' => 'available',
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $unit->truck_type_id,
+        'assigned_unit_id' => $unit->id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'assigned',
+    ]);
+
+    expect($booking->fresh()->assigned_unit_name)->toBe('AU Snapshot Unit')
+        ->and($booking->fresh()->assigned_unit_plate_number)->toBe('ABC1234');
+});
+
+it('updates the historical snapshot when a booking is reassigned to a different unit', function () {
+    $customer = auCustomer();
+    $truckType = auTruckType();
+    $firstUnit = Unit::create([
+        'name' => 'AU First Unit', 'plate_number' => 'AAA1111',
+        'truck_type_id' => $truckType->id, 'status' => 'available',
+    ]);
+    $secondUnit = Unit::create([
+        'name' => 'AU Second Unit', 'plate_number' => 'BBB2222',
+        'truck_type_id' => $truckType->id, 'status' => 'available',
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $truckType->id,
+        'assigned_unit_id' => $firstUnit->id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'assigned',
+    ]);
+
+    $booking->update(['assigned_unit_id' => $secondUnit->id]);
+
+    expect($booking->fresh()->assigned_unit_name)->toBe('AU Second Unit')
+        ->and($booking->fresh()->assigned_unit_plate_number)->toBe('BBB2222');
+});
+
+it('backfilled bookings without a live model event still survive unit deletion once backfilled', function () {
+    $owner = auOwner();
+    $customer = auCustomer();
+    $truckType = auTruckType();
+    $unit = Unit::create([
+        'name' => 'AU Backfill Unit', 'plate_number' => 'BFL9999',
+        'truck_type_id' => $truckType->id, 'status' => 'available',
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'truck_type_id' => $truckType->id,
+        'assigned_unit_id' => $unit->id,
+        'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 5,
+        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
+        'final_total' => 1800.00,
+        'status' => 'completed',
+    ]);
+
+    \Illuminate\Support\Facades\DB::table('bookings')->where('id', $booking->id)->update([
+        'assigned_unit_name' => null,
+        'assigned_unit_plate_number' => null,
+    ]);
+
+    (require database_path('migrations/2026_09_25_120100_backfill_unit_snapshot_fields_on_bookings_table.php'))->up();
+
+    $unit->update(['archived_at' => now()]);
+    $response = $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unit->id));
+
+    $response->assertRedirect(route('superadmin.units.archived'));
+    $this->assertDatabaseMissing('units', ['id' => $unit->id]);
+    expect($booking->fresh()->display_unit_name)->toBe('AU Backfill Unit')
+        ->and($booking->fresh()->display_unit_plate_number)->toBe('BFL9999');
+});
+
+it('cannot select or restore a permanently deleted unit as the same record', function () {
+    $owner = auOwner();
+    $unit = auArchivedUnit();
+    $unitId = $unit->id;
+
+    $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $unitId));
+
+    $this->assertDatabaseMissing('units', ['id' => $unitId]);
+    expect(Unit::find($unitId))->toBeNull();
+});
+
+it('creates a brand new unit record when the same plate number is re-added after deletion', function () {
+    $owner = auOwner();
+    $unit = auArchivedUnit(['plate_number' => 'REUSE123']);
+    $originalId = $unit->id;
+
+    $this->actingAs($owner)->delete(route('superadmin.units.force-delete', $originalId));
+    $this->assertDatabaseMissing('units', ['id' => $originalId]);
+
+    $newUnit = Unit::create([
+        'name' => 'AU Reused Plate Unit',
+        'plate_number' => 'REUSE123',
+        'truck_type_id' => auTruckType()->id,
+        'status' => 'available',
+    ]);
+
+    expect($newUnit->id)->not->toBe($originalId);
+    $this->assertDatabaseHas('units', ['id' => $newUnit->id, 'plate_number' => 'REUSE123']);
 });
 
 it('does not expose personnel mutation controls on the archived units page', function () {

@@ -164,15 +164,20 @@
                                                                 @endif
                                                             </form>
 
-                                                            @if ($type->bookings_count === 0)
-                                                                <div class="u-menu-divider"></div>
-                                                                <button type="button" class="u-menu-item u-menu-item--danger js-vc-delete" role="menuitem"
-                                                                    data-id="{{ $type->id }}"
-                                                                    data-name="{{ $type->name }}">
-                                                                    <i data-lucide="trash-2"></i>
-                                                                    <span>Delete</span>
-                                                                </button>
-                                                            @endif
+                                                            @php($vcBlockReasons = $type->bookings_count > 0 ? ['referenced by bookings'] : [])
+                                                            @php($vcCanDelete = empty($vcBlockReasons))
+                                                            <div class="u-menu-divider"></div>
+                                                            <button type="button" class="u-menu-item u-menu-item--danger js-vc-delete" role="menuitem"
+                                                                data-id="{{ $type->id }}"
+                                                                data-name="{{ $type->name }}"
+                                                                @disabled(! $vcCanDelete)
+                                                                @unless ($vcCanDelete) title="Cannot delete: {{ implode(' and ', $vcBlockReasons) }}" @endunless>
+                                                                <i data-lucide="trash-2"></i>
+                                                                <span>Delete</span>
+                                                            </button>
+                                                            @unless ($vcCanDelete)
+                                                                <div class="u-menu-hint">Cannot delete: {{ implode(' and ', $vcBlockReasons) }}</div>
+                                                            @endunless
                                                         </div>
                                                     </div>
                                                 </div>

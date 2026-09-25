@@ -275,7 +275,7 @@
                 <h3>🚗 Assignment</h3>
                 <div class="detail-row">
                     <span class="detail-label">Unit</span>
-                    <span class="detail-value">{{ $booking->unit?->name ?? 'Unassigned' }}</span>
+                    <span class="detail-value">{{ $booking->display_unit_name ?? 'Unassigned' }}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Team Leader</span>

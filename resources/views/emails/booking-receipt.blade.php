@@ -47,8 +47,8 @@
             default => 'Cash',
         };
         $payRef = $booking->paymongo_intent_id ?? ($booking->paymongo_link_id ?? '');
-        $unitName = $booking->unit->name ?? '—';
-        $unitPlate = $booking->unit->plate_number ?? '—';
+        $unitName = $booking->display_unit_name ?? '—';
+        $unitPlate = $booking->display_unit_plate_number ?? '—';
         $truckType = $booking->truckType->name ?? '—';
         $tlName = $booking->unit->teamLeader->full_name ?? ($booking->unit->teamLeader->name ?? '—');
         $receiptNum = $booking->receipt->receipt_number ?? '—';

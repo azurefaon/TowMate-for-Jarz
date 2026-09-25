@@ -185,7 +185,7 @@
                             <tr>
                                 <td>{{ $booking->job_code }}</td>
                                 <td>{{ $booking->truckType->name ?? '—' }}</td>
-                                <td>{{ $booking->unit->name ?? 'Unassigned' }}</td>
+                                <td>{{ $booking->display_unit_name ?? 'Unassigned' }}</td>
                                 <td>{{ $booking->created_at?->format('M j, Y') }}</td>
                                 <td>₱{{ number_format($booking->final_total ?? 0, 2) }}</td>
                                 <td>{{ ucfirst($booking->status) }}</td>

@@ -18,19 +18,27 @@
                     <tr>
                         <td style="background:#18181b;padding:22px 28px;">
                             <table width="100%" cellpadding="0" cellspacing="0">
+                                @php
+                                    $towingLogoPath = public_path('customer/image/TowingLogo-email.png');
+                                    $accreditedLogoPath = public_path('customer/image/accridetedlogo-email.png');
+                                @endphp
                                 <tr>
                                     <td width="56" style="vertical-align:middle;">
-                                        <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path('customer/image/TowingLogo-email.png'))) }}"
-                                            alt="Jarz Towing" width="52" height="52" style="display:block;border:0;">
+                                        @if (is_file($towingLogoPath))
+                                            <img src="{{ $message->embed($towingLogoPath) }}"
+                                                alt="Jarz Towing" width="52" height="52" style="display:block;border:0;">
+                                        @endif
                                     </td>
                                     <td style="text-align:center;vertical-align:middle;">
                                         <div style="font-size:13px;font-weight:bold;letter-spacing:0.14em;text-transform:uppercase;color:#ffffff;">
                                             TowMate Quotation</div>
                                     </td>
                                     <td width="56" style="vertical-align:middle;text-align:right;">
-                                        <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path('customer/image/accridetedlogo-email.png'))) }}"
-                                            alt="MMDA Accredited" width="52" height="52"
-                                            style="display:block;margin-left:auto;border:0;">
+                                        @if (is_file($accreditedLogoPath))
+                                            <img src="{{ $message->embed($accreditedLogoPath) }}"
+                                                alt="MMDA Accredited" width="52" height="52"
+                                                style="display:block;margin-left:auto;border:0;">
+                                        @endif
                                     </td>
                                 </tr>
                             </table>

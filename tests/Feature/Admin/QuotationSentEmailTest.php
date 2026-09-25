@@ -163,3 +163,48 @@ it('uses a fluid mobile-safe width for the email card', function () {
     expect($html)->toContain('name="viewport"')
         ->and($html)->toContain('max-width:480px');
 });
+
+it('embeds the two top logos as inline CID attachments instead of base64 data URIs', function () {
+    $customer = qseCustomer();
+    $truckType = qseTruckType();
+    $booking = qseBooking($customer, $truckType);
+    $quotation = qseQuotation($booking, 0, 3820);
+
+    $mailer = Mail::mailer('array');
+    $mailer->to($customer->email)->send(new QuotationSentMail($quotation));
+
+    $sent = $mailer->getSymfonyTransport()->messages()->last();
+    $email = $sent->getOriginalMessage();
+
+    expect($email->getHtmlBody())
+        ->not->toContain('data:image/png;base64,')
+        ->toContain('cid:');
+
+    $inlineImages = collect($email->getAttachments())
+        ->filter(fn ($part) => $part->getMediaType() === 'image');
+
+    expect($inlineImages)->toHaveCount(2);
+});
+
+it('renders without failing when a top logo source file is temporarily missing', function () {
+    $customer = qseCustomer();
+    $truckType = qseTruckType();
+    $booking = qseBooking($customer, $truckType);
+    $quotation = qseQuotation($booking, 0, 3820);
+
+    $logoPath = public_path('customer/image/TowingLogo-email.png');
+    $movedPath = $logoPath . '.test-backup';
+
+    expect(file_exists($logoPath))->toBeTrue();
+
+    rename($logoPath, $movedPath);
+
+    try {
+        $html = (new QuotationSentMail($quotation))->render();
+    } finally {
+        rename($movedPath, $logoPath);
+    }
+
+    expect($html)->toContain('MMDA Accredited')
+        ->and($html)->not->toContain('alt="Jarz Towing"');
+});

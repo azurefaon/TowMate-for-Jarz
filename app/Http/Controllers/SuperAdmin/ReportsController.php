@@ -148,7 +148,7 @@ class ReportsController extends Controller
             ->orderByDesc('total_jobs')
             ->get()
             ->map(fn ($row) => [
-                'unit_name' => $row->unit->name ?? 'Unit #' . $row->assigned_unit_id,
+                'unit_name' => $row->display_unit_name ?? 'Unit #' . $row->assigned_unit_id,
                 'truck_type_name' => $row->unit->truckType->name ?? '—',
                 'total_jobs' => (int) $row->total_jobs,
                 'completed_jobs' => (int) $row->completed_jobs,
@@ -617,7 +617,7 @@ class ReportsController extends Controller
             ->orderByDesc('trips')
             ->get()
             ->map(fn ($row) => [
-                'unit_name' => $row->unit->name ?? 'Unit #' . $row->assigned_unit_id,
+                'unit_name' => $row->display_unit_name ?? 'Unit #' . $row->assigned_unit_id,
                 'trips' => (int) $row->trips,
                 'revenue' => (float) $row->revenue,
             ]);

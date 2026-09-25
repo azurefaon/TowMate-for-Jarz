@@ -96,7 +96,7 @@
                     <td>{{ $booking->created_at?->format('M d, Y h:i A') }}</td>
                     <td>{{ $booking->customer->full_name ?? 'Guest' }}</td>
                     <td>{{ $booking->truckType->name ?? '—' }}</td>
-                    <td>{{ $booking->unit->name ?? '—' }}</td>
+                    <td>{{ $booking->display_unit_name ?? '—' }}</td>
                     <td class="{{ $booking->status === 'completed' ? 'rb-status-completed' : ($booking->status === 'cancelled' ? 'rb-status-cancelled' : '') }}">
                         {{ ucfirst(str_replace('_', ' ', $booking->status)) }}
                     </td>

@@ -56,8 +56,8 @@
             @endif
         </td>
         <td>
-            @if ($booking->unit)
-                <div class="jobs-cell-primary">{{ $booking->unit->name }}</div>
+            @if ($booking->display_unit_name)
+                <div class="jobs-cell-primary">{{ $booking->display_unit_name }}</div>
                 <div class="jobs-cell-secondary">{{ optional($booking->assignedTeamLeader)->full_name ?? optional($booking->assignedTeamLeader)->name ?? '—' }}</div>
             @else
                 <span class="jobs-cell-secondary">—</span>

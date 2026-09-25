@@ -123,7 +123,7 @@
                             @forelse ($activeBookings as $booking)
                                 @php
                                     $route = $booking->pickup_address . ' → ' . $booking->dropoff_address;
-                                    $unitName = optional($booking->unit)->name;
+                                    $unitName = $booking->display_unit_name;
                                     $leaderName = optional($booking->assignedTeamLeader)->full_name ?: optional($booking->assignedTeamLeader)->name;
                                 @endphp
                                 <tr>

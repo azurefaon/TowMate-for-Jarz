@@ -212,7 +212,7 @@ it('exposes enable instead of disable as a dropdown action for an inactive vehic
     $response->assertDontSee('Disable');
 });
 
-it('hides delete when the vehicle type has booking history', function () {
+it('shows delete disabled with an explanation when the vehicle type has booking history', function () {
     $type = vtVehicleType();
     $customer = vtCustomer();
     $truckType = vtTruckType();
@@ -228,9 +228,12 @@ it('hides delete when the vehicle type has booking history', function () {
     ])->save();
 
     $response = $this->actingAs(vtOwner())->get(route('superadmin.vehicle-types.index'));
+    $content = $response->getContent();
 
     $response->assertOk();
-    $response->assertDontSee('js-vc-delete', false);
+    expect($content)->toContain('js-vc-delete');
+    expect($content)->toContain('disabled');
+    $response->assertSee('Cannot delete: referenced by bookings');
 });
 
 it('keeps the dropdown actions wired to the existing toggle and destroy routes', function () {

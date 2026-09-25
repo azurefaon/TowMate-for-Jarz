@@ -318,6 +318,23 @@
     color: #b91c1c;
 }
 
+.u-menu-item:disabled {
+    color: #a3a3a3;
+    cursor: not-allowed;
+    background: #ffffff;
+}
+
+.u-menu-item:disabled:hover {
+    background: #ffffff;
+}
+
+.u-menu-hint {
+    padding: 4px 10px 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #a3a3a3;
+}
+
 .u-menu-divider {
     height: 1px;
     background: #e5e5e5;

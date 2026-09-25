@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class UnitController extends Controller
@@ -248,42 +249,66 @@ class UnitController extends Controller
 
     public function forceDelete($id): RedirectResponse
     {
-        $unit = Unit::findOrFail($id);
+        return DB::transaction(function () use ($id) {
+            $unit = Unit::whereKey($id)->lockForUpdate()->firstOrFail();
 
-        if (! $unit->archived_at) {
-            return back()->with('error', 'Only archived units can be permanently deleted.');
-        }
+            if (! $unit->archived_at) {
+                return back()->with('error', 'Only archived units can be permanently deleted.');
+            }
 
-        if (Booking::where('assigned_unit_id', $unit->id)->exists()) {
-            return back()->with('error', 'This unit has booking history and cannot be permanently deleted.');
-        }
+            $hasActiveBooking = Booking::where(function ($q) use ($unit) {
+                    $q->where('assigned_unit_id', $unit->id)->orWhere('selected_unit_id', $unit->id);
+                })
+                ->whereNotIn('status', Booking::TERMINAL_STATUSES)
+                ->exists();
 
-        $hasActiveLoan = UnitCrewLoan::where(function ($q) use ($unit) {
-                $q->where('from_unit_id', $unit->id)->orWhere('to_unit_id', $unit->id);
-            })
-            ->whereNull('returned_at')
-            ->exists();
+            if ($hasActiveBooking) {
+                return back()->with('error', 'This unit is still referenced by an active booking and cannot be permanently deleted.');
+            }
 
-        if ($hasActiveLoan) {
-            return back()->with('error', 'This unit has an active crew transfer (borrowed or lent out). Return it first before deleting.');
-        }
+            $hasActiveLoan = UnitCrewLoan::where(function ($q) use ($unit) {
+                    $q->where('from_unit_id', $unit->id)->orWhere('to_unit_id', $unit->id);
+                })
+                ->whereNull('returned_at')
+                ->exists();
 
-        $reference = $unit->name;
-        $entityId = $unit->id;
+            if ($hasActiveLoan) {
+                return back()->with('error', 'This unit has an active crew transfer (borrowed or lent out). Return it first before deleting.');
+            }
 
-        $unit->delete();
+            $hasIncompleteAssignedSnapshot = Booking::where('assigned_unit_id', $unit->id)
+                ->where(function ($q) {
+                    $q->whereNull('assigned_unit_name')->orWhereNull('assigned_unit_plate_number');
+                })
+                ->exists();
 
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'unit_permanently_deleted',
-            'entity_type' => 'Unit',
-            'entity_id' => $entityId,
-            'reference' => $reference,
-            'description' => "Permanently deleted unit {$reference} from archive.",
-        ]);
+            $hasIncompleteSelectedSnapshot = Booking::where('selected_unit_id', $unit->id)
+                ->where(function ($q) {
+                    $q->whereNull('selected_unit_name')->orWhereNull('selected_unit_plate_number');
+                })
+                ->exists();
 
-        return redirect()->route('superadmin.units.archived')
-            ->with('success', 'Unit permanently deleted.');
+            if ($hasIncompleteAssignedSnapshot || $hasIncompleteSelectedSnapshot) {
+                return back()->with('error', 'This unit has historical bookings missing a saved name/plate snapshot and cannot be permanently deleted without losing history.');
+            }
+
+            $reference = $unit->name;
+            $entityId = $unit->id;
+
+            $unit->delete();
+
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'unit_permanently_deleted',
+                'entity_type' => 'Unit',
+                'entity_id' => $entityId,
+                'reference' => $reference,
+                'description' => "Permanently deleted unit {$reference} from archive.",
+            ]);
+
+            return redirect()->route('superadmin.units.archived')
+                ->with('success', 'Unit permanently deleted.');
+        });
     }
 
 }

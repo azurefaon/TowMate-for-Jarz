@@ -80,7 +80,7 @@
                         $customer   = optional($job->customer)->full_name ?? optional($job->customer)->name ?? 'Customer unavailable';
                         $custPhone  = optional($job->customer)->phone ?? '';
                         $custEmail  = optional($job->customer)->email ?? '';
-                        $unitName   = optional($job->unit)->name ?? 'Unassigned';
+                        $unitName   = $job->display_unit_name ?? 'Unassigned';
                         $teamLeaderName = optional($job->assignedTeamLeader)->full_name
                             ?? optional($job->assignedTeamLeader)->name
                             ?? 'Unassigned';

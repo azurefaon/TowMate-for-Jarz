@@ -18,6 +18,8 @@ class Booking extends Model
      */
     public const REVIEWABLE_STATUSES = ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed', 'scheduled_confirmed'];
 
+    public const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected'];
+
     protected $fillable = [
         'booking_code',
         'quotation_id',
@@ -130,6 +132,18 @@ class Booking extends Model
             // forgets to also filter by status.
             if ($booking->isDirty('status') && ! in_array($booking->status, self::REVIEWABLE_STATUSES, true) && $booking->selected_unit_id !== null) {
                 $booking->selected_unit_id = null;
+            }
+
+            if ($booking->isDirty('assigned_unit_id')) {
+                $assignedUnit = $booking->assigned_unit_id ? Unit::find($booking->assigned_unit_id) : null;
+                $booking->assigned_unit_name = $assignedUnit?->name;
+                $booking->assigned_unit_plate_number = $assignedUnit?->plate_number;
+            }
+
+            if ($booking->isDirty('selected_unit_id')) {
+                $selectedUnit = $booking->selected_unit_id ? Unit::find($booking->selected_unit_id) : null;
+                $booking->selected_unit_name = $selectedUnit?->name;
+                $booking->selected_unit_plate_number = $selectedUnit?->plate_number;
             }
         });
 
@@ -468,6 +482,16 @@ class Booking extends Model
     public function selectedUnit()
     {
         return $this->belongsTo(Unit::class, 'selected_unit_id');
+    }
+
+    public function getDisplayUnitNameAttribute(): ?string
+    {
+        return $this->unit?->name ?? $this->assigned_unit_name;
+    }
+
+    public function getDisplayUnitPlateNumberAttribute(): ?string
+    {
+        return $this->unit?->plate_number ?? $this->assigned_unit_plate_number;
     }
 
     /** Bookings that currently hold a soft reservation on the given unit. */
