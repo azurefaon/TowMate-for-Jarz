@@ -7,6 +7,7 @@ use App\Mail\RegistrationOtpMail;
 use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\User;
+use App\Services\ProfileImageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -300,14 +301,14 @@ class AuthController extends Controller
     {
         $path = $request->user()->profile_image;
 
-        if (blank($path) || ! Storage::disk('local')->exists($path)) {
+        if (blank($path) || ! Storage::disk('profile_images')->exists($path)) {
             abort(404);
         }
 
-        return Storage::disk('local')->response($path);
+        return Storage::disk('profile_images')->response($path);
     }
 
-    public function updateProfileImage(Request $request): JsonResponse
+    public function updateProfileImage(Request $request, ProfileImageService $profileImages): JsonResponse
     {
         $request->validate([
             'profile_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
@@ -315,14 +316,12 @@ class AuthController extends Controller
 
         $user = $request->user();
         $oldImage = $user->profile_image;
-        $path = $request->file('profile_image')->store('profile-images/'.$user->id, 'local');
+        $path = $profileImages->storeUploadedFile($user, $request->file('profile_image'));
 
         $user->profile_image = $path;
         $user->save();
 
-        if ($oldImage) {
-            Storage::disk('local')->delete($oldImage);
-        }
+        $profileImages->delete($oldImage);
 
         return response()->json(['success' => true]);
     }

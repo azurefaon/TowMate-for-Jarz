@@ -7,19 +7,25 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\User;
+use App\Services\ProfileImageService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class GoogleAuthController extends Controller
 {
     private const PENDING_TTL_MINUTES = 15;
+    private const GOOGLE_AVATAR_HOST_SUFFIX = '.googleusercontent.com';
+    private const GOOGLE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
-    public function __construct(private readonly GoogleIdTokenVerifier $verifier)
-    {
+    public function __construct(
+        private readonly GoogleIdTokenVerifier $verifier,
+        private readonly ProfileImageService $profileImages,
+    ) {
     }
 
     public function authenticate(Request $request): JsonResponse
@@ -40,7 +46,7 @@ class GoogleAuthController extends Controller
         $existing = User::with('role')->where('google_sub', $sub)->where('auth_provider', 'google')->first();
 
         if ($existing) {
-            return $this->issueSessionFor($existing);
+            return $this->issueSessionFor($existing, 200, $claims['picture'] ?? null);
         }
 
         if (User::where('email', $email)->exists()) {
@@ -59,6 +65,7 @@ class GoogleAuthController extends Controller
             'email' => $email,
             'first_name' => $firstName,
             'last_name' => $lastName,
+            'picture' => $claims['picture'] ?? null,
         ], now()->addMinutes(self::PENDING_TTL_MINUTES));
 
         AuditLog::create([
@@ -150,10 +157,73 @@ class GoogleAuthController extends Controller
             'description' => "Google customer account created for {$user->email}.",
         ]);
 
-        return $this->issueSessionFor($user->load('role'), 201);
+        return $this->issueSessionFor($user->load('role'), 201, $pending['picture'] ?? null);
     }
 
-    private function issueSessionFor(User $user, int $status = 200): JsonResponse
+    private function importGoogleAvatar(User $user, mixed $pictureUrl): void
+    {
+        if (filled($user->profile_image) || ! is_string($pictureUrl) || $pictureUrl === '') {
+            return;
+        }
+
+        if (! filter_var($pictureUrl, FILTER_VALIDATE_URL) || ! $this->isAllowedGoogleAvatarUrl($pictureUrl)) {
+            return;
+        }
+
+        $extensions = [
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+        ];
+
+        try {
+            $response = Http::timeout(4)->withoutRedirecting()->get($pictureUrl);
+
+            if (! $response->successful()) {
+                return;
+            }
+
+            $contentLength = $response->header('Content-Length');
+
+            if ($contentLength !== null && (int) $contentLength > self::GOOGLE_AVATAR_MAX_BYTES) {
+                return;
+            }
+
+            $contentType = strtolower(trim(strtok((string) $response->header('Content-Type'), ';')));
+            $extension = $extensions[$contentType] ?? null;
+
+            if ($extension === null) {
+                return;
+            }
+
+            $body = $response->body();
+
+            if ($body === '' || strlen($body) > self::GOOGLE_AVATAR_MAX_BYTES || @getimagesizefromstring($body) === false) {
+                return;
+            }
+
+            $path = $this->profileImages->storeBinary($user, $body, $extension);
+            $user->update(['profile_image' => $path]);
+        } catch (\Throwable $e) {
+            return;
+        }
+    }
+
+    private function isAllowedGoogleAvatarUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+
+        if ($scheme !== 'https' || $host === '') {
+            return false;
+        }
+
+        return $host === ltrim(self::GOOGLE_AVATAR_HOST_SUFFIX, '.') || str_ends_with($host, self::GOOGLE_AVATAR_HOST_SUFFIX);
+    }
+
+    private function issueSessionFor(User $user, int $status = 200, mixed $picture = null): JsonResponse
     {
         if ($user->status === 'locked') {
             return response()->json(['success' => false, 'message' => 'Your account was locked due to inactivity. Reset your password to reactivate it.'], 423);
@@ -162,6 +232,8 @@ class GoogleAuthController extends Controller
         if ($user->status !== 'active') {
             return response()->json(['success' => false, 'message' => 'Account is inactive. Please contact support.'], 403);
         }
+
+        $this->importGoogleAvatar($user, $picture);
 
         $user->tokens()->delete();
         $user->update(['last_login_at' => now()]);
