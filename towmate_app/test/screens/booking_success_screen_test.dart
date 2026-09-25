@@ -50,7 +50,9 @@ void main() {
         _booking(code: 'TM-00225', vehicleTypeName: 'Sedan', isCurrent: true),
       ]);
 
-      expect(find.text('Booking request submitted'), findsOneWidget);
+      expect(find.text('Booking Request Submitted'), findsOneWidget);
+      expect(find.textContaining('not your final price'), findsOneWidget);
+      expect(find.textContaining('TowMate will review your request'), findsOneWidget);
       expect(find.text('TM-00225'), findsOneWidget);
       expect(find.text('Sedan'), findsOneWidget);
       expect(find.textContaining('vehicles in this request'), findsNothing);

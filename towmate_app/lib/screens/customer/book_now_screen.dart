@@ -793,7 +793,10 @@ class _BookNowScreenState extends State<BookNowScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: sectionEyebrowStyle(context)),
+        Text(
+          label,
+          style: sectionEyebrowStyle(context).copyWith(fontSize: 12.5),
+        ),
         GestureDetector(
           onTap: onEdit,
           behavior: HitTestBehavior.opaque,
@@ -926,10 +929,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
                   'You\'re confirming one request for ${allVehicles.length} vehicle${allVehicles.length == 1 ? '' : 's'}. '
                   'Each vehicle is priced separately and included in one quotation.',
                   style: GoogleFonts.inter(
-                    color: secondaryTextColor(context),
-                    fontSize: 12,
+                    color: context.textPrimary,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
                     letterSpacing: 0.1,
-                    height: 1.5,
+                    height: 1.55,
                   ),
                 ),
               ],
@@ -3144,7 +3148,22 @@ class _VehicleImageSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('VEHICLE PHOTOS', style: sectionEyebrowStyle(context)),
+              Flexible(
+                child: Text.rich(
+                  TextSpan(
+                    text: 'VEHICLE PHOTOS',
+                    style: sectionEyebrowStyle(context),
+                    children: [
+                      TextSpan(
+                        text: ' *',
+                        style: sectionEyebrowStyle(
+                          context,
+                        ).copyWith(color: TmColors.error),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               if (images.isNotEmpty)
                 Text(
                   '${images.length} / 5 photos',
@@ -3795,9 +3814,21 @@ class _ExtraVehicleSlotState extends State<_ExtraVehicleSlot> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                'VEHICLE PHOTOS',
-                                style: sectionEyebrowStyle(context),
+                              Flexible(
+                                child: Text.rich(
+                                  TextSpan(
+                                    text: 'VEHICLE PHOTOS',
+                                    style: sectionEyebrowStyle(context),
+                                    children: [
+                                      TextSpan(
+                                        text: ' *',
+                                        style: sectionEyebrowStyle(
+                                          context,
+                                        ).copyWith(color: TmColors.error),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                               if (data.images.isNotEmpty)
                                 Text(
@@ -4284,10 +4315,11 @@ class _PriceBreakdown extends StatelessWidget {
           Text(
             'Scheduled pricing may change after quotation review.',
             style: GoogleFonts.inter(
-              color: secondaryTextColor(context),
-              fontSize: 11.5,
+              color: context.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
               letterSpacing: 0.1,
-              height: 1.4,
+              height: 1.5,
             ),
           ),
         ],
@@ -4364,7 +4396,8 @@ class _ReviewRow extends StatelessWidget {
           label,
           style: GoogleFonts.inter(
             color: secondaryTextColor(context),
-            fontSize: 12,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
             letterSpacing: 0.1,
           ),
         ),
@@ -4431,7 +4464,8 @@ class _VehicleReviewEntry extends StatelessWidget {
           vehicle.label,
           style: GoogleFonts.inter(
             color: secondaryTextColor(context),
-            fontSize: 12,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
             letterSpacing: 0.1,
           ),
         ),

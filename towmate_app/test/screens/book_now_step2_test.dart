@@ -1111,7 +1111,10 @@ void main() {
         await _settle(tester);
 
         expect(find.text('What vehicle are we towing?'), findsOneWidget);
-        expect(find.text('VEHICLE PHOTOS'), findsOneWidget);
+        expect(
+          find.text('VEHICLE PHOTOS *', findRichText: true),
+          findsOneWidget,
+        );
 
         await tester.pumpWidget(const SizedBox());
       },
@@ -1415,6 +1418,10 @@ void main() {
         expect(find.textContaining('Vehicle 1 —'), findsOneWidget);
         expect(find.textContaining('Vehicle 2 —'), findsOneWidget);
         expect(find.textContaining('Vehicle 3 —'), findsOneWidget);
+        expect(
+          find.textContaining('confirming one request for 3 vehicles'),
+          findsOneWidget,
+        );
         expect(find.text('Base Rate'), findsNWidgets(3));
         expect(find.text('Distance Fee'), findsNWidgets(3));
         expect(find.text('VAT (12%)'), findsNWidgets(3));

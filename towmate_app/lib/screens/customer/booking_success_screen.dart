@@ -23,23 +23,24 @@ class BookingSuccessScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 56,
-                  height: 56,
+                  width: 64,
+                  height: 64,
                   decoration: const BoxDecoration(color: TmColors.yellow, shape: BoxShape.circle),
-                  child: const Icon(Icons.check_rounded, color: TmColors.black, size: 30),
+                  child: const Icon(Icons.check_rounded, color: TmColors.black, size: 34),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
                 Text(
-                  'Booking request submitted',
+                  'Booking Request Submitted',
                   style: GoogleFonts.inter(
                     color: context.textPrimary,
-                    fontSize: 23,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
+                    height: 1.2,
                   ),
                 ),
                 if (isMulti) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     '${bookings.length} vehicles in this request',
                     style: GoogleFonts.inter(
@@ -49,6 +50,18 @@ class BookingSuccessScreen extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(height: 14),
+                Text(
+                  'This is not your final price yet. TowMate will review your '
+                  'request and send you a quotation — please wait for that '
+                  'review before the booking is confirmed.',
+                  style: GoogleFonts.inter(
+                    color: secondaryTextColor(context),
+                    fontSize: 13.5,
+                    letterSpacing: 0.1,
+                    height: 1.5,
+                  ),
+                ),
                 const SizedBox(height: 24),
                 Expanded(
                   child: SingleChildScrollView(
