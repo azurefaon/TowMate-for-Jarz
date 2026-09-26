@@ -169,6 +169,38 @@ void main() {
     expect(bg, TmColors.yellow.withValues(alpha: 0.12));
   });
 
+  group('Price Review Requested info card', () {
+    for (final width in [320.0, 360.0, 390.0, 412.0]) {
+      testWidgets('renders without overflow at ${width.toInt()}px', (tester) async {
+        await _pumpQuotationScreen(
+          tester,
+          _baseJson(status: 'price_review_requested'),
+          width: width,
+        );
+
+        expect(find.text('Price Review Requested'), findsWidgets);
+        expect(
+          find.text("We're reviewing your request. You'll be notified once it's resolved."),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.hourglass_top_rounded), findsWidgets);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('renders without exception in dark mode', (tester) async {
+      await _pumpQuotationScreen(
+        tester,
+        _baseJson(status: 'price_review_requested'),
+        width: 320,
+        theme: AppTheme.dark,
+      );
+
+      expect(find.text('Price Review Requested'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets('an unmapped status keeps the existing neutral fallback treatment', (tester) async {
     await _pumpQuotationScreen(
       tester,

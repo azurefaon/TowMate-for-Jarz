@@ -446,17 +446,20 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Icon(Icons.hourglass_top_rounded,
                                     size: 18, color: TmColors.yellow),
                                 const SizedBox(width: 8),
-                                Text(
-                                  'Price Review Requested',
-                                  style: GoogleFonts.inter(
-                                    color: context.textPrimary,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: -0.1,
+                                Flexible(
+                                  child: Text(
+                                    'Price Review Requested',
+                                    style: GoogleFonts.inter(
+                                      color: context.textPrimary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: -0.1,
+                                    ),
                                   ),
                                 ),
                               ],
