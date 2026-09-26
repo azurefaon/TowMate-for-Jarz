@@ -355,6 +355,7 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                       quotationNumber: quotation.quotationNumber,
                       countdownText: remaining != null ? _formatExpiry(remaining) : null,
                       isUrgent: isUrgent,
+                      isExpired: quotation.status == 'expired' || quotation.isExpired,
                     ),
                     const SizedBox(height: 20),
 
@@ -573,12 +574,14 @@ class _StatusBanner extends StatelessWidget {
     required this.quotationNumber,
     required this.countdownText,
     required this.isUrgent,
+    required this.isExpired,
   });
 
   final String status;
   final String quotationNumber;
   final String? countdownText;
   final bool isUrgent;
+  final bool isExpired;
 
   String _humanizeStatus(String s) => s
       .split('_')
@@ -587,7 +590,7 @@ class _StatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isSent = status == 'sent';
+    final isSent = status == 'sent' && !isExpired;
     final isReview = status == 'price_review_requested';
 
     final Color bannerBg;
@@ -595,14 +598,28 @@ class _StatusBanner extends StatelessWidget {
     final Color iconColor;
     final IconData icon;
     final Color labelColor;
+    final Color secondaryColor;
+    final Color urgentColor;
     final String label;
 
-    if (isSent) {
-      bannerBg = TmColors.success.withValues(alpha: 0.08);
-      iconBg = TmColors.success;
-      iconColor = TmColors.white;
+    if (isExpired) {
+      final expiredFg = context.isDark ? TmColors.black : TmColors.white;
+      bannerBg = context.isDark ? TmColors.grey300 : TmColors.black;
+      iconBg = expiredFg.withValues(alpha: 0.15);
+      iconColor = expiredFg;
+      icon = Icons.history_rounded;
+      labelColor = expiredFg;
+      secondaryColor = expiredFg.withValues(alpha: 0.75);
+      urgentColor = expiredFg;
+      label = 'Expired';
+    } else if (isSent) {
+      bannerBg = TmColors.success;
+      iconBg = TmColors.white;
+      iconColor = TmColors.success;
       icon = Icons.check_circle_rounded;
-      labelColor = TmColors.success;
+      labelColor = TmColors.black;
+      secondaryColor = TmColors.black.withValues(alpha: 0.75);
+      urgentColor = TmColors.black;
       label = 'Quotation Ready';
     } else if (isReview) {
       bannerBg = TmColors.yellow.withValues(alpha: 0.12);
@@ -610,6 +627,8 @@ class _StatusBanner extends StatelessWidget {
       iconColor = TmColors.black;
       icon = Icons.hourglass_top_rounded;
       labelColor = context.textPrimary;
+      secondaryColor = context.textSecondary;
+      urgentColor = TmColors.yellow;
       label = 'Price Review Requested';
     } else {
       bannerBg = context.surface;
@@ -617,6 +636,8 @@ class _StatusBanner extends StatelessWidget {
       iconColor = context.textSecondary;
       icon = Icons.info_outline_rounded;
       labelColor = context.textPrimary;
+      secondaryColor = context.textSecondary;
+      urgentColor = TmColors.yellow;
       label = _humanizeStatus(status);
     }
 
@@ -651,12 +672,12 @@ class _StatusBanner extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   quotationNumber,
-                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 11.5),
+                  style: GoogleFonts.inter(color: secondaryColor, fontSize: 11.5),
                 ),
               ],
             ),
           ),
-          if (countdownText != null) ...[
+          if (countdownText != null && !isExpired) ...[
             const SizedBox(width: 8),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -664,13 +685,13 @@ class _StatusBanner extends StatelessWidget {
                 Icon(
                   Icons.access_time_rounded,
                   size: 14,
-                  color: isUrgent ? TmColors.yellow : context.textSecondary,
+                  color: isUrgent ? urgentColor : secondaryColor,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   countdownText!,
                   style: GoogleFonts.inter(
-                    color: isUrgent ? TmColors.yellow : context.textSecondary,
+                    color: isUrgent ? urgentColor : secondaryColor,
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                   ),

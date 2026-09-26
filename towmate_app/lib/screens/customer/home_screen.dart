@@ -681,14 +681,30 @@ class _CurrentBookingSection extends StatelessWidget {
                   letterSpacing: 0.3,
                 ),
               ),
-              Text(
-                statusText,
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              statusText == 'Active'
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: TmColors.success,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: GoogleFonts.inter(
+                          color: TmColors.black,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  : Text(
+                      statusText,
+                      style: GoogleFonts.inter(
+                        color: context.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
             ],
           ),
           const SizedBox(height: 4),

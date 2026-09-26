@@ -125,6 +125,7 @@ Future<void> _pumpHome(
   List<Map<String, dynamic>>? servicesOverride,
   Map<String, List<Map<String, dynamic>>>? vehicleTypesOverride,
   void Function(String route, Object? args)? onNavigate,
+  ThemeData? theme,
 }) async {
   SharedPreferences.setMockInitialValues({
     'auth_token': 'test-token',
@@ -135,6 +136,7 @@ Future<void> _pumpHome(
     () async {
       await tester.pumpWidget(
         MaterialApp(
+          theme: theme,
           onGenerateRoute: (settings) {
             if (settings.name == '/' || settings.name == null) {
               return MaterialPageRoute(builder: (_) => const HomeScreen());
@@ -324,7 +326,54 @@ void main() {
       expect(find.text('TM-00227'), findsNothing);
       expect(find.text('Active'), findsOneWidget);
       expect(find.text('2 of 2 vehicles active'), findsOneWidget);
+
+      final activeContainer = tester.widget<Container>(
+        find.ancestor(of: find.text('Active'), matching: find.byType(Container)).first,
+      );
+      expect((activeContainer.decoration as BoxDecoration?)?.color, TmColors.success);
+      expect(tester.widget<Text>(find.text('Active')).style?.color, TmColors.black);
     });
+
+    for (final width in [320.0, 360.0, 412.0]) {
+      testWidgets('the Active status stays green in dark mode without overflow at ${width.toInt()}px', (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await _pumpHome(
+          tester,
+          theme: AppTheme.dark,
+          currentBooking: {
+            'id': 1,
+            'booking_code': 'TM-00227',
+            'status': 'requested',
+            'service_type': 'book_now',
+            'pickup_address': 'A',
+            'dropoff_address': 'B',
+            'group_code': 'GRP-1',
+            'group_vehicle_count': 2,
+            'group_siblings': [
+              {
+                'booking_code': 'TM-00228',
+                'vehicle_type_name': 'Motorcycle',
+                'service_type': 'schedule',
+                'status': 'scheduled',
+              },
+            ],
+          },
+        );
+
+        expect(find.text('Active'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+
+        final activeContainer = tester.widget<Container>(
+          find.ancestor(of: find.text('Active'), matching: find.byType(Container)).first,
+        );
+        expect((activeContainer.decoration as BoxDecoration?)?.color, TmColors.success);
+        expect(tester.widget<Text>(find.text('Active')).style?.color, TmColors.black);
+      });
+    }
 
     testWidgets('a grouped current booking shows the combined group total, not the first vehicle\'s own price', (tester) async {
       await _pumpHome(
