@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../core/app_prefs.dart';
+import '../../core/route_observer.dart';
 import '../../core/theme.dart';
 import '../../core/validators.dart';
 import '../../services/api_service.dart';
@@ -16,7 +16,7 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
   String? _name;
   String? _firstName;
   String? _lastName;
@@ -25,11 +25,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _authProvider;
   Uint8List? _profileImage;
   bool _loading = true;
-  bool _uploadingPhoto = false;
 
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    appRouteObserver.subscribe(this, ModalRoute.of(context) as PageRoute);
+  }
+
+  @override
+  void dispose() {
+    appRouteObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
     _load();
   }
 
@@ -65,38 +81,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return n[0].toUpperCase();
   }
 
-  Future<void> _changePhoto() async {
-    if (_uploadingPhoto) return;
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 1600,
-      maxHeight: 1600,
-    );
-    if (picked == null || !mounted) return;
-
-    final pickedBytes = await picked.readAsBytes();
-    if (!mounted) return;
-    setState(() => _uploadingPhoto = true);
-    final result = await ApiService.updateProfileImage(picked);
-    if (!mounted) return;
-    if (result['success'] == true) {
-      setState(() {
-        _profileImage = pickedBytes;
-        _uploadingPhoto = false;
-      });
-      final uploadedImage = await ApiService.fetchProfileImage();
-      if (!mounted) return;
-      if (uploadedImage != null) {
-        setState(() => _profileImage = uploadedImage);
-      }
-      ScaffoldMessenger.of(context).showSnackBar(_snack('Photo updated.'));
-    } else {
-      setState(() => _uploadingPhoto = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        _snack(result['message'] as String? ?? 'Could not update photo.'),
-      );
-    }
+  Future<void> _openEditProfile() async {
+    await Navigator.pushNamed(context, '/edit-profile');
   }
 
   Future<void> _logout() async {
@@ -135,107 +121,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     AppPrefs.useGuestTheme();
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/public-home', (_) => false);
-  }
-
-  Future<void> _editName() async {
-    final firstCtrl = TextEditingController(text: _firstName);
-    final lastCtrl = TextEditingController(text: _lastName);
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: ctx.card,
-        title: Text(
-          'Edit Name',
-          style: GoogleFonts.inter(
-            color: ctx.textPrimary,
-            fontSize: 16,
-            letterSpacing: -0.2,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: firstCtrl,
-              autofocus: true,
-              style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
-              decoration: InputDecoration(
-                hintText: 'First name',
-                hintStyle: GoogleFonts.inter(
-                  color: ctx.textSecondary,
-                  fontSize: 15,
-                ),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: ctx.divider),
-                ),
-                focusedBorder: const UnderlineInputBorder(
-                  borderSide: BorderSide(color: TmColors.yellow, width: 1.5),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: lastCtrl,
-              style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
-              decoration: InputDecoration(
-                hintText: 'Last name',
-                hintStyle: GoogleFonts.inter(
-                  color: ctx.textSecondary,
-                  fontSize: 15,
-                ),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: ctx.divider),
-                ),
-                focusedBorder: const UnderlineInputBorder(
-                  borderSide: BorderSide(color: TmColors.yellow, width: 1.5),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'Save',
-              style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 14),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (result != true) return;
-    final first = firstCtrl.text.trim();
-    final last = lastCtrl.text.trim();
-    if (first.isEmpty || last.isEmpty) return;
-    if (first == _firstName && last == _lastName) return;
-
-    final res = await ApiService.updateProfile(
-      firstName: first,
-      lastName: last,
-      phone: _phone,
-    );
-    if (!mounted) return;
-    if (res['success'] == true) {
-      setState(() {
-        _firstName = first;
-        _lastName = last;
-        _name = '$first $last';
-      });
-      ScaffoldMessenger.of(context).showSnackBar(_snack('Name updated.'));
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(_snack(res['message'] ?? 'Failed to update name.'));
-    }
   }
 
   Future<void> _editPhone() async {
@@ -622,43 +507,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   bottom: BorderSide(color: context.divider, width: 0.5),
                 ),
               ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.arrow_back_rounded,
-                      color: context.textTertiary,
+              child: Center(
+                child: RichText(
+                  text: TextSpan(
+                    style: GoogleFonts.inter(
+                      fontSize: 22,
+                      letterSpacing: -0.8,
+                      fontWeight: FontWeight.w600,
                     ),
-                    onPressed: () => Navigator.pop(context),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Center(
-                      child: RichText(
-                        text: TextSpan(
-                          style: GoogleFonts.inter(
-                            fontSize: 22,
-                            letterSpacing: -0.8,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          children: [
-                            TextSpan(
-                              text: 'Tow',
-                              style: TextStyle(color: context.textPrimary),
-                            ),
-                            const TextSpan(
-                              text: 'Mate',
-                              style: TextStyle(color: TmColors.yellow),
-                            ),
-                          ],
-                        ),
+                    children: [
+                      TextSpan(
+                        text: 'Tow',
+                        style: TextStyle(color: context.textPrimary),
                       ),
-                    ),
+                      const TextSpan(
+                        text: 'Mate',
+                        style: TextStyle(color: TmColors.yellow),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 40),
-                ],
+                ),
               ),
             ),
 
@@ -671,74 +539,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                            child: Row(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 42,
-                                      backgroundColor: TmColors.yellow,
-                                      backgroundImage: _profileImage == null
-                                          ? null
-                                          : MemoryImage(_profileImage!),
-                                      child: _profileImage == null
-                                          ? Text(
-                                              _initials,
-                                              style: GoogleFonts.inter(
-                                                color: TmColors.black,
-                                                fontSize: 26,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            )
-                                          : null,
-                                    ),
-                                    Positioned(
-                                      right: -2,
-                                      bottom: -2,
-                                      child: InkWell(
-                                        onTap: _uploadingPhoto
-                                            ? null
-                                            : _changePhoto,
-                                        borderRadius: BorderRadius.circular(18),
-                                        child: Container(
-                                          width: 34,
-                                          height: 34,
-                                          decoration: BoxDecoration(
-                                            color: context.card,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: context.divider,
-                                            ),
+                                CircleAvatar(
+                                  radius: 42,
+                                  backgroundColor: TmColors.yellow,
+                                  backgroundImage: _profileImage == null
+                                      ? null
+                                      : MemoryImage(_profileImage!),
+                                  child: _profileImage == null
+                                      ? Text(
+                                          _initials,
+                                          style: GoogleFonts.inter(
+                                            color: TmColors.black,
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w500,
                                           ),
-                                          child: _uploadingPhoto
-                                              ? const Padding(
-                                                  padding: EdgeInsets.all(9),
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        color: TmColors.yellow,
-                                                        strokeWidth: 2,
-                                                      ),
-                                                )
-                                              : Icon(
-                                                  Icons.camera_alt_outlined,
-                                                  color: context.textPrimary,
-                                                  size: 17,
-                                                ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                        )
+                                      : null,
                                 ),
-                                const SizedBox(width: 20),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
                                         _name ?? '—',
+                                        textAlign: TextAlign.center,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                         style: GoogleFonts.inter(
@@ -748,51 +577,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           letterSpacing: -0.5,
                                         ),
                                       ),
-                                      if (_email != null &&
-                                          _email!.isNotEmpty) ...[
-                                        const SizedBox(height: 5),
-                                        Text(
-                                          _email!,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.inter(
-                                            color: context.textSecondary,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ],
-                                      if (_phone != null &&
-                                          _phone!.isNotEmpty) ...[
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          _phone!,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.inter(
-                                            color: context.textSecondary,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ],
-                                      const SizedBox(height: 8),
-                                      InkWell(
-                                        onTap: _uploadingPhoto
-                                            ? null
-                                            : _changePhoto,
-                                        child: Text(
-                                          _uploadingPhoto
-                                              ? 'Uploading…'
-                                              : 'Change photo',
-                                          style: GoogleFonts.inter(
-                                            color: TmColors.yellow,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w500,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Tooltip(
+                                      message: 'Edit profile',
+                                      child: SizedBox(
+                                        width: 40,
+                                        height: 40,
+                                        child: InkWell(
+                                          onTap: _openEditProfile,
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          child: Center(
+                                            child: Icon(
+                                              Icons.edit_outlined,
+                                              color: context.textSecondary,
+                                              size: 18,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
+                                if (_email != null &&
+                                    _email!.isNotEmpty) ...[
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    _email!,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      color: context.textSecondary,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -812,7 +633,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _SettingsRow(
                             label: 'Name',
                             value: _name ?? '—',
-                            onTap: _editName,
+                            onTap: _openEditProfile,
                           ),
                           _SettingsRow(
                             label: 'Email',

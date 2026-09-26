@@ -11,6 +11,7 @@ import 'screens/customer/booking_success_screen.dart';
 import 'screens/customer/customer_quotation_screen.dart';
 import 'screens/customer/customer_services_screen.dart';
 import 'screens/customer/customer_vehicle_types_screen.dart';
+import 'screens/customer/edit_profile_screen.dart';
 import 'screens/customer/home_screen.dart';
 import 'screens/customer/login_screen.dart';
 import 'screens/customer/my_bookings_screen.dart';
@@ -91,6 +92,7 @@ class MyApp extends StatelessWidget {
               '/tl-history' => const TlHistoryScreen(),
               '/tl-profile' => const TlProfileScreen(),
               '/profile' => const ProfileScreen(),
+              '/edit-profile' => const EditProfileScreen(),
               '/notifications' => const NotificationsScreen(),
               _ => const PublicHomeScreen(),
             };
