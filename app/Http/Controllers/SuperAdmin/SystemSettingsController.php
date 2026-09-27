@@ -61,6 +61,7 @@ class SystemSettingsController extends Controller
             'settings.company_email' => ['required_with:settings.business_info_form', 'email:rfc', 'max:150'],
             'settings.company_phone' => ['required_with:settings.business_info_form', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{5,20}$/'],
             'settings.company_address' => ['required_with:settings.business_info_form', 'string', 'max:255'],
+            'settings.company_facebook_url' => ['nullable', 'url', 'max:255', 'starts_with:http://,https://'],
             'settings.terms_of_use_version' => ['required_with:settings.legal_terms_form', 'string', 'max:20'],
             'settings.terms_of_use_content' => ['required_with:settings.legal_terms_form', 'string', 'max:20000'],
             'settings.privacy_policy_version' => ['required_with:settings.legal_privacy_form', 'string', 'max:20'],

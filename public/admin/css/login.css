@@ -482,7 +482,7 @@ body {
 
 .jarz-about {
     background: #f2f2f2;
-    padding: 40px 24px;
+    padding: 72px 24px;
 }
 
 .jarz-about-inner {
@@ -495,16 +495,17 @@ body {
 }
 
 .jarz-about-heading {
-    margin: 4px 0 10px;
-    font-size: 1.625rem;
-    font-weight: 700;
+    margin: 0 0 18px;
+    font-size: 2.25rem;
+    font-weight: 800;
     color: #171717;
 }
 
 .jarz-about-copy {
     margin: 0;
-    font-size: 0.9375rem;
-    line-height: 1.65;
+    max-width: 46ch;
+    font-size: 1.0625rem;
+    line-height: 1.7;
     color: #525252;
 }
 
@@ -518,7 +519,7 @@ body {
 
 .jarz-services {
     background: #ffffff;
-    padding: 40px 24px;
+    padding: 72px 24px;
 }
 
 .jarz-services-inner {
@@ -528,14 +529,14 @@ body {
 }
 
 .jarz-services-heading {
-    margin: 4px 0 4px;
-    font-size: 1.625rem;
-    font-weight: 700;
+    margin: 0 0 12px;
+    font-size: 2.25rem;
+    font-weight: 800;
     color: #171717;
 }
 
 .jarz-services-cards {
-    margin-top: 20px;
+    margin-top: 40px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 20px;
@@ -815,50 +816,101 @@ body {
 
 .jarz-footer {
     background: #171717;
-    padding: 32px 24px;
+    padding: 56px 40px 24px;
 }
 
 .jarz-footer-inner {
     max-width: 1280px;
     margin: 0 auto;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 24px;
+    gap: 40px;
     flex-wrap: wrap;
+    padding-bottom: 32px;
 }
 
 .jarz-footer-brand {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
+    max-width: 360px;
 }
 
 .jarz-footer-name {
-    font-size: 1rem;
+    font-size: 1.125rem;
     font-weight: 700;
     color: #ffffff;
 }
 
 .jarz-footer-tagline {
-    font-size: 0.8125rem;
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.6;
     color: #b8b8b8;
 }
 
-.jarz-footer-links {
+.jarz-footer-contact {
     display: flex;
     flex-wrap: wrap;
-    gap: 24px;
+    gap: 40px;
 }
 
-.jarz-footer-links a {
+.jarz-footer-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.jarz-footer-item-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #8a8a8a;
+}
+
+.jarz-footer-item-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-size: 0.875rem;
-    color: #ffffff;
+    color: #e5e5e5;
     text-decoration: none;
 }
 
-.jarz-footer-links a:hover {
+.jarz-footer-item-link:hover {
     color: #facc15;
+}
+
+.jarz-footer-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.jarz-footer-bottom {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.jarz-footer-copyright {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #8a8a8a;
+}
+
+.jarz-footer-wordmark {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #b8b8b8;
 }
 
 a:focus-visible,
@@ -892,6 +944,11 @@ button:focus-visible {
 
     .jarz-services-cards {
         grid-template-columns: 1fr 1fr;
+    }
+
+    .jarz-about-heading,
+    .jarz-services-heading {
+        font-size: 2rem;
     }
 }
 
@@ -938,10 +995,13 @@ button:focus-visible {
         padding: 56px 16px;
     }
 
-    .jarz-about,
-    .jarz-services,
     .jarz-gettowmate {
         padding: 32px 16px;
+    }
+
+    .jarz-about,
+    .jarz-services {
+        padding: 40px 16px;
     }
 
     .jarz-section-heading {
@@ -987,15 +1047,40 @@ button:focus-visible {
         gap: 20px;
     }
 
-    .jarz-gettowmate-heading,
+    .jarz-gettowmate-heading {
+        font-size: 1.5rem;
+    }
+
     .jarz-about-heading,
     .jarz-services-heading {
-        font-size: 1.5rem;
+        font-size: 1.75rem;
+    }
+
+    .jarz-services-cards {
+        margin-top: 28px;
+    }
+
+    .jarz-footer {
+        padding: 40px 20px 20px;
     }
 
     .jarz-footer-inner {
         flex-direction: column;
         align-items: flex-start;
+        gap: 32px;
+    }
+
+    .jarz-footer-contact {
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
+    }
+
+    .jarz-footer-bottom {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
     }
 }
 

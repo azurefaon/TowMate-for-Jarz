@@ -59,6 +59,14 @@
                             @error('settings.company_phone') <small class="error-text">{{ $message }}</small> @enderror
                         </div>
 
+                        <div class="settings-field">
+                            <label for="company_facebook_url">Facebook Page URL</label>
+                            <input type="url" id="company_facebook_url" name="settings[company_facebook_url]"
+                                placeholder="https://www.facebook.com/yourpage"
+                                value="{{ old('settings.company_facebook_url', $settings['company_facebook_url'] ?? '') }}">
+                            @error('settings.company_facebook_url') <small class="error-text">{{ $message }}</small> @enderror
+                        </div>
+
                         <div class="settings-field" style="grid-column: 1 / -1;">
                             <label for="company_address">Business Address</label>
                             <input type="text" id="company_address" name="settings[company_address]"

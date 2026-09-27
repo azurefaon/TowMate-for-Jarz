@@ -127,7 +127,6 @@
     <section class="jarz-about" id="about-us">
         <div class="jarz-about-inner">
             <div class="jarz-about-copy-col">
-                <p class="jarz-gettowmate-eyebrow">About Us</p>
                 <h2 class="jarz-about-heading">About Us</h2>
                 <p class="jarz-about-copy">JARZ Towing Services provides towing and roadside support for vehicles
                     requiring assistance. Its towing units, dispatch personnel, and field teams work together to
@@ -142,7 +141,6 @@
 
     <section class="jarz-services" id="our-services">
         <div class="jarz-services-inner">
-            <p class="jarz-gettowmate-eyebrow">Our Services</p>
             <h2 class="jarz-services-heading">Our Services</h2>
             <div class="jarz-services-cards">
                 <div class="jarz-service-card">
@@ -180,6 +178,8 @@
             </div>
         </div>
     </section>
+
+    @include('public.partials.footer')
 </body>
 
 </html>
