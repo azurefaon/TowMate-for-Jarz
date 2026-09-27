@@ -12,6 +12,7 @@ use App\Models\SystemSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class CustomerAppContentController extends Controller
 {
@@ -182,18 +183,31 @@ class CustomerAppContentController extends Controller
     public function serviceUpdate(Request $request, MobileService $service): RedirectResponse
     {
         $validated = $this->validateService($request);
+        $removeImage = $request->boolean('remove_image');
 
         $orderOnly = (int) ($validated['display_order'] ?? $service->display_order) !== (int) $service->display_order
             && $this->clean($validated['title']) === $service->title
             && $this->clean($validated['description']) === $service->description
             && $this->clean($validated['category'] ?? null) === $service->category
             && $this->clean($validated['availability_note'] ?? null) === $service->availability_note
-            && ! $request->hasFile('image');
+            && ! $request->hasFile('image')
+            && ! $removeImage;
+
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('', 'mobile_content');
+        } elseif ($removeImage && $service->image_path) {
+            if (Storage::disk('mobile_content')->exists($service->image_path)) {
+                Storage::disk('mobile_content')->delete($service->image_path);
+            }
+            $imagePath = null;
+        } else {
+            $imagePath = $service->image_path;
+        }
 
         $service->update([
             'title' => $this->clean($validated['title']),
             'description' => $this->clean($validated['description']),
-            'image_path' => $request->hasFile('image') ? $request->file('image')->store('', 'mobile_content') : $service->image_path,
+            'image_path' => $imagePath,
             'category' => $this->clean($validated['category'] ?? null),
             'availability_note' => $this->clean($validated['availability_note'] ?? null),
             'display_order' => $validated['display_order'] ?? $service->display_order,
@@ -235,6 +249,7 @@ class CustomerAppContentController extends Controller
             'category' => ['nullable', 'string', 'max:100'],
             'availability_note' => ['nullable', 'string', 'max:255'],
             'display_order' => ['nullable', 'integer', 'min:0'],
+            'remove_image' => ['nullable', 'boolean'],
         ]);
     }
 

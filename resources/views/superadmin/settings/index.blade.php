@@ -336,6 +336,14 @@
                                                             class="app-dropzone-input">
                                                     </label>
                                                     <span class="mc-file-name"></span>
+                                                    @if ($service->image_path)
+                                                        <button type="button" class="mc-remove-image-btn"
+                                                            data-remove-image-trigger>Remove Image</button>
+                                                        <input type="hidden" name="remove_image" value="0"
+                                                            data-remove-image-flag>
+                                                        <p class="mc-image-remove-note" data-remove-image-note
+                                                            hidden>Image will be removed when you save changes.</p>
+                                                    @endif
                                                 </div>
                                             </div>
                                             <p class="field-help">JPG or PNG (Max 2MB)</p>
@@ -1152,8 +1160,25 @@
             modal?.classList.add("is-open");
         }
 
+        function resetImageRemoval(modal) {
+            modal?.querySelectorAll(".mc-modal-preview").forEach(preview => {
+                const fileInput = preview.querySelector(".app-dropzone-input");
+                const removeFlag = preview.querySelector("[data-remove-image-flag]");
+                const removeNote = preview.querySelector("[data-remove-image-note]");
+                const previewImg = preview.querySelector("img");
+                const nameEl = preview.querySelector(".mc-file-name");
+
+                if (fileInput) fileInput.value = "";
+                if (removeFlag) removeFlag.value = "0";
+                if (removeNote) removeNote.hidden = true;
+                if (previewImg) previewImg.style.display = "";
+                if (nameEl) nameEl.textContent = "";
+            });
+        }
+
         function closeMcModal(modal) {
             modal?.classList.remove("is-open");
+            resetImageRemoval(modal);
         }
 
         document.querySelectorAll("[data-modal-target]").forEach(trigger => {
@@ -1184,11 +1209,38 @@
 
         document.addEventListener("change", event => {
             if (event.target.matches(".mc-file-trigger input[type=\"file\"]")) {
-                const nameEl = event.target.closest(".mc-modal-preview")?.querySelector(".mc-file-name");
+                const preview = event.target.closest(".mc-modal-preview");
+                const nameEl = preview?.querySelector(".mc-file-name");
                 if (nameEl) {
                     nameEl.textContent = event.target.files[0] ? event.target.files[0].name : "";
                 }
+
+                if (event.target.files[0]) {
+                    const removeFlag = preview?.querySelector("[data-remove-image-flag]");
+                    const removeNote = preview?.querySelector("[data-remove-image-note]");
+                    const previewImg = preview?.querySelector("img");
+                    if (removeFlag) removeFlag.value = "0";
+                    if (removeNote) removeNote.hidden = true;
+                    if (previewImg) previewImg.style.display = "";
+                }
             }
+        });
+
+        document.querySelectorAll("[data-remove-image-trigger]").forEach(trigger => {
+            trigger.addEventListener("click", () => {
+                const preview = trigger.closest(".mc-modal-preview");
+                const fileInput = preview?.querySelector(".app-dropzone-input");
+                const removeFlag = preview?.querySelector("[data-remove-image-flag]");
+                const removeNote = preview?.querySelector("[data-remove-image-note]");
+                const previewImg = preview?.querySelector("img");
+                const nameEl = preview?.querySelector(".mc-file-name");
+
+                if (fileInput) fileInput.value = "";
+                if (removeFlag) removeFlag.value = "1";
+                if (nameEl) nameEl.textContent = "";
+                if (previewImg) previewImg.style.display = "none";
+                if (removeNote) removeNote.hidden = false;
+            });
         });
     </script>
 @endsection

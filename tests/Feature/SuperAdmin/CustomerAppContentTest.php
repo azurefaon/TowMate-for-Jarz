@@ -607,3 +607,143 @@ it('AN: a non-image file for the Services image is rejected by validation', func
 
     expect(SystemSetting::getValue('mobile_services_image'))->toBeNull();
 });
+
+it('AO: Owner can remove an existing service image', function () {
+    Storage::fake('mobile_content');
+    $owner = cmsOwner();
+    $service = MobileService::create([
+        'title' => 'Towing', 'description' => 'D', 'image_path' => 'existing.jpg', 'is_active' => true,
+    ]);
+    Storage::disk('mobile_content')->put('existing.jpg', 'fake-bytes');
+
+    $this->actingAs($owner)->patch(route('superadmin.settings.customer-content.services.update', $service), [
+        'title' => 'Towing',
+        'description' => 'D',
+        'remove_image' => '1',
+    ])->assertRedirect();
+
+    expect($service->fresh()->image_path)->toBeNull();
+});
+
+it('AP: removing a service image deletes the previously uploaded managed file', function () {
+    Storage::fake('mobile_content');
+    $owner = cmsOwner();
+    $service = MobileService::create([
+        'title' => 'Towing', 'description' => 'D', 'image_path' => 'existing.jpg', 'is_active' => true,
+    ]);
+    Storage::disk('mobile_content')->put('existing.jpg', 'fake-bytes');
+
+    $this->actingAs($owner)->patch(route('superadmin.settings.customer-content.services.update', $service), [
+        'title' => 'Towing',
+        'description' => 'D',
+        'remove_image' => '1',
+    ])->assertRedirect();
+
+    Storage::disk('mobile_content')->assertMissing('existing.jpg');
+});
+
+it('AQ: removing a service image that points to a non-managed asset does not attempt to delete a real file', function () {
+    Storage::fake('mobile_content');
+    $owner = cmsOwner();
+    $service = MobileService::create([
+        'title' => 'Towing', 'description' => 'D', 'image_path' => 'bundled/default-icon.png', 'is_active' => true,
+    ]);
+
+    $this->actingAs($owner)->patch(route('superadmin.settings.customer-content.services.update', $service), [
+        'title' => 'Towing',
+        'description' => 'D',
+        'remove_image' => '1',
+    ])->assertRedirect();
+
+    expect($service->fresh()->image_path)->toBeNull();
+    Storage::disk('mobile_content')->assertMissing('bundled/default-icon.png');
+});
+
+it('AR: saving without remove_image keeps the existing image intact', function () {
+    Storage::fake('mobile_content');
+    $owner = cmsOwner();
+    $service = MobileService::create([
+        'title' => 'Towing', 'description' => 'D', 'image_path' => 'existing.jpg', 'is_active' => true,
+    ]);
+    Storage::disk('mobile_content')->put('existing.jpg', 'fake-bytes');
+
+    $this->actingAs($owner)->patch(route('superadmin.settings.customer-content.services.update', $service), [
+        'title' => 'Towing',
+        'description' => 'D',
+    ])->assertRedirect();
+
+    expect($service->fresh()->image_path)->toBe('existing.jpg');
+    Storage::disk('mobile_content')->assertExists('existing.jpg');
+});
+
+it('AS: replacing the image with a new upload still works', function () {
+    Storage::fake('mobile_content');
+    $owner = cmsOwner();
+    $service = MobileService::create([
+        'title' => 'Towing', 'description' => 'D', 'image_path' => 'existing.jpg', 'is_active' => true,
+    ]);
+    Storage::disk('mobile_content')->put('existing.jpg', 'fake-bytes');
+
+    $this->actingAs($owner)->patch(route('superadmin.settings.customer-content.services.update', $service), [
+        'title' => 'Towing',
+        'description' => 'D',
+        'image' => UploadedFile::fake()->image('new.jpg'),
+    ])->assertRedirect();
+
+    $newPath = $service->fresh()->image_path;
+    expect($newPath)->not->toBeNull()->and($newPath)->not->toBe('existing.jpg');
+    Storage::disk('mobile_content')->assertExists($newPath);
+});
+
+it('AT: a newly uploaded image takes precedence over a stale remove_image flag', function () {
+    Storage::fake('mobile_content');
+    $owner = cmsOwner();
+    $service = MobileService::create([
+        'title' => 'Towing', 'description' => 'D', 'image_path' => 'existing.jpg', 'is_active' => true,
+    ]);
+    Storage::disk('mobile_content')->put('existing.jpg', 'fake-bytes');
+
+    $this->actingAs($owner)->patch(route('superadmin.settings.customer-content.services.update', $service), [
+        'title' => 'Towing',
+        'description' => 'D',
+        'remove_image' => '1',
+        'image' => UploadedFile::fake()->image('new.jpg'),
+    ])->assertRedirect();
+
+    $newPath = $service->fresh()->image_path;
+    expect($newPath)->not->toBeNull();
+    Storage::disk('mobile_content')->assertExists($newPath);
+});
+
+it('AU: a service without an image still edits normally', function () {
+    $owner = cmsOwner();
+    $service = MobileService::create([
+        'title' => 'No Image Service', 'description' => 'D', 'is_active' => true,
+    ]);
+
+    $this->actingAs($owner)->patch(route('superadmin.settings.customer-content.services.update', $service), [
+        'title' => 'No Image Service Updated',
+        'description' => 'D',
+    ])->assertRedirect();
+
+    expect($service->fresh()->title)->toBe('No Image Service Updated')
+        ->and($service->fresh()->image_path)->toBeNull();
+});
+
+it('AV: a non-Owner cannot remove a service image', function () {
+    Storage::fake('mobile_content');
+    $dispatcher = cmsDispatcher();
+    $service = MobileService::create([
+        'title' => 'Towing', 'description' => 'D', 'image_path' => 'existing.jpg', 'is_active' => true,
+    ]);
+    Storage::disk('mobile_content')->put('existing.jpg', 'fake-bytes');
+
+    $this->actingAs($dispatcher)->patch(route('superadmin.settings.customer-content.services.update', $service), [
+        'title' => 'Towing',
+        'description' => 'D',
+        'remove_image' => '1',
+    ])->assertStatus(403);
+
+    expect($service->fresh()->image_path)->toBe('existing.jpg');
+    Storage::disk('mobile_content')->assertExists('existing.jpg');
+});
