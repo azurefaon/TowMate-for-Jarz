@@ -948,7 +948,7 @@ class DispatchController extends Controller
 
                 $booking->refresh()->loadMissing(['customer', 'truckType']);
 
-                $quotation = $this->quotationService->createQuotation([
+                $quotationAttributes = [
                     'source_booking_id' => $booking->id,
                     'customer_id' => $booking->customer_id,
                     'truck_type_id' => $booking->truck_type_id,
@@ -969,9 +969,25 @@ class DispatchController extends Controller
                     'scheduled_time' => $booking->scheduled_time,
                     'pickup_notes' => $booking->notes,
                     'extra_vehicles' => $booking->extra_vehicles,
-                ]);
+                ];
+
+                $reusableQuotation = Quotation::where('source_booking_id', $booking->id)
+                    ->current()
+                    ->whereIn('status', ['pending', 'draft'])
+                    ->first();
+
+                if ($reusableQuotation) {
+                    $reusableQuotation->update(collect($quotationAttributes)
+                        ->except(['source_booking_id', 'customer_id', 'additional_fee'])
+                        ->all());
+                    $quotation = $reusableQuotation->fresh();
+                } else {
+                    $quotation = $this->quotationService->createQuotation($quotationAttributes);
+                }
 
                 $this->quotationService->sendQuotation($quotation);
+
+                $booking->update(['quotation_id' => $quotation->id]);
 
                 $initialQuotePath = $this->documentGenerationService->generateQuotation($booking, false, $quotation);
                 $booking->update($this->bookingService->filterPayloadForTable('bookings', [
@@ -2479,5 +2495,140 @@ class DispatchController extends Controller
             ->values();
 
         return response()->json($data);
+    }
+
+    public function bookingDetailBundle(Booking $booking)
+    {
+        $booking->loadMissing(['customer', 'truckType', 'vehicleType', 'unit', 'assignedTeamLeader']);
+
+        $groupBookings = $booking->group_code
+            ? Booking::where('group_code', $booking->group_code)
+                ->with(['truckType', 'vehicleType', 'unit', 'assignedTeamLeader', 'currentInvoice', 'receipt'])
+                ->orderBy('id')
+                ->get()
+            : collect([$booking->loadMissing(['currentInvoice', 'receipt'])]);
+
+        $quotation = Quotation::whereIn('source_booking_id', $groupBookings->pluck('id'))
+            ->current()
+            ->latest('id')
+            ->first();
+
+        $quotationVersions = $quotation
+            ? Quotation::where('quotation_number', $quotation->quotation_number)
+                ->orderBy('version')
+                ->get(['id', 'version', 'status', 'estimated_price', 'additional_fee', 'is_current', 'created_at'])
+            : collect();
+
+        $invoiceMember = $groupBookings->first(fn($member) => $member->currentInvoice !== null);
+        $invoice = $invoiceMember?->currentInvoice;
+
+        $receiptMember = $groupBookings->first(fn($member) => $member->receipt !== null);
+        $receipt = $receiptMember?->receipt;
+
+        $vehicles = $groupBookings->map(fn($member) => [
+            'booking_id' => $member->id,
+            'booking_code' => $member->booking_code,
+            'status' => $member->status,
+            'truck_type_name' => $member->truckType?->name,
+            'vehicle_type_name' => $member->vehicleType?->name,
+            'final_total' => (float) ($member->final_total ?? 0),
+            'assigned_unit' => $member->unit ? [
+                'id' => $member->unit->id,
+                'name' => $member->unit->name,
+            ] : null,
+            'assigned_team_leader' => $member->assignedTeamLeader ? [
+                'id' => $member->assignedTeamLeader->id,
+                'name' => $member->assignedTeamLeader->full_name ?? $member->assignedTeamLeader->name,
+            ] : null,
+        ])->values();
+
+        return response()->json([
+            'success' => true,
+            'booking' => [
+                'id' => $booking->id,
+                'booking_code' => $booking->booking_code,
+                'job_code' => $booking->job_code,
+                'status' => $booking->status,
+                'service_type' => $booking->service_type,
+                'is_scheduled' => $booking->service_type === 'schedule',
+                'scheduled_date' => $booking->scheduled_date?->toDateString(),
+                'scheduled_time' => $booking->scheduled_time,
+                'group_code' => $booking->group_code,
+                'pickup_address' => $booking->pickup_address,
+                'pickup_lat' => $booking->pickup_lat,
+                'pickup_lng' => $booking->pickup_lng,
+                'dropoff_address' => $booking->dropoff_address,
+                'dropoff_lat' => $booking->dropoff_lat,
+                'dropoff_lng' => $booking->dropoff_lng,
+                'distance_km' => (float) ($booking->distance_km ?? 0),
+                'notes' => $booking->notes,
+                'final_total' => (float) ($booking->final_total ?? 0),
+                'created_at' => $booking->created_at,
+            ],
+            'customer' => $booking->customer ? [
+                'id' => $booking->customer->id,
+                'full_name' => $booking->customer->full_name,
+                'phone' => $booking->customer->phone,
+                'email' => $booking->customer->email,
+            ] : null,
+            'vehicles' => $vehicles,
+            'assignment' => [
+                'unit' => $booking->unit ? [
+                    'id' => $booking->unit->id,
+                    'name' => $booking->unit->name,
+                ] : null,
+                'team_leader' => $booking->assignedTeamLeader ? [
+                    'id' => $booking->assignedTeamLeader->id,
+                    'name' => $booking->assignedTeamLeader->full_name ?? $booking->assignedTeamLeader->name,
+                ] : null,
+                'service_status' => $booking->status,
+            ],
+            'quotation' => $quotation ? [
+                'id' => $quotation->id,
+                'quotation_number' => $quotation->quotation_number,
+                'status' => $quotation->status,
+                'version' => $quotation->version,
+                'is_current' => $quotation->is_current,
+                'estimated_price' => (float) $quotation->estimated_price,
+                'additional_fee' => (float) ($quotation->additional_fee ?? 0),
+                'discount' => (float) ($quotation->discount ?? 0),
+                'vat_rate' => $quotation->vat_rate !== null ? (float) $quotation->vat_rate : null,
+                'counter_offer_amount' => $quotation->counter_offer_amount !== null ? (float) $quotation->counter_offer_amount : null,
+                'sent_at' => $quotation->sent_at,
+                'expires_at' => $quotation->expires_at,
+                'responded_at' => $quotation->responded_at,
+                'source_booking_id' => $quotation->source_booking_id,
+                'versions' => $quotationVersions,
+            ] : null,
+            'invoice' => $invoice ? [
+                'id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'status' => $invoice->status,
+                'is_current' => $invoice->is_current,
+                'subtotal' => (float) $invoice->subtotal,
+                'additional_fee' => (float) $invoice->additional_fee,
+                'discount' => (float) $invoice->discount,
+                'total' => (float) $invoice->total,
+                'original_invoice_id' => $invoice->original_invoice_id,
+                'previous_invoice_id' => $invoice->previous_invoice_id,
+                'voided_at' => $invoice->voided_at,
+                'void_reason' => $invoice->void_reason,
+                'created_at' => $invoice->created_at,
+            ] : null,
+            'receipt' => $receipt ? [
+                'id' => $receipt->id,
+                'receipt_code' => $receipt->receipt_code,
+                'receipt_number' => $receipt->receipt_number,
+                'invoice_id' => $receipt->invoice_id,
+                'email_sent' => $receipt->email_sent,
+                'created_at' => $receipt->created_at,
+            ] : null,
+            'payment' => [
+                'payment_method' => $booking->payment_method,
+                'cash_received' => $booking->cash_received !== null ? (float) $booking->cash_received : null,
+                'payment_submitted_at' => $booking->payment_submitted_at,
+                'customer_verified_at' => $booking->customer_verified_at,
+            ],
+        ]);
     }
 }
