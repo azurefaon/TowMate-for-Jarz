@@ -89,11 +89,17 @@ it('exposes a group roster on the Scheduled queue row so every vehicle in the gr
         $bookingA->booking_code,
         $bookingB->booking_code,
     ]);
-    expect(collect($roster)->firstWhere('booking_code', $bookingB->booking_code))
-        ->toMatchArray([
-            'base_rate' => 900.0,
-            'per_km_rate' => 40.0,
-        ]);
+    expect(collect($roster)->pluck('booking_id')->all())->toEqualCanonicalizing([
+        $bookingA->id,
+        $bookingB->id,
+    ]);
+    $rosterB = collect($roster)->firstWhere('booking_code', $bookingB->booking_code);
+    // Authoritative — computed via the same calculateQuotationTotals() the grouped
+    // Save Quote itself uses, not a raw base_rate/per_km_rate pair for the frontend
+    // to re-derive a total from.
+    expect((float) $rosterB['base_rate'])->toBe(900.0);
+    expect((float) $rosterB['distance_fee'])->toBe(round((12.0 - 4.0) * 40, 2));
+    expect((float) $rosterB['final_total'])->toBe(round((900 + (12.0 - 4.0) * 40) * 1.12, 2));
 });
 
 it('includes each unpriced sibling own base rate and per-km rate in the quotation details group_siblings once a draft exists', function () {

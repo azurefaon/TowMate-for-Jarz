@@ -269,6 +269,17 @@ class DispatchController extends Controller
             ])->values());
         $groupedScheduled = $scheduledRequests->groupBy(fn($b) => $b->group_code ?: $b->booking_code);
 
+        // Pre-save vehicle tabs (before the first Save Quote) must show exactly the
+        // siblings BookingService::groupSiblingBookings() would persist, computed with
+        // the same calculateQuotationTotals() the grouped save uses — never a separate
+        // frontend formula, and never a membership definition that could disagree with
+        // what Save Quote will actually persist. Shared by both Book Now/Intermediate
+        // and Scheduled, since groupSiblingBookings()'s membership rule (group_code +
+        // exact pickup/dropoff match) and the grouped save path do not branch on
+        // service_type either.
+        $scheduledGroupRosters = $groupedScheduled->map(fn($groupBookings) => $this->buildGroupVehicleRoster($groupBookings));
+        $bookNowGroupRosters = $groupedBookNow->map(fn($groupBookings) => $this->buildGroupVehicleRoster($groupBookings));
+
         $pendingQuotationCount = Quotation::where('status', 'pending')->current()->count();
 
         $queueCounts = [
@@ -391,7 +402,7 @@ class DispatchController extends Controller
 
         ['allQuotations' => $allQuotations, 'quotationStats' => $quotationStats] = $this->buildFloatingQuotationsData();
 
-        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats', 'bookNowRequests', 'scheduledRequests', 'groupedIncoming', 'groupedBookNow', 'groupedScheduled'));
+        return view('admin-dashboard.pages.dispatch', compact('incomingRequests', 'availableUnits', 'queueCounts', 'zones', 'teamLeaderStatuses', 'returnReasonHandler', 'allQuotations', 'quotationStats', 'bookNowRequests', 'scheduledRequests', 'groupedIncoming', 'groupedBookNow', 'groupedScheduled', 'scheduledGroupRosters', 'bookNowGroupRosters'));
     }
 
     
@@ -1559,6 +1570,54 @@ class DispatchController extends Controller
         return \Carbon\Carbon::parse($dateStr . ' ' . ($time ?: '00:00'))->format('M d, Y g:i A');
     }
 
+    /**
+     * Pre-save vehicle roster for a Dispatch Queue group row (Book Now or
+     * Scheduled): the exact siblings BookingService::groupSiblingBookings()
+     * would persist on the next Save Quote, computed with the same
+     * calculateQuotationTotals() the grouped save uses. Empty for a solo
+     * booking or when siblings sharing the group_code disagree on pickup/
+     * dropoff (the known group_code/address inconsistency) — never guessed.
+     */
+    private function buildGroupVehicleRoster(Collection $groupBookings): array
+    {
+        if ($groupBookings->count() <= 1) {
+            return [];
+        }
+        $anchor = $groupBookings->first();
+        $canonicalSiblings = $groupBookings
+            ->where('pickup_address', $anchor->pickup_address)
+            ->where('dropoff_address', $anchor->dropoff_address)
+            ->sortBy('id')
+            ->values();
+        if ($canonicalSiblings->count() <= 1) {
+            return [];
+        }
+
+        return $canonicalSiblings->map(function (Booking $sibling) {
+            $totals = $this->bookingService->calculateQuotationTotals(
+                $sibling, null, null, (float) $sibling->distance_km, 0, (float) $sibling->base_rate,
+            );
+
+            return [
+                'booking_id' => $sibling->id,
+                'booking_code' => $sibling->booking_code,
+                'vehicle_name' => $sibling->vehicleType?->name,
+                'truck_type_id' => $sibling->truck_type_id,
+                'truck_type_name' => $sibling->truckType?->name ?? 'Unknown',
+                'vehicle_type_id' => $sibling->vehicle_type_id,
+                'base_rate' => $totals['base_rate'],
+                'distance_fee' => $totals['distance_fee'],
+                'vat_exclusive_total' => $totals['vat_exclusive_total'],
+                'vat_amount' => $totals['vat_amount'],
+                'vat_rate' => $totals['vat_rate'],
+                'final_total' => $totals['final_total'],
+                'assigned_unit_id' => $sibling->assigned_unit_id,
+                'selected_unit_id' => null,
+                'status' => $sibling->status,
+            ];
+        })->values()->toArray();
+    }
+
     private function enrichExtraVehicles(array $vehicles): array
     {
         if (empty($vehicles)) return [];
@@ -2147,7 +2206,11 @@ class DispatchController extends Controller
         $groupSiblings = $this->bookingService->groupSiblingBookings($booking);
         $anchor = $groupSiblings->first();
         $isGrouped = $groupSiblings->count() > 1;
-        $isNormalizedBookNow = $isGrouped && $booking->service_type === 'book_now';
+        // One Save Quote must price the entire group for ANY grouped booking,
+        // not just Book Now — groupSiblingBookings()'s membership rule (group_code
+        // + exact pickup/dropoff match) and calculateQuotationTotals() do not
+        // branch on service_type, so neither should this flag.
+        $isNormalizedGroupSave = $isGrouped;
 
         $alreadySent = Quotation::where('source_booking_id', $anchor->id)
             ->current()
@@ -2213,7 +2276,7 @@ class DispatchController extends Controller
 
         $totals = $this->bookingService->calculateQuotationTotals(
             $booking,
-            $isNormalizedBookNow ? null : (string) $effectiveAdditionalFee,
+            $isNormalizedGroupSave ? null : (string) $effectiveAdditionalFee,
             null,
             $distanceKm,
             0,
@@ -2228,7 +2291,7 @@ class DispatchController extends Controller
             ? ($existing->quotation_number ?: $this->bookingService->generateQuotationNumber($anchor))
             : $this->bookingService->generateQuotationNumber($anchor);
 
-        $groupLineItems = $isNormalizedBookNow
+        $groupLineItems = $isNormalizedGroupSave
             ? $groupSiblings->map(function (Booking $sibling) {
                 $siblingTotals = $this->bookingService->calculateQuotationTotals(
                     $sibling,
@@ -2255,30 +2318,11 @@ class DispatchController extends Controller
                     'estimated_price' => $siblingTotals['final_total'],
                 ];
             })->values()
-            : ($isGrouped
-                ? collect($existing->extra_vehicles ?? [])
-                    ->reject(fn($ev) => ($ev['booking_id'] ?? null) === $booking->id)
-                    ->push([
-                        'booking_id' => $booking->id,
-                        'truck_type_id' => $selectedUnit?->truckType?->id ?? $booking->truck_type_id,
-                        'truck_type_name' => ($selectedUnit?->truckType?->name) ?? $booking->truckType?->name,
-                        'vehicle_type_id' => $booking->vehicle_type_id,
-                        'service_type' => $booking->service_type,
-                        'distance_km' => $distanceKm,
-                        'base_rate' => $totals['base_rate'],
-                        'distance_fee' => $totals['distance_fee'],
-                        'vat_exclusive_total' => $totals['vat_exclusive_total'],
-                        'vat_amount' => $totals['vat_amount'],
-                        'vat_rate' => $totals['vat_rate'],
-                        'final_total' => $resolvedPrice,
-                        'estimated_price' => $resolvedPrice,
-                    ])
-                    ->values()
-                : collect());
+            : collect();
 
-        $groupBaseTotal = $isNormalizedBookNow ? $groupLineItems->sum('final_total') : 0;
+        $groupBaseTotal = $isNormalizedGroupSave ? $groupLineItems->sum('final_total') : 0;
         $groupDiscount = (float) ($existing?->discount ?? 0);
-        $groupFinalTotal = $isNormalizedBookNow
+        $groupFinalTotal = $isNormalizedGroupSave
             ? max(round($groupBaseTotal - $groupDiscount + $effectiveAdditionalFee, 2), 0)
             : 0;
 
@@ -2296,10 +2340,8 @@ class DispatchController extends Controller
             'vehicle_color'       => $booking->vehicle_color,
             'vehicle_plate_number' => $booking->vehicle_plate_number,
             'vehicle_image_path'  => $booking->vehicle_image_path,
-            'estimated_price'     => $isNormalizedBookNow
-                ? $groupFinalTotal
-                : ($isGrouped ? max(round($groupLineItems->sum('final_total') - $groupDiscount, 2), 0) : $resolvedPrice),
-            'additional_fee'      => $isNormalizedBookNow ? $effectiveAdditionalFee : $resolvedAdditionalFee,
+            'estimated_price'     => $isNormalizedGroupSave ? $groupFinalTotal : $resolvedPrice,
+            'additional_fee'      => $isNormalizedGroupSave ? $effectiveAdditionalFee : $resolvedAdditionalFee,
             'vat_rate'            => $totals['vat_rate'],
             'service_type'        => $booking->service_type ?? null,
             'scheduled_date'      => $booking->scheduled_date?->toDateString(),
@@ -2321,9 +2363,7 @@ class DispatchController extends Controller
             
             
             $changeLog = $existing->price_change_log ?? [];
-            $newQuotationPrice = $isNormalizedBookNow
-                ? $groupFinalTotal
-                : ($isGrouped ? max(round($groupLineItems->sum('final_total') - $groupDiscount, 2), 0) : $resolvedPrice);
+            $newQuotationPrice = $isNormalizedGroupSave ? $groupFinalTotal : $resolvedPrice;
             if ($existing->status === 'draft' && (float) $existing->estimated_price !== $newQuotationPrice) {
                 $changeLog[] = [
                     'at'     => now()->toISOString(),
@@ -2337,12 +2377,10 @@ class DispatchController extends Controller
             $existing->update($draftData);
             $quotation = $existing->fresh();
         } else {
-            $newQuotationPrice = $isNormalizedBookNow
-                ? $groupFinalTotal
-                : ($isGrouped ? max(round($groupLineItems->sum('final_total') - $groupDiscount, 2), 0) : $resolvedPrice);
-            $draftData['price_change_log'] = ($isNormalizedBookNow ? $effectiveAdditionalFee : $resolvedAdditionalFee) !== 0.0 ? [[
+            $newQuotationPrice = $isNormalizedGroupSave ? $groupFinalTotal : $resolvedPrice;
+            $draftData['price_change_log'] = ($isNormalizedGroupSave ? $effectiveAdditionalFee : $resolvedAdditionalFee) !== 0.0 ? [[
                 'at'     => now()->toISOString(),
-                'old'    => $isNormalizedBookNow ? $groupBaseTotal : $totals['base_total'],
+                'old'    => $isNormalizedGroupSave ? $groupBaseTotal : $totals['base_total'],
                 'new'    => $newQuotationPrice,
                 'reason' => $validated['dispatcher_note'] ?? null,
                 'by'     => auth()->user()?->name ?? 'Dispatcher',
@@ -2375,7 +2413,7 @@ class DispatchController extends Controller
             'dispatcher_note'    => filled($validated['dispatcher_note'] ?? null)
                 ? trim(strip_tags((string) $validated['dispatcher_note'])) : null,
         ];
-        if (! $isNormalizedBookNow) {
+        if (! $isNormalizedGroupSave) {
             $bookingUpdate = array_merge($bookingUpdate, [
                 'base_rate'          => $unitBaseRate,
                 'per_km_rate'        => $totals['per_km_rate'],
@@ -2395,7 +2433,7 @@ class DispatchController extends Controller
             'entity_type' => 'Booking',
             'entity_id'   => $booking->id,
             'reference'   => $booking->job_code,
-            'description' => 'Price recorded: ₱' . number_format($isNormalizedBookNow ? $groupFinalTotal : $resolvedPrice, 2)
+            'description' => 'Price recorded: ₱' . number_format($isNormalizedGroupSave ? $groupFinalTotal : $resolvedPrice, 2)
                 . (filled($validated['dispatcher_note'] ?? null) ? ' — ' . $validated['dispatcher_note'] : ''),
         ]);
 
@@ -2405,7 +2443,7 @@ class DispatchController extends Controller
             'quotation_id'     => $quotation->id,
             'quotation_number' => $quotationNumber,
             'quotation_status' => 'draft',
-            'price'            => number_format($isNormalizedBookNow ? $groupFinalTotal : $resolvedPrice, 2, '.', ''),
+            'price'            => number_format($isNormalizedGroupSave ? $groupFinalTotal : $resolvedPrice, 2, '.', ''),
         ]);
     }
 
@@ -2610,10 +2648,13 @@ class DispatchController extends Controller
                 'discount' => (float) $invoice->discount,
                 'total' => (float) $invoice->total,
                 'original_invoice_id' => $invoice->original_invoice_id,
+                'original_invoice_number' => $invoice->originalInvoice?->invoice_number,
                 'previous_invoice_id' => $invoice->previous_invoice_id,
+                'previous_invoice_number' => $invoice->previousInvoice?->invoice_number,
                 'voided_at' => $invoice->voided_at,
                 'void_reason' => $invoice->void_reason,
                 'created_at' => $invoice->created_at,
+                'pdf_url' => $this->documentGenerationService->publicDocumentUrl($invoice->pdf_path),
             ] : null,
             'receipt' => $receipt ? [
                 'id' => $receipt->id,
@@ -2622,6 +2663,7 @@ class DispatchController extends Controller
                 'invoice_id' => $receipt->invoice_id,
                 'email_sent' => $receipt->email_sent,
                 'created_at' => $receipt->created_at,
+                'pdf_url' => $this->documentGenerationService->publicDocumentUrl($receipt->pdf_path),
             ] : null,
             'payment' => [
                 'payment_method' => $booking->payment_method,

@@ -72,29 +72,6 @@
         if (sec < 86400) return Math.floor(sec / 3600) + "h ago";
         return Math.floor(sec / 86400) + "d ago";
     }
-    var QUOTATION_STATUS_LABELS = {
-        pending: "Pending",
-        draft: "Draft",
-        sent: "Sent",
-        negotiating: "Negotiating",
-        price_review_requested: "Price Review Requested",
-        accepted: "Accepted",
-        rejected: "Rejected",
-        expired: "Expired",
-        disregarded: "Disregarded",
-    };
-    function quotationStatusLabel(status) {
-        if (!status) return "";
-        if (QUOTATION_STATUS_LABELS[status])
-            return QUOTATION_STATUS_LABELS[status];
-        return String(status)
-            .split("_")
-            .filter(Boolean)
-            .map(function (w) {
-                return w.charAt(0).toUpperCase() + w.slice(1);
-            })
-            .join(" ");
-    }
     function fillRoute(tpl, id) {
         return tpl.replace(":booking", id).replace(":quotation", id);
     }
@@ -145,6 +122,31 @@
     var state = null; // built fresh each time the drawer opens
     var isDrawerBusy = false;
 
+    // Shared by the pre-save initial roster (buildStateFromCard) and the
+    // post-save persisted group_vehicles (mergeQuotationDetailsIntoState) so
+    // both populate state.groupVehicles with the exact same entry shape.
+    function enrichGroupVehicle(vehicle) {
+        return Object.assign({}, vehicle, {
+            selected_unit_id:
+                vehicle.selected_unit_id || vehicle.assigned_unit_id || null,
+            assignment_busy: false,
+        });
+    }
+
+    // "Vehicle N of M" is a POSITION (array index), not an identity — it must
+    // stay stable regardless of what order a payload happens to list vehicles
+    // in. The pre-save roster is already sorted ascending by booking_id, but a
+    // persisted quotation's stored extra_vehicles order is not guaranteed to
+    // match that (e.g. legacy rows saved before an anchor-resolution fix), so
+    // hydration must re-sort rather than trust the payload's array order —
+    // otherwise a vehicle can keep its correct identity/data while silently
+    // shifting to a different "Vehicle N" label purely because of storage order.
+    function sortGroupVehiclesCanonical(vehicles) {
+        return vehicles.slice().sort(function (a, b) {
+            return Number(a.booking_id) - Number(b.booking_id);
+        });
+    }
+
     function buildStateFromCard(cardEl) {
         var d = cardEl.dataset;
         var photos = [];
@@ -159,13 +161,37 @@
         } catch (e) {
             priceChangeLog = [];
         }
+        // Authoritative pre-save roster: identical membership + pricing to what
+        // grouped Save Quote will persist (see DispatchController@index). Absent
+        // for single-vehicle bookings and for queues that don't yet provide it
+        // (e.g. Book Now), in which case grouping simply behaves as before —
+        // only the anchor vehicle is visible until the first Save Quote.
         var groupRoster = [];
         try {
             groupRoster = JSON.parse(d.groupRoster || "[]");
         } catch (e) {
             groupRoster = [];
         }
-
+        var groupVehicles =
+            Array.isArray(groupRoster) && groupRoster.length > 1
+                ? sortGroupVehiclesCanonical(groupRoster.map(enrichGroupVehicle))
+                : [];
+        var initialActiveVehicleId = null;
+        var groupPreviewTotal = null;
+        if (groupVehicles.length) {
+            // The dispatcher is opening the grouped BOOKING, not picking a
+            // vehicle — initial focus is always Vehicle 1 in the canonical
+            // (orderBy id) roster order, regardless of which queue row/booking_id
+            // was clicked to open it.
+            initialActiveVehicleId = groupVehicles[0].booking_id;
+            groupPreviewTotal = groupVehicles.reduce(function (sum, v) {
+                return sum + (parseFloat(v.final_total) || 0);
+            }, 0);
+        }
+        var initialPrice =
+            groupPreviewTotal !== null
+                ? groupPreviewTotal
+                : parseFloat(d.currentPrice || "0") || 0;
         return {
             isMockPreview: d.mockPreview === "1",
             bookingCode: d.bookingCode || d.id,
@@ -179,7 +205,7 @@
             dropoff: d.dropoff || "",
             distanceKm: d.distanceKm || "",
             customerNote: d.customerNote || "",
-            currentPrice: parseFloat(d.currentPrice || "0") || 0,
+            currentPrice: initialPrice,
             // immutable snapshot of the customer's original estimate, for the reference
             // box only — unlike currentPrice, this is never overwritten by the
             // quotation-details fetch
@@ -218,22 +244,140 @@
             scheduledFor: d.scheduledFor || "",
 
             priceChangeLog: priceChangeLog,
-            groupVehicles: [],
-            groupRoster: groupRoster,
+            groupVehicles: groupVehicles,
+            activeVehicleId: initialActiveVehicleId,
         };
     }
 
+    function isGrouped(s) {
+        return !!(s.groupVehicles && s.groupVehicles.length > 1);
+    }
+    function vehicleDisplayName(vehicle) {
+        return (vehicle && (vehicle.vehicle_name || vehicle.truck_type_name)) || "Vehicle";
+    }
+    function activeVehicle(s) {
+        if (!isGrouped(s)) return null;
+        var found = s.groupVehicles.find(function (v) {
+            return String(v.booking_id) === String(s.activeVehicleId);
+        });
+        return found || s.groupVehicles[0];
+    }
+    function activeVehicleIndex(s) {
+        var v = activeVehicle(s);
+        if (!v) return 0;
+        for (var i = 0; i < s.groupVehicles.length; i++) {
+            if (String(s.groupVehicles[i].booking_id) === String(v.booking_id)) return i;
+        }
+        return 0;
+    }
+    function setActiveVehicleId(s, bookingId) {
+        s.activeVehicleId = bookingId;
+    }
+    // Mirrors Booking::resolveQuotationStatus()'s own canonical "this booking's
+    // quotation is effectively accepted" list (app/Models/Booking.php) — every
+    // status a booking can carry from customer acceptance through completion,
+    // across Book Now, Scheduled, and the Team Leader task lifecycle. Without
+    // this, effectiveStatus() below would fall through to "new" for any of
+    // these, making an already-accepted quotation look like a fresh,
+    // never-quoted one (editable, showing Save Quote).
+    var POST_ACCEPTANCE_BOOKING_STATUSES = [
+        "accepted",
+        "assigned",
+        "on_the_way",
+        "in_progress",
+        "waiting_verification",
+        "payment_pending",
+        "payment_submitted",
+        "completed",
+        "on_job",
+    ];
     function effectiveStatus(s) {
+        // Mirrors Booking::resolveQuotationStatus()'s own precedence: booking
+        // status is checked BEFORE the quotation's own raw status column.
+        // Once a booking has actually reached confirmed/scheduled_confirmed,
+        // its quotation is settled/accepted per backend rules even if the
+        // underlying Quotation row's status column is still a stale
+        // draft/sent/negotiating/price_review_requested/expired value —
+        // without this ordering, a scheduled_confirmed booking with a lagging
+        // draft quotation status would incorrectly render as editable.
+        if (s.status === "scheduled_confirmed")
+            return s.schedulingBucket || "confirmed";
+        if (s.status === "confirmed") return "confirmed";
         if (s.quotationStatus === "draft") return "draft";
         if (s.quotationStatus === "sent") return "sent";
         if (s.quotationStatus === "negotiating") return "negotiating";
         if (s.quotationStatus === "price_review_requested")
             return "price_review_requested";
         if (s.quotationStatus === "expired") return "expired";
-        if (s.status === "scheduled_confirmed")
-            return s.schedulingBucket || "confirmed";
-        if (s.status === "confirmed") return "confirmed";
+        if (
+            s.quotationStatus === "accepted" ||
+            POST_ACCEPTANCE_BOOKING_STATUSES.indexOf(s.status) !== -1
+        ) {
+            return "accepted";
+        }
         return "new";
+    }
+
+    var STATUS_BADGE_MAP = {
+        draft: { label: "Draft", cls: "rb-badge-gray" },
+        sent: { label: "Sent", cls: "rb-badge-blue" },
+        negotiating: { label: "Negotiating", cls: "rb-badge-amber" },
+        price_review_requested: { label: "Price Review", cls: "rb-badge-amber" },
+        expired: { label: "Expired", cls: "rb-badge-gray" },
+        confirmed: { label: "Confirmed", cls: "rb-badge-green" },
+        accepted: { label: "Accepted", cls: "rb-badge-green" },
+        upcoming: { label: "Upcoming", cls: "rb-badge-blue" },
+        ready: { label: "Ready", cls: "rb-badge-amber" },
+        overdue: { label: "Overdue", cls: "rb-badge-red" },
+    };
+    function statusBadgeHtml(s) {
+        if (!s.quotationNumber) return "";
+        var conf = STATUS_BADGE_MAP[effectiveStatus(s)];
+        if (!conf) return "";
+        return (
+            '<span class="rb-status-badge ' +
+            conf.cls +
+            '">' +
+            esc(conf.label) +
+            "</span>"
+        );
+    }
+
+    function vehicleNavigatorHtml(s) {
+        if (!isGrouped(s)) return "";
+        var n = s.groupVehicles.length;
+        var activeIdx = activeVehicleIndex(s);
+
+        var tabs = s.groupVehicles
+            .map(function (vehicle, i) {
+                var isActive = i === activeIdx;
+                return (
+                    '<button type="button" class="rb-vnav-tab' +
+                    (isActive ? " rb-is-active" : "") +
+                    '" data-vnav-step="' +
+                    esc(vehicle.booking_id) +
+                    '">' +
+                    '<span class="rb-vnav-tab-label">Vehicle ' +
+                    (i + 1) +
+                    " — " +
+                    esc(vehicleDisplayName(vehicle)) +
+                    "</span></button>"
+                );
+            })
+            .join("");
+
+        return (
+            '<div class="rb-vnav">' +
+            '<div class="rb-vnav-head"><span class="rb-vnav-label">Vehicles</span>' +
+            '<span class="rb-vnav-count">Vehicle ' +
+            (activeIdx + 1) +
+            " of " +
+            n +
+            "</span></div>" +
+            '<div class="rb-vnav-tabs" id="rbVnavTabs">' +
+            tabs +
+            "</div></div>"
+        );
     }
 
     function hasStagedDraftChanges(s) {
@@ -328,34 +472,22 @@
     function mergeQuotationDetailsIntoState(data) {
         if (!data) return;
         if (Array.isArray(data.group_vehicles)) {
-            state.groupVehicles = data.group_vehicles.map(function (vehicle) {
-                return Object.assign({}, vehicle, {
-                    selected_unit_id:
-                        vehicle.selected_unit_id ||
-                        vehicle.assigned_unit_id ||
-                        null,
-                    assignment_busy: false,
-                });
-            });
-        }
-        if (Array.isArray(data.group_siblings)) {
-            state.groupRoster = [
-                {
-                    booking_code: state.bookingCode,
-                    truck_type_name: state.truckType,
-                    base_rate: state.baseRate,
-                    per_km_rate: state.perKmRate,
-                },
-            ].concat(
-                data.group_siblings.map(function (sib) {
-                    return {
-                        booking_code: sib.booking_code,
-                        truck_type_name: sib.truck_type_name || sib.truck_type,
-                        base_rate: parseFloat(sib.base_rate) || 0,
-                        per_km_rate: parseFloat(sib.per_km_rate) || 0,
-                    };
-                }),
+            state.groupVehicles = sortGroupVehiclesCanonical(
+                data.group_vehicles.map(enrichGroupVehicle),
             );
+            if (state.groupVehicles.length > 1) {
+                var activeStillPresent = state.groupVehicles.some(function (
+                    vehicle,
+                ) {
+                    return (
+                        String(vehicle.booking_id) ===
+                        String(state.activeVehicleId)
+                    );
+                });
+                if (!state.activeVehicleId || !activeStillPresent) {
+                    state.activeVehicleId = state.groupVehicles[0].booking_id;
+                }
+            }
         }
         if (typeof data.estimated_price !== "undefined") {
             state.currentPrice =
@@ -382,6 +514,31 @@
         }
         if (typeof data.vat_rate !== "undefined" && data.vat_rate !== null) {
             state.vatRate = parseFloat(data.vat_rate) || state.vatRate;
+        }
+        // getQuotationDetails() already returns these on every fetch (base_price/
+        // per_km_rate), but until now nothing here ever applied them — so any
+        // entry point that opens the drawer without pre-seeding baseRate/perKmRate
+        // from a real queue row's own dataset (e.g. Booking Details' "View
+        // Quotation") stayed stuck at 0 in the Base rate/Distance fee display
+        // rows even though the response carried the real values. This does not
+        // touch how any total/VAT figure is computed — those already come from
+        // vatExclusiveTotal/vatAmount/currentPrice above, not from these two
+        // fields. Guarded with typeof/null (not `|| state.x`) so a genuine 0 is
+        // preserved instead of being silently replaced by whatever was already
+        // there.
+        if (
+            typeof data.base_price !== "undefined" &&
+            data.base_price !== null
+        ) {
+            var parsedBasePrice = parseFloat(data.base_price);
+            if (!isNaN(parsedBasePrice)) state.baseRate = parsedBasePrice;
+        }
+        if (
+            typeof data.per_km_rate !== "undefined" &&
+            data.per_km_rate !== null
+        ) {
+            var parsedPerKmRate = parseFloat(data.per_km_rate);
+            if (!isNaN(parsedPerKmRate)) state.perKmRate = parsedPerKmRate;
         }
         if (data.price_change_log && Array.isArray(data.price_change_log)) {
             state.priceChangeLog = data.price_change_log;
@@ -426,13 +583,20 @@
         state.reviewReason = data.response_note || null;
     }
 
+    var rbLastTriggerEl = null;
+
     window.openBookingDrawer = function (cardEl) {
         if (!cardEl) return;
         state = buildStateFromCard(cardEl);
+        rbLastTriggerEl = document.activeElement;
 
         drawerOverlayEl.classList.add("is-open");
         drawerEl.classList.add("is-open");
+        drawerEl.setAttribute("aria-hidden", "false");
+        document.body.classList.add("rb-modal-open");
         renderDrawer();
+        var closeBtn = document.getElementById("rbDrawerCloseBtn");
+        (closeBtn || drawerEl).focus();
 
         if (state.quotationId) {
             var openedState = state;
@@ -458,12 +622,19 @@
         }
         drawerEl.classList.remove("is-open");
         drawerOverlayEl.classList.remove("is-open");
+        drawerEl.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("rb-modal-open");
         setTimeout(function () {
             drawerEl.innerHTML = "";
         }, 220);
         state = null;
+        if (rbLastTriggerEl && typeof rbLastTriggerEl.focus === "function") {
+            rbLastTriggerEl.focus();
+        }
+        rbLastTriggerEl = null;
     }
-    drawerOverlayEl.addEventListener("click", function () {
+    drawerOverlayEl.addEventListener("click", function (e) {
+        if (e.target !== drawerOverlayEl) return;
         if (isDrawerBusy) return;
         closeBookingDrawer();
     });
@@ -476,25 +647,17 @@
     });
 
     function requestSectionHtml(s) {
-        var eff = effectiveStatus(s);
         var rows = [
             ["Mode", s.isScheduled ? "Scheduled" : "Book Now"],
             ["Submitted", esc(timeAgoLabel(s.createdAt))],
             ["Zone", esc(s.dispatchZone)],
-            ["Truck class requested", esc(s.truckType)],
         ];
+        if (!isGrouped(s)) {
+            rows.push(["Truck class requested", esc(s.truckType)]);
+        }
         var cells = rows
-            .map(function (r, i) {
-                var divider =
-                    i === 2 ? '<div class="rb-grid-divider"></div>' : "";
-                return (
-                    divider +
-                    "<div><dt>" +
-                    r[0] +
-                    "</dt><dd>" +
-                    r[1] +
-                    "</dd></div>"
-                );
+            .map(function (r) {
+                return "<div><dt>" + r[0] + "</dt><dd>" + r[1] + "</dd></div>";
             })
             .join("");
         return (
@@ -505,11 +668,22 @@
     }
 
     function vehicleSectionHtml(s) {
-        return (
-            '<div class="rb-section"><h4>Vehicle</h4>' +
-            photoStackHtml(s) +
-            "</div>"
-        );
+        if (isGrouped(s)) {
+            var vehicle = activeVehicle(s);
+            return (
+                "<h4>Vehicles</h4>" +
+                vehicleNavigatorHtml(s) +
+                photoStackHtml(s) +
+                '<div class="rb-group-vehicle-head">' +
+                '<div class="rb-group-vehicle-title">' +
+                esc(vehicleDisplayName(vehicle)) +
+                "</div>" +
+                '<div class="rb-group-vehicle-meta">' +
+                esc(vehicle.booking_code || "") +
+                "</div></div>"
+            );
+        }
+        return "<h4>Vehicle</h4>" + photoStackHtml(s);
     }
 
     function photoFallbackHtml(text, visible) {
@@ -605,12 +779,13 @@
 
     function routeSectionHtml(s) {
         var noteHtml = s.pickupNotes
-            ? ' <span style="color:#8A93A3;">- ' +
+            ? ' <span style="color:#5B6472;">— ' +
               esc(s.pickupNotes) +
               "</span>"
             : "";
         return (
-            '<div class="rb-section"><h4>Route</h4><div class="rb-route">' +
+            "<h4>Route</h4>" +
+            '<div class="rb-route">' +
             '<div class="rb-route-row"><span class="rb-route-dot rb-pick"></span><span class="rb-route-addr">' +
             esc(s.pickup) +
             noteHtml +
@@ -618,9 +793,22 @@
             '<div class="rb-route-row"><span class="rb-route-dot rb-drop"></span><span class="rb-route-addr">' +
             esc(s.dropoff) +
             "</span></div>" +
-            '<div class="rb-route-meta"><span>Distance</span><span class="rb-mono">' +
+            '<div class="rb-route-distance">Distance <span class="rb-mono">' +
             (s.distanceKm ? esc(s.distanceKm) + " km" : "—") +
             "</span></div>" +
+            "</div>"
+        );
+    }
+
+    function vehicleAndRouteSectionHtml(s) {
+        return (
+            '<div class="rb-section"><div class="rb-vr-grid">' +
+            '<div class="rb-vr-col">' +
+            vehicleSectionHtml(s) +
+            "</div>" +
+            '<div class="rb-vr-col rb-vr-col-route">' +
+            routeSectionHtml(s) +
+            "</div>" +
             "</div></div>"
         );
     }
@@ -644,47 +832,33 @@
         var adj = adjustedTotal(s);
 
         if (grouped) {
-            var groupRows = s.groupVehicles
-                .map(function (vehicle, index) {
-                    return (
-                        '<div class="rb-breakdown" style="margin-bottom:12px;">' +
-                        '<div class="rb-sub-label">Vehicle ' +
-                        (index + 1) +
-                        " — " +
-                        esc(
-                            vehicle.vehicle_name ||
-                                vehicle.truck_type_name ||
-                                "Vehicle",
-                        ) +
-                        "</div>" +
-                        '<div class="rb-b-row"><span>Truck type</span><span>' +
-                        esc(vehicle.truck_type_name || "—") +
-                        "</span></div>" +
-                        '<div class="rb-b-row"><span>Base rate</span><span class="rb-mono">' +
-                        peso(vehicle.base_rate) +
-                        "</span></div>" +
-                        '<div class="rb-b-row"><span>Distance fee</span><span class="rb-mono">' +
-                        peso(vehicle.distance_fee) +
-                        "</span></div>" +
-                        '<div class="rb-b-row"><span>VAT (' +
-                        vatPercentLabel(vehicle.vat_rate || s.vatRate) +
-                        ')</span><span class="rb-mono">' +
-                        peso(vehicle.vat_amount) +
-                        "</span></div>" +
-                        '<div class="rb-b-row rb-b-final"><span>Vehicle service total</span><span class="rb-mono">' +
-                        peso(vehicle.final_total) +
-                        "</span></div>" +
-                        '<div class="rb-b-row"><span>Assigned unit</span><span>' +
-                        esc(
-                            vehicle.assigned_unit_id ||
-                                vehicle.selected_unit_id ||
-                                "Not assigned",
-                        ) +
-                        "</span></div>" +
-                        "</div>"
-                    );
-                })
-                .join("");
+            var activeV = activeVehicle(s);
+            var activeIdx = activeVehicleIndex(s);
+            breakdown =
+                '<div class="rb-sub-label">Vehicle ' +
+                (activeIdx + 1) +
+                " — " +
+                esc(vehicleDisplayName(activeV)) +
+                "</div>" +
+                '<div class="rb-breakdown">' +
+                '<div class="rb-b-row"><span>Truck type</span><span>' +
+                esc(activeV.truck_type_name || "—") +
+                "</span></div>" +
+                '<div class="rb-b-row"><span>Base rate</span><span class="rb-mono">' +
+                peso(activeV.base_rate) +
+                "</span></div>" +
+                '<div class="rb-b-row"><span>Distance fee</span><span class="rb-mono">' +
+                peso(activeV.distance_fee) +
+                "</span></div>" +
+                '<div class="rb-b-row"><span>VAT (' +
+                vatPercentLabel(activeV.vat_rate || s.vatRate) +
+                ')</span><span class="rb-mono">' +
+                peso(activeV.vat_amount) +
+                "</span></div>" +
+                '<div class="rb-b-row rb-b-final"><span>Vehicle service total</span><span class="rb-mono">' +
+                peso(activeV.final_total) +
+                "</span></div>" +
+                "</div>";
             var groupTotal = s.groupVehicles.reduce(function (sum, vehicle) {
                 return sum + (parseFloat(vehicle.final_total) || 0);
             }, 0);
@@ -693,15 +867,16 @@
                 eff === "confirmed" ||
                 eff === "upcoming" ||
                 eff === "ready" ||
-                eff === "overdue";
-            breakdown = groupRows;
+                eff === "overdue" ||
+                eff === "accepted";
         } else {
             fixedTotal = adj.baseTotal;
             accepted =
                 eff === "confirmed" ||
                 eff === "upcoming" ||
                 eff === "ready" ||
-                eff === "overdue";
+                eff === "overdue" ||
+                eff === "accepted";
             var fixedLabel = editable
                 ? "Total"
                 : eff === "negotiating"
@@ -740,6 +915,9 @@
                 '</span><span class="rb-mono">' +
                 peso(breakdownDistFee) +
                 "</span></div>" +
+                '<div class="rb-b-row rb-b-subtotal"><span>Subtotal before VAT</span><span class="rb-mono">' +
+                peso(adj.subtotal) +
+                "</span></div>" +
                 (additionalFee !== 0
                     ? '<div class="rb-b-row rb-b-adj"><span>Additional fee</span><span class="rb-mono ' +
                       (additionalFee > 0 ? "rb-is-add" : "rb-is-deduct") +
@@ -764,6 +942,9 @@
         var adjustedHtml = "";
         if (grouped) {
             adjustedHtml =
+                '<div class="rb-sub-label rb-scope-heading">' +
+                s.groupVehicles.length +
+                " vehicles — whole booking</div>" +
                 '<div class="rb-breakdown">' +
                 '<div class="rb-b-row"><span>Base total (incl. VAT)</span><span class="rb-mono">' +
                 peso(fixedTotal) +
@@ -817,19 +998,19 @@
         var isQuotationLocked = !!lockedQuotationStatuses[s.quotationStatus];
         var adjustmentCount = s.priceAdjustments.length + s.adjustments.length;
 
-        var rows =
+        var rowsArr = [
             '<div class="rb-adj-row"><span class="rb-adj-reason">Initial calculated price \u2014 ' +
-            peso(adj.baseTotal) +
-            '</span><span class="rb-adj-time">' +
-            esc(timeAgoLabel(s.quotationCreatedAt || s.createdAt) || "") +
-            "</span></div>";
+                peso(adj.baseTotal) +
+                '</span><span class="rb-adj-time">' +
+                esc(timeAgoLabel(s.quotationCreatedAt || s.createdAt) || "") +
+                "</span></div>",
+        ];
 
-        rows += s.priceAdjustments
-            .map(function (a) {
-                var isAdd = a.type === "add";
-                var isActive = a.status === "active";
-                var addedRow =
-                    '<div class="rb-adj-row"><span class="rb-adj-sign ' +
+        s.priceAdjustments.forEach(function (a) {
+            var isAdd = a.type === "add";
+            var isActive = a.status === "active";
+            rowsArr.push(
+                '<div class="rb-adj-row"><span class="rb-adj-sign ' +
                     (isAdd ? "rb-is-add" : "rb-is-deduct") +
                     '">' +
                     (isAdd ? "+" : "\u2212") +
@@ -850,46 +1031,49 @@
                           : "") +
                     '</span><span class="rb-adj-time">' +
                     esc(timeAgoLabel(a.created_at) || "") +
-                    "</span></div>";
+                    "</span></div>",
+            );
+            if (!isActive) {
+                rowsArr.push(
+                    '<div class="rb-adj-row"><span class="rb-adj-reason">Adjustment reverted \u2014 ' +
+                        (isAdd ? "+" : "\u2212") +
+                        peso(a.amount) +
+                        (a.reason ? " (" + esc(a.reason) + ")" : "") +
+                        '</span><span class="rb-adj-time">' +
+                        esc(timeAgoLabel(a.reverted_at) || "") +
+                        "</span></div>",
+                );
+            }
+        });
 
-                var revertedRow = !isActive
-                    ? '<div class="rb-adj-row"><span class="rb-adj-reason">Adjustment reverted \u2014 ' +
-                      (isAdd ? "+" : "\u2212") +
-                      peso(a.amount) +
-                      (a.reason ? " (" + esc(a.reason) + ")" : "") +
-                      '</span><span class="rb-adj-time">' +
-                      esc(timeAgoLabel(a.reverted_at) || "") +
-                      "</span></div>"
-                    : "";
-
-                return addedRow + revertedRow;
-            })
-            .join("");
-
-        rows += s.adjustments
-            .map(function (a) {
-                return (
-                    '<div class="rb-adj-row"><span class="rb-adj-sign ' +
+        s.adjustments.forEach(function (a) {
+            rowsArr.push(
+                '<div class="rb-adj-row"><span class="rb-adj-sign ' +
                     (a.amount > 0 ? "rb-is-add" : "rb-is-deduct") +
                     '">' +
                     (a.amount > 0 ? "+" : "\u2212") +
                     peso(Math.abs(a.amount)) +
                     '</span><span class="rb-adj-reason">' +
                     esc(a.reason) +
-                    ' <em style="color:#8A93A3;">(not sent yet)</em></span><span class="rb-adj-time">just now</span></div>'
-                );
-            })
-            .join("");
+                    ' <em style="color:#5B6472;">(not sent yet)</em></span><span class="rb-adj-time">just now</span></div>',
+            );
+        });
 
-        var historyLabel =
-            "Price history" +
-            (adjustmentCount > 0
-                ? " (" +
-                  adjustmentCount +
-                  " adjustment" +
-                  (adjustmentCount === 1 ? "" : "s") +
-                  ")"
-                : "");
+        // The single most recent entry, reused verbatim for the collapsed
+        // "Latest" preview \u2014 captured before the running-total row (below)
+        // is appended, since that row summarizes the list rather than being
+        // an event of its own.
+        var latestRowHtml = rowsArr[rowsArr.length - 1];
+
+        var entriesHtml = rowsArr.join("");
+        var totalRowHtml =
+            adjustmentCount > 0
+                ? '<div class="rb-adj-row rb-adj-row-total"><span class="rb-adj-reason">Current quoted total</span><span class="rb-adj-time rb-mono">' +
+                  peso(adj.total) +
+                  "</span></div>"
+                : "";
+
+        var historyLabel = "Price history";
         var historyHtml =
             '<button type="button" class="rb-btn rb-btn-secondary rb-history-toggle-btn" id="rbHistoryToggleBtn">' +
             '<span class="rb-history-btn-label">' +
@@ -902,11 +1086,18 @@
             '" id="rbHistoryChevron">' +
             icon("chevronDown") +
             "</span></button>" +
+            '<div class="rb-history-latest" id="rbHistoryLatest"' +
+            (s.historyOpen ? ' style="display:none;"' : "") +
+            '><span class="rb-history-latest-label">Latest</span>' +
+            latestRowHtml +
+            "</div>" +
             '<div class="rb-history" id="rbHistoryList"' +
             (s.historyOpen ? "" : ' style="display:none;"') +
-            ">" +
-            (rows ||
+            '><div class="rb-history-scroll">' +
+            (entriesHtml ||
                 '<div class="rb-adj-empty">No price adjustments yet.</div>') +
+            "</div>" +
+            totalRowHtml +
             "</div>";
 
         var adjFormHtml = "";
@@ -986,110 +1177,6 @@
         );
     }
 
-    function previewVehicleTotal(vehicle, s) {
-        var km = parseFloat(s.distanceKm) || 0;
-        var distFeeKm = Math.max(0, km - 4);
-        var distFee =
-            km > 0 ? distFeeKm * (parseFloat(vehicle.per_km_rate) || 0) : 0;
-        var base = parseFloat(vehicle.base_rate) || 0;
-        var vatRate = s.vatRate || 0.12;
-        var subtotal = base + distFee;
-        return Number((subtotal + subtotal * vatRate).toFixed(2));
-    }
-
-    function unpricedGroupVehicles(s) {
-        if (!s.groupRoster || s.groupRoster.length < 2) return [];
-        var pricedCodes = {};
-        (s.groupVehicles || []).forEach(function (vehicle) {
-            pricedCodes[String(vehicle.booking_code)] = true;
-        });
-        return s.groupRoster.filter(function (vehicle) {
-            return (
-                String(vehicle.booking_code) !== String(s.bookingCode) &&
-                !pricedCodes[String(vehicle.booking_code)]
-            );
-        });
-    }
-
-    function unpricedVehiclesSectionHtml(s) {
-        var eff = effectiveStatus(s);
-        if (!s.isScheduled || (eff !== "new" && eff !== "draft")) return "";
-        var pending = unpricedGroupVehicles(s);
-        if (!pending.length) return "";
-
-        var rows = pending
-            .map(function (vehicle) {
-                return (
-                    '<div class="rb-group-vehicle" data-unpriced-vehicle="' +
-                    esc(vehicle.booking_code) +
-                    '">' +
-                    '<div class="rb-group-vehicle-head">' +
-                    '<div class="rb-group-vehicle-title">' +
-                    esc(vehicle.truck_type_name || "Vehicle") +
-                    "</div>" +
-                    '<div class="rb-group-vehicle-meta">' +
-                    esc(vehicle.booking_code) +
-                    " · Est. " +
-                    peso(previewVehicleTotal(vehicle, s)) +
-                    " · Needs pricing</div>" +
-                    "</div>" +
-                    '<button type="button" class="rb-btn rb-btn-primary" data-price-vehicle="' +
-                    esc(vehicle.booking_code) +
-                    '"' +
-                    (vehicle._busy ? " disabled" : "") +
-                    ">" +
-                    (vehicle._busy ? "Pricing…" : "Price this vehicle") +
-                    "</button>" +
-                    "</div>"
-                );
-            })
-            .join("");
-
-        return (
-            '<div class="rb-section"><h4>Other vehicles in this group</h4><div class="rb-group-vehicle-list">' +
-            rows +
-            "</div></div>"
-        );
-    }
-
-    function submitPriceVehicle(vehicle) {
-        var s = state;
-        if (vehicle._busy) return;
-        vehicle._busy = true;
-        renderDrawer();
-
-        apiCall(
-            fillRoute(window.RB_ROUTES.saveDraft, vehicle.booking_code),
-            "POST",
-            {
-                price: previewVehicleTotal(vehicle, s),
-                additional_fee: 0,
-                distance_km: s.distanceKm || null,
-            },
-        )
-            .then(function (res) {
-                vehicle._busy = false;
-                if (state !== s) return;
-                if (!res.ok) {
-                    showDrawerNetworkError(res.data && res.data.message);
-                    renderDrawer();
-                    return;
-                }
-                if (res.data && res.data.quotation_id)
-                    s.quotationId = res.data.quotation_id;
-                if (res.data && res.data.quotation_status)
-                    s.quotationStatus = res.data.quotation_status;
-                refreshDrawerFromServer(
-                    res.data && res.data.quotation_id,
-                ).catch(function () {});
-            })
-            .catch(function () {
-                vehicle._busy = false;
-                if (state === s) renderDrawer();
-                showDrawerNetworkError();
-            });
-    }
-
     function unitCardHtml(u, isRecommended, isSelected) {
         var star = isRecommended
             ? '<span class="rb-unit-star rb-is-rec">' +
@@ -1154,9 +1241,9 @@
             s.quotationStatus === "accepted" &&
             (s.status === "confirmed" || s.status === "scheduled_confirmed");
         if (!groupAccepted) {
-            return '<div class="rb-section"><h4>Assignment</h4><div class="rb-note-box">Unit assignment available after customer acceptance.</div></div>';
+            return '<div class="rb-section"><h4>Assignment</h4><div class="rb-inline-note">Unit assignment available after customer acceptance.</div></div>';
         }
-        if (s.groupVehicles && s.groupVehicles.length > 1) {
+        if (isGrouped(s)) {
             if (
                 s.isScheduled &&
                 effectiveStatus(s) !== "ready" &&
@@ -1164,52 +1251,42 @@
             ) {
                 return "";
             }
+            var vehicle = activeVehicle(s);
+            var vIndex = activeVehicleIndex(s);
             return (
-                '<div class="rb-section"><h4>Assign vehicles</h4><div class="rb-group-vehicle-list">' +
-                s.groupVehicles
-                    .map(function (vehicle, index) {
-                        return (
-                            '<div class="rb-group-vehicle" data-group-vehicle="' +
-                            vehicle.booking_id +
-                            '">' +
-                            '<div class="rb-group-vehicle-head">' +
-                            '<div class="rb-group-vehicle-title">Vehicle ' +
-                            (index + 1) +
-                            " — " +
-                            esc(vehicle.vehicle_name || "Vehicle") +
-                            "</div>" +
-                            '<div class="rb-group-vehicle-meta">' +
-                            esc(
-                                vehicle.truck_type_name ||
-                                    "Required truck type",
-                            ) +
-                            " · " +
-                            peso(vehicle.final_total) +
-                            " · " +
-                            esc(vehicle.status || "") +
-                            "</div>" +
-                            "</div>" +
-                            '<div class="rb-search-wrap"><span class="rb-search-ic">' +
-                            icon("search", 15) +
-                            '</span><input type="text" data-group-search="' +
-                            vehicle.booking_id +
-                            '" placeholder="Search compatible unit or team leader"></div>' +
-                            '<div class="rb-unit-option-list" data-group-unit-list="' +
-                            vehicle.booking_id +
-                            '" style="display:flex;flex-direction:column;gap:10px;"></div>' +
-                            '<button type="button" class="rb-btn rb-btn-primary rb-group-vehicle-assign" data-group-dispatch="' +
-                            vehicle.booking_id +
-                            '"' +
-                            (vehicle.selected_unit_id ? "" : " disabled") +
-                            ">" +
-                            (vehicle.assigned_unit_id
-                                ? "Update assignment"
-                                : "Assign vehicle") +
-                            "</button></div>"
-                        );
-                    })
-                    .join("") +
-                "</div></div>"
+                '<div class="rb-section"><h4>Assignment — Vehicle ' +
+                (vIndex + 1) +
+                ": " +
+                esc(vehicleDisplayName(vehicle)) +
+                '</h4><div class="rb-group-vehicle-list"><div class="rb-group-vehicle" data-group-vehicle="' +
+                vehicle.booking_id +
+                '">' +
+                '<div class="rb-group-vehicle-head">' +
+                '<div class="rb-group-vehicle-meta">' +
+                esc(vehicle.truck_type_name || "Required truck type") +
+                " · " +
+                peso(vehicle.final_total) +
+                " · " +
+                esc(vehicle.status || "") +
+                "</div>" +
+                "</div>" +
+                '<div class="rb-search-wrap"><span class="rb-search-ic">' +
+                icon("search", 15) +
+                '</span><input type="text" data-group-search="' +
+                vehicle.booking_id +
+                '" placeholder="Search compatible unit or team leader"></div>' +
+                '<div class="rb-unit-option-list" data-group-unit-list="' +
+                vehicle.booking_id +
+                '" style="display:flex;flex-direction:column;gap:10px;"></div>' +
+                '<button type="button" class="rb-btn rb-btn-primary rb-group-vehicle-assign" data-group-dispatch="' +
+                vehicle.booking_id +
+                '"' +
+                (vehicle.selected_unit_id ? "" : " disabled") +
+                ">" +
+                (vehicle.assigned_unit_id
+                    ? "Update assignment"
+                    : "Assign vehicle") +
+                "</button></div></div></div>"
             );
         }
         // Scheduled bookings never reserve a unit in advance — "Available
@@ -1378,9 +1455,6 @@
             draftNote =
                 '<div style="font-size:11px;color:#8A93A3;margin-bottom:8px;"></div>';
             main =
-                '<button type="button" class="rb-btn rb-btn-secondary" id="rbEditPriceBtn">' +
-                icon("pencil") +
-                " Edit price</button>" +
                 '<button type="button" class="rb-btn rb-btn-secondary" id="rbSaveDraftBtn"' +
                 (hasStagedChanges ? "" : " disabled") +
                 ">" +
@@ -1415,7 +1489,7 @@
                   " Adjust price</button>";
         } else if (eff === "confirmed" || eff === "upcoming") {
             main = s.isScheduled
-                ? '<div class="rb-sched-foot-note" style="font-size:12.5px;color:#5B6472;line-height:1.5;">No unit selection needed yet — available units are shown 1 hour before the scheduled service time.</div>'
+                ? '<div class="rb-sched-foot-note" style="flex:1;text-align:left;font-size:12.5px;color:#5B6472;line-height:1.5;">No unit selection needed yet — available units are shown 1 hour before the scheduled service time.</div>'
                 : '<button type="button" class="rb-btn rb-btn-primary" id="rbDispatchBtn"' +
                   (s.selectedUnitId ? "" : " disabled") +
                   ">Proceed to Dispatch</button>";
@@ -1450,7 +1524,7 @@
 
         var showRejectLink = s.isScheduled
             ? eff === "overdue"
-            : eff !== "confirmed";
+            : eff !== "confirmed" && eff !== "accepted";
         var rejectLabel = s.isScheduled
             ? "Cancel Booking"
             : "Reject this booking";
@@ -1465,10 +1539,14 @@
         return (
             expiredChip +
             draftNote +
+            '<div class="rb-drawer-foot-bar">' +
+            '<div class="rb-drawer-foot-left">' +
+            rejectHtml +
+            "</div>" +
             '<div class="rb-drawer-foot-main">' +
             main +
             "</div>" +
-            rejectHtml
+            "</div>"
         );
     }
 
@@ -1477,21 +1555,15 @@
             ? esc(s.quotationNumber)
             : "No quotation yet";
         var bookingText = s.bookingCode ? esc(s.bookingCode) : "—";
-        var statusText = s.quotationNumber
-            ? quotationStatusLabel(s.quotationStatus)
-            : "";
         return (
-            '<div class="rb-quote-label">Quotation</div>' +
-            '<div class="rb-quote-id rb-mono">' +
-            numberText +
-            "</div>" +
             '<div class="rb-quote-row">' +
-            '<span class="rb-quote-booking rb-mono">Booking: ' +
+            '<span class="rb-quote-booking rb-mono">' +
             bookingText +
             "</span>" +
-            (statusText
-                ? '<span class="rb-status-badge">' + esc(statusText) + "</span>"
-                : "") +
+            '<span class="rb-quote-id rb-mono">' +
+            numberText +
+            "</span>" +
+            statusBadgeHtml(s) +
             "</div>"
         );
     }
@@ -1519,28 +1591,33 @@
             '<div class="rb-who"><div class="rb-avatar">' +
             esc(initials) +
             "</div><div>" +
-            quotationIdentityHtml(s) +
             "<h3>" +
             esc(s.customerName) +
-            '</h3><div class="rb-sub"><span>' +
+            "</h3>" +
+            quotationIdentityHtml(s) +
+            '<div class="rb-sub"><span>' +
             esc(s.customerPhone) +
             "</span>" +
             (s.customerEmail
                 ? "<span>" + esc(s.customerEmail) + "</span>"
                 : "") +
             "</div></div></div>" +
-            '<button type="button" class="rb-drawer-close" id="rbDrawerCloseBtn">\u2715</button>' +
+            '<button type="button" class="rb-drawer-close" id="rbDrawerCloseBtn" aria-label="Close">\u2715</button>' +
             "</div>" +
             '<div class="rb-drawer-body">' +
+            '<div class="rb-two-col">' +
+            '<div class="rb-col-left">' +
             requestSectionHtml(s) +
             serviceScheduleSectionHtml(s) +
-            vehicleSectionHtml(s) +
-            routeSectionHtml(s) +
+            vehicleAndRouteSectionHtml(s) +
             customerNoteSectionHtml(s) +
+            "</div>" +
+            '<div class="rb-col-right">' +
             pricingSectionHtml(s) +
-            unpricedVehiclesSectionHtml(s) +
             unitsSectionHtml(s) +
             historyTimelineSectionHtml(s) +
+            "</div>" +
+            "</div>" +
             "</div>" +
             '<div class="rb-drawer-foot">' +
             footerHtml(s) +
@@ -1574,6 +1651,22 @@
             el.onclick = function () {
                 openLightbox(s.photos, 0);
             };
+        });
+
+        drawerEl.querySelectorAll("[data-vnav-step]").forEach(function (btn) {
+            btn.onclick = function () {
+                setActiveVehicleId(s, btn.dataset.vnavStep);
+                renderDrawer();
+            };
+        });
+        byId("rbVnavTabs", function (tabsEl) {
+            var activeTab = tabsEl.querySelector(".rb-vnav-tab.rb-is-active");
+            if (activeTab && activeTab.scrollIntoView) {
+                activeTab.scrollIntoView({
+                    inline: "nearest",
+                    block: "nearest",
+                });
+            }
         });
 
         byId("rbAdjToggleBtn", function (el) {
@@ -1641,6 +1734,9 @@
                 byId("rbHistoryList", function (l) {
                     l.style.display = s.historyOpen ? "" : "none";
                 });
+                byId("rbHistoryLatest", function (l) {
+                    l.style.display = s.historyOpen ? "none" : "";
+                });
                 byId("rbHistoryChevron", function (c) {
                     c.classList.toggle("rb-is-open", s.historyOpen);
                 });
@@ -1659,17 +1755,6 @@
         byId("rbSaveDraftBtn", function (el) {
             el.onclick = function () {
                 submitSaveDraft();
-            };
-        });
-        byId("rbEditPriceBtn", function (el) {
-            el.onclick = function () {
-                s.adjFormOpen = true;
-                renderDrawer();
-                var amt = document.getElementById("rbAdjAmount");
-                if (amt) {
-                    amt.scrollIntoView({ behavior: "smooth", block: "center" });
-                    amt.focus();
-                }
             };
         });
         byId("rbSendBtn", function (el) {
@@ -1796,19 +1881,6 @@
                         );
                     });
                     if (vehicle) submitGroupDispatch(vehicle);
-                };
-            });
-        document
-            .querySelectorAll("[data-price-vehicle]")
-            .forEach(function (el) {
-                el.onclick = function () {
-                    var vehicle = (s.groupRoster || []).find(function (item) {
-                        return (
-                            String(item.booking_code) ===
-                            String(el.dataset.priceVehicle)
-                        );
-                    });
-                    if (vehicle) submitPriceVehicle(vehicle);
                 };
             });
         byId("rbRescheduleBtn", function (el) {
@@ -3017,6 +3089,56 @@
                 isGroupMock: true,
                 groupAdjustment: -200,
             },
+            {
+                label: "Scheduled — 3 vehicles",
+                id: "TM-MOCKSCHED3",
+                bookingCode: "TM-MOCKSCHED3",
+                status: "scheduled_confirmed",
+                schedulingBucket: "upcoming",
+                scheduledFor: new Date(Date.now() + 5 * 3600000).toISOString(),
+                customerName: "Scheduled Mock Customer C",
+                customerPhone: "09000000003",
+                customerEmail: "mock-sched-3@example.com",
+                pickup: "10 Mock Pickup Street, Quezon City",
+                dropoff: "20 Mock Dropoff Avenue, Quezon City",
+                distanceKm: "10",
+                currentPrice: "0",
+                baseRate: "1500",
+                perKmRate: "60",
+                truckType: "Light Duty",
+                vehicleCategory: "4_wheeler",
+                dispatchZone: "Metro Manila Zone A",
+                quotationNumber: "QT-MOCK-SCHED-3",
+                quotationStatus: "sent",
+                isGroupMock: true,
+                groupAdjustment: 0,
+                groupVehicleCount: 3,
+            },
+            {
+                label: "Scheduled — 8 vehicles",
+                id: "TM-MOCKSCHED8",
+                bookingCode: "TM-MOCKSCHED8",
+                status: "scheduled_confirmed",
+                schedulingBucket: "ready",
+                scheduledFor: new Date(Date.now() + 20 * 60000).toISOString(),
+                customerName: "Scheduled Mock Customer D",
+                customerPhone: "09000000004",
+                customerEmail: "mock-sched-8@example.com",
+                pickup: "10 Mock Pickup Street, Quezon City",
+                dropoff: "20 Mock Dropoff Avenue, Quezon City",
+                distanceKm: "10",
+                currentPrice: "0",
+                baseRate: "1500",
+                perKmRate: "60",
+                truckType: "Light Duty",
+                vehicleCategory: "4_wheeler",
+                dispatchZone: "Metro Manila Zone A",
+                quotationNumber: "QT-MOCK-SCHED-8",
+                quotationStatus: "accepted",
+                isGroupMock: true,
+                groupAdjustment: 0,
+                groupVehicleCount: 8,
+            },
         ];
 
         function buildMockCard(mock) {
@@ -3174,52 +3296,73 @@
             };
         }
 
-        function buildMockGroupQuotationDetails(groupAdjustment) {
+        var MOCK_TRUCK_TYPES = [
+            "Light Duty",
+            "Medium Duty",
+            "Heavy Duty",
+            "10-Wheeler",
+            "6-Wheeler",
+            "Flatbed",
+            "Van",
+            "Bus",
+        ];
+
+        function buildMockGroupQuotationDetails(
+            groupAdjustment,
+            vehicleCount,
+            quotationNumber,
+            quotationStatus,
+        ) {
             var vatRate = window.RB_VAT_RATE || 0.12;
-            var vehicleA = buildMockGroupVehicle(
-                900001,
-                "TM-MOCKGRPA1",
-                "Light Duty (MOCK)",
-                1500,
-                60,
-                10,
-                vatRate,
-            );
-            var vehicleB = buildMockGroupVehicle(
-                900002,
-                "TM-MOCKGRPA2",
-                "Medium Duty (MOCK)",
-                2000,
-                70,
-                10,
-                vatRate,
-            );
+            var n = vehicleCount || 2;
+            var vehicles = [];
+            for (var i = 0; i < n; i++) {
+                vehicles.push(
+                    buildMockGroupVehicle(
+                        900000 + i + 1,
+                        "TM-MOCKGRP" + (i + 1),
+                        MOCK_TRUCK_TYPES[i % MOCK_TRUCK_TYPES.length] +
+                            " (MOCK)",
+                        1200 + i * 250,
+                        60 + i * 5,
+                        10,
+                        vatRate,
+                    ),
+                );
+            }
             var serviceTotal = mockRound(
-                vehicleA.final_total + vehicleB.final_total,
+                vehicles.reduce(function (sum, v) {
+                    return sum + v.final_total;
+                }, 0),
             );
             var subtotal = mockRound(
-                vehicleA.vat_exclusive_total + vehicleB.vat_exclusive_total,
+                vehicles.reduce(function (sum, v) {
+                    return sum + v.vat_exclusive_total;
+                }, 0),
             );
             var vatAmount = mockRound(
-                vehicleA.vat_amount + vehicleB.vat_amount,
+                vehicles.reduce(function (sum, v) {
+                    return sum + v.vat_amount;
+                }, 0),
             );
             var estimatedPrice = Math.max(
                 mockRound(serviceTotal + groupAdjustment),
                 0,
             );
             return {
-                group_vehicles: [vehicleA, vehicleB],
+                group_vehicles: vehicles,
                 estimated_price: estimatedPrice,
                 additional_fee: groupAdjustment,
                 discount: 0,
                 subtotal: subtotal,
                 vat_amount: vatAmount,
                 vat_rate: vatRate,
-                status: "sent",
+                status: quotationStatus || "sent",
                 quotation_number:
-                    groupAdjustment >= 0
+                    quotationNumber ||
+                    (groupAdjustment >= 0
                         ? "QT-MOCK-GROUP-A"
-                        : "QT-MOCK-GROUP-B",
+                        : "QT-MOCK-GROUP-B"),
                 distance_km: 10,
                 counter_offer_amount: null,
                 response_note: null,
@@ -3249,7 +3392,12 @@
                 window.openBookingDrawer(buildMockCard(mock));
                 if (mock.isGroupMock) {
                     mergeQuotationDetailsIntoState(
-                        buildMockGroupQuotationDetails(mock.groupAdjustment),
+                        buildMockGroupQuotationDetails(
+                            mock.groupAdjustment,
+                            mock.groupVehicleCount,
+                            mock.quotationNumber,
+                            mock.quotationStatus,
+                        ),
                     );
                     renderDrawer();
                 }

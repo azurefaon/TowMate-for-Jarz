@@ -380,16 +380,14 @@
 }
 
 .btn-reject {
-    background: #fff1f2;
-    color: #b91c1c;
+    background: #ff0011;
+    color: #fefefe;
     border-color: #fecdd3;
 }
 
 .btn-reject:hover {
-    background: #ffe4e6;
     transform: translateY(-1px);
     box-shadow: 0 8px 18px rgba(127, 29, 29, 0.08);
-    border-color: #fda4af;
 }
 
 .btn-accept:disabled,
@@ -731,8 +729,7 @@
 
 .modal-input input:focus,
 .modal-input textarea:focus {
-    border-color: #facc15;
-    box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.2);
+    border-color: #000;
 }
 
 #negotiationHint {

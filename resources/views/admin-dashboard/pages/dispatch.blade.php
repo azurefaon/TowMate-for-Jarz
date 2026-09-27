@@ -1067,32 +1067,48 @@
            `hidden` attribute on any .rb-btn (or other styled element) has no
            visible effect. */
         .rb-drawer [hidden], .rb-view-all-modal [hidden] { display: none !important; }
+        /* Centered 2-column booking modal (NOT a right-side drawer) — the class
+           name rb-drawer/rb-drawer-overlay is historical, the shell it renders
+           is the unified centered modal. */
+        /* Background Dispatch Queue must not scroll while the modal is open —
+           booking-drawer.js already toggles this class on <body> on open/close;
+           this is the CSS half of that existing lock, not a second mechanism. */
+        body.rb-modal-open { overflow: hidden; }
+
         .rb-drawer-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(10, 12, 15, .45);
+            background: rgba(10, 12, 15, .5);
             display: none;
-            z-index: 2099;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            overflow: hidden;
+            /* Must render above #bookingDetailModalOverlay (z-index 9500) so
+               "View Quotation" launched from Booking Details stacks on top of
+               it rather than being hidden behind it; harmless when Booking
+               Details is closed, since a hidden overlay never participates in
+               stacking regardless of z-index. */
+            z-index: 9600;
         }
-        .rb-drawer-overlay.is-open { display: block; }
+        .rb-drawer-overlay.is-open { display: flex; }
 
         .rb-drawer {
-            position: fixed;
-            top: 0;
-            right: -520px;
-            width: 100%;
-            max-width: 520px;
-            height: 100%;
+            position: relative;
+            width: min(1120px, 94vw);
+            max-width: 1120px;
+            max-height: 90vh;
+            height: auto;
             background: #fff;
-            box-shadow: -16px 0 40px rgba(20, 23, 28, .18);
-            z-index: 2100;
+            border-radius: 16px;
+            box-shadow: 0 24px 70px rgba(20, 23, 28, .28);
+            z-index: 9601;
             display: flex;
             flex-direction: column;
-            transition: right .22s cubic-bezier(.2,.8,.3,1);
+            overflow: hidden;
             font-family: 'Public Sans', system-ui, sans-serif;
             color: #111111;
         }
-        .rb-drawer.is-open { right: 0; }
         .rb-drawer h1, .rb-drawer h2, .rb-drawer h3, .rb-drawer h4 {
             font-family: 'Sora', system-ui, sans-serif;
             margin: 0;
@@ -1127,7 +1143,9 @@
             color: #5B6472; font-size: 15px; flex: none; cursor: pointer;
         }
 
-        .rb-drawer-body { flex: 1; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 22px; }
+        .rb-drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 22px; }
+        .rb-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: start; }
+        .rb-col-left, .rb-col-right { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
         .rb-section { display: flex; flex-direction: column; gap: 12px; }
         .rb-section h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #111111; }
 
@@ -1137,7 +1155,11 @@
         .rb-grid dt, .rb-grid-row dt { color: #8A93A3; font-size: 11px; margin-bottom: 4px; }
         .rb-grid dd, .rb-grid-row dd { margin: 0; font-weight: 600; }
 
-        .rb-photo-stack-wrap { position: relative; padding-top: 10px; padding-right: 10px; }
+        .rb-vr-grid { display: flex; flex-direction: column; gap: 18px; }
+        .rb-vr-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+        .rb-vr-col-route { border-left: none; padding-left: 0; }
+
+        .rb-photo-stack-wrap { position: relative; padding-top: 10px; padding-right: 10px; max-width: 480px; }
         .rb-photo-stack-back { position: absolute; border-radius: 14px; background: #fff; border: 1px solid #E3E6EB; }
         .rb-photo-stack-back-1 { top: 0; right: 0; left: 10px; bottom: 10px; }
         .rb-photo-stack-back-2 { top: 5px; right: 5px; left: 5px; bottom: 5px; background: #F6F7F9; }
@@ -1161,7 +1183,7 @@
 
         .rb-lightbox-backdrop {
             position: fixed; inset: 0; background: rgba(8,9,11,.85);
-            display: none; align-items: center; justify-content: center; z-index: 2200; padding: 24px;
+            display: none; align-items: center; justify-content: center; z-index: 9701; padding: 24px;
         }
         .rb-lightbox-backdrop.is-open { display: flex; }
         .rb-lightbox { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 900px; width: 100%; }
@@ -1200,6 +1222,36 @@
         .rb-is-deduct { color: #D8402C; font-weight: 600; }
 
         .rb-sub-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #8A93A3; }
+        .rb-sub-label.rb-scope-heading { border-top: 1px solid #E3E6EB; margin-top: 8px; padding-top: 14px; }
+
+        .rb-vnav { display: flex; flex-direction: column; gap: 8px; }
+        .rb-vnav-head { display: flex; align-items: center; justify-content: space-between; }
+        .rb-vnav-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #8A93A3; }
+        .rb-vnav-count { font-size: 11.5px; font-weight: 600; color: #5B6472; }
+        .rb-vnav-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+        .rb-vnav-tab {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 14px;
+            border: 1px solid #E3E6EB;
+            border-top: 2px solid transparent;
+            border-radius: 8px;
+            background: #F6F7F9;
+            color: #5B6472;
+            font-size: 12.5px;
+            font-weight: 500;
+            font-family: inherit;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .rb-vnav-tab.rb-is-active {
+            background: #111111;
+            color: #fff;
+            border-top-color: #FACC15;
+            font-weight: 700;
+        }
+        .rb-vnav-tab-label { pointer-events: none; }
         .rb-group-vehicle-list { display: flex; flex-direction: column; }
         .rb-group-vehicle { display: flex; flex-direction: column; gap: 10px; padding: 16px 0; }
         .rb-group-vehicle:first-child { padding-top: 0; }
@@ -1228,6 +1280,7 @@
         .rb-adj-form-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 8px; border-top: 1px solid #E3E6EB; }
         .rb-adj-form-actions .rb-btn { flex: none; min-width: 110px; }
         .rb-history { display: flex; flex-direction: column; gap: 6px; }
+        .rb-history-scroll { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
         .rb-adj-row { display: flex; align-items: baseline; gap: 8px; font-size: 12px; background: #F6F7F9; border: 1px solid #E3E6EB; border-radius: 8px; padding: 7px 10px; }
         .rb-adj-row .rb-adj-sign { font-family: 'JetBrains Mono', monospace; font-weight: 700; flex: none; }
         .rb-adj-row .rb-adj-sign.rb-is-add { color: #12804A; }
@@ -1272,10 +1325,13 @@
         .rb-t-time { font-size: 11px; color: #8A93A3; }
 
         .rb-drawer-foot { padding: 14px 22px 18px; border-top: 1px solid #E3E6EB; display: flex; flex-direction: column; gap: 8px; flex: none; }
-        .rb-drawer-foot-main { display: flex; gap: 8px; flex-wrap: wrap; }
-        .rb-drawer-foot-main .rb-btn { flex: 1; justify-content: center; min-width: 140px; }
-        .rb-drawer-foot-reject { display: flex; justify-content: center; padding-top: 2px; }
-        .rb-link-btn { background: none; border: none; color: #5B6472; font-size: 11.5px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; padding: 0; cursor: pointer; }
+        .rb-drawer-foot-bar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-wrap: wrap; }
+        .rb-drawer-foot-left { display: flex; align-items: center; }
+        .rb-drawer-foot-left:empty ~ .rb-drawer-foot-main { flex: 1; }
+        .rb-drawer-foot-main { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        .rb-drawer-foot-main .rb-btn { flex: 0 0 auto; justify-content: center; min-width: 140px; }
+        .rb-drawer-foot-reject { display: flex; align-items: center; }
+        .rb-link-btn { display: inline-flex; align-items: center; gap: 6px; height: 40px; background: none; border: none; color: #5B6472; font-size: 12px; font-weight: 600; text-decoration: none; padding: 0 4px; cursor: pointer; }
 
         .rb-btn { border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-family: inherit; transition: filter .12s; }
         .rb-btn:hover { filter: brightness(.97); }
@@ -1285,7 +1341,7 @@
         .rb-btn:disabled:hover { filter: none; }
         .rb-view-quote-btn { width: 100%; justify-content: center; margin-top: auto; }
 
-        .rb-view-all-modal-backdrop { position: fixed; inset: 0; background: rgba(10,12,15,.5); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 2199; padding: 20px; }
+        .rb-view-all-modal-backdrop { position: fixed; inset: 0; background: rgba(10,12,15,.5); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 9700; padding: 20px; }
         .rb-view-all-modal-backdrop.is-open { display: flex; }
         .rb-view-all-modal { width: 100%; max-width: 460px; background: #fff; border-radius: 16px; border: 1px solid #E3E6EB; box-shadow: 0 20px 60px rgba(20,23,28,.18); max-height: 88vh; overflow-y: auto; }
         .rb-view-all-modal-head { padding: 18px 20px 14px; border-bottom: 1px solid #E3E6EB; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
@@ -1478,8 +1534,13 @@
             .rtn-map-modal-card { width: 96vw; height: 88vh; }
         }
 
+        @media (max-width: 900px) {
+            .rb-two-col { grid-template-columns: 1fr; }
+        }
+
         @media (max-width: 640px) {
-            .rb-drawer { max-width: 100%; right: -100%; }
+            .rb-drawer { width: 100vw; max-width: 100vw; max-height: 100vh; height: 100vh; border-radius: 0; }
+            .rb-drawer-overlay { padding: 0; }
             .rb-grid, .rb-grid-row { grid-template-columns: 1fr; }
             .rb-queue-grid { grid-template-columns: 1fr; }
             .rb-filter-group { flex: 1 1 100%; }
@@ -1494,6 +1555,7 @@
     <div class="dashboard-container">
 
         @include('admin-dashboard.pages._quotation-modal')
+        @include('admin-dashboard.pages._booking-detail-modal')
 
         <div class="dp-dispatch-layout">
             <div class="dp-queue-col rb-full-width-col">
@@ -1698,6 +1760,12 @@
                                     data-pickup-lng="{{ $booking->pickup_lng ?? '' }}"
                                     data-customer="{{ e($booking->customer->full_name ?? 'Guest') }}"
                                     data-phone="{{ e($booking->customer->phone ?? 'N/A') }}">
+
+                                <button type="button" class="bdm-trigger-btn bdm-trigger-btn--card"
+                                    onclick="event.stopPropagation(); window.openBookingDetailModal('{{ $booking->job_code }}')"
+                                    aria-label="View booking details for {{ $booking->job_code }}">
+                                    Details
+                                </button>
 
                                 @if ($queueBucket === 'returned')
                                     @php
@@ -1998,6 +2066,7 @@
                                 $bnPrimary = $bnGroupBookings->first();
                                 $bnCount = $bnGroupBookings->count();
                                 $bnTotal = (float) ($bnPrimary->final_total ?? 0); // primary holds the full multi-vehicle total
+                                $bnRoster = $bookNowGroupRosters[$bnGroupCode] ?? [];
 
                                 $bnPhotoUrls = collect($bnPrimary->vehicle_image_paths ?? [])
                                     ->map(fn($p) => protected_file_url($p))
@@ -2040,6 +2109,7 @@
                                         aria-label="Open {{ $bnPrimary->booking_code }}, {{ $bnPrimary->customer->full_name ?? 'Guest' }}"
                                         data-queue="book-now" data-eff-status="{{ $bnEffStatus }}"
                                         data-id="{{ $bnPrimary->job_code ?? $bnPrimary->id }}"
+                                        data-booking-id="{{ $bnPrimary->id }}"
                                         data-booking-code="{{ $bnPrimary->booking_code }}"
                                         data-status="{{ $bnPrimary->status }}"
                                         data-created-at="{{ $bnPrimary->created_at->toIso8601String() }}"
@@ -2071,7 +2141,8 @@
                                         data-quotation-id="{{ $bnPrimary->active_quotation_id ?? '' }}"
                                         data-quotation-number="{{ $bnPrimary->active_quotation_number ?? '' }}"
                                         data-quotation-status="{{ $bnPrimary->active_quotation_status ?? '' }}"
-                                        data-price-change-log="{{ json_encode($bnPrimary->active_quotation_price_change_log ?? []) }}">
+                                        data-price-change-log="{{ json_encode($bnPrimary->active_quotation_price_change_log ?? []) }}"
+                                        data-group-roster="{{ json_encode($bnRoster) }}">
                                         <td>
                                             <div class="jobs-cell-primary jobs-booking-code">{{ $bnPrimary->booking_code }}{{ $bnCount > 1 ? ' (+' . ($bnCount - 1) . ')' : '' }}</div>
                                             <div class="jobs-cell-secondary">{{ $bnPrimary->customer->full_name ?? 'Guest' }}</div>
@@ -2088,7 +2159,9 @@
                                             <div class="jobs-route-line jobs-route-line--drop">→ {{ $bnPrimary->dropoff_address }}</div>
                                         </td>
                                         <td class="jobs-cell-secondary">{{ $bnPrimary->truckType->class ? ucfirst($bnPrimary->truckType->class) . ' Duty' : ($bnPrimary->truckType->name ?? '—') }}</td>
-                                        <td class="jobs-cell-secondary">{{ $bnPrimary->updated_at?->diffForHumans() }}</td>
+                                        <td class="jobs-cell-secondary">
+                                            {{ $bnPrimary->updated_at?->diffForHumans() }}
+                                        </td>
                                     </tr>
                         @endforeach
                                 </tbody>
@@ -2163,21 +2236,14 @@
                                                     : 'Overdue by ' . $schScheduledFor->diffForHumans(null, true))
                                                 : 'Schedule pending';
 
-                                            $schRoster = $schGroupBookings
-                                                ->map(fn($b) => [
-                                                    'booking_code' => $b->booking_code,
-                                                    'truck_type_name' => $b->truckType?->name ?? 'Unknown',
-                                                    'base_rate' => (float) $b->base_rate,
-                                                    'per_km_rate' => (float) $b->per_km_rate,
-                                                ])
-                                                ->values()
-                                                ->toArray();
+                                            $schRoster = $scheduledGroupRosters[$schGroupCode] ?? [];
                                         @endphp
                                         <tr class="jobs-row" onclick="window.openBookingDrawer(this)" tabindex="0"
                                             aria-label="Open {{ $sch->booking_code }}, {{ $sch->customer->full_name ?? 'Guest' }}"
                                             data-queue="scheduled" data-eff-status="{{ $schBucket }}"
                                             data-sched-bucket="{{ $schBucket }}"
                                             data-id="{{ $sch->job_code ?? $sch->id }}"
+                                            data-booking-id="{{ $sch->id }}"
                                             data-booking-code="{{ $sch->booking_code }}"
                                             data-status="{{ $sch->status }}"
                                             data-scheduling-bucket="{{ $sch->scheduling_bucket ?? '' }}"
@@ -2229,7 +2295,9 @@
                                                 <div class="jobs-route-line jobs-route-line--drop">→ {{ $sch->dropoff_address }}</div>
                                             </td>
                                             <td class="jobs-cell-secondary">{{ $sch->truckType->class ? ucfirst($sch->truckType->class) . ' Duty' : ($sch->truckType->name ?? '—') }}</td>
-                                            <td class="jobs-cell-secondary">{{ $sch->updated_at?->diffForHumans() }}</td>
+                                            <td class="jobs-cell-secondary">
+                                                {{ $sch->updated_at?->diffForHumans() }}
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -2882,8 +2950,9 @@
 
     {{-- Booking drawer ("View & Quote") — Book Now queue only. Content is rendered
          dynamically by booking-drawer.js; this is just the mount point + overlay. --}}
-    <div class="rb-drawer-overlay" id="rbDrawerOverlay"></div>
-    <div class="rb-drawer" id="rbDrawer"></div>
+    <div class="rb-drawer-overlay" id="rbDrawerOverlay">
+        <div class="rb-drawer" id="rbDrawer"></div>
+    </div>
 
     <div class="rb-lightbox-backdrop" id="rbLightboxBackdrop">
         <button class="rb-lightbox-close" id="rbLightboxClose" aria-label="Close">✕</button>
@@ -2915,11 +2984,14 @@
     </script>
     <script src="{{ asset('dispatcher/js/booking-drawer.js') }}?v={{ filemtime(public_path('dispatcher/js/booking-drawer.js')) }}">
     </script>
+    <script src="{{ asset('dispatcher/js/booking-detail-modal.js') }}?v={{ filemtime(public_path('dispatcher/js/booking-detail-modal.js')) }}">
+    </script>
     <script>
         window.RB_ROUTES = {
             assign:      "{{ route('admin.booking.assign', ':booking') }}",
             reschedule:  "{{ route('admin.booking.reschedule', ':booking') }}",
             saveDraft:   "{{ route('admin.booking.save-draft', ':booking') }}",
+            detailBundle: "{{ route('admin.booking.detail-bundle', ':booking') }}",
             quoteDetails:"{{ route('admin.quotations.details', ':quotation') }}",
             quoteSend:   "{{ route('admin.quotations.send', ':quotation') }}",
             quoteCancel: "{{ route('admin.quotations.cancel', ':quotation') }}",

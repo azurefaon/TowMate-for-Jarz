@@ -66,31 +66,47 @@ function mvqDraft(User $dispatcher, Booking $booking, float $price)
     ]);
 }
 
-it('does not let the group quotation be sent until every same-route sibling has been drafted', function () {
+it('persists pricing for every sibling in a 3-vehicle Scheduled group from a single Save Quote on any one vehicle', function () {
     Mail::fake();
     $dispatcher = mvqDispatcher();
     $customer = mvqCustomer();
     $truckA = mvqTruckType(1500, 60);
     $truckB = mvqTruckType(900, 40);
+    $truckC = mvqTruckType(2200, 75);
     $groupCode = 'GRP-000001';
 
-    $bookingA = mvqScheduledBooking($customer, $truckA, $groupCode);
-    $bookingB = mvqScheduledBooking($customer, $truckB, $groupCode);
+    $bookingA = mvqScheduledBooking($customer, $truckA, $groupCode, 12.0);
+    $bookingB = mvqScheduledBooking($customer, $truckB, $groupCode, 12.0);
+    $bookingC = mvqScheduledBooking($customer, $truckC, $groupCode, 12.0);
 
+    // ONE Save Quote on the anchor — no per-sibling "Price this vehicle" calls.
     mvqDraft($dispatcher, $bookingA, 1900)->assertOk();
 
     $quotation = Quotation::where('source_booking_id', $bookingA->id)->current()->first();
     expect($quotation->status)->toBe('draft');
-    expect($quotation->extra_vehicles)->toHaveCount(1);
+    expect($quotation->extra_vehicles)->toHaveCount(3);
+    expect(collect($quotation->extra_vehicles)->pluck('booking_id')->sort()->values()->all())
+        ->toBe(collect([$bookingA->id, $bookingB->id, $bookingC->id])->sort()->values()->all());
+    // Siblings' own booking status is untouched by drafting (they're not "assigned" yet, just priced).
     expect($bookingB->fresh()->status)->toBe('scheduled');
+    expect($bookingC->fresh()->status)->toBe('scheduled');
 
+    $expectedA = round((1500 + (12.0 - 4.0) * 60) * 1.12, 2);
+    $expectedB = round((900 + (12.0 - 4.0) * 40) * 1.12, 2);
+    $expectedC = round((2200 + (12.0 - 4.0) * 75) * 1.12, 2);
+    $lineItemFor = fn($bookingId) => collect($quotation->extra_vehicles)->firstWhere('booking_id', $bookingId);
+    expect((float) $lineItemFor($bookingA->id)['final_total'])->toBe($expectedA);
+    expect((float) $lineItemFor($bookingB->id)['final_total'])->toBe($expectedB);
+    expect((float) $lineItemFor($bookingC->id)['final_total'])->toBe($expectedC);
+    expect((float) $quotation->estimated_price)->toBe(round($expectedA + $expectedB + $expectedC, 2));
+
+    // The group is already complete — Send to Customer succeeds without any further drafting.
     $response = test()->actingAs($dispatcher)->post(route('admin.quotations.send', $quotation));
-
-    $response->assertStatus(422);
-    expect($quotation->fresh()->status)->toBe('draft');
+    $response->assertOk();
+    expect($quotation->fresh()->status)->toBe('sent');
 });
 
-it('sends one shared quotation once every same-route sibling has been drafted, each with its own independent totals', function () {
+it('does not duplicate extra_vehicles entries when the group quotation is saved a second time', function () {
     Mail::fake();
     $dispatcher = mvqDispatcher();
     $customer = mvqCustomer();
@@ -102,7 +118,42 @@ it('sends one shared quotation once every same-route sibling has been drafted, e
     $bookingB = mvqScheduledBooking($customer, $truckB, $groupCode, 12.0);
 
     mvqDraft($dispatcher, $bookingA, 1900)->assertOk();
+
+    $quotationAfterFirstSave = Quotation::where('source_booking_id', $bookingA->id)->current()->first();
+    expect($quotationAfterFirstSave->extra_vehicles)->toHaveCount(2);
+
+    // Second save (e.g. dispatcher re-opens and clicks Save Quote / Save changes again).
+    mvqDraft($dispatcher, $bookingA, 1900)->assertOk();
+
+    $quotationAfterSecondSave = Quotation::where('source_booking_id', $bookingA->id)->current()->first();
+    expect($quotationAfterSecondSave->id)->toBe($quotationAfterFirstSave->id);
+    expect($quotationAfterSecondSave->extra_vehicles)->toHaveCount(2);
+
+    $bookingIds = collect($quotationAfterSecondSave->extra_vehicles)->pluck('booking_id')->all();
+    expect($bookingIds)->toBe(array_unique($bookingIds));
+    expect(collect($bookingIds)->sort()->values()->all())
+        ->toBe(collect([$bookingA->id, $bookingB->id])->sort()->values()->all());
+
+    // A third save from the OTHER sibling's own booking_code must also stay at exactly 2, not append a 3rd/4th.
     mvqDraft($dispatcher, $bookingB, 1100)->assertOk();
+    $quotationAfterThirdSave = Quotation::where('source_booking_id', $bookingA->id)->current()->first();
+    expect($quotationAfterThirdSave->id)->toBe($quotationAfterFirstSave->id);
+    expect($quotationAfterThirdSave->extra_vehicles)->toHaveCount(2);
+});
+
+it('sends one shared quotation for a same-route Scheduled group, each vehicle keeping its own independent totals', function () {
+    Mail::fake();
+    $dispatcher = mvqDispatcher();
+    $customer = mvqCustomer();
+    $truckA = mvqTruckType(1500, 60);
+    $truckB = mvqTruckType(900, 40);
+    $groupCode = 'GRP-000002B';
+
+    $bookingA = mvqScheduledBooking($customer, $truckA, $groupCode, 12.0);
+    $bookingB = mvqScheduledBooking($customer, $truckB, $groupCode, 12.0);
+
+    // One Save Quote on the anchor already persists both siblings.
+    mvqDraft($dispatcher, $bookingA, 1900)->assertOk();
 
     $quotation = Quotation::where('source_booking_id', $bookingA->id)->current()->first();
     expect($quotation->extra_vehicles)->toHaveCount(2);
@@ -130,7 +181,7 @@ it('sends one shared quotation once every same-route sibling has been drafted, e
     expect((float) $lineItemFor($bookingA->id)['final_total'])->toBe($expectedAWithVat);
     expect((float) $lineItemFor($bookingB->id)['final_total'])->toBe($expectedBWithVat);
     expect((float) $quotation->estimated_price)->toBe(round($expectedAWithVat + $expectedBWithVat, 2));
-    expect((float) $bookingA->final_total)->not->toBe((float) $bookingB->final_total);
+    expect($lineItemFor($bookingA->id)['final_total'])->not->toBe($lineItemFor($bookingB->id)['final_total']);
 });
 
 it('never merges two same group_code bookings with different destinations into one quotation', function () {
@@ -375,6 +426,71 @@ it('requires a reason to remove a vehicle from an already-sent group quotation',
     $quotation = Quotation::where('quotation_number', $draftQuotation->quotation_number)->current()->first();
     expect($quotation->status)->toBe('sent');
     expect($quotation->version)->toBe(1);
+});
+
+it('renders pre-save vehicle tabs whose identities and pricing exactly match what one grouped Save Quote will persist', function () {
+    Mail::fake();
+    $dispatcher = mvqDispatcher();
+    $customer = mvqCustomer();
+    $truckA = mvqTruckType(1500, 60);
+    $truckB = mvqTruckType(900, 40);
+    $truckC = mvqTruckType(2200, 75);
+    $groupCode = 'GRP-PRESAVE-1';
+
+    $bookingA = mvqScheduledBooking($customer, $truckA, $groupCode, 12.0);
+    $bookingB = mvqScheduledBooking($customer, $truckB, $groupCode, 12.0);
+    $bookingC = mvqScheduledBooking($customer, $truckC, $groupCode, 12.0);
+
+    $response = test()->actingAs($dispatcher)->get(route('admin.dispatch'));
+    $response->assertOk();
+    $html = $response->getContent();
+
+    preg_match('/<tr[^>]*data-booking-code="' . preg_quote($bookingA->booking_code, '/') . '"[^>]*>/s', $html, $rowMatch);
+    expect($rowMatch)->not->toBeEmpty();
+    preg_match('/data-group-roster="([^"]*)"/', $rowMatch[0], $rosterMatch);
+    expect($rosterMatch)->not->toBeEmpty();
+    $preSaveRoster = json_decode(html_entity_decode($rosterMatch[1]), true);
+
+    expect($preSaveRoster)->toHaveCount(3);
+    $preSaveIds = collect($preSaveRoster)->pluck('booking_id')->sort()->values()->all();
+    expect($preSaveIds)->toBe(collect([$bookingA->id, $bookingB->id, $bookingC->id])->sort()->values()->all());
+
+    // Now perform the ONE Save Quote that actually persists the group.
+    mvqDraft($dispatcher, $bookingA, 1900)->assertOk();
+    $quotation = Quotation::where('source_booking_id', $bookingA->id)->current()->first();
+
+    $persistedIds = collect($quotation->extra_vehicles)->pluck('booking_id')->sort()->values()->all();
+    expect($preSaveIds)->toBe($persistedIds);
+
+    $preSaveByBooking = collect($preSaveRoster)->keyBy('booking_id');
+    foreach ($quotation->extra_vehicles as $ev) {
+        expect((float) $preSaveByBooking[$ev['booking_id']]['final_total'])->toBe((float) $ev['final_total']);
+        expect((float) $preSaveByBooking[$ev['booking_id']]['base_rate'])->toBe((float) $ev['base_rate']);
+    }
+});
+
+it('shows no pre-save vehicle tabs for a same-group_code pair with different destinations, matching groupSiblingBookings() exclusion', function () {
+    Mail::fake();
+    $dispatcher = mvqDispatcher();
+    $customer = mvqCustomer();
+    $truckA = mvqTruckType(1500, 60);
+    $truckB = mvqTruckType(900, 40);
+    $groupCode = 'GRP-PRESAVE-2';
+
+    $bookingA = mvqScheduledBooking($customer, $truckA, $groupCode, 12.0, 'Makati');
+    $bookingB = mvqScheduledBooking($customer, $truckB, $groupCode, 12.0, 'Quezon City');
+
+    $response = test()->actingAs($dispatcher)->get(route('admin.dispatch'));
+    $response->assertOk();
+    $html = $response->getContent();
+
+    $codesPattern = preg_quote($bookingA->booking_code, '/') . '|' . preg_quote($bookingB->booking_code, '/');
+    preg_match('/<tr[^>]*data-booking-code="(' . $codesPattern . ')"[^>]*>/s', $html, $rowMatch);
+    expect($rowMatch)->not->toBeEmpty();
+    preg_match('/data-group-roster="([^"]*)"/', $rowMatch[0], $rosterMatch);
+    $roster = json_decode(html_entity_decode($rosterMatch[1] ?? '[]'), true);
+
+    expect($roster)->toBeEmpty();
 });
 
 it('exposes each grouped vehicle own base rate, distance fee, VAT and total in the quotation details response', function () {
