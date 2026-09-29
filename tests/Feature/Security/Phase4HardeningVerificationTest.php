@@ -3,7 +3,6 @@
 use App\Models\AuditLog;
 use App\Models\Role;
 use App\Models\User;
-use App\Services\PayMongoService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
@@ -141,34 +140,6 @@ it('audit log entries for the OTP lifecycle never contain the OTP, hash, or rese
             expect(json_encode($log->new_value))->not->toContain($secret);
         }
     }
-});
-
-it('PayMongo a valid HTTP status with malformed JSON is treated as not paid', function () {
-    config(['services.paymongo.secret_key' => 'sk_test_dummy']);
-    Http::fake(['*/links/*' => Http::response('{not valid json', 200)]);
-
-    expect(app(PayMongoService::class)->isLinkPaid('link_bad_json'))->toBeFalse();
-});
-
-it('PayMongo a response missing the attributes structure entirely is treated as not paid', function () {
-    config(['services.paymongo.secret_key' => 'sk_test_dummy']);
-    Http::fake(['*/payment_intents/*' => Http::response(['data' => []], 200)]);
-
-    expect(app(PayMongoService::class)->isIntentPaid('pi_no_attrs', 'ck_x'))->toBeFalse();
-});
-
-it('PayMongo a fake "paid" value placed outside the expected structure is not trusted', function () {
-    config(['services.paymongo.secret_key' => 'sk_test_dummy']);
-    Http::fake(['*/links/*' => Http::response(['paid' => true, 'data' => ['attributes' => ['status' => 'unpaid']]], 200)]);
-
-    expect(app(PayMongoService::class)->isLinkPaid('link_spoofed'))->toBeFalse();
-});
-
-it('PayMongo a status value outside the expected enum is treated as not paid', function () {
-    config(['services.paymongo.secret_key' => 'sk_test_dummy']);
-    Http::fake(['*/links/*' => Http::response(['data' => ['attributes' => ['status' => 'refunded']]], 200)]);
-
-    expect(app(PayMongoService::class)->isLinkPaid('link_weird_status'))->toBeFalse();
 });
 
 it('Geo a route response with null/invalid coordinate types falls back safely', function () {

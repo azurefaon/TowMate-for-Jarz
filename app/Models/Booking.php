@@ -102,10 +102,6 @@ class Booking extends Model
         'payment_proof_path',
         'payment_submitted_at',
         'cash_received',
-        'paymongo_link_id',
-        'paymongo_checkout_url',
-        'paymongo_intent_id',
-        'paymongo_client_key',
 
         'scheduled_expires_at',
         'extra_vehicles',

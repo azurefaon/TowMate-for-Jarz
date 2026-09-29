@@ -46,7 +46,6 @@
             'cheque' => 'Cheque',
             default => 'Cash',
         };
-        $payRef = $booking->paymongo_intent_id ?? ($booking->paymongo_link_id ?? '');
         $unitName = $booking->display_unit_name ?? '—';
         $unitPlate = $booking->display_unit_plate_number ?? '—';
         $truckType = $booking->truckType->name ?? '—';
@@ -262,10 +261,6 @@
                                         <div style="font-size:12.5px;color:#71717a;margin-bottom:4px;">Status:
                                             <strong style="color:#18181b;">Paid</strong>
                                         </div>
-                                        @if ($payRef)
-                                            <div style="font-size:11px;color:#71717a;margin-top:4px;word-break:break-all;">
-                                                Ref: {{ $payRef }}</div>
-                                        @endif
                                     </td>
                                     <td width="50%" style="vertical-align:top;padding-left:12px;">
                                         <div

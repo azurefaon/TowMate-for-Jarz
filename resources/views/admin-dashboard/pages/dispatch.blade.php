@@ -1686,8 +1686,6 @@
                                             $cj_vehicleImgExtraCount = count($cj_paths) - 1;
                                         }
                                     }
-                                    $cj_paymongoRef =
-                                        $booking->paymongo_intent_id ?? ($booking->paymongo_link_id ?? '');
                                     $cj_paymentStatusLabel = match ($booking->status) {
                                         'payment_pending' => 'Pending',
                                         'payment_submitted' => 'Proof Submitted',
@@ -1748,7 +1746,6 @@
                                     data-payment-method-label="{{ $cj_paymentMethodLabel }}"
                                     data-payment-status-label="{{ $cj_paymentStatusLabel }}"
                                     data-payment-proof-url="{{ json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => protected_file_url($p), (array) $booking->payment_proof_path)) : []) }}"
-                                    data-paymongo-ref="{{ $cj_paymongoRef }}"
                                     data-vat-amount="{{ $booking->vat_amount ?? 0 }}"
                                     data-discount-percentage="{{ $booking->discount_percentage ?? 0 }}"
                                     data-discount-reason="{{ $booking->discount_reason ?? '' }}"
@@ -2736,7 +2733,7 @@
                                         Payment Information</div>
                                 </div>
                                 <div style="border:1px solid #e2e8f0;overflow:hidden;background:#fff;">
-                                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;">
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;">
                                         <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
                                             <div
                                                 style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
@@ -2744,19 +2741,11 @@
                                             <div id="cjPaymentMode" style="font-size:.88rem;color:#0f172a;">—
                                             </div>
                                         </div>
-                                        <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
+                                        <div style="padding:10px 14px;">
                                             <div
                                                 style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
                                                 Status</div>
                                             <div id="cjPaymentStatus" style="font-size:.88rem;color:#0f172a;">—
-                                            </div>
-                                        </div>
-                                        <div style="padding:10px 14px;">
-                                            <div
-                                                style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
-                                                Reference #</div>
-                                            <div id="cjPaymongoRef"
-                                                style="font-size:.78rem;color:#0f172a;word-break:break-all;">—
                                             </div>
                                         </div>
                                     </div>
@@ -3399,7 +3388,6 @@
 
                 setText('cjPaymentMode', ds.paymentMethodLabel || '—');
                 setText('cjPaymentStatus', ds.paymentStatusLabel || '—');
-                setText('cjPaymongoRef', ds.paymongoRef || '—');
 
                 _pendingFinalTotal = finalTotal;
                 _pendingIsCash = !ds.paymentMethod || ds.paymentMethod === 'cash';
