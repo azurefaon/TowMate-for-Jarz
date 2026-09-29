@@ -15,6 +15,7 @@ use App\Http\Requests\LandingBookingRequest;
 use App\Mail\BookingAcceptedMail;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Quotation;
 use App\Services\BookingService;
 use App\Services\DocumentGenerationService;
 use App\Services\QuotationService;
@@ -118,7 +119,7 @@ class BookingController extends Controller
 
         abort_unless($customer && (int) $booking->customer_id === (int) $customer->id, 403);
 
-        if (! in_array((string) $booking->status, ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed'], true)) {
+        if (! in_array((string) $booking->status, ['requested', 'reviewed', 'quoted', 'quotation_sent'], true)) {
             return redirect()->route('customer.track', $booking)
                 ->with('error', 'This booking can no longer be edited because dispatch is already preparing the tow unit.');
         }
@@ -192,21 +193,42 @@ class BookingController extends Controller
         return $this->processQuotationResponse($request, $booking, true);
     }
 
+    protected function resolveAuthoritativeQuotation(Booking $booking): ?Quotation
+    {
+        $quotation = Quotation::where('source_booking_id', $booking->id)->current()->first();
+
+        if ($quotation || ! $booking->group_code) {
+            return $quotation;
+        }
+
+        $anchorId = Booking::where('group_code', $booking->group_code)
+            ->orderBy('id')
+            ->value('id');
+
+        return $anchorId
+            ? Quotation::where('source_booking_id', $anchorId)->current()->first()
+            : null;
+    }
+
     protected function processQuotationResponse(Request $request, Booking $booking, bool $fromEmail = false)
     {
         $redirectUrl = $this->quotationRedirectUrl($request, $booking, $fromEmail);
 
-        $booking->syncQuotationLifecycle();
-        $booking->refresh();
+        $quotation = $this->resolveAuthoritativeQuotation($booking);
 
-        if ((string) $booking->quotation_status === 'expired') {
-            return redirect()->to($redirectUrl)
-                ->with('error', 'This quotation has already expired. Dispatch will send an updated quotation soon.');
-        }
-
-        if (! in_array($booking->status, ['quoted', 'quotation_sent', 'reviewed', 'confirmed'], true)) {
+        if (! $quotation || (int) $quotation->customer_id !== (int) $booking->customer_id) {
             return redirect()->to($redirectUrl)
                 ->with('error', 'This booking is not waiting for quotation approval right now.');
+        }
+
+        if ($quotation->status !== 'sent') {
+            return redirect()->to($redirectUrl)
+                ->with('error', 'This booking is not waiting for quotation approval right now.');
+        }
+
+        if ($quotation->isExpired()) {
+            return redirect()->to($redirectUrl)
+                ->with('error', 'This quotation has already expired. Dispatch will send an updated quotation soon.');
         }
 
         $validated = $request->validate([
@@ -228,27 +250,18 @@ class BookingController extends Controller
         ]);
 
         if ($validated['action'] === 'accept') {
-            if (! in_array($booking->status, ['quoted', 'quotation_sent'], true)) {
+            try {
+                $booking = $this->quotationService->acceptQuotation($quotation);
+            } catch (\Exception $e) {
                 return redirect()->to($redirectUrl)
                     ->with('error', 'Dispatch is still reviewing the latest adjustment for this booking.');
             }
 
-            $booking->update([
-                'status' => 'confirmed',
-                'quotation_status' => 'accepted',
-                'customer_approved_at' => now(),
-                'price_locked_at' => now(),
-                'negotiation_requested_at' => null,
-                'counter_offer_amount' => null,
-            ]);
-
-            $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
+            $booking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
             $finalQuotePath = $this->documentGenerationService->generateQuotation($booking, true);
             $booking->update(['final_quote_path' => $finalQuotePath]);
-            $booking->refresh()->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
-            BookingStatusUpdated::safeFire($booking);
 
-            return redirect()->to($redirectUrl)
+            return redirect()->to($this->quotationRedirectUrl($request, $booking, $fromEmail))
                 ->with('success', 'Quotation accepted. Your final quotation is confirmed.');
         }
 
@@ -263,17 +276,11 @@ class BookingController extends Controller
                 ]);
         }
 
-        $booking->update([
-            'status' => 'reviewed',
-            'quotation_status' => 'active',
-            'negotiation_requested_at' => now(),
-            'counter_offer_amount' => $counterOffer > 0 ? $counterOffer : null,
-            'customer_response_note' => $customerNote !== ''
-                ? $customerNote
-                : 'Customer requested a quotation adjustment.',
-            'customer_approved_at' => null,
-            'price_locked_at' => null,
-        ]);
+        $this->quotationService->negotiateQuotation(
+            $quotation,
+            $counterOffer > 0 ? $counterOffer : null,
+            $customerNote !== '' ? $customerNote : 'Customer requested a quotation adjustment.',
+        );
 
         return redirect()->to($redirectUrl)
             ->with('success', 'Your negotiation request was sent to dispatch for review.');

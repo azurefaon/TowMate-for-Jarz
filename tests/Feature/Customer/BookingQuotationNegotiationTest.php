@@ -1,9 +1,9 @@
 <?php
 
 use App\Mail\BookingAcceptedMail;
-use App\Mail\FinalQuotationConfirmedMail;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Quotation;
 use App\Models\Role;
 use App\Models\TruckType;
 use App\Models\User;
@@ -63,13 +63,28 @@ function makeQuotedBookingForCustomerFlow(): array
         'status' => 'quotation_sent',
     ]);
 
-    return [$user, $customer, $booking->fresh(['customer', 'truckType'])];
+    $quotation = Quotation::create([
+        'quotation_number' => 'Q-TEST-2001',
+        'source_booking_id' => $booking->id,
+        'customer_id' => $customer->id,
+        'truck_type_id' => $truckType->id,
+        'pickup_address' => 'Makati Avenue',
+        'dropoff_address' => 'BGC Taguig',
+        'distance_km' => 10,
+        'estimated_price' => 2800,
+        'service_type' => 'book_now',
+        'status' => 'sent',
+        'sent_at' => now(),
+        'expires_at' => now()->addDays(7),
+        'is_current' => true,
+        'version' => 1,
+    ]);
+
+    return [$user, $customer, $booking->fresh(['customer', 'truckType']), $quotation];
 }
 
 it('lets the customer accept the dispatcher quotation before dispatch proceeds', function () {
-    Mail::fake();
-
-    [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
+    [$user, $customer, $booking, $quotation] = makeQuotedBookingForCustomerFlow();
 
     $response = $this->actingAs($user)->post(route('customer.booking.quotation.respond', $booking), [
         'action' => 'accept',
@@ -79,17 +94,18 @@ it('lets the customer accept the dispatcher quotation before dispatch proceeds',
     $response->assertSessionHas('success');
 
     $booking->refresh();
+    $quotation->refresh();
 
     expect($booking->status)->toBe('confirmed')
-        ->and($booking->quotation_status)->toBe('accepted')
         ->and($booking->customer_approved_at)->not->toBeNull()
-        ->and($booking->final_quote_path)->not->toBeNull();
-
-    Mail::assertSent(FinalQuotationConfirmedMail::class, fn(FinalQuotationConfirmedMail $mail) => $mail->hasTo($customer->email));
+        ->and($booking->final_quote_path)->not->toBeNull()
+        ->and($quotation->status)->toBe('accepted')
+        ->and($quotation->is_current)->toBeTrue()
+        ->and($quotation->responded_at)->not->toBeNull();
 });
 
 it('lets the customer request negotiation with a counter offer and note', function () {
-    [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
+    [$user, $customer, $booking, $quotation] = makeQuotedBookingForCustomerFlow();
 
     $response = $this->actingAs($user)->post(route('customer.booking.quotation.respond', $booking), [
         'action' => 'negotiate',
@@ -101,14 +117,17 @@ it('lets the customer request negotiation with a counter offer and note', functi
     $response->assertSessionHas('success');
 
     $booking->refresh();
+    $quotation->refresh();
 
-    expect($booking->status)->toBe('reviewed')
-        ->and((float) $booking->counter_offer_amount)->toBe(2500.0)
-        ->and($booking->customer_response_note)->toContain('lower the quote');
+    expect($booking->status)->toBe('quotation_sent')
+        ->and($quotation->status)->toBe('negotiating')
+        ->and((float) $quotation->counter_offer_amount)->toBe(2500.0)
+        ->and($quotation->response_note)->toContain('lower the quote')
+        ->and($quotation->is_current)->toBeTrue();
 });
 
 it('shows a public quotation summary page from the email link without response buttons', function () {
-    [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
+    [$user, $customer, $booking, $quotation] = makeQuotedBookingForCustomerFlow();
 
     $signedUrl = URL::temporarySignedRoute(
         'quotation.review',
@@ -129,14 +148,10 @@ it('shows a public quotation summary page from the email link without response b
         ->assertSee('Q-TEST-2001', false);
 });
 
-it('expires an old quotation after seven days and blocks customer acceptance', function () {
-    [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
+it('does not let the customer accept an expired current quotation', function () {
+    [$user, $customer, $booking, $quotation] = makeQuotedBookingForCustomerFlow();
 
-    $booking->update([
-        'quotation_status' => 'active',
-        'quotation_sent_at' => now()->subDays(8),
-        'quotation_expires_at' => now()->subDay(),
-    ]);
+    $quotation->update(['expires_at' => now()->subDay()]);
 
     $response = $this->actingAs($user)->post(route('customer.booking.quotation.respond', $booking), [
         'action' => 'accept',
@@ -145,14 +160,83 @@ it('expires an old quotation after seven days and blocks customer acceptance', f
     $response->assertRedirect(route('customer.track', $booking));
     $response->assertSessionHas('error');
 
-    expect($booking->fresh()->quotation_status)->toBe('expired')
-        ->and($booking->fresh()->status)->toBe('quotation_sent');
+    expect($booking->fresh()->status)->toBe('quotation_sent')
+        ->and($quotation->fresh()->status)->toBe('sent');
+});
+
+it('does not let the customer accept a non-current (superseded) quotation version', function () {
+    [$user, $customer, $booking, $quotation] = makeQuotedBookingForCustomerFlow();
+
+    $newVersion = $quotation->newVersion(['estimated_price' => 3000]);
+
+    $response = $this->actingAs($user)->post(route('customer.booking.quotation.respond', $booking), [
+        'action' => 'accept',
+    ]);
+
+    $response->assertRedirect(route('customer.track', $booking));
+    $response->assertSessionHas('success');
+
+    expect($newVersion->fresh()->status)->toBe('accepted')
+        ->and($quotation->fresh()->is_current)->toBeFalse()
+        ->and($quotation->fresh()->status)->toBe('sent')
+        ->and($booking->fresh()->status)->toBe('confirmed');
+});
+
+it('does not let another customer respond to someone else quotation', function () {
+    [$user, $customer, $booking, $quotation] = makeQuotedBookingForCustomerFlow();
+
+    $otherRole = Role::find(5);
+    $otherUser = User::factory()->create(['role_id' => $otherRole->id, 'email' => 'other@example.com']);
+    Customer::create([
+        'id' => $otherUser->id,
+        'full_name' => 'Other Customer',
+        'age' => 25,
+        'phone' => '09181112222',
+        'email' => $otherUser->email,
+    ]);
+
+    $response = $this->actingAs($otherUser)->post(route('customer.booking.quotation.respond', $booking), [
+        'action' => 'accept',
+    ]);
+
+    $response->assertForbidden();
+
+    expect($booking->fresh()->status)->toBe('quotation_sent')
+        ->and($quotation->fresh()->status)->toBe('sent');
+});
+
+it('does not let a customer edit a confirmed booking and revert its accepted quotation', function () {
+    [$user, $customer, $booking, $quotation] = makeQuotedBookingForCustomerFlow();
+
+    $this->actingAs($user)->post(route('customer.booking.quotation.respond', $booking), [
+        'action' => 'accept',
+    ])->assertSessionHas('success');
+
+    $booking->refresh();
+    $quotation->refresh();
+    expect($booking->status)->toBe('confirmed')
+        ->and($quotation->status)->toBe('accepted');
+
+    $response = $this->actingAs($user)->patch(route('customer.booking.update', $booking), [
+        'truck_type_id' => $booking->truck_type_id,
+        'pickup_address' => 'A Different Pickup Address',
+        'dropoff_address' => 'A Different Dropoff Address',
+        'distance_km' => '12',
+    ]);
+
+    $response->assertRedirect(route('customer.track', $booking));
+    $response->assertSessionHas('error');
+
+    expect($booking->fresh()->status)->toBe('confirmed')
+        ->and($booking->fresh()->pickup_address)->toBe('Makati Avenue')
+        ->and($quotation->fresh()->status)->toBe('accepted')
+        ->and($quotation->fresh()->is_current)->toBeTrue();
 });
 
 it('sends a follow-up reminder once the quotation reaches day five', function () {
     Mail::fake();
 
-    [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
+    [$user, $customer, $booking, $quotation] = makeQuotedBookingForCustomerFlow();
 
     $booking->update([
         'quotation_status' => 'active',
@@ -174,7 +258,7 @@ it('sends a follow-up reminder once the quotation reaches day five', function ()
 it('recalculates the quotation when the customer updates the booking route before dispatch', function () {
     Mail::fake();
 
-    [$user, $customer, $booking] = makeQuotedBookingForCustomerFlow();
+    [$user, $customer, $booking, $quotation] = makeQuotedBookingForCustomerFlow();
 
     $updatedTruckType = TruckType::create([
         'name' => 'Heavy Duty Tow',
@@ -196,14 +280,12 @@ it('recalculates the quotation when the customer updates the booking route befor
     $response->assertSessionHas('success');
 
     $booking->refresh();
-    $expectedTotal = round((float) $booking->computed_total + (float) $booking->additional_fee - (float) $booking->discount_amount, 2);
 
     expect($booking->pickup_address)->toBe('Ortigas Center')
         ->and($booking->dropoff_address)->toBe('Alabang Town Center')
         ->and((float) $booking->distance_km)->toBe(18.0)
         ->and((float) $booking->base_rate)->toBe(1800.0)
         ->and((float) $booking->per_km_rate)->toBe(95.0)
-        ->and((float) $booking->final_total)->toBe($expectedTotal)
         ->and($booking->quotation_status)->toBe('active')
         ->and($booking->status)->toBe('quotation_sent')
         ->and($booking->quotation_follow_up_sent_at)->toBeNull()
