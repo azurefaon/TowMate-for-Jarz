@@ -13,9 +13,8 @@ import 'google_phone_completion_screen.dart';
 
 const _brand = Color(0xFFF5A623);
 const _buttonGradientEnd = Color(0xFFE8960D);
-const _fieldBgNormal = Color(0xFFF7F8FA);
-const _fieldBgFocused = Color(0xFFFFFDF7);
-const _fieldBorder = Color(0xFFECEEF2);
+const _fieldBorder = Color(0xFFD1D5DB);
+const _fieldBorderFocused = Color(0xFF262626);
 const _textSecondary = Color(0xFF9CA3AF);
 const _iconMuted = Color(0xFFBBBEC8);
 const _textPrimary = Color(0xFF111111);
@@ -255,9 +254,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     _AuthField(
                       controller: _emailController,
                       label: 'EMAIL',
-                      hint: 'example@gmail.com',
+                      hint: 'you@example.com',
                       keyboardType: TextInputType.emailAddress,
-                      validator: Validators.email,
+                      validator: Validators.loginEmail,
                       textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 14),
@@ -448,103 +447,111 @@ class _AuthFieldState extends State<_AuthField> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.label,
-          style: GoogleFonts.inter(
-            color: _focused ? _brand : _textSecondary,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 1.0,
-          ),
-        ),
-        const SizedBox(height: 6),
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          decoration: BoxDecoration(
-            color: _focused ? _fieldBgFocused : _fieldBgNormal,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _focused ? _brand : _fieldBorder,
-              width: 1.5,
-            ),
-            boxShadow: _focused
-                ? [
-                    BoxShadow(
-                      color: _brand.withValues(alpha: 0.1),
-                      blurRadius: 0,
-                      spreadRadius: 4,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: widget.controller,
-                  focusNode: _focusNode,
-                  obscureText: _obscure,
-                  keyboardType: widget.keyboardType,
-                  validator: widget.validator,
-                  textInputAction: widget.textInputAction,
-                  onFieldSubmitted: widget.onFieldSubmitted,
-                  autocorrect: !widget.obscureText,
-                  enableSuggestions: !widget.obscureText,
-                  autofillHints: widget.autofillEnabled && !widget.obscureText
-                      ? const [AutofillHints.email]
-                      : const [],
-                  cursorColor: _brand,
-                  style: GoogleFonts.inter(
-                    color: _textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: widget.hint,
-                    hintStyle: GoogleFonts.inter(
-                      color: _iconMuted,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    filled: false,
-                    isDense: true,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    errorBorder: InputBorder.none,
-                    focusedErrorBorder: InputBorder.none,
-                    suffixIcon: widget.obscureText
-                        ? GestureDetector(
-                            onTap: () => setState(() => _obscure = !_obscure),
-                            child: Icon(
-                              _obscure
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                              color: _obscure ? _textSecondary : _brand,
-                              size: 18,
-                            ),
-                          )
-                        : null,
-                    contentPadding: const EdgeInsets.only(
-                      left: 16,
-                      top: 15,
-                      bottom: 15,
-                    ),
-                    errorStyle: GoogleFonts.inter(
-                      color: _errorRed,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                ),
+    return FormField<String>(
+      initialValue: widget.controller.text,
+      // Validate the controller's live text so autofill/programmatic edits
+      // are never checked against a stale field value.
+      validator: (_) => widget.validator?.call(widget.controller.text),
+      builder: (field) {
+        final borderColor = field.hasError
+            ? _errorRed
+            : (_focused ? _fieldBorderFocused : _fieldBorder);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.label,
+              style: GoogleFonts.inter(
+                color: _textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.0,
               ),
-              const SizedBox(width: 14),
+            ),
+            const SizedBox(height: 6),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _focusNode,
+                      obscureText: _obscure,
+                      keyboardType: widget.keyboardType,
+                      textInputAction: widget.textInputAction,
+                      onChanged: field.didChange,
+                      onSubmitted: widget.onFieldSubmitted,
+                      autocorrect: !widget.obscureText,
+                      enableSuggestions: !widget.obscureText,
+                      autofillHints:
+                          widget.autofillEnabled && !widget.obscureText
+                          ? const [AutofillHints.email]
+                          : const [],
+                      cursorColor: _fieldBorderFocused,
+                      style: GoogleFonts.inter(
+                        color: _textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: widget.hint,
+                        hintStyle: GoogleFonts.inter(
+                          color: _iconMuted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        filled: false,
+                        isDense: true,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        suffixIcon: widget.obscureText
+                            ? GestureDetector(
+                                key: const Key('login_password_toggle'),
+                                onTap: () =>
+                                    setState(() => _obscure = !_obscure),
+                                child: Icon(
+                                  _obscure
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: _obscure
+                                      ? _textSecondary
+                                      : _fieldBorderFocused,
+                                  size: 18,
+                                ),
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.only(
+                          left: 16,
+                          top: 15,
+                          bottom: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                ],
+              ),
+            ),
+            if (field.hasError) ...[
+              const SizedBox(height: 5),
+              Text(
+                field.errorText!,
+                key: const Key('login_field_error'),
+                style: GoogleFonts.inter(color: _errorRed, fontSize: 11.5),
+              ),
             ],
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -648,7 +655,9 @@ class _InlineBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
-        color: isError ? _errorRed.withValues(alpha: 0.08) : _fieldBgNormal,
+        color: isError
+            ? _errorRed.withValues(alpha: 0.08)
+            : const Color(0xFFF7F8FA),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(

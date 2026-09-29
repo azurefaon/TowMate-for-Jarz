@@ -92,4 +92,31 @@ void main() {
       expect(Validators.confirmPassword('', 'Original!123'), 'Please confirm your password');
     });
   });
+
+  group('Validators.loginEmail — generic login validation', () {
+    test('accepts the internal demo Team Leader account', () {
+      expect(Validators.loginEmail('tl.assigned.demo@example.com'), isNull);
+    });
+
+    test('accepts Gmail and other domains, trimmed and any case', () {
+      expect(Validators.loginEmail('customer@gmail.com'), isNull);
+      expect(Validators.loginEmail(' Staff@Company.PH '), isNull);
+      expect(Validators.loginEmail('a+b@sub.example.co.uk'), isNull);
+    });
+
+    test('rejects empty, malformed and domain-less emails', () {
+      expect(Validators.loginEmail(''), 'Email is required');
+      expect(Validators.loginEmail('   '), 'Email is required');
+      expect(Validators.loginEmail(null), 'Email is required');
+      expect(Validators.loginEmail('plainaddress'), isNotNull);
+      expect(Validators.loginEmail('no-domain@'), isNotNull);
+      expect(Validators.loginEmail('user@nodot'), isNotNull);
+      expect(Validators.loginEmail('@example.com'), isNotNull);
+    });
+
+    test('registration validator still rejects non-Gmail (unchanged)', () {
+      expect(Validators.email('x@example.com'), 'Please use a Gmail address.');
+      expect(Validators.email('x@gmail.com'), isNull);
+    });
+  });
 }

@@ -43,6 +43,15 @@ abstract final class Validators {
     return null;
   }
 
+  /// Login accepts any well-formed email; the backend decides whether the
+  /// account exists. The Gmail-only rule above is for customer registration.
+  static String? loginEmail(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Email is required';
+    final re = RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$', caseSensitive: false);
+    if (!re.hasMatch(v.trim())) return 'Enter a valid email address.';
+    return null;
+  }
+
   static String? password(String? v) {
     if (v == null || v.isEmpty) return 'Password is required';
     if (v.length < 12) return 'At least 12 characters required';

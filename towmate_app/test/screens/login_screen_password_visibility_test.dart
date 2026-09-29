@@ -26,7 +26,7 @@ void main() {
     testWidgets('tapping the eye reveals the password and swaps the icon', (tester) async {
       await pumpLogin(tester);
 
-      await tester.enterText(find.byType(TextFormField).last, 'MyPassword!123');
+      await tester.enterText(find.byType(TextField).last, 'MyPassword!123');
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.visibility_outlined));
