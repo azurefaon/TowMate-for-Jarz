@@ -2087,33 +2087,43 @@ class DispatchController extends Controller
                 . (filled($validated['note'] ?? null) ? ' — ' . $validated['note'] : ''),
         ]);
 
-        if ($quotation->customer && $quotation->customer->email) {
-            try {
-                Mail::to($quotation->customer->email)
-                    ->send(new \App\Mail\QuotationUpdatedMail($quotation));
-            } catch (\Exception $e) {
-                Log::error('Failed to send quotation update email', [
-                    'quotation_id' => $quotation->id,
-                    'customer_email' => $quotation->customer->email,
-                    'error' => $e->getMessage(),
-                ]);
+        // Customer communication must happen iff this call actually sends —
+        // same condition as the sent_at/quotation_sent marker gate above.
+        // A draft/pending edit (this endpoint is also reachable from the
+        // "Edit Price" button on a still-draft quotation, see
+        // _quotation-modal.blade.php's qmRenderFooterButtons()) must stay
+        // completely silent: no email, no push, and no marker.
+        if ($newStatus === 'sent') {
+            if ($quotation->customer && $quotation->customer->email) {
+                try {
+                    Mail::to($quotation->customer->email)
+                        ->send(new \App\Mail\QuotationUpdatedMail($quotation));
+                } catch (\Exception $e) {
+                    Log::error('Failed to send quotation update email', [
+                        'quotation_id' => $quotation->id,
+                        'customer_email' => $quotation->customer->email,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
-        }
 
-        if ($quotation->customer && $quotation->customer->user_id && $oldPrice !== $newPrice) {
-            $bookingCode = $quotation->sourceBooking?->booking_code ?? $sourceBooking?->booking_code;
-            \App\Services\CustomerNotificationService::send(
-                userId: $quotation->customer->user_id,
-                type: 'quotation_updated',
-                title: 'Your quotation price was updated',
-                body: 'The price for your booking has been revised. Tap to view the updated quotation.',
-                bookingCode: $bookingCode,
-            );
+            if ($quotation->customer && $quotation->customer->user_id && $oldPrice !== $newPrice) {
+                $bookingCode = $quotation->sourceBooking?->booking_code ?? $sourceBooking?->booking_code;
+                \App\Services\CustomerNotificationService::send(
+                    userId: $quotation->customer->user_id,
+                    type: 'quotation_updated',
+                    title: 'Your quotation price was updated',
+                    body: 'The price for your booking has been revised. Tap to view the updated quotation.',
+                    bookingCode: $bookingCode,
+                );
+            }
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Quotation price updated and email sent to customer successfully.',
+            'message' => $newStatus === 'sent'
+                ? 'Quotation price updated and email sent to customer successfully.'
+                : 'Quotation price updated.',
             'quotation_id' => $quotation->id,
             'new_price' => number_format($newPrice, 2),
         ]);

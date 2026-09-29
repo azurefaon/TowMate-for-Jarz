@@ -2,11 +2,14 @@
 
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\CustomerNotification;
 use App\Models\Quotation;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\TruckType;
 use App\Models\User;
+use App\Services\QuotationService;
+use Illuminate\Support\Facades\Mail;
 
 function ddaRole(int $id, string $name): Role
 {
@@ -229,4 +232,105 @@ it('rejects a price-review adjustment whose typed price implies a charge over th
     ]);
 
     $response->assertStatus(422)->assertJsonFragment(['success' => false]);
+});
+
+/**
+ * Regression coverage for the updateQuotationPrice() communication gate:
+ * customer email/push/quotation_sent marker must fire iff $newStatus ===
+ * 'sent' — this endpoint is also reachable from the "Edit Price" button on
+ * a still-draft quotation (_quotation-modal.blade.php), which must stay
+ * completely silent.
+ */
+it('keeps a draft price edit completely silent: saves the price, no email, no notification, no marker', function () {
+    Mail::fake();
+    [$booking, $quotation] = ddaQuotation('draft');
+    $originalSentAt = $quotation->sent_at;
+    $dispatcher = ddaDispatcher();
+
+    $response = test()->actingAs($dispatcher)->patch(route('admin.quotations.update-price', $quotation), [
+        'new_price' => 4778.4,
+        'note' => 'Draft correction before first send.',
+    ]);
+
+    $response->assertOk()->assertJsonPath('message', 'Quotation price updated.');
+
+    $current = Quotation::where('quotation_number', $quotation->quotation_number)
+        ->where('is_current', true)
+        ->first();
+
+    expect($current->status)->toBe('draft')
+        ->and((float) $current->estimated_price)->toBe(4778.4)
+        ->and($current->sent_at?->toDateTimeString())->toBe($originalSentAt?->toDateTimeString());
+
+    $marker = collect($current->price_change_log)->firstWhere('type', 'quotation_sent');
+    expect($marker)->toBeNull();
+
+    Mail::assertNothingSent();
+    expect(CustomerNotification::where('type', 'quotation_updated')->count())->toBe(0);
+});
+
+it('keeps a pending-fallback status price edit silent too, with no marker', function () {
+    Mail::fake();
+    // Any status other than draft/sent/negotiating falls into the $newStatus
+    // = 'pending' branch.
+    [$booking, $quotation] = ddaQuotation('pending');
+    $dispatcher = ddaDispatcher();
+
+    $response = test()->actingAs($dispatcher)->patch(route('admin.quotations.update-price', $quotation), [
+        'new_price' => 4778.4,
+        'note' => 'Adjustment before any send.',
+    ]);
+
+    $response->assertOk()->assertJsonPath('message', 'Quotation price updated.');
+
+    $current = Quotation::where('quotation_number', $quotation->quotation_number)
+        ->where('is_current', true)
+        ->first();
+
+    expect($current->status)->toBe('pending')
+        ->and((float) $current->estimated_price)->toBe(4778.4);
+
+    $marker = collect($current->price_change_log)->firstWhere('type', 'quotation_sent');
+    expect($marker)->toBeNull();
+
+    Mail::assertNothingSent();
+    expect(CustomerNotification::where('type', 'quotation_updated')->count())->toBe(0);
+});
+
+it('sends communication and creates exactly one quotation_sent marker with the correct version and a fresh sent_at when the adjustment actually sends', function () {
+    Mail::fake();
+    [$booking, $quotation] = ddaQuotation('sent');
+    $dispatcher = ddaDispatcher();
+
+    $response = test()->actingAs($dispatcher)->patch(route('admin.quotations.update-price', $quotation), [
+        'new_price' => 4778.4,
+        'note' => 'Extra winching required.',
+    ]);
+
+    $response->assertOk()->assertJsonPath('message', 'Quotation price updated and email sent to customer successfully.');
+
+    $current = Quotation::where('quotation_number', $quotation->quotation_number)
+        ->where('is_current', true)
+        ->first();
+
+    expect($current->status)->toBe('sent')
+        ->and((int) $current->version)->toBe(2)
+        ->and($current->sent_at)->not->toBeNull();
+
+    $markers = collect($current->price_change_log)->where('type', 'quotation_sent');
+    expect($markers)->toHaveCount(1);
+    expect($markers->first()['version'])->toBe(2);
+
+    Mail::assertSent(\App\Mail\QuotationUpdatedMail::class, 1);
+    expect(CustomerNotification::where('type', 'quotation_updated')->count())->toBe(1);
+});
+
+it('does not append a duplicate quotation_sent marker for the same version', function () {
+    $log = [
+        ['at' => now()->toISOString(), 'type' => 'quotation_sent', 'version' => 2],
+    ];
+
+    $result = app(QuotationService::class)->appendSentVersionEntry($log, 2);
+
+    expect(collect($result)->where('type', 'quotation_sent')->where('version', 2))->toHaveCount(1);
 });
