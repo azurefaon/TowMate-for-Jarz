@@ -4,8 +4,10 @@ namespace App\Http\Controllers\SystemAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SystemSetting;
+use App\Services\AndroidReleaseService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Carbon;
 
 class SystemSettingsController extends Controller
 {
@@ -13,10 +15,10 @@ class SystemSettingsController extends Controller
     {
         $settings = SystemSetting::pluck('value', 'key');
 
-        $apkPath = public_path('downloads/towmate.apk');
-        $apkExists = file_exists($apkPath);
-        $apkSizeMb = $apkExists ? round(filesize($apkPath) / 1048576, 1) : null;
-        $apkUpdatedAt = $apkExists ? \Illuminate\Support\Carbon::createFromTimestamp(filemtime($apkPath)) : null;
+        $apkExists = AndroidReleaseService::currentExists();
+        $apkMetadata = AndroidReleaseService::metadata();
+        $apkSizeMb = $apkMetadata['size_mb'];
+        $apkUpdatedAt = $apkMetadata['uploaded_at'] ? Carbon::parse($apkMetadata['uploaded_at']) : null;
 
         return view('system-admin.settings.index', compact('settings', 'apkExists', 'apkSizeMb', 'apkUpdatedAt'));
     }
@@ -42,16 +44,11 @@ class SystemSettingsController extends Controller
             'apk_file' => ['required', 'file', 'max:102400'],
         ]);
 
-        if ($request->file('apk_file')->getClientOriginalExtension() !== 'apk') {
-            return back()->withErrors(['apk_file' => 'The file must be a .apk file.']);
-        }
+        $error = AndroidReleaseService::storeUpload($request->file('apk_file'));
 
-        $dest = public_path('downloads');
-        if (! is_dir($dest)) {
-            mkdir($dest, 0755, true);
+        if ($error) {
+            return back()->withErrors(['apk_file' => $error]);
         }
-
-        $request->file('apk_file')->move($dest, 'towmate.apk');
 
         return back()->with('apk_success', 'APK uploaded successfully. Download link is now active.');
     }

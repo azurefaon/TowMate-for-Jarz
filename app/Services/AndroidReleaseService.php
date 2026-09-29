@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\SystemSetting;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class AndroidReleaseService
 {
@@ -14,6 +16,57 @@ class AndroidReleaseService
     public static function legacyPath(): string
     {
         return config('filesystems.legacy_apk_path');
+    }
+
+    public static function hasApkSignature(string $path): bool
+    {
+        $handle = @fopen($path, 'rb');
+
+        if (! $handle) {
+            return false;
+        }
+
+        $signature = fread($handle, 4);
+        fclose($handle);
+
+        return $signature === "PK\x03\x04" || $signature === "PK\x05\x06";
+    }
+
+    public static function storeUpload(UploadedFile $file, ?string $versionName = null, ?string $releaseNotes = null): ?string
+    {
+        if (strtolower((string) $file->getClientOriginalExtension()) !== 'apk') {
+            return 'The file must have a .apk extension.';
+        }
+
+        if (! self::hasApkSignature($file->getRealPath())) {
+            return 'The uploaded file is not a valid APK package.';
+        }
+
+        $storedName = Str::random(40) . '.apk';
+        $stored = $file->storeAs('', $storedName, self::DISK);
+
+        if (! $stored || ! Storage::disk(self::DISK)->exists($storedName)) {
+            return 'The upload could not be saved. Please try again.';
+        }
+
+        if (Storage::disk(self::DISK)->size($storedName) !== $file->getSize()) {
+            Storage::disk(self::DISK)->delete($storedName);
+
+            return 'The upload was incomplete and has been discarded. The previous build is still active. Please try again.';
+        }
+
+        $previousFilename = SystemSetting::getValue('android_apk_filename');
+
+        SystemSetting::setValue('android_apk_filename', $storedName);
+        SystemSetting::setValue('android_apk_version_name', $versionName);
+        SystemSetting::setValue('android_apk_release_notes', $releaseNotes);
+        SystemSetting::setValue('android_apk_uploaded_at', now()->toIso8601String());
+
+        if ($previousFilename && $previousFilename !== $storedName) {
+            Storage::disk(self::DISK)->delete($previousFilename);
+        }
+
+        return null;
     }
 
     public static function isActive(): bool

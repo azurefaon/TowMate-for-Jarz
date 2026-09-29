@@ -19,8 +19,6 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Throwable;
 
 class SystemSettingsController extends Controller
@@ -149,38 +147,14 @@ class SystemSettingsController extends Controller
             'release_notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $file = $request->file('apk_file');
+        $error = AndroidReleaseService::storeUpload(
+            $request->file('apk_file'),
+            $validated['version_name'] ?? null,
+            $validated['release_notes'] ?? null,
+        );
 
-        if (strtolower((string) $file->getClientOriginalExtension()) !== 'apk') {
-            return back()->withErrors(['apk_file' => 'The file must have a .apk extension.'])->withInput();
-        }
-
-        if (! $this->hasApkSignature($file->getRealPath())) {
-            return back()->withErrors(['apk_file' => 'The uploaded file is not a valid APK package.'])->withInput();
-        }
-
-        $storedName = Str::random(40) . '.apk';
-        $stored = $file->storeAs('', $storedName, AndroidReleaseService::DISK);
-
-        if (! $stored || ! Storage::disk(AndroidReleaseService::DISK)->exists($storedName)) {
-            return back()->withErrors(['apk_file' => 'The upload could not be saved. Please try again.'])->withInput();
-        }
-
-        if (Storage::disk(AndroidReleaseService::DISK)->size($storedName) !== $file->getSize()) {
-            Storage::disk(AndroidReleaseService::DISK)->delete($storedName);
-
-            return back()->withErrors(['apk_file' => 'The upload was incomplete and has been discarded. The previous build is still active. Please try again.'])->withInput();
-        }
-
-        $previousFilename = SystemSetting::getValue('android_apk_filename');
-
-        SystemSetting::setValue('android_apk_filename', $storedName);
-        SystemSetting::setValue('android_apk_version_name', $validated['version_name'] ?? null);
-        SystemSetting::setValue('android_apk_release_notes', $validated['release_notes'] ?? null);
-        SystemSetting::setValue('android_apk_uploaded_at', now()->toIso8601String());
-
-        if ($previousFilename && $previousFilename !== $storedName) {
-            Storage::disk(AndroidReleaseService::DISK)->delete($previousFilename);
+        if ($error) {
+            return back()->withErrors(['apk_file' => $error])->withInput();
         }
 
         AuditLog::create([
@@ -231,20 +205,6 @@ class SystemSettingsController extends Controller
             'Content-Type' => $result->getMimeType(),
             'Cache-Control' => 'no-store',
         ]);
-    }
-
-    private function hasApkSignature(string $path): bool
-    {
-        $handle = @fopen($path, 'rb');
-
-        if (! $handle) {
-            return false;
-        }
-
-        $signature = fread($handle, 4);
-        fclose($handle);
-
-        return $signature === "PK\x03\x04" || $signature === "PK\x05\x06";
     }
 
     public function updateLanding(Request $request)
