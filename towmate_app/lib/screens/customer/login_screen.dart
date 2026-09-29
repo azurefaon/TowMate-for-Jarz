@@ -72,6 +72,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    // One tap / Enter press = one logical attempt. The button is disabled
+    // while loading, but Enter in the password field calls this directly.
+    if (_isLoading) return;
+
     if (RateLimiter.isLocked) {
       setState(() => _rateLocked = true);
       return;
@@ -103,7 +107,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (role == 'Team Leader') TlPresenceController.start();
       Navigator.pushReplacementNamed(context, route);
     } else {
-      RateLimiter.recordFailure();
+      // Only a genuine credential failure counts toward the lockout; a
+      // timeout / unreachable / 5xx says nothing about the password.
+      if (res['transport_error'] != true) RateLimiter.recordFailure();
       final locked = RateLimiter.isLocked;
       if (locked) _startCooldownTimer();
       setState(() {

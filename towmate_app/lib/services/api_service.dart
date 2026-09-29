@@ -460,17 +460,20 @@ class ApiService {
         msg.contains('os error')) {
       return {
         'success': false,
+        'transport_error': true,
         'message': 'Cannot reach the server. Please check your connection.',
       };
     }
     if (e is TimeoutException || msg.contains('timeout')) {
       return {
         'success': false,
+        'transport_error': true,
         'message': 'Request timed out. Please try again.',
       };
     }
     return {
       'success': false,
+      'transport_error': true,
       'message': 'An unexpected error occurred. Please try again.',
     };
   }
@@ -522,6 +525,10 @@ class ApiService {
 
       return {
         'success': false,
+        // Server-side trouble (5xx / throttled) is not a wrong password and
+        // must not count toward the client-side credential lockout.
+        if (response.statusCode >= 500 || response.statusCode == 429)
+          'transport_error': true,
         'message':
             body['message'] as String? ??
             'Login failed. Check your credentials.',
@@ -529,6 +536,7 @@ class ApiService {
     } on TimeoutException {
       return {
         'success': false,
+        'transport_error': true,
         'message': 'Request timed out. Please try again.',
       };
     } catch (e) {
