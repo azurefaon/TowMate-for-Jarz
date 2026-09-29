@@ -8,6 +8,13 @@
     // and always shows the exact same quotation identity Booking Details is
     // already displaying (including the consolidated quotation for a group).
     var lastBundleData = null;
+    // Monotonic id per openBookingDetailModal() call, plus whether the modal
+    // is currently open — together these let a fetch callback tell whether
+    // it's still the latest request for a still-open modal before touching
+    // the DOM, so a slow/out-of-order/late response can never overwrite a
+    // newer booking's data or repopulate a closed modal.
+    var requestSeq = 0;
+    var isModalOpen = false;
 
     function esc(value) {
         if (value === null || value === undefined) return "";
@@ -472,6 +479,25 @@
         });
     }
 
+    function resetModalContent() {
+        lastBundleData = null;
+        el("bdmBookingCode").textContent = "Loading…";
+        el("bdmServiceType").textContent = "—";
+        el("bdmStatus").textContent = "—";
+        el("bdmVehiclesHeader").textContent = "Vehicle";
+        [
+            "bdmCustomerSection",
+            "bdmTripSection",
+            "bdmVehiclesSection",
+            "bdmQuotationSection",
+            "bdmAssignmentSection",
+            "bdmInvoiceSection",
+            "bdmReceiptSection",
+        ].forEach(function (id) {
+            el(id).innerHTML = emptyState("Loading…");
+        });
+    }
+
     function lockScroll() {
         document.body.style.overflow = "hidden";
     }
@@ -487,6 +513,10 @@
         if (!overlayEl) return;
 
         lastFocusedEl = document.activeElement;
+
+        var requestId = ++requestSeq;
+        isModalOpen = true;
+        resetModalContent();
 
         overlayEl.style.display = "flex";
         overlayEl.setAttribute("aria-hidden", "false");
@@ -509,6 +539,7 @@
                 return res.json();
             })
             .then(function (data) {
+                if (requestId !== requestSeq || !isModalOpen) return;
                 if (!data || !data.success) {
                     showError("Unable to load booking details.");
                     return;
@@ -516,6 +547,7 @@
                 render(data);
             })
             .catch(function () {
+                if (requestId !== requestSeq || !isModalOpen) return;
                 showError("Unable to load booking details.");
             });
     };
@@ -524,6 +556,7 @@
         if (!overlayEl) overlayEl = el("bookingDetailModalOverlay");
         if (!overlayEl) return;
 
+        isModalOpen = false;
         overlayEl.style.display = "none";
         overlayEl.setAttribute("aria-hidden", "true");
         unlockScroll();

@@ -426,16 +426,23 @@ document.addEventListener("DOMContentLoaded", function () {
     // data-sched-bucket and customer/booking text. The tab's own count badge
     // (updateTabBadges() above) intentionally always shows the total, not
     // this filtered count.
+    //
+    // #schedFilter/#schedSearch live INSIDE #scheduledPanel, which Refresh
+    // (initializeQueueRefresh() below) replaces via innerHTML — destroying
+    // any listener bound directly to them. #scheduledPanel itself is never
+    // replaced, so the listener is delegated there instead: it survives any
+    // number of refreshes, and re-resolving the controls/rows by id on every
+    // call means it always acts on whatever is currently in the DOM.
     function initializeScheduledFilter() {
-        var filterSelect = document.getElementById("schedFilter");
-        var searchInput = document.getElementById("schedSearch");
-        var tbody = document.getElementById("schedTableBody");
-        if (!tbody) return;
+        var panel = document.getElementById("scheduledPanel");
+        if (!panel) return;
 
         function applySchedFilter() {
+            var filterSelect = document.getElementById("schedFilter");
+            var searchInput = document.getElementById("schedSearch");
             var bucket = filterSelect ? filterSelect.value : "all";
             var query = (searchInput ? searchInput.value : "").trim().toLowerCase();
-            var rows = tbody.querySelectorAll(".jobs-row");
+            var rows = panel.querySelectorAll(".jobs-row");
 
             Array.prototype.forEach.call(rows, function (row) {
                 var matchesBucket = bucket === "all" || row.getAttribute("data-sched-bucket") === bucket;
@@ -445,21 +452,28 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
 
-        if (filterSelect) filterSelect.addEventListener("change", applySchedFilter);
-        if (searchInput) searchInput.addEventListener("input", applySchedFilter);
+        panel.addEventListener("change", function (event) {
+            if (event.target && event.target.id === "schedFilter") applySchedFilter();
+        });
+        panel.addEventListener("input", function (event) {
+            if (event.target && event.target.id === "schedSearch") applySchedFilter();
+        });
     }
 
-    // Book Now tab's own status filter + search — same pattern as
-    // initializeScheduledFilter() above, filtering by the row's
-    // data-eff-status (mirrors $bnEffStatus in dispatch.blade.php, which
-    // already matches #rbBnFilter's option values 1:1) and free-text search.
+    // Book Now tab's own status filter + search — same delegated pattern as
+    // initializeScheduledFilter() above (see its comment), filtering by the
+    // row's data-eff-status (mirrors $bnEffStatus in dispatch.blade.php,
+    // which already matches #rbBnFilter's option values 1:1) and free-text
+    // search. #rbBnFilter/#bnSearch live inside #bookNowPanel, which Refresh
+    // replaces via innerHTML, so the listener is delegated on the panel
+    // itself rather than attached directly to the controls.
     function initializeBookNowFilter() {
-        var filterSelect = document.getElementById("rbBnFilter");
-        var searchInput = document.getElementById("bnSearch");
         var panel = document.getElementById("bookNowPanel");
         if (!panel) return;
 
         function applyBnFilter() {
+            var filterSelect = document.getElementById("rbBnFilter");
+            var searchInput = document.getElementById("bnSearch");
             var status = filterSelect ? filterSelect.value : "all";
             var query = (searchInput ? searchInput.value : "").trim().toLowerCase();
             var rows = panel.querySelectorAll(".jobs-row");
@@ -472,8 +486,12 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
 
-        if (filterSelect) filterSelect.addEventListener("change", applyBnFilter);
-        if (searchInput) searchInput.addEventListener("input", applyBnFilter);
+        panel.addEventListener("change", function (event) {
+            if (event.target && event.target.id === "rbBnFilter") applyBnFilter();
+        });
+        panel.addEventListener("input", function (event) {
+            if (event.target && event.target.id === "bnSearch") applyBnFilter();
+        });
     }
 
     // Whole-row click already opens the drawer via the row's own onclick
@@ -510,10 +528,15 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         function reapplySubFilter(selectId, inputId) {
+            // bubbles: true is required — the filter/search listeners are
+            // delegated on the stable panel ancestor (see
+            // initializeBookNowFilter()/initializeScheduledFilter()), not on
+            // these controls directly, so a non-bubbling synthetic event
+            // would never reach them.
             var select = document.getElementById(selectId);
-            if (select) select.dispatchEvent(new Event("change"));
+            if (select) select.dispatchEvent(new Event("change", { bubbles: true }));
             var input = document.getElementById(inputId);
-            if (input) input.dispatchEvent(new Event("input"));
+            if (input) input.dispatchEvent(new Event("input", { bubbles: true }));
         }
 
         refreshBtn.addEventListener("click", function () {
