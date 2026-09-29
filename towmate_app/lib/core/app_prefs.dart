@@ -3,7 +3,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 abstract final class AppPrefs {
   static const _kDarkMode = 'dark_mode';
+  static const _kOnboardingComplete = 'onboarding_complete';
   static final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
+
+  static Future<bool> getOnboardingComplete() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kOnboardingComplete) ?? false;
+  }
+
+  static Future<void> setOnboardingComplete() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kOnboardingComplete, true);
+  }
 
   static Future<bool> getDarkMode() async {
     final prefs = await SharedPreferences.getInstance();

@@ -120,7 +120,7 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
     await ApiService.clearSession();
     AppPrefs.useGuestTheme();
     if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/public-home', (_) => false);
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
   }
 
   Future<void> _editPhone() async {

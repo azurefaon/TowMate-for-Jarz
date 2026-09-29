@@ -4,7 +4,6 @@ import 'core/app_prefs.dart';
 import 'core/route_observer.dart';
 import 'core/theme.dart';
 import 'models/booking_model.dart';
-import 'screens/customer/about_screen.dart';
 import 'screens/customer/book_now_screen.dart';
 import 'screens/customer/booking_detail_screen.dart';
 import 'screens/customer/booking_success_screen.dart';
@@ -12,13 +11,12 @@ import 'screens/customer/customer_quotation_screen.dart';
 import 'screens/customer/customer_services_screen.dart';
 import 'screens/customer/customer_vehicle_types_screen.dart';
 import 'screens/customer/edit_profile_screen.dart';
+import 'screens/customer/get_started_screen.dart';
 import 'screens/customer/home_screen.dart';
 import 'screens/customer/login_screen.dart';
 import 'screens/customer/my_bookings_screen.dart';
 import 'screens/customer/notifications_screen.dart';
 import 'screens/customer/profile_screen.dart';
-import 'screens/customer/public_home_screen.dart';
-import 'screens/customer/services_screen.dart';
 import 'screens/customer/signup_screen.dart';
 import 'screens/team_leader/tl_active_task_shell.dart';
 import 'screens/team_leader/tl_force_password_screen.dart';
@@ -75,17 +73,15 @@ class MyApp extends StatelessWidget {
                 : const HomeScreen();
           } else {
             page = switch (settings.name) {
-              '/public-home' => const PublicHomeScreen(),
+              '/get-started' => const GetStartedScreen(),
               '/login' => const LoginScreen(),
               '/signup' => const SignupScreen(),
               '/home' => const HomeScreen(),
               '/book-now' => const BookNowScreen(),
               '/my-bookings' => const MyBookingsScreen(),
               '/quotation' => const CustomerQuotationScreen(),
-              '/services' => const ServicesScreen(),
               '/customer-services' => const CustomerServicesScreen(),
               '/vehicle-types' => const CustomerVehicleTypesScreen(),
-              '/about' => const AboutScreen(),
               '/tl-force-password' => const TlForcePasswordScreen(),
               '/tl-home' => const TlHomeScreen(),
               '/tl-active-task' => const TlActiveTaskShell(),
@@ -94,7 +90,7 @@ class MyApp extends StatelessWidget {
               '/profile' => const ProfileScreen(),
               '/edit-profile' => const EditProfileScreen(),
               '/notifications' => const NotificationsScreen(),
-              _ => const PublicHomeScreen(),
+              _ => const LoginScreen(),
             };
           }
 
@@ -130,12 +126,21 @@ class _AuthGateState extends State<_AuthGate> {
     _checkSession();
   }
 
+  Future<void> _routeToUnauthenticatedStart() async {
+    AppPrefs.useGuestTheme();
+    final onboardingComplete = await AppPrefs.getOnboardingComplete();
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(
+      context,
+      onboardingComplete ? '/login' : '/get-started',
+    );
+  }
+
   Future<void> _checkSession() async {
     final loggedIn = await ApiService.isLoggedIn();
     if (!mounted) return;
     if (!loggedIn) {
-      AppPrefs.useGuestTheme();
-      Navigator.pushReplacementNamed(context, '/public-home');
+      await _routeToUnauthenticatedStart();
       return;
     }
 
@@ -154,8 +159,7 @@ class _AuthGateState extends State<_AuthGate> {
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       await ApiService.clearSession();
-      AppPrefs.useGuestTheme();
-      Navigator.pushReplacementNamed(context, '/public-home');
+      await _routeToUnauthenticatedStart();
     }
   }
 
