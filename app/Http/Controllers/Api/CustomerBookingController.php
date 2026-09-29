@@ -233,7 +233,18 @@ class CustomerBookingController extends Controller
         $customer = Customer::where('user_id', $request->user()->id)->first();
 
         if (!$customer) {
-            return response()->json(['data' => [], 'meta' => []]);
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'last_page'    => 1,
+                    'per_page'     => 10,
+                    'total'        => 0,
+                    'from'         => null,
+                    'to'           => null,
+                ],
+            ]);
         }
 
         $bookings = Booking::where('customer_id', $customer->id)
@@ -287,7 +298,18 @@ class CustomerBookingController extends Controller
             ];
         });
 
-        return response()->json($bookings);
+        return response()->json([
+            'success' => true,
+            'data' => $bookings->items(),
+            'meta' => [
+                'current_page' => $bookings->currentPage(),
+                'last_page'    => $bookings->lastPage(),
+                'per_page'     => $bookings->perPage(),
+                'total'        => $bookings->total(),
+                'from'         => $bookings->firstItem(),
+                'to'           => $bookings->lastItem(),
+            ],
+        ]);
     }
 
     public function checkDuplicateRoute(Request $request): JsonResponse
