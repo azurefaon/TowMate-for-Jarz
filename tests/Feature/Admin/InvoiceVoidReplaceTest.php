@@ -3,6 +3,7 @@
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Invoice;
+use App\Models\Receipt;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\TruckType;
@@ -253,4 +254,86 @@ it('11: an unauthorized role cannot use the void-and-replace endpoint', function
 
     $response->assertStatus(403);
     expect(Invoice::where('is_current', true)->first()->id)->toBe($invoice->id);
+});
+
+it('12: a booking that already has a receipt cannot have its invoice corrected', function () {
+    $dispatcher = ivrDispatcher();
+    $booking = ivrBooking(ivrTruckType(), ivrCustomer(), ['status' => 'completed']);
+    $invoice = ivrInvoice($booking);
+    Receipt::create([
+        'booking_id' => $booking->id,
+        'invoice_id' => $invoice->id,
+        'generated_by' => $dispatcher->id,
+        'receipt_number' => 'R-IVR-12',
+        'pdf_path' => 'documents/receipts/booking-' . $booking->id . '-receipt.pdf',
+    ]);
+
+    $response = test()->actingAs($dispatcher)->postJson(
+        route('admin.invoices.void', $invoice),
+        ['reason' => 'Attempted correction after receipt']
+    );
+
+    $response->assertStatus(422);
+    expect($response->json('message'))->toContain('receipt');
+
+    $invoice->refresh();
+    expect($invoice->status)->toBe('issued')
+        ->and($invoice->is_current)->toBeTrue();
+    expect(Invoice::count())->toBe(1);
+});
+
+it('13: waiting_verification with no receipt succeeds and creates no Receipt as a side effect', function () {
+    $booking = ivrBooking(ivrTruckType(), ivrCustomer(), ['status' => 'waiting_verification']);
+    $invoice = ivrInvoice($booking);
+
+    $response = test()->actingAs(ivrDispatcher())->postJson(
+        route('admin.invoices.void', $invoice),
+        ['reason' => 'Waiting-verification correction, no receipt yet', 'discount_percentage' => 10]
+    );
+
+    $response->assertOk()->assertJsonPath('success', true);
+
+    $booking->refresh();
+    expect((float) $booking->discount_percentage)->toBe(10.0)
+        ->and((float) $booking->final_total)->toBe(3850.56);
+
+    $oldInvoice = $invoice->fresh();
+    $newInvoice = Invoice::where('is_current', true)->where('booking_id', $booking->id)->first();
+    expect($oldInvoice->status)->toBe('voided')
+        ->and($oldInvoice->is_current)->toBeFalse();
+    expect($newInvoice)->not->toBeNull()
+        ->and($newInvoice->status)->toBe('issued')
+        ->and($newInvoice->is_current)->toBeTrue()
+        ->and($newInvoice->previous_invoice_id)->toBe($oldInvoice->id)
+        ->and($newInvoice->original_invoice_id)->toBe($oldInvoice->id);
+
+    expect(Receipt::where('booking_id', $booking->id)->count())->toBe(0);
+});
+
+it('14: completed status with no receipt still succeeds as an exceptional/recovery correction and creates no Receipt as a side effect', function () {
+    $booking = ivrBooking(ivrTruckType(), ivrCustomer(), ['status' => 'completed']);
+    $invoice = ivrInvoice($booking);
+
+    $response = test()->actingAs(ivrDispatcher())->postJson(
+        route('admin.invoices.void', $invoice),
+        ['reason' => 'Post-completion correction before any receipt exists', 'discount_percentage' => 10]
+    );
+
+    $response->assertOk()->assertJsonPath('success', true);
+
+    $booking->refresh();
+    expect((float) $booking->discount_percentage)->toBe(10.0)
+        ->and((float) $booking->final_total)->toBe(3850.56);
+
+    $oldInvoice = $invoice->fresh();
+    $newInvoice = Invoice::where('is_current', true)->where('booking_id', $booking->id)->first();
+    expect($oldInvoice->status)->toBe('voided')
+        ->and($oldInvoice->is_current)->toBeFalse();
+    expect($newInvoice)->not->toBeNull()
+        ->and($newInvoice->status)->toBe('issued')
+        ->and($newInvoice->is_current)->toBeTrue()
+        ->and($newInvoice->previous_invoice_id)->toBe($oldInvoice->id)
+        ->and($newInvoice->original_invoice_id)->toBe($oldInvoice->id);
+
+    expect(Receipt::where('booking_id', $booking->id)->count())->toBe(0);
 });

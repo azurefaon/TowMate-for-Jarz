@@ -89,6 +89,10 @@ class InvoiceController extends Controller
                 return ['error' => 'This booking is not in a state where its invoice can be voided and replaced.'];
             }
 
+            if ($lockedBooking->receipt) {
+                return ['error' => 'A receipt has already been issued for this booking. The invoice can no longer be corrected through this action.'];
+            }
+
             $gross = (float) $lockedBooking->computed_total;
             $discountAmount = round($gross * ($discountPercentage / 100), 2);
             $subtotal = max(round($gross - $discountAmount, 2), 0);
@@ -256,6 +260,20 @@ class InvoiceController extends Controller
                     throw new \RuntimeException('No quotation found for this group.');
                 }
                 $quotationAdjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
+
+                // The group's one canonical receipt is always attached to
+                // quotation.source_booking_id (see DocumentGenerationService::
+                // generateReceipt() / TLTaskController::completeGroup()) — never
+                // to whichever booking the correction happens to be viewed or
+                // initiated from. A correction opened from a sibling's context
+                // must be blocked exactly the same as one opened from the
+                // anchor's own context if that canonical booking already has a
+                // receipt; this is a read-only check, no Receipt row is
+                // created, moved, duplicated, or reassigned here.
+                $canonicalReceiptAnchor = $groupBookings->firstWhere('id', $quotation->source_booking_id) ?? $lockedAnchor;
+                if ($canonicalReceiptAnchor->receipt) {
+                    throw new \RuntimeException('A receipt has already been issued for this group. The invoice can no longer be corrected through this action.');
+                }
 
                 if ($targetMember) {
                     $additionalFee = (float) ($validated['additional_fee'] ?? 0);

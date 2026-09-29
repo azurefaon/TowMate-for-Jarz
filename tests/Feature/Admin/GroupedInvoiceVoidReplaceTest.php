@@ -4,6 +4,7 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Quotation;
+use App\Models\Receipt;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\TruckType;
@@ -334,4 +335,107 @@ it('10: an unauthorized role cannot use the grouped void-and-replace endpoint', 
 
     $response->assertStatus(403);
     expect(Invoice::where('is_current', true)->first()->id)->toBe($invoice->id);
+});
+
+it('11: a group whose canonical (anchor) booking already has a receipt cannot be corrected', function () {
+    $dispatcher = givrDispatcher();
+    ['vehicle1' => $vehicle1, 'invoice' => $invoice] = givrScenario();
+    Receipt::create([
+        'booking_id' => $vehicle1->id,
+        'invoice_id' => $invoice->id,
+        'generated_by' => $dispatcher->id,
+        'receipt_number' => 'R-GIVR-11',
+        'pdf_path' => 'documents/receipts/booking-' . $vehicle1->id . '-receipt.pdf',
+    ]);
+
+    $response = test()->actingAs($dispatcher)->postJson(
+        route('admin.invoices.void', $invoice),
+        ['reason' => 'Reason-only attempt after group receipt']
+    );
+
+    $response->assertStatus(422);
+    expect($response->json('message'))->toContain('receipt');
+    expect(Invoice::where('is_current', true)->first()->id)->toBe($invoice->id);
+});
+
+it('12: a correction initiated via a sibling member_booking_id is still blocked once the group receipt exists on the anchor', function () {
+    $dispatcher = givrDispatcher();
+    ['vehicle1' => $vehicle1, 'vehicle2' => $vehicle2, 'invoice' => $invoice] = givrScenario();
+    Receipt::create([
+        'booking_id' => $vehicle1->id,
+        'invoice_id' => $invoice->id,
+        'generated_by' => $dispatcher->id,
+        'receipt_number' => 'R-GIVR-12',
+        'pdf_path' => 'documents/receipts/booking-' . $vehicle1->id . '-receipt.pdf',
+    ]);
+
+    $response = test()->actingAs($dispatcher)->postJson(
+        route('admin.invoices.void', $invoice),
+        ['reason' => 'Sibling-context attempt after group receipt', 'member_booking_id' => $vehicle2->id, 'additional_fee' => 500]
+    );
+
+    $response->assertStatus(422);
+    expect($response->json('message'))->toContain('receipt');
+
+    expect((float) $vehicle2->fresh()->additional_fee)->toBe(0.0)
+        ->and((float) $vehicle2->fresh()->final_total)->toBe(4480.0);
+    expect(Invoice::where('is_current', true)->first()->id)->toBe($invoice->id);
+    expect(Invoice::count())->toBe(1);
+});
+
+it('13: grouped waiting_verification with no receipt succeeds and creates no Receipt as a side effect', function () {
+    ['vehicle1' => $vehicle1, 'vehicle2' => $vehicle2, 'invoice' => $invoice] = givrScenario();
+
+    $response = test()->actingAs(givrDispatcher())->postJson(
+        route('admin.invoices.void', $invoice),
+        ['reason' => 'Waiting-verification group correction, no receipt yet', 'member_booking_id' => $vehicle2->id, 'additional_fee' => 500]
+    );
+
+    $response->assertOk()->assertJsonPath('success', true);
+
+    expect((float) $vehicle2->fresh()->additional_fee)->toBe(500.0)
+        ->and((float) $vehicle2->fresh()->final_total)->toBe(4980.0);
+
+    $oldInvoice = $invoice->fresh();
+    $newInvoice = Invoice::where('is_current', true)->first();
+    expect($oldInvoice->status)->toBe('voided')
+        ->and($oldInvoice->is_current)->toBeFalse();
+    expect($newInvoice)->not->toBeNull()
+        ->and($newInvoice->status)->toBe('issued')
+        ->and($newInvoice->is_current)->toBeTrue()
+        ->and((float) $newInvoice->total)->toBe(15500.0)
+        ->and($newInvoice->previous_invoice_id)->toBe($oldInvoice->id)
+        ->and($newInvoice->original_invoice_id)->toBe($oldInvoice->id);
+
+    expect(Receipt::where('booking_id', $vehicle1->id)->count())->toBe(0);
+});
+
+it('14: a completed group with no receipt still succeeds as an exceptional/recovery correction and creates no Receipt as a side effect', function () {
+    ['vehicle1' => $vehicle1, 'vehicle2' => $vehicle2, 'vehicle3' => $vehicle3, 'invoice' => $invoice] = givrScenario();
+    foreach ([$vehicle1, $vehicle2, $vehicle3] as $member) {
+        $member->update(['status' => 'completed']);
+    }
+
+    $response = test()->actingAs(givrDispatcher())->postJson(
+        route('admin.invoices.void', $invoice),
+        ['reason' => 'Post-completion group correction before any receipt exists', 'member_booking_id' => $vehicle2->id, 'additional_fee' => 500]
+    );
+
+    $response->assertOk()->assertJsonPath('success', true);
+
+    expect((float) $vehicle2->fresh()->additional_fee)->toBe(500.0)
+        ->and((float) $vehicle2->fresh()->final_total)->toBe(4980.0);
+
+    $oldInvoice = $invoice->fresh();
+    $newInvoice = Invoice::where('is_current', true)->first();
+    expect($oldInvoice->status)->toBe('voided')
+        ->and($oldInvoice->is_current)->toBeFalse();
+    expect($newInvoice)->not->toBeNull()
+        ->and($newInvoice->status)->toBe('issued')
+        ->and($newInvoice->is_current)->toBeTrue()
+        ->and((float) $newInvoice->total)->toBe(15500.0)
+        ->and($newInvoice->previous_invoice_id)->toBe($oldInvoice->id)
+        ->and($newInvoice->original_invoice_id)->toBe($oldInvoice->id);
+
+    expect(Receipt::where('booking_id', $vehicle1->id)->count())->toBe(0);
 });
