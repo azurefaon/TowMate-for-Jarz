@@ -104,20 +104,24 @@ class JobsController extends Controller
         return collect($quotation->extra_vehicles ?? [])->contains(fn($ev) => ! empty($ev['booking_id']));
     }
 
-    private function activeGroupTotal(Booking $primary, \Illuminate\Support\Collection $activeMembers): ?float
+    /**
+     * Always recomputed from the active members' own final_total, never
+     * quotation.estimated_price — that snapshot is frozen at acceptance and
+     * silently drops any legitimate post-acceptance per-vehicle correction
+     * made through ActiveBookingsController::updatePricing() when nobody in
+     * the group happens to be cancelled/rejected. Same formula and same
+     * reasoning as TLTaskController::completeGroup()'s consolidated total.
+     */
+    private function activeGroupTotal(Booking $primary, \Illuminate\Support\Collection $groupMembers): ?float
     {
         $quotation = \App\Models\Quotation::find($primary->quotation_id);
         if (! $quotation) {
             return null;
         }
 
-        $expectedMemberCount = 1 + collect($quotation->extra_vehicles ?? [])
-            ->filter(fn($ev) => ! empty($ev['booking_id']))
-            ->count();
-
-        if ($activeMembers->count() >= $expectedMemberCount) {
-            return (float) $quotation->estimated_price;
-        }
+        $activeMembers = $groupMembers->reject(
+            fn (Booking $member) => in_array($member->status, ['cancelled', 'rejected'], true)
+        );
 
         $adjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
 
