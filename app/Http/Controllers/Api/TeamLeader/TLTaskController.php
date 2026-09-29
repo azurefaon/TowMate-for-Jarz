@@ -754,29 +754,45 @@ class TLTaskController extends Controller
             ], 403);
         }
 
-        $sibling = Booking::where('group_code', $groupCode)
-            ->whereNull('assigned_team_leader_id')
-            ->whereIn('status', ['requested', 'scheduled', 'scheduled_confirmed', 'confirmed'])
-            ->first();
-
-        if (! $sibling) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No available sibling booking found in this group.',
-            ], 404);
-        }
-
         $completedBooking = Booking::where('group_code', $groupCode)
             ->where('assigned_team_leader_id', $tl->id)
             ->where('status', 'completed')
             ->first();
 
-        $sibling->update([
-            'assigned_team_leader_id' => $tl->id,
-            'assigned_unit_id'        => $completedBooking?->assigned_unit_id,
-            'status'                  => 'accepted',
-            'assigned_at'             => now(),
-        ]);
+        // Locked so two Team Leaders racing claimNext() on the same group
+        // can't both claim the same unclaimed sibling — whichever gets the
+        // row lock first wins; PostgreSQL re-evaluates this WHERE clause
+        // against the committed row once unblocked, so the loser's query
+        // simply finds it no longer unassigned and falls through to the
+        // existing "no available sibling" response instead of overwriting
+        // the winner's claim.
+        $result = DB::transaction(function () use ($groupCode, $tl, $completedBooking) {
+            $sibling = Booking::where('group_code', $groupCode)
+                ->whereNull('assigned_team_leader_id')
+                ->whereIn('status', ['requested', 'scheduled', 'scheduled_confirmed', 'confirmed'])
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->first();
+
+            if (! $sibling) {
+                return ['status' => 404, 'message' => 'No available sibling booking found in this group.'];
+            }
+
+            $sibling->update([
+                'assigned_team_leader_id' => $tl->id,
+                'assigned_unit_id'        => $completedBooking?->assigned_unit_id,
+                'status'                  => 'accepted',
+                'assigned_at'             => now(),
+            ]);
+
+            return ['status' => 200, 'booking' => $sibling];
+        });
+
+        if ($result['status'] !== 200) {
+            return response()->json(['success' => false, 'message' => $result['message']], $result['status']);
+        }
+
+        $sibling = $result['booking'];
         $sibling->load(['customer', 'truckType', 'unit']);
 
         try { BookingStatusUpdated::safeFire($sibling); } catch (\Throwable) {}
