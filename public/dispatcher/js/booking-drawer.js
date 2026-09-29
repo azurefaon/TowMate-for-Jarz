@@ -216,6 +216,13 @@
             // from currentPrice (see pricingSectionHtml()'s "Adjustments" row).
             additionalFee: parseFloat(d.currentAdditional || "0") || 0,
             discount: 0,
+            // Post-acceptance dispatcher correction (ActiveBookingsController::
+            // updatePricing()) — separate from discount/additionalFee above,
+            // which are quotation-sourced. Populated only after a successful
+            // "Adjust Final Pricing" save; never read from quotation details.
+            discountPercentage: 0,
+            priceCorrectionOpen: false,
+            priceCorrectionRemarks: "",
             vatExclusiveTotal: parseFloat(d.vatExclusiveTotal || "0") || 0,
             vatAmount: parseFloat(d.vatAmount || "0") || 0,
             vatRate: parseFloat(d.vatRate || "0.12") || 0.12,
@@ -1164,6 +1171,65 @@
                 "</div></div>";
         }
 
+        // Post-acceptance dispatcher correction (ActiveBookingsController::
+        // updatePricing()) — deliberately a completely separate form/handler
+        // from the quotation-side "New Adjustment"/"Adjust price" above. Only
+        // visible for eff==="accepted" (after acceptance, before
+        // waiting_verification), and for grouped bookings scoped to whichever
+        // vehicle tab is currently active. Never touches the quotation, never
+        // creates a version, never re-sends to the customer.
+        //
+        // eff==="accepted" alone is NOT enough to gate this: effectiveStatus()
+        // deliberately maps every POST_ACCEPTANCE_BOOKING_STATUSES entry —
+        // including waiting_verification and completed — to the same
+        // "accepted" bucket (that's what keeps them all equally read-only for
+        // Save/Send/Reject). So the raw s.status must be checked separately
+        // here, mirroring ActiveBookingsController::updatePricing()'s own
+        // lock list exactly (Booking::TERMINAL_STATUSES + 'waiting_verification').
+        var PRICE_CORRECTION_LOCKED_STATUSES = [
+            "completed",
+            "cancelled",
+            "rejected",
+            "waiting_verification",
+        ];
+        var priceCorrectionHtml = "";
+        if (
+            eff === "accepted" &&
+            PRICE_CORRECTION_LOCKED_STATUSES.indexOf(s.status) === -1
+        ) {
+            var pcVehicleLabel = grouped
+                ? " — Vehicle " +
+                  (activeVehicleIndex(s) + 1) +
+                  " — " +
+                  esc(vehicleDisplayName(activeVehicle(s)))
+                : "";
+            priceCorrectionHtml =
+                '<button type="button" class="rb-btn rb-btn-secondary rb-adj-toggle-btn" id="rbPriceCorrectionToggleBtn"' +
+                (s.priceCorrectionOpen ? ' style="display:none;"' : "") +
+                ">" +
+                icon("pencil") +
+                " Adjust Final Pricing</button>" +
+                '<div class="rb-adj-form" id="rbPriceCorrectionForm"' +
+                (s.priceCorrectionOpen ? "" : ' style="display:none;"') +
+                ">" +
+                '<div class="rb-sub-label">Adjust Final Pricing' +
+                pcVehicleLabel +
+                "</div>" +
+                '<div class="rb-adj-form-row">' +
+                '<div class="rb-currency-input-wrap"><span class="rb-currency-ic">₱</span><input type="text" class="rb-mono" id="rbPriceCorrectionAdditionalCharge" placeholder="Additional charge, e.g. 200.50" inputmode="decimal"></div>' +
+                '<div class="rb-currency-input-wrap"><input type="text" class="rb-mono" id="rbPriceCorrectionDiscountPercent" placeholder="Discount %" inputmode="decimal"><span class="rb-currency-ic">%</span></div>' +
+                "</div>" +
+                '<div class="rb-adj-reason-label"><span>Reason</span></div>' +
+                '<textarea id="rbPriceCorrectionReason" placeholder="Explain the correction (required if the Owner requires a reason for this amount)"></textarea>' +
+                '<div class="rb-adj-error" id="rbPriceCorrectionError" style="display:none;"></div>' +
+                '<div class="rb-adj-form-actions">' +
+                '<button type="button" class="rb-btn rb-btn-secondary" id="rbPriceCorrectionCancelBtn">Cancel</button>' +
+                '<button type="button" class="rb-btn rb-btn-primary" id="rbPriceCorrectionSaveBtn">' +
+                icon("save") +
+                " Save</button>" +
+                "</div></div>";
+        }
+
         return (
             '<div class="rb-section"><h4>Pricing</h4>' +
             breakdown +
@@ -1173,6 +1239,7 @@
             historyHtml +
             adjFormHtml +
             reviewAdjustFormHtml +
+            priceCorrectionHtml +
             "</div>"
         );
     }
@@ -1656,6 +1723,7 @@
         drawerEl.querySelectorAll("[data-vnav-step]").forEach(function (btn) {
             btn.onclick = function () {
                 setActiveVehicleId(s, btn.dataset.vnavStep);
+                s.priceCorrectionOpen = false;
                 renderDrawer();
             };
         });
@@ -1851,6 +1919,49 @@
                     return;
                 }
                 submitAdjustPriceAfterReview(newPrice, reason);
+            };
+        });
+
+        // ---- post-acceptance "Adjust Final Pricing" (ActiveBookingsController::
+        // updatePricing()) — separate state/handlers from the quotation-side
+        // adjustment forms above; never touches s.adjustments/adjFormOpen. ----
+        byId("rbPriceCorrectionToggleBtn", function (el) {
+            el.onclick = function () {
+                s.priceCorrectionOpen = true;
+                renderDrawer();
+            };
+        });
+        byId("rbPriceCorrectionCancelBtn", function (el) {
+            el.onclick = function () {
+                s.priceCorrectionOpen = false;
+                renderDrawer();
+            };
+        });
+        byId("rbPriceCorrectionAdditionalCharge", function (el) {
+            el.addEventListener("input", function () {
+                var v = el.value.replace(/[^\d.]/g, "");
+                var firstDot = v.indexOf(".");
+                if (firstDot !== -1)
+                    v =
+                        v.slice(0, firstDot + 1) +
+                        v.slice(firstDot + 1).replace(/\./g, "");
+                el.value = v;
+            });
+        });
+        byId("rbPriceCorrectionDiscountPercent", function (el) {
+            el.addEventListener("input", function () {
+                var v = el.value.replace(/[^\d.]/g, "");
+                var firstDot = v.indexOf(".");
+                if (firstDot !== -1)
+                    v =
+                        v.slice(0, firstDot + 1) +
+                        v.slice(firstDot + 1).replace(/\./g, "");
+                el.value = v;
+            });
+        });
+        byId("rbPriceCorrectionSaveBtn", function (el) {
+            el.onclick = function () {
+                submitPriceCorrection();
             };
         });
 
@@ -2717,6 +2828,108 @@
                 setBusy(false);
                 showDrawerNetworkError();
             });
+    }
+
+    // Post-acceptance dispatcher price correction. Deliberately independent
+    // of every quotation-side submit* function above: it never touches
+    // s.adjustments/s.priceAdjustments, never calls quoteUpdatePrice/
+    // quoteSend, and never re-fetches quotation details — the response from
+    // ActiveBookingsController::updatePricing() is the sole source of truth
+    // for the refreshed totals (see applyPriceCorrectionSuccess()).
+    function submitPriceCorrection() {
+        var s = state;
+        var targetVehicle = isGrouped(s) ? activeVehicle(s) : null;
+        var targetBookingCode = targetVehicle
+            ? targetVehicle.booking_code
+            : s.bookingCode;
+
+        if (isGrouped(s) && !targetBookingCode) {
+            showPriceCorrectionError(
+                "Could not identify which vehicle to adjust. Please reopen the drawer.",
+            );
+            return;
+        }
+
+        var chargeInput = document.getElementById(
+            "rbPriceCorrectionAdditionalCharge",
+        );
+        var discountInput = document.getElementById(
+            "rbPriceCorrectionDiscountPercent",
+        );
+        var reasonInput = document.getElementById("rbPriceCorrectionReason");
+
+        var payload = {
+            additional_fee:
+                parseFloat((chargeInput && chargeInput.value) || "0") || 0,
+            discount_percentage:
+                parseFloat((discountInput && discountInput.value) || "0") ||
+                0,
+        };
+        var reason = ((reasonInput && reasonInput.value) || "").trim();
+        if (reason) payload.remarks = reason;
+
+        setBusy(true);
+        apiCall(
+            fillRoute(window.RB_ROUTES.updatePricing, targetBookingCode),
+            "PATCH",
+            payload,
+        )
+            .then(function (res) {
+                setBusy(false);
+                if (!res.ok) {
+                    showPriceCorrectionError(
+                        (res.data && res.data.message) ||
+                            "Could not save this correction. Please try again.",
+                    );
+                    return;
+                }
+                applyPriceCorrectionSuccess(
+                    res.data && res.data.booking,
+                    targetVehicle,
+                );
+            })
+            .catch(function () {
+                setBusy(false);
+                showPriceCorrectionError(
+                    "Could not save this correction. Please try again.",
+                );
+            });
+    }
+
+    // Updates drawer state directly from the endpoint's own response —
+    // additional_fee/discount_percentage/vat_amount/final_total/remarks are
+    // the authoritative Booking values issueInvoice() will eventually read.
+    // For a grouped booking this only ever mutates the one vehicle entry
+    // that was actually adjusted, never the whole group.
+    function applyPriceCorrectionSuccess(booking, targetVehicle) {
+        if (!booking) return;
+        var s = state;
+        var additionalFee = parseFloat(booking.additional_fee) || 0;
+        var discountPercentage = parseFloat(booking.discount_percentage) || 0;
+        var vatAmount = parseFloat(booking.vat_amount) || 0;
+        var finalTotal = parseFloat(booking.final_total) || 0;
+
+        if (targetVehicle) {
+            targetVehicle.additional_fee = additionalFee;
+            targetVehicle.discount_percentage = discountPercentage;
+            targetVehicle.vat_amount = vatAmount;
+            targetVehicle.final_total = finalTotal;
+        } else {
+            s.additionalFee = additionalFee;
+            s.discountPercentage = discountPercentage;
+            s.vatAmount = vatAmount;
+            s.currentPrice = finalTotal;
+        }
+        s.priceCorrectionRemarks = booking.remarks || "";
+        s.priceCorrectionOpen = false;
+        renderDrawer();
+    }
+
+    function showPriceCorrectionError(msg) {
+        var errEl = document.getElementById("rbPriceCorrectionError");
+        if (!errEl) return;
+        errEl.textContent = msg;
+        errEl.style.display = "";
     }
 
     function submitDispatch() {

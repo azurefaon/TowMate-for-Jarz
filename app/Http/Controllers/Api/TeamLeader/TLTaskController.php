@@ -52,7 +52,12 @@ class TLTaskController extends Controller
         'loading_vehicle'       => ['on_job', 'returned', 'in_progress'],
         'on_job'                => ['arrived_dropoff', 'returned', 'loading_vehicle'],
         'arrived_dropoff'       => ['returned', 'on_job'],
-        'waiting_verification'  => ['returned', 'arrived_dropoff'],
+        // waiting_verification means an invoice already exists and payment/
+        // completion data has already been submitted (see complete()) — this
+        // is the operational -> financial boundary, so no forward, backward,
+        // or Return transition is allowed out of it here. Intentionally
+        // absent from this map rather than mapped to [], so it reads the same
+        // as every other status this map has no entry for.
     ];
 
     public function current(Request $request): JsonResponse
@@ -260,13 +265,11 @@ class TLTaskController extends Controller
             ]);
         }
 
-        if ($newStatus === 'arrived_dropoff' && ! $this->isNormalizedGroupBooking($booking) && ! $booking->currentInvoice()->exists()) {
-            try {
-                $this->issueInvoice($booking, $teamLeaderId);
-            } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
-            }
-        }
-
+        // Invoice issuance for single bookings is deliberately deferred to
+        // complete() (see there) so arrived_dropoff stays a plain operational
+        // status with no invoice yet — matching how grouped bookings already
+        // behave, and keeping Back/Return/Reassign/Cancel from this status
+        // free of any invoice to leak or leave stale.
         try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
 
         if ($booking->customer && $booking->customer->user_id) {
@@ -313,6 +316,14 @@ class TLTaskController extends Controller
 
             if (in_array($locked->status, self::TERMINAL_STATUSES)) {
                 return ['status' => 409, 'message' => 'Task is already in a terminal state.'];
+            }
+
+            // waiting_verification means an invoice already exists and
+            // payment/completion data has already been submitted — past the
+            // operational -> financial boundary, so this can no longer be
+            // returned to dispatch as a plain operational task.
+            if ($locked->status === 'waiting_verification') {
+                return ['status' => 409, 'message' => 'This task has already submitted payment for dispatcher verification and can no longer be returned.'];
             }
 
             $locked->update([
@@ -436,8 +447,17 @@ class TLTaskController extends Controller
                 return ['already' => $locked];
             }
 
+            // arrived_dropoff stays invoice-free (see updateStatus()) so it
+            // remains a plain, reversible operational status — the invoice
+            // is issued here instead, right as payment is actually being
+            // submitted. currentInvoice()->exists() already guards against
+            // creating a second one for a booking that already has one.
             if (! $locked->currentInvoice()->exists()) {
-                return ['error' => ['message' => 'No invoice has been issued for this job yet. Payment cannot be recorded.', 'status' => 422]];
+                try {
+                    $this->issueInvoice($locked, $request->user()->id);
+                } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                    // Another concurrent request already issued it.
+                }
             }
 
             if ($validated['payment_method'] === 'cash' && (float) $validated['cash_received'] < (float) $locked->final_total) {
@@ -577,9 +597,20 @@ class TLTaskController extends Controller
 
             $cancelledBookingIds = $groupBookings->where('status', 'cancelled')->pluck('id');
             $adjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
-            $groupTotal = $cancelledBookingIds->isNotEmpty()
-                ? max(round($activeGroupBookings->sum(fn($member) => (float) $member->final_total) + $adjustment, 2), 0)
-                : (float) $quotation->estimated_price;
+            // Always recomputed from the active members' own final_total, never
+            // quotation.estimated_price — that snapshot is frozen at acceptance
+            // and silently drops any legitimate post-acceptance per-vehicle
+            // correction made through ActiveBookingsController::updatePricing()
+            // when nobody in the group happens to be cancelled. member.final_total
+            // never includes the quotation-level additional_fee/discount (see
+            // QuotationService::acceptQuotation() — the primary booking's
+            // additional_fee is explicitly zeroed for a normalized group, and
+            // each sibling's additional_fee only reconciles its own per-vehicle
+            // snapshot), so adding $adjustment here counts the group-level fee
+            // exactly once, matching quotation.estimated_price for an untouched
+            // group (see QuotationService::undoPriceAdjustment()'s identical
+            // groupServiceTotal + additional_fee - discount composition).
+            $groupTotal = max(round($activeGroupBookings->sum(fn($member) => (float) $member->final_total) + $adjustment, 2), 0);
 
             if ($validated['payment_method'] === 'cash' && (float) $validated['cash_received'] < $groupTotal) {
                 return ['error' => ['message' => 'Cash received must cover the group total.', 'status' => 422]];

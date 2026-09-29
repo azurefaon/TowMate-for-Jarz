@@ -315,7 +315,9 @@ it('keeps single-vehicle Team Leader completion behavior unchanged', function ()
     gfcProgressToArrivedDropoff($booking);
 
     expect($booking->fresh()->status)->toBe('arrived_dropoff');
-    expect(Invoice::where('booking_id', $booking->id)->count())->toBe(1);
+    // arrived_dropoff itself stays invoice-free — the single-booking invoice
+    // is now issued at complete() (payment submission), not at arrival.
+    expect(Invoice::where('booking_id', $booking->id)->count())->toBe(0);
 
     $booking->update(['payment_proof_path' => 'task-photos/gfc-solo-proof.jpg']);
     $signature = \Illuminate\Http\UploadedFile::fake()->image('sig.png');
@@ -327,6 +329,7 @@ it('keeps single-vehicle Team Leader completion behavior unchanged', function ()
     $complete->assertOk()->assertJsonPath('success', true);
 
     expect($booking->fresh()->status)->toBe('waiting_verification');
+    expect(Invoice::where('booking_id', $booking->id)->count())->toBe(1);
 });
 
 it('keeps legacy embedded-extra grouped data backward-compatible via the original sibling auto-claim', function () {
@@ -1024,6 +1027,17 @@ it('does not alter the invoice email or PDF for a solo booking', function () {
 
     Sanctum::actingAs($leader, ['*']);
     gfcProgressToArrivedDropoff($booking);
+
+    // arrived_dropoff no longer issues (or emails) an invoice — that now
+    // happens at complete(), right when payment is actually submitted.
+    Mail::assertNothingSent();
+
+    $booking->update(['payment_proof_path' => 'task-photos/gfc-solo-invoice-proof.jpg']);
+    test()->post('/api/v1/team-leader/task/' . $booking->booking_code . '/complete', [
+        'signature' => \Illuminate\Http\UploadedFile::fake()->image('sig.png'),
+        'payment_method' => 'cash',
+        'cash_received' => '4658.08',
+    ])->assertOk()->assertJsonPath('success', true);
 
     Mail::assertSent(\App\Mail\InvoiceMail::class, 1);
     Mail::assertSent(\App\Mail\InvoiceMail::class, function ($mail) {

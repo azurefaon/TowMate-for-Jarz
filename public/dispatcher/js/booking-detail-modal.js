@@ -185,7 +185,12 @@
             row("Unit", unitName) + row("Team Leader", tlName) + row("Service Status", humanize(assignment.service_status));
     }
 
-    function renderInvoice(invoice) {
+    // Booking statuses where InvoiceController@void (Void & Replace) is
+    // reachable — mirrors CORRECTABLE_BOOKING_STATUSES server-side. This is
+    // only a UI gate; the backend enforces it independently.
+    var VOID_REPLACE_ELIGIBLE_STATUSES = ["waiting_verification", "completed"];
+
+    function renderInvoice(invoice, data) {
         var section = el("bdmInvoiceSection");
 
         if (!invoice) {
@@ -218,7 +223,198 @@
             html += '<a class="bdm-action-link" href="' + esc(invoice.pdf_url) + '" target="_blank" rel="noopener">View Invoice</a>';
         }
 
+        var booking = (data && data.booking) || {};
+        var vehicles = (data && data.vehicles) || [];
+        var isGrouped = !!booking.group_code || vehicles.length > 1;
+        var isEligible =
+            invoice.is_current &&
+            invoice.status !== "voided" &&
+            VOID_REPLACE_ELIGIBLE_STATUSES.indexOf(booking.status) !== -1;
+
+        if (isEligible) {
+            html += voidReplaceFormHtml(booking, invoice, vehicles, isGrouped);
+        }
+
         section.innerHTML = html;
+
+        if (isEligible) {
+            wireVoidReplaceForm(booking, invoice, isGrouped);
+        }
+    }
+
+    // A vehicle is selectable for a per-vehicle correction only while it's
+    // still an active member of the group — matches the backend's own
+    // active-member filter (excludes cancelled/rejected) in
+    // InvoiceController::voidGroup().
+    var VOID_REPLACE_EXCLUDED_VEHICLE_STATUSES = ["cancelled", "rejected"];
+
+    function voidReplaceFormHtml(booking, invoice, vehicles, isGrouped) {
+        var showPaymentVerified = booking.payment_method && booking.payment_method !== "cash";
+        var vehiclePickerHtml = "";
+
+        if (isGrouped) {
+            var activeVehicles = (vehicles || []).filter(function (v) {
+                return VOID_REPLACE_EXCLUDED_VEHICLE_STATUSES.indexOf(v.status) === -1;
+            });
+            var options =
+                '<option value="">No vehicle change — reason only</option>' +
+                activeVehicles
+                    .map(function (v) {
+                        return (
+                            '<option value="' +
+                            v.booking_id +
+                            '">' +
+                            esc(v.booking_code) +
+                            (v.truck_type_name ? " — " + esc(v.truck_type_name) : "") +
+                            " (current " +
+                            fmt(v.final_total) +
+                            ")</option>"
+                        );
+                    })
+                    .join("");
+            vehiclePickerHtml =
+                '<div class="bdm-row"><span class="bdm-row-label">Vehicle</span></div>' +
+                '<select id="bdmVoidVehicleSelect" style="width:100%;">' +
+                options +
+                "</select>" +
+                '<div class="bdm-empty-state" id="bdmVoidScopeHint" style="margin:6px 0 0;">This is a consolidated invoice for the whole group — pick a vehicle to correct only its own price, or leave "reason only" to reissue the invoice unchanged.</div>';
+        }
+
+        return (
+            '<button type="button" class="bdm-action-link" id="bdmVoidReplaceToggleBtn">Void &amp; Replace Invoice</button>' +
+            '<div class="bdm-void-form" id="bdmVoidReplaceForm" style="display:none;">' +
+            vehiclePickerHtml +
+            '<div class="bdm-row"><span class="bdm-row-label">Reason <span style="color:#D8402C;">*</span></span></div>' +
+            '<textarea id="bdmVoidReason" placeholder="Explain the billing error being corrected" style="width:100%;"></textarea>' +
+            '<div class="bdm-adj-form-row">' +
+            '<input type="text" id="bdmVoidAdditionalFee" placeholder="Additional charge, e.g. 200.50" inputmode="decimal"' +
+            (isGrouped ? " disabled" : "") +
+            ">" +
+            '<input type="text" id="bdmVoidDiscountPercent" placeholder="Discount %" inputmode="decimal"' +
+            (isGrouped ? " disabled" : "") +
+            ">" +
+            "</div>" +
+            (isGrouped
+                ? '<div class="bdm-empty-state" id="bdmVoidAmountScopeNote" style="margin:2px 0 0;">Select a vehicle above to enable an amount correction — it will apply to that vehicle only.</div>'
+                : "") +
+            (showPaymentVerified
+                ? '<label class="bdm-row"><input type="checkbox" id="bdmVoidPaymentVerified"> I have manually verified the corrected total against the ' +
+                  esc(humanize(booking.payment_method)) +
+                  " payment proof</label>"
+                : "") +
+            '<div class="bdm-void-error" id="bdmVoidError" style="display:none;color:#D8402C;"></div>' +
+            '<div class="bdm-adj-form-actions">' +
+            '<button type="button" class="bdm-btn-secondary" id="bdmVoidCancelBtn">Cancel</button>' +
+            '<button type="button" class="bdm-btn-primary" id="bdmVoidSubmitBtn">Void &amp; Replace</button>' +
+            "</div></div>"
+        );
+    }
+
+    function wireVoidReplaceForm(booking, invoice, isGrouped) {
+        var toggleBtn = el("bdmVoidReplaceToggleBtn");
+        var form = el("bdmVoidReplaceForm");
+        var cancelBtn = el("bdmVoidCancelBtn");
+        var submitBtn = el("bdmVoidSubmitBtn");
+        var errorEl = el("bdmVoidError");
+        var vehicleSelect = el("bdmVoidVehicleSelect");
+        var additionalFeeEl = el("bdmVoidAdditionalFee");
+        var discountEl = el("bdmVoidDiscountPercent");
+        if (!toggleBtn || !form || !submitBtn) return;
+
+        // "No vehicle change" (empty value) keeps the amount inputs disabled
+        // and blank — genuinely reason-only, never silently submitting a
+        // stale amount typed in before switching back to that option.
+        if (vehicleSelect) {
+            vehicleSelect.addEventListener("change", function () {
+                var noVehicleSelected = vehicleSelect.value === "";
+                additionalFeeEl.disabled = noVehicleSelected;
+                discountEl.disabled = noVehicleSelected;
+                if (noVehicleSelected) {
+                    additionalFeeEl.value = "";
+                    discountEl.value = "";
+                }
+            });
+        }
+
+        toggleBtn.addEventListener("click", function () {
+            toggleBtn.style.display = "none";
+            form.style.display = "";
+        });
+        if (cancelBtn) {
+            cancelBtn.addEventListener("click", function () {
+                form.style.display = "none";
+                toggleBtn.style.display = "";
+                errorEl.style.display = "none";
+            });
+        }
+
+        submitBtn.addEventListener("click", function () {
+            var reason = (el("bdmVoidReason").value || "").trim();
+            if (!reason) {
+                errorEl.textContent = "A reason is required.";
+                errorEl.style.display = "";
+                return;
+            }
+
+            var payload = { reason: reason };
+            if (vehicleSelect && vehicleSelect.value !== "") {
+                payload.member_booking_id = parseInt(vehicleSelect.value, 10);
+            }
+            // Disabled inputs (no vehicle selected — reason only) are never
+            // read here, so an amount typed before switching back to "reason
+            // only" can't leak into the payload even if the change handler's
+            // own clearing were ever bypassed.
+            if (!additionalFeeEl.disabled) {
+                var additionalFeeRaw = (additionalFeeEl.value || "").trim();
+                if (additionalFeeRaw !== "") payload.additional_fee = parseFloat(additionalFeeRaw) || 0;
+            }
+            if (!discountEl.disabled) {
+                var discountRaw = (discountEl.value || "").trim();
+                if (discountRaw !== "") payload.discount_percentage = parseFloat(discountRaw) || 0;
+            }
+            var verifiedEl = el("bdmVoidPaymentVerified");
+            if (verifiedEl) payload.payment_verified = !!verifiedEl.checked;
+
+            submitBtn.disabled = true;
+            errorEl.style.display = "none";
+
+            var url = (window.RB_ROUTES && window.RB_ROUTES.voidInvoice
+                ? window.RB_ROUTES.voidInvoice
+                : "/admin-dashboard/invoices/:invoice/void"
+            ).replace(":invoice", encodeURIComponent(invoice.id));
+
+            fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN": window.RB_CSRF || "",
+                },
+                credentials: "same-origin",
+                body: JSON.stringify(payload),
+            })
+                .then(function (res) {
+                    return res.json().then(function (data) {
+                        return { ok: res.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    submitBtn.disabled = false;
+                    if (!result.ok || !result.data || !result.data.success) {
+                        errorEl.textContent = (result.data && result.data.message) || "Unable to void this invoice.";
+                        errorEl.style.display = "";
+                        return;
+                    }
+                    if (window.openBookingDetailModal && booking.booking_code) {
+                        window.openBookingDetailModal(booking.booking_code);
+                    }
+                })
+                .catch(function () {
+                    submitBtn.disabled = false;
+                    errorEl.textContent = "Unable to void this invoice.";
+                    errorEl.style.display = "";
+                });
+        });
     }
 
     function renderReceipt(receipt, payment) {
@@ -258,7 +454,7 @@
         renderVehicles(data.vehicles);
         renderQuotation(data.quotation);
         renderAssignment(data.assignment);
-        renderInvoice(data.invoice);
+        renderInvoice(data.invoice, data);
         renderReceipt(data.receipt, data.payment);
     }
 
