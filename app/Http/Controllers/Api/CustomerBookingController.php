@@ -1110,16 +1110,32 @@ class CustomerBookingController extends Controller
             ->with('receipt')
             ->first();
 
-        if (!$booking || $booking->status !== 'completed' || !$booking->receipt || !$booking->receipt->pdf_path) {
+        if (!$booking) {
+            return response()->json(['success' => false, 'message' => 'Receipt not available for this booking.'], 404);
+        }
+
+        $receipt = $booking->receipt;
+
+        if (!$receipt && $booking->group_code) {
+            $anchor = Booking::where('group_code', $booking->group_code)
+                ->where('customer_id', $customer->id)
+                ->orderBy('id')
+                ->with('receipt')
+                ->first();
+
+            $receipt = $anchor?->receipt;
+        }
+
+        if ($booking->status !== 'completed' || !$receipt || !$receipt->pdf_path) {
             return response()->json(['success' => false, 'message' => 'Receipt not available for this booking.'], 404);
         }
 
         return response()->json([
             'success' => true,
             'data' => [
-                'receipt_number' => $booking->receipt->receipt_number,
-                'pdf_url'        => app(\App\Services\DocumentGenerationService::class)->publicDocumentUrl($booking->receipt->pdf_path),
-                'generated_at'   => $booking->receipt->created_at?->toDateTimeString(),
+                'receipt_number' => $receipt->receipt_number,
+                'pdf_url'        => app(\App\Services\DocumentGenerationService::class)->publicDocumentUrl($receipt->pdf_path),
+                'generated_at'   => $receipt->created_at?->toDateTimeString(),
             ],
         ]);
     }
