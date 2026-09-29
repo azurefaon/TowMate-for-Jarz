@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
+import '../../models/quotation_model.dart' show QuotationSentPrice;
 import '../../services/api_service.dart';
 import '../../widgets/booking_cancel_dialog.dart';
 import '../../widgets/group_cancel_sheet.dart';
@@ -344,7 +345,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ),
           ],
 
-          if (b.priceChangeLog != null && b.priceChangeLog!.isNotEmpty) ...[
+          if (b.priceHistory.isNotEmpty) ...[
             const SizedBox(height: 20),
             Text('PRICE HISTORY', style: sectionEyebrowStyle(context)),
             const SizedBox(height: 8),
@@ -357,7 +358,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [for (final entry in b.priceChangeLog!) _priceHistoryRow(entry)],
+                children: [
+                  for (var i = 0; i < b.priceHistory.length; i++)
+                    _priceHistoryRow(b.priceHistory[i], i > 0 ? b.priceHistory[i - 1] : null),
+                ],
               ),
             ),
           ],
@@ -509,15 +513,13 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     );
   }
 
-  Widget _priceHistoryRow(Map<String, dynamic> entry) {
-    final oldP = double.tryParse(entry['old']?.toString() ?? '') ?? 0;
-    final newP = double.tryParse(entry['new']?.toString() ?? '') ?? 0;
-    final delta = newP - oldP;
+  // Renders only backend-confirmed sent prices (QuotationService::
+  // sentPriceHistory()) — never raw internal price_change_log deltas, so a
+  // quotation_sent marker entry can no longer render as a bogus ₱0 → ₱0 row.
+  Widget _priceHistoryRow(QuotationSentPrice entry, QuotationSentPrice? previous) {
+    final delta = previous != null ? entry.price - previous.price : 0.0;
     final deltaSign = delta >= 0 ? '+' : '-';
-    final reason = entry['reason'] as String?;
-    DateTime? ts;
-    if (entry['at'] != null) ts = DateTime.tryParse(entry['at'] as String);
-    final tsStr = ts != null ? _dateTime.format(ts.toLocal()) : '';
+    final tsStr = entry.sentAt != null ? _dateTime.format(entry.sentAt!.toLocal()) : '';
     final money = NumberFormat('#,##0.00', 'en_PH');
 
     return Padding(
@@ -527,44 +529,40 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         children: [
           Row(
             children: [
-              Text(
-                '₱${money.format(oldP)}',
-                style: GoogleFonts.inter(
-                  color: context.textTertiary,
-                  fontSize: 12.5,
-                  decoration: TextDecoration.lineThrough,
-                ),
-              ),
-              if (delta != 0)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 7),
-                  child: Text(
-                    '$deltaSign₱${money.format(delta.abs())}',
-                    style: GoogleFonts.inter(
-                      color: delta > 0 ? TmColors.success : TmColors.error,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
+              if (previous != null) ...[
+                Text(
+                  '₱${money.format(previous.price)}',
+                  style: GoogleFonts.inter(
+                    color: context.textTertiary,
+                    fontSize: 12.5,
+                    decoration: TextDecoration.lineThrough,
                   ),
-                )
-              else
+                ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 7),
-                  child: Icon(Icons.arrow_forward_rounded, size: 13, color: context.textTertiary),
+                  child: delta != 0
+                      ? Text(
+                          '$deltaSign₱${money.format(delta.abs())}',
+                          style: GoogleFonts.inter(
+                            color: delta > 0 ? TmColors.success : TmColors.error,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        )
+                      : Icon(Icons.arrow_forward_rounded, size: 13, color: context.textTertiary),
                 ),
+              ],
               Text(
-                '₱${money.format(newP)}',
+                '₱${money.format(entry.price)}',
                 style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                'Sent',
+                style: GoogleFonts.inter(color: TmColors.success, fontSize: 11, fontWeight: FontWeight.w700),
               ),
             ],
           ),
-          if (reason != null && reason.isNotEmpty) ...[
-            const SizedBox(height: 3),
-            Text(
-              '"$reason"',
-              style: GoogleFonts.inter(color: secondaryTextColor(context), fontSize: 12, fontStyle: FontStyle.italic),
-            ),
-          ],
           if (tsStr.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(tsStr, style: GoogleFonts.inter(color: context.textTertiary, fontSize: 11)),

@@ -99,7 +99,7 @@ class CustomerQuotationController extends Controller
             'source_booking_id'   => $quotation->source_booking_id,
             'expires_at'          => $quotation->expires_at?->toIso8601String(),
             'sent_at'             => $quotation->sent_at?->toIso8601String(),
-            'price_change_log'    => $quotation->price_change_log ?? [],
+            'price_history'       => $this->quotationService->sentPriceHistory($quotation),
             'response_note'       => $quotation->response_note,
             'extra_vehicles'      => $extraVehicles,
             'price_adjustments'   => $activeAdjustments->map(fn(PriceAdjustment $a) => [

@@ -72,7 +72,7 @@ Map<String, dynamic> _detail({
       'created_at': '2026-09-01 10:00:00',
       'completed_at': null,
       'cancelled_at': null,
-      'price_change_log': [],
+      'price_history': [],
       'group_code': groupCode,
       'group_booking_code': groupBookingCode ?? code,
       'group_siblings': groupSiblings ?? [],

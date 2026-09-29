@@ -1038,7 +1038,7 @@ class CustomerBookingController extends Controller
         $quotation = \App\Models\Quotation::where('source_booking_id', $anchor->id)
             ->latest('id')
             ->first();
-        $priceChangeLog = $quotation?->price_change_log ?? [];
+        $priceHistory = $quotation ? $this->quotationService->sentPriceHistory($quotation) : [];
 
         $cancelledAt = AuditLog::where('entity_type', 'Booking')
             ->where('entity_id', $booking->id)
@@ -1108,7 +1108,7 @@ class CustomerBookingController extends Controller
                 'created_at'        => $booking->created_at?->toDateTimeString(),
                 'completed_at'      => $booking->completed_at?->toDateTimeString(),
                 'cancelled_at'      => $cancelledAt?->toIso8601String(),
-                'price_change_log'  => $priceChangeLog,
+                'price_history'     => $priceHistory,
                 'group_code'        => $booking->group_code,
                 'group_booking_code' => $anchor->booking_code,
                 'group_siblings'    => $groupSiblings,

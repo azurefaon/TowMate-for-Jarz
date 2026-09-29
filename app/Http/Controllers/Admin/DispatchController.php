@@ -2005,6 +2005,22 @@ class DispatchController extends Controller
             'price_change_log'     => $changeLog,
         ];
 
+        // This branch always emails the customer below (QuotationUpdatedMail)
+        // — this IS a genuine send, not a draft save, so it must carry the
+        // same quotation_sent marker + sent_at contract as sendQuotation()/
+        // keepQuotationPrice()/resolvePriceReviewWithNewPrice(), or the
+        // resulting version is invisible to customer-facing Price History
+        // (see QuotationService::sentPriceHistory()) despite having actually
+        // been communicated. newVersion() sets version = current + 1, so the
+        // marker must reference that same number ahead of time.
+        if ($newStatus === 'sent') {
+            $updateData['sent_at'] = now();
+            $updateData['price_change_log'] = $this->quotationService->appendSentVersionEntry(
+                $updateData['price_change_log'],
+                (int) ($quotation->version ?: 1) + 1,
+            );
+        }
+
         if ($isGroupedQuotation) {
             $updateData['extra_vehicles'] = $recomputedGroupVehicles->all();
         }

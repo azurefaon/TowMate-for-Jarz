@@ -425,10 +425,9 @@ class _CustomerQuotationScreenState extends State<CustomerQuotationScreen> {
                       ),
                     ],
 
-                    if (quotation.priceChangeLog != null &&
-                        quotation.priceChangeLog!.isNotEmpty) ...[
+                    if (quotation.priceHistory.isNotEmpty) ...[
                       const SizedBox(height: 20),
-                      _PriceHistorySection(log: quotation.priceChangeLog!),
+                      _PriceHistorySection(history: quotation.priceHistory),
                     ],
 
                     const SizedBox(height: 28),
@@ -708,9 +707,12 @@ class _StatusBanner extends StatelessWidget {
   }
 }
 
+// Renders only what the backend already decided was actually sent to the
+// customer (QuotationService::sentPriceHistory()) — this widget never
+// inspects raw internal price deltas, drafts, or adjustment records itself.
 class _PriceHistorySection extends StatefulWidget {
-  const _PriceHistorySection({required this.log});
-  final List<Map<String, dynamic>> log;
+  const _PriceHistorySection({required this.history});
+  final List<QuotationSentPrice> history;
 
   @override
   State<_PriceHistorySection> createState() => _PriceHistorySectionState();
@@ -719,20 +721,15 @@ class _PriceHistorySection extends StatefulWidget {
 class _PriceHistorySectionState extends State<_PriceHistorySection> {
   bool _expanded = false;
 
-  String _formatDate(String? iso) {
-    if (iso == null) return '';
-    final dt = DateTime.tryParse(iso);
-    if (dt == null) return iso;
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return '';
     return DateFormat('MMM d, yyyy h:mm a').format(dt.toLocal());
   }
 
-  Widget _priceHistoryRow(BuildContext context, Map<String, dynamic> entry) {
-    final oldPrice = (entry['old'] as num?)?.toDouble() ?? 0.0;
-    final newPrice = (entry['new'] as num?)?.toDouble() ?? 0.0;
-    final delta = newPrice - oldPrice;
+  Widget _priceHistoryRow(BuildContext context, QuotationSentPrice entry, QuotationSentPrice? previous) {
+    final delta = previous != null ? entry.price - previous.price : 0.0;
     final deltaSign = delta >= 0 ? '+' : '-';
-    final reason = entry['reason'] as String?;
-    final tsStr = _formatDate(entry['at'] as String?);
+    final tsStr = _formatDate(entry.sentAt);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -741,52 +738,48 @@ class _PriceHistorySectionState extends State<_PriceHistorySection> {
         children: [
           Row(
             children: [
-              Text(
-                _peso(oldPrice),
-                style: GoogleFonts.inter(
-                  color: context.textTertiary,
-                  fontSize: 12.5,
-                  decoration: TextDecoration.lineThrough,
-                ),
-              ),
-              if (delta != 0)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 7),
-                  child: Text(
-                    '$deltaSign${_peso(delta.abs())}',
-                    style: GoogleFonts.inter(
-                      color: delta > 0 ? TmColors.success : TmColors.error,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
+              if (previous != null) ...[
+                Text(
+                  _peso(previous.price),
+                  style: GoogleFonts.inter(
+                    color: context.textTertiary,
+                    fontSize: 12.5,
+                    decoration: TextDecoration.lineThrough,
                   ),
-                )
-              else
+                ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 7),
-                  child: Icon(Icons.arrow_forward_rounded, size: 13, color: context.textTertiary),
+                  child: delta != 0
+                      ? Text(
+                          '$deltaSign${_peso(delta.abs())}',
+                          style: GoogleFonts.inter(
+                            color: delta > 0 ? TmColors.success : TmColors.error,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        )
+                      : Icon(Icons.arrow_forward_rounded, size: 13, color: context.textTertiary),
                 ),
+              ],
               Text(
-                _peso(newPrice),
+                _peso(entry.price),
                 style: GoogleFonts.inter(
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              const SizedBox(width: 7),
+              Text(
+                'Sent',
+                style: GoogleFonts.inter(
+                  color: TmColors.success,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
-          if (reason != null && reason.isNotEmpty) ...[
-            const SizedBox(height: 3),
-            Text(
-              '"$reason"',
-              style: GoogleFonts.inter(
-                color: context.textSecondary,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
           if (tsStr.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(tsStr, style: GoogleFonts.inter(color: context.textTertiary, fontSize: 11)),
@@ -833,7 +826,8 @@ class _PriceHistorySectionState extends State<_PriceHistorySection> {
             const SizedBox(height: 10),
             Divider(color: context.divider, height: 1),
             const SizedBox(height: 10),
-            ...widget.log.map((entry) => _priceHistoryRow(context, entry)),
+            for (var i = 0; i < widget.history.length; i++)
+              _priceHistoryRow(context, widget.history[i], i > 0 ? widget.history[i - 1] : null),
           ],
         ],
       ),

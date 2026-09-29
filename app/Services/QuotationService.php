@@ -36,7 +36,16 @@ class QuotationService
         return $candidate->lessThan($cutoff) ? $candidate : $cutoff;
     }
 
-    private function appendSentVersionEntry(array $log, int $version): array
+    /**
+     * The sole authoritative "this exact version was actually sent to the
+     * customer" marker. Every code path that genuinely sends/emails a
+     * quotation to the customer must append one of these — never rely on
+     * version > 1, live status, or sent_at alone (sent_at gets copied
+     * forward by newVersion() on unrelated draft edits). Public because
+     * booking-drawer.js's own Booking Timeline (dispatcher-facing) and
+     * sentPriceHistory() (customer-facing) both key off this exact contract.
+     */
+    public function appendSentVersionEntry(array $log, int $version): array
     {
         foreach ($log as $entry) {
             if (($entry['type'] ?? null) === 'quotation_sent' && (int) ($entry['version'] ?? 0) === $version) {
@@ -51,6 +60,56 @@ class QuotationService
         ];
 
         return $log;
+    }
+
+    /**
+     * Reconstructs customer-visible Price History from price_change_log's
+     * quotation_sent markers — never from the raw log itself, which also
+     * accumulates unsent draft/adjustment deltas on the same row. For each
+     * marker, resolves the quotation row that actually held that version
+     * number (under the same quotation_number) and reads its own
+     * estimated_price/sent_at, rather than trusting anything embedded in
+     * the marker entry itself. Shared by both customer-facing endpoints so
+     * the reconstruction logic exists in exactly one place.
+     */
+    public function sentPriceHistory(Quotation $quotation): array
+    {
+        $log = collect($quotation->price_change_log ?? []);
+
+        $sentVersions = $log
+            ->where('type', 'quotation_sent')
+            ->pluck('version')
+            ->filter(fn ($v) => $v !== null)
+            ->map(fn ($v) => (int) $v)
+            ->unique()
+            ->values();
+
+        if ($sentVersions->isEmpty()) {
+            return [];
+        }
+
+        $rowsByVersion = Quotation::where('quotation_number', $quotation->quotation_number)
+            ->whereIn('version', $sentVersions)
+            ->get()
+            ->keyBy(fn (Quotation $row) => (int) $row->version);
+
+        return $sentVersions
+            ->map(function (int $version) use ($rowsByVersion) {
+                $row = $rowsByVersion->get($version);
+                if (! $row) {
+                    return null;
+                }
+
+                return [
+                    'version' => $version,
+                    'price' => (float) $row->estimated_price,
+                    'sent_at' => $row->sent_at?->toIso8601String(),
+                ];
+            })
+            ->filter()
+            ->sortBy('version')
+            ->values()
+            ->all();
     }
 
     public function generateQuotationNumber(): string

@@ -183,9 +183,17 @@ it('stores the derived adjustment (not the typed price) in additional_fee and pr
 
     $log = $current->price_change_log;
     expect($log)->not->toBeEmpty();
-    $lastEntry = end($log);
+    // The last array element is now the quotation_sent marker this endpoint
+    // correctly appends when it actually sends (see QuotationService::
+    // appendSentVersionEntry()) — find the price-delta entry specifically
+    // rather than assuming it's the final element.
+    $lastEntry = collect($log)->last(fn ($entry) => array_key_exists('old', $entry));
+    expect($lastEntry)->not->toBeNull();
     expect((float) $lastEntry['old'])->toBe(4278.4)
         ->and((float) $lastEntry['new'])->toBe(4778.4);
+
+    $sentMarker = collect($log)->last(fn ($entry) => ($entry['type'] ?? null) === 'quotation_sent');
+    expect($sentMarker)->not->toBeNull();
 });
 
 it('applies the same derived-adjustment invariant to the price-review adjustment endpoint', function () {

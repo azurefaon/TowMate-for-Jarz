@@ -22,7 +22,7 @@ class QuotationModel {
     this.sourceBookingId,
     this.expiresAt,
     this.sentAt,
-    this.priceChangeLog,
+    this.priceHistory = const [],
     this.responseNote,
     this.extraVehicles,
     this.priceAdjustments = const [],
@@ -50,7 +50,7 @@ class QuotationModel {
   final int? sourceBookingId;
   final DateTime? expiresAt;
   final DateTime? sentAt;
-  final List<Map<String, dynamic>>? priceChangeLog;
+  final List<QuotationSentPrice> priceHistory;
   final String? responseNote;
   final List<QuotationVehicleLine>? extraVehicles;
   final List<QuotationAdjustment> priceAdjustments;
@@ -104,9 +104,10 @@ class QuotationModel {
         sourceBookingId: (j['source_booking_id'] as num?)?.toInt(),
         expiresAt: j['expires_at'] != null ? DateTime.tryParse(j['expires_at'] as String) : null,
         sentAt: j['sent_at'] != null ? DateTime.tryParse(j['sent_at'] as String) : null,
-        priceChangeLog: (j['price_change_log'] as List<dynamic>?)
-            ?.map((e) => Map<String, dynamic>.from(e as Map))
-            .toList(),
+        priceHistory: (j['price_history'] as List<dynamic>?)
+                ?.map((e) => QuotationSentPrice.fromJson(Map<String, dynamic>.from(e as Map)))
+                .toList() ??
+            const [],
         responseNote: j['response_note'] as String?,
         extraVehicles: (j['extra_vehicles'] as List<dynamic>?)
             ?.map((e) => QuotationVehicleLine.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -115,6 +116,29 @@ class QuotationModel {
                 ?.map((e) => QuotationAdjustment.fromJson(Map<String, dynamic>.from(e as Map)))
                 .toList() ??
             const [],
+      );
+}
+
+/// A price that was actually sent to the customer — reconstructed
+/// server-side from the quotation's `quotation_sent` markers (see
+/// QuotationService::sentPriceHistory()). Never a raw internal
+/// draft/adjustment delta; the backend is authoritative for what counts as
+/// "sent", this model only renders what it's given.
+class QuotationSentPrice {
+  const QuotationSentPrice({
+    required this.version,
+    required this.price,
+    this.sentAt,
+  });
+
+  final int version;
+  final double price;
+  final DateTime? sentAt;
+
+  factory QuotationSentPrice.fromJson(Map<String, dynamic> j) => QuotationSentPrice(
+        version: (j['version'] as num).toInt(),
+        price: (j['price'] as num).toDouble(),
+        sentAt: j['sent_at'] != null ? DateTime.tryParse(j['sent_at'] as String) : null,
       );
 }
 

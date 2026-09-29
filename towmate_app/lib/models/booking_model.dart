@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 
+import 'quotation_model.dart' show QuotationSentPrice;
+
 String humanStatusLabel(String status) {
   return switch (status) {
     'requested'            => 'Requested',
@@ -218,7 +220,7 @@ class BookingModel {
     this.dropoffPhotoUrl,
     this.completedAt,
     this.cancelledAt,
-    this.priceChangeLog,
+    this.priceHistory = const [],
     this.truckTypeClass,
     this.distanceFee,
     this.vatAmount,
@@ -265,7 +267,7 @@ class BookingModel {
   final String? dropoffPhotoUrl;
   final DateTime? completedAt;
   final DateTime? cancelledAt;
-  final List<Map<String, dynamic>>? priceChangeLog;
+  final List<QuotationSentPrice> priceHistory;
   final String? truckTypeClass;
   final double? distanceFee;
   final double? vatAmount;
@@ -395,9 +397,10 @@ class BookingModel {
       dropoffPhotoUrl: j['dropoff_photo_url'] as String?,
       completedAt: j['completed_at'] != null ? DateTime.tryParse(j['completed_at'] as String) : null,
       cancelledAt: j['cancelled_at'] != null ? DateTime.tryParse(j['cancelled_at'] as String) : null,
-      priceChangeLog: (j['price_change_log'] as List?)
-          ?.map((e) => Map<String, dynamic>.from(e as Map))
-          .toList(),
+      priceHistory: (j['price_history'] as List?)
+              ?.map((e) => QuotationSentPrice.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          const [],
       truckTypeClass: j['truck_type_class'] as String?,
       distanceFee: _d(j['distance_fee']),
       vatAmount: _d(j['vat_amount']),
