@@ -89,6 +89,16 @@ class CustomerContentController extends Controller
                 ->orderBy('id')
                 ->get(['name'])
                 ->values(),
+
+            'terms_of_use' => [
+                'version' => SystemSetting::currentTermsVersion(),
+                'content' => SystemSetting::getValue('terms_of_use_content'),
+            ],
+
+            'privacy_policy' => [
+                'version' => SystemSetting::currentPrivacyVersion(),
+                'content' => SystemSetting::getValue('privacy_policy_content'),
+            ],
         ]);
     }
 }

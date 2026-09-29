@@ -152,6 +152,66 @@ void main() {
       expect(result['success'], isFalse);
       expect(result['message'], contains('timed out'));
     });
+
+    test('requires_terms_acceptance is surfaced when the backend flags it, and the session is still saved', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'requires_terms_acceptance': true,
+            'data': {
+              'token': '99|needsterms1234567890',
+              'user': {
+                'id': 91,
+                'name': 'Legacy Customer',
+                'email': 'legacy@example.com',
+                'phone': '+639171234567',
+                'role': 'Customer',
+                'duty_class': null,
+                'must_change_password': false,
+              },
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final result = await runLogin(client);
+
+      expect(result['success'], isTrue);
+      expect(result['requires_terms_acceptance'], isTrue);
+      expect(await ApiService.getToken(), '99|needsterms1234567890');
+    });
+
+    test('requires_terms_acceptance defaults to false when the backend omits it', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'token': '100|currentterms1234567890',
+              'user': {
+                'id': 92,
+                'name': 'Current Customer',
+                'email': 'current@example.com',
+                'phone': '+639171234567',
+                'role': 'Customer',
+                'duty_class': null,
+                'must_change_password': false,
+              },
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final result = await runLogin(client);
+
+      expect(result['success'], isTrue);
+      expect(result['requires_terms_acceptance'], isFalse);
+    });
   });
 
   group('ApiService.loginWithGoogle', () {
@@ -235,6 +295,36 @@ void main() {
       expect(result['success'], isFalse);
       expect(result['message'], contains('reach the server'));
       expect(result['message'], isNot(contains('unexpected error')));
+    });
+
+    test('requires_terms_acceptance is surfaced for an existing Google account on an outdated version', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'requires_terms_acceptance': true,
+            'data': {
+              'token': '101|googleneedsterms1234567890',
+              'user': {
+                'id': 93,
+                'name': 'Legacy Google Customer',
+                'email': 'legacygoogle@example.com',
+                'phone': '+639171234567',
+                'role': 'Customer',
+                'duty_class': null,
+                'must_change_password': false,
+              },
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final result = await runLoginWithGoogle(client);
+
+      expect(result['success'], isTrue);
+      expect(result['requires_terms_acceptance'], isTrue);
     });
   });
 }

@@ -21,6 +21,7 @@ function cpvRegisterPayload(string $email, string $phone): array
         'phone'                  => $phone,
         'password'               => 'ValidPass!2024xy',
         'password_confirmation'  => 'ValidPass!2024xy',
+        'accept_terms'           => true,
     ];
 }
 

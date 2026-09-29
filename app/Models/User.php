@@ -41,6 +41,9 @@ class User extends Authenticatable
         'pending_delete_reason',
         'anonymized_at',
         'email_verified_at',
+        'terms_version',
+        'privacy_version',
+        'terms_accepted_at',
         'must_change_password',
         'last_ping_at',
         'last_login_at',
@@ -76,6 +79,12 @@ class User extends Authenticatable
     public function isGoogleAccount(): bool
     {
         return $this->auth_provider === 'google';
+    }
+
+    public function hasAcceptedCurrentTerms(): bool
+    {
+        return $this->terms_version === SystemSetting::currentTermsVersion()
+            && $this->privacy_version === SystemSetting::currentPrivacyVersion();
     }
 
     public function auditLabel(): string
@@ -132,6 +141,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
             'archived_at' => 'datetime',
             'pending_delete_at' => 'datetime',
             'anonymized_at' => 'datetime',

@@ -50,6 +50,7 @@ it('26b: a customer cannot escalate role_id/status through the registration endp
         'phone'      => '+639171234599',
         'password'   => 'Xk7!TowMateSecure92',
         'password_confirmation' => 'Xk7!TowMateSecure92',
+        'accept_terms' => true,
         'role_id'    => $ownerRole->id,
         'status'     => 'active',
     ])->assertCreated();

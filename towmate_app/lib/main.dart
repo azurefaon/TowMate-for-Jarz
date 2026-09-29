@@ -16,8 +16,11 @@ import 'screens/customer/home_screen.dart';
 import 'screens/customer/login_screen.dart';
 import 'screens/customer/my_bookings_screen.dart';
 import 'screens/customer/notifications_screen.dart';
+import 'screens/customer/privacy_policy_screen.dart';
 import 'screens/customer/profile_screen.dart';
 import 'screens/customer/signup_screen.dart';
+import 'screens/customer/terms_acceptance_screen.dart';
+import 'screens/customer/terms_of_use_screen.dart';
 import 'screens/team_leader/tl_active_task_shell.dart';
 import 'screens/team_leader/tl_force_password_screen.dart';
 import 'screens/team_leader/tl_history_screen.dart';
@@ -90,6 +93,9 @@ class MyApp extends StatelessWidget {
               '/profile' => const ProfileScreen(),
               '/edit-profile' => const EditProfileScreen(),
               '/notifications' => const NotificationsScreen(),
+              '/terms-acceptance' => const TermsAcceptanceScreen(),
+              '/terms-of-use' => const TermsOfUseScreen(),
+              '/privacy-policy' => const PrivacyPolicyScreen(),
               _ => const LoginScreen(),
             };
           }

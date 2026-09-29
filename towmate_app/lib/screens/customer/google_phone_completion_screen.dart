@@ -5,6 +5,9 @@ import '../../core/theme.dart';
 import '../../core/validators.dart';
 import '../../core/security_utils.dart';
 import '../../services/api_service.dart';
+import '../../widgets/terms_agreement_checkbox.dart';
+import 'privacy_policy_screen.dart';
+import 'terms_of_use_screen.dart';
 
 class GooglePhoneCompletionScreen extends StatefulWidget {
   const GooglePhoneCompletionScreen({
@@ -30,12 +33,27 @@ class _GooglePhoneCompletionScreenState
   bool _isLoading = false;
   bool _submitted = false;
   bool _touched = false;
+  bool _acceptTerms = false;
   String? _apiError;
 
   @override
   void initState() {
     super.initState();
     _csrfToken = CsrfTokenService.generate();
+  }
+
+  void _openTerms() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TermsOfUseScreen()),
+    );
+  }
+
+  void _openPrivacy() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+    );
   }
 
   @override
@@ -61,6 +79,7 @@ class _GooglePhoneCompletionScreenState
       completionToken: widget.completionToken,
       phone: phone,
       csrfToken: _csrfToken,
+      acceptTerms: _acceptTerms,
     );
 
     if (!mounted) return;
@@ -216,6 +235,13 @@ class _GooglePhoneCompletionScreenState
                     ),
                   ),
                 ),
+                const SizedBox(height: 20),
+                TermsAgreementCheckbox(
+                  value: _acceptTerms,
+                  onChanged: (v) => setState(() => _acceptTerms = v),
+                  onTermsTap: _openTerms,
+                  onPrivacyTap: _openPrivacy,
+                ),
                 if (_apiError != null) ...[
                   const SizedBox(height: 16),
                   Container(
@@ -243,7 +269,7 @@ class _GooglePhoneCompletionScreenState
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : _submit,
+                    onPressed: (_isLoading || !_acceptTerms) ? null : _submit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: TmColors.yellow,
                       foregroundColor: TmColors.black,

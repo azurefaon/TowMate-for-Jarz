@@ -97,6 +97,7 @@ it('completes a staged Google signup into a Customer-only account and issues a S
     $response = test()->postJson('/api/auth/google/complete', [
         'completion_token' => $token,
         'phone'            => '+639171234567',
+        'accept_terms'     => true,
     ]);
 
     $response->assertStatus(201);
@@ -122,6 +123,7 @@ it('cannot inject a privileged role during Google phone completion', function ()
     $response = test()->postJson('/api/auth/google/complete', [
         'completion_token' => $token,
         'phone'            => '+639171234568',
+        'accept_terms'     => true,
         'role_id'          => 1,
         'role'             => 'Owner',
         'status'           => 'active',
@@ -170,6 +172,7 @@ it('a completion token cannot be replayed after it has been used', function () {
     test()->postJson('/api/auth/google/complete', [
         'completion_token' => $token,
         'phone'            => '+639171234569',
+        'accept_terms'     => true,
     ])->assertStatus(201);
 
     $replay = test()->postJson('/api/auth/google/complete', [
@@ -437,6 +440,7 @@ it('ignores a spoofed role and identity in the request body during complete', fu
         'google_sub'       => 'attacker-controlled-sub',
         'auth_provider'    => 'password',
         'role_id'          => 1,
+        'accept_terms'     => true,
     ]);
 
     $response->assertStatus(201);

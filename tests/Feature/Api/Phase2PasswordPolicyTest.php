@@ -43,6 +43,7 @@ it('18b: customer registration accepts a password meeting the final policy', fun
         'phone'      => '+639171234568',
         'password'   => 'Xk7!TowMateSecure91',
         'password_confirmation' => 'Xk7!TowMateSecure91',
+        'accept_terms' => true,
     ])->assertCreated()->assertJsonPath('success', true);
 
     expect(User::where('email', $email)->exists())->toBeTrue();

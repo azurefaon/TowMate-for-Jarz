@@ -128,6 +128,40 @@ void main() {
     });
   });
 
+  group('Terms of Use / Privacy Policy acceptance', () {
+    test('a TermsAgreementCheckbox is rendered directly above the Create account button', () {
+      final checkboxIndex = source.indexOf('TermsAgreementCheckbox(');
+      final gradientButtonIndex = source.indexOf('_GradientButton(');
+      expect(checkboxIndex, greaterThan(-1));
+      expect(gradientButtonIndex, greaterThan(checkboxIndex));
+
+      final between = source.substring(checkboxIndex, gradientButtonIndex);
+      expect(between.contains("label: 'Create account'"), isFalse);
+    });
+
+    test('the Create account button is disabled until the Terms checkbox is checked', () {
+      expect(
+        source.contains('onPressed: (_isLoading || !_acceptTerms) ? null : _submit'),
+        isTrue,
+      );
+    });
+
+    test('tapping Terms of Use / Privacy Policy opens the in-app readable screens', () {
+      expect(source.contains('const TermsOfUseScreen()'), isTrue);
+      expect(source.contains('const PrivacyPolicyScreen()'), isTrue);
+      expect(source.contains('onTermsTap: _openTerms'), isTrue);
+      expect(source.contains('onPrivacyTap: _openPrivacy'), isTrue);
+    });
+
+    test('the accepted value survives navigation into the Email OTP screen and reaches the final registration call', () {
+      expect(source.contains('acceptTerms: _acceptTerms'), isTrue);
+
+      final otpSource = File('lib/screens/customer/email_otp_screen.dart').readAsStringSync();
+      expect(otpSource.contains('required this.acceptTerms'), isTrue);
+      expect(otpSource.contains('acceptTerms: widget.acceptTerms'), isTrue);
+    });
+  });
+
   group('phone number field — numeric-only PH mobile format', () {
     test('+63 is rendered as a fixed, non-editable prefix outside the controller value, with no fake country selector', () {
       final phoneFieldStart = source.indexOf('class _PhoneField');

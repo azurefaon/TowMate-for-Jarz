@@ -119,4 +119,33 @@ void main() {
       expect(source.contains("'/home'"), isTrue);
     });
   });
+
+  group('Terms of Use / Privacy Policy acceptance gate', () {
+    test('a password login that requires terms acceptance routes to the Terms gate, not Home', () {
+      expect(
+        source.contains(
+          "(requiresTerms ? '/terms-acceptance' : '/home')",
+        ),
+        isTrue,
+      );
+      expect(source.contains("res['requires_terms_acceptance'] == true"), isTrue);
+    });
+
+    test('a Google login that requires terms acceptance routes to the Terms gate, not Home', () {
+      final googleResultIndex = source.indexOf('_handleGoogleResult');
+      final block = source.substring(googleResultIndex);
+      expect(block.contains("requiresTerms ? '/terms-acceptance' : '/home'"), isTrue);
+    });
+
+    test('the Team Leader route is never affected by the terms gate', () {
+      final passwordLoginIndex = source.indexOf("final requiresTerms = res['requires_terms_acceptance'] == true;");
+      expect(passwordLoginIndex, greaterThan(-1));
+      final routeLine = source.substring(
+        passwordLoginIndex,
+        source.indexOf(';', source.indexOf('final route =', passwordLoginIndex)) + 1,
+      );
+      expect(routeLine.contains("role == 'Team Leader'"), isTrue);
+      expect(routeLine.contains("'/tl-force-password'"), isTrue);
+    });
+  });
 }

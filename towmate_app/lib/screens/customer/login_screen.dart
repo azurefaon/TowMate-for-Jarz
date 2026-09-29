@@ -96,9 +96,10 @@ class _LoginScreenState extends State<LoginScreen> {
       await AppPrefs.restoreAuthenticatedTheme();
       final role = res['role'] as String? ?? 'Customer';
       final mustChange = res['must_change_password'] == true;
+      final requiresTerms = res['requires_terms_acceptance'] == true;
       final route = role == 'Team Leader'
           ? (mustChange ? '/tl-force-password' : '/tl-home')
-          : '/home';
+          : (requiresTerms ? '/terms-acceptance' : '/home');
       if (role == 'Team Leader') TlPresenceController.start();
       Navigator.pushReplacementNamed(context, route);
     } else {
@@ -200,10 +201,13 @@ class _LoginScreenState extends State<LoginScreen> {
     if (res['success'] == true) {
       await AppPrefs.restoreAuthenticatedTheme();
       final role = res['role'] as String? ?? 'Customer';
+      final requiresTerms = res['requires_terms_acceptance'] == true;
       if (role == 'Team Leader') TlPresenceController.start();
       Navigator.pushReplacementNamed(
         context,
-        role == 'Team Leader' ? '/tl-home' : '/home',
+        role == 'Team Leader'
+            ? '/tl-home'
+            : (requiresTerms ? '/terms-acceptance' : '/home'),
       );
       return;
     }

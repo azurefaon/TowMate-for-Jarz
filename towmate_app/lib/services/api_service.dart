@@ -425,6 +425,31 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> acceptTerms() async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/accept-terms'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': response.statusCode == 200 && body['success'] == true,
+        'message': body['message'] as String?,
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'Request timed out. Please try again.',
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
   static Map<String, dynamic> _networkError(Object e) {
     final msg = e.toString().toLowerCase();
     if (e is http.ClientException ||
@@ -491,6 +516,7 @@ class ApiService {
           'role': user['role'] as String? ?? 'Customer',
           'name': user['name'] as String? ?? '',
           'must_change_password': mustChange,
+          'requires_terms_acceptance': body['requires_terms_acceptance'] == true,
         };
       }
 
@@ -544,6 +570,7 @@ class ApiService {
           'success': true,
           'needsPhone': false,
           'role': user['role'] as String? ?? 'Customer',
+          'requires_terms_acceptance': body['requires_terms_acceptance'] == true,
         };
       }
 
@@ -582,6 +609,7 @@ class ApiService {
     required String completionToken,
     required String phone,
     required String csrfToken,
+    required bool acceptTerms,
   }) async {
     try {
       final response = await http
@@ -591,6 +619,7 @@ class ApiService {
             body: jsonEncode({
               'completion_token': completionToken,
               'phone': phone,
+              'accept_terms': acceptTerms,
             }),
           )
           .timeout(const Duration(seconds: 15));
@@ -636,6 +665,7 @@ class ApiService {
     required String password,
     required String confirmPassword,
     required String csrfToken,
+    required bool acceptTerms,
   }) async {
     try {
       final response = await http
@@ -649,6 +679,7 @@ class ApiService {
               'phone': phone,
               'password': password,
               'password_confirmation': confirmPassword,
+              'accept_terms': acceptTerms,
             }),
           )
           .timeout(const Duration(seconds: 15));

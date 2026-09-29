@@ -21,6 +21,7 @@ function crgvPayload(string $email): array
         'phone'                 => '+639' . random_int(100000000, 999999999),
         'password'              => 'ValidPass!2024xy',
         'password_confirmation' => 'ValidPass!2024xy',
+        'accept_terms'          => true,
     ];
 }
 

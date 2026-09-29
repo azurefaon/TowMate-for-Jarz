@@ -6,6 +6,7 @@ use App\Contracts\GoogleIdTokenVerifier;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Customer;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\ProfileImageService;
 use Illuminate\Database\QueryException;
@@ -88,6 +89,10 @@ class GoogleAuthController extends Controller
         $validated = $request->validate([
             'completion_token' => 'required|string',
             'phone' => ['required', 'string', 'regex:/^\+639\d{9}$/'],
+            'accept_terms' => 'required|accepted',
+        ], [
+            'accept_terms.required' => 'You must agree to the Terms of Use and Privacy Policy.',
+            'accept_terms.accepted' => 'You must agree to the Terms of Use and Privacy Policy.',
         ]);
 
         $cacheKey = 'google_pending_' . $validated['completion_token'];
@@ -126,6 +131,9 @@ class GoogleAuthController extends Controller
                     'google_sub' => $pending['sub'],
                     'role_id' => $customerRoleId,
                     'status' => 'active',
+                    'terms_version' => SystemSetting::currentTermsVersion(),
+                    'privacy_version' => SystemSetting::currentPrivacyVersion(),
+                    'terms_accepted_at' => now(),
                 ]);
 
                 try {
@@ -239,8 +247,11 @@ class GoogleAuthController extends Controller
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('mobile')->plainTextToken;
 
+        $requiresTermsAcceptance = ($user->role?->name ?? 'Customer') === 'Customer' && ! $user->hasAcceptedCurrentTerms();
+
         return response()->json([
             'success' => true,
+            'requires_terms_acceptance' => $requiresTermsAcceptance,
             'data' => [
                 'token' => $token,
                 'user' => [

@@ -7,8 +7,11 @@ import '../../services/api_service.dart';
 import '../../services/google_auth_service.dart';
 import '../../widgets/google_signin_button.dart';
 import '../../widgets/password_strength_bar.dart';
+import '../../widgets/terms_agreement_checkbox.dart';
 import 'email_otp_screen.dart';
 import 'google_phone_completion_screen.dart';
+import 'privacy_policy_screen.dart';
+import 'terms_of_use_screen.dart';
 
 const _brand = Color(0xFFF5A623);
 const _buttonGradientEnd = Color(0xFFE8960D);
@@ -39,11 +42,26 @@ class _SignupScreenState extends State<SignupScreen> {
 
   bool _isLoading = false;
   bool _isGoogleLoading = false;
+  bool _acceptTerms = false;
   String? _apiError;
   String _passwordValue = '';
   bool _submitted = false;
   final Set<String> _touched = {};
   late String _csrfToken;
+
+  void _openTerms() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TermsOfUseScreen()),
+    );
+  }
+
+  void _openPrivacy() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+    );
+  }
 
   void _touch(String field) {
     if (_touched.add(field)) setState(() {});
@@ -115,6 +133,7 @@ class _SignupScreenState extends State<SignupScreen> {
             password: _passwordController.text,
             confirmPassword: _confirmPasswordController.text,
             csrfToken: _csrfToken,
+            acceptTerms: _acceptTerms,
           ),
         ),
       );
@@ -380,11 +399,18 @@ class _SignupScreenState extends State<SignupScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  TermsAgreementCheckbox(
+                    value: _acceptTerms,
+                    onChanged: (v) => setState(() => _acceptTerms = v),
+                    onTermsTap: _openTerms,
+                    onPrivacyTap: _openPrivacy,
+                  ),
                   const SizedBox(height: 14),
                   _GradientButton(
                     label: 'Create account',
                     isLoading: _isLoading,
-                    onPressed: _isLoading ? null : _submit,
+                    onPressed: (_isLoading || !_acceptTerms) ? null : _submit,
                   ),
                   const _AuthDivider(label: 'or sign up with'),
                   Center(

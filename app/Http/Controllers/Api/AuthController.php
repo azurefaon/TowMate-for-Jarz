@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\RegistrationOtpMail;
 use App\Models\AuditLog;
 use App\Models\Customer;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\ProfileImageService;
 use Illuminate\Http\JsonResponse;
@@ -153,8 +154,11 @@ class AuthController extends Controller
                     Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised(),
                 ],
                 'password_confirmation' => 'required|string',
+                'accept_terms'          => 'required|accepted',
             ], [
                 'email.email' => 'Enter a valid Gmail address.',
+                'accept_terms.required' => 'You must agree to the Terms of Use and Privacy Policy.',
+                'accept_terms.accepted' => 'You must agree to the Terms of Use and Privacy Policy.',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
@@ -171,14 +175,17 @@ class AuthController extends Controller
         $fullName = trim($data['first_name'] . ' ' . $data['last_name']);
 
         $user = User::create([
-            'name'       => $fullName,
-            'first_name' => $data['first_name'],
-            'last_name'  => $data['last_name'],
-            'email'      => strtolower(trim($data['email'])),
-            'phone'      => $data['phone'],
-            'password'   => $data['password'],
-            'role_id'    => $customerRoleId,
-            'status'     => 'active',
+            'name'              => $fullName,
+            'first_name'        => $data['first_name'],
+            'last_name'         => $data['last_name'],
+            'email'             => strtolower(trim($data['email'])),
+            'phone'             => $data['phone'],
+            'password'          => $data['password'],
+            'role_id'           => $customerRoleId,
+            'status'            => 'active',
+            'terms_version'     => SystemSetting::currentTermsVersion(),
+            'privacy_version'   => SystemSetting::currentPrivacyVersion(),
+            'terms_accepted_at' => now(),
         ]);
 
         try {
@@ -259,8 +266,11 @@ class AuthController extends Controller
 
         $token = $user->createToken('mobile')->plainTextToken;
 
+        $requiresTermsAcceptance = $user->role?->name === 'Customer' && ! $user->hasAcceptedCurrentTerms();
+
         return response()->json([
-            'success' => true,
+            'success'                   => true,
+            'requires_terms_acceptance' => $requiresTermsAcceptance,
             'data'    => [
                 'token' => $token,
                 'user'  => [
@@ -274,6 +284,31 @@ class AuthController extends Controller
                 ],
             ],
         ]);
+    }
+
+    public function acceptTerms(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $user->update([
+            'terms_version'     => SystemSetting::currentTermsVersion(),
+            'privacy_version'   => SystemSetting::currentPrivacyVersion(),
+            'terms_accepted_at' => now(),
+        ]);
+
+        AuditLog::create([
+            'user_id'     => $user->id,
+            'action'      => 'customer_terms_accepted',
+            'entity_type' => 'User',
+            'entity_id'   => $user->id,
+            'description' => "Customer accepted Terms of Use v{$user->terms_version} / Privacy Policy v{$user->privacy_version}.",
+            'new_value'   => [
+                'terms_version'   => $user->terms_version,
+                'privacy_version' => $user->privacy_version,
+            ],
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Terms accepted.']);
     }
 
     public function profile(Request $request)

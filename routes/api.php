@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/auth/accept-terms', [AuthController::class, 'acceptTerms']);
 
     Route::get('v1/profile',                        [AuthController::class, 'profile']);
     Route::get('v1/profile/image',                 [AuthController::class, 'profileImage']);

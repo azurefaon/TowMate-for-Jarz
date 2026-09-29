@@ -17,6 +17,7 @@ class EmailOtpScreen extends StatefulWidget {
     required this.password,
     required this.confirmPassword,
     required this.csrfToken,
+    required this.acceptTerms,
   });
 
   final String email;
@@ -26,6 +27,7 @@ class EmailOtpScreen extends StatefulWidget {
   final String password;
   final String confirmPassword;
   final String csrfToken;
+  final bool acceptTerms;
 
   @override
   State<EmailOtpScreen> createState() => _EmailOtpScreenState();
@@ -111,6 +113,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
       password: widget.password,
       confirmPassword: widget.confirmPassword,
       csrfToken: widget.csrfToken,
+      acceptTerms: widget.acceptTerms,
     );
     if (!mounted) return;
 

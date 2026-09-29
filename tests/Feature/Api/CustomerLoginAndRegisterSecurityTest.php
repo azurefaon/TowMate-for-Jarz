@@ -149,6 +149,7 @@ it('cannot bypass registration OTP verification by calling the final register en
         'phone'                  => '+639' . random_int(100000000, 999999999),
         'password'               => 'ValidPass!2024xy',
         'password_confirmation'  => 'ValidPass!2024xy',
+        'accept_terms'           => true,
     ]);
 
     $response->assertStatus(422);
@@ -169,6 +170,7 @@ it('always creates the Customer role regardless of a client-submitted role_id', 
         'phone'                  => '+639' . random_int(100000000, 999999999),
         'password'               => 'ValidPass!2024xy',
         'password_confirmation'  => 'ValidPass!2024xy',
+        'accept_terms'           => true,
         'role_id'                => 1,
         'role'                   => 'Owner',
     ]);
@@ -192,6 +194,7 @@ it('ignores unexpected sensitive fields submitted on registration', function () 
         'phone'                  => '+639' . random_int(100000000, 999999999),
         'password'               => 'ValidPass!2024xy',
         'password_confirmation'  => 'ValidPass!2024xy',
+        'accept_terms'           => true,
         'status'                 => 'suspended',
         'is_admin'               => true,
         'must_change_password'   => true,
@@ -218,6 +221,7 @@ it('rejects registration with a duplicate email', function () {
         'phone'                  => '+639' . random_int(100000000, 999999999),
         'password'               => 'ValidPass!2024xy',
         'password_confirmation'  => 'ValidPass!2024xy',
+        'accept_terms'           => true,
     ]);
 
     $response->assertStatus(422);
@@ -236,6 +240,7 @@ it('throttles the register route after repeated attempts from the same email', f
             'phone'                  => '+639' . random_int(100000000, 999999999),
             'password'               => 'ValidPass!2024xy',
             'password_confirmation'  => 'ValidPass!2024xy',
+            'accept_terms'           => true,
         ]);
     }
 
