@@ -54,9 +54,16 @@ class SystemSettingsController extends Controller
     {
         $request->validate([
             'settings.discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'settings.discount_reason' => ['nullable', 'string', 'max:255'],
             'settings.max_dispatcher_discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'settings.max_additional_charge' => ['nullable', 'numeric', 'min:0'],
             'settings.vat_rate_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'settings.bank_name' => ['nullable', 'string', 'max:150'],
+            'settings.bank_account_name' => ['nullable', 'string', 'max:150'],
+            'settings.bank_account_number' => ['nullable', 'string', 'max:50'],
+            'settings.gcash_name' => ['nullable', 'string', 'max:150'],
+            'settings.gcash_number' => ['nullable', 'string', 'max:20'],
+            'settings.payment_terms' => ['nullable', 'string', 'max:255'],
             'settings.company_name' => ['required_with:settings.business_info_form', 'string', 'max:255'],
             'settings.company_email' => ['required_with:settings.business_info_form', 'email:rfc', 'max:150'],
             'settings.company_phone' => ['required_with:settings.business_info_form', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{5,20}$/'],
