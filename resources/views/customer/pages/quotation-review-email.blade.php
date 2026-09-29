@@ -322,10 +322,6 @@
             ['label' => 'Distance fee', 'value' => (float) ($breakdown['distance_fee'] ?? 0)],
         ];
 
-        if ((float) ($breakdown['excess_fee'] ?? 0) > 0) {
-            $priceRows[] = ['label' => 'Excess distance fee', 'value' => (float) $breakdown['excess_fee']];
-        }
-
         if ((float) ($breakdown['additional_fee'] ?? 0) > 0) {
             $priceRows[] = ['label' => 'Additional fee', 'value' => (float) $breakdown['additional_fee']];
         }

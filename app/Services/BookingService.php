@@ -1253,36 +1253,6 @@ class BookingService
         ];
     }
 
-    protected function resolveExcessKmThreshold(bool $usePreviewFallback = false): float
-    {
-        $defaultThreshold = $usePreviewFallback
-            ? (float) setting('excess_km_threshold', 10)
-            : 0.0;
-
-        $configuredThreshold = (float) SystemSetting::getValue('excess_km_threshold', $defaultThreshold);
-
-        if ($usePreviewFallback && $configuredThreshold <= 0) {
-            $configuredThreshold = (float) setting('excess_km_threshold', 10);
-        }
-
-        return max(round($configuredThreshold, 2), 0);
-    }
-
-    protected function resolveExcessKmRate(bool $usePreviewFallback = false): float
-    {
-        $defaultRate = $usePreviewFallback
-            ? (float) setting('excess_km_rate', 20)
-            : 0.0;
-
-        $configuredRate = (float) SystemSetting::getValue('excess_km_rate', $defaultRate);
-
-        if ($usePreviewFallback && $configuredRate <= 0) {
-            $configuredRate = (float) setting('excess_km_rate', 20);
-        }
-
-        return max(round($configuredRate, 2), 0);
-    }
-
     protected function sanitizeText(?string $value): ?string
     {
         $cleaned = trim(strip_tags((string) $value));

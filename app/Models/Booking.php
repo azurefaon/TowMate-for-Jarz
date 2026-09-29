@@ -275,28 +275,6 @@ class Booking extends Model
         return app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm, $perKmRate);
     }
 
-    public function getExcessKmAttribute(): float
-    {
-        $threshold = (float) SystemSetting::getValue('excess_km_threshold', setting('excess_km_threshold', 10));
-
-        if ($threshold <= 0) {
-            $threshold = (float) setting('excess_km_threshold', 10);
-        }
-
-        return max(round((float) ($this->distance_km ?? 0) - $threshold, 2), 0);
-    }
-
-    public function getExcessFeeAmountAttribute(): float
-    {
-        $rate = (float) SystemSetting::getValue('excess_km_rate', setting('excess_km_rate', 20));
-
-        if ($rate <= 0) {
-            $rate = (float) setting('excess_km_rate', 20);
-        }
-
-        return round($this->excess_km * $rate, 2);
-    }
-
     public function getDiscountAmountAttribute(): float
     {
         $computedTotal = (float) ($this->computed_total ?? 0);
@@ -310,8 +288,6 @@ class Booking extends Model
         return [
             'base_rate' => (float) ($this->base_rate ?? 0),
             'distance_fee' => $this->distance_fee_amount,
-            'excess_km' => $this->excess_km,
-            'excess_fee' => $this->excess_fee_amount,
             'additional_fee' => (float) ($this->additional_fee ?? 0),
             'discount' => 0,
             'final_total' => (float) ($this->final_total ?? 0),

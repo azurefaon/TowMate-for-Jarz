@@ -122,8 +122,6 @@ it('prevents system admin from changing an existing user role', function () {
 it('returns a live pricing preview with breakdown and scheduled fallback when no dispatch-ready unit exists', function () {
     SystemSetting::setValue('booking_base_rate', '1000');
     SystemSetting::setValue('booking_per_km_rate', '50');
-    SystemSetting::setValue('excess_km_threshold', '10');
-    SystemSetting::setValue('excess_km_rate', '20');
     SystemSetting::setValue('discount_percentage', '20');
     SystemSetting::setValue('discount_reason', 'PWD and senior discount');
 
@@ -169,8 +167,6 @@ it('returns a live pricing preview with breakdown and scheduled fallback when no
         ->assertJsonPath('pricing.per_km_rate', 80)
         ->assertJsonPath('pricing.distance_km', 12)
         ->assertJsonPath('pricing.distance_fee', 960)
-        ->assertJsonPath('pricing.excess_km', 2)
-        ->assertJsonPath('pricing.excess_fee', 40)
         ->assertJsonPath('pricing.discount_amount', 500)
         ->assertJsonPath('pricing.final_total', 2000)
         ->assertJsonPath('availability.book_now_enabled', false)
