@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/booking_model.dart';
 import '../models/quotation_model.dart';
@@ -81,6 +83,82 @@ class ApiService {
     await prefs.remove('must_change_password');
     await prefs.remove('duty_class');
     await prefs.remove('user_auth_provider');
+
+    unawaited(clearBookingDraft());
+  }
+
+  static const _draftKey = 'booking_draft_v1';
+
+  static Future<void> saveBookingDraft(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('user_id');
+    if (userId == null) return;
+
+    final payload = {
+      ...data,
+      'user_id': userId,
+      'saved_at': DateTime.now().toIso8601String(),
+    };
+
+    try {
+      await prefs.setString(_draftKey, jsonEncode(payload));
+    } catch (_) {}
+  }
+
+  static Future<Map<String, dynamic>?> loadBookingDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_draftKey);
+    if (raw == null) return null;
+
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final userId = prefs.getInt('user_id');
+      if (userId == null || decoded['user_id'] != userId) {
+        await clearBookingDraft();
+        return null;
+      }
+      return decoded;
+    } catch (_) {
+      await clearBookingDraft();
+      return null;
+    }
+  }
+
+  static Future<void> clearBookingDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_draftKey);
+    await clearDraftPhotos();
+  }
+
+  static Future<Directory> _draftPhotosDirPath() async {
+    final base = await getApplicationDocumentsDirectory();
+    return Directory('${base.path}/booking_draft_photos');
+  }
+
+  static Future<String?> persistDraftImage(String sourcePath) async {
+    try {
+      final source = File(sourcePath);
+      if (!await source.exists()) return null;
+
+      final dir = await _draftPhotosDirPath();
+      if (!await dir.exists()) await dir.create(recursive: true);
+
+      final ext = sourcePath.contains('.') ? sourcePath.split('.').last : 'jpg';
+      final target = File(
+        '${dir.path}/${DateTime.now().microsecondsSinceEpoch}.$ext',
+      );
+      await source.copy(target.path);
+      return target.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> clearDraftPhotos() async {
+    try {
+      final dir = await _draftPhotosDirPath();
+      if (await dir.exists()) await dir.delete(recursive: true);
+    } catch (_) {}
   }
 
   static Future<bool> getMustChangePassword() async {

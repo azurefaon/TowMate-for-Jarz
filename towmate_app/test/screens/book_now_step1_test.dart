@@ -1592,4 +1592,116 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   });
+
+  group('BookNowScreen exit confirmation', () {
+    testWidgets('tapping back at Step 0 with entered data shows a leave-confirmation dialog', (tester) async {
+      await _pumpToStep1(tester);
+
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await _settle(tester);
+      expect(find.text('BOOKING MODE'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await _settle(tester);
+
+      expect(find.text('Leave this booking?'), findsOneWidget);
+      expect(find.text('Continue Booking'), findsOneWidget);
+      expect(find.text('Leave'), findsOneWidget);
+
+      await tester.tap(find.text('Continue Booking'));
+      await _settle(tester);
+
+      expect(find.text('Leave this booking?'), findsNothing);
+      expect(find.text('BOOKING MODE'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  group('BookNowScreen vehicle type labels, icons and examples', () {
+    testWidgets(
+      'a vehicle type under a newer backend category shows a clean label, a distinct icon, and its brand/model examples',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        SharedPreferences.setMockInitialValues({
+          'auth_token': 'test-token',
+          'user_role': 'Customer',
+        });
+
+        final client = MockClient((request) async {
+          final path = request.url.path;
+          if (path.contains('vehicle-types')) {
+            return _json([
+              {
+                'id': 1,
+                'name': 'Compact SUV',
+                'category': 'cars_suvs',
+                'description': 'Toyota Raize, Kia Stonic',
+                'icon_path': null,
+                'required_truck_type_id': 1,
+              },
+            ]);
+          }
+          if (path.contains('availability')) {
+            return _json({
+              'book_now_enabled': true,
+              'ready_units_count': 1,
+              'ready_by_class': {},
+              'ready_truck_type_ids': [1],
+            });
+          }
+          if (path.contains('autocomplete')) {
+            final q = request.url.queryParameters['q'] ?? '';
+            final lat = q.toLowerCase().contains('fairview') ? 14.6905 : 14.5832;
+            return _json({
+              'suggestions': [
+                {
+                  'label': 'Rizal Park, Manila',
+                  'coordinates': [120.9822, lat],
+                },
+              ],
+            });
+          }
+          return _json({}, status: 404);
+        });
+
+        await http.runWithClient(() async {
+          await tester.pumpWidget(const MaterialApp(home: BookNowScreen()));
+          await _settle(tester);
+
+          await tester.enterText(find.byType(TextField).first, 'Rizal');
+          await tester.pump(const Duration(milliseconds: 500));
+          await _settle(tester);
+          await tester.tap(find.text('Rizal Park').first);
+          await _settle(tester);
+
+          await tester.enterText(find.byType(TextField).last, 'Fairview');
+          await tester.pump(const Duration(milliseconds: 500));
+          await _settle(tester);
+          await tester.tap(find.text('Rizal Park').first);
+          await _settle(tester);
+
+          await tester.tap(find.text('Continue'));
+          await _settle(tester);
+        }, () => client);
+
+        expect(find.text('Cars & SUVs'), findsOneWidget);
+        expect(find.textContaining('(legacy)'), findsNothing);
+        expect(find.byIcon(Icons.directions_car_rounded), findsWidgets);
+
+        await tester.ensureVisible(find.text('Cars & SUVs'));
+        await tester.tap(find.text('Cars & SUVs'));
+        await _settle(tester);
+
+        expect(find.text('Compact SUV'), findsOneWidget);
+        expect(find.text('e.g. Toyota Raize, Kia Stonic'), findsOneWidget);
+
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  });
 }

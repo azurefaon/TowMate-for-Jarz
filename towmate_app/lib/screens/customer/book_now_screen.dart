@@ -15,6 +15,7 @@ import '../../models/vehicle_type_model.dart';
 import '../../services/api_service.dart';
 import '../../widgets/quotation_price_cards.dart';
 import '../../widgets/skeleton_box.dart';
+import 'map_picker_screen.dart';
 
 class _ExtraVehicleData {
   VehicleTypeModel? vehicle;
@@ -79,14 +80,20 @@ class _BookNowScreenState extends State<BookNowScreen> {
   bool _checkingDuplicateRoute = false;
 
   Timer? _availabilityPollTimer;
+  Timer? _draftSaveDebounce;
+  bool _draftCleared = false;
+  late final Future<void> _dataLoadFuture;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _dataLoadFuture = _loadData();
     _availabilityPollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (_step == 1) _refreshAvailability();
     });
+    _notesCtrl.addListener(_scheduleDraftSave);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForDraft());
+    _recoverLostImageData();
   }
 
   @override
@@ -120,15 +127,299 @@ class _BookNowScreenState extends State<BookNowScreen> {
   @override
   void dispose() {
     _availabilityPollTimer?.cancel();
+    _draftSaveDebounce?.cancel();
     _notesCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _jumpToTop() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+  bool _hasMeaningfulBookingData() {
+    return _pickupLatLng != null ||
+        _dropoffLatLng != null ||
+        _selectedVehicleType != null ||
+        _vehicleImages.isNotEmpty ||
+        _notesCtrl.text.trim().isNotEmpty ||
+        _extraVehicles.isNotEmpty;
+  }
+
+  void _scheduleDraftSave({bool immediate = false}) {
+    _draftSaveDebounce?.cancel();
+    if (immediate) {
+      _persistDraftNow();
+      return;
+    }
+    _draftSaveDebounce = Timer(
+      const Duration(milliseconds: 600),
+      _persistDraftNow,
+    );
+  }
+
+  void _finalizeDraft() {
+    _draftCleared = true;
+    _draftSaveDebounce?.cancel();
+    unawaited(ApiService.clearBookingDraft());
+  }
+
+  Future<void> _persistDraftNow() async {
+    if (_draftCleared || !_hasMeaningfulBookingData()) return;
+
+    await ApiService.saveBookingDraft({
+      'step': _step,
+      'service_type': _serviceType,
+      'scheduled_date': _scheduledDate?.toIso8601String(),
+      'scheduled_time': _scheduledTime == null
+          ? null
+          : {'hour': _scheduledTime!.hour, 'minute': _scheduledTime!.minute},
+      'pickup_lat': _pickupLatLng?.latitude,
+      'pickup_lng': _pickupLatLng?.longitude,
+      'pickup_address': _pickupAddress,
+      'dropoff_lat': _dropoffLatLng?.latitude,
+      'dropoff_lng': _dropoffLatLng?.longitude,
+      'dropoff_address': _dropoffAddress,
+      'selected_vehicle_type_id': _selectedVehicleType?.id,
+      'notes': _notesCtrl.text,
+      'vehicle_image_paths': _vehicleImages.map((x) => x.path).toList(),
+      'extra_vehicles': _extraVehicles
+          .map(
+            (v) => {
+              'vehicle_type_id': v.vehicle?.id,
+              'image_paths': v.images.map((x) => x.path).toList(),
+            },
+          )
+          .toList(),
     });
+  }
+
+  Future<void> _checkForDraft() async {
+    if (_prefillPickupAddress != null || _prefillDropoffAddress != null) {
+      return;
+    }
+    final draft = await ApiService.loadBookingDraft();
+    if (draft == null || !mounted) return;
+
+    final resume = await _showResumeDraftDialog();
+    if (resume != true) {
+      unawaited(ApiService.clearBookingDraft());
+      return;
+    }
+
+    await _dataLoadFuture;
+    if (!mounted) return;
+    await _applyDraft(draft);
+  }
+
+  Future<bool?> _showResumeDraftDialog() {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Unfinished Booking',
+          style: GoogleFonts.inter(
+            color: ctx.textPrimary,
+            fontSize: 17,
+            letterSpacing: -0.3,
+          ),
+        ),
+        content: Text(
+          'You have booking details saved from before. Continue where you left off?',
+          style: GoogleFonts.inter(
+            color: ctx.textTertiary,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Start New',
+              style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Resume',
+              style: GoogleFonts.inter(
+                color: ctx.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _applyDraft(Map<String, dynamic> draft) async {
+    final pickupLat = (draft['pickup_lat'] as num?)?.toDouble();
+    final pickupLng = (draft['pickup_lng'] as num?)?.toDouble();
+    final dropoffLat = (draft['dropoff_lat'] as num?)?.toDouble();
+    final dropoffLng = (draft['dropoff_lng'] as num?)?.toDouble();
+    final scheduledDateRaw = draft['scheduled_date'] as String?;
+    final scheduledTimeRaw = draft['scheduled_time'] as Map<String, dynamic>?;
+
+    final vehicleImagePaths =
+        (draft['vehicle_image_paths'] as List?)?.cast<String>() ?? const [];
+    final restoredImages = <XFile>[];
+    for (final path in vehicleImagePaths) {
+      if (await File(path).exists()) restoredImages.add(XFile(path));
+    }
+
+    final extraDrafts =
+        (draft['extra_vehicles'] as List?)?.cast<Map<String, dynamic>>() ??
+        const [];
+    final restoredExtras = <_ExtraVehicleData>[];
+    for (final extra in extraDrafts) {
+      final data = _ExtraVehicleData();
+      final vehicleTypeId = (extra['vehicle_type_id'] as num?)?.toInt();
+      if (vehicleTypeId != null) {
+        for (final v in _vehicleTypes) {
+          if (v.id == vehicleTypeId) {
+            data.vehicle = v;
+            break;
+          }
+        }
+      }
+      final paths = (extra['image_paths'] as List?)?.cast<String>() ?? const [];
+      for (final path in paths) {
+        if (await File(path).exists()) data.images.add(XFile(path));
+      }
+      restoredExtras.add(data);
+    }
+
+    if (!mounted) return;
+
+    VehicleTypeModel? restoredVehicle;
+    final vehicleTypeId = (draft['selected_vehicle_type_id'] as num?)
+        ?.toInt();
+    if (vehicleTypeId != null) {
+      for (final v in _vehicleTypes) {
+        if (v.id == vehicleTypeId) {
+          restoredVehicle = v;
+          break;
+        }
+      }
+    }
+
+    setState(() {
+      _serviceType = draft['service_type'] as String? ?? 'book_now';
+      if (scheduledDateRaw != null) {
+        _scheduledDate = DateTime.tryParse(scheduledDateRaw);
+      }
+      if (scheduledTimeRaw != null) {
+        _scheduledTime = TimeOfDay(
+          hour: (scheduledTimeRaw['hour'] as num).toInt(),
+          minute: (scheduledTimeRaw['minute'] as num).toInt(),
+        );
+      }
+      if (pickupLat != null && pickupLng != null) {
+        _pickupLatLng = LatLng(pickupLat, pickupLng);
+        _pickupAddress = draft['pickup_address'] as String? ?? '';
+        _prefillPickupAddress = _pickupAddress;
+      }
+      if (dropoffLat != null && dropoffLng != null) {
+        _dropoffLatLng = LatLng(dropoffLat, dropoffLng);
+        _dropoffAddress = draft['dropoff_address'] as String? ?? '';
+        _prefillDropoffAddress = _dropoffAddress;
+      }
+      _notesCtrl.text = draft['notes'] as String? ?? '';
+      _vehicleImages
+        ..clear()
+        ..addAll(restoredImages);
+      _extraVehicles
+        ..clear()
+        ..addAll(restoredExtras);
+      _selectedVehicleType = restoredVehicle;
+      final savedStep = (draft['step'] as num?)?.toInt() ?? 0;
+      _step = savedStep.clamp(0, 2);
+    });
+
+    if (_pickupLatLng != null && _dropoffLatLng != null) {
+      _calculateRoute();
+    }
+  }
+
+  Future<void> _recoverLostImageData() async {
+    if (kIsWeb) return;
+    LostDataResponse response;
+    try {
+      response = await _picker.retrieveLostData();
+    } catch (_) {
+      return;
+    }
+    if (response.isEmpty || !mounted) return;
+    final file = response.file;
+    if (file == null) return;
+
+    final persistedPath = await ApiService.persistDraftImage(file.path);
+    if (!mounted) return;
+
+    setState(() {
+      _vehicleImages.add(persistedPath != null ? XFile(persistedPath) : file);
+      _imageError = false;
+    });
+    _scheduleDraftSave();
+  }
+
+  Future<void> _confirmAndExit() async {
+    if (!_hasMeaningfulBookingData()) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Leave this booking?',
+          style: GoogleFonts.inter(
+            color: ctx.textPrimary,
+            fontSize: 17,
+            letterSpacing: -0.3,
+          ),
+        ),
+        content: Text(
+          'Your progress will be saved so you can continue later.',
+          style: GoogleFonts.inter(
+            color: ctx.textTertiary,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Continue Booking',
+              style: GoogleFonts.inter(
+                color: ctx.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Leave',
+              style: GoogleFonts.inter(color: ctx.textTertiary, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (leave != true || !mounted) return;
+    final navigator = Navigator.of(context);
+    await _persistDraftNow();
+    navigator.pop();
   }
 
   Future<void> _loadData() async {
@@ -175,6 +466,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
     setState(() {
       _selectedVehicleType = vehicle;
     });
+    _scheduleDraftSave();
 
     if (_serviceType == 'book_now' && !_isExactlyAvailable(vehicle)) {
       _showNoUnitsModal();
@@ -188,6 +480,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _routePoints = [];
       _distanceKm = null;
     });
+    _scheduleDraftSave();
     if (_dropoffLatLng != null) _calculateRoute();
   }
 
@@ -198,6 +491,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _routePoints = [];
       _distanceKm = null;
     });
+    _scheduleDraftSave();
     if (_pickupLatLng != null) _calculateRoute();
   }
 
@@ -209,6 +503,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _distanceKm = null;
       _routeFallback = false;
     });
+    _scheduleDraftSave();
   }
 
   void _onDropoffCleared() {
@@ -219,6 +514,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _distanceKm = null;
       _routeFallback = false;
     });
+    _scheduleDraftSave();
   }
 
   void _resetLocations() {
@@ -231,6 +527,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _distanceKm = null;
       _routeFallback = false;
     });
+    _scheduleDraftSave();
   }
 
   static double _haversineKm(LatLng a, LatLng b) {
@@ -329,8 +626,19 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
   static const _allowedExts = {'jpg', 'jpeg', 'png'};
 
+  void _persistPickedImageInBackground(XFile original, List<XFile> target) {
+    ApiService.persistDraftImage(original.path).then((persistedPath) {
+      if (!mounted || persistedPath == null) return;
+      final index = target.indexWhere((f) => identical(f, original));
+      if (index == -1) return;
+      setState(() => target[index] = XFile(persistedPath));
+      _scheduleDraftSave();
+    });
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     if (_vehicleImages.length >= 5) return;
+    if (source == ImageSource.camera) _scheduleDraftSave(immediate: true);
     final picked = await _picker.pickImage(
       source: source,
       imageQuality: 70,
@@ -360,15 +668,19 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _vehicleImages.add(picked);
       _imageError = false;
     });
+    _scheduleDraftSave();
+    _persistPickedImageInBackground(picked, _vehicleImages);
   }
 
   void _removeImage(int index) {
     setState(() => _vehicleImages.removeAt(index));
+    _scheduleDraftSave();
   }
 
   Future<void> _pickExtraImage(int index, ImageSource source) async {
     final data = _extraVehicles[index];
     if (data.images.length >= 5) return;
+    if (source == ImageSource.camera) _scheduleDraftSave(immediate: true);
     final picked = await _picker.pickImage(
       source: source,
       imageQuality: 70,
@@ -398,23 +710,29 @@ class _BookNowScreenState extends State<BookNowScreen> {
       data.images.add(picked);
       data.imageError = false;
     });
+    _scheduleDraftSave();
+    _persistPickedImageInBackground(picked, data.images);
   }
 
   void _removeExtraImage(int index, int photoIndex) {
     setState(() => _extraVehicles[index].images.removeAt(photoIndex));
+    _scheduleDraftSave();
   }
 
   void _addExtraVehicle() {
     if (_extraVehicles.length >= 5) return;
     setState(() => _extraVehicles.add(_ExtraVehicleData()));
+    _scheduleDraftSave();
   }
 
   void _removeExtraVehicle(int index) {
     setState(() => _extraVehicles.removeAt(index));
+    _scheduleDraftSave();
   }
 
   void _setExtraVehicle(int index, VehicleTypeModel vehicle) {
     setState(() => _extraVehicles[index].vehicle = vehicle);
+    _scheduleDraftSave();
   }
 
   void _scheduleEntireRequest() {
@@ -422,7 +740,10 @@ class _BookNowScreenState extends State<BookNowScreen> {
       _serviceType = 'schedule';
       _step = 0;
     });
-    _jumpToTop();
+    _scheduleDraftSave();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    });
   }
 
   Future<void> _showNoUnitsModal() async {
@@ -572,6 +893,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
     if (result['success'] == true) {
       final bookings =
           result['bookings'] as List<BookingGroupSibling>? ?? const [];
+      _finalizeDraft();
       Navigator.pushNamedAndRemoveUntil(
         context,
         '/booking-success',
@@ -630,7 +952,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 color: ctx.textPrimary,
                 size: 20,
               ),
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: _confirmAndExit,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             )
@@ -680,9 +1002,18 @@ class _BookNowScreenState extends State<BookNowScreen> {
           serviceType: _serviceType,
           scheduledDate: _scheduledDate,
           scheduledTime: _scheduledTime,
-          onServiceTypeChanged: (v) => setState(() => _serviceType = v),
-          onDateChanged: (d) => setState(() => _scheduledDate = d),
-          onTimeChanged: (t) => setState(() => _scheduledTime = t),
+          onServiceTypeChanged: (v) {
+            setState(() => _serviceType = v);
+            _scheduleDraftSave();
+          },
+          onDateChanged: (d) {
+            setState(() => _scheduledDate = d);
+            _scheduleDraftSave();
+          },
+          onTimeChanged: (t) {
+            setState(() => _scheduledTime = t);
+            _scheduleDraftSave();
+          },
         ),
         _LocationSection(
           pickupLatLng: _pickupLatLng,
@@ -694,8 +1025,10 @@ class _BookNowScreenState extends State<BookNowScreen> {
           onPickupCleared: _onPickupCleared,
           onDropoffCleared: _onDropoffCleared,
           onReset: _resetLocations,
-          initialPickupAddress: _prefillPickupAddress,
-          initialDropoffAddress: _prefillDropoffAddress,
+          initialPickupAddress: _pickupAddress.isEmpty ? null : _pickupAddress,
+          initialDropoffAddress: _dropoffAddress.isEmpty
+              ? null
+              : _dropoffAddress,
         ),
         const SizedBox(height: 24),
       ],
@@ -1075,6 +1408,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
     }
 
     setState(() => _step = 1);
+    _scheduleDraftSave();
   }
 
   Widget _buildBottomBar() {
@@ -1131,6 +1465,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
         if (_vehicleImages.isEmpty) setState(() => _imageError = true);
         if (!_canProceedStep2) return;
         setState(() => _step = 2);
+        _scheduleDraftSave();
         _fetchPricingPreview();
       };
     } else {
@@ -1281,9 +1616,14 @@ class _BookNowScreenState extends State<BookNowScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _step == 0,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _step > 0) setState(() => _step--);
+        if (didPop) return;
+        if (_step > 0) {
+          setState(() => _step--);
+        } else {
+          _confirmAndExit();
+        }
       },
       child: Scaffold(
         backgroundColor: context.bg,
@@ -1686,6 +2026,15 @@ class _LocationSectionState extends State<_LocationSection> {
       _syncOverlay(isPickup: true);
       _syncOverlay(isPickup: false);
     }
+
+    if (widget.initialPickupAddress != old.initialPickupAddress &&
+        widget.initialPickupAddress != _pickupCtrl.text) {
+      _pickupCtrl.text = widget.initialPickupAddress ?? '';
+    }
+    if (widget.initialDropoffAddress != old.initialDropoffAddress &&
+        widget.initialDropoffAddress != _dropoffCtrl.text) {
+      _dropoffCtrl.text = widget.initialDropoffAddress ?? '';
+    }
   }
 
   void _syncOverlay({required bool isPickup}) {
@@ -1931,6 +2280,42 @@ class _LocationSectionState extends State<_LocationSection> {
     widget.onDropoffSelected(latlng, label);
   }
 
+  Future<void> _openMapPicker(bool isPickup) async {
+    final currentLatLng = isPickup ? widget.pickupLatLng : widget.dropoffLatLng;
+    final result = await Navigator.push<MapPickerResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MapPickerScreen(
+          title: isPickup ? 'Select Pickup Location' : 'Select Drop-off Location',
+          initialLatLng: currentLatLng,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+
+    final otherLatLng = isPickup ? widget.dropoffLatLng : widget.pickupLatLng;
+    if (_isSameLocation(result.latLng, otherLatLng)) {
+      _showSameLocationWarning();
+      return;
+    }
+
+    if (isPickup) {
+      _pickupFocus.unfocus();
+      _pickupPlaceId = null;
+      _pickupCtrl.text = result.address;
+    } else {
+      _dropoffFocus.unfocus();
+      _dropoffPlaceId = null;
+      _dropoffCtrl.text = result.address;
+    }
+    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(result.latLng, 15));
+    if (isPickup) {
+      widget.onPickupSelected(result.latLng, result.address);
+    } else {
+      widget.onDropoffSelected(result.latLng, result.address);
+    }
+  }
+
   void _clearPickup() {
     _pickupCtrl.clear();
     _pickupPlaceId = null;
@@ -2115,46 +2500,53 @@ class _LocationSectionState extends State<_LocationSection> {
                   onClear: _clearPickup,
                 ),
               ),
-              if (widget.pickupLatLng == null) ...[
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: _locating ? null : _useCurrentLocation,
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _locating
-                            ? const SkeletonBox(
-                                width: 14,
-                                height: 14,
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(7),
-                                ),
-                              )
-                            : Icon(
-                                Icons.my_location_rounded,
-                                size: 14,
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 18,
+                runSpacing: 2,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (widget.pickupLatLng == null)
+                    GestureDetector(
+                      onTap: _locating ? null : _useCurrentLocation,
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _locating
+                                ? const SkeletonBox(
+                                    width: 14,
+                                    height: 14,
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(7),
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.my_location_rounded,
+                                    size: 14,
+                                    color: context.textPrimary,
+                                  ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _locating
+                                  ? 'Getting location...'
+                                  : 'Use current location',
+                              style: GoogleFonts.inter(
                                 color: context.textPrimary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.1,
                               ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _locating
-                              ? 'Getting location...'
-                              : 'Use current location',
-                          style: GoogleFonts.inter(
-                            color: context.textPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.1,
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                  _SelectOnMapLink(onTap: () => _openMapPicker(true)),
+                ],
+              ),
             ],
           ),
         ),
@@ -2178,6 +2570,8 @@ class _LocationSectionState extends State<_LocationSection> {
                   onClear: _clearDropoff,
                 ),
               ),
+              const SizedBox(height: 6),
+              _SelectOnMapLink(onTap: () => _openMapPicker(false)),
             ],
           ),
         ),
@@ -2317,6 +2711,38 @@ class _FieldLabel extends StatelessWidget {
         fontSize: 12.5,
         fontWeight: FontWeight.w500,
         letterSpacing: 0.1,
+      ),
+    );
+  }
+}
+
+class _SelectOnMapLink extends StatelessWidget {
+  const _SelectOnMapLink({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.map_outlined, size: 14, color: context.textPrimary),
+            const SizedBox(width: 6),
+            Text(
+              'Select on map',
+              style: GoogleFonts.inter(
+                color: context.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2471,8 +2897,14 @@ IconData _vehicleCategoryIcon(String category) {
   switch (category) {
     case '2_wheeler':
       return Icons.two_wheeler_rounded;
+    case 'pickups_vans':
+      return Icons.airport_shuttle_rounded;
+    case 'trucks':
     case 'heavy_vehicle':
+    case 'other_heavy':
       return Icons.local_shipping_rounded;
+    case '4_wheeler':
+    case 'cars_suvs':
     default:
       return Icons.directions_car_rounded;
   }
@@ -2484,7 +2916,13 @@ List<VehicleTypeModel> _filterVehicleTypes(
 ) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return all;
-  return all.where((v) => v.name.toLowerCase().contains(q)).toList();
+  return all
+      .where(
+        (v) =>
+            v.name.toLowerCase().contains(q) ||
+            (v.description?.toLowerCase().contains(q) ?? false),
+      )
+      .toList();
 }
 
 class _NoVehicleTypesFound extends StatelessWidget {
@@ -2702,6 +3140,14 @@ String _vehicleCategoryLabel(String category) {
       return 'Heavy Vehicle';
     case '4_wheeler':
       return '4-Wheeler';
+    case 'cars_suvs':
+      return 'Cars & SUVs';
+    case 'pickups_vans':
+      return 'Pickups & Vans';
+    case 'trucks':
+      return 'Trucks';
+    case 'other_heavy':
+      return 'Other / Heavy Vehicles';
     default:
       return '';
   }
@@ -2725,6 +3171,7 @@ class _VehicleTypeRow extends StatelessWidget {
     final categoryLabel = showCategoryLabel
         ? _vehicleCategoryLabel(vehicle.category)
         : '';
+    final examples = vehicle.description?.trim() ?? '';
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -2765,6 +3212,19 @@ class _VehicleTypeRow extends StatelessWidget {
                         color: secondaryTextColor(context),
                         fontSize: 12,
                         letterSpacing: 0.1,
+                      ),
+                    ),
+                  ],
+                  if (examples.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'e.g. $examples',
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: secondaryTextColor(context),
+                        fontSize: 11.5,
+                        letterSpacing: 0.1,
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],
@@ -2817,7 +3277,14 @@ List<_VehicleCategoryGroup> _groupVehiclesByCategory(
   for (final c in categories) {
     final vs = byCategory[c.slug];
     if (vs == null || vs.isEmpty) continue;
-    groups.add(_VehicleCategoryGroup(slug: c.slug, name: c.name, vehicles: vs));
+    final cleanLabel = _vehicleCategoryLabel(c.slug);
+    groups.add(
+      _VehicleCategoryGroup(
+        slug: c.slug,
+        name: cleanLabel.isNotEmpty ? cleanLabel : c.name,
+        vehicles: vs,
+      ),
+    );
     seen.add(c.slug);
   }
   for (final entry in byCategory.entries) {
@@ -4156,6 +4623,9 @@ class _PriceBreakdown extends StatelessWidget {
               : 'Base Rate',
           value:
               '₱${priceFmt.format(combinedBaseRate ? baseRateTotal : baseRate)}',
+          caption: combinedBaseRate
+              ? 'Starting rate for the selected vehicle classes.'
+              : 'Starting rate for $primaryVehicleName. The total below adds distance, fees, and VAT.',
         ),
         _BRow(
           label: 'Distance Fee',

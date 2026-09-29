@@ -1061,6 +1061,181 @@ void main() {
         );
       },
     );
+
+    testWidgets(
+      'a pending draft autosave cannot recreate the draft after a successful submission clears it',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final previousPlatform = ImagePickerPlatform.instance;
+        ImagePickerPlatform.instance = _FakeImagePickerPlatform(
+          _createFakePhotoFile(),
+        );
+        addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
+
+        SharedPreferences.setMockInitialValues({
+          'auth_token': 'test-token',
+          'user_role': 'Customer',
+          'user_id': 1,
+        });
+        final client = MockClient((request) async {
+          final url = request.url.toString();
+          if (url.contains('router.project-osrm.org'))
+            return _json({'code': 'Error'});
+          final path = request.url.path;
+          if (path.contains('vehicle-types')) return _json(_vehicleTypesPayload());
+          if (path.contains('availability')) {
+            return _json({
+              'book_now_enabled': true,
+              'ready_units_count': 1,
+              'ready_by_class': {},
+              'ready_truck_type_ids': [1],
+            });
+          }
+          if (path.contains('autocomplete')) {
+            final q = request.url.queryParameters['q'] ?? '';
+            final lat = q.toLowerCase().contains('fairview') ? 14.6905 : 14.5832;
+            return _json({
+              'suggestions': [
+                {
+                  'label': 'Rizal Park, Manila',
+                  'coordinates': [120.9822, lat],
+                },
+              ],
+            });
+          }
+          if (path.contains('pricing-preview')) return _json(_pricingResponse());
+          if (path.endsWith('/v1/bookings') && request.method == 'POST') {
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+            return _json({
+              'success': true,
+              'booking_code': 'TM-00300',
+              'group_code': null,
+              'bookings': [
+                {
+                  'booking_code': 'TM-00300',
+                  'vehicle_type_name': 'Sedan',
+                  'service_type': 'book_now',
+                  'status': 'requested',
+                  'is_current': true,
+                },
+              ],
+            }, status: 201);
+          }
+          return _json({}, status: 404);
+        });
+
+        await http.runWithClient(() async {
+          await tester.pumpWidget(
+            MaterialApp(
+              onGenerateRoute: (settings) {
+                if (settings.name == '/' || settings.name == null) {
+                  return MaterialPageRoute(
+                    builder: (_) => const BookNowScreen(),
+                  );
+                }
+                return MaterialPageRoute(builder: (_) => const Scaffold());
+              },
+            ),
+          );
+          await _settle(tester);
+          await tester.enterText(find.byType(TextField).first, 'Rizal');
+          await tester.pump(const Duration(milliseconds: 500));
+          await _settle(tester);
+          await tester.tap(find.text('Rizal Park').first);
+          await _settle(tester);
+          await tester.enterText(find.byType(TextField).last, 'Fairview');
+          await tester.pump(const Duration(milliseconds: 500));
+          await _settle(tester);
+          await tester.tap(find.text('Rizal Park').first);
+          await _settle(tester);
+          await tester.tap(find.text('Continue'));
+          await _settle(tester);
+          await tester.ensureVisible(find.text('4-Wheeler').last);
+          await tester.tap(find.text('4-Wheeler').last);
+          await _settle(tester);
+          await tester.ensureVisible(find.text('Sedan').last);
+          await tester.tap(find.text('Sedan').last);
+          await _settle(tester);
+          await tester.tap(find.text('Add vehicle photos'));
+          await _settle(tester);
+          await tester.tap(find.text('Choose from Gallery'));
+          await _settle(tester);
+          await tester.ensureVisible(find.text('Continue'));
+          await tester.tap(find.text('Continue'));
+          await _settle(tester);
+
+          await tester.enterText(find.byType(TextField).last, 'Call before arriving');
+          await tester.tap(find.text('Confirm Booking'));
+          for (var i = 0; i < 30; i++) {
+            await tester.pump(const Duration(milliseconds: 50));
+          }
+        }, () => client);
+
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.getString('booking_draft_v1'), isNull);
+      },
+    );
+  });
+
+  group('BookNowScreen vehicle selection survives draft resume', () {
+    testWidgets(
+      'resuming a saved draft restores the same selected vehicle type, not a default',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({
+          'auth_token': 'test-token',
+          'user_role': 'Customer',
+          'user_id': 1,
+          'booking_draft_v1': jsonEncode({
+            'step': 1,
+            'service_type': 'book_now',
+            'pickup_lat': 14.5832,
+            'pickup_lng': 120.9794,
+            'pickup_address': 'Rizal Park, Manila',
+            'dropoff_lat': 14.6905,
+            'dropoff_lng': 120.9822,
+            'dropoff_address': 'Fairview, Quezon City',
+            'selected_vehicle_type_id': 2,
+            'notes': '',
+            'vehicle_image_paths': <String>[],
+            'extra_vehicles': <Map<String, dynamic>>[],
+            'user_id': 1,
+            'saved_at': DateTime.now().toIso8601String(),
+          }),
+        });
+
+        final client = MockClient((request) async {
+          final path = request.url.path;
+          if (path.contains('vehicle-types')) return _json(_vehicleTypesPayload());
+          if (path.contains('availability')) {
+            return _json({
+              'book_now_enabled': true,
+              'ready_units_count': 1,
+              'ready_by_class': {},
+              'ready_truck_type_ids': [1],
+            });
+          }
+          return _json({}, status: 404);
+        });
+
+        await http.runWithClient(() async {
+          await tester.pumpWidget(const MaterialApp(home: BookNowScreen()));
+          await _settle(tester);
+
+          expect(find.text('Unfinished Booking'), findsOneWidget);
+          await tester.tap(find.text('Resume'));
+          await _settle(tester);
+        }, () => client);
+
+        expect(find.text('Van'), findsOneWidget);
+        expect(find.text('Sedan'), findsNothing);
+
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
   });
 
   group('BookNowScreen Step 2 single-mode review & pricing (Task D)', () {
