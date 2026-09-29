@@ -6,12 +6,20 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Zone;
+use App\Services\BookingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ActiveBookingsController extends Controller
 {
+    private const PRICE_LOCKED_STATUSES_EXTRA = ['waiting_verification'];
+
+    public function __construct(private BookingService $bookingService)
+    {
+    }
+
     public function index()
     {
         $activeBookings = Booking::with([
@@ -130,7 +138,62 @@ class ActiveBookingsController extends Controller
             'remarks' => 'nullable|string|max:1000',
         ]);
 
-        $booking->update($validated);
+        $lockedStatuses = array_merge(Booking::TERMINAL_STATUSES, self::PRICE_LOCKED_STATUSES_EXTRA);
+        $lockedMessage = 'Pricing can no longer be changed once a booking has reached this stage.';
+
+        if (in_array($booking->status, $lockedStatuses, true)) {
+            return $this->pricingErrorResponse($request, $lockedMessage);
+        }
+
+        $additionalFee = (float) ($validated['additional_fee'] ?? $booking->additional_fee ?? 0);
+        $discountPercentage = (float) ($validated['discount_percentage'] ?? $booking->discount_percentage ?? 0);
+        $remarks = $validated['remarks'] ?? $booking->remarks;
+
+        $limitError = $this->bookingService->checkDispatcherDiscountLimit($discountPercentage, $remarks)
+            ?? $this->bookingService->checkDispatcherAdditionalChargeLimit($additionalFee, $remarks);
+
+        if ($limitError !== null) {
+            return $this->pricingErrorResponse($request, $limitError);
+        }
+
+        $updated = DB::transaction(function () use ($booking, $additionalFee, $discountPercentage, $remarks, $lockedStatuses) {
+            $current = Booking::whereKey($booking->id)->lockForUpdate()->first();
+
+            if (in_array($current->status, $lockedStatuses, true)) {
+                return null;
+            }
+
+            $gross = (float) $current->computed_total;
+            $discountAmount = round($gross * ($discountPercentage / 100), 2);
+            $subtotal = max(round($gross - $discountAmount, 2), 0);
+            $totals = $this->bookingService->applyVatAndAdjustment($subtotal, $additionalFee);
+
+            $current->update([
+                'additional_fee' => $additionalFee,
+                'discount_percentage' => $discountPercentage,
+                'remarks' => $remarks,
+                'vat_exclusive_total' => $totals['subtotal'],
+                'vat_amount' => $totals['vat_amount'],
+                'final_total' => $totals['final_total'],
+            ]);
+
+            return $current;
+        });
+
+        if ($updated === null) {
+            return $this->pricingErrorResponse($request, $lockedMessage);
+        }
+
+        $booking = $updated;
+
+        AuditLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'booking_pricing_updated',
+            'entity_type' => 'Booking',
+            'entity_id'   => $booking->id,
+            'reference'   => $booking->job_code,
+            'description' => "Pricing updated: additional_fee={$booking->additional_fee}, discount_percentage={$booking->discount_percentage}, final_total={$booking->final_total}",
+        ]);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -141,6 +204,7 @@ class ActiveBookingsController extends Controller
                     'job_code' => $booking->job_code,
                     'additional_fee' => $booking->additional_fee,
                     'discount_percentage' => $booking->discount_percentage,
+                    'vat_amount' => $booking->vat_amount,
                     'final_total' => $booking->final_total,
                     'remarks' => $booking->remarks,
                 ],
@@ -149,6 +213,15 @@ class ActiveBookingsController extends Controller
         }
 
         return back()->with('success', 'Booking pricing updated');
+    }
+
+    private function pricingErrorResponse(Request $request, string $message)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        return back()->withErrors(['pricing' => $message]);
     }
 
     public function show(Request $request, Booking $booking)

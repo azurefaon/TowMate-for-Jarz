@@ -833,6 +833,46 @@ class BookingService
             : $this->resolveTaxableSubtotal($booking);
     }
 
+    public function checkDispatcherDiscountLimit(?float $discountPercentage, ?string $note): ?string
+    {
+        if ($discountPercentage !== null && $discountPercentage <= 0) {
+            return null;
+        }
+
+        if (SystemSetting::getValue('dispatcher_discount_enabled', '1') === '0') {
+            return 'Discounted pricing is currently disabled by the Owner.';
+        }
+
+        $maxDiscount = SystemSetting::getValue('max_dispatcher_discount_percentage');
+        if ($discountPercentage !== null && filled($maxDiscount) && $discountPercentage > (float) $maxDiscount + 0.01) {
+            return 'This discount exceeds the maximum allowed dispatcher discount of ' . number_format((float) $maxDiscount, 2) . '%.';
+        }
+
+        if (SystemSetting::getValue('dispatcher_discount_require_reason', '0') === '1' && blank($note)) {
+            return 'A reason is required when reducing the price.';
+        }
+
+        return null;
+    }
+
+    public function checkDispatcherAdditionalChargeLimit(float $additionalCharge, ?string $note): ?string
+    {
+        if ($additionalCharge <= 0) {
+            return null;
+        }
+
+        $maxCharge = SystemSetting::getValue('max_additional_charge');
+        if (filled($maxCharge) && $additionalCharge > (float) $maxCharge + 0.01) {
+            return 'This additional charge exceeds the maximum allowed amount of ₱' . number_format((float) $maxCharge, 2) . '.';
+        }
+
+        if (SystemSetting::getValue('additional_charge_require_reason', '0') === '1' && blank($note)) {
+            return 'A reason is required when applying an additional charge.';
+        }
+
+        return null;
+    }
+
     public function applyVatAndAdjustment(float $subtotal, float $signedAdjustment, ?float $vatRate = null): array
     {
         $vatRate = $vatRate ?? $this->vatRate();

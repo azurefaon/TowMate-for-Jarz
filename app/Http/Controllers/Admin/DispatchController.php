@@ -12,7 +12,6 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\PriceAdjustment;
 use App\Models\Quotation;
-use App\Models\SystemSetting;
 use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
@@ -1781,32 +1780,15 @@ class DispatchController extends Controller
     private function enforcePriceAdjustmentLimits(float $canonicalBaseTotal, float $derivedAdjustment, ?string $note): ?string
     {
         if ($derivedAdjustment < 0) {
-            if (SystemSetting::getValue('dispatcher_discount_enabled', '1') === '0') {
-                return 'Discounted pricing is currently disabled by the Owner.';
-            }
+            $discountPercentage = $canonicalBaseTotal > 0
+                ? (abs($derivedAdjustment) / $canonicalBaseTotal) * 100
+                : null;
 
-            $maxDiscount = SystemSetting::getValue('max_dispatcher_discount_percentage');
-            if (filled($maxDiscount) && $canonicalBaseTotal > 0) {
-                $discountPercentage = (abs($derivedAdjustment) / $canonicalBaseTotal) * 100;
-                if ($discountPercentage > (float) $maxDiscount + 0.01) {
-                    return 'This discount exceeds the maximum allowed dispatcher discount of ' . number_format((float) $maxDiscount, 2) . '%.';
-                }
-            }
-
-            if (SystemSetting::getValue('dispatcher_discount_require_reason', '0') === '1' && blank($note)) {
-                return 'A reason is required when reducing the price.';
-            }
+            return $this->bookingService->checkDispatcherDiscountLimit($discountPercentage, $note);
         }
 
         if ($derivedAdjustment > 0) {
-            $maxCharge = SystemSetting::getValue('max_additional_charge');
-            if (filled($maxCharge) && $derivedAdjustment > (float) $maxCharge + 0.01) {
-                return 'This additional charge exceeds the maximum allowed amount of ₱' . number_format((float) $maxCharge, 2) . '.';
-            }
-
-            if (SystemSetting::getValue('additional_charge_require_reason', '0') === '1' && blank($note)) {
-                return 'A reason is required when applying an additional charge.';
-            }
+            return $this->bookingService->checkDispatcherAdditionalChargeLimit($derivedAdjustment, $note);
         }
 
         return null;
