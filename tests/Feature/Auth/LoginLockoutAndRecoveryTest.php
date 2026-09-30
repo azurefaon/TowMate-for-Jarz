@@ -477,7 +477,7 @@ it('renders the approved heading copy', function () {
 });
 
 it('renders the Android download with the real existing APK target', function () {
-    $response = test()->get('/login');
+    $response = test()->get('/');
 
     $response->assertSee('Android');
     $response->assertSee(route('download.android'), false);
