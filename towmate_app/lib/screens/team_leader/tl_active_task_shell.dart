@@ -44,6 +44,7 @@ class TlActiveTaskShell extends StatefulWidget {
 class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
   TaskModel? _task;
   bool _loading = true;
+  bool _loadFailed = false; // last lookup failed: unknown, NOT "no task"
   int _tabIndex = 0;
   final LocationTracker _gps = LocationTracker();
   Timer? _pollTimer;
@@ -65,15 +66,28 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
       task = await TeamLeaderService.getCurrentTask();
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _loadFailed = true;
+      });
       return;
     }
     if (!mounted) return;
 
     task = resolveFetchedTask(previous: _task, fetched: task);
 
+    // `assigned` has not entered the operational cycle: the TL still has to
+    // accept it on Home. Never render it as a live step (deep link, refresh,
+    // or My Task tap all land here).
+    if (task != null && task.status == 'assigned') {
+      _pollTimer?.cancel();
+      Navigator.pushReplacementNamed(context, '/tl-home');
+      return;
+    }
+
     setState(() {
       _task = task;
+      _loadFailed = false;
       _loading = false;
     });
     _syncGps(task);
@@ -132,6 +146,41 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
           child: Padding(
             padding: EdgeInsets.all(20),
             child: _TaskLoadingSkeleton(),
+          ),
+        ),
+      );
+    }
+
+    if (_task == null && _loadFailed) {
+      return Scaffold(
+        backgroundColor: context.bg,
+        bottomNavigationBar: const TlBottomNav(currentRoute: '/tl-active-task'),
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Couldn't load your task.",
+                  key: const Key('tl_shell_load_error'),
+                  style: GoogleFonts.inter(color: context.textTertiary, fontSize: 14),
+                ),
+                const SizedBox(height: 20),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _loading = true;
+                      _loadFailed = false;
+                    });
+                    _fetchTask();
+                  },
+                  child: Text(
+                    'Retry',
+                    style: GoogleFonts.inter(color: TmColors.yellow),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );

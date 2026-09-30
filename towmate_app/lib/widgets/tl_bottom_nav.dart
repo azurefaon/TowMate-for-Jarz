@@ -3,9 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 
 class TlBottomNav extends StatelessWidget {
-  const TlBottomNav({super.key, required this.currentRoute});
+  const TlBottomNav({super.key, required this.currentRoute, this.onMyTaskTap});
 
   final String currentRoute;
+
+  /// Lets a screen resolve the task before navigating (see TlHomeScreen).
+  final VoidCallback? onMyTaskTap;
 
   void _go(BuildContext context, String route) {
     if (route == currentRoute) return;
@@ -35,7 +38,7 @@ class TlBottomNav extends StatelessWidget {
                 icon: Icons.task_alt_outlined,
                 label: 'My Task',
                 selected: currentRoute == '/tl-active-task',
-                onTap: () => _go(context, '/tl-active-task'),
+                onTap: onMyTaskTap ?? () => _go(context, '/tl-active-task'),
               ),
               _TlNavItem(
                 icon: Icons.history_rounded,

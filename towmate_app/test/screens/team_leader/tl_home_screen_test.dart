@@ -300,8 +300,12 @@ void main() {
       String? capturedRoute;
       await _pumpTlHome(tester, onNavigate: (route, args) => capturedRoute = route);
 
-      await tester.tap(find.text('My Task'));
-      await _settle(tester);
+      // My Task now resolves the task (GET) before navigating, so the tap
+      // must run against the same mock backend as the initial load.
+      await http.runWithClient(() async {
+        await tester.tap(find.text('My Task'));
+        await _settle(tester);
+      }, () => _buildClient(task: null));
 
       expect(capturedRoute, '/tl-active-task');
     });

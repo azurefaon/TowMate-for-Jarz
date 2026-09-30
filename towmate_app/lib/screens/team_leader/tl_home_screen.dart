@@ -10,6 +10,7 @@ import '../../services/location_tracker.dart';
 import '../../services/team_leader_service.dart';
 import '../../services/tl_presence_controller.dart';
 import '../../widgets/tl_assigned_team_card.dart';
+import '../../widgets/skeleton_box.dart';
 import '../../widgets/tl_bottom_nav.dart';
 
 class TlHomeScreen extends StatefulWidget {
@@ -60,22 +61,27 @@ class _TlHomeScreenState extends State<TlHomeScreen>
     );
   }
 
-  Future<void> _fetchTask() async {
-    if (!mounted) return;
+  // Only the newest request may write state, so an older, slower response can
+  // never overwrite a newer one or clear the loading flag out from under it.
+  int _fetchSeq = 0;
+  bool _resolvingMyTask = false;
+  bool _loadedOnce = false; // a fetch succeeded: a null task now genuinely means "none"
+
+  /// Fetches the authoritative task. Returns true when this call's result was
+  /// applied (false on failure or when a newer request superseded it).
+  Future<bool> _fetchTask() async {
+    if (!mounted) return false;
+    final seq = ++_fetchSeq;
     setState(() => _loadingTask = true);
     TaskModel? task;
     try {
       task = await TeamLeaderService.getCurrentTask();
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || seq != _fetchSeq) return false;
       setState(() => _loadingTask = false);
-      return;
+      return false;
     }
-    if (!mounted) return;
-    setState(() {
-      _task = task;
-      _loadingTask = false;
-    });
+    if (!mounted || seq != _fetchSeq) return false;
 
     const tlActiveStatuses = {
       'accepted', 'on_the_way', 'arrived_pickup', 'in_progress',
@@ -83,19 +89,55 @@ class _TlHomeScreenState extends State<TlHomeScreen>
       'waiting_verification',
     };
 
+    // `assigned` stays here; terminal (completed/returned) is not a current task.
+    final keep = task != null && task.status == 'assigned' ? task : null;
+    setState(() {
+      _task = keep ?? (task != null && tlActiveStatuses.contains(task.status) ? task : null);
+      _loadedOnce = true;
+      _loadingTask = false;
+    });
+
     if (task != null && tlActiveStatuses.contains(task.status)) {
       _pollTimer?.cancel();
-      if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/tl-active-task');
-      return;
     }
+    return true;
+  }
 
-    if (task != null && task.status != 'assigned') {
-      setState(() {
-        _task = null;
-        _loadingTask = false;
-      });
-      return;
+  /// "My Task", decided from Home's own state so it is instant and read-only:
+  ///   known `assigned` task -> stay on Home (no lookup, nothing replaced)
+  ///   known task, other    -> _fetchTask() already routes operational ones
+  ///   known "no task"      -> /tl-active-task (existing empty state)
+  ///   state unknown        -> ONE lookup; a failed lookup is NOT "no task"
+  Future<void> _openMyTask() async {
+    if (_resolvingMyTask) return;
+    if (_task?.status == 'assigned') return;
+
+    _resolvingMyTask = true;
+    try {
+      if (_task != null) {
+        Navigator.pushReplacementNamed(context, '/tl-active-task');
+        return;
+      }
+      if (!_loadedOnce) {
+        final applied = await _fetchTask();
+        if (!mounted) return;
+        if (!applied) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Couldn't check your task. Please try again."),
+              backgroundColor: TmColors.error,
+            ),
+          );
+          return;
+        }
+        // _fetchTask() already opened the shell for an operational task and
+        // Home keeps showing an assigned one.
+        if (_task != null) return;
+      }
+      Navigator.pushReplacementNamed(context, '/tl-active-task');
+    } finally {
+      _resolvingMyTask = false;
     }
   }
 
@@ -147,14 +189,16 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.bg,
-      bottomNavigationBar: const TlBottomNav(currentRoute: '/tl-home'),
+      bottomNavigationBar: TlBottomNav(currentRoute: '/tl-home', onMyTaskTap: _openMyTask),
       body: SafeArea(
         child: Column(
           children: [
             _header(context),
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _fetchTask,
+                onRefresh: () async {
+                  await _fetchTask();
+                },
                 color: TmColors.yellow,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -234,6 +278,7 @@ class _TlHomeScreenState extends State<TlHomeScreen>
                       _sectionLabel(context, 'Current Task'),
                       const SizedBox(height: 12),
                       if (_task == null && !_loadingTask) _idleCard(context),
+                      if (_task == null && _loadingTask) _taskSkeleton(),
                       if (_task != null) ...[
                         _currentTaskCard(context, _task!),
                         if (_task!.assignedTeam != null) ...[
@@ -303,6 +348,12 @@ class _TlHomeScreenState extends State<TlHomeScreen>
       .where((w) => w.isNotEmpty)
       .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
       .join(' ');
+
+  Widget _taskSkeleton() => SkeletonBox(
+        key: const Key('tl_home_task_skeleton'),
+        height: 150,
+        borderRadius: BorderRadius.circular(22),
+      );
 
   Widget _idleCard(BuildContext context) {
     return Container(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
+import '../core/tl_task_flow.dart';
 
 class TlStatusTimeline extends StatelessWidget {
   const TlStatusTimeline({super.key, required this.currentStatus});
@@ -20,12 +21,13 @@ class TlStatusTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentIdx =
-        _steps.indexWhere((s) => s.$1.contains(currentStatus));
-    final stepNum = currentIdx < 0 ? 1 : currentIdx + 1;
+    final step = TlTaskFlow.stepFor(currentStatus);
+    if (step == null) return const SizedBox.shrink();
+    final currentIdx = step - 1;
+    final stepNum = step;
     final total = _steps.length;
-    final label = currentIdx < 0 ? '' : _steps[currentIdx].$2;
-    final progress = currentIdx < 0 ? 0.0 : stepNum / total;
+    final label = _steps[currentIdx].$2;
+    final progress = stepNum / total;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
