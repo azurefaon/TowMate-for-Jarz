@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:google_sign_in/google_sign_in.dart';
 
 enum GoogleAuthOutcome { success, cancelled, unavailable }
@@ -22,13 +22,24 @@ class GoogleAuthService {
 
   static Future<void> _ensureInitialized() async {
     if (_initialized) return;
-    await GoogleSignIn.instance.initialize(
-      clientId: _clientId.isEmpty ? null : _clientId,
-      serverClientId: kIsWeb
-          ? null
-          : (_serverClientId.isEmpty ? null : _serverClientId),
-    );
-    _initialized = true;
+    try {
+      await GoogleSignIn.instance.initialize(
+        clientId: _clientId.isEmpty ? null : _clientId,
+        serverClientId: kIsWeb
+            ? null
+            : (_serverClientId.isEmpty ? null : _serverClientId),
+      );
+      _initialized = true;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '[GoogleAuth] initialize failed: ${e.runtimeType}, '
+          'clientIdConfigured=${_clientId.isNotEmpty}, '
+          'serverClientIdConfigured=${_serverClientId.isNotEmpty}',
+        );
+      }
+      rethrow;
+    }
   }
 
   static Future<void> ensureInitializedForWeb() => _ensureInitialized();
@@ -83,6 +94,9 @@ class GoogleAuthService {
       final idToken = account.authentication.idToken;
 
       if (idToken == null || idToken.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[GoogleAuth] authenticate succeeded but idToken was empty');
+        }
         return const GoogleAuthResult(outcome: GoogleAuthOutcome.unavailable);
       }
 
@@ -91,11 +105,17 @@ class GoogleAuthService {
         idToken: idToken,
       );
     } on GoogleSignInException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[GoogleAuth] authenticate failed: ${e.code}');
+      }
       if (e.code == GoogleSignInExceptionCode.canceled) {
         return const GoogleAuthResult(outcome: GoogleAuthOutcome.cancelled);
       }
       return const GoogleAuthResult(outcome: GoogleAuthOutcome.unavailable);
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[GoogleAuth] authenticate failed: ${e.runtimeType}');
+      }
       return const GoogleAuthResult(outcome: GoogleAuthOutcome.unavailable);
     }
   }
