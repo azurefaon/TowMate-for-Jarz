@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/demo_flags.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
+import '../../widgets/tl_assigned_team_card.dart';
 import '../../services/team_leader_service.dart';
 import 'tl_return_screen.dart';
 
@@ -159,6 +160,10 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
               _stepHeader(context),
               const SizedBox(height: 24),
               _taskCard(context, task),
+              if (task.assignedTeam != null) ...[
+                const SizedBox(height: 12),
+                TlAssignedTeamCard(team: task.assignedTeam),
+              ],
               const SizedBox(height: 20),
               _primaryBtn('Arrived at Pickup', _arrive),
               if (kTlDemoArrivalVisible) ...[

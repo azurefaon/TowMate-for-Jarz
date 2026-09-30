@@ -4,13 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../models/task_model.dart';
-import '../../services/api_service.dart';
 import '../../services/team_leader_service.dart';
 import '../../services/tl_presence_controller.dart';
 import '../../services/location_tracker.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/tl_bottom_nav.dart';
-import '../../widgets/tl_drawer.dart';
 import '../../widgets/tl_status_timeline.dart';
 import 'tl_en_route_screen.dart';
 import 'tl_arrived_pickup_screen.dart';
@@ -48,14 +46,11 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
   bool _loading = true;
   int _tabIndex = 0;
   final LocationTracker _gps = LocationTracker();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Timer? _pollTimer;
-  String? _name;
 
   @override
   void initState() {
     super.initState();
-    ApiService.getUserName().then((n) { if (mounted) setState(() => _name = n); });
     TlPresenceController.start();
     _fetchTask();
     _pollTimer = Timer.periodic(
@@ -187,9 +182,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
         }
       },
       child: Scaffold(
-        key: _scaffoldKey,
         backgroundColor: TmColors.grey100,
-        drawer: TlDrawer(currentRoute: '/tl-active-task', name: _name),
         body: Column(
           children: [
             if (!isDone) _topBar(task),
@@ -231,14 +224,6 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.menu_rounded, color: TmColors.grey700),
-                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                    tooltip: 'Menu',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 8),
                   RichText(
                     text: TextSpan(
                       children: [

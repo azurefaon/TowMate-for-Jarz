@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
+import '../../widgets/tl_assigned_team_card.dart';
 import '../../services/team_leader_service.dart';
 
 class TlArrivedPickupScreen extends StatefulWidget {
@@ -97,6 +98,10 @@ class _TlArrivedPickupScreenState extends State<TlArrivedPickupScreen> {
               _stepHeader(context),
               const SizedBox(height: 20),
               _taskCard(context, task),
+              if (task.assignedTeam != null) ...[
+                const SizedBox(height: 12),
+                TlAssignedTeamCard(team: task.assignedTeam),
+              ],
               const SizedBox(height: 16),
               _actionContext(context),
               const SizedBox(height: 18),

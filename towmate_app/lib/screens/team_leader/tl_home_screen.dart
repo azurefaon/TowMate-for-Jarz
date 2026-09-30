@@ -9,6 +9,7 @@ import '../../services/api_service.dart';
 import '../../services/location_tracker.dart';
 import '../../services/team_leader_service.dart';
 import '../../services/tl_presence_controller.dart';
+import '../../widgets/tl_assigned_team_card.dart';
 import '../../widgets/tl_bottom_nav.dart';
 
 class TlHomeScreen extends StatefulWidget {
@@ -235,6 +236,10 @@ class _TlHomeScreenState extends State<TlHomeScreen>
                       if (_task == null && !_loadingTask) _idleCard(context),
                       if (_task != null) ...[
                         _currentTaskCard(context, _task!),
+                        if (_task!.assignedTeam != null) ...[
+                          const SizedBox(height: 12),
+                          TlAssignedTeamCard(team: _task!.assignedTeam),
+                        ],
                         const SizedBox(height: 16),
                         _acceptButton(),
                       ],

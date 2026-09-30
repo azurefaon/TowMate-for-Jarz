@@ -268,5 +268,68 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    final activeTask = <String, dynamic>{
+      'id': 700,
+      'booking_code': 'TM-0700',
+      'status': 'accepted',
+      'pickup_address': 'Pasay City',
+      'dropoff_address': 'Makati City',
+      'pickup_lat': 14.5,
+      'pickup_lng': 121.0,
+      'dropoff_lat': 14.6,
+      'dropoff_lng': 121.1,
+      'distance_km': 9.5,
+      'customer_name': 'Juan Dela Cruz',
+      'customer_phone': '09170000000',
+      'customer_email': 'juan@example.test',
+      'final_total': 1850.0,
+      'truck_type_name': 'Light Duty',
+      'service_type': 'book_now',
+      'assigned_team': {
+        'team_leader_name': 'Leader One',
+        'driver_name': 'Driver One',
+        'crew_names': ['Crew A', 'Crew B'],
+        'unit_name': 'Unit 09',
+        'plate_number': 'ABC 1234',
+        'truck_type_name': 'Heavy Duty',
+        'truck_class': 'heavy',
+      },
+    };
+
+    tlTest('active task has no Drawer and no hamburger menu', (tester) async {
+      await pumpShell(tester, task: activeTask);
+
+      expect(find.text('En Route to Pickup'), findsOneWidget);
+      expect(find.byType(Drawer), findsNothing);
+      expect(find.byIcon(Icons.menu_rounded), findsNothing);
+      expect(find.byTooltip('Menu'), findsNothing);
+      expect(tester.state<ScaffoldState>(find.byType(Scaffold).first).hasDrawer, isFalse);
+    });
+
+    tlTest('active task keeps the Task, Navigate and Emergency tabs', (tester) async {
+      await pumpShell(tester, task: activeTask);
+
+      expect(find.text('Task'), findsOneWidget);
+      expect(find.text('Navigate'), findsOneWidget);
+      expect(find.text('Emergency'), findsOneWidget);
+    });
+
+    tlTest('active task shows the assigned team card', (tester) async {
+      await pumpShell(tester, task: activeTask);
+
+      expect(find.byKey(const Key('tl_assigned_team_card')), findsOneWidget);
+      expect(find.text('Heavy Duty'), findsWidgets);
+      expect(find.text('Crew A, Crew B'), findsOneWidget);
+    });
+
+    tlTest('active task still blocks back navigation with the lock snackbar', (tester) async {
+      await pumpShell(tester, task: activeTask);
+
+      await tester.binding.handlePopRoute();
+      await settle(tester);
+
+      expect(find.text('Cannot leave while a task is active.'), findsOneWidget);
+    });
   });
 }

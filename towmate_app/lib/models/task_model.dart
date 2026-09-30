@@ -21,6 +21,54 @@ class GroupVehiclePricing {
   }
 }
 
+class AssignedTeam {
+  final String? teamLeaderName;
+  final String? driverName;
+  final List<String> crewNames;
+  final String? unitName;
+  final String? plateNumber;
+  final String? truckTypeName;
+  final String? truckClass;
+
+  const AssignedTeam({
+    this.teamLeaderName,
+    this.driverName,
+    this.crewNames = const [],
+    this.unitName,
+    this.plateNumber,
+    this.truckTypeName,
+    this.truckClass,
+  });
+
+  factory AssignedTeam.fromJson(Map<String, dynamic> json) {
+    String? text(dynamic v) {
+      final s = v is String ? v.trim() : null;
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
+    return AssignedTeam(
+      teamLeaderName: text(json['team_leader_name']),
+      driverName: text(json['driver_name']),
+      crewNames: (json['crew_names'] as List<dynamic>? ?? const [])
+          .map(text)
+          .whereType<String>()
+          .toList(),
+      unitName: text(json['unit_name']),
+      plateNumber: text(json['plate_number']),
+      truckTypeName: text(json['truck_type_name']),
+      truckClass: text(json['truck_class']),
+    );
+  }
+
+  /// Canonical truck class (light/medium/heavy) as shown to dispatch, or null.
+  String? get classLabel => switch (truckClass) {
+        'light' => 'Light Duty',
+        'medium' => 'Medium Duty',
+        'heavy' => 'Heavy Duty',
+        _ => null,
+      };
+}
+
 class TaskModel {
   final int id;
   final String bookingCode;
@@ -55,6 +103,7 @@ class TaskModel {
   final List<GroupVehiclePricing>? groupVehicleBreakdown;
   final double? groupAdjustment;
   final bool hasClaimableSibling;
+  final AssignedTeam? assignedTeam;
 
   const TaskModel({
     required this.id,
@@ -90,6 +139,7 @@ class TaskModel {
     this.groupVehicleBreakdown,
     this.groupAdjustment,
     this.hasClaimableSibling = false,
+    this.assignedTeam,
   });
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
@@ -134,6 +184,9 @@ class TaskModel {
           .toList(),
       groupAdjustment: (json['group_adjustment'] as num?)?.toDouble(),
       hasClaimableSibling: json['has_claimable_sibling'] as bool? ?? false,
+      assignedTeam: json['assigned_team'] is Map<String, dynamic>
+          ? AssignedTeam.fromJson(json['assigned_team'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -184,6 +237,7 @@ class TaskModel {
       groupVehicleBreakdown: groupVehicleBreakdown ?? this.groupVehicleBreakdown,
       groupAdjustment: groupAdjustment ?? this.groupAdjustment,
       hasClaimableSibling: hasClaimableSibling ?? this.hasClaimableSibling,
+      assignedTeam: assignedTeam,
     );
   }
 

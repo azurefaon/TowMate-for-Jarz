@@ -37,6 +37,8 @@ class TLTaskController extends Controller
         'waiting_verification', 'completed', 'returned',
     ];
 
+    private const TASK_RELATIONS = ['customer', 'truckType', 'assignedTeamLeader', 'unit.driver', 'unit.truckType'];
+
     private const ARRIVAL_RADIUS_METERS = 150;
     private const ARRIVAL_CLAIMS = [
         'on_the_way' => ['arrived_pickup', 'pickup_lat', 'pickup_lng'],
@@ -64,7 +66,7 @@ class TLTaskController extends Controller
     {
         $booking = Booking::where('assigned_team_leader_id', $request->user()->id)
             ->whereIn('status', self::TL_TASK_STATUSES)
-            ->with(['customer', 'truckType', 'unit'])
+            ->with(self::TASK_RELATIONS)
             ->orderByRaw("CASE WHEN status IN ('completed','returned') THEN 1 ELSE 0 END")
             ->latest()
             ->first();
@@ -135,7 +137,7 @@ class TLTaskController extends Controller
                 'assigned_at' => now(),
             ]);
 
-            $locked->load(['customer', 'truckType', 'unit']);
+            $locked->load(self::TASK_RELATIONS);
 
             return ['status' => 200, 'booking' => $locked];
         });
@@ -243,7 +245,7 @@ class TLTaskController extends Controller
             }
 
             $locked->update($updates);
-            $locked->load(['customer', 'truckType', 'unit']);
+            $locked->load(self::TASK_RELATIONS);
 
             return ['status' => 200, 'booking' => $locked, 'isDemoArrival' => $isDemoArrival];
         });
@@ -362,7 +364,7 @@ class TLTaskController extends Controller
                 ],
             ]);
 
-            $locked->load(['customer', 'truckType', 'unit']);
+            $locked->load(self::TASK_RELATIONS);
 
             return ['status' => 200, 'booking' => $locked];
         });
@@ -442,7 +444,7 @@ class TLTaskController extends Controller
             }
 
             if ($locked->status === 'waiting_verification' && $locked->payment_submitted_at !== null) {
-                $locked->load(['customer', 'truckType', 'unit']);
+                $locked->load(self::TASK_RELATIONS);
 
                 return ['already' => $locked];
             }
@@ -500,7 +502,7 @@ class TLTaskController extends Controller
                         'status'                  => 'accepted',
                         'assigned_at'             => now(),
                     ]);
-                    $sibling->load(['customer', 'truckType', 'unit']);
+                    $sibling->load(self::TASK_RELATIONS);
                 }
             }
 
@@ -521,7 +523,7 @@ class TLTaskController extends Controller
                 'description' => 'Team Leader submitted service completion and payment for dispatcher verification.',
             ]);
 
-            $locked->load(['customer', 'truckType', 'unit']);
+            $locked->load(self::TASK_RELATIONS);
 
             return ['booking' => $locked, 'sibling' => $sibling];
         });
@@ -575,7 +577,7 @@ class TLTaskController extends Controller
             }
 
             if ($locked->status === 'waiting_verification' && $locked->payment_submitted_at !== null) {
-                $locked->load(['customer', 'truckType', 'unit']);
+                $locked->load(self::TASK_RELATIONS);
                 return ['already' => $locked];
             }
 
@@ -709,7 +711,7 @@ class TLTaskController extends Controller
 
         $bookings = $outcome['bookings'];
         foreach ($bookings as $member) {
-            $member->load(['customer', 'truckType', 'unit']);
+            $member->load(self::TASK_RELATIONS);
             try { BookingStatusUpdated::safeFire($member); } catch (\Throwable) {}
         }
 
@@ -739,7 +741,7 @@ class TLTaskController extends Controller
             ->first();
 
         if ($alreadyAssigned) {
-            $alreadyAssigned->load(['customer', 'truckType', 'unit']);
+            $alreadyAssigned->load(self::TASK_RELATIONS);
             return response()->json(['success' => true, 'data' => $this->formatTask($alreadyAssigned)]);
         }
 
@@ -793,7 +795,7 @@ class TLTaskController extends Controller
         }
 
         $sibling = $result['booking'];
-        $sibling->load(['customer', 'truckType', 'unit']);
+        $sibling->load(self::TASK_RELATIONS);
 
         try { BookingStatusUpdated::safeFire($sibling); } catch (\Throwable) {}
 
@@ -893,6 +895,38 @@ class TLTaskController extends Controller
             'group_vehicle_breakdown' => $groupVehicleBreakdown,
             'group_adjustment'    => $groupAdjustment,
             'has_claimable_sibling' => $hasClaimableSibling,
+            'assigned_team'       => $this->assignedTeam($booking),
+        ];
+    }
+
+    /**
+     * Per-booking assignment details, always read from this booking's own
+     * Unit (never the group anchor). The Unit roster is live, so crew or
+     * driver edits made by the dispatcher show up on the next fetch.
+     */
+    private function assignedTeam(Booking $booking): ?array
+    {
+        $unit = $booking->unit;
+
+        if (! $unit) {
+            return null;
+        }
+
+        $teamLeader = $booking->assignedTeamLeader;
+        $truckType  = $unit->truckType;
+
+        return [
+            'team_leader_name' => $teamLeader?->full_name ?? $teamLeader?->name,
+            'driver_name'      => $unit->driver?->full_name ?? $unit->driver?->name ?? $unit->driver_name,
+            'crew_names'       => collect([$unit->crew_member_1_name, $unit->crew_member_2_name])
+                ->map(fn ($name) => trim((string) $name))
+                ->filter()
+                ->values()
+                ->all(),
+            'unit_name'        => $unit->name,
+            'plate_number'     => $unit->plate_number,
+            'truck_type_name'  => $truckType?->name,
+            'truck_class'      => $truckType?->class,
         ];
     }
 

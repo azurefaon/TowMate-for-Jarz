@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
+import '../../widgets/tl_assigned_team_card.dart';
 import '../../services/team_leader_service.dart';
 import 'tl_awaiting_confirm_screen.dart';
 
@@ -116,6 +117,10 @@ class _TlArrivedDropoffScreenState extends State<TlArrivedDropoffScreen> {
               _stepHeader(context),
               const SizedBox(height: 20),
               _taskCard(context, task),
+              if (task.assignedTeam != null) ...[
+                const SizedBox(height: 12),
+                TlAssignedTeamCard(team: task.assignedTeam),
+              ],
               const SizedBox(height: 22),
               _actionContext(context, task, waitingOnGroup),
               const SizedBox(height: 18),
