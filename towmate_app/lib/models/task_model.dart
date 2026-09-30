@@ -104,6 +104,8 @@ class TaskModel {
   final double? groupAdjustment;
   final bool hasClaimableSibling;
   final AssignedTeam? assignedTeam;
+  /// Backend-decided: true only for the local/demo fixture at a simulatable stage.
+  final bool demoArrivalAvailable;
 
   const TaskModel({
     required this.id,
@@ -140,6 +142,7 @@ class TaskModel {
     this.groupAdjustment,
     this.hasClaimableSibling = false,
     this.assignedTeam,
+    this.demoArrivalAvailable = false,
   });
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
@@ -187,6 +190,7 @@ class TaskModel {
       assignedTeam: json['assigned_team'] is Map<String, dynamic>
           ? AssignedTeam.fromJson(json['assigned_team'] as Map<String, dynamic>)
           : null,
+      demoArrivalAvailable: json['demo_arrival_available'] == true,
     );
   }
 
@@ -238,6 +242,7 @@ class TaskModel {
       groupAdjustment: groupAdjustment ?? this.groupAdjustment,
       hasClaimableSibling: hasClaimableSibling ?? this.hasClaimableSibling,
       assignedTeam: assignedTeam,
+      demoArrivalAvailable: demoArrivalAvailable,
     );
   }
 

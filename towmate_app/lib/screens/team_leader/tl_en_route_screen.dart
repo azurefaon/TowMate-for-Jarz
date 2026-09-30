@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/demo_flags.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../widgets/tl_assigned_team_card.dart';
+import '../../widgets/tl_demo_simulator_button.dart';
 import '../../services/team_leader_service.dart';
 import 'tl_return_screen.dart';
 
@@ -89,25 +89,35 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
     }
   }
 
-  Future<void> _testArrive() async {
+  /// LOCAL/DEMO ONLY. Uses the dedicated backend action (no GPS, no flags on
+  /// the normal status endpoint), then adopts whatever the backend reports.
+  /// Nothing is advanced locally: on any failure the screen stays as it was.
+  Future<void> _simulateArrival() async {
     setState(() => _loading = true);
     if (!await _ensureOnTheWay()) {
       if (mounted) setState(() => _loading = false);
       return;
     }
-    final res = await TeamLeaderService.updateStatus(
-      widget.task.bookingCode,
-      'arrived_pickup',
-      lat: widget.task.pickupLat,
-      lng: widget.task.pickupLng,
-      isDemo: true,
-    );
+    final res = await TeamLeaderService.simulateArrival(widget.task.bookingCode);
     if (!mounted) return;
-    if (res['success'] == true) {
-      widget.onUpdate(widget.task.copyWith(status: 'arrived_pickup'));
+    if (res['success'] != true) {
+      setState(() => _loading = false);
+      _showError(res['message'] as String? ?? 'Demo arrival failed.');
       return;
     }
-    await _reconcileAfterFailure();
+    TaskModel? latest;
+    try {
+      latest = await TeamLeaderService.getCurrentTask();
+    } catch (_) {
+      latest = null;
+    }
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (latest != null && latest.bookingCode == widget.task.bookingCode) {
+      widget.onUpdate(latest);
+    } else {
+      _showError('Simulated, but could not refresh. Pull to retry.');
+    }
   }
 
   Future<void> _reconcileAfterFailure() async {
@@ -166,9 +176,12 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
               ],
               const SizedBox(height: 20),
               _primaryBtn('Arrived at Pickup', _arrive),
-              if (kTlDemoArrivalVisible) ...[
+              if (task.demoArrivalAvailable) ...[
                 const SizedBox(height: 12),
-                _demoBtn(context, 'Demo Arrival', _testArrive),
+                TlDemoSimulatorButton(
+                  label: 'Simulate Arrival at Pickup',
+                  onPressed: _loading ? null : _simulateArrival,
+                ),
               ],
               const SizedBox(height: 12),
               Row(
@@ -490,29 +503,6 @@ class _TlEnRouteScreenState extends State<TlEnRouteScreen> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-      ),
-    );
-  }
-
-  Widget _demoBtn(BuildContext context, String label, VoidCallback onTap) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: OutlinedButton(
-        onPressed: _loading ? null : onTap,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: context.card,
-          side: const BorderSide(color: TmColors.yellow, width: 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            color: context.textPrimary,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
       ),
     );
   }

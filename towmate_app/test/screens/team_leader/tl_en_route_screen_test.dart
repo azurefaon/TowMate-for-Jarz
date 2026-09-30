@@ -343,7 +343,7 @@ void main() {
       expect(find.byType(TlReturnScreen), findsOneWidget);
     });
 
-    testWidgets('Demo Arrival stays hidden without the compile-time flag', (tester) async {
+    testWidgets('the legacy Demo Arrival control no longer exists', (tester) async {
       await pumpShell(tester, task: taskJson());
       expect(find.text('Demo Arrival'), findsNothing);
     });

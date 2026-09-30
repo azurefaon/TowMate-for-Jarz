@@ -12,6 +12,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Services\CustomerNotificationService;
 use App\Services\DocumentGenerationService;
+use App\Support\TlDemoFixture;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +46,7 @@ class TLTaskController extends Controller
         'on_job'     => ['arrived_dropoff', 'dropoff_lat', 'dropoff_lng'],
     ];
 
-    private const VALID_TRANSITIONS = [
+    public const VALID_TRANSITIONS = [
         'assigned'              => ['accepted'],
         'accepted'              => ['on_the_way', 'returned'],
         'on_the_way'            => ['arrived_pickup', 'returned', 'accepted'],
@@ -163,24 +164,22 @@ class TLTaskController extends Controller
             'status'   => 'required|string',
             'lat'      => 'nullable|numeric|between:-90,90',
             'lng'      => 'nullable|numeric|between:-180,180',
-            'is_demo'  => 'nullable|boolean',
         ]);
 
         $newStatus = $validated['status'];
         $teamLeaderId = $request->user()->id;
-        $isDemo = $request->boolean('is_demo');
 
         // Locked so a dispatcher reassignment (or another in-flight status
         // update) racing this request can't be silently overwritten — the
         // ownership and transition checks are re-run against the row's
         // current state, not the possibly-stale route-bound $booking.
         //
-        // Check order (ownership -> transition validity -> demo flag ->
-        // arrival GPS) is preserved exactly as before the locking change: an
+        // Check order (ownership -> transition validity -> arrival GPS): an
         // invalid transition (e.g. a duplicate arrived_pickup -> arrived_pickup
-        // retry) must short-circuit to 422 before the demo flag is ever
-        // evaluated, regardless of whether demo mode is enabled.
-        $result = DB::transaction(function () use ($booking, $newStatus, $teamLeaderId, $isDemo, $validated) {
+        // retry) short-circuits to 422 before any location is evaluated.
+        // Arrival GPS validation is unconditional on this endpoint; the only
+        // demo bypass lives in TLDemoController (local/testing, demo fixture).
+        $result = DB::transaction(function () use ($booking, $newStatus, $teamLeaderId, $validated) {
             $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
 
             if (! $locked) {
@@ -200,41 +199,32 @@ class TLTaskController extends Controller
                 ];
             }
 
-            if ($isDemo && ! config('towmate.demo_arrival_enabled')) {
-                return ['status' => 403, 'message' => 'Demo arrival is not enabled.'];
-            }
-
             $arrivalClaim = self::ARRIVAL_CLAIMS[$locked->status] ?? null;
-            $isDemoArrival = false;
             if ($arrivalClaim && $arrivalClaim[0] === $newStatus) {
-                $isDemoArrival = $isDemo;
+                [, $latField, $lngField] = $arrivalClaim;
+                $targetLat = (float) $locked->{$latField};
+                $targetLng = (float) $locked->{$lngField};
 
-                if (! $isDemo) {
-                    [, $latField, $lngField] = $arrivalClaim;
-                    $targetLat = (float) $locked->{$latField};
-                    $targetLng = (float) $locked->{$lngField};
+                if (! isset($validated['lat'], $validated['lng'])) {
+                    return ['status' => 422, 'message' => 'Location is required to confirm arrival.'];
+                }
 
-                    if (! isset($validated['lat'], $validated['lng'])) {
-                        return ['status' => 422, 'message' => 'Location is required to confirm arrival.'];
-                    }
+                $distanceMeters = $this->haversineMeters(
+                    (float) $validated['lat'],
+                    (float) $validated['lng'],
+                    $targetLat,
+                    $targetLng,
+                );
 
-                    $distanceMeters = $this->haversineMeters(
-                        (float) $validated['lat'],
-                        (float) $validated['lng'],
-                        $targetLat,
-                        $targetLng,
-                    );
+                if ($distanceMeters > self::ARRIVAL_RADIUS_METERS) {
+                    $distanceLabel = $distanceMeters >= 1000
+                        ? round($distanceMeters / 1000, 1) . 'km'
+                        : round($distanceMeters) . 'm';
 
-                    if ($distanceMeters > self::ARRIVAL_RADIUS_METERS) {
-                        $distanceLabel = $distanceMeters >= 1000
-                            ? round($distanceMeters / 1000, 1) . 'km'
-                            : round($distanceMeters) . 'm';
-
-                        return [
-                            'status' => 422,
-                            'message' => "You appear to be ~{$distanceLabel} from the location. Move closer and try again.",
-                        ];
-                    }
+                    return [
+                        'status' => 422,
+                        'message' => "You appear to be ~{$distanceLabel} from the location. Move closer and try again.",
+                    ];
                 }
             }
 
@@ -247,7 +237,7 @@ class TLTaskController extends Controller
             $locked->update($updates);
             $locked->load(self::TASK_RELATIONS);
 
-            return ['status' => 200, 'booking' => $locked, 'isDemoArrival' => $isDemoArrival];
+            return ['status' => 200, 'booking' => $locked];
         });
 
         if ($result['status'] !== 200) {
@@ -255,17 +245,6 @@ class TLTaskController extends Controller
         }
 
         $booking = $result['booking'];
-
-        if ($result['isDemoArrival']) {
-            AuditLog::create([
-                'user_id'     => $teamLeaderId,
-                'action'      => 'demo_arrival_confirmed',
-                'entity_type' => 'Booking',
-                'entity_id'   => $booking->id,
-                'reference'   => $booking->booking_code,
-                'description' => "Team Leader confirmed '{$newStatus}' via Demo Arrival (GPS proximity check skipped).",
-            ]);
-        }
 
         // Invoice issuance for single bookings is deliberately deferred to
         // complete() (see there) so arrived_dropoff stays a plain operational
@@ -896,6 +875,9 @@ class TLTaskController extends Controller
             'group_adjustment'    => $groupAdjustment,
             'has_claimable_sibling' => $hasClaimableSibling,
             'assigned_team'       => $this->assignedTeam($booking),
+            // True only for the local/demo fixture at a simulatable stage; the
+            // dedicated endpoint re-checks everything independently.
+            'demo_arrival_available' => TlDemoFixture::offerSimulator($booking, request()->user()),
         ];
     }
 

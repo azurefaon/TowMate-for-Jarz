@@ -102,7 +102,6 @@ function demoStatusUrl(Booking $booking): string
 }
 
 it('A: allows a real arrival with valid coordinates inside the radius', function () {
-    config(['towmate.demo_arrival_enabled' => false]);
     [$teamLeader, $booking] = makeDemoArrivalScenario('on_the_way');
 
     Sanctum::actingAs($teamLeader, ['*']);
@@ -117,7 +116,6 @@ it('A: allows a real arrival with valid coordinates inside the radius', function
 });
 
 it('B: rejects a real arrival outside the radius', function () {
-    config(['towmate.demo_arrival_enabled' => false]);
     [$teamLeader, $booking] = makeDemoArrivalScenario('on_the_way');
 
     Sanctum::actingAs($teamLeader, ['*']);
@@ -132,68 +130,77 @@ it('B: rejects a real arrival outside the radius', function () {
     expect($booking->fresh()->status)->toBe('on_the_way');
 });
 
-it('C: rejects is_demo=true when the server flag is disabled', function () {
-    config(['towmate.demo_arrival_enabled' => false]);
+it('C: is_demo=true on the normal endpoint cannot bypass GPS at pickup', function () {
     [$teamLeader, $booking] = makeDemoArrivalScenario('on_the_way');
-
     Sanctum::actingAs($teamLeader, ['*']);
 
+    // No location at all.
     $this->patchJson(demoStatusUrl($booking), [
         'status' => 'arrived_pickup',
         'is_demo' => true,
-    ])->assertStatus(403)->assertJsonPath('success', false)
-        ->assertJsonPath('message', 'Demo arrival is not enabled.');
+    ])->assertStatus(422)->assertJsonPath('success', false)
+        ->assertJsonPath('message', 'Location is required to confirm arrival.');
+
+    // Far from the pickup (the drop-off coordinates).
+    $this->patchJson(demoStatusUrl($booking), [
+        'status' => 'arrived_pickup',
+        'is_demo' => true,
+        'lat' => DEMO_TEST_DROPOFF_LAT,
+        'lng' => DEMO_TEST_DROPOFF_LNG,
+    ])->assertStatus(422)->assertJsonPath('success', false);
 
     expect($booking->fresh()->status)->toBe('on_the_way');
 });
 
-it('D: allows is_demo=true without GPS when the server flag is enabled', function () {
-    config(['towmate.demo_arrival_enabled' => true]);
-    [$teamLeader, $booking] = makeDemoArrivalScenario('on_the_way');
+it('D: no environment/config flag can turn the normal endpoint into a GPS bypass', function () {
+    // The old key is gone entirely, and setting it (or a client flag) does nothing.
+    expect(array_key_exists('demo_arrival_enabled', config('towmate')))->toBeFalse();
 
-    Sanctum::actingAs($teamLeader, ['*']);
+    foreach ([true, false] as $enabled) {
+        config(['towmate.demo_arrival_enabled' => $enabled]);
+        [$teamLeader, $booking] = makeDemoArrivalScenario('on_the_way');
+        Sanctum::actingAs($teamLeader, ['*']);
 
-    $this->patchJson(demoStatusUrl($booking), [
-        'status' => 'arrived_pickup',
-        'is_demo' => true,
-    ])->assertOk()->assertJsonPath('success', true);
+        $this->patchJson(demoStatusUrl($booking), [
+            'status' => 'arrived_pickup',
+            'is_demo' => true,
+        ])->assertStatus(422)->assertJsonPath('success', false);
 
-    expect($booking->fresh()->status)->toBe('arrived_pickup');
+        expect($booking->fresh()->status)->toBe('on_the_way');
+    }
 });
 
-it('E: demo arrival still requires correct Team Leader ownership', function () {
-    config(['towmate.demo_arrival_enabled' => true]);
+it('E: ownership is still enforced whatever is_demo says', function () {
     [$teamLeader, $booking] = makeDemoArrivalScenario('on_the_way', ownedByThisLeader: false);
-
     Sanctum::actingAs($teamLeader, ['*']);
 
     $this->patchJson(demoStatusUrl($booking), [
         'status' => 'arrived_pickup',
         'is_demo' => true,
+        'lat' => DEMO_TEST_PICKUP_LAT,
+        'lng' => DEMO_TEST_PICKUP_LNG,
     ])->assertStatus(403)->assertJsonPath('success', false);
 
     expect($booking->fresh()->status)->toBe('on_the_way');
 });
 
-it('F: demo arrival still requires a valid current lifecycle state', function () {
-    config(['towmate.demo_arrival_enabled' => true]);
-    // 'assigned' cannot transition directly to 'arrived_pickup' (VALID_TRANSITIONS only allows 'accepted').
+it('F: the current lifecycle state is still validated whatever is_demo says', function () {
+    // 'assigned' cannot transition directly to 'arrived_pickup'.
     [$teamLeader, $booking] = makeDemoArrivalScenario('assigned');
-
     Sanctum::actingAs($teamLeader, ['*']);
 
     $this->patchJson(demoStatusUrl($booking), [
         'status' => 'arrived_pickup',
         'is_demo' => true,
+        'lat' => DEMO_TEST_PICKUP_LAT,
+        'lng' => DEMO_TEST_PICKUP_LNG,
     ])->assertStatus(422)->assertJsonPath('success', false);
 
     expect($booking->fresh()->status)->toBe('assigned');
 });
 
-it('G: demo arrival cannot skip arbitrary statuses', function () {
-    config(['towmate.demo_arrival_enabled' => true]);
+it('G: arbitrary statuses still cannot be skipped to', function () {
     [$teamLeader, $booking] = makeDemoArrivalScenario('on_the_way');
-
     Sanctum::actingAs($teamLeader, ['*']);
 
     $this->patchJson(demoStatusUrl($booking), [
@@ -204,21 +211,23 @@ it('G: demo arrival cannot skip arbitrary statuses', function () {
     expect($booking->fresh()->status)->toBe('on_the_way');
 });
 
-it('H: demo arrival does not modify quotation, pricing, or payment', function () {
-    config(['towmate.demo_arrival_enabled' => true]);
+it('H: a stray is_demo flag is ignored - valid coordinates behave as a normal arrival and no demo audit is written', function () {
     [$teamLeader, $booking, $quotation] = makeDemoArrivalScenario('on_the_way');
-
     Sanctum::actingAs($teamLeader, ['*']);
 
     $this->patchJson(demoStatusUrl($booking), [
         'status' => 'arrived_pickup',
         'is_demo' => true,
-    ])->assertOk();
+        'lat' => DEMO_TEST_PICKUP_LAT,
+        'lng' => DEMO_TEST_PICKUP_LNG,
+    ])->assertOk()->assertJsonPath('success', true);
+
+    expect($booking->fresh()->status)->toBe('arrived_pickup');
+    expect(\App\Models\AuditLog::whereIn('action', ['demo_arrival_confirmed', 'demo_arrival_simulated'])->count())->toBe(0);
 
     $freshQuotation = $quotation->fresh();
     expect($freshQuotation->status)->toBe('accepted')
-        ->and((float) $freshQuotation->estimated_price)->toBe(4536.0)
-        ->and($freshQuotation->version)->toBe(1);
+        ->and((float) $freshQuotation->estimated_price)->toBe(4536.0);
 
     $freshBooking = $booking->fresh();
     expect((float) $freshBooking->final_total)->toBe(4536.0)
@@ -226,28 +235,30 @@ it('H: demo arrival does not modify quotation, pricing, or payment', function ()
         ->and($freshBooking->payment_submitted_at)->toBeNull();
 });
 
-it('I: both pickup and dropoff demo paths are independently protected by the server flag', function () {
-    // Dropoff, flag disabled — must be rejected exactly like pickup.
-    config(['towmate.demo_arrival_enabled' => false]);
-    [$teamLeaderA, $bookingA] = makeDemoArrivalScenario('on_job');
-    Sanctum::actingAs($teamLeaderA, ['*']);
+it('I: drop-off arrival is equally un-bypassable through the normal endpoint', function () {
+    [$teamLeader, $booking] = makeDemoArrivalScenario('on_job');
+    Sanctum::actingAs($teamLeader, ['*']);
 
-    $this->patchJson(demoStatusUrl($bookingA), [
+    $this->patchJson(demoStatusUrl($booking), [
         'status' => 'arrived_dropoff',
         'is_demo' => true,
-    ])->assertStatus(403)->assertJsonPath('success', false);
+    ])->assertStatus(422)->assertJsonPath('success', false);
 
-    expect($bookingA->fresh()->status)->toBe('on_job');
-
-    // Dropoff, flag enabled — allowed, same transition a real arrival would produce.
-    config(['towmate.demo_arrival_enabled' => true]);
-    [$teamLeaderB, $bookingB] = makeDemoArrivalScenario('on_job');
-    Sanctum::actingAs($teamLeaderB, ['*']);
-
-    $this->patchJson(demoStatusUrl($bookingB), [
+    $this->patchJson(demoStatusUrl($booking), [
         'status' => 'arrived_dropoff',
         'is_demo' => true,
-    ])->assertOk()->assertJsonPath('success', true);
+        'lat' => DEMO_TEST_PICKUP_LAT,
+        'lng' => DEMO_TEST_PICKUP_LNG,
+    ])->assertStatus(422)->assertJsonPath('success', false);
 
-    expect($bookingB->fresh()->status)->toBe('arrived_dropoff');
+    expect($booking->fresh()->status)->toBe('on_job');
+
+    // Real coordinates at the drop-off still work exactly as before.
+    $this->patchJson(demoStatusUrl($booking), [
+        'status' => 'arrived_dropoff',
+        'lat' => DEMO_TEST_DROPOFF_LAT,
+        'lng' => DEMO_TEST_DROPOFF_LNG,
+    ])->assertOk();
+
+    expect($booking->fresh()->status)->toBe('arrived_dropoff');
 });

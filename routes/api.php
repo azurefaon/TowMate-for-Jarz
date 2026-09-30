@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\CustomerBookingController;
 use App\Http\Controllers\Api\TeamLeader\TLAuthController;
 use App\Http\Controllers\Api\TeamLeader\TLPresenceController;
+use App\Http\Controllers\Api\TeamLeader\TLDemoController;
 use App\Http\Controllers\Api\TeamLeader\TLTaskController;
 use App\Http\Controllers\Api\TeamLeader\TLLocationController;
 use App\Http\Controllers\Api\CustomerQuotationController;
@@ -113,5 +114,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('task/{booking}/complete', [TLTaskController::class, 'complete'])->middleware('throttle:tl-task-mutate');
             Route::post('group/{groupCode}/claim-next', [TLTaskController::class, 'claimNext'])->middleware('throttle:tl-task-mutate');
             Route::put('location',                [TLLocationController::class, 'update'])->middleware('throttle:tl-location');
+
+            // LOCAL/DEMO ONLY - fails closed (404) outside local/testing; see TlDemoFixture.
+            Route::post('demo/task/{booking}/simulate-arrival', [TLDemoController::class, 'simulateArrival'])->middleware('throttle:tl-task-mutate');
         });
 });

@@ -419,11 +419,12 @@ it('confirms a real pickup arrival succeeds and rejects a duplicate retry withou
     $duplicateArrive->assertStatus(422)
         ->assertJsonPath('message', "Cannot transition from 'arrived_pickup' to 'arrived_pickup'.");
 
-    $duplicateDemo = test()->patchJson('/api/v1/team-leader/task/' . $bookingA->booking_code . '/status', [
+    $duplicateRetry = test()->patchJson('/api/v1/team-leader/task/' . $bookingA->booking_code . '/status', [
         'status' => 'arrived_pickup',
-        'is_demo' => true,
+        'lat' => 14.7054035,
+        'lng' => 121.0463671,
     ]);
-    $duplicateDemo->assertStatus(422)
+    $duplicateRetry->assertStatus(422)
         ->assertJsonPath('message', "Cannot transition from 'arrived_pickup' to 'arrived_pickup'.");
 
     $bookingA->refresh();
@@ -445,8 +446,7 @@ it('confirms a real pickup arrival succeeds and rejects a duplicate retry withou
     $currentB->assertOk()->assertJsonPath('data.status', 'assigned');
 });
 
-it('lets Vehicle 2 Demo Arrival advance independently while Vehicle 1 is far along its own lifecycle', function () {
-    config(['towmate.demo_arrival_enabled' => true]);
+it('lets Vehicle 2 arrival advance independently while Vehicle 1 is far along its own lifecycle', function () {
     $dispatcher = gauDispatcher();
     $customer = gauCustomer();
     $truckType = gauTruckType();
@@ -495,11 +495,12 @@ it('lets Vehicle 2 Demo Arrival advance independently while Vehicle 1 is far alo
         'status' => 'on_the_way',
     ])->assertOk();
 
-    $demoArrive = test()->patchJson('/api/v1/team-leader/task/' . $bookingB->booking_code . '/status', [
+    $arriveB = test()->patchJson('/api/v1/team-leader/task/' . $bookingB->booking_code . '/status', [
         'status' => 'arrived_pickup',
-        'is_demo' => true,
+        'lat' => 14.7054035,
+        'lng' => 121.0463671,
     ]);
-    $demoArrive->assertOk()
+    $arriveB->assertOk()
         ->assertJsonPath('success', true)
         ->assertJsonPath('data.status', 'arrived_pickup')
         ->assertJsonPath('data.final_total', 4658.08);

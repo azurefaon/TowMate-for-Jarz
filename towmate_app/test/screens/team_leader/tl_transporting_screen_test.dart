@@ -316,7 +316,7 @@ void main() {
       expect(log.any((b) => jsonDecode(b)['status'] == 'loading_vehicle'), isTrue);
     });
 
-    testWidgets('Demo Arrival stays hidden without the compile-time flag', (tester) async {
+    testWidgets('the legacy Demo Arrival control no longer exists', (tester) async {
       await pumpShell(tester, task: taskJson());
       expect(find.text('Demo Arrival'), findsNothing);
     });

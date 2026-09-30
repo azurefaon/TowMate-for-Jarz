@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/demo_flags.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../widgets/tl_assigned_team_card.dart';
+import '../../widgets/tl_demo_simulator_button.dart';
 import '../../services/team_leader_service.dart';
 
 class TlTransportingScreen extends StatefulWidget {
@@ -53,6 +53,36 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
     }
   }
 
+  /// LOCAL/DEMO ONLY. Dedicated backend action, then adopt backend state;
+  /// nothing is advanced locally and failures leave the screen unchanged.
+  Future<void> _simulateArrival() async {
+    setState(() => _loading = true);
+    final res = await TeamLeaderService.simulateArrival(widget.task.bookingCode);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] as String? ?? 'Demo arrival failed.'),
+          backgroundColor: TmColors.error));
+      return;
+    }
+    TaskModel? latest;
+    try {
+      latest = await TeamLeaderService.getCurrentTask();
+    } catch (_) {
+      latest = null;
+    }
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (latest != null && latest.bookingCode == widget.task.bookingCode) {
+      widget.onUpdate(latest);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Simulated, but could not refresh. Pull to retry.'),
+          backgroundColor: TmColors.error));
+    }
+  }
+
   Future<void> _back() async {
     setState(() => _loading = true);
     final res = await TeamLeaderService.updateStatus(
@@ -60,24 +90,6 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
     if (!mounted) return;
     if (res['success'] == true) {
       widget.onUpdate(widget.task.copyWith(status: 'loading_vehicle'));
-    } else {
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(res['message'] as String? ?? 'Failed.'),
-          backgroundColor: TmColors.error));
-    }
-  }
-
-  Future<void> _testArrive() async {
-    setState(() => _loading = true);
-    final res = await TeamLeaderService.updateStatus(
-        widget.task.bookingCode, 'arrived_dropoff',
-        lat: widget.task.dropoffLat,
-        lng: widget.task.dropoffLng,
-        isDemo: true);
-    if (!mounted) return;
-    if (res['success'] == true) {
-      widget.onUpdate(widget.task.copyWith(status: 'arrived_dropoff'));
     } else {
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -110,9 +122,12 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
               _actionContext(context),
               const SizedBox(height: 18),
               _primaryBtn('Arrived at Drop-off', _loading ? null : _arrive),
-              if (kTlDemoArrivalVisible) ...[
+              if (task.demoArrivalAvailable) ...[
                 const SizedBox(height: 12),
-                _demoBtn(context, 'Demo Arrival', _loading ? null : _testArrive),
+                TlDemoSimulatorButton(
+                  label: 'Simulate Arrival at Drop-off',
+                  onPressed: _loading ? null : _simulateArrival,
+                ),
               ],
               const SizedBox(height: 12),
               _secondaryBtn(context, 'Back', _back),
@@ -412,29 +427,6 @@ class _TlTransportingScreenState extends State<TlTransportingScreen> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-      ),
-    );
-  }
-
-  Widget _demoBtn(BuildContext context, String label, VoidCallback? onTap) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: context.card,
-          side: const BorderSide(color: TmColors.yellow, width: 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            color: context.textPrimary,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
       ),
     );
   }

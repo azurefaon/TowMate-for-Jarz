@@ -116,7 +116,6 @@ class TeamLeaderService {
     String status, {
     double? lat,
     double? lng,
-    bool isDemo = false,
   }) async {
     try {
       final response = await http
@@ -127,7 +126,6 @@ class TeamLeaderService {
               'status': status,
               if (lat != null) 'lat': lat,
               if (lng != null) 'lng': lng,
-              if (isDemo) 'is_demo': true,
             }),
           )
           .timeout(const Duration(seconds: 15));
@@ -137,6 +135,13 @@ class TeamLeaderService {
     } catch (_) {
       return {'success': false, 'message': 'Network error.'};
     }
+  }
+
+  /// LOCAL/DEMO ONLY. Dedicated endpoint; the backend re-checks the
+  /// environment, demo account and booking, and derives the target status
+  /// itself. There is intentionally no status/coordinates/flag parameter.
+  static Future<Map<String, dynamic>> simulateArrival(String bookingCode) async {
+    return _post('$_base/demo/task/$bookingCode/simulate-arrival');
   }
 
   static Future<Map<String, dynamic>> returnTask(
