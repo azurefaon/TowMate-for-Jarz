@@ -404,3 +404,68 @@ it('does not follow a redirect from the allowlisted Google host to an external d
     expect($user->profile_image)->toBeNull();
     Http::assertNotSent(fn ($request) => $request->url() === $redirectTarget);
 });
+
+it('does not store a dangling profile image path when the avatar write fails, and retries on a later login', function () {
+    $sub = 'google-sub-' . uniqid();
+    $user = User::factory()->create([
+        'role_id' => 5,
+        'status' => 'active',
+        'password' => null,
+        'auth_provider' => 'google',
+        'google_sub' => $sub,
+        'profile_image' => null,
+    ]);
+
+    // A real local disk (throw=false, like production) whose writes can be made to fail.
+    $root = storage_path('framework/testing/disks/gai-failing');
+    (new \Illuminate\Filesystem\Filesystem)->deleteDirectory($root);
+    $adapter = new class($root) extends \League\Flysystem\Local\LocalFilesystemAdapter
+    {
+        public bool $failWrites = true;
+
+        public function write(string $path, string $contents, \League\Flysystem\Config $config): void
+        {
+            if ($this->failWrites) {
+                throw \League\Flysystem\UnableToWriteFile::atLocation($path, 'simulated disk failure');
+            }
+            parent::write($path, $contents, $config);
+        }
+
+        public function writeStream(string $path, $contents, \League\Flysystem\Config $config): void
+        {
+            if ($this->failWrites) {
+                throw \League\Flysystem\UnableToWriteFile::atLocation($path, 'simulated disk failure');
+            }
+            parent::writeStream($path, $contents, $config);
+        }
+    };
+    $disk = new \Illuminate\Filesystem\FilesystemAdapter(
+        new \League\Flysystem\Filesystem($adapter),
+        $adapter,
+        ['driver' => 'local', 'root' => $root, 'throw' => false],
+    );
+    Storage::set('profile_images', $disk);
+
+    $claims = gaiClaims(['sub' => $sub, 'email' => $user->email]);
+    Http::fake([$claims['picture'] => Http::response(gaiFakeImageBytes(), 200, ['Content-Type' => 'image/png'])]);
+    gaiBindVerifier($claims);
+
+    $login = test()->postJson('/api/auth/google', ['id_token' => 'valid-token']);
+    $login->assertStatus(200);
+    expect($login->json('data.token'))->not->toBeEmpty();
+
+    expect($user->fresh()->profile_image)->toBeNull();
+    expect($disk->allFiles())->toBeEmpty();
+    test()->actingAs($user->fresh(), 'sanctum')->getJson('/api/v1/profile')->assertJsonPath('data.has_profile_image', false);
+    test()->actingAs($user->fresh(), 'sanctum')->get('/api/v1/profile/image')->assertStatus(404);
+
+    // Disk recovers: a later Google login retries and populates the image.
+    $adapter->failWrites = false;
+    test()->postJson('/api/auth/google', ['id_token' => 'valid-token'])->assertStatus(200);
+
+    $path = $user->fresh()->profile_image;
+    expect($path)->not->toBeNull();
+    expect($disk->exists($path))->toBeTrue();
+
+    (new \Illuminate\Filesystem\Filesystem)->deleteDirectory($root);
+});

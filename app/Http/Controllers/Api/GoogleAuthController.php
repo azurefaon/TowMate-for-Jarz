@@ -212,6 +212,10 @@ class GoogleAuthController extends Controller
             }
 
             $path = $this->profileImages->storeBinary($user, $body, $extension);
+            if ($path === null) {
+                return;
+            }
+
             $user->update(['profile_image' => $path]);
         } catch (\Throwable $e) {
             return;

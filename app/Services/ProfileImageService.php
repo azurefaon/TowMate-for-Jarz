@@ -16,11 +16,14 @@ class ProfileImageService
         return $file->store((string) $user->id, self::DISK);
     }
 
-    public function storeBinary(User $user, string $contents, string $extension): string
+    public function storeBinary(User $user, string $contents, string $extension): ?string
     {
         $path = $user->id . '/' . Str::random(40) . '.' . $extension;
 
-        Storage::disk(self::DISK)->put($path, $contents);
+        // The disk is configured with throw=false, so a failed write returns false.
+        if (! Storage::disk(self::DISK)->put($path, $contents)) {
+            return null;
+        }
 
         return $path;
     }
