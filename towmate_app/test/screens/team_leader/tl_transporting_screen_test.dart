@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/core/theme.dart';
 import 'package:towmate_app/screens/team_leader/tl_active_task_shell.dart';
+import 'package:towmate_app/services/tl_presence_controller.dart';
 
 Map<String, dynamic> taskJson({
   String bookingCode = 'TM-00100',
@@ -133,6 +134,7 @@ void main() {
         statusRequestsLog: statusRequestsLog,
       ),
     );
+    TlPresenceController.stop();
   }
 
   group('TlTransportingScreen (Step 3 of 6)', () {

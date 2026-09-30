@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/core/theme.dart';
 import 'package:towmate_app/screens/team_leader/tl_active_task_shell.dart';
 import 'package:towmate_app/screens/team_leader/tl_return_screen.dart';
+import 'package:towmate_app/services/tl_presence_controller.dart';
 import 'package:towmate_app/widgets/tl_status_timeline.dart';
 
 Map<String, dynamic> taskJson({
@@ -132,6 +133,7 @@ void main() {
         statusRequestsLog: statusRequestsLog,
       ),
     );
+    TlPresenceController.stop();
   }
 
   group('TlEnRouteScreen (Step 1 of 6)', () {
@@ -243,6 +245,7 @@ void main() {
 
       expect(observer.pushCount, 0);
       expect(tester.takeException(), isNull);
+      TlPresenceController.stop();
     });
 
     testWidgets('Arrived at Pickup sends the real backend status update', (tester) async {
@@ -402,14 +405,16 @@ void main() {
       expect(find.text('Live'), findsNothing);
     });
 
-    testWidgets('still shows the status pill and timeline on a later, non-redesigned step', (tester) async {
+    testWidgets('hides the shared status pill and timeline on the waiting_verification step, showing its own Pending Payment header instead', (tester) async {
       await pumpShell(
         tester,
         task: taskJson(status: 'waiting_verification')..['payment_method'] = 'cash',
       );
 
-      expect(find.text('Pending Payment'), findsWidgets);
-      expect(find.byType(TlStatusTimeline), findsOneWidget);
+      expect(find.byType(TlStatusTimeline), findsNothing);
+      expect(find.text('Pending Payment'), findsOneWidget);
+      expect(find.text('Step 5 of 6'), findsOneWidget);
+      expect(find.text('5 / 6'), findsOneWidget);
     });
   });
 }

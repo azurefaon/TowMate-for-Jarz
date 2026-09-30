@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/core/theme.dart';
 import 'package:towmate_app/screens/team_leader/tl_active_task_shell.dart';
+import 'package:towmate_app/services/tl_presence_controller.dart';
 
 Map<String, dynamic> baseTaskJson({
   required String bookingCode,
@@ -109,6 +110,7 @@ void main() {
       },
       () => buildClient(initialTask, completedTask, callCount),
     );
+    TlPresenceController.stop();
   }
 
   group('TlCompletedScreen', () {
