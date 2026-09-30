@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/session_coordinator.dart';
 import '../models/booking_model.dart';
 import '../models/quotation_model.dart';
 import '../models/truck_type_model.dart';
@@ -46,6 +47,7 @@ class ApiService {
     bool mustChangePassword = false,
   }) async {
     _cachedToken = token;
+    SessionCoordinator.reset();
 
     try {
       await _secure.write(key: 'auth_token', value: token);
@@ -736,6 +738,36 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> validateSession() async {
+    try {
+      final token = await getToken();
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/v1/profile'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 401) {
+        await SessionCoordinator.handleUnauthenticated(token: token);
+        return {'success': false, 'invalid_session': true};
+      }
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        return {
+          'success': true,
+          'requires_terms_acceptance':
+              body['requires_terms_acceptance'] == true,
+        };
+      }
+
+      return {'success': false, 'transport_error': true};
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
   static Future<void> fetchAndCacheProfile() async {
     try {
       final token = await getToken();
@@ -745,6 +777,11 @@ class ApiService {
             headers: {..._headers, 'Authorization': 'Bearer $token'},
           )
           .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 401) {
+        await SessionCoordinator.handleUnauthenticated(token: token);
+        return;
+      }
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;

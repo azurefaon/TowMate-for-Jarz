@@ -317,6 +317,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
+            'requires_terms_acceptance' => $user->role?->name === 'Customer' && ! $user->hasAcceptedCurrentTerms(),
             'data'    => [
                 'id'         => $user->id,
                 'name'       => $user->name,

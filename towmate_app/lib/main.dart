@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/app_prefs.dart';
 import 'core/route_observer.dart';
 import 'core/theme.dart';
+import 'core/session_coordinator.dart';
 import 'models/booking_model.dart';
 import 'screens/customer/book_now_screen.dart';
 import 'screens/customer/booking_detail_screen.dart';
@@ -53,6 +54,7 @@ class MyApp extends StatelessWidget {
         themeMode: mode,
         home: const _AuthGate(),
         navigatorObservers: [appRouteObserver],
+        navigatorKey: SessionCoordinator.navigatorKey,
         onGenerateRoute: (settings) {
           final Widget page;
           if (settings.name == '/booking-detail') {
@@ -154,6 +156,17 @@ class _AuthGateState extends State<_AuthGate> {
     final role = await ApiService.getUserRole();
     final mustChange = await ApiService.getMustChangePassword();
     if (!mounted) return;
+
+    final result = await ApiService.validateSession();
+    if (!mounted) return;
+    if (result['invalid_session'] == true) return;
+
+    if (result['requires_terms_acceptance'] == true) {
+      await AppPrefs.restoreAuthenticatedTheme();
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/terms-acceptance');
+      return;
+    }
 
     if (role == 'Team Leader') {
       TlPresenceController.start();
