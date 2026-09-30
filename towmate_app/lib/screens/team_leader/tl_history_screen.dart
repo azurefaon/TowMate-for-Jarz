@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
+import '../../widgets/status_badge.dart';
 import '../../services/team_leader_service.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/tl_bottom_nav.dart';
@@ -205,21 +206,10 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isCompleted ? TmColors.success.withValues(alpha: 0.12) : context.surface,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  isCompleted ? 'Completed' : 'Returned',
-                  style: GoogleFonts.inter(
-                    color: isCompleted ? TmColors.success : context.textTertiary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
+              StatusBadge(
+                status: isCompleted ? 'completed' : 'returned',
+                label: isCompleted ? 'Completed' : 'Returned',
+                compact: true,
               ),
             ],
           ),

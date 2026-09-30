@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
+import '../../widgets/status_badge.dart';
 import '../../models/task_model.dart';
 import '../../services/api_service.dart';
 import '../../services/team_leader_service.dart';
@@ -262,22 +263,10 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
                   ),
                   if (!hasOwnStepHeader) ...[
                     const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: TmColors.yellow.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _statusLabel(task.status),
-                        style: GoogleFonts.inter(
-                          color: TmColors.yellow,
-                          fontSize: 11,
-                        ),
-                      ),
+                    StatusBadge(
+                      status: task.status,
+                      label: _statusLabel(task.status),
+                      compact: true,
                     ),
                   ],
                   const Spacer(),

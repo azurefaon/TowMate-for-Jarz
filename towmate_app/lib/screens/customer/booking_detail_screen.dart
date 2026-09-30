@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/status_style.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart' show QuotationSentPrice;
@@ -10,6 +11,7 @@ import '../../widgets/booking_cancel_dialog.dart';
 import '../../widgets/group_cancel_sheet.dart';
 import '../../widgets/quotation_price_cards.dart';
 import '../../widgets/skeleton_box.dart';
+import '../../widgets/status_badge.dart';
 
 class BookingDetailScreen extends StatefulWidget {
   const BookingDetailScreen({super.key, required this.bookingCode, this.asGroupOverview = false});
@@ -587,13 +589,16 @@ class _GroupStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusText = booking.groupActiveStatusText;
-    final Color statusColor;
+    // A group-level aggregate: terminal outcomes reuse the shared status
+    // colours; an in-flight mix has no single lifecycle status, so it gets
+    // the neutral badge rather than pretending to be one.
+    final Widget statusBadge;
     if (booking.groupAllCancelled) {
-      statusColor = TmColors.error;
+      statusBadge = StatusBadge(status: 'cancelled', label: statusText, compact: true);
     } else if (booking.groupAllCompleted) {
-      statusColor = TmColors.success;
+      statusBadge = StatusBadge(status: 'completed', label: statusText, compact: true);
     } else {
-      statusColor = context.textPrimary;
+      statusBadge = StatusBadge.neutral(label: statusText, compact: true);
     }
 
     return Container(
@@ -618,11 +623,8 @@ class _GroupStatusCard extends StatelessWidget {
               style: GoogleFonts.inter(color: context.textPrimary, fontSize: 11.5, fontWeight: FontWeight.w500),
             ),
           ],
-          const SizedBox(height: 2),
-          Text(
-            statusText,
-            style: GoogleFonts.inter(color: statusColor, fontSize: 11.5, fontWeight: FontWeight.w600),
-          ),
+          const SizedBox(height: 6),
+          Align(alignment: Alignment.centerLeft, child: statusBadge),
         ],
       ),
     );
@@ -640,55 +642,45 @@ class _BookingStatusCard extends StatelessWidget {
     final bucket = booking.schedulingBucket;
     final isBucketed = bucket != null && booking.status == 'scheduled_confirmed';
 
-    final Color bannerBg;
-    final Color iconBg;
-    final Color iconColor;
+    // The banner itself is a neutral card; the status is a SOLID badge and the
+    // icon disc uses the same solid status colour (no tinted/translucent fills).
+    final Brightness brightness = Theme.of(context).brightness;
+    final String badgeStatus;
     final IconData icon;
-    final Color labelColor;
     final String label;
 
     if (isBucketed) {
       switch (bucket) {
         case 'overdue':
-          bannerBg = TmColors.error.withValues(alpha: 0.08);
-          iconBg = TmColors.error;
-          iconColor = TmColors.white;
+          badgeStatus = 'overdue';
           icon = Icons.error_outline_rounded;
-          labelColor = TmColors.error;
           label = 'Overdue';
           break;
         case 'ready':
-          bannerBg = TmColors.yellow.withValues(alpha: 0.12);
-          iconBg = TmColors.yellow;
-          iconColor = TmColors.black;
+          badgeStatus = 'ready';
           icon = Icons.local_shipping_outlined;
-          labelColor = context.textPrimary;
           label = 'Ready';
           break;
         case 'upcoming':
-          bannerBg = TmColors.success.withValues(alpha: 0.08);
-          iconBg = TmColors.success;
-          iconColor = TmColors.white;
+          badgeStatus = 'scheduled_confirmed';
           icon = Icons.schedule_rounded;
-          labelColor = TmColors.success;
           label = 'Upcoming';
           break;
         default:
-          bannerBg = TmColors.success.withValues(alpha: 0.08);
-          iconBg = TmColors.success;
-          iconColor = TmColors.white;
+          badgeStatus = 'scheduled_confirmed';
           icon = Icons.check_circle_rounded;
-          labelColor = TmColors.success;
           label = 'Confirmed';
       }
     } else {
-      bannerBg = context.surface;
-      iconBg = context.textPrimary;
-      iconColor = TmColors.white;
+      badgeStatus = booking.status;
       icon = Icons.info_outline_rounded;
-      labelColor = context.textPrimary;
       label = booking.humanStatus;
     }
+
+    final style = StatusStyle.of(badgeStatus);
+    final bannerBg = context.surface;
+    final iconBg = style.backgroundFor(brightness);
+    final iconColor = style.foregroundFor(brightness);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -706,16 +698,11 @@ class _BookingStatusCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    color: labelColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.1,
-                  ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: StatusBadge(status: badgeStatus, label: label),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   booking.displayVehicleName.isNotEmpty
                       ? '${booking.bookingCode} · ${booking.displayVehicleName}'

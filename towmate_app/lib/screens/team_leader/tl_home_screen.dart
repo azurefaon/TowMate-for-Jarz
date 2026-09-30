@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
+import '../../widgets/status_badge.dart';
 import '../../models/task_model.dart';
 import '../../services/api_service.dart';
 import '../../services/location_tracker.dart';
@@ -540,21 +541,7 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   }
 
   Widget _statusPill(BuildContext context, String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: context.textPrimary,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        _statusLabel(status),
-        style: GoogleFonts.inter(
-          color: context.bg,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
+    return StatusBadge(status: status, label: _statusLabel(status));
   }
 
   Widget _acceptButton() {

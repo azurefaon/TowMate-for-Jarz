@@ -7,6 +7,7 @@ import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart';
 import '../../services/api_service.dart';
 import '../../widgets/skeleton_box.dart';
+import '../../widgets/status_badge.dart';
 import '../../widgets/tm_bottom_nav.dart';
 
 Color _secondaryTextColor(BuildContext context) =>
@@ -14,16 +15,6 @@ Color _secondaryTextColor(BuildContext context) =>
 
 String _serviceTypeLabel(String? serviceType) =>
     serviceType == 'schedule' ? 'Scheduled' : 'Book Now';
-
-Color _statusColor(String status, BuildContext context) {
-  const positive = {'completed'};
-  const negative = {'cancelled', 'rejected', 'not_responding'};
-  const attention = {'waiting_verification'};
-  if (positive.contains(status)) return const Color(0xFF15803D);
-  if (negative.contains(status)) return TmColors.error;
-  if (attention.contains(status)) return const Color(0xFFB45309);
-  return context.textPrimary;
-}
 
 class MyBookingsScreen extends StatefulWidget {
   const MyBookingsScreen({super.key});
@@ -624,9 +615,8 @@ class _GroupVehicleRow extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            vehicle.humanStatus,
-            style: GoogleFonts.inter(color: _statusColor(vehicle.status, context), fontSize: 11.5, fontWeight: FontWeight.w500),
+          Flexible(
+            child: StatusBadge(status: vehicle.status, label: vehicle.humanStatus, compact: true),
           ),
         ],
       ),
@@ -683,9 +673,8 @@ class _BookingCardBody extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              b.humanStatus,
-              style: GoogleFonts.inter(color: _statusColor(b.status, context), fontSize: 12.5, fontWeight: FontWeight.w500),
+            Flexible(
+              child: StatusBadge(status: b.status, label: b.humanStatus, compact: true),
             ),
           ],
         ),
