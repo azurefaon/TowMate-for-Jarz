@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/screens/customer/login_screen.dart';
+import 'package:towmate_app/screens/customer/signup_screen.dart';
 
 const _errorRed = Color(0xFFE53935);
 
@@ -103,4 +104,31 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('signup still rejects non-Gmail and accepts Gmail', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: SignupScreen()));
+    await tester.pump();
+
+    final email = find.byType(TextField).at(2);
+    final create = find.text('Create account');
+    await tester.ensureVisible(find.byType(Checkbox));
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+
+    await tester.enterText(email, 'x@example.com');
+    await tester.ensureVisible(create);
+    await tester.tap(create);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Please use a Gmail address.'), findsOneWidget);
+
+    await tester.enterText(email, 'x@gmail.com');
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Please use a Gmail address.'), findsNothing);
+  });
 }
