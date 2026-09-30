@@ -233,13 +233,24 @@
         var booking = (data && data.booking) || {};
         var vehicles = (data && data.vehicles) || [];
         var isGrouped = !!booking.group_code || vehicles.length > 1;
-        var isEligible =
+        // Eligibility follows the server's own receipt-lock decision, NOT
+        // data.receipt: that is a group_code-wide display lookup and can be an
+        // unrelated legacy sibling's receipt. correction_locked_by_receipt is
+        // computed with the same transaction/member semantics the Void & Replace
+        // endpoint enforces (Invoice::hasIssuedReceipt), so the UI never offers a
+        // correction the backend rejects nor hides one it allows. The backend
+        // still enforces the rule independently.
+        var lockedByReceipt = !!(data && data.correction_locked_by_receipt);
+        var statusEligible =
             invoice.is_current &&
             invoice.status !== "voided" &&
             VOID_REPLACE_ELIGIBLE_STATUSES.indexOf(booking.status) !== -1;
+        var isEligible = statusEligible && !lockedByReceipt;
 
         if (isEligible) {
             html += voidReplaceFormHtml(booking, invoice, vehicles, isGrouped);
+        } else if (statusEligible && lockedByReceipt) {
+            html += emptyState("This transaction was finalized when its receipt was issued, so the invoice can no longer be corrected.");
         }
 
         section.innerHTML = html;

@@ -89,7 +89,7 @@ class InvoiceController extends Controller
                 return ['error' => 'This booking is not in a state where its invoice can be voided and replaced.'];
             }
 
-            if ($lockedBooking->receipt) {
+            if ($lockedInvoice->hasIssuedReceipt([$lockedBooking->id])) {
                 return ['error' => 'A receipt has already been issued for this booking. The invoice can no longer be corrected through this action.'];
             }
 
@@ -231,9 +231,7 @@ class InvoiceController extends Controller
                 // Same "same trip" grouping query TLTaskController::completeGroup()
                 // uses — locks every member together so a concurrent correction
                 // on a sibling vehicle can't race this recompute.
-                $groupBookings = Booking::where('group_code', $anchorBooking->group_code)
-                    ->where('pickup_address', $anchorBooking->pickup_address)
-                    ->where('dropoff_address', $anchorBooking->dropoff_address)
+                $groupBookings = Invoice::sameTripMembers($anchorBooking)
                     ->orderBy('id')
                     ->lockForUpdate()
                     ->get();
@@ -261,17 +259,17 @@ class InvoiceController extends Controller
                 }
                 $quotationAdjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
 
-                // The group's one canonical receipt is always attached to
-                // quotation.source_booking_id (see DocumentGenerationService::
-                // generateReceipt() / TLTaskController::completeGroup()) — never
-                // to whichever booking the correction happens to be viewed or
-                // initiated from. A correction opened from a sibling's context
-                // must be blocked exactly the same as one opened from the
-                // anchor's own context if that canonical booking already has a
-                // receipt; this is a read-only check, no Receipt row is
-                // created, moved, duplicated, or reassigned here.
-                $canonicalReceiptAnchor = $groupBookings->firstWhere('id', $quotation->source_booking_id) ?? $lockedAnchor;
-                if ($canonicalReceiptAnchor->receipt) {
+                // The group's one canonical receipt is generated for whichever
+                // member JobsController::confirmPayment() ran on (one receipt per
+                // booking, see DocumentGenerationService::generateReceipt()), so it
+                // is NOT guaranteed to sit on quotation.source_booking_id. Check
+                // every locked member of the trip (plus receipts attached to the
+                // group's invoices) so a correction is blocked identically
+                // whichever vehicle it is opened from. The rule lives in
+                // Invoice::hasIssuedReceipt(), shared with the dispatcher UI.
+                // Read-only: no Receipt row is created, moved, duplicated, or
+                // reassigned here.
+                if ($lockedInvoice->hasIssuedReceipt($groupBookings->pluck('id')->all())) {
                     throw new \RuntimeException('A receipt has already been issued for this group. The invoice can no longer be corrected through this action.');
                 }
 
@@ -377,15 +375,8 @@ class InvoiceController extends Controller
 
     private function isGroupedBooking(Booking $booking): bool
     {
-        if (! $booking->group_code || ! $booking->quotation_id) {
-            return false;
-        }
-
-        $quotation = \App\Models\Quotation::find($booking->quotation_id);
-        if (! $quotation) {
-            return false;
-        }
-
-        return collect($quotation->extra_vehicles ?? [])->contains(fn ($ev) => ! empty($ev['booking_id']));
+        // Single definition of "normalized group transaction", shared with the
+        // receipt lock (Invoice::hasIssuedReceipt) and the dispatcher UI.
+        return Invoice::isNormalizedGroupTransaction($booking);
     }
 }

@@ -2673,6 +2673,11 @@ class DispatchController extends Controller
                 'created_at' => $receipt->created_at,
                 'pdf_url' => $this->documentGenerationService->publicDocumentUrl($receipt->pdf_path),
             ] : null,
+            // Authoritative lock decision for Void & Replace: the SAME rule the
+            // endpoint enforces (Invoice::hasIssuedReceipt). `receipt` above is only
+            // a group_code-wide display lookup and can belong to an unrelated legacy
+            // sibling, so the UI must gate on this flag instead.
+            'correction_locked_by_receipt' => $invoice ? $invoice->hasIssuedReceipt() : false,
             'payment' => [
                 'payment_method' => $booking->payment_method,
                 'cash_received' => $booking->cash_received !== null ? (float) $booking->cash_received : null,

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\GeneratesPublicCode;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -71,6 +72,86 @@ class Invoice extends Model
     public function originalInvoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class, 'original_invoice_id');
+    }
+
+    /*
+     * ------------------------------------------------------------------
+     * Receipt lock: the ONE authoritative definition of "has a receipt already
+     * finalized this transaction, so its invoice can no longer be corrected?".
+     * Used by InvoiceController (Void & Replace enforcement) and by the
+     * dispatcher booking-detail bundle (UI eligibility), so they cannot drift.
+     *
+     * A "transaction" is exactly:
+     *  - a normalized group (quotation.extra_vehicles carries booking ids): the
+     *    same-trip members of the invoice's booking, i.e. group_code + pickup +
+     *    dropoff (the same set Void & Replace locks and recomputes); or
+     *  - anything else (solo, and legacy non-normalized groups where each booking
+     *    has its own invoice/receipt): just the invoice's own booking.
+     * Merely sharing a group_code is NOT membership.
+     * ------------------------------------------------------------------
+     */
+
+    /** True for a normalized group booking (quotation.extra_vehicles carries booking ids). */
+    public static function isNormalizedGroupTransaction(Booking $booking): bool
+    {
+        if (! $booking->group_code || ! $booking->quotation_id) {
+            return false;
+        }
+
+        $quotation = Quotation::find($booking->quotation_id);
+        if (! $quotation) {
+            return false;
+        }
+
+        return collect($quotation->extra_vehicles ?? [])->contains(fn ($ev) => ! empty($ev['booking_id']));
+    }
+
+    /** The legitimate same-trip members of a normalized group (group_code + pickup + dropoff). */
+    public static function sameTripMembers(Booking $anchor): Builder
+    {
+        return Booking::where('group_code', $anchor->group_code)
+            ->where('pickup_address', $anchor->pickup_address)
+            ->where('dropoff_address', $anchor->dropoff_address);
+    }
+
+    /** Booking ids of the transaction this invoice belongs to (see the block comment above). */
+    public function transactionBookingIds(): array
+    {
+        $booking = $this->booking;
+
+        if (! $booking) {
+            return [];
+        }
+
+        if (! static::isNormalizedGroupTransaction($booking)) {
+            return [$booking->id];
+        }
+
+        return static::sameTripMembers($booking)->pluck('id')->all();
+    }
+
+    /**
+     * True when a canonical Receipt already exists for this transaction. Follows
+     * the Receipt relationships, never the booking status:
+     *  - a Receipt owned by any booking of the transaction, or
+     *  - a Receipt attached to any invoice of those bookings (historical/voided
+     *    invoices count; no is_current restriction; includes this invoice).
+     * Read-only. Pass $bookingIds only when the caller already holds the locked
+     * member rows of this same transaction (Void & Replace does).
+     */
+    public function hasIssuedReceipt(?array $bookingIds = null): bool
+    {
+        $bookingIds ??= $this->transactionBookingIds();
+
+        $invoiceIds = static::whereIn('booking_id', $bookingIds)
+            ->pluck('id')
+            ->push($this->id)
+            ->unique()
+            ->all();
+
+        return Receipt::whereIn('booking_id', $bookingIds)
+            ->orWhereIn('invoice_id', $invoiceIds)
+            ->exists();
     }
 
     /**
