@@ -40,6 +40,13 @@ return [
             'report' => false,
         ],
 
+        'profile_images' => [
+            'driver' => 'local',
+            'root' => env('APK_STORAGE_PATH', storage_path('app/apk-releases')).'/profile-images',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

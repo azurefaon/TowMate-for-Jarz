@@ -354,6 +354,14 @@ class AuthController extends Controller
         $oldImage = $user->profile_image;
         $path = $profileImages->storeUploadedFile($user, $request->file('profile_image'));
 
+        // The disk is configured with throw=false, so a failed write returns false.
+        if (! is_string($path) || $path === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not save your profile photo. Please try again.',
+            ], 500);
+        }
+
         $user->profile_image = $path;
         $user->save();
 
