@@ -298,7 +298,7 @@ class JobsController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Payment confirmed. Job completed and receipt sent to customer.',
+            'message' => 'Payment confirmed. Job completed. The customer receipt will be processed separately.',
         ]);
     }
 

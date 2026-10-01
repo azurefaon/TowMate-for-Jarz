@@ -201,3 +201,57 @@ it('leaves the existing team leader returned transition unaffected', function ()
     $response->assertOk();
     expect($booking->fresh()->status)->toBe('returned');
 });
+
+it('confirms payment without claiming the receipt was already sent', function () {
+    Mail::fake();
+    $dispatcher = cwDispatcher();
+    $booking = cwBooking(['status' => 'waiting_verification']);
+
+    $response = $this->actingAs($dispatcher)->postJson(route('admin.jobs.confirm-payment', $booking));
+
+    $response->assertOk()->assertJson(['success' => true]);
+    $message = $response->json('message');
+    expect($booking->fresh()->status)->toBe('completed')
+        ->and($message)->toStartWith('Payment confirmed.')
+        ->and(strtolower($message))->not->toContain('receipt sent')
+        ->and(strtolower($message))->not->toContain('sent to customer');
+});
+
+it('keeps the confirmation message truthful even when receipt email delivery would fail', function () {
+    Mail::shouldReceive('to')->andThrow(new \RuntimeException('smtp down'));
+    $dispatcher = cwDispatcher();
+    $booking = cwBooking(['status' => 'payment_submitted']);
+
+    $response = $this->actingAs($dispatcher)->postJson(route('admin.jobs.confirm-payment', $booking));
+
+    $response->assertOk();
+    expect(strtolower($response->json('message')))->not->toContain('receipt sent')
+        ->and($booking->fresh()->status)->toBe('completed');
+});
+
+it('does not create a duplicate receipt when payment is confirmed twice', function () {
+    Mail::fake();
+    $dispatcher = cwDispatcher();
+    $booking = cwBooking(['status' => 'waiting_verification']);
+
+    $this->actingAs($dispatcher)->postJson(route('admin.jobs.confirm-payment', $booking));
+    $second = $this->actingAs($dispatcher)->postJson(route('admin.jobs.confirm-payment', $booking));
+
+    $second->assertOk()->assertJson(['message' => 'This job was already confirmed.']);
+    expect(\App\Models\Receipt::where('booking_id', $booking->id)->count())->toBeLessThanOrEqual(1);
+});
+
+it('renders the peso sign correctly in the service fee confirmation', function () {
+    $dispatcher = cwDispatcher();
+    $booking = cwBooking(['status' => 'in_progress']);
+
+    $response = $this->actingAs($dispatcher)->postJson(route('admin.booking.service-fee', $booking), [
+        'service_fee_amount' => 250,
+        'service_fee_reason' => 'Extra winching',
+    ]);
+
+    $response->assertOk();
+    $message = $response->json('message');
+    expect($message)->toContain('₱250.00')
+        ->and($message)->not->toContain('â‚±');
+});

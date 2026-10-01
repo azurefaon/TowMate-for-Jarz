@@ -18,6 +18,14 @@
             </div>
         </div>
 
+        @if (session('success'))
+            <p class="settings-feedback settings-feedback--success" role="status">{{ session('success') }}</p>
+        @endif
+
+        @if (session('error'))
+            <p class="settings-feedback settings-feedback--error" role="alert">{{ session('error') }}</p>
+        @endif
+
         <div class="settings-tabs">
             <button class="settings-tab active" data-tab="user-limits">Company Settings</button>
             <button class="settings-tab" data-tab="customer-content">Customer App Content</button>

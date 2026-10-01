@@ -335,3 +335,64 @@ it('preserves the customer app content tab and coverage areas sub-tab when addin
         ->post(route('superadmin.settings.customer-content.coverage-areas.store'), ['name' => 'BS New Area'])
         ->assertRedirect($referer);
 });
+
+it('persists a business setting and shows the success banner on the page the owner lands on', function () {
+    $owner = bsOwner();
+
+    $this->actingAs($owner)
+        ->from(route('superadmin.settings.index'))
+        ->post(route('superadmin.settings.update'), ['settings' => ['bank_name' => 'Banner Test Bank']])
+        ->assertRedirect(route('superadmin.settings.index'));
+
+    expect(\App\Models\SystemSetting::getValue('bank_name'))->toBe('Banner Test Bank');
+
+    $this->actingAs($owner)
+        ->withSession(['success' => 'Business settings updated successfully.'])
+        ->get(route('superadmin.settings.index'))
+        ->assertOk()
+        ->assertSee('settings-feedback--success', false)
+        ->assertSee('Business settings updated successfully.');
+});
+
+it('does not show a success banner when no save happened or validation failed', function () {
+    $owner = bsOwner();
+
+    $this->actingAs($owner)->get(route('superadmin.settings.index'))
+        ->assertOk()
+        ->assertDontSee('settings-feedback--success', false);
+
+    $this->actingAs($owner)
+        ->from(route('superadmin.settings.index'))
+        ->post(route('superadmin.settings.update'), ['settings' => ['vat_rate_percentage' => '500']])
+        ->assertSessionHasErrors('settings.vat_rate_percentage')
+        ->assertSessionMissing('success');
+});
+
+it('flashes a real success message after updating the landing page settings', function () {
+    $owner = bsOwner();
+
+    $this->actingAs($owner)
+        ->post(route('superadmin.settings.landing.update'), [
+            'company_name' => 'JARZ Towing',
+            'contact_phone' => '09171234567',
+            'contact_email' => 'landing@gmail.com',
+            'contact_location' => 'Quezon City',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Landing page settings updated successfully.');
+
+    expect(\App\Models\LandingSetting::first()->contact_email)->toBe('landing@gmail.com');
+});
+
+it('does not claim success when the landing page settings fail validation', function () {
+    $owner = bsOwner();
+
+    $this->actingAs($owner)
+        ->post(route('superadmin.settings.landing.update'), [
+            'company_name' => 'JARZ Towing',
+            'contact_phone' => 'not-a-number',
+            'contact_email' => 'landing@gmail.com',
+        ])
+        ->assertSessionHasErrors('contact_phone')
+        ->assertSessionMissing('success');
+});

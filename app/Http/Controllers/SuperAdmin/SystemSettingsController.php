@@ -262,6 +262,6 @@ class SystemSettingsController extends Controller
             }
         }
 
-        return back()->with('success');
+        return back()->with('success', 'Landing page settings updated successfully.');
     }
 }

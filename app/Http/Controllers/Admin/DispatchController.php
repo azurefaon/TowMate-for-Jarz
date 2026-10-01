@@ -1299,7 +1299,7 @@ class DispatchController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Service fee of â‚±' . number_format($validated['service_fee_amount'], 2) . ' applied successfully.',
+            'message' => 'Service fee of ₱' . number_format($validated['service_fee_amount'], 2) . ' applied successfully.',
         ]);
     }
 

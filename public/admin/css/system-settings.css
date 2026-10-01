@@ -644,6 +644,12 @@
     color: #15803d;
 }
 
+.settings-feedback--error {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #b91c1c;
+}
+
 .error-text {
     display: block;
     margin-top: 4px;
