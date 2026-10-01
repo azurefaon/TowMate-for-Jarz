@@ -30,6 +30,21 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (\Throwable $e, Request $request) {
             if (! $request->is('api/*') && ! $request->expectsJson()) {
+                if ($e instanceof \Illuminate\Routing\Exceptions\InvalidSignatureException) {
+                    return response()->view('errors.invalid-link', [], 403);
+                }
+
+                $isMissingRecord = $e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                    || $e instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+                if (
+                    $isMissingRecord
+                    && str_starts_with((string) $request->route()?->getName(), 'quotation.')
+                    && ! $request->hasValidSignature()
+                ) {
+                    return response()->view('errors.invalid-link', [], 403);
+                }
+
                 return null;
             }
 
