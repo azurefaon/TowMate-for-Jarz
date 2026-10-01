@@ -861,3 +861,53 @@ it('releases the seeded team when a team leader is purged', function () {
         ->and($unit->fresh()->crew_member_1_personnel_id)->toBeNull()
         ->and($unit->fresh()->crew_member_1_name)->toBeNull();
 });
+
+it('purging an account-backed driver clears only driver_id and keeps the unit team leader and seeded crew', function () {
+    $dispatcher = pbaDispatcher();
+    $crew = pbaPerson('Kept', 'Crew');
+    $leader = pbaSeededLeader(['crew_member_1_personnel_id' => $crew->id]);
+    $driverAccount = User::factory()->create(['role_id' => 4]);
+    $unit = pbaUnit(['driver_id' => $driverAccount->id]);
+    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+
+    app(\App\Services\UserPurgeService::class)->purge($driverAccount);
+
+    $fresh = $unit->fresh();
+    expect($fresh->driver_id)->toBeNull()
+        ->and($fresh->team_leader_id)->toBe($leader->id)
+        ->and($fresh->crew_member_1_personnel_id)->toBe($crew->id)
+        ->and($fresh->crew_member_1_seeded_by_team_leader_id)->toBe($leader->id);
+});
+
+it('purging a team leader keeps the unrelated account-backed driver and releases the seeded team', function () {
+    $dispatcher = pbaDispatcher();
+    $crew = pbaPerson('Released', 'Crew');
+    $leader = pbaSeededLeader(['crew_member_1_personnel_id' => $crew->id]);
+    $driverAccount = User::factory()->create(['role_id' => 4]);
+    $unit = pbaUnit(['driver_id' => $driverAccount->id]);
+    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+
+    app(\App\Services\UserPurgeService::class)->purge($leader);
+
+    $fresh = $unit->fresh();
+    expect($fresh->team_leader_id)->toBeNull()
+        ->and($fresh->driver_id)->toBe($driverAccount->id)
+        ->and($fresh->crew_member_1_personnel_id)->toBeNull();
+});
+
+it('purging an unassigned user leaves unit assignments unchanged', function () {
+    $dispatcher = pbaDispatcher();
+    $crew = pbaPerson('Steady', 'Crew');
+    $leader = pbaSeededLeader(['crew_member_1_personnel_id' => $crew->id]);
+    $driverAccount = User::factory()->create(['role_id' => 4]);
+    $bystander = User::factory()->create(['role_id' => 2]);
+    $unit = pbaUnit(['driver_id' => $driverAccount->id]);
+    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+
+    app(\App\Services\UserPurgeService::class)->purge($bystander);
+
+    $fresh = $unit->fresh();
+    expect($fresh->team_leader_id)->toBe($leader->id)
+        ->and($fresh->driver_id)->toBe($driverAccount->id)
+        ->and($fresh->crew_member_1_personnel_id)->toBe($crew->id);
+});

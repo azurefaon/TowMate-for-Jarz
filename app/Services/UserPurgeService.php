@@ -22,9 +22,7 @@ class UserPurgeService
     {
         app(UnitTeamAssignmentService::class)->detachTeamLeaderFromUnits($user);
 
-        Unit::where('team_leader_id', $user->id)
-            ->orWhere('driver_id', $user->id)
-            ->update(['team_leader_id' => null, 'driver_id' => null]);
+        Unit::where('driver_id', $user->id)->update(['driver_id' => null]);
 
         Booking::where('created_by_admin_id', $user->id)
             ->update(['created_by_admin_id' => null]);
