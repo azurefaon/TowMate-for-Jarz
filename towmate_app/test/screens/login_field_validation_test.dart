@@ -113,7 +113,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SignupScreen()));
     await tester.pump();
 
-    final email = find.byType(TextField).at(2);
+    final email = find.byType(TextField).at(3);
     final create = find.text('Create account');
     await tester.ensureVisible(find.byType(Checkbox));
     await tester.tap(find.byType(Checkbox));

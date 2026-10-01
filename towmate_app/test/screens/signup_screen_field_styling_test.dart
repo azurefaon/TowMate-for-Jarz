@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/screens/customer/signup_screen.dart';
 
-const _brand = Color(0xFFF5A623);
+const _brand = Color(0xFFFACC15);
 const _textPrimary = Color(0xFF111111);
 
 void main() {
@@ -27,7 +27,7 @@ void main() {
     testWidgets('EMAIL label stays matte black/dark when the field is focused', (tester) async {
       await pumpSignup(tester);
 
-      await tester.tap(find.byType(TextField).at(2));
+      await tester.tap(find.byType(TextField).at(3));
       await tester.pump();
 
       final labelText = tester.widget<Text>(find.text('EMAIL'));
@@ -37,8 +37,8 @@ void main() {
     testWidgets('PASSWORD label stays matte black/dark when focused', (tester) async {
       await pumpSignup(tester);
 
-      await tester.ensureVisible(find.byType(TextField).at(4));
-      await tester.tap(find.byType(TextField).at(4));
+      await tester.ensureVisible(find.byType(TextField).at(5));
+      await tester.tap(find.byType(TextField).at(5));
       await tester.pump();
 
       final labelText = tester.widget<Text>(find.text('PASSWORD'));
@@ -48,8 +48,8 @@ void main() {
     testWidgets('CONFIRM PASSWORD label stays matte black/dark when focused', (tester) async {
       await pumpSignup(tester);
 
-      await tester.ensureVisible(find.byType(TextField).at(5));
-      await tester.tap(find.byType(TextField).at(5));
+      await tester.ensureVisible(find.byType(TextField).at(6));
+      await tester.tap(find.byType(TextField).at(6));
       await tester.pump();
 
       final labelText = tester.widget<Text>(find.text('CONFIRM PASSWORD'));
@@ -59,7 +59,7 @@ void main() {
     testWidgets('a focused field does not use the orange brand color for its border', (tester) async {
       await pumpSignup(tester);
 
-      await tester.tap(find.byType(TextField).at(2));
+      await tester.tap(find.byType(TextField).at(3));
       await tester.pump();
 
       final container = tester
@@ -75,7 +75,7 @@ void main() {
     testWidgets('no field container shows a boxShadow glow, focused or not', (tester) async {
       await pumpSignup(tester);
 
-      await tester.tap(find.byType(TextField).at(2));
+      await tester.tap(find.byType(TextField).at(3));
       await tester.pump();
 
       for (final container
@@ -111,7 +111,7 @@ void main() {
     ) async {
       await pumpSignup(tester);
 
-      await tester.enterText(find.byType(TextField).at(2), 'someone@yahoo.com');
+      await tester.enterText(find.byType(TextField).at(3), 'someone@yahoo.com');
       await tester.pump();
       await tester.tap(find.byType(TextField).at(0));
       await tester.pump();
@@ -119,7 +119,7 @@ void main() {
       final errorFinder = find.text('Please use a Gmail address.');
       expect(errorFinder, findsOneWidget);
 
-      final emailContainer = find.byType(AnimatedContainer).at(2);
+      final emailContainer = find.byType(AnimatedContainer).at(3);
       expect(
         find.descendant(of: emailContainer, matching: errorFinder),
         findsNothing,
@@ -131,17 +131,17 @@ void main() {
       (tester) async {
         await pumpSignup(tester);
 
-        await tester.ensureVisible(find.byType(TextField).at(4));
-        await tester.enterText(find.byType(TextField).at(4), 'ValidPass!2024xy');
-        await tester.pump();
         await tester.ensureVisible(find.byType(TextField).at(5));
-        await tester.enterText(find.byType(TextField).at(5), 'Different!2024xy');
+        await tester.enterText(find.byType(TextField).at(5), 'ValidPass!2024xy');
+        await tester.pump();
+        await tester.ensureVisible(find.byType(TextField).at(6));
+        await tester.enterText(find.byType(TextField).at(6), 'Different!2024xy');
         await tester.pump();
 
         final errorFinder = find.text('Passwords do not match');
         expect(errorFinder, findsOneWidget);
 
-        final confirmContainer = find.byType(AnimatedContainer).at(5);
+        final confirmContainer = find.byType(AnimatedContainer).at(6);
         expect(
           find.descendant(of: confirmContainer, matching: errorFinder),
           findsNothing,

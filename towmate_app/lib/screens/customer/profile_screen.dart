@@ -19,6 +19,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
   String? _name;
   String? _firstName;
+  String? _middleName;
   String? _lastName;
   String? _email;
   String? _phone;
@@ -53,6 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
     await ApiService.fetchAndCacheProfile();
     final name = await ApiService.getUserName();
     final firstName = await ApiService.getUserFirstName();
+    final middleName = await ApiService.getUserMiddleName();
     final lastName = await ApiService.getUserLastName();
     final email = await ApiService.getUserEmail();
     final phone = await ApiService.getUserPhone();
@@ -62,6 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
     setState(() {
       _name = name;
       _firstName = firstName;
+      _middleName = middleName;
       _lastName = lastName;
       _email = email;
       _phone = phone;
@@ -178,6 +181,7 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
     if (result == null || result.isEmpty || result == _phone) return;
     final res = await ApiService.updateProfile(
       firstName: _firstName ?? '',
+      middleName: _middleName,
       lastName: _lastName ?? '',
       phone: result,
     );

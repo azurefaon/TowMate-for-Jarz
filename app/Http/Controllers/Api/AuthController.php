@@ -133,6 +133,7 @@ class AuthController extends Controller
         try {
             $data = $request->validate([
                 'first_name'            => 'required|string|max:100',
+                'middle_name'           => 'nullable|string|max:100',
                 'last_name'             => 'required|string|max:100',
                 'email'                 => [
                     'bail',
@@ -172,11 +173,9 @@ class AuthController extends Controller
 
         $customerRoleId = DB::table('roles')->where('name', 'Customer')->value('id') ?? 5;
 
-        $fullName = trim($data['first_name'] . ' ' . $data['last_name']);
-
         $user = User::create([
-            'name'              => $fullName,
             'first_name'        => $data['first_name'],
+            'middle_name'       => $data['middle_name'] ?? null,
             'last_name'         => $data['last_name'],
             'email'             => strtolower(trim($data['email'])),
             'phone'             => $data['phone'],
@@ -191,9 +190,10 @@ class AuthController extends Controller
         try {
             Customer::create([
                 'user_id'    => $user->id,
-                'first_name' => $user->first_name,
-                'last_name'  => $user->last_name,
-                'full_name'  => $user->name ?: $fullName,
+                'first_name'  => $user->first_name,
+                'middle_name' => $user->middle_name,
+                'last_name'   => $user->last_name,
+                'full_name'   => $user->full_name,
                 'email'      => $user->email,
                 'phone'      => $data['phone'],
             ]);
@@ -322,6 +322,7 @@ class AuthController extends Controller
                 'id'         => $user->id,
                 'name'       => $user->name,
                 'first_name' => $user->first_name,
+                'middle_name' => $user->middle_name,
                 'last_name'  => $user->last_name,
                 'email'      => $user->email,
                 'phone'      => $user->phone,
@@ -375,9 +376,10 @@ class AuthController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-            'first_name' => 'required|string|max:100',
-            'last_name'  => 'required|string|max:100',
-            'phone'      => [
+            'first_name'  => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name'   => 'required|string|max:100',
+            'phone'       => [
                 'nullable',
                 'string',
                 'max:20',
@@ -387,7 +389,9 @@ class AuthController extends Controller
 
         $user->first_name = $validated['first_name'];
         $user->last_name  = $validated['last_name'];
-        $user->name = build_full_name($validated['first_name'], null, $validated['last_name']);
+        if ($request->exists('middle_name')) {
+            $user->middle_name = $validated['middle_name'] ?? null;
+        }
         if (array_key_exists('phone', $validated)) {
             $user->phone = $validated['phone'];
         }
@@ -395,8 +399,10 @@ class AuthController extends Controller
 
         $customer = Customer::where('user_id', $user->id)->first();
         if ($customer) {
-            $customer->first_name = $validated['first_name'];
-            $customer->last_name  = $validated['last_name'];
+            $customer->first_name = $user->first_name;
+            $customer->middle_name = $user->middle_name;
+            $customer->last_name  = $user->last_name;
+            $customer->full_name  = $user->full_name;
             if (array_key_exists('phone', $validated)) {
                 $customer->phone = $validated['phone'];
             }
@@ -408,6 +414,7 @@ class AuthController extends Controller
             'data'    => [
                 'name'       => $user->name,
                 'first_name' => $user->first_name,
+                'middle_name' => $user->middle_name,
                 'last_name'  => $user->last_name,
                 'phone'      => $user->phone,
             ],

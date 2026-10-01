@@ -167,11 +167,29 @@
                 @method('patch')
 
                 <div class="prof-field">
-                    <label class="prof-label" for="name">Name</label>
-                    <input class="prof-input {{ $errors->has('name') ? 'is-error' : '' }}" id="name" name="name"
-                        type="text" value="{{ old('name', $user->name) }}" required autocomplete="name">
-                    @if ($errors->has('name'))
-                        <span class="prof-error">{{ $errors->first('name') }}</span>
+                    <label class="prof-label" for="first_name">First Name</label>
+                    <input class="prof-input {{ $errors->has('first_name') ? 'is-error' : '' }}" id="first_name" name="first_name"
+                        type="text" value="{{ old('first_name', $user->first_name) }}" required autocomplete="given-name">
+                    @if ($errors->has('first_name'))
+                        <span class="prof-error">{{ $errors->first('first_name') }}</span>
+                    @endif
+                </div>
+
+                <div class="prof-field">
+                    <label class="prof-label" for="middle_name">Middle Name <span>(optional)</span></label>
+                    <input class="prof-input {{ $errors->has('middle_name') ? 'is-error' : '' }}" id="middle_name" name="middle_name"
+                        type="text" value="{{ old('middle_name', $user->middle_name) }}" autocomplete="additional-name">
+                    @if ($errors->has('middle_name'))
+                        <span class="prof-error">{{ $errors->first('middle_name') }}</span>
+                    @endif
+                </div>
+
+                <div class="prof-field">
+                    <label class="prof-label" for="last_name">Last Name</label>
+                    <input class="prof-input {{ $errors->has('last_name') ? 'is-error' : '' }}" id="last_name" name="last_name"
+                        type="text" value="{{ old('last_name', $user->last_name) }}" required autocomplete="family-name">
+                    @if ($errors->has('last_name'))
+                        <span class="prof-error">{{ $errors->first('last_name') }}</span>
                     @endif
                 </div>
 

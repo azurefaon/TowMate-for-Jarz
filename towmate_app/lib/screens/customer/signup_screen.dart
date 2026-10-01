@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/theme.dart';
 import '../../core/app_prefs.dart';
 import '../../core/validators.dart';
 import '../../core/security_utils.dart';
@@ -13,8 +14,7 @@ import 'google_phone_completion_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_use_screen.dart';
 
-const _brand = Color(0xFFF5A623);
-const _buttonGradientEnd = Color(0xFFE8960D);
+const _brand = TmColors.yellow;
 const _fieldBorder = Color(0xFFD1D5DB);
 const _fieldBorderFocused = Color(0xFF262626);
 const _textSecondary = Color(0xFF9CA3AF);
@@ -33,6 +33,7 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
+  final _middleNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -96,6 +97,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   void dispose() {
     _firstNameController.dispose();
+    _middleNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -128,6 +130,7 @@ class _SignupScreenState extends State<SignupScreen> {
           builder: (_) => EmailOtpScreen(
             email: email,
             firstName: InputSanitizer.sanitize(_firstNameController.text),
+            middleName: InputSanitizer.sanitize(_middleNameController.text),
             lastName: InputSanitizer.sanitize(_lastNameController.text),
             phone: '+63${InputSanitizer.sanitize(_phoneController.text)}',
             password: _passwordController.text,
@@ -206,6 +209,7 @@ class _SignupScreenState extends State<SignupScreen> {
           builder: (_) => GooglePhoneCompletionScreen(
             completionToken: res['completionToken'] as String,
             firstName: res['firstName'] as String? ?? '',
+            lastName: res['lastName'] as String? ?? '',
           ),
         ),
       );
@@ -293,50 +297,35 @@ class _SignupScreenState extends State<SignupScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final stack = constraints.maxWidth < 300;
-                            final firstField = _Field(
-                              controller: _firstNameController,
-                              label: 'FIRST NAME',
-                              hint: 'Enter your first name',
-                              validator: (v) => _gated(
-                                'firstName',
-                                () => Validators.name(v, 'First name'),
-                              ),
-                              textInputAction: TextInputAction.next,
-                              onChanged: (_) => _touch('firstName'),
-                            );
-                            final lastField = _Field(
-                              controller: _lastNameController,
-                              label: 'LAST NAME',
-                              hint: 'Enter your last name',
-                              validator: (v) => _gated(
-                                'lastName',
-                                () => Validators.name(v, 'Last name'),
-                              ),
-                              textInputAction: TextInputAction.next,
-                              onChanged: (_) => _touch('lastName'),
-                            );
-                            if (stack) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  firstField,
-                                  const SizedBox(height: 12),
-                                  lastField,
-                                ],
-                              );
-                            }
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(child: firstField),
-                                const SizedBox(width: 10),
-                                Expanded(child: lastField),
-                              ],
-                            );
-                          },
+                        _Field(
+                          controller: _firstNameController,
+                          label: 'FIRST NAME',
+                          hint: 'Enter your first name',
+                          validator: (v) => _gated(
+                            'firstName',
+                            () => Validators.name(v, 'First name'),
+                          ),
+                          textInputAction: TextInputAction.next,
+                          onChanged: (_) => _touch('firstName'),
+                        ),
+                        const SizedBox(height: 12),
+                        _Field(
+                          controller: _middleNameController,
+                          label: 'MIDDLE NAME (OPTIONAL)',
+                          hint: 'Enter your middle name',
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 12),
+                        _Field(
+                          controller: _lastNameController,
+                          label: 'LAST NAME',
+                          hint: 'Enter your last name',
+                          validator: (v) => _gated(
+                            'lastName',
+                            () => Validators.name(v, 'Last name'),
+                          ),
+                          textInputAction: TextInputAction.next,
+                          onChanged: (_) => _touch('lastName'),
                         ),
                         const SizedBox(height: 12),
                         _Field(
@@ -845,11 +834,7 @@ class _GradientButton extends StatelessWidget {
       height: 52,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_brand, _buttonGradientEnd],
-        ),
+        color: _brand,
         boxShadow: [
           BoxShadow(
             color: _brand.withValues(alpha: 0.32),
@@ -869,14 +854,14 @@ class _GradientButton extends StatelessWidget {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                      color: Colors.white,
+                      color: TmColors.black,
                       strokeWidth: 2,
                     ),
                   )
                 : Text(
                     label,
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: TmColors.black,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.1,

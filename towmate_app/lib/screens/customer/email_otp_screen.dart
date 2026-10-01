@@ -12,6 +12,7 @@ class EmailOtpScreen extends StatefulWidget {
     super.key,
     required this.email,
     required this.firstName,
+    this.middleName,
     required this.lastName,
     required this.phone,
     required this.password,
@@ -22,6 +23,7 @@ class EmailOtpScreen extends StatefulWidget {
 
   final String email;
   final String firstName;
+  final String? middleName;
   final String lastName;
   final String phone;
   final String password;
@@ -107,6 +109,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
 
     final signupRes = await ApiService.signup(
       firstName: widget.firstName,
+      middleName: widget.middleName,
       lastName: widget.lastName,
       email: widget.email,
       phone: widget.phone,

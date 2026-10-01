@@ -88,6 +88,9 @@ class GoogleAuthController extends Controller
     {
         $validated = $request->validate([
             'completion_token' => 'required|string',
+            'first_name' => 'nullable|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name' => 'nullable|string|max:100',
             'phone' => ['required', 'string', 'regex:/^\+639\d{9}$/'],
             'accept_terms' => 'required|accepted',
         ], [
@@ -115,15 +118,26 @@ class GoogleAuthController extends Controller
             return response()->json(['success' => false, 'message' => 'This phone number is already in use.'], 422);
         }
 
+        $firstName = trim((string) ($validated['first_name'] ?? '')) ?: trim((string) $pending['first_name']);
+        $middleName = trim((string) ($validated['middle_name'] ?? '')) ?: null;
+        $lastName = trim((string) ($validated['last_name'] ?? '')) ?: trim((string) $pending['last_name']);
+
+        if ($firstName === '') {
+            return response()->json(['success' => false, 'message' => 'First name is required.', 'errors' => ['first_name' => ['First name is required.']]], 422);
+        }
+
+        if ($lastName === '') {
+            return response()->json(['success' => false, 'message' => 'Last name is required.', 'errors' => ['last_name' => ['Last name is required.']]], 422);
+        }
+
         $customerRoleId = DB::table('roles')->where('name', 'Customer')->value('id') ?? 5;
-        $fullName = trim($pending['first_name'] . ' ' . $pending['last_name']);
 
         try {
-            $user = DB::transaction(function () use ($pending, $validated, $customerRoleId, $fullName) {
+            $user = DB::transaction(function () use ($pending, $validated, $customerRoleId, $firstName, $middleName, $lastName) {
                 $user = User::create([
-                    'name' => $fullName !== '' ? $fullName : $pending['email'],
-                    'first_name' => $pending['first_name'] !== '' ? $pending['first_name'] : 'Customer',
-                    'last_name' => $pending['last_name'],
+                    'first_name' => $firstName,
+                    'middle_name' => $middleName,
+                    'last_name' => $lastName,
                     'email' => $pending['email'],
                     'phone' => $validated['phone'],
                     'password' => null,
@@ -140,8 +154,9 @@ class GoogleAuthController extends Controller
                     Customer::create([
                         'user_id' => $user->id,
                         'first_name' => $user->first_name,
+                        'middle_name' => $user->middle_name,
                         'last_name' => $user->last_name,
-                        'full_name' => $user->name,
+                        'full_name' => $user->full_name,
                         'email' => $user->email,
                         'phone' => $validated['phone'],
                     ]);

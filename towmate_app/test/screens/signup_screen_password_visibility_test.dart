@@ -24,6 +24,8 @@ void main() {
     testWidgets('revealing Password does not reveal Confirm password', (tester) async {
       await pumpSignup(tester);
 
+      await tester.ensureVisible(find.byIcon(Icons.visibility_outlined).first);
+      await tester.pump();
       await tester.tap(find.byIcon(Icons.visibility_outlined).first);
       await tester.pump();
 
@@ -47,10 +49,10 @@ void main() {
       await pumpSignup(tester);
 
       final textFields = find.byType(TextField);
-      await tester.ensureVisible(textFields.at(4));
-      await tester.enterText(textFields.at(4), 'PasswordOne!1');
       await tester.ensureVisible(textFields.at(5));
-      await tester.enterText(textFields.at(5), 'PasswordTwo!2');
+      await tester.enterText(textFields.at(5), 'PasswordOne!1');
+      await tester.ensureVisible(textFields.at(6));
+      await tester.enterText(textFields.at(6), 'PasswordTwo!2');
       await tester.pump();
 
       await tester.ensureVisible(find.byIcon(Icons.visibility_outlined).first);

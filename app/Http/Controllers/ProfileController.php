@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\Customer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +32,16 @@ class ProfileController extends Controller
         }
 
         $request->user()->save();
+
+        $customer = Customer::where('user_id', $request->user()->id)->first();
+        if ($customer) {
+            $customer->update([
+                'first_name' => $request->user()->first_name,
+                'middle_name' => $request->user()->middle_name,
+                'last_name' => $request->user()->last_name,
+                'full_name' => $request->user()->full_name,
+            ]);
+        }
 
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }

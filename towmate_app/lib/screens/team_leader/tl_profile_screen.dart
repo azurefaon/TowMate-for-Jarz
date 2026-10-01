@@ -18,6 +18,7 @@ class TlProfileScreen extends StatefulWidget {
 class _TlProfileScreenState extends State<TlProfileScreen> {
   String? _name;
   String? _firstName;
+  String? _middleName;
   String? _lastName;
   String? _email;
   String? _phone;
@@ -33,6 +34,7 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
     await ApiService.fetchAndCacheProfile();
     final name = await ApiService.getUserName();
     final firstName = await ApiService.getUserFirstName();
+    final middleName = await ApiService.getUserMiddleName();
     final lastName = await ApiService.getUserLastName();
     final email = await ApiService.getUserEmail();
     final phone = await ApiService.getUserPhone();
@@ -40,6 +42,7 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
     setState(() {
       _name = name;
       _firstName = firstName;
+      _middleName = middleName;
       _lastName = lastName;
       _email = email;
       _phone = phone;
@@ -69,6 +72,7 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
 
   Future<void> _editName() async {
     final firstCtrl = TextEditingController(text: _firstName);
+    final middleCtrl = TextEditingController(text: _middleName);
     final lastCtrl = TextEditingController(text: _lastName);
     final result = await showDialog<bool>(
       context: context,
@@ -84,6 +88,17 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
               style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
               decoration: InputDecoration(
                 hintText: 'First name',
+                hintStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 15),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
+                focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: middleCtrl,
+              style: GoogleFonts.inter(color: ctx.textPrimary, fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'Middle name (optional)',
                 hintStyle: GoogleFonts.inter(color: ctx.textSecondary, fontSize: 15),
                 enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ctx.divider)),
                 focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: TmColors.yellow, width: 1.5)),
@@ -117,17 +132,24 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
 
     if (result != true) return;
     final first = firstCtrl.text.trim();
+    final middle = middleCtrl.text.trim();
     final last = lastCtrl.text.trim();
     if (first.isEmpty || last.isEmpty) return;
-    if (first == _firstName && last == _lastName) return;
+    if (first == _firstName && last == _lastName && middle == (_middleName ?? '')) return;
 
-    final res = await ApiService.updateProfile(firstName: first, lastName: last, phone: _phone);
+    final res = await ApiService.updateProfile(
+      firstName: first,
+      middleName: middle,
+      lastName: last,
+      phone: _phone,
+    );
     if (!mounted) return;
     if (res['success'] == true) {
       setState(() {
         _firstName = first;
+        _middleName = middle.isEmpty ? null : middle;
         _lastName = last;
-        _name = '$first $last';
+        _name = [first, middle, last].where((p) => p.isNotEmpty).join(' ');
       });
       _snack('Name updated.');
     } else {
@@ -168,6 +190,7 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
     if (result == null || result.isEmpty || result == _phone) return;
     final res = await ApiService.updateProfile(
       firstName: _firstName ?? '',
+      middleName: _middleName,
       lastName: _lastName ?? '',
       phone: result,
     );

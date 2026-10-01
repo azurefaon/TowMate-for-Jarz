@@ -14,10 +14,12 @@ class GooglePhoneCompletionScreen extends StatefulWidget {
     super.key,
     required this.completionToken,
     required this.firstName,
+    this.lastName = '',
   });
 
   final String completionToken;
   final String firstName;
+  final String lastName;
 
   @override
   State<GooglePhoneCompletionScreen> createState() =>
@@ -28,6 +30,9 @@ class _GooglePhoneCompletionScreenState
     extends State<GooglePhoneCompletionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
+  late final TextEditingController _firstNameController;
+  final _middleNameController = TextEditingController();
+  late final TextEditingController _lastNameController;
   late final String _csrfToken;
 
   bool _isLoading = false;
@@ -40,6 +45,8 @@ class _GooglePhoneCompletionScreenState
   void initState() {
     super.initState();
     _csrfToken = CsrfTokenService.generate();
+    _firstNameController = TextEditingController(text: widget.firstName.trim());
+    _lastNameController = TextEditingController(text: widget.lastName.trim());
   }
 
   void _openTerms() {
@@ -59,6 +66,9 @@ class _GooglePhoneCompletionScreenState
   @override
   void dispose() {
     _phoneController.dispose();
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _lastNameController.dispose();
     super.dispose();
   }
 
@@ -77,6 +87,9 @@ class _GooglePhoneCompletionScreenState
 
     final res = await ApiService.completeGoogleSignup(
       completionToken: widget.completionToken,
+      firstName: InputSanitizer.sanitize(_firstNameController.text),
+      middleName: InputSanitizer.sanitize(_middleNameController.text),
+      lastName: InputSanitizer.sanitize(_lastNameController.text),
       phone: phone,
       csrfToken: _csrfToken,
       acceptTerms: _acceptTerms,
@@ -95,6 +108,55 @@ class _GooglePhoneCompletionScreenState
             'Could not complete sign-up. Please try again.';
       });
     }
+  }
+
+  Widget _nameField(
+    String label,
+    TextEditingController controller, {
+    String? Function(String?)? validator,
+  }) {
+    OutlineInputBorder border(Color color, [double width = 1]) =>
+        OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: color, width: width),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: context.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: validator,
+          style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: context.surface,
+            border: border(context.divider),
+            enabledBorder: border(context.divider),
+            focusedBorder: border(context.textTertiary, 1.5),
+            errorBorder: border(TmColors.error, 1.5),
+            focusedErrorBorder: border(TmColors.error, 1.5),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 15,
+            ),
+            errorStyle: GoogleFonts.inter(color: TmColors.error, fontSize: 12),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -125,7 +187,7 @@ class _GooglePhoneCompletionScreenState
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'We need a Philippine mobile number to finish setting up your TowMate account.',
+                  'Confirm your name and add a Philippine mobile number to finish setting up your TowMate account.',
                   style: GoogleFonts.inter(
                     color: context.textSecondary,
                     fontSize: 14,
@@ -133,6 +195,20 @@ class _GooglePhoneCompletionScreenState
                   ),
                 ),
                 const SizedBox(height: 28),
+                _nameField(
+                  'First name',
+                  _firstNameController,
+                  validator: (v) => Validators.name(v, 'First name'),
+                ),
+                const SizedBox(height: 16),
+                _nameField('Middle name (optional)', _middleNameController),
+                const SizedBox(height: 16),
+                _nameField(
+                  'Last name',
+                  _lastNameController,
+                  validator: (v) => Validators.name(v, 'Last name'),
+                ),
+                const SizedBox(height: 16),
                 Text(
                   'Phone number',
                   style: GoogleFonts.inter(

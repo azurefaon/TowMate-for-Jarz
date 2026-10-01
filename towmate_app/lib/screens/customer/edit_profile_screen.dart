@@ -14,8 +14,11 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  final _nameCtrl = TextEditingController();
+  final _firstCtrl = TextEditingController();
+  final _middleCtrl = TextEditingController();
+  final _lastCtrl = TextEditingController();
   String? _firstName;
+  String? _middleName;
   String? _lastName;
   String? _email;
   Uint8List? _profileImage;
@@ -32,21 +35,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
+    _firstCtrl.dispose();
+    _middleCtrl.dispose();
+    _lastCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     await ApiService.fetchAndCacheProfile();
-    final name = await ApiService.getUserName();
     final firstName = await ApiService.getUserFirstName();
+    final middleName = await ApiService.getUserMiddleName();
     final lastName = await ApiService.getUserLastName();
     final email = await ApiService.getUserEmail();
     final profileImage = await ApiService.fetchProfileImage();
     if (!mounted) return;
     setState(() {
-      _nameCtrl.text = name ?? '';
+      _firstCtrl.text = firstName ?? '';
+      _middleCtrl.text = middleName ?? '';
+      _lastCtrl.text = lastName ?? '';
       _firstName = firstName;
+      _middleName = middleName;
       _lastName = lastName;
       _email = email;
       _profileImage = profileImage;
@@ -55,11 +63,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   String get _initials {
-    final n = _nameCtrl.text.trim();
-    if (n.isEmpty) return '?';
-    final parts = n.split(' ').where((p) => p.isNotEmpty).toList();
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    return n[0].toUpperCase();
+    final first = _firstCtrl.text.trim();
+    final last = _lastCtrl.text.trim();
+    if (first.isEmpty && last.isEmpty) return '?';
+    if (first.isNotEmpty && last.isNotEmpty) {
+      return '${first[0]}${last[0]}'.toUpperCase();
+    }
+    return (first.isNotEmpty ? first : last)[0].toUpperCase();
   }
 
   Future<void> _changePhoto() async {
@@ -93,20 +103,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
-    final trimmed = _nameCtrl.text.trim();
-    final nameError = Validators.name(trimmed, 'Full name');
+    final firstName = _firstCtrl.text.trim();
+    final middleName = _middleCtrl.text.trim();
+    final lastName = _lastCtrl.text.trim();
+    final nameError =
+        Validators.name(firstName, 'First name') ??
+        Validators.name(lastName, 'Last name');
     if (nameError != null) {
       setState(() => _error = nameError);
       return;
     }
-    final parts = trimmed.split(RegExp(r'\s+'));
-    if (parts.length < 2) {
-      setState(() => _error = 'Please enter your first and last name.');
-      return;
-    }
-    final firstName = parts.first;
-    final lastName = parts.sublist(1).join(' ');
-    if (firstName == _firstName && lastName == _lastName) {
+    if (firstName == _firstName &&
+        middleName == (_middleName ?? '') &&
+        lastName == _lastName) {
       Navigator.pop(context);
       return;
     }
@@ -117,12 +126,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
     final res = await ApiService.updateProfile(
       firstName: firstName,
+      middleName: middleName,
       lastName: lastName,
     );
     if (!mounted) return;
     if (res['success'] == true) {
       setState(() {
         _firstName = firstName;
+        _middleName = middleName.isEmpty ? null : middleName;
         _lastName = lastName;
         _saving = false;
       });
@@ -136,7 +147,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  Widget _nameField(String label, TextEditingController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: context.textSecondary,
+            fontSize: 12,
+            letterSpacing: 0.2,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          textCapitalization: TextCapitalization.words,
+          onChanged: (_) => setState(() {}),
+          style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: context.divider),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: TmColors.yellow, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   SnackBar _snack(String msg) => SnackBar(
+
     content: Text(
       msg,
       style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
@@ -260,37 +303,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ],
                           ),
                           const SizedBox(height: 32),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Full Name',
-                              style: GoogleFonts.inter(
-                                color: context.textSecondary,
-                                fontSize: 12,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _nameCtrl,
-                            textCapitalization: TextCapitalization.words,
-                            style: GoogleFonts.inter(
-                              color: context.textPrimary,
-                              fontSize: 15,
-                            ),
-                            decoration: InputDecoration(
-                              enabledBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(color: context.divider),
-                              ),
-                              focusedBorder: const UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: TmColors.yellow,
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
-                          ),
+                          _nameField('First Name', _firstCtrl),
+                          const SizedBox(height: 24),
+                          _nameField('Middle Name (optional)', _middleCtrl),
+                          const SizedBox(height: 24),
+                          _nameField('Last Name', _lastCtrl),
                           const SizedBox(height: 24),
                           Align(
                             alignment: Alignment.centerLeft,

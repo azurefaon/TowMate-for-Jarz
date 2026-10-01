@@ -102,6 +102,8 @@ void main() {
       await http.runWithClient(
         () => ApiService.completeGoogleSignup(
           completionToken: 'a-completion-token',
+          firstName: 'Maria',
+          lastName: 'Reyes',
           phone: '+639171234567',
           csrfToken: 'csrf',
           acceptTerms: true,

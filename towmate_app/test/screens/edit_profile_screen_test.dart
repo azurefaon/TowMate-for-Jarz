@@ -19,8 +19,9 @@ http.Response _json(Object body, {int status = 200}) {
 
 final _profileFixture = {
   'data': {
-    'name': 'Faon Delacruz',
+    'name': 'Faon Santos Delacruz',
     'first_name': 'Faon',
+    'middle_name': 'Santos',
     'last_name': 'Delacruz',
     'email': 'faon@example.com',
     'phone': '+639171234567',
@@ -50,6 +51,7 @@ http.Client _buildClient({
   String uploadFailureMessage = 'Could not update your profile photo.',
   Uint8List? initialImageBytes,
   Uint8List? updatedImageBytes,
+  void Function(Map<String, dynamic> body)? onUpdate,
 }) {
   var imageFetchCount = 0;
   return MockClient((request) async {
@@ -74,11 +76,14 @@ http.Client _buildClient({
         return _json({'success': false, 'message': updateFailureMessage}, status: 422);
       }
       final body = jsonDecode(request.body) as Map<String, dynamic>;
+      onUpdate?.call(body);
+      final middle = (body['middle_name'] as String?) ?? '';
       return _json({
         'success': true,
         'data': {
-          'name': '${body['first_name']} ${body['last_name']}',
+          'name': [body['first_name'], middle, body['last_name']].where((p) => p.toString().isNotEmpty).join(' '),
           'first_name': body['first_name'],
+          'middle_name': middle.isEmpty ? null : middle,
           'last_name': body['last_name'],
         },
       });
@@ -132,38 +137,77 @@ void main() {
       expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
     });
 
-    testWidgets('loads and prefills the current full name', (tester) async {
+    testWidgets('loads and prefills the first, middle and last name separately', (tester) async {
       await _pumpEditProfile(tester);
 
-      final field = tester.widget<TextField>(find.byType(TextField));
-      expect(field.controller?.text, 'Faon Delacruz');
+      final fields = tester.widgetList<TextField>(find.byType(TextField)).toList();
+      expect(fields.map((f) => f.controller?.text).toList(), ['Faon', 'Santos', 'Delacruz']);
+      expect(find.text('Full Name'), findsNothing);
+      expect(find.text('First Name'), findsOneWidget);
+      expect(find.text('Middle Name (optional)'), findsOneWidget);
+      expect(find.text('Last Name'), findsOneWidget);
     });
 
     testWidgets('email is displayed read-only, not in an editable field', (tester) async {
       await _pumpEditProfile(tester);
 
       expect(find.text('faon@example.com'), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget);
+      expect(find.byType(TextField), findsNWidgets(3));
     });
 
-    testWidgets('empty name cannot be saved', (tester) async {
+    testWidgets('an empty first name cannot be saved', (tester) async {
       await _pumpEditProfile(tester);
 
-      await tester.enterText(find.byType(TextField), '   ');
+      await tester.enterText(find.byType(TextField).at(0), '   ');
       await tester.tap(find.text('Save Changes'));
       await _settle(tester);
 
-      expect(find.textContaining('required'), findsOneWidget);
+      expect(find.text('First name is required'), findsOneWidget);
     });
 
-    testWidgets('a single-word name cannot be saved', (tester) async {
+    testWidgets('an empty last name cannot be saved', (tester) async {
       await _pumpEditProfile(tester);
 
-      await tester.enterText(find.byType(TextField), 'Faon');
+      await tester.enterText(find.byType(TextField).at(2), '');
       await tester.tap(find.text('Save Changes'));
       await _settle(tester);
 
-      expect(find.text('Please enter your first and last name.'), findsOneWidget);
+      expect(find.text('Last name is required'), findsOneWidget);
+    });
+
+    testWidgets('an empty middle name is allowed and is sent as cleared', (tester) async {
+      final updates = <Map<String, dynamic>>[];
+      await _pumpEditProfile(
+        tester,
+        client: _buildClient(onUpdate: updates.add),
+        interact: () async {
+          await tester.enterText(find.byType(TextField).at(1), '');
+          await tester.tap(find.text('Save Changes'));
+          await _settle(tester);
+        },
+      );
+
+      expect(updates, hasLength(1));
+      expect(updates.single['first_name'], 'Faon');
+      expect(updates.single['middle_name'], '');
+      expect(updates.single['last_name'], 'Delacruz');
+    });
+
+    testWidgets('changing only the last name sends the existing first and middle names unchanged', (tester) async {
+      final updates = <Map<String, dynamic>>[];
+      await _pumpEditProfile(
+        tester,
+        client: _buildClient(onUpdate: updates.add),
+        interact: () async {
+          await tester.enterText(find.byType(TextField).at(2), 'Reyes');
+          await tester.tap(find.text('Save Changes'));
+          await _settle(tester);
+        },
+      );
+
+      expect(updates.single, containsPair('first_name', 'Faon'));
+      expect(updates.single, containsPair('middle_name', 'Santos'));
+      expect(updates.single, containsPair('last_name', 'Reyes'));
     });
 
     testWidgets('successful name save updates state and closes the screen', (tester) async {
@@ -187,7 +231,8 @@ void main() {
           await tester.tap(find.text('open'));
           await _settle(tester);
 
-          await tester.enterText(find.byType(TextField), 'Maria Dela Cruz');
+          await tester.enterText(find.byType(TextField).at(0), 'Maria');
+          await tester.ensureVisible(find.text('Save Changes'));
           await tester.tap(find.text('Save Changes'));
           await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
@@ -202,7 +247,7 @@ void main() {
         tester,
         client: _buildClient(updateSucceeds: false),
         interact: () async {
-          await tester.enterText(find.byType(TextField), 'Maria Dela Cruz');
+          await tester.enterText(find.byType(TextField).at(0), 'Maria');
           await tester.tap(find.text('Save Changes'));
           await _settle(tester);
         },
@@ -303,7 +348,7 @@ void main() {
       );
 
       await tester.enterText(
-        find.byType(TextField),
+        find.byType(TextField).at(2),
         'Maria Antonietta Consolacion Delacruz-Villanueva',
       );
       await _settle(tester);

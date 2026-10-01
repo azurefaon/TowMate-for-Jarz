@@ -2,8 +2,18 @@
     @csrf
 
     <!-- NAME -->
-    <input type="text" name="name" value="{{ old('name') }}" placeholder="Your Name" required>
-    @error('name')
+    <input type="text" name="first_name" value="{{ old('first_name') }}" placeholder="First Name" required>
+    @error('first_name')
+        <small style="color:red">{{ $message }}</small>
+    @enderror
+
+    <input type="text" name="middle_name" value="{{ old('middle_name') }}" placeholder="Middle Name (optional)">
+    @error('middle_name')
+        <small style="color:red">{{ $message }}</small>
+    @enderror
+
+    <input type="text" name="last_name" value="{{ old('last_name') }}" placeholder="Last Name" required>
+    @error('last_name')
         <small style="color:red">{{ $message }}</small>
     @enderror
 

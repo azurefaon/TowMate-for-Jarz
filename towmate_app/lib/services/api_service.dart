@@ -83,6 +83,9 @@ class ApiService {
     await prefs.remove('auth_token');
     await prefs.remove('user_role');
     await prefs.remove('user_name');
+    await prefs.remove('user_first_name');
+    await prefs.remove('user_middle_name');
+    await prefs.remove('user_last_name');
     await prefs.remove('user_id');
     await prefs.remove('must_change_password');
     await prefs.remove('duty_class');
@@ -202,6 +205,11 @@ class ApiService {
     return prefs.getString('user_first_name');
   }
 
+  static Future<String?> getUserMiddleName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('user_middle_name');
+  }
+
   static Future<String?> getUserLastName() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('user_last_name');
@@ -236,6 +244,7 @@ class ApiService {
   static Future<Map<String, dynamic>> updateProfile({
     required String firstName,
     required String lastName,
+    String? middleName,
     String? phone,
   }) async {
     try {
@@ -247,6 +256,7 @@ class ApiService {
             body: jsonEncode({
               'first_name': firstName,
               'last_name': lastName,
+              'middle_name': ?middleName,
               if (phone != null) 'phone': phone,
             }),
           )
@@ -258,6 +268,13 @@ class ApiService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('user_first_name', firstName);
         await prefs.setString('user_last_name', lastName);
+        if (middleName != null) {
+          if (middleName.trim().isEmpty) {
+            await prefs.remove('user_middle_name');
+          } else {
+            await prefs.setString('user_middle_name', middleName.trim());
+          }
+        }
         if (data?['name'] != null) {
           await prefs.setString('user_name', data!['name'] as String);
         }
@@ -628,6 +645,9 @@ class ApiService {
 
   static Future<Map<String, dynamic>> completeGoogleSignup({
     required String completionToken,
+    required String firstName,
+    String? middleName,
+    required String lastName,
     required String phone,
     required String csrfToken,
     required bool acceptTerms,
@@ -639,6 +659,10 @@ class ApiService {
             headers: {..._headers, 'X-CSRF-Token': csrfToken},
             body: jsonEncode({
               'completion_token': completionToken,
+              'first_name': firstName,
+              if (middleName != null && middleName.trim().isNotEmpty)
+                'middle_name': middleName.trim(),
+              'last_name': lastName,
               'phone': phone,
               'accept_terms': acceptTerms,
             }),
@@ -680,6 +704,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> signup({
     required String firstName,
+    String? middleName,
     required String lastName,
     required String email,
     required String phone,
@@ -695,6 +720,8 @@ class ApiService {
             headers: {..._headers, 'X-CSRF-Token': csrfToken},
             body: jsonEncode({
               'first_name': firstName,
+              if (middleName != null && middleName.trim().isNotEmpty)
+                'middle_name': middleName.trim(),
               'last_name': lastName,
               'email': email.trim().toLowerCase(),
               'phone': phone,
@@ -806,6 +833,14 @@ class ApiService {
               'user_first_name',
               data['first_name'] as String,
             );
+          }
+          if (data.containsKey('middle_name')) {
+            final middle = data['middle_name'] as String?;
+            if (middle == null || middle.trim().isEmpty) {
+              await prefs.remove('user_middle_name');
+            } else {
+              await prefs.setString('user_middle_name', middle);
+            }
           }
           if (data['last_name'] != null) {
             await prefs.setString(

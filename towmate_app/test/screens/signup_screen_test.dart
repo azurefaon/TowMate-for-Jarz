@@ -20,15 +20,15 @@ void main() {
       expect(source.contains('boxShadow'), isTrue);
     });
 
-    test('all real backend-required fields remain, no invented middle name field', () {
+    test('all real backend-required fields remain, an optional middle name field', () {
       expect(source.contains('_firstNameController'), isTrue);
       expect(source.contains('_lastNameController'), isTrue);
       expect(source.contains('_emailController'), isTrue);
       expect(source.contains('_phoneController'), isTrue);
       expect(source.contains('_passwordController'), isTrue);
       expect(source.contains('_confirmPasswordController'), isTrue);
-      expect(source.contains('middleName'), isFalse);
-      expect(source.contains('Middle name'), isFalse);
+      expect(source.contains('_middleNameController'), isTrue);
+      expect(source.contains('MIDDLE NAME (OPTIONAL)'), isTrue);
     });
 
     test('the Create account action remains and still starts the existing OTP flow', () {

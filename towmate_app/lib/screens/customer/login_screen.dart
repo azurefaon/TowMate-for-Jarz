@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/theme.dart';
 import '../../core/app_prefs.dart';
 import '../../core/validators.dart';
 import '../../core/security_utils.dart';
@@ -11,8 +12,7 @@ import '../../widgets/google_signin_button.dart';
 import 'forgot_password_screen.dart';
 import 'google_phone_completion_screen.dart';
 
-const _brand = Color(0xFFF5A623);
-const _buttonGradientEnd = Color(0xFFE8960D);
+const _brand = TmColors.yellow;
 const _fieldBorder = Color(0xFFD1D5DB);
 const _fieldBorderFocused = Color(0xFF262626);
 const _textSecondary = Color(0xFF9CA3AF);
@@ -198,6 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (_) => GooglePhoneCompletionScreen(
             completionToken: res['completionToken'] as String,
             firstName: res['firstName'] as String? ?? '',
+            lastName: res['lastName'] as String? ?? '',
           ),
         ),
       );
@@ -609,11 +610,7 @@ class _GradientButton extends StatelessWidget {
       height: 52,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_brand, _buttonGradientEnd],
-        ),
+        color: _brand,
         boxShadow: [
           BoxShadow(
             color: _brand.withValues(alpha: 0.32),
@@ -633,14 +630,14 @@ class _GradientButton extends StatelessWidget {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                      color: Colors.white,
+                      color: TmColors.black,
                       strokeWidth: 2,
                     ),
                   )
                 : Text(
                     label,
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: TmColors.black,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.1,

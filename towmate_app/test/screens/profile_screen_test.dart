@@ -285,7 +285,9 @@ void main() {
           await tester.tap(find.byTooltip('Edit profile'));
           await _settle(tester);
 
-          await tester.enterText(find.byType(TextField), 'Maria Dela Cruz');
+          await tester.enterText(find.byType(TextField).at(0), 'Maria');
+          await tester.enterText(find.byType(TextField).at(2), 'Dela Cruz');
+          await tester.ensureVisible(find.text('Save Changes'));
           await tester.tap(find.text('Save Changes'));
           await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
