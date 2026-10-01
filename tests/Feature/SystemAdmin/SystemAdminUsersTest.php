@@ -310,3 +310,129 @@ it('preserves owner-account protection', function () {
 
     expect($owner->fresh()->archived_at)->toBeNull();
 });
+
+function usersFillTeamLeaders(int $count): void
+{
+    User::factory()->count($count)->create(['role_id' => 3, 'status' => 'active']);
+}
+
+function usersTeamLeaderCount(): int
+{
+    return User::where('role_id', 3)->whereNull('archived_at')->count();
+}
+
+function usersCreateTeamLeaderPayload(string $email): array
+{
+    return [
+        'first_name' => 'New',
+        'last_name' => 'Leader',
+        'email' => $email,
+        'phone' => '09171234567',
+        'password' => 'Password@123',
+        'password_confirmation' => 'Password@123',
+        'role_id' => 3,
+        'driver_first_name' => 'Drv',
+        'driver_last_name' => 'Name',
+    ];
+}
+
+it('restores an archived team leader while below the limit', function () {
+    $admin = usersSystemAdmin();
+    \App\Models\SystemSetting::setValue('max_team_leaders', 10);
+    usersFillTeamLeaders(8);
+    $archived = User::factory()->create(['role_id' => 3, 'status' => 'inactive', 'archived_at' => now(), 'archived_reason' => 'x']);
+
+    $this->actingAs($admin)
+        ->patch(route('system-admin.users.restore', $archived->id))
+        ->assertRedirect(route('system-admin.users.archived'))
+        ->assertSessionHas('success');
+
+    expect($archived->fresh()->archived_at)->toBeNull()
+        ->and(usersTeamLeaderCount())->toBe(9);
+});
+
+it('rejects restoring an archived team leader when the limit is reached', function () {
+    $admin = usersSystemAdmin();
+    \App\Models\SystemSetting::setValue('max_team_leaders', 10);
+    usersFillTeamLeaders(10);
+    $archived = User::factory()->create(['role_id' => 3, 'status' => 'inactive', 'archived_at' => now(), 'archived_reason' => 'x']);
+
+    $this->actingAs($admin)
+        ->patch(route('system-admin.users.restore', $archived->id))
+        ->assertRedirect()
+        ->assertSessionHas('error', 'Team Leader limit reached. Archive another Team Leader before restoring this account.');
+
+    $fresh = $archived->fresh();
+    expect($fresh->archived_at)->not->toBeNull()
+        ->and($fresh->archived_reason)->toBe('x')
+        ->and($fresh->status)->toBe('inactive')
+        ->and(usersTeamLeaderCount())->toBe(10)
+        ->and(\App\Models\AuditLog::where('action', 'user_restored')->where('entity_id', $archived->id)->exists())->toBeFalse();
+});
+
+it('blocks the archive, create, restore bypass of the team leader limit', function () {
+    $admin = usersSystemAdmin();
+    \App\Models\SystemSetting::setValue('max_team_leaders', 10);
+    usersFillTeamLeaders(10);
+    $victim = User::where('role_id', 3)->first();
+
+    $this->actingAs($admin)
+        ->patch(route('system-admin.users.archive', $victim->id), ['reason' => 'rotate'])
+        ->assertRedirect(route('system-admin.users.index'));
+    expect(usersTeamLeaderCount())->toBe(9);
+
+    $this->actingAs($admin)
+        ->post(route('system-admin.users.store'), usersCreateTeamLeaderPayload('tl.new@example.com'))
+        ->assertRedirect(route('system-admin.users.index'));
+    expect(usersTeamLeaderCount())->toBe(10);
+
+    $this->actingAs($admin)
+        ->patch(route('system-admin.users.restore', $victim->id))
+        ->assertSessionHas('error');
+
+    expect($victim->fresh()->archived_at)->not->toBeNull()
+        ->and(usersTeamLeaderCount())->toBe(10);
+});
+
+it('rejects cancelling deletion of an archived team leader when the limit is reached', function () {
+    $admin = usersSystemAdmin();
+    \App\Models\SystemSetting::setValue('max_team_leaders', 10);
+    usersFillTeamLeaders(10);
+    $archived = User::factory()->create([
+        'role_id' => 3, 'status' => 'inactive', 'archived_at' => now(), 'pending_delete_at' => now(),
+    ]);
+
+    $this->actingAs($admin)
+        ->patch(route('system-admin.users.restore-from-deleted', $archived->id))
+        ->assertSessionHas('error');
+
+    $fresh = $archived->fresh();
+    expect($fresh->archived_at)->not->toBeNull()
+        ->and($fresh->pending_delete_at)->not->toBeNull()
+        ->and(usersTeamLeaderCount())->toBe(10);
+});
+
+it('does not apply the team leader limit when restoring other roles', function () {
+    $admin = usersSystemAdmin();
+    \App\Models\SystemSetting::setValue('max_team_leaders', 10);
+    usersFillTeamLeaders(10);
+    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'inactive', 'archived_at' => now()]);
+
+    $this->actingAs($admin)
+        ->patch(route('system-admin.users.restore', $dispatcher->id))
+        ->assertSessionHas('success');
+
+    expect($dispatcher->fresh()->archived_at)->toBeNull();
+});
+
+it('still rejects creating a team leader once the limit is reached', function () {
+    $admin = usersSystemAdmin();
+    \App\Models\SystemSetting::setValue('max_team_leaders', 10);
+    usersFillTeamLeaders(10);
+
+    $this->actingAs($admin)
+        ->post(route('system-admin.users.store'), usersCreateTeamLeaderPayload('tl.over@example.com'))
+        ->assertSessionHasErrors('role_id');
+
+    expect(usersTeamLeaderCount())->toBe(10);
+});

@@ -15,6 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -158,6 +159,28 @@ class UserManagementController extends Controller
             'remaining' => max($limit - $count, 0),
             'reached' => $count >= $limit,
         ];
+    }
+
+    protected function restoreBlockedByTeamLeaderLimit(User $user): bool
+    {
+        if (! $user->archived_at) {
+            return false;
+        }
+
+        $capacity = $this->teamLeaderCapacity();
+
+        if (! $capacity['role_id'] || (int) $user->role_id !== (int) $capacity['role_id']) {
+            return false;
+        }
+
+        Role::whereKey($capacity['role_id'])->lockForUpdate()->first();
+
+        return $this->teamLeaderCapacity()['reached'];
+    }
+
+    protected function teamLeaderLimitReachedMessage(): string
+    {
+        return 'Team Leader limit reached. Archive another Team Leader before restoring this account.';
     }
 
     protected function isDispatcherOnline(?User $user): bool
@@ -601,21 +624,33 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
 
-        $user->update([
-            'archived_at' => null,
-            'archived_reason' => null,
-            'pending_delete_at' => null,
-            'status' => 'active',
-        ]);
+        $blocked = DB::transaction(function () use ($user) {
+            if ($this->restoreBlockedByTeamLeaderLimit($user)) {
+                return true;
+            }
 
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'user_restored',
-            'entity_type' => 'User',
-            'entity_id' => $user->id,
-            'reference' => $user->name,
-            'description' => 'Restored user from archive panel',
-        ]);
+            $user->update([
+                'archived_at' => null,
+                'archived_reason' => null,
+                'pending_delete_at' => null,
+                'status' => 'active',
+            ]);
+
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'user_restored',
+                'entity_type' => 'User',
+                'entity_id' => $user->id,
+                'reference' => $user->name,
+                'description' => 'Restored user from archive panel',
+            ]);
+
+            return false;
+        });
+
+        if ($blocked) {
+            return back()->with('error', $this->teamLeaderLimitReachedMessage());
+        }
 
         return redirect()->route('system-admin.users.archived')
             ->with('success', 'User restored successfully.');
@@ -674,22 +709,34 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
 
-        $user->update([
-            'pending_delete_at' => null,
-            'pending_delete_reason' => null,
-            'archived_at' => null,
-            'archived_reason' => null,
-            'status' => 'active',
-        ]);
+        $blocked = DB::transaction(function () use ($user) {
+            if ($this->restoreBlockedByTeamLeaderLimit($user)) {
+                return true;
+            }
 
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'user_deletion_cancelled',
-            'entity_type' => 'User',
-            'entity_id' => $user->id,
-            'reference' => $user->name,
-            'description' => 'Deletion cancelled — restored from Users Pending Deletion.',
-        ]);
+            $user->update([
+                'pending_delete_at' => null,
+                'pending_delete_reason' => null,
+                'archived_at' => null,
+                'archived_reason' => null,
+                'status' => 'active',
+            ]);
+
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'user_deletion_cancelled',
+                'entity_type' => 'User',
+                'entity_id' => $user->id,
+                'reference' => $user->name,
+                'description' => 'Deletion cancelled — restored from Users Pending Deletion.',
+            ]);
+
+            return false;
+        });
+
+        if ($blocked) {
+            return back()->with('error', $this->teamLeaderLimitReachedMessage());
+        }
 
         return redirect()->route('system-admin.users.index')
             ->with('success', 'User restored successfully.');
