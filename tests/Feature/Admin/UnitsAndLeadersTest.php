@@ -53,12 +53,31 @@ function ulUnit(array $overrides = []): Unit
 {
     $truckType = $overrides['truck_type'] ?? ulTruckType();
 
+    foreach (Unit::SLOT_COLUMNS as $slot => $nameColumn) {
+        if (filled($overrides[$nameColumn] ?? null) && ! isset($overrides[Unit::SLOT_PERSONNEL_COLUMNS[$slot]])) {
+            $overrides[Unit::SLOT_PERSONNEL_COLUMNS[$slot]] = ulPersonnel($overrides[$nameColumn], str_starts_with($slot, 'driver') ? 'driver' : 'crew')->id;
+        }
+    }
+
     return Unit::create(array_merge([
         'name' => 'JARZ ' . uniqid(),
         'plate_number' => strtoupper(substr(uniqid(), 0, 3)) . rand(1000, 9999),
         'truck_type_id' => $truckType->id,
         'status' => 'available',
     ], array_diff_key($overrides, ['truck_type' => null])));
+}
+
+function ulPersonnel(string $fullName, string $role = 'crew'): \App\Models\Personnel
+{
+    $parts = explode(' ', $fullName);
+    $last = count($parts) > 1 ? array_pop($parts) : $fullName;
+
+    return \App\Models\Personnel::create([
+        'first_name' => implode(' ', $parts) ?: $fullName,
+        'last_name' => $last,
+        'role' => $role,
+        'personnel_status' => 'active',
+    ]);
 }
 
 function ulCustomer(): Customer

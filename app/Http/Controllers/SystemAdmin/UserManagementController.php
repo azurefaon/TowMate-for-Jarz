@@ -5,11 +5,13 @@ namespace App\Http\Controllers\SystemAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Booking;
+use App\Models\Personnel;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\TeamLeaderAvailabilityService;
+use App\Services\UnitTeamAssignmentService;
 use App\Services\UserPurgeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -161,6 +163,98 @@ class UserManagementController extends Controller
         ];
     }
 
+    protected const STAGED_PERSONNEL_FIELDS = [
+        'driver_personnel_id' => 'driver',
+        'crew_member_1_personnel_id' => 'crew',
+        'crew_member_2_personnel_id' => 'crew',
+    ];
+
+    protected function stagedPersonnelRules(Request $request, ?User $user = null, bool $requireDriver = false): array
+    {
+        $rules = [];
+
+        foreach (self::STAGED_PERSONNEL_FIELDS as $field => $role) {
+            $rules[$field] = [
+                $requireDriver && $field === 'driver_personnel_id' ? 'required' : 'nullable',
+                'integer',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request, $user, $role) {
+                    if ($value === null) {
+                        return;
+                    }
+
+                    $record = Personnel::where('role', $role)->find($value);
+
+                    if (! $record) {
+                        $fail('Select a registered ' . ($role === 'driver' ? 'Driver' : 'Crew Member') . ' from Personnel.');
+                        return;
+                    }
+
+                    $unchanged = $user && (int) $user->{$attribute} === (int) $value;
+
+                    if ($record->personnel_status !== 'active' && ! $unchanged) {
+                        $fail($record->full_name . ' is inactive and cannot be assigned.');
+                        return;
+                    }
+
+                    $selectedElsewhere = collect(array_keys(self::STAGED_PERSONNEL_FIELDS))
+                        ->filter(fn ($field) => $field !== $attribute)
+                        ->map(fn ($field) => $request->input($field))
+                        ->filter()
+                        ->map(fn ($id) => (int) $id);
+
+                    $takenByOther = User::query()
+                        ->when($user, fn ($q) => $q->whereKeyNot($user->id))
+                        ->where(function ($q) use ($value) {
+                            foreach (array_keys(self::STAGED_PERSONNEL_FIELDS) as $column) {
+                                $q->orWhere($column, $value);
+                            }
+                        })
+                        ->exists();
+
+                    if ($selectedElsewhere->contains((int) $value) || $takenByOther) {
+                        $fail($record->full_name . ' is already assigned to another slot or Team Leader.');
+                    }
+                },
+            ];
+        }
+
+        return $rules;
+    }
+
+    protected function stagedPersonnelAttributes(array $validated, ?User $user = null): array
+    {
+        $attributes = [];
+
+        foreach (self::STAGED_PERSONNEL_FIELDS as $field => $role) {
+            $id = $validated[$field] ?? null;
+
+            if (! $id && ! ($user && $user->{$field})) {
+                continue;
+            }
+
+            $attributes[$field] = $id ?: null;
+            $record = $id ? Personnel::find($id) : null;
+
+            if ($role === 'driver') {
+                $attributes['driver_first_name'] = $record?->first_name;
+                $attributes['driver_middle_name'] = $record?->middle_name;
+                $attributes['driver_last_name'] = $record?->last_name;
+            } else {
+                $attributes[$field === 'crew_member_1_personnel_id' ? 'crew_member_1_name' : 'crew_member_2_name'] = $record?->full_name;
+            }
+        }
+
+        return $attributes;
+    }
+
+    protected function stagedPersonnelOptions(): array
+    {
+        return [
+            'driverOptions' => Personnel::active()->where('role', 'driver')->orderBy('first_name')->get(),
+            'crewOptions' => Personnel::active()->where('role', 'crew')->orderBy('first_name')->get(),
+        ];
+    }
+
     protected function restoreBlockedByTeamLeaderLimit(User $user): bool
     {
         if (! $user->archived_at) {
@@ -282,7 +376,7 @@ class UserManagementController extends Controller
         $roles = $this->manageableRoles();
         $teamLeaderCapacity = $this->teamLeaderCapacity();
 
-        return view('system-admin.users.create', compact('user', 'roles', 'teamLeaderCapacity'));
+        return view('system-admin.users.create', compact('user', 'roles', 'teamLeaderCapacity') + $this->stagedPersonnelOptions());
     }
 
     public function update(Request $request, User $user)
@@ -299,15 +393,10 @@ class UserManagementController extends Controller
 
         $isTeamLeaderEdit = $user->role->name === 'Team Leader';
 
-        $validator = Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), array_merge($isTeamLeaderEdit ? $this->stagedPersonnelRules($request, $user) : [], [
             'first_name' => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
-            'driver_first_name' => 'nullable|string|max:100',
-            'driver_middle_name' => 'nullable|string|max:100',
-            'driver_last_name' => 'nullable|string|max:100',
-            'crew_member_1_name' => 'nullable|string|max:150',
-            'crew_member_2_name' => 'nullable|string|max:150',
             'phone' => $isTeamLeaderEdit
                 ? ['required', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)]
                 : ['nullable', 'regex:/^09[1-9]\d{8}$/', Rule::unique('users', 'phone')->ignore($user->id)],
@@ -319,7 +408,7 @@ class UserManagementController extends Controller
                     }
                 },
             ],
-        ], [
+        ]), [
             'phone.required'           => 'Phone number is required for Team Leader accounts.',
             'phone.regex'              => 'Enter a valid Philippine mobile number starting with 9 or 09.',
             'phone.unique'             => 'This phone number is already registered to another user.',
@@ -346,11 +435,7 @@ class UserManagementController extends Controller
         ];
 
         if ($isTeamLeaderEdit) {
-            $userUpdates['driver_first_name'] = $validated['driver_first_name'] ?? null;
-            $userUpdates['driver_middle_name'] = $validated['driver_middle_name'] ?? null;
-            $userUpdates['driver_last_name'] = $validated['driver_last_name'] ?? null;
-            $userUpdates['crew_member_1_name'] = $validated['crew_member_1_name'] ?? null;
-            $userUpdates['crew_member_2_name'] = $validated['crew_member_2_name'] ?? null;
+            $userUpdates = array_merge($userUpdates, $this->stagedPersonnelAttributes($validated, $user));
         }
 
         $user->update($userUpdates);
@@ -386,7 +471,7 @@ class UserManagementController extends Controller
         $roles = $this->manageableRoles();
         $teamLeaderCapacity = $this->teamLeaderCapacity();
 
-        return view('system-admin.users.create', compact('roles', 'teamLeaderCapacity'));
+        return view('system-admin.users.create', compact('roles', 'teamLeaderCapacity') + $this->stagedPersonnelOptions());
     }
 
     public function store(Request $request)
@@ -423,13 +508,7 @@ class UserManagementController extends Controller
         ];
 
         if ($isTeamLeader) {
-            $rules = array_merge($rules, [
-                'driver_first_name'  => 'required|string|max:100',
-                'driver_middle_name' => 'nullable|string|max:100',
-                'driver_last_name'   => 'required|string|max:100',
-                'crew_member_1_name' => 'nullable|string|max:150',
-                'crew_member_2_name' => 'nullable|string|max:150',
-            ]);
+            $rules = array_merge($rules, $this->stagedPersonnelRules($request, null, true));
         }
 
         $messages = [
@@ -437,6 +516,7 @@ class UserManagementController extends Controller
             'email.unique'                 => 'This email is already registered.',
             'phone.required'               => 'Phone number is required for Team Leader accounts.',
             'phone.regex'                  => 'Enter a valid Philippine mobile number starting with 9 or 09 (e.g. 09171234567).',
+            'driver_personnel_id.required' => 'Select a Driver from Personnel for this Team Leader.',
             'phone.unique'                 => 'This phone number is already registered to another user.',
             'password.confirmed'           => 'Password confirmation does not match.',
         ];
@@ -453,14 +533,9 @@ class UserManagementController extends Controller
                 'phone'                => $validated['phone'] ?? null,
                 'password'             => Hash::make($validated['password']),
                 'role_id'              => $validated['role_id'],
-                'driver_first_name'    => $validated['driver_first_name'] ?? null,
-                'driver_middle_name'   => $validated['driver_middle_name'] ?? null,
-                'driver_last_name'     => $validated['driver_last_name'] ?? null,
-                'crew_member_1_name'   => $validated['crew_member_1_name'] ?? null,
-                'crew_member_2_name'   => $validated['crew_member_2_name'] ?? null,
                 'status'               => 'active',
                 'must_change_password' => true,
-            ]);
+            ] + $this->stagedPersonnelAttributes($validated));
 
             $tlRoleName = Role::find($validated['role_id'])?->name ?? 'Team Leader';
 
@@ -591,30 +666,31 @@ class UserManagementController extends Controller
             'reason' => 'required|string|max:1000',
         ]);
 
-        if (($user->role->name ?? null) === 'Team Leader') {
-            Unit::where('team_leader_id', $user->id)->update([
-                'team_leader_id'    => null,
-                'dispatcher_status' => null,
-                'zone_confirmed'    => false,
+        DB::transaction(function () use ($user, $validated) {
+            if (($user->role->name ?? null) === 'Team Leader') {
+                app(UnitTeamAssignmentService::class)->detachTeamLeaderFromUnits($user, [
+                    'dispatcher_status' => null,
+                    'zone_confirmed'    => false,
+                ]);
+            }
+
+            $user->update([
+                'status'          => 'inactive',
+                'archived_at'     => now(),
+                'archived_reason' => $validated['reason'],
             ]);
-        }
 
-        $user->update([
-            'status'          => 'inactive',
-            'archived_at'     => now(),
-            'archived_reason' => $validated['reason'],
-        ]);
+            $user->forceFill(['remember_token' => Str::random(60)])->save();
 
-        $user->forceFill(['remember_token' => Str::random(60)])->save();
-
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'user_archived',
-            'entity_type' => 'User',
-            'entity_id' => $user->id,
-            'reference' => $user->name,
-            'description' => "Moved user to archive panel. Reason: {$validated['reason']}",
-        ]);
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'user_archived',
+                'entity_type' => 'User',
+                'entity_id' => $user->id,
+                'reference' => $user->name,
+                'description' => "Moved user to archive panel. Reason: {$validated['reason']}",
+            ]);
+        });
 
         return redirect()->route('system-admin.users.index')
             ->with('success', 'User moved to archive successfully.');

@@ -108,11 +108,11 @@ class DriversController extends Controller
                 }
 
                 foreach ($slots as $slot) {
-                    $column = Unit::SLOT_COLUMNS[$slot];
-                    $name = $unit->{$column};
-                    if (blank($name)) {
+                    $personnel = $unit->slotPersonnel($slot);
+                    if (! $personnel || $personnel->personnel_status !== 'active' || $personnel->role !== $role) {
                         continue;
                     }
+                    $name = $personnel->full_name;
                     if ($slot === 'driver_1' && $unit->driver_id) {
                         // Linked-account driver — not eligible for a free-text slot move.
                         continue;
@@ -128,6 +128,7 @@ class DriversController extends Controller
 
                     $people->push([
                         'name' => $name,
+                        'personnel_id' => $personnel->id,
                         'source_unit_id' => $unit->id,
                         'source_unit_name' => $unit->name,
                         'from_slot' => $slot,

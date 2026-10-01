@@ -234,6 +234,9 @@
                                     @if ($unit->driver_name || $unit->driver_id)
                                         <div class="ul-person-info">
                                             <span class="ul-person-name">{{ $unit->driver?->full_name ?? $unit->driver?->name ?? $unit->driver_name }}</span>
+                                            @if ($unit->slotIsLegacy('driver_1'))
+                                                <span class="ul-person-note">Not in Personnel - cannot be reassigned</span>
+                                            @endif
                                             @if ($row['driver_loan'])
                                                 <span class="ul-person-note">Borrowed from {{ $row['driver_loan']->fromUnit?->name }}</span>
                                             @endif
@@ -259,6 +262,9 @@
                                     @if ($unit->crew_member_1_name)
                                         <div class="ul-person-info">
                                             <span class="ul-person-name">{{ $unit->crew_member_1_name }}</span>
+                                            @if ($unit->slotIsLegacy('crew_member_1'))
+                                                <span class="ul-person-note">Not in Personnel - cannot be reassigned</span>
+                                            @endif
                                             @if ($row['crew_1_loan'])
                                                 <span class="ul-person-note">Borrowed from {{ $row['crew_1_loan']->fromUnit?->name }}</span>
                                             @endif
@@ -284,6 +290,9 @@
                                     @if ($unit->crew_member_2_name)
                                         <div class="ul-person-info">
                                             <span class="ul-person-name">{{ $unit->crew_member_2_name }}</span>
+                                            @if ($unit->slotIsLegacy('crew_member_2'))
+                                                <span class="ul-person-note">Not in Personnel - cannot be reassigned</span>
+                                            @endif
                                             @if ($row['crew_2_loan'])
                                                 <span class="ul-person-note">Borrowed from {{ $row['crew_2_loan']->fromUnit?->name }}</span>
                                             @endif

@@ -23,6 +23,19 @@ class Unit extends Model
      * availability formula (the primary Driver, plus Crew for display) —
      * driver_2 has no duty column and is never duty-blocking, same as crew.
      */
+    public const SLOT_PERSONNEL_COLUMNS = [
+        'driver_1'       => 'driver_personnel_id',
+        'driver_2'       => 'driver_2_personnel_id',
+        'crew_member_1'  => 'crew_member_1_personnel_id',
+        'crew_member_2'  => 'crew_member_2_personnel_id',
+    ];
+
+    public const SLOT_SEED_COLUMNS = [
+        'driver_1'       => 'driver_seeded_by_team_leader_id',
+        'crew_member_1'  => 'crew_member_1_seeded_by_team_leader_id',
+        'crew_member_2'  => 'crew_member_2_seeded_by_team_leader_id',
+    ];
+
     public const DUTY_COLUMNS = [
         'driver_1'       => 'driver_duty_status',
         'crew_member_1'  => 'crew_1_duty_status',
@@ -35,11 +48,18 @@ class Unit extends Model
         'truck_type_id',
         'driver_id',
         'driver_name',
+        'driver_personnel_id',
         'driver_duty_status',
         'driver_2_name',
+        'driver_2_personnel_id',
+        'driver_seeded_by_team_leader_id',
+        'crew_member_1_seeded_by_team_leader_id',
+        'crew_member_2_seeded_by_team_leader_id',
         'crew_member_1_name',
+        'crew_member_1_personnel_id',
         'crew_1_duty_status',
         'crew_member_2_name',
+        'crew_member_2_personnel_id',
         'crew_2_duty_status',
         'team_leader_id',
         'zone_id',
@@ -127,6 +147,42 @@ class Unit extends Model
     public function crewLoansIn()
     {
         return $this->hasMany(UnitCrewLoan::class, 'to_unit_id');
+    }
+
+    public function slotPersonnel(string $slot): ?Personnel
+    {
+        $column = self::SLOT_PERSONNEL_COLUMNS[$slot] ?? null;
+
+        return $column && $this->{$column} ? Personnel::find($this->{$column}) : null;
+    }
+
+    public function slotIsLegacy(string $slot): bool
+    {
+        $nameColumn = self::SLOT_COLUMNS[$slot] ?? null;
+        $idColumn = self::SLOT_PERSONNEL_COLUMNS[$slot] ?? null;
+
+        if (! $nameColumn || ! $idColumn || $this->{$nameColumn} === null || trim((string) $this->{$nameColumn}) === '') {
+            return false;
+        }
+
+        if ($slot === 'driver_1' && $this->driver_id) {
+            return false;
+        }
+
+        return ! $this->{$idColumn};
+    }
+
+    public static function unitIdsHoldingPersonnel(int $personnelId, ?int $exceptUnitId = null)
+    {
+        return static::query()
+            ->whereNull('archived_at')
+            ->when($exceptUnitId, fn ($q) => $q->whereKeyNot($exceptUnitId))
+            ->where(function ($q) use ($personnelId) {
+                foreach (self::SLOT_PERSONNEL_COLUMNS as $column) {
+                    $q->orWhere($column, $personnelId);
+                }
+            })
+            ->pluck('id');
     }
 
     public function activeLoanOut(string $slot): ?UnitCrewLoan

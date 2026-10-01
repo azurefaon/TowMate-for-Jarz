@@ -13,6 +13,8 @@ class UnitCrewLoan extends Model
         'to_slot',
         'person_name',
         'person_user_id',
+        'personnel_id',
+        'seeded_by_team_leader_id',
         'borrowed_at',
         'returned_at',
         'created_by',
@@ -31,6 +33,11 @@ class UnitCrewLoan extends Model
     public function toUnit()
     {
         return $this->belongsTo(Unit::class, 'to_unit_id');
+    }
+
+    public function personnel()
+    {
+        return $this->belongsTo(Personnel::class, 'personnel_id');
     }
 
     public function creator()

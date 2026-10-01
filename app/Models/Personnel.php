@@ -17,6 +17,11 @@ class Personnel extends Model
         'personnel_status',
     ];
 
+    public function scopeActive($query)
+    {
+        return $query->where('personnel_status', 'active');
+    }
+
     public function getFullNameAttribute(): string
     {
         return build_full_name($this->first_name, $this->middle_name, $this->last_name) ?: trim("{$this->first_name} {$this->last_name}");

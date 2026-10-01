@@ -134,13 +134,11 @@ class PersonnelService
     protected function findCurrentUnitForRecord(Personnel $record): ?Unit
     {
         $columns = $record->role === 'driver'
-            ? ['driver_name', 'driver_2_name']
-            : ['crew_member_1_name', 'crew_member_2_name'];
+            ? ['driver_personnel_id', 'driver_2_personnel_id']
+            : ['crew_member_1_personnel_id', 'crew_member_2_personnel_id'];
 
         foreach ($columns as $column) {
-            $unit = Unit::whereNull('archived_at')
-                ->whereRaw("lower(trim({$column})) = ?", [strtolower(trim($record->full_name))])
-                ->first();
+            $unit = Unit::whereNull('archived_at')->where($column, $record->id)->first();
 
             if ($unit) {
                 return $unit;

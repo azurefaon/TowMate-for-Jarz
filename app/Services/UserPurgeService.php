@@ -20,6 +20,8 @@ class UserPurgeService
      */
     public function purge(User $user, bool $automatic = true): string
     {
+        app(UnitTeamAssignmentService::class)->detachTeamLeaderFromUnits($user);
+
         Unit::where('team_leader_id', $user->id)
             ->orWhere('driver_id', $user->id)
             ->update(['team_leader_id' => null, 'driver_id' => null]);

@@ -502,30 +502,19 @@
                             <div class="role-section-body">
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label>First Name <span class="required-mark">*</span></label>
-                                        <input type="text" name="driver_first_name"
-                                            value="{{ old('driver_first_name', $user->driver_first_name ?? '') }}"
-                                            placeholder="Driver first name"
-                                            @if ($showTLSections) required @endif>
-                                        @error('driver_first_name')
+                                        <label>Driver <span class="required-mark">*</span></label>
+                                        <select name="driver_personnel_id">
+                                            <option value="">{{ $isTLEdit ? "No driver assigned" : "Select a driver" }}</option>
+                                            @foreach ($driverOptions as $option)
+                                                <option value="{{ $option->id }}" @selected((string) old('driver_personnel_id', $user->driver_personnel_id ?? '') === (string) $option->id)>{{ $option->full_name }}</option>
+                                            @endforeach
+                                        </select>
+                                        @error('driver_personnel_id')
                                             <small class="error-text">{{ $message }}</small>
                                         @enderror
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Middle Name <span class="field-optional">optional</span></label>
-                                        <input type="text" name="driver_middle_name"
-                                            value="{{ old('driver_middle_name', $user->driver_middle_name ?? '') }}"
-                                            placeholder="Driver middle name">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Last Name <span class="required-mark">*</span></label>
-                                        <input type="text" name="driver_last_name"
-                                            value="{{ old('driver_last_name', $user->driver_last_name ?? '') }}"
-                                            placeholder="Driver last name"
-                                            @if ($showTLSections) required @endif>
-                                        @error('driver_last_name')
-                                            <small class="error-text">{{ $message }}</small>
-                                        @enderror
+                                        @if ($isTLEdit && blank($user->driver_personnel_id) && filled($user->driver_first_name))
+                                            <small class="field-hint">Legacy entry "{{ build_full_name($user->driver_first_name, $user->driver_middle_name, $user->driver_last_name) }}" is not linked to Personnel and will not be assigned to a truck.</small>
+                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -536,18 +525,25 @@
                             <div class="role-section-header"><span>Crew Members</span></div>
                             <div class="role-section-body">
                                 <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Crew Member 1 <span class="field-optional">optional</span></label>
-                                        <input type="text" name="crew_member_1_name"
-                                            value="{{ old('crew_member_1_name', $user->crew_member_1_name ?? '') }}"
-                                            placeholder="Pahinante 1 name">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Crew Member 2 <span class="field-optional">optional</span></label>
-                                        <input type="text" name="crew_member_2_name"
-                                            value="{{ old('crew_member_2_name', $user->crew_member_2_name ?? '') }}"
-                                            placeholder="Pahinante 2 name">
-                                    </div>
+                                    @foreach ([1, 2] as $crewSlot)
+                                        @php($crewField = "crew_member_{$crewSlot}_personnel_id")
+                                        @php($crewLegacy = "crew_member_{$crewSlot}_name")
+                                        <div class="form-group">
+                                            <label>Crew Member {{ $crewSlot }} <span class="field-optional">optional</span></label>
+                                            <select name="{{ $crewField }}">
+                                                <option value="">No crew member assigned</option>
+                                                @foreach ($crewOptions as $option)
+                                                    <option value="{{ $option->id }}" @selected((string) old($crewField, $user->{$crewField} ?? '') === (string) $option->id)>{{ $option->full_name }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error($crewField)
+                                                <small class="error-text">{{ $message }}</small>
+                                            @enderror
+                                            @if ($isTLEdit && blank($user->{$crewField}) && filled($user->{$crewLegacy}))
+                                                <small class="field-hint">Legacy entry "{{ $user->{$crewLegacy} }}" is not linked to Personnel and will not be assigned to a truck.</small>
+                                            @endif
+                                        </div>
+                                    @endforeach
                                 </div>
                             </div>
                         </div>
@@ -623,12 +619,6 @@
 
                 if (sectionDriverDetails) sectionDriverDetails.hidden = !isTL;
                 if (sectionCrewMembers) sectionCrewMembers.hidden = !isTL;
-
-                ['driver_first_name', 'driver_last_name'].forEach(n => {
-                    const el = form?.querySelector(`[name="${n}"]`);
-                    if (!el) return;
-                    isTL ? el.setAttribute('required', '') : el.removeAttribute('required');
-                });
 
                 setPhoneRequired(isTL);
 

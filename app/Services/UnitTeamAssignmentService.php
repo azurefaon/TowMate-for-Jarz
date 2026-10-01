@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AuditLog;
+use App\Models\Personnel;
 use App\Models\Unit;
 use App\Models\UnitCrewLoan;
 use App\Models\User;
@@ -12,6 +13,12 @@ use RuntimeException;
 
 class UnitTeamAssignmentService
 {
+    private const STAGED_SLOTS = [
+        'driver_1' => 'driver_personnel_id',
+        'crew_member_1' => 'crew_member_1_personnel_id',
+        'crew_member_2' => 'crew_member_2_personnel_id',
+    ];
+
     public function __construct(protected UnitAvailabilityService $availability)
     {
     }
@@ -70,17 +77,14 @@ class UnitTeamAssignmentService
 
             $personnelUpdates = [];
 
-            $driverFullName = build_full_name($teamLeader->driver_first_name, $teamLeader->driver_middle_name, $teamLeader->driver_last_name);
-            if (filled($driverFullName) && blank($target->driver_name)) {
-                $personnelUpdates['driver_name'] = $driverFullName;
-            }
+            foreach (self::STAGED_SLOTS as $slot => $stagedColumn) {
+                $personnel = $this->seedablePersonnel($teamLeader->{$stagedColumn}, $slot, $target);
 
-            if (filled($teamLeader->crew_member_1_name) && blank($target->crew_member_1_name)) {
-                $personnelUpdates['crew_member_1_name'] = $teamLeader->crew_member_1_name;
-            }
-
-            if (filled($teamLeader->crew_member_2_name) && blank($target->crew_member_2_name)) {
-                $personnelUpdates['crew_member_2_name'] = $teamLeader->crew_member_2_name;
+                if ($personnel && blank($target->{Unit::SLOT_COLUMNS[$slot]})) {
+                    $personnelUpdates[Unit::SLOT_COLUMNS[$slot]] = $personnel->full_name;
+                    $personnelUpdates[Unit::SLOT_PERSONNEL_COLUMNS[$slot]] = $personnel->id;
+                    $personnelUpdates[Unit::SLOT_SEED_COLUMNS[$slot]] = $teamLeader->id;
+                }
             }
 
             if ($personnelUpdates !== []) {
@@ -206,10 +210,29 @@ class UnitTeamAssignmentService
 
             $this->assertUnitTeamIsMovable($source, 'borrow this person from');
 
-            $personName = $source->{$fromColumn};
+            $fromPersonnelColumn = Unit::SLOT_PERSONNEL_COLUMNS[$fromSlot];
+            $toPersonnelColumn = Unit::SLOT_PERSONNEL_COLUMNS[$toSlot];
 
-            $source->update([$fromColumn => null]);
-            $target->update([$toColumn => $personName]);
+            $personnel = $source->{$fromPersonnelColumn} ? Personnel::find($source->{$fromPersonnelColumn}) : null;
+
+            if (! $personnel) {
+                throw new RuntimeException('This person is not a registered Personnel record and cannot be assigned. Register them under Personnel first.');
+            }
+
+            if ($personnel->personnel_status !== 'active') {
+                throw new RuntimeException('This person is inactive and cannot be assigned.');
+            }
+
+            $expectedRole = $slotType($toSlot) === 'driver' ? 'driver' : 'crew';
+            if ($personnel->role !== $expectedRole) {
+                throw new RuntimeException('This person cannot fill that slot.');
+            }
+
+            $personName = $personnel->full_name;
+            $seedOwner = $this->seedOwner($source, $fromSlot);
+
+            $source->update([$fromColumn => null, $fromPersonnelColumn => null] + $this->seedValue($fromSlot, null));
+            $target->update([$toColumn => $personName, $toPersonnelColumn => $personnel->id] + $this->seedValue($toSlot, null));
 
             UnitCrewLoan::create([
                 'from_unit_id' => $source->id,
@@ -217,6 +240,8 @@ class UnitTeamAssignmentService
                 'from_slot' => $fromSlot,
                 'to_slot' => $toSlot,
                 'person_name' => $personName,
+                'personnel_id' => $personnel->id,
+                'seeded_by_team_leader_id' => $seedOwner,
                 'borrowed_at' => now(),
                 'created_by' => $actor->id,
             ]);
@@ -255,8 +280,11 @@ class UnitTeamAssignmentService
             $fromColumn = Unit::SLOT_COLUMNS[$loan->from_slot];
             $toColumn = Unit::SLOT_COLUMNS[$loan->to_slot];
 
-            $fromUnit->update([$fromColumn => $loan->person_name]);
-            $toUnit->update([$toColumn => null]);
+            $fromPersonnelColumn = Unit::SLOT_PERSONNEL_COLUMNS[$loan->from_slot];
+            $toPersonnelColumn = Unit::SLOT_PERSONNEL_COLUMNS[$loan->to_slot];
+
+            $fromUnit->update([$fromColumn => $loan->person_name, $fromPersonnelColumn => $loan->personnel_id] + $this->seedValue($loan->from_slot, $loan->seeded_by_team_leader_id));
+            $toUnit->update([$toColumn => null, $toPersonnelColumn => null] + $this->seedValue($loan->to_slot, null));
             $loan->update(['returned_at' => now()]);
 
             AuditLog::create([
@@ -340,7 +368,7 @@ class UnitTeamAssignmentService
 
             $personName = $unit->{$column};
 
-            $unit->update([$column => null]);
+            $unit->update([$column => null, Unit::SLOT_PERSONNEL_COLUMNS[$slot] => null] + $this->seedValue($slot, null));
 
             AuditLog::create([
                 'user_id' => $actor->id,
@@ -399,9 +427,16 @@ class UnitTeamAssignmentService
                     continue;
                 }
 
+                if ($source->slotIsLegacy($slot)) {
+                    throw new RuntimeException("{$source->{$column}} is not a registered Personnel record. Register or remove them before transferring the team.");
+                }
+
+                $personnelColumn = Unit::SLOT_PERSONNEL_COLUMNS[$slot];
+                $personnelId = $source->{$personnelColumn};
                 $personName = $source->{$column};
-                $target->update([$column => $personName]);
-                $source->update([$column => null]);
+                $seedOwner = $this->seedOwner($source, $slot);
+                $target->update([$column => $personName, $personnelColumn => $personnelId] + $this->seedValue($slot, null));
+                $source->update([$column => null, $personnelColumn => null] + $this->seedValue($slot, null));
 
                 UnitCrewLoan::create([
                     'from_unit_id' => $source->id,
@@ -409,6 +444,8 @@ class UnitTeamAssignmentService
                     'from_slot' => $slot,
                     'to_slot' => $slot,
                     'person_name' => $personName,
+                    'personnel_id' => $personnelId,
+                    'seeded_by_team_leader_id' => $seedOwner,
                     'borrowed_at' => now(),
                     'created_by' => $actor->id,
                 ]);
@@ -483,37 +520,86 @@ class UnitTeamAssignmentService
         ]);
     }
 
+    protected function seedablePersonnel(?int $personnelId, string $slot, Unit $target): ?Personnel
+    {
+        if (! $personnelId) {
+            return null;
+        }
+
+        if ($slot === 'driver_1' && $target->driver_id) {
+            return null;
+        }
+
+        $personnel = Personnel::active()
+            ->where('role', $slot === 'driver_1' ? 'driver' : 'crew')
+            ->find($personnelId);
+
+        if (! $personnel || Unit::unitIdsHoldingPersonnel($personnel->id)->isNotEmpty()) {
+            return null;
+        }
+
+        return $personnel;
+    }
+
+    public function detachTeamLeaderFromUnits(User $teamLeader, array $unitUpdates = []): void
+    {
+        DB::transaction(function () use ($teamLeader, $unitUpdates) {
+            Unit::where('team_leader_id', $teamLeader->id)->lockForUpdate()->get()
+                ->each(function (Unit $unit) use ($teamLeader, $unitUpdates) {
+                    $this->releaseTeamLeaderSeededPersonnel($unit, $teamLeader);
+                    $unit->update(['team_leader_id' => null] + $unitUpdates);
+                });
+        });
+    }
+
+    protected function seedOwner(Unit $unit, string $slot): ?int
+    {
+        $column = Unit::SLOT_SEED_COLUMNS[$slot] ?? null;
+
+        return $column && $unit->{$column} ? (int) $unit->{$column} : null;
+    }
+
+    protected function seedValue(string $slot, ?int $teamLeaderId): array
+    {
+        $column = Unit::SLOT_SEED_COLUMNS[$slot] ?? null;
+
+        return $column ? [$column => $teamLeaderId] : [];
+    }
+
     protected function releaseTeamLeaderSeededPersonnel(Unit $unit, User $teamLeader): void
     {
         $updates = [];
 
-        $driverFullName = build_full_name($teamLeader->driver_first_name, $teamLeader->driver_middle_name, $teamLeader->driver_last_name);
-        if (
-            filled($driverFullName)
-            && ! $unit->driver_id
-            && $unit->driver_name === $driverFullName
-            && ! $unit->activeLoanOut('driver_1')
-            && ! $unit->activeLoansIn()->has('driver_1')
-        ) {
-            $updates['driver_name'] = null;
-        }
+        foreach (self::STAGED_SLOTS as $slot => $stagedColumn) {
+            $idColumn = Unit::SLOT_PERSONNEL_COLUMNS[$slot];
+            $nameColumn = Unit::SLOT_COLUMNS[$slot];
+            $seedOwner = $this->seedOwner($unit, $slot);
 
-        if (
-            filled($teamLeader->crew_member_1_name)
-            && $unit->crew_member_1_name === $teamLeader->crew_member_1_name
-            && ! $unit->activeLoanOut('crew_member_1')
-            && ! $unit->activeLoansIn()->has('crew_member_1')
-        ) {
-            $updates['crew_member_1_name'] = null;
-        }
+            if ($seedOwner !== null) {
+                $belongsToTeam = $seedOwner === (int) $teamLeader->id;
+            } else {
+                $stagedId = $teamLeader->{$stagedColumn};
+                $stagedLegacyName = $slot === 'driver_1'
+                    ? build_full_name($teamLeader->driver_first_name, $teamLeader->driver_middle_name, $teamLeader->driver_last_name)
+                    : $teamLeader->{$slot . '_name'};
 
-        if (
-            filled($teamLeader->crew_member_2_name)
-            && $unit->crew_member_2_name === $teamLeader->crew_member_2_name
-            && ! $unit->activeLoanOut('crew_member_2')
-            && ! $unit->activeLoansIn()->has('crew_member_2')
-        ) {
-            $updates['crew_member_2_name'] = null;
+                $belongsToTeam = $stagedId
+                    ? (int) $unit->{$idColumn} === (int) $stagedId
+                    : (! $unit->{$idColumn}
+                        && filled($stagedLegacyName)
+                        && ! ($slot === 'driver_1' && $unit->driver_id)
+                        && mb_strtolower(trim((string) $unit->{$nameColumn})) === mb_strtolower(trim((string) $stagedLegacyName)));
+            }
+
+            if (
+                $belongsToTeam
+                && ! $unit->activeLoanOut($slot)
+                && ! $unit->activeLoansIn()->has($slot)
+            ) {
+                $updates[$nameColumn] = null;
+                $updates[$idColumn] = null;
+                $updates += $this->seedValue($slot, null);
+            }
         }
 
         if ($updates !== []) {

@@ -46,18 +46,7 @@ class UnitController extends Controller
             ->orderBy('name')
             ->get([
                 'id', 'name', 'first_name', 'middle_name', 'last_name',
-                'driver_first_name', 'driver_middle_name', 'driver_last_name',
-                'crew_member_1_name', 'crew_member_2_name',
             ]);
-
-        $teamLeaderStagedData = $teamLeaders->map(fn($leader) => [
-            'id' => $leader->id,
-            'current_unit_id' => $leader->unit?->id,
-            'current_unit_name' => $leader->unit?->name,
-            'driver_name' => build_full_name($leader->driver_first_name, $leader->driver_middle_name, $leader->driver_last_name),
-            'crew_member_1_name' => $leader->crew_member_1_name,
-            'crew_member_2_name' => $leader->crew_member_2_name,
-        ])->values();
 
         $availabilityRows = app(\App\Services\UnitAvailabilityService::class)->evaluateAll();
         $stats = [
@@ -71,25 +60,13 @@ class UnitController extends Controller
         $loansOutBySlot = $activeLoans->keyBy(fn($loan) => $loan->from_unit_id . ':' . $loan->from_slot);
         $loansInBySlot = $activeLoans->keyBy(fn($loan) => $loan->to_unit_id . ':' . $loan->to_slot);
 
-        $crewUnitsData = Unit::select('id', 'name', 'status', 'driver_name', 'driver_2_name', 'crew_member_1_name', 'crew_member_2_name')
-            ->whereNull('archived_at')
-            ->orderBy('name')
-            ->get()
-            ->map(function ($unit) use ($loansInBySlot) {
-                $unit->loaned_in_slots = collect(array_keys(Unit::SLOT_COLUMNS))
-                    ->filter(fn($slot) => $loansInBySlot->has("{$unit->id}:{$slot}"))
-                    ->values();
-
-                return $unit;
-            });
-
         $nextUnitName = $this->nextUnitName();
 
         $archivedCount = Unit::whereNotNull('archived_at')->count();
 
         return view('superadmin.unit-truck.index', compact(
             'units', 'truckTypes', 'stats', 'teamLeaders',
-            'crewUnitsData', 'loansOutBySlot', 'loansInBySlot', 'teamLeaderStagedData', 'nextUnitName',
+            'loansOutBySlot', 'loansInBySlot', 'nextUnitName',
             'archivedCount'
         ));
     }

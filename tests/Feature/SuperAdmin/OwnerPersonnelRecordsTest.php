@@ -134,11 +134,11 @@ it('dispatcher borrow/return of free-text crew does not change the personnel hom
     $home = prUnit('PR Crew Home');
     $target = prUnit('PR Crew Target');
 
-    $home->update(['crew_member_1_name' => 'Jerome Reyes']);
     $record = Personnel::create([
         'first_name' => 'Jerome', 'last_name' => 'Reyes', 'role' => 'crew',
         'home_unit_id' => $home->id, 'personnel_status' => 'active',
     ]);
+    $home->update(['crew_member_1_name' => 'Jerome Reyes', 'crew_member_1_personnel_id' => $record->id]);
 
     $this->actingAs($owner); // no-op, just establishing session context isn't required here
 
@@ -158,11 +158,11 @@ it('shows a backfilled crew personnel record as borrowed after dispatcher moves 
     $home = prUnit('PR Visible Home');
     $target = prUnit('PR Visible Target');
 
-    $home->update(['crew_member_1_name' => 'Visible Crew Person']);
-    Personnel::create([
+    $visible = Personnel::create([
         'first_name' => 'Visible', 'last_name' => 'Crew Person', 'role' => 'crew',
         'home_unit_id' => $home->id, 'personnel_status' => 'active',
     ]);
+    $home->update(['crew_member_1_name' => 'Visible Crew Person', 'crew_member_1_personnel_id' => $visible->id]);
 
     app(\App\Services\UnitTeamAssignmentService::class)->assignSlotPerson(
         $target, 'crew_member_1', $home, 'crew_member_1', $dispatcher

@@ -43,6 +43,12 @@ class PersonnelController extends Controller
             'home_unit_id' => ['nullable', 'integer', Rule::exists('units', 'id')->whereNull('archived_at')],
         ]);
 
+        if ($validated['role'] === 'driver' && $this->matchesDriverAccount($validated)) {
+            return back()->withInput()->withErrors([
+                'first_name' => 'A Driver account with this name already exists. Use the existing account instead of adding a duplicate.',
+            ]);
+        }
+
         $record = Personnel::create([
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
@@ -73,7 +79,18 @@ class PersonnelController extends Controller
             'role' => ['required', Rule::in(['driver', 'crew'])],
         ]);
 
+        if ($validated['role'] !== $record->role && $this->isPlacedOrStaged($record)) {
+            return back()->withInput()->withErrors([
+                'role' => 'This person is currently placed on a unit or staged to a Team Leader. Remove them first before changing their role.',
+            ]);
+        }
+
         $record->update($validated);
+        $record->refresh();
+
+        foreach (Unit::SLOT_PERSONNEL_COLUMNS as $slot => $idColumn) {
+            Unit::where($idColumn, $record->id)->update([Unit::SLOT_COLUMNS[$slot] => $record->full_name]);
+        }
 
         AuditLog::create([
             'user_id' => auth()->id(),
@@ -85,6 +102,27 @@ class PersonnelController extends Controller
         ]);
 
         return back()->with('success', 'Personnel updated.');
+    }
+
+    protected function matchesDriverAccount(array $validated): bool
+    {
+        $needle = mb_strtolower(trim(build_full_name($validated['first_name'], $validated['middle_name'] ?? null, $validated['last_name'])));
+
+        return User::where('role_id', 4)
+            ->whereNull('archived_at')
+            ->whereNull('anonymized_at')
+            ->get()
+            ->contains(fn (User $driver) => mb_strtolower(trim((string) $driver->full_name)) === $needle);
+    }
+
+    protected function isPlacedOrStaged(Personnel $record): bool
+    {
+        return Unit::unitIdsHoldingPersonnel($record->id)->isNotEmpty()
+            || User::where(function ($q) use ($record) {
+                $q->where('driver_personnel_id', $record->id)
+                    ->orWhere('crew_member_1_personnel_id', $record->id)
+                    ->orWhere('crew_member_2_personnel_id', $record->id);
+            })->exists();
     }
 
     public function updateRecordHomeUnit(Request $request, Personnel $record)

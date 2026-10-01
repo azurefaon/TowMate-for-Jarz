@@ -24,6 +24,7 @@
             $teamRows[] = [
                 'name' => $unit->driver_name,
                 'role' => 'Driver',
+                'legacy' => $unit->slotIsLegacy('driver_1'),
                 'meta' => $driver1LoanIn ? 'Borrowed from ' . ($driver1LoanIn->fromUnit->name ?? '-') : null,
             ];
         } elseif ($driver1LoanOut) {
@@ -38,6 +39,7 @@
         $teamRows[] = [
             'name' => $unit->driver_2_name,
             'role' => 'Driver',
+            'legacy' => $unit->slotIsLegacy('driver_2'),
             'meta' => $driver2LoanIn ? 'Borrowed from ' . ($driver2LoanIn->fromUnit->name ?? '-') : null,
         ];
     } elseif ($driver2LoanOut) {
@@ -53,6 +55,7 @@
             $teamRows[] = [
                 'name' => $unit->{$column},
                 'role' => 'Crew',
+                'legacy' => $unit->slotIsLegacy($slotKey),
                 'meta' => $loanIn ? 'Borrowed from ' . ($loanIn->fromUnit->name ?? '-') : null,
             ];
         } elseif ($loanOut) {
@@ -67,6 +70,9 @@
             <span class="team-name {{ ! empty($row['muted']) ? 'is-muted' : '' }}"
                 @if (! empty($row['meta'])) title="{{ $row['meta'] }}" @endif>{{ $row['name'] }}</span>
             <span class="team-role">{{ $row['role'] }}</span>
+            @if (! empty($row['legacy']))
+                <span class="team-warning" title="Not linked to a Personnel record. This name is kept for history and cannot be assigned or borrowed.">Unlinked</span>
+            @endif
             @if (! empty($row['warning']))
                 <span class="team-warning" title="This person's account is not an active Team Leader.">&#9888;</span>
             @endif

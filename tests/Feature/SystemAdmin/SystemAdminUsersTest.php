@@ -154,8 +154,7 @@ it('does not assign a truck or unit when creating a team leader account', functi
         'last_name' => 'Leader',
         'email' => 'new.leader@example.com',
         'phone' => '09171234567',
-        'driver_first_name' => 'Driver',
-        'driver_last_name' => 'Leader',
+        'driver_personnel_id' => \App\Models\Personnel::create(['first_name' => 'Driver', 'last_name' => 'Leader', 'role' => 'driver', 'personnel_status' => 'active'])->id,
         'password' => 'Password@123',
         'password_confirmation' => 'Password@123',
         'role_id' => 3,
@@ -331,8 +330,7 @@ function usersCreateTeamLeaderPayload(string $email): array
         'password' => 'Password@123',
         'password_confirmation' => 'Password@123',
         'role_id' => 3,
-        'driver_first_name' => 'Drv',
-        'driver_last_name' => 'Name',
+        'driver_personnel_id' => \App\Models\Personnel::create(['first_name' => 'Drv', 'last_name' => 'Name' . uniqid(), 'role' => 'driver', 'personnel_status' => 'active'])->id,
     ];
 }
 

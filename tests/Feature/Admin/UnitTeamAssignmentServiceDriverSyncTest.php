@@ -31,12 +31,41 @@ function driverSyncActor(): User
     return User::factory()->create(['role_id' => $role->id]);
 }
 
+function driverSyncLeader(array $attributes): User
+{
+    if (filled($attributes['driver_first_name'] ?? null)) {
+        $attributes['driver_personnel_id'] = \App\Models\Personnel::create([
+            'first_name' => $attributes['driver_first_name'],
+            'middle_name' => $attributes['driver_middle_name'] ?? null,
+            'last_name' => $attributes['driver_last_name'],
+            'role' => 'driver',
+            'personnel_status' => 'active',
+        ])->id;
+    }
+
+    foreach (['crew_member_1_name' => 'crew_member_1_personnel_id', 'crew_member_2_name' => 'crew_member_2_personnel_id'] as $name => $column) {
+        if (filled($attributes[$name] ?? null)) {
+            $parts = explode(' ', $attributes[$name]);
+            $last = array_pop($parts);
+
+            $attributes[$column] = \App\Models\Personnel::create([
+                'first_name' => implode(' ', $parts) ?: $last,
+                'last_name' => $last,
+                'role' => 'crew',
+                'personnel_status' => 'active',
+            ])->id;
+        }
+    }
+
+    return User::factory()->create($attributes);
+}
+
 it('populates an empty unit driver_name from the team leaders driver details on assignment', function () {
     $truckType = driverSyncTruckType();
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => 'PAULO',
         'driver_middle_name' => null,
@@ -61,7 +90,7 @@ it('includes the middle name when building the driver full name', function () {
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => 'Juan',
         'driver_middle_name' => 'Santos',
@@ -85,7 +114,7 @@ it('carries the team leaders crew member details into empty unit crew slots', fu
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => 'Mark',
         'driver_last_name' => 'Reyes',
@@ -112,7 +141,7 @@ it('never overwrites an existing driver or crew member already on the unit', fun
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => 'PAULO',
         'driver_last_name' => 'PAULO',
@@ -140,7 +169,7 @@ it('leaves driver_name empty when the team leader has no driver details on file'
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => null,
         'driver_last_name' => null,
@@ -163,7 +192,7 @@ it('releases the seeded driver and crew from the source unit when the team leade
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => 'PAULO',
         'driver_last_name' => 'PAULO',
@@ -200,7 +229,7 @@ it('releases the seeded driver from a unit when its team leader is removed outri
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => 'PAULO',
         'driver_last_name' => 'PAULO',
@@ -228,7 +257,7 @@ it('releases the seeded driver from the unit a borrowed team leader is returned 
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => 'PAULO',
         'driver_last_name' => 'PAULO',
@@ -263,7 +292,7 @@ it('does not clear a driver name that does not match the team leaders registered
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => 'PAULO',
         'driver_last_name' => 'PAULO',
@@ -294,7 +323,7 @@ it('does not clear a driver name that is an active independent loan even if it m
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
 
-    $teamLeader = User::factory()->create([
+    $teamLeader = driverSyncLeader([
         'role_id' => $teamLeaderRole->id,
         'driver_first_name' => 'PAULO',
         'driver_last_name' => 'PAULO',
@@ -306,6 +335,7 @@ it('does not clear a driver name that is an active independent loan even if it m
         'truck_type_id' => $truckType->id,
         'status' => 'available',
         'driver_name' => 'PAULO PAULO',
+        'driver_personnel_id' => $teamLeader->driver_personnel_id,
     ]);
     $unit = Unit::create([
         'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
