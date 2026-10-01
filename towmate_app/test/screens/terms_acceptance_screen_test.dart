@@ -125,7 +125,7 @@ void main() {
 
     expect(find.text('HOME_PLACEHOLDER'), findsNothing);
     expect(find.byType(TermsAcceptanceScreen), findsOneWidget);
-    expect(find.textContaining('Could not save'), findsOneWidget);
+    expect(find.textContaining("couldn't complete your request"), findsOneWidget);
   });
 
   testWidgets('Log out instead routes back to Login, not stuck on the Terms screen forever', (

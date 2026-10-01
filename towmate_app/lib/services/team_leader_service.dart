@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../core/api_transport.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/api_error.dart';
 import 'api_service.dart';
 import '../models/task_model.dart';
 
@@ -49,17 +50,22 @@ class TeamLeaderService {
       }
       return {
         'success': false,
-        'message': body['message'] as String? ?? 'Password change failed.',
+        'message': ApiMessages.forResponse(
+          response.statusCode,
+          body,
+          fallback: 'Password change failed.',
+        ),
       };
-    } on TimeoutException {
-      return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _failure(e);
     }
   }
 
+  @visibleForTesting
+  static Duration retryDelay = const Duration(seconds: 2);
+
   static Future<TaskModel?> getCurrentTask() async {
-    Object? lastError;
+    ApiException? lastError;
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
         final response = await apiClient
@@ -67,19 +73,29 @@ class TeamLeaderService {
             .timeout(const Duration(seconds: 15));
 
         if (response.statusCode != 200) {
-          throw Exception('Failed to load task: ${response.statusCode}');
+          final kind = ApiError.classifyStatus(response.statusCode);
+          final error = ApiException(
+            kind,
+            ApiMessages.forResponse(response.statusCode, _decodeOrNull(response.body)),
+          );
+          if (kind != ApiErrorKind.serverError5xx) throw error;
+          lastError = error;
+        } else {
+          final body = jsonDecode(response.body) as Map<String, dynamic>;
+          final data = body['data'];
+          if (data == null) return null;
+          return TaskModel.fromJson(data as Map<String, dynamic>);
         }
-
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        final data = body['data'];
-        if (data == null) return null;
-        return TaskModel.fromJson(data as Map<String, dynamic>);
+      } on ApiException {
+        rethrow;
       } catch (e) {
-        lastError = e;
-        if (attempt < 2) {
-          await Future.delayed(const Duration(seconds: 2));
-        }
+        final kind = ApiError.classifyException(e);
+        lastError = ApiException(kind, ApiError.message(kind));
+        final transient =
+            kind == ApiErrorKind.timeout || kind == ApiErrorKind.unreachable;
+        if (!transient) throw lastError;
       }
+      if (attempt < 2) await Future.delayed(retryDelay);
     }
     throw lastError!;
   }
@@ -102,9 +118,16 @@ class TeamLeaderService {
           'last_page': body['last_page'] ?? 1,
         };
       }
-      return {'success': false, 'data': <Map<String, dynamic>>[]};
-    } catch (_) {
-      return {'success': false, 'data': <Map<String, dynamic>>[]};
+      return {
+        'success': false,
+        'data': <Map<String, dynamic>>[],
+        'message': ApiMessages.forResponse(
+          response.statusCode,
+          _decodeOrNull(response.body),
+        ),
+      };
+    } catch (e) {
+      return {..._failure(e), 'data': <Map<String, dynamic>>[]};
     }
   }
 
@@ -131,10 +154,8 @@ class TeamLeaderService {
           )
           .timeout(const Duration(seconds: 15));
       return _parseResult(response);
-    } on TimeoutException {
-      return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error.'};
+    } catch (e) {
+      return _failure(e);
     }
   }
 
@@ -162,10 +183,8 @@ class TeamLeaderService {
           )
           .timeout(const Duration(seconds: 15));
       return _parseResult(response);
-    } on TimeoutException {
-      return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error.'};
+    } catch (e) {
+      return _failure(e);
     }
   }
 
@@ -187,10 +206,8 @@ class TeamLeaderService {
       final streamed = await apiClient.send(req).timeout(const Duration(seconds: 30));
       final response = await http.Response.fromStream(streamed);
       return _parseResult(response);
-    } on TimeoutException {
-      return {'success': false, 'message': 'Upload timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Upload failed.'};
+    } catch (e) {
+      return _failure(e);
     }
   }
 
@@ -203,10 +220,8 @@ class TeamLeaderService {
           )
           .timeout(const Duration(seconds: 15));
       return _parseResult(response);
-    } on TimeoutException {
-      return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error.'};
+    } catch (e) {
+      return _failure(e);
     }
   }
 
@@ -237,10 +252,8 @@ class TeamLeaderService {
       final streamed = await apiClient.send(req).timeout(const Duration(seconds: 30));
       final response = await http.Response.fromStream(streamed);
       return _parseResult(response);
-    } on TimeoutException {
-      return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error.'};
+    } catch (e) {
+      return _failure(e);
     }
   }
 
@@ -317,35 +330,57 @@ class TeamLeaderService {
           )
           .timeout(const Duration(seconds: 15));
       return _parseResult(response);
-    } on TimeoutException {
-      return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error.'};
+    } catch (e) {
+      return _failure(e);
     }
   }
 
-  static Map<String, dynamic> _parseResult(http.Response response) {
+  static Object? _decodeOrNull(String raw) {
     try {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      if ((response.statusCode == 200 || response.statusCode == 201) &&
-          body['success'] == true) {
-        final data = body['data'];
+      return jsonDecode(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Map<String, dynamic> _failure(Object e) {
+    return {
+      'success': false,
+      'transport_error': true,
+      'message': ApiError.message(ApiError.classifyException(e)),
+    };
+  }
+
+  static Map<String, dynamic> _parseResult(http.Response response) {
+    final decoded = _decodeOrNull(response.body);
+    final body = decoded is Map<String, dynamic> ? decoded : null;
+
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        body?['success'] == true) {
+      try {
+        final data = body!['data'];
         return {
           'success': true,
           if (data != null)
             'task': TaskModel.fromJson(data as Map<String, dynamic>),
           if (body['message'] != null) 'message': body['message'],
         };
+      } catch (e) {
+        return _failure(e);
       }
-      return {
-        'success': false,
-        'message': body['message'] as String? ?? 'Something went wrong.',
-      };
-    } catch (_) {
-      return {
-        'success': false,
-        'message': 'Server error (${response.statusCode}).',
-      };
     }
+
+    final message = body == null
+        ? ApiError.message(
+            response.statusCode >= 200 && response.statusCode < 300
+                ? ApiErrorKind.invalidResponse
+                : ApiError.classifyStatus(response.statusCode),
+          )
+        : ApiMessages.forResponse(response.statusCode, body);
+
+    return {
+      'success': false,
+      'message': message.isEmpty ? ApiErrorMessages.serverError : message,
+    };
   }
 }

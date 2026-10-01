@@ -117,7 +117,7 @@ void main() {
       final result = await runLogin(client);
 
       expect(result['success'], isFalse);
-      expect(result['message'], 'Too Many Attempts.');
+      expect(result['message'], 'Too many attempts. Please wait a moment and try again.');
     });
 
     test('an unexpected 500 with a non-JSON body falls back to a generic message, not a crash', () async {

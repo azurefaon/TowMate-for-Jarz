@@ -208,7 +208,7 @@ void main() {
 
       expect(find.text('1 / 6'), findsOneWidget, reason: 'still En Route');
       expect(find.text('2 / 6'), findsNothing);
-      expect(find.text('Not found.'), findsOneWidget);
+      expect(find.text("We couldn't complete your request right now. Please try again."), findsOneWidget);
       expect(log.where((e) => e == 'GET /api/v1/team-leader/task').length, before,
           reason: 'no success -> no refetch/advance');
     });

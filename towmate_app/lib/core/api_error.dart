@@ -109,3 +109,104 @@ class ApiError {
     }
   }
 }
+
+class ApiException implements Exception {
+  ApiException(this.kind, this.message);
+
+  final ApiErrorKind kind;
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class ApiMessages {
+  ApiMessages._();
+
+  static const _frameworkDefaults = {
+    'unauthenticated',
+    'unauthorized',
+    'this action is unauthorized',
+    'forbidden',
+    'not found',
+    'server error',
+    'internal server error',
+    'bad request',
+    'bad gateway',
+    'service unavailable',
+    'gateway timeout',
+    'too many attempts',
+    'too many requests',
+    'method not allowed',
+    'page expired',
+    'the given data was invalid',
+    'error',
+    'failed',
+    'something went wrong',
+  };
+
+  static final _technical = RegExp(
+    r'(<\s*/?\s*(html|body|!doctype|div|pre|head)|exception|stack trace|sqlstate|\.php|vendor/|illuminate\|#\d+\s)',
+    caseSensitive: false,
+  );
+
+  static final _statusWording = RegExp(
+    r'\b(error|status|http)\b[^.]{0,20}\b[1-5]\d{2}\b|\b[1-5]\d{2}\b[^.]{0,20}\b(error|status)\b',
+    caseSensitive: false,
+  );
+
+  static bool isSafe(Object? raw) {
+    if (raw is! String) return false;
+    final text = raw.trim();
+    if (text.isEmpty || text.length > 240) return false;
+    if (text.startsWith('{') || text.startsWith('[')) return false;
+    final normalized = text.toLowerCase().replaceAll(RegExp(r'[.!\s]+$'), '');
+    if (_frameworkDefaults.contains(normalized)) return false;
+    if (_technical.hasMatch(text)) return false;
+    if (_statusWording.hasMatch(text)) return false;
+    return true;
+  }
+
+  static String? firstValidationError(Object? errors) {
+    if (errors is! Map) return null;
+    for (final value in errors.values) {
+      if (value is List && value.isNotEmpty && isSafe(value.first)) {
+        return (value.first as String).trim();
+      }
+      if (isSafe(value)) return (value as String).trim();
+    }
+    return null;
+  }
+
+  static String forResponse(
+    int status,
+    Object? body, {
+    String? fallback,
+    bool authenticated = true,
+  }) {
+    final map = body is Map ? body : const {};
+    final backend = map['message'];
+
+    if (status >= 200 && status < 300) {
+      return backend is String ? backend : (fallback ?? '');
+    }
+
+    final kind = ApiError.classifyStatus(status, authenticated: authenticated);
+    final safe = isSafe(backend) ? (backend as String).trim() : null;
+
+    switch (kind) {
+      case ApiErrorKind.authenticated401:
+        return ApiErrorMessages.sessionEnded;
+      case ApiErrorKind.rateLimited429:
+      case ApiErrorKind.serverError5xx:
+        return ApiError.message(kind);
+      case ApiErrorKind.validation422:
+        return safe ??
+            firstValidationError(map['errors']) ??
+            fallback ??
+            ApiErrorMessages.validation;
+      default:
+        return safe ?? fallback ?? ApiError.message(kind);
+    }
+  }
+}

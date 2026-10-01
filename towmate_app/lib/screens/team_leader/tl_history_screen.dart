@@ -19,6 +19,8 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
   bool _loadingMore = false;
   int _page = 1;
   int _lastPage = 1;
+  bool _loadFailed = false;
+  String _errorMessage = '';
 
   @override
   void initState() {
@@ -30,20 +32,34 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
     if (refresh) {
       setState(() {
         _loading = true;
+        _loadFailed = false;
         _page = 1;
         _jobs.clear();
       });
     }
     final res = await TeamLeaderService.getHistory(page: _page);
     if (!mounted) return;
+    final succeeded = res['success'] == true;
+    final wasLoadingMore = _loadingMore;
     setState(() {
       _loading = false;
       _loadingMore = false;
-      if (res['success'] == true) {
+      if (succeeded) {
+        _loadFailed = false;
         _jobs.addAll(List<Map<String, dynamic>>.from(res['data'] as List));
         _lastPage = res['last_page'] as int? ?? 1;
+      } else if (_jobs.isEmpty) {
+        _loadFailed = true;
+        _errorMessage = res['message'] as String? ?? '';
+      } else if (wasLoadingMore && _page > 1) {
+        _page -= 1;
       }
     });
+    if (!succeeded && _jobs.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res['message'] as String? ?? '')),
+      );
+    }
   }
 
   Future<void> _loadMore() async {
@@ -71,7 +87,7 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
                       onRefresh: () => _load(refresh: true),
                       color: TmColors.yellow,
                       child: _jobs.isEmpty
-                          ? _emptyState(context)
+                          ? (_loadFailed ? _errorState(context) : _emptyState(context))
                           : NotificationListener<ScrollNotification>(
                               onNotification: (n) {
                                 if (n.metrics.pixels >=
@@ -127,6 +143,53 @@ class _TlHistoryScreenState extends State<TlHistoryScreen> {
               TextSpan(text: 'Tow', style: TextStyle(color: context.textPrimary)),
               const TextSpan(text: 'Mate', style: TextStyle(color: TmColors.yellow)),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _errorState(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
+          child: Center(
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+              decoration: BoxDecoration(
+                color: context.surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "We couldn't load your job history",
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _errorMessage,
+                    style: GoogleFonts.inter(color: context.textTertiary, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => _load(refresh: true),
+                    child: const Text('Try again'),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

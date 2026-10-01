@@ -1131,7 +1131,7 @@ void main() {
         await _settle(tester);
       }, () => client);
 
-      expect(find.text('Network error. Please try again.'), findsOneWidget);
+      expect(find.text('Unable to connect. Check your internet connection and try again.'), findsOneWidget);
     });
 
     testWidgets('disables the group Cancel Booking action while a request is in flight, preventing duplicate submissions', (tester) async {

@@ -270,7 +270,7 @@ class ApiService {
       }
       return {
         'success': false,
-        'message': body['message'] ?? 'Failed to update name.',
+        'message': ApiMessages.forResponse(response.statusCode, body, fallback: 'Failed to update name.'),
       };
     } catch (e) {
       return _networkError(e);
@@ -337,17 +337,41 @@ class ApiService {
       } on FormatException {
         body = null;
       }
+      final succeeded = response.statusCode == 200 && body?['success'] == true;
       return {
-        'success': response.statusCode == 200 && body?['success'] == true,
-        'message':
-            body?['message'] ??
-            (response.statusCode == 422
-                ? 'Please choose a valid image up to 5 MB.'
-                : 'Could not update your profile photo.'),
+        'success': succeeded,
+        'message': succeeded
+            ? (body?['message'] as String? ?? '')
+            : _profileImageFailureMessage(response.statusCode, body),
       };
     } catch (e) {
       return _networkError(e);
     }
+  }
+
+  static String _profileImageFailureMessage(
+    int status,
+    Map<String, dynamic>? body,
+  ) {
+    if (status != 422) {
+      return ApiMessages.forResponse(
+        status,
+        body,
+        fallback: 'Could not update your profile photo.',
+      );
+    }
+    final errors = body?['errors'];
+    final imageErrors = errors is Map ? errors['profile_image'] : null;
+    final detail = imageErrors is List && imageErrors.isNotEmpty
+        ? imageErrors.first.toString().toLowerCase()
+        : '';
+    if (detail.contains('greater than') ||
+        detail.contains('may not be') ||
+        detail.contains('too large') ||
+        detail.contains('kilobytes')) {
+      return 'Please choose an image up to 5 MB.';
+    }
+    return ApiMessages.forResponse(status, body);
   }
 
   static Future<Map<String, dynamic>> requestEmailChangeOtp(
@@ -366,7 +390,7 @@ class ApiService {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       return {
         'success': response.statusCode == 200 && body['success'] == true,
-        'message': body['message'],
+        'message': ApiMessages.forResponse(response.statusCode, body),
       };
     } catch (e) {
       return _networkError(e);
@@ -394,7 +418,7 @@ class ApiService {
       }
       return {
         'success': false,
-        'message': body['message'] ?? 'Failed to update email.',
+        'message': ApiMessages.forResponse(response.statusCode, body, fallback: 'Failed to update email.'),
       };
     } catch (e) {
       return _networkError(e);
@@ -422,7 +446,7 @@ class ApiService {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       return {
         'success': response.statusCode == 200 && body['success'] == true,
-        'message': body['message'],
+        'message': ApiMessages.forResponse(response.statusCode, body),
       };
     } catch (e) {
       return _networkError(e);
@@ -440,9 +464,12 @@ class ApiService {
           .timeout(const Duration(seconds: 15));
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final accepted = response.statusCode == 200 && body['success'] == true;
       return {
-        'success': response.statusCode == 200 && body['success'] == true,
-        'message': body['message'] as String?,
+        'success': accepted,
+        'message': accepted
+            ? body['message'] as String?
+            : ApiMessages.forResponse(response.statusCode, body),
       };
     } on TimeoutException {
       return {
@@ -514,8 +541,7 @@ class ApiService {
         if (response.statusCode >= 500 || response.statusCode == 429)
           'transport_error': true,
         'message':
-            body['message'] as String? ??
-            'Login failed. Check your credentials.',
+            ApiMessages.forResponse(response.statusCode, body, fallback: 'Login failed. Check your credentials.', authenticated: false),
       };
     } on TimeoutException {
       return {
@@ -578,11 +604,14 @@ class ApiService {
 
       return {
         'success': false,
-        'message': body['message'] as String? ?? 'Google sign-in failed.',
+        if (response.statusCode >= 500 || response.statusCode == 429)
+          'transport_error': true,
+        'message': ApiMessages.forResponse(response.statusCode, body, fallback: 'Google sign-in failed.', authenticated: false),
       };
     } on TimeoutException {
       return {
         'success': false,
+        'transport_error': true,
         'message': 'Request timed out. Please try again.',
       };
     } catch (e) {
@@ -637,7 +666,7 @@ class ApiService {
 
       return {
         'success': false,
-        'message': body['message'] as String? ?? 'Could not complete sign-up.',
+        'message': ApiMessages.forResponse(response.statusCode, body, fallback: 'Could not complete sign-up.', authenticated: false),
       };
     } on TimeoutException {
       return {
@@ -700,15 +729,14 @@ class ApiService {
         final firstList = errors.values.first;
         final msg = (firstList is List && firstList.isNotEmpty)
             ? firstList.first as String
-            : body['message'] as String? ?? 'Registration failed.';
+            : ApiMessages.forResponse(response.statusCode, body, fallback: 'Registration failed.', authenticated: false);
         return {'success': false, 'message': msg};
       }
 
       return {
         'success': false,
         'message':
-            body['message'] as String? ??
-            'Registration failed. Please try again.',
+            ApiMessages.forResponse(response.statusCode, body, fallback: 'Registration failed. Please try again.', authenticated: false),
       };
     } on TimeoutException {
       return {
@@ -1118,10 +1146,10 @@ class ApiService {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       return {
         'success': response.statusCode == 200 && body['success'] == true,
-        'message': body['message'] ?? '',
+        'message': ApiMessages.forResponse(response.statusCode, body, fallback: ''),
       };
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1145,13 +1173,13 @@ class ApiService {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       return {
         'success': response.statusCode == 200 && body['success'] == true,
-        'message': body['message'] ?? '',
+        'message': ApiMessages.forResponse(response.statusCode, body, fallback: ''),
         'invalid_booking_codes': body['invalid_booking_codes'],
         'ineligible': body['ineligible'],
         'cancelled_booking_codes': body['cancelled_booking_codes'],
       };
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1379,7 +1407,7 @@ class ApiService {
       return {
         'success': false,
         'message':
-            body['message'] as String? ?? 'Booking failed. Please try again.',
+            ApiMessages.forResponse(response.statusCode, body, fallback: 'Booking failed. Please try again.'),
       };
     } on TimeoutException {
       return {
@@ -1533,10 +1561,10 @@ class ApiService {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': res.statusCode == 200 && body['success'] == true,
-        'message': body['message'] ?? '',
+        'message': ApiMessages.forResponse(res.statusCode, body, fallback: ''),
       };
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1556,10 +1584,10 @@ class ApiService {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': res.statusCode == 200 && body['success'] == true,
-        'message': body['message'] ?? '',
+        'message': ApiMessages.forResponse(res.statusCode, body, fallback: ''),
       };
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1579,10 +1607,10 @@ class ApiService {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': res.statusCode == 200 && body['success'] == true,
-        'message': body['message'] ?? '',
+        'message': ApiMessages.forResponse(res.statusCode, body, fallback: ''),
       };
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1602,10 +1630,10 @@ class ApiService {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': res.statusCode == 200 && body['success'] == true,
-        'message': body['message'] ?? '',
+        'message': ApiMessages.forResponse(res.statusCode, body, fallback: ''),
       };
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1621,7 +1649,7 @@ class ApiService {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': body['success'] == true,
-        'message': body['message'] as String? ?? '',
+        'message': ApiMessages.forResponse(res.statusCode, body, fallback: '', authenticated: false),
       };
     } on TimeoutException {
       return {
@@ -1629,8 +1657,8 @@ class ApiService {
         'message':
             'Request timed out. Please check your connection and try again.',
       };
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1649,12 +1677,12 @@ class ApiService {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': body['success'] == true,
-        'message': body['message'] as String? ?? '',
+        'message': ApiMessages.forResponse(res.statusCode, body, fallback: '', authenticated: false),
       };
     } on TimeoutException {
       return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1670,12 +1698,12 @@ class ApiService {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': body['success'] == true,
-        'message': body['message'] as String? ?? '',
+        'message': ApiMessages.forResponse(res.statusCode, body, fallback: '', authenticated: false),
       };
     } on TimeoutException {
       return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1695,12 +1723,12 @@ class ApiService {
       return {
         'success': body['success'] == true,
         'reset_token': body['reset_token'] as String?,
-        'message': body['message'] as String? ?? '',
+        'message': ApiMessages.forResponse(res.statusCode, body, fallback: '', authenticated: false),
       };
     } on TimeoutException {
       return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
@@ -1726,12 +1754,12 @@ class ApiService {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'success': body['success'] == true,
-        'message': body['message'] as String? ?? '',
+        'message': ApiMessages.forResponse(res.statusCode, body, fallback: '', authenticated: false),
       };
     } on TimeoutException {
       return {'success': false, 'message': 'Request timed out.'};
-    } catch (_) {
-      return {'success': false, 'message': 'Network error. Please try again.'};
+    } catch (e) {
+      return _networkError(e);
     }
   }
 
