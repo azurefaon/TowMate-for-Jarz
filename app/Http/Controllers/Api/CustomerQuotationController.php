@@ -114,7 +114,7 @@ class CustomerQuotationController extends Controller
     {
         $customer = Customer::where('user_id', $request->user()->id)->first();
         if (!$customer || (int) $quotation->customer_id !== $customer->id) {
-            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+            return response()->json(['success' => false, 'message' => 'You do not have access to this quotation.'], 403);
         }
 
         if (! $quotation->is_current) {
@@ -151,7 +151,7 @@ class CustomerQuotationController extends Controller
     {
         $customer = Customer::where('user_id', $request->user()->id)->first();
         if (!$customer || (int) $quotation->customer_id !== $customer->id) {
-            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+            return response()->json(['success' => false, 'message' => 'You do not have access to this quotation.'], 403);
         }
 
         if (! $quotation->is_current || $quotation->status !== 'sent') {
@@ -174,7 +174,7 @@ class CustomerQuotationController extends Controller
     {
         $customer = Customer::where('user_id', $request->user()->id)->first();
         if (!$customer || (int) $quotation->customer_id !== $customer->id) {
-            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+            return response()->json(['success' => false, 'message' => 'You do not have access to this quotation.'], 403);
         }
 
         if (! $quotation->is_current || $quotation->status !== 'sent' || $quotation->isExpired()) {
@@ -192,7 +192,7 @@ class CustomerQuotationController extends Controller
     {
         $customer = Customer::where('user_id', $request->user()->id)->first();
         if (!$customer || (int) $quotation->customer_id !== $customer->id) {
-            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+            return response()->json(['success' => false, 'message' => 'You do not have access to this quotation.'], 403);
         }
 
         $validated = $request->validate([

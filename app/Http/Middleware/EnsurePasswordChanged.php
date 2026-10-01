@@ -15,7 +15,7 @@ class EnsurePasswordChanged
         if ($user && $user->must_change_password) {
             return response()->json([
                 'success'              => false,
-                'message'              => 'Password change required before accessing this resource.',
+                'message'              => 'You must change your password before continuing.',
                 'must_change_password' => true,
             ], 403);
         }

@@ -917,7 +917,7 @@ class TLTaskController extends Controller
         $parts = array_filter([
             $booking->vehicle_make,
             $booking->vehicle_model,
-            $booking->vehicle_plate_number ? 'Â· ' . $booking->vehicle_plate_number : null,
+            $booking->vehicle_plate_number ? '· ' . $booking->vehicle_plate_number : null,
         ]);
 
         return $parts ? implode(' ', $parts) : null;

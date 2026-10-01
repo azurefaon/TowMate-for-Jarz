@@ -31,7 +31,9 @@ class ForcePasswordChange
             // AJAX / JSON requests: return 403 so the frontend can redirect.
             if ($request->expectsJson()) {
                 return response()->json([
+                    'success' => false,
                     'message' => 'You must change your password before continuing.',
+                    'must_change_password' => true,
                     'redirect' => route('password.force-change'),
                 ], 403);
             }

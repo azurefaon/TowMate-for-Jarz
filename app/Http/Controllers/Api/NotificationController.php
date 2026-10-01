@@ -53,7 +53,7 @@ class NotificationController extends Controller
             ->first();
 
         if (! $notification) {
-            return response()->json(['success' => false, 'message' => 'Not found.'], 403);
+            return response()->json(['success' => false, 'message' => 'Notification not found.'], 404);
         }
 
         $notification->update(['is_read' => true]);

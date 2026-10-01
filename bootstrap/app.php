@@ -59,17 +59,42 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json(['message' => $e->getMessage()], 401);
             }
 
+            $safeMessage = function (int $status, ?string $message): string {
+                $frameworkDefaults = [
+                    '', 'forbidden', 'not found', 'server error', 'too many requests', 'too many attempts.',
+                    'this action is unauthorized.', 'invalid signature.', 'unauthenticated.',
+                    'page expired', 'method not allowed', 'bad request', 'service unavailable',
+                ];
+
+                $normalized = strtolower(trim((string) $message));
+
+                if (! in_array($normalized, $frameworkDefaults, true) && ! str_starts_with($normalized, 'no query results')) {
+                    return (string) $message;
+                }
+
+                return match (true) {
+                    $status === 403 => "You don't have permission to do this.",
+                    $status === 404 => "We couldn't find what you were looking for.",
+                    $status === 419 => 'Your session has expired. Please refresh the page and try again.',
+                    $status === 429 => 'Too many attempts. Please wait a moment and try again.',
+                    $status >= 500 => "We couldn't complete your request right now. Please try again.",
+                    default => 'Request failed.',
+                };
+            };
+
             if ($e instanceof \Illuminate\Auth\Access\AuthorizationException) {
-                return response()->json(['message' => $e->getMessage()], $e->status ?? 403);
+                $status = $e->status() ?? 403;
+
+                return response()->json(['message' => $safeMessage($status, $e->getMessage())], $status);
             }
 
             if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
-                return response()->json(['message' => 'Not found.'], 404);
+                return response()->json(['message' => $safeMessage(404, null)], 404);
             }
 
             if ($e instanceof HttpExceptionInterface) {
                 return response()->json([
-                    'message' => $e->getMessage() ?: 'Request failed.',
+                    'message' => $safeMessage($e->getStatusCode(), $e->getMessage()),
                 ], $e->getStatusCode(), $e->getHeaders());
             }
 
