@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import '../core/api_error.dart';
+import '../core/api_transport.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -238,7 +240,7 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/profile/update'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -279,7 +281,7 @@ class ApiService {
     try {
       final token = await getToken();
       if (token == null || token.isEmpty) return null;
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/profile/image'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -325,7 +327,7 @@ class ApiService {
                 contentType: mediaType,
               ),
             );
-      final response = await request.send().timeout(
+      final response = await apiClient.send(request).timeout(
         const Duration(seconds: 30),
       );
       final responseBody = await response.stream.bytesToString();
@@ -353,7 +355,7 @@ class ApiService {
   ) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/profile/email/request-otp'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -377,7 +379,7 @@ class ApiService {
   ) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/profile/email/confirm'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -405,7 +407,7 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/profile/change-password'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -430,7 +432,7 @@ class ApiService {
   static Future<Map<String, dynamic>> acceptTerms() async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/auth/accept-terms'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -453,30 +455,10 @@ class ApiService {
   }
 
   static Map<String, dynamic> _networkError(Object e) {
-    final msg = e.toString().toLowerCase();
-    if (e is http.ClientException ||
-        msg.contains('connection refused') ||
-        msg.contains('failed host lookup') ||
-        msg.contains('failed to fetch') ||
-        msg.contains('network') ||
-        msg.contains('os error')) {
-      return {
-        'success': false,
-        'transport_error': true,
-        'message': 'Cannot reach the server. Please check your connection.',
-      };
-    }
-    if (e is TimeoutException || msg.contains('timeout')) {
-      return {
-        'success': false,
-        'transport_error': true,
-        'message': 'Request timed out. Please try again.',
-      };
-    }
     return {
       'success': false,
       'transport_error': true,
-      'message': 'An unexpected error occurred. Please try again.',
+      'message': ApiError.message(ApiError.classifyException(e)),
     };
   }
 
@@ -486,7 +468,7 @@ class ApiService {
     String csrfToken,
   ) async {
     try {
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/login'),
             headers: {..._headers, 'X-CSRF-Token': csrfToken},
@@ -552,7 +534,7 @@ class ApiService {
   ) async {
     http.Response? response;
     try {
-      response = await http
+      response = await apiClient
           .post(
             Uri.parse('$baseUrl/auth/google'),
             headers: {..._headers, 'X-CSRF-Token': csrfToken},
@@ -622,7 +604,7 @@ class ApiService {
     required bool acceptTerms,
   }) async {
     try {
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/auth/google/complete'),
             headers: {..._headers, 'X-CSRF-Token': csrfToken},
@@ -678,7 +660,7 @@ class ApiService {
     required bool acceptTerms,
   }) async {
     try {
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/register'),
             headers: {..._headers, 'X-CSRF-Token': csrfToken},
@@ -741,7 +723,7 @@ class ApiService {
   static Future<Map<String, dynamic>> validateSession() async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/profile'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -771,7 +753,7 @@ class ApiService {
   static Future<void> fetchAndCacheProfile() async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/profile'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -834,7 +816,7 @@ class ApiService {
   static Future<List<TruckTypeModel>> fetchTruckTypes() async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/truck-types'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -856,7 +838,7 @@ class ApiService {
   static Future<List<VehicleTypeModel>> fetchVehicleTypes() async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/vehicle-types'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -878,7 +860,7 @@ class ApiService {
   static Future<List<VehicleCategoryModel>> fetchVehicleCategories() async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/vehicle-categories'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -910,7 +892,7 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/geo/pricing-preview'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -937,7 +919,7 @@ class ApiService {
   static Future<Map<String, dynamic>?> fetchAvailability() async {
     try {
       final token = await getToken();
-      final res = await http
+      final res = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/availability'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -956,7 +938,7 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/v1/customer/content');
     http.Response? res;
     try {
-      res = await http
+      res = await apiClient
           .get(uri, headers: _headers)
           .timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
@@ -976,7 +958,7 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/v1/vehicle-types/by-category/$category');
     http.Response? res;
     try {
-      res = await http
+      res = await apiClient
           .get(uri, headers: _headers)
           .timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
@@ -1064,7 +1046,7 @@ class ApiService {
       final uri = Uri.parse(
         '$baseUrl/v1/geo/autocomplete',
       ).replace(queryParameters: {'q': query});
-      final response = await http
+      final response = await apiClient
           .get(uri, headers: {..._headers, 'Authorization': 'Bearer $token'})
           .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
@@ -1086,7 +1068,7 @@ class ApiService {
       final uri = Uri.parse(
         '$baseUrl/v1/geo/place-details',
       ).replace(queryParameters: {'place_id': placeId});
-      final response = await http
+      final response = await apiClient
           .get(uri, headers: {..._headers, 'Authorization': 'Bearer $token'})
           .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
@@ -1106,7 +1088,7 @@ class ApiService {
       final uri = Uri.parse(
         '$baseUrl/v1/bookings/history',
       ).replace(queryParameters: {'page': page.toString()});
-      final response = await http
+      final response = await apiClient
           .get(uri, headers: {..._headers, 'Authorization': 'Bearer $token'})
           .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
@@ -1127,7 +1109,7 @@ class ApiService {
   static Future<Map<String, dynamic>> cancelBooking(String code) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/bookings/$code/cancel'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1150,7 +1132,7 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/bookings/group/$groupCode/cancel'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1176,7 +1158,7 @@ class ApiService {
   static Future<BookingModel?> fetchBookingDetail(String code) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/bookings/$code/detail'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1197,7 +1179,7 @@ class ApiService {
   static Future<String?> fetchReceiptUrl(String code) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/bookings/$code/receipt'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1218,7 +1200,7 @@ class ApiService {
   static Future<BookingModel?> fetchCurrentBooking() async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/bookings/current'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1246,7 +1228,7 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/bookings/check-duplicate-route'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1365,7 +1347,7 @@ class ApiService {
         }
       }
 
-      final streamed = await req.send().timeout(const Duration(seconds: 30));
+      final streamed = await apiClient.send(req).timeout(const Duration(seconds: 30));
       final response = await http.Response.fromStream(streamed);
 
       Map<String, dynamic> body;
@@ -1444,7 +1426,7 @@ class ApiService {
 
     try {
       final token = await getToken();
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/geo/route'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1502,7 +1484,7 @@ class ApiService {
   static Future<Map<String, dynamic>> logout(String csrfToken) async {
     try {
       final token = await getToken();
-      await http
+      await apiClient
           .post(
             Uri.parse('$baseUrl/logout'),
             headers: {
@@ -1522,7 +1504,7 @@ class ApiService {
   static Future<QuotationModel?> fetchPendingQuotation() async {
     try {
       final token = await getToken();
-      final res = await http
+      final res = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/quotations/pending'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1542,7 +1524,7 @@ class ApiService {
   static Future<Map<String, dynamic>> acceptQuotation(int id) async {
     try {
       final token = await getToken();
-      final res = await http
+      final res = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/quotations/$id/accept'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1564,7 +1546,7 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final res = await http
+      final res = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/quotations/$id/reject'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1587,7 +1569,7 @@ class ApiService {
   ) async {
     try {
       final token = await getToken();
-      final res = await http
+      final res = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/quotations/$id/request-price-review'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1610,7 +1592,7 @@ class ApiService {
   ) async {
     try {
       final token = await getToken();
-      final res = await http
+      final res = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/quotations/$id/inquire'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1629,7 +1611,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> sendRegistrationOtp(String email) async {
     try {
-      final res = await http
+      final res = await apiClient
           .post(
             Uri.parse('$baseUrl/register/send-otp'),
             headers: _headers,
@@ -1657,7 +1639,7 @@ class ApiService {
     String otp,
   ) async {
     try {
-      final res = await http
+      final res = await apiClient
           .post(
             Uri.parse('$baseUrl/register/verify-otp'),
             headers: _headers,
@@ -1678,7 +1660,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> sendResetOtp(String email) async {
     try {
-      final res = await http
+      final res = await apiClient
           .post(
             Uri.parse('$baseUrl/password/forgot'),
             headers: _headers,
@@ -1702,7 +1684,7 @@ class ApiService {
     String otp,
   ) async {
     try {
-      final res = await http
+      final res = await apiClient
           .post(
             Uri.parse('$baseUrl/password/verify-otp'),
             headers: _headers,
@@ -1729,7 +1711,7 @@ class ApiService {
     required String passwordConfirmation,
   }) async {
     try {
-      final res = await http
+      final res = await apiClient
           .post(
             Uri.parse('$baseUrl/password/reset'),
             headers: _headers,
@@ -1756,7 +1738,7 @@ class ApiService {
   static Future<Map<String, dynamic>> fetchNotifications() async {
     try {
       final token = await getToken();
-      final res = await http
+      final res = await apiClient
           .get(
             Uri.parse('$baseUrl/v1/notifications'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1781,7 +1763,7 @@ class ApiService {
   static Future<void> markAllNotificationsRead() async {
     try {
       final token = await getToken();
-      await http
+      await apiClient
           .post(
             Uri.parse('$baseUrl/v1/notifications/mark-read'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
@@ -1793,7 +1775,7 @@ class ApiService {
   static Future<void> markNotificationRead(int id) async {
     try {
       final token = await getToken();
-      await http
+      await apiClient
           .post(
             Uri.parse('$baseUrl/v1/notifications/$id/read'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},

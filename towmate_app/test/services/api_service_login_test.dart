@@ -139,7 +139,7 @@ void main() {
       final result = await runLogin(client);
 
       expect(result['success'], isFalse);
-      expect(result['message'], contains('reach the server'));
+      expect(result['message'], contains('Unable to connect'));
     });
 
     test('a request timeout returns a concise, non-crashing message', () async {
@@ -293,7 +293,7 @@ void main() {
       final result = await runLoginWithGoogle(client);
 
       expect(result['success'], isFalse);
-      expect(result['message'], contains('reach the server'));
+      expect(result['message'], contains('Unable to connect'));
       expect(result['message'], isNot(contains('unexpected error')));
     });
 

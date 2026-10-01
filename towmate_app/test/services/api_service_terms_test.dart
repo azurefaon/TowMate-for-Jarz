@@ -163,7 +163,7 @@ void main() {
       );
 
       expect(result['success'], isFalse);
-      expect(result['message'], contains('reach the server'));
+      expect(result['message'], contains('Unable to connect'));
     });
   });
 }

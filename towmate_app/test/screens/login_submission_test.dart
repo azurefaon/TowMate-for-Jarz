@@ -65,7 +65,7 @@ void main() {
     test('unreachable server is a transport error', () async {
       final r = await run(MockClient((_) async => throw http.ClientException('Failed to fetch')));
       expect(r['transport_error'], isTrue);
-      expect(r['message'], contains('reach the server'));
+      expect(r['message'], contains('Unable to connect'));
     });
 
     for (final code in [500, 502, 429]) {

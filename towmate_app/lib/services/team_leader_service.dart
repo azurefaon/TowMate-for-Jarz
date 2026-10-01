@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../core/api_transport.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
@@ -26,7 +27,7 @@ class TeamLeaderService {
     required String confirmPassword,
   }) async {
     try {
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse(
               '${ApiService.baseUrl}/v1/team-leader/auth/change-password',
@@ -61,7 +62,7 @@ class TeamLeaderService {
     Object? lastError;
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
-        final response = await http
+        final response = await apiClient
             .get(Uri.parse('$_base/task'), headers: await _authHeaders())
             .timeout(const Duration(seconds: 15));
 
@@ -85,7 +86,7 @@ class TeamLeaderService {
 
   static Future<Map<String, dynamic>> getHistory({int page = 1}) async {
     try {
-      final response = await http
+      final response = await apiClient
           .get(
             Uri.parse('$_base/history?page=$page'),
             headers: await _authHeaders(),
@@ -118,7 +119,7 @@ class TeamLeaderService {
     double? lng,
   }) async {
     try {
-      final response = await http
+      final response = await apiClient
           .patch(
             Uri.parse('$_base/task/$bookingCode/status'),
             headers: await _authHeaders(),
@@ -150,7 +151,7 @@ class TeamLeaderService {
     String? notes,
   ) async {
     try {
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$_base/task/$bookingCode/return'),
             headers: await _authHeaders(),
@@ -183,7 +184,7 @@ class TeamLeaderService {
             ..fields['type'] = type
             ..files.add(http.MultipartFile.fromBytes('photo', bytes, filename: photo.name));
 
-      final streamed = await req.send().timeout(const Duration(seconds: 30));
+      final streamed = await apiClient.send(req).timeout(const Duration(seconds: 30));
       final response = await http.Response.fromStream(streamed);
       return _parseResult(response);
     } on TimeoutException {
@@ -195,7 +196,7 @@ class TeamLeaderService {
 
   static Future<Map<String, dynamic>> claimNextInGroup(String groupCode) async {
     try {
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$_base/group/$groupCode/claim-next'),
             headers: await _authHeaders(),
@@ -233,7 +234,7 @@ class TeamLeaderService {
         );
       }
 
-      final streamed = await req.send().timeout(const Duration(seconds: 30));
+      final streamed = await apiClient.send(req).timeout(const Duration(seconds: 30));
       final response = await http.Response.fromStream(streamed);
       return _parseResult(response);
     } on TimeoutException {
@@ -246,7 +247,7 @@ class TeamLeaderService {
 
   static Future<void> pingPresence() async {
     try {
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse('$_base/presence/ping'),
             headers: await _authHeaders(),
@@ -260,7 +261,7 @@ class TeamLeaderService {
 
   static Future<void> goOffline() async {
     try {
-      await http
+      await apiClient
           .post(
             Uri.parse('$_base/presence/offline'),
             headers: await _authHeaders(),
@@ -271,7 +272,7 @@ class TeamLeaderService {
 
   static Future<void> markAway() async {
     try {
-      await http
+      await apiClient
           .post(
             Uri.parse('$_base/presence/away'),
             headers: await _authHeaders(),
@@ -288,7 +289,7 @@ class TeamLeaderService {
   }) async {
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
     try {
-      await http
+      await apiClient
           .put(
             Uri.parse('$_base/location'),
             headers: await _authHeaders(),
@@ -308,7 +309,7 @@ class TeamLeaderService {
     Map<String, dynamic>? body,
   ]) async {
     try {
-      final response = await http
+      final response = await apiClient
           .post(
             Uri.parse(url),
             headers: await _authHeaders(),
