@@ -1097,3 +1097,102 @@ button:focus-visible {
         font-size: 0.6875rem;
     }
 }
+
+.jarz-nav-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 8px;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.jarz-nav-toggle-bars,
+.jarz-nav-toggle-bars::before,
+.jarz-nav-toggle-bars::after {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+}
+
+.jarz-nav-toggle-bars {
+    position: relative;
+}
+
+.jarz-nav-toggle-bars::before,
+.jarz-nav-toggle-bars::after {
+    content: "";
+    position: absolute;
+    left: 0;
+}
+
+.jarz-nav-toggle-bars::before {
+    top: -6px;
+}
+
+.jarz-nav-toggle-bars::after {
+    top: 6px;
+}
+
+.jarz-nav a:focus-visible,
+.jarz-nav button:focus-visible {
+    outline: 3px solid #facc15;
+    outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+    .jarz-nav[data-nav] .jarz-nav-toggle {
+        display: inline-flex;
+    }
+
+    .jarz-nav[data-nav] .jarz-brand {
+        min-width: 0;
+    }
+
+    .jarz-nav[data-nav] .jarz-brand-name {
+        display: inline;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .jarz-nav[data-nav] .jarz-nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        padding: 4px 24px 16px;
+        background: #171717;
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        max-height: calc(100dvh - var(--nav-height));
+        overflow-y: auto;
+    }
+
+    .jarz-nav[data-nav].is-open .jarz-nav-links {
+        display: flex;
+    }
+
+    .jarz-nav[data-nav] .jarz-nav-links a {
+        display: flex;
+        align-items: center;
+        min-height: 48px;
+        font-size: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .jarz-nav[data-nav] .jarz-nav-links a.is-active {
+        padding-bottom: 0;
+        border-bottom-color: #facc15;
+    }
+}
