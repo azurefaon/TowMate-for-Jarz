@@ -434,3 +434,26 @@ it('still rejects creating a team leader once the limit is reached', function ()
 
     expect(usersTeamLeaderCount())->toBe(10);
 });
+
+it('archives through the resource destroy route instead of throwing', function () {
+    $admin = usersSystemAdmin();
+    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'active']);
+
+    $this->actingAs($admin)
+        ->delete(route('system-admin.users.destroy', $dispatcher->id), ['reason' => 'Cleanup'])
+        ->assertRedirect(route('system-admin.users.index'));
+
+    expect($dispatcher->fresh()->archived_at)->not->toBeNull()
+        ->and($dispatcher->fresh()->archived_reason)->toBe('Cleanup');
+});
+
+it('keeps the archive reason requirement on the destroy route', function () {
+    $admin = usersSystemAdmin();
+    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'active']);
+
+    $this->actingAs($admin)
+        ->delete(route('system-admin.users.destroy', $dispatcher->id))
+        ->assertSessionHasErrors('reason');
+
+    expect($dispatcher->fresh()->archived_at)->toBeNull();
+});

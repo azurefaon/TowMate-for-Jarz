@@ -838,8 +838,8 @@ class UserManagementController extends Controller
                 : 'User could not be fully deleted due to receipt/booking history — personal data was anonymized instead.');
     }
 
-    public function destroy(User $user): RedirectResponse
+    public function destroy(Request $request, User $user): RedirectResponse
     {
-        return $this->archive($user);
+        return $this->archive($request, $user);
     }
 }
