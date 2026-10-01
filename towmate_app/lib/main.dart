@@ -11,6 +11,7 @@ import 'screens/customer/booking_success_screen.dart';
 import 'screens/customer/customer_quotation_screen.dart';
 import 'screens/customer/customer_services_screen.dart';
 import 'screens/customer/customer_vehicle_types_screen.dart';
+import 'screens/customer/towing_guide_screen.dart';
 import 'screens/customer/edit_profile_screen.dart';
 import 'screens/customer/get_started_screen.dart';
 import 'screens/customer/home_screen.dart';
@@ -83,10 +84,13 @@ class MyApp extends StatelessWidget {
               '/signup' => const SignupScreen(),
               '/home' => const HomeScreen(),
               '/book-now' => const BookNowScreen(),
-              '/my-bookings' => const MyBookingsScreen(),
+              '/my-bookings' => MyBookingsScreen(
+                  initialTab: settings.arguments == 'history' ? 1 : 0,
+                ),
               '/quotation' => const CustomerQuotationScreen(),
               '/customer-services' => const CustomerServicesScreen(),
               '/vehicle-types' => const CustomerVehicleTypesScreen(),
+              '/towing-guide' => const TowingGuideScreen(),
               '/tl-force-password' => const TlForcePasswordScreen(),
               '/tl-home' => const TlHomeScreen(),
               '/tl-active-task' => const TlActiveTaskShell(),

@@ -3,10 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../services/api_service.dart';
 import '../../widgets/customer_secondary_header.dart';
+import '../../widgets/detail_header.dart';
 import '../../widgets/skeleton_box.dart';
+import '../../widgets/tm_bottom_nav.dart';
+import '../../widgets/vehicle_type_widgets.dart';
 
 Color _secondary(BuildContext context) =>
-    context.isDark ? TmColors.grey500 : const Color(0xFF6B6B6B);
+    context.isDark ? const Color(0xFFA3A3A3) : const Color(0xFF6B6B6B);
 
 class CustomerVehicleTypesScreen extends StatefulWidget {
   const CustomerVehicleTypesScreen({super.key});
@@ -16,17 +19,30 @@ class CustomerVehicleTypesScreen extends StatefulWidget {
 }
 
 class _CustomerVehicleTypesScreenState extends State<CustomerVehicleTypesScreen> {
-  List<Map<String, dynamic>> _twoWheelers = [];
-  List<Map<String, dynamic>> _fourWheelers = [];
-  List<Map<String, dynamic>> _heavyVehicles = [];
+  List<String> _twoThreeWheels = [];
+  List<String> _fourWheelsUp = [];
   bool _loading = true;
   bool _error = false;
+  int _unreadCount = 0;
 
   @override
   void initState() {
     super.initState();
     _fetch();
+    _fetchUnread();
   }
+
+  Future<void> _fetchUnread() async {
+    final result = await ApiService.fetchNotifications();
+    if (!mounted) return;
+    final count = (result['unread_count'] as int?) ?? 0;
+    if (count != _unreadCount) setState(() => _unreadCount = count);
+  }
+
+  List<String> _names(List<Map<String, dynamic>> items) => items
+      .map((v) => (v['name'] as String?) ?? '')
+      .where((n) => n.isNotEmpty)
+      .toList();
 
   Future<void> _fetch() async {
     setState(() {
@@ -39,15 +55,13 @@ class _CustomerVehicleTypesScreenState extends State<CustomerVehicleTypesScreen>
       ApiService.fetchVehicleTypesByCategory('heavy_vehicle'),
     ]);
     if (!mounted) return;
-    final twoWheelers = results[0];
-    final fourWheelers = results[1];
-    final heavyVehicles = results[2];
+    final twoThree = _names(results[0]);
+    final fourUp = [..._names(results[1]), ..._names(results[2])];
     setState(() {
-      _twoWheelers = twoWheelers;
-      _fourWheelers = fourWheelers;
-      _heavyVehicles = heavyVehicles;
+      _twoThreeWheels = twoThree;
+      _fourWheelsUp = fourUp;
       _loading = false;
-      _error = twoWheelers.isEmpty && fourWheelers.isEmpty && heavyVehicles.isEmpty;
+      _error = twoThree.isEmpty && fourUp.isEmpty;
     });
   }
 
@@ -55,13 +69,22 @@ class _CustomerVehicleTypesScreenState extends State<CustomerVehicleTypesScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.bg,
+      bottomNavigationBar: TmBottomNav(
+        currentRoute: '/vehicle-types',
+        highlightedRoute: '/home',
+        unreadCount: _unreadCount,
+      ),
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
-            const CustomerSecondaryHeader(title: 'Vehicle Types'),
+            const DetailScreenHeader(
+              title: 'Vehicle Types',
+              subtitle: 'Vehicles supported by TowMate',
+            ),
             Expanded(
               child: _loading
-                  ? const _VehicleTypesAllSkeleton()
+                  ? const _VehicleTypesSkeleton()
                   : _error
                       ? CustomerRetryState(
                           message: 'Vehicle types are unavailable right now.',
@@ -72,41 +95,20 @@ class _CustomerVehicleTypesScreenState extends State<CustomerVehicleTypesScreen>
                           onRefresh: _fetch,
                           child: ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
                             children: [
-                              Text(
-                                'Supported Vehicles',
-                                style: GoogleFonts.inter(
-                                  color: context.textPrimary,
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: -0.4,
+                              _VehicleGroup(label: 'TWO & THREE WHEELS', names: _twoThreeWheels),
+                              _VehicleGroup(label: 'FOUR WHEELS & UP', names: _fourWheelsUp),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Text(
+                                  'You will choose your vehicle type when you book a tow.',
+                                  style: GoogleFonts.inter(
+                                    color: _secondary(context),
+                                    fontSize: 15,
+                                    height: 1.4,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Vehicles currently supported by our towing services.',
-                                style: GoogleFonts.inter(
-                                  color: _secondary(context),
-                                  fontSize: 13,
-                                  letterSpacing: 0.1,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              _VehicleGroup(
-                                label: '2-Wheeler',
-                                icon: Icons.two_wheeler,
-                                items: _twoWheelers,
-                              ),
-                              _VehicleGroup(
-                                label: '4-Wheeler',
-                                icon: Icons.directions_car_outlined,
-                                items: _fourWheelers,
-                              ),
-                              _VehicleGroup(
-                                label: 'Heavy Vehicle',
-                                icon: Icons.local_shipping_outlined,
-                                items: _heavyVehicles,
                               ),
                             ],
                           ),
@@ -120,66 +122,80 @@ class _CustomerVehicleTypesScreenState extends State<CustomerVehicleTypesScreen>
 }
 
 class _VehicleGroup extends StatelessWidget {
-  const _VehicleGroup({required this.label, required this.icon, required this.items});
+  const _VehicleGroup({required this.label, required this.names});
   final String label;
-  final IconData icon;
-  final List<Map<String, dynamic>> items;
+  final List<String> names;
 
   @override
   Widget build(BuildContext context) {
-    final names = items
-        .map((v) => (v['name'] as String?) ?? '')
-        .where((n) => n.isNotEmpty)
-        .toList();
     if (names.isEmpty) return const SizedBox.shrink();
 
+    final rows = <Widget>[];
+    for (var i = 0; i < names.length; i += 2) {
+      rows.add(
+        Padding(
+          padding: EdgeInsets.only(bottom: i + 2 >= names.length ? 0 : 12),
+          child: Row(
+            children: [
+              Expanded(child: _VehicleTile(name: names[i])),
+              const SizedBox(width: 12),
+              Expanded(
+                child: i + 1 < names.length ? _VehicleTile(name: names[i + 1]) : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(bottom: 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.2,
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                color: _secondary(context),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: context.card,
-              border: Border.all(color: context.divider),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              children: [
-                for (var i = 0; i < names.length; i++) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                    child: Row(
-                      children: [
-                        Icon(icon, color: context.textPrimary, size: 19),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            names[i],
-                            style: GoogleFonts.inter(
-                              color: context.textPrimary,
-                              fontSize: 14.5,
-                              letterSpacing: 0.1,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (i != names.length - 1)
-                    const Divider(height: 1, thickness: 1, color: Color(0xFFE5E5E5), indent: 14, endIndent: 14),
-                ],
-              ],
+          ...rows,
+        ],
+      ),
+    );
+  }
+}
+
+class _VehicleTile extends StatelessWidget {
+  const _VehicleTile({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 72,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: context.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(vehicleIconFor(name), size: 30, color: context.textPrimary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: VehicleTypeLabel(
+              name: name,
+              color: context.textPrimary,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w700,
+              textAlign: TextAlign.start,
             ),
           ),
         ],
@@ -188,30 +204,43 @@ class _VehicleGroup extends StatelessWidget {
   }
 }
 
-class _VehicleTypesAllSkeleton extends StatelessWidget {
-  const _VehicleTypesAllSkeleton();
+class _VehicleTypesSkeleton extends StatelessWidget {
+  const _VehicleTypesSkeleton();
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SkeletonBox(width: 160, height: 19),
-          const SizedBox(height: 8),
-          const SkeletonBox(width: 240, height: 13),
-          const SizedBox(height: 20),
-          for (var g = 0; g < 3; g++) ...[
-            const SkeletonBox(width: 90, height: 15),
-            const SizedBox(height: 8),
-            SkeletonBox(
-              width: double.infinity,
-              height: 3 * 46.0,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            const SizedBox(height: 24),
+          for (var g = 0; g < 2; g++) ...[
+            const SkeletonBox(width: 150, height: 13),
+            const SizedBox(height: 12),
+            for (var r = 0; r < 2; r++) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: SkeletonBox(
+                      width: double.infinity,
+                      height: 72,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SkeletonBox(
+                      width: double.infinity,
+                      height: 72,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            const SizedBox(height: 16),
           ],
         ],
       ),

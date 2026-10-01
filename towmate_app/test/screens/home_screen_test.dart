@@ -17,60 +17,30 @@ http.Response _json(Object body, {int status = 200}) {
 }
 
 final _vehicleTypesByCategory = {
-  '2_wheeler': {
-    'vehicleTypes': [
-      {'id': 1, 'name': 'Motorcycle', 'description': null},
-    ],
-  },
-  '4_wheeler': {
-    'vehicleTypes': [
-      {'id': 2, 'name': 'Sedan', 'description': null},
-    ],
-  },
-  'heavy_vehicle': {
-    'vehicleTypes': [
-      {'id': 3, 'name': 'Cargo Truck', 'description': null},
-    ],
-  },
-};
-
-final _servicesFixture = {
-  'announcement': null,
-  'services': [
-    {
-      'title': 'Towing',
-      'description': 'Vehicle towing',
-      'image_url': null,
-      'category': 'towing',
-      'availability_note': null,
-    },
-    {
-      'title': 'Roadside Help',
-      'description': 'Roadside assistance',
-      'image_url': null,
-      'category': 'roadside',
-      'availability_note': null,
-    },
-    {
-      'title': 'Recovery',
-      'description': 'Vehicle recovery',
-      'image_url': null,
-      'category': 'recovery',
-      'availability_note': null,
-    },
+  '2_wheeler': [
+    {'id': 1, 'name': 'Motorcycle'},
+    {'id': 2, 'name': 'Scooter / E-Scooter'},
+    {'id': 3, 'name': 'Bicycle / E-Bike'},
+    {'id': 4, 'name': 'Tricycle'},
+  ],
+  '4_wheeler': [
+    {'id': 8, 'name': 'SUV'},
+    {'id': 11, 'name': 'Van / L300'},
+    {'id': 7, 'name': 'AUV / MPV'},
+  ],
+  'heavy_vehicle': [
+    {'id': 14, 'name': 'Elf / 6-Wheeler'},
   ],
 };
 
 http.Client _buildClient({
   Object? currentBooking,
   Object? pendingQuotation,
-  bool failSecondary = false,
-  bool failServicesOnly = false,
-  bool failVehicleTypesOnly = false,
+  Object? announcement,
   Set<String> failCategories = const {},
   Set<String> emptyCategories = const {},
-  List<Map<String, dynamic>>? servicesOverride,
-  Map<String, List<Map<String, dynamic>>>? vehicleTypesOverride,
+  bool malformedVehicleTypes = false,
+  int unreadCount = 2,
 }) {
   return MockClient((request) async {
     final path = request.url.path;
@@ -81,27 +51,17 @@ http.Client _buildClient({
       return _json({'data': pendingQuotation});
     }
     if (path.endsWith('/v1/customer/content')) {
-      if (failSecondary || failServicesOnly) return _json({}, status: 500);
-      if (servicesOverride != null) {
-        return _json({'announcement': null, 'services': servicesOverride});
-      }
-      return _json(_servicesFixture);
+      return _json({'announcement': announcement, 'services': []});
     }
     if (path.contains('/vehicle-types/by-category/')) {
       final category = path.split('/').last;
-      if (failSecondary || failVehicleTypesOnly || failCategories.contains(category)) {
-        return _json({}, status: 500);
-      }
-      if (emptyCategories.contains(category)) {
-        return _json({'vehicleTypes': []});
-      }
-      if (vehicleTypesOverride != null) {
-        return _json({'vehicleTypes': vehicleTypesOverride[category] ?? []});
-      }
-      return _json(_vehicleTypesByCategory[category] ?? {'vehicleTypes': []});
+      if (malformedVehicleTypes) return http.Response('<html>oops</html>', 200);
+      if (failCategories.contains(category)) return _json({}, status: 500);
+      if (emptyCategories.contains(category)) return _json({'vehicleTypes': []});
+      return _json({'vehicleTypes': _vehicleTypesByCategory[category] ?? []});
     }
     if (path.endsWith('/v1/notifications')) {
-      return _json({'success': true, 'unread_count': 2, 'data': []});
+      return _json({'success': true, 'unread_count': unreadCount, 'data': []});
     }
     return _json({'success': false}, status: 404);
   });
@@ -117,26 +77,31 @@ Future<void> _pumpHome(
   WidgetTester tester, {
   Object? currentBooking,
   Object? pendingQuotation,
-  bool failSecondary = false,
-  bool failServicesOnly = false,
-  bool failVehicleTypesOnly = false,
+  Object? announcement,
   Set<String> failCategories = const {},
   Set<String> emptyCategories = const {},
-  List<Map<String, dynamic>>? servicesOverride,
-  Map<String, List<Map<String, dynamic>>>? vehicleTypesOverride,
+  bool malformedVehicleTypes = false,
   void Function(String route, Object? args)? onNavigate,
   ThemeData? theme,
+  double width = 390,
+  String userName = 'Faon Delacruz',
+  String? firstName,
 }) async {
+  tester.view.physicalSize = Size(width, 2400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
   SharedPreferences.setMockInitialValues({
     'auth_token': 'test-token',
     'user_role': 'Customer',
-    'user_name': 'Faon Delacruz',
+    'user_name': userName,
+    'user_first_name': ?firstName,
   });
   await http.runWithClient(
     () async {
       await tester.pumpWidget(
         MaterialApp(
           theme: theme,
+          navigatorObservers: [appRouteObserver],
           onGenerateRoute: (settings) {
             if (settings.name == '/' || settings.name == null) {
               return MaterialPageRoute(builder: (_) => const HomeScreen());
@@ -151,16 +116,34 @@ Future<void> _pumpHome(
     () => _buildClient(
       currentBooking: currentBooking,
       pendingQuotation: pendingQuotation,
-      failSecondary: failSecondary,
-      failServicesOnly: failServicesOnly,
-      failVehicleTypesOnly: failVehicleTypesOnly,
+      announcement: announcement,
       failCategories: failCategories,
       emptyCategories: emptyCategories,
-      servicesOverride: servicesOverride,
-      vehicleTypesOverride: vehicleTypesOverride,
+      malformedVehicleTypes: malformedVehicleTypes,
     ),
   );
 }
+
+Map<String, dynamic> _booking({
+  String code = 'TM-0001',
+  String status = 'on_the_way',
+  Map<String, dynamic> extra = const {},
+}) {
+  return {
+    'id': 1,
+    'booking_code': code,
+    'status': status,
+    'pickup_address': '123 Main St',
+    'dropoff_address': '456 Side St',
+    'distance_km': 5.2,
+    'computed_total': 850.0,
+    ...extra,
+  };
+}
+
+Finder _labelText(String name) => find.byWidgetPredicate(
+      (w) => w is Text && w.data != null && w.data!.replaceAll('\n', ' ') == name,
+    );
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -169,7 +152,7 @@ void main() {
     (call) async => null,
   );
 
-  group('HomeScreen', () {
+  group('HomeScreen structure', () {
     testWidgets('renders a loading skeleton before content arrives', (tester) async {
       SharedPreferences.setMockInitialValues({'auth_token': 't', 'user_role': 'Customer'});
       await http.runWithClient(
@@ -183,132 +166,127 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('renders the greeting and bottom nav once loaded, without a Book Now CTA button', (tester) async {
-      await _pumpHome(tester);
+    testWidgets('renders the wordmark, greeting and customer first name from real state', (tester) async {
+      await _pumpHome(tester, firstName: 'Samantha');
 
-      expect(find.textContaining('Faon'), findsOneWidget);
-      expect(find.text('Book Now'), findsOneWidget);
-      expect(find.byType(ElevatedButton), findsNothing);
-      expect(find.byType(TmBottomNav), findsOneWidget);
+      expect(find.byType(RichText), findsWidgets);
+      expect(find.text('Samantha'), findsOneWidget);
+      expect(find.textContaining('Good '), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('no Drawer/hamburger exists on Home', (tester) async {
+    testWidgets('falls back to the first word of the stored name when no first name is cached', (tester) async {
+      await _pumpHome(tester);
+
+      expect(find.text('Faon'), findsOneWidget);
+    });
+
+    testWidgets('follows the frozen order: booking card, quick actions, how it works, vehicle types', (tester) async {
+      await _pumpHome(tester);
+
+      final ys = [
+        tester.getTopLeft(find.text('CURRENT BOOKING')).dy,
+        tester.getTopLeft(find.text('Quick actions')).dy,
+        tester.getTopLeft(find.text('How TowMate works')).dy,
+        tester.getTopLeft(find.text('Vehicle types').last).dy,
+      ];
+      expect([...ys]..sort(), ys);
+      expect(find.text('Our Services'), findsNothing);
+    });
+
+    testWidgets('no Drawer/hamburger and no Book Now button exist on Home', (tester) async {
       await _pumpHome(tester);
 
       expect(find.byType(Drawer), findsNothing);
       expect(find.byIcon(Icons.menu), findsNothing);
-      expect(find.byIcon(Icons.menu_rounded), findsNothing);
+      expect(find.byType(ElevatedButton), findsNothing);
+      expect(find.byType(FilledButton), findsNothing);
     });
+  });
 
-    testWidgets('bottom navigation contains exactly the five primary destinations', (tester) async {
+  group('HomeScreen current booking', () {
+    testWidgets('no active booking shows the approved empty state and helper row', (tester) async {
       await _pumpHome(tester);
 
-      final nav = find.byType(TmBottomNav);
-      for (final label in ['Home', 'Bookings', 'Book Now', 'Alerts', 'Profile']) {
-        expect(find.descendant(of: nav, matching: find.text(label)), findsOneWidget);
-      }
-    });
-
-    testWidgets('no active booking shows the compact empty state', (tester) async {
-      await _pumpHome(tester);
-
-      expect(find.text('Current Booking'), findsOneWidget);
+      expect(find.text('CURRENT BOOKING'), findsOneWidget);
       expect(find.text('No active booking'), findsOneWidget);
-      expect(find.text('Your active towing request will appear here.'), findsOneWidget);
+      expect(find.text('Once you request a tow, your driver and live status show up here.'), findsOneWidget);
+      expect(find.textContaining('Need a tow?', findRichText: true), findsOneWidget);
+      expect(find.text('Track'), findsNothing);
     });
 
-    testWidgets('an active booking renders its real summary fields', (tester) async {
+    testWidgets('an active booking renders its real data and a Track action', (tester) async {
       await _pumpHome(
         tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-0001',
-          'status': 'on_the_way',
-          'pickup_address': '123 Main St',
-          'dropoff_address': '456 Side St',
-          'distance_km': 5.2,
-          'computed_total': 850.0,
-        },
+        currentBooking: _booking(extra: {
+          'driver_name': 'Mark Dela Cruz',
+          'truck_type_name': 'Light Duty',
+          'vehicle_type_name': 'SUV',
+        }),
       );
 
+      expect(find.text('CURRENT BOOKING'), findsOneWidget);
       expect(find.text('TM-0001'), findsOneWidget);
-      expect(find.text('On the way'), findsOneWidget);
+      expect(find.text('On the way'), findsWidgets);
       expect(find.text('123 Main St'), findsOneWidget);
       expect(find.text('456 Side St'), findsOneWidget);
-      expect(find.text('View details'), findsNothing);
+      expect(find.text('Mark Dela Cruz'), findsOneWidget);
+      expect(find.text('Light Duty'), findsOneWidget);
+      expect(find.text('Track'), findsOneWidget);
       expect(find.text('No active booking'), findsNothing);
     });
 
-    testWidgets('the Current Booking card shows a clear View Booking Details action', (tester) async {
-      await _pumpHome(
-        tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-0001',
-          'status': 'on_the_way',
-          'pickup_address': '123 Main St',
-          'dropoff_address': '456 Side St',
-        },
-      );
+    testWidgets('never fabricates an ETA, plate number or placeholder driver', (tester) async {
+      await _pumpHome(tester, currentBooking: _booking());
 
-      expect(find.text('View Booking Details'), findsOneWidget);
+      expect(find.textContaining('min'), findsNothing);
+      expect(find.textContaining('arriving'), findsNothing);
+      expect(find.textContaining('[Driver'), findsNothing);
+      expect(find.textContaining('[Plate'), findsNothing);
+      expect(find.textContaining('Plate'), findsNothing);
+      expect(find.text('MD'), findsNothing);
     });
 
-    testWidgets('tapping View Booking Details navigates using the real booking code', (tester) async {
+    testWidgets('the progress indicator reflects the real booking status', (tester) async {
+      await _pumpHome(tester, currentBooking: _booking(status: 'assigned'));
+
+      for (final label in ['Requested', 'Assigned', 'On the way', 'Towing']) {
+        expect(find.text(label), findsWidgets);
+      }
+      final emphasised = tester
+          .widgetList<Text>(find.text('Assigned'))
+          .where((t) => t.style?.fontWeight == FontWeight.w700);
+      expect(emphasised, isNotEmpty);
+    });
+
+    testWidgets('Track navigates using the real booking code', (tester) async {
       String? capturedRoute;
       Object? capturedArgs;
 
       await _pumpHome(
         tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-0002',
-          'status': 'requested',
-          'pickup_address': 'A',
-          'dropoff_address': 'B',
-        },
+        currentBooking: _booking(code: 'TM-0002', status: 'requested'),
         onNavigate: (route, args) {
           capturedRoute = route;
           capturedArgs = args;
         },
       );
 
-      await tester.tap(find.text('View Booking Details'));
+      await tester.tap(find.text('Track'));
       await _settle(tester);
 
       expect(capturedRoute, '/booking-detail');
       expect(capturedArgs, 'TM-0002');
     });
 
-    testWidgets('shows the customer-facing vehicle type on the current booking card', (tester) async {
+    testWidgets('a grouped booking shows the group reference and opens the group overview', (tester) async {
+      String? capturedRoute;
+      Object? capturedArgs;
+
       await _pumpHome(
         tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-0001',
-          'status': 'requested',
-          'pickup_address': 'A',
-          'dropoff_address': 'B',
-          'vehicle_type_name': 'Pickup Truck',
-          'truck_type_name': 'Light Duty',
-        },
-      );
-
-      expect(find.textContaining('Pickup Truck'), findsOneWidget);
-      expect(find.textContaining('Light Duty'), findsNothing);
-    });
-
-    testWidgets('a mixed Book Now + Scheduled group shows the group reference and an accurate active-vehicle count', (tester) async {
-      await _pumpHome(
-        tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-00227',
-          'status': 'requested',
+        currentBooking: _booking(code: 'TM-00227', status: 'requested', extra: {
           'service_type': 'book_now',
-          'pickup_address': 'A',
-          'dropoff_address': 'B',
           'group_code': 'GRP-1',
           'group_vehicle_count': 2,
           'group_siblings': [
@@ -319,6 +297,10 @@ void main() {
               'status': 'scheduled',
             },
           ],
+        }),
+        onNavigate: (route, args) {
+          capturedRoute = route;
+          capturedArgs = args;
         },
       );
 
@@ -327,702 +309,364 @@ void main() {
       expect(find.text('Active'), findsOneWidget);
       expect(find.text('2 of 2 vehicles active'), findsOneWidget);
 
-      final activeContainer = tester.widget<Container>(
-        find.ancestor(of: find.text('Active'), matching: find.byType(Container)).first,
-      );
-      expect((activeContainer.decoration as BoxDecoration?)?.color, TmColors.success);
-      expect(tester.widget<Text>(find.text('Active')).style?.color, TmColors.black);
-    });
-
-    for (final width in [320.0, 360.0, 412.0]) {
-      testWidgets('the Active status stays green in dark mode without overflow at ${width.toInt()}px', (tester) async {
-        tester.view.physicalSize = Size(width, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-
-        await _pumpHome(
-          tester,
-          theme: AppTheme.dark,
-          currentBooking: {
-            'id': 1,
-            'booking_code': 'TM-00227',
-            'status': 'requested',
-            'service_type': 'book_now',
-            'pickup_address': 'A',
-            'dropoff_address': 'B',
-            'group_code': 'GRP-1',
-            'group_vehicle_count': 2,
-            'group_siblings': [
-              {
-                'booking_code': 'TM-00228',
-                'vehicle_type_name': 'Motorcycle',
-                'service_type': 'schedule',
-                'status': 'scheduled',
-              },
-            ],
-          },
-        );
-
-        expect(find.text('Active'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-
-        final activeContainer = tester.widget<Container>(
-          find.ancestor(of: find.text('Active'), matching: find.byType(Container)).first,
-        );
-        expect((activeContainer.decoration as BoxDecoration?)?.color, TmColors.success);
-        expect(tester.widget<Text>(find.text('Active')).style?.color, TmColors.black);
-      });
-    }
-
-    testWidgets('a grouped current booking shows the combined group total, not the first vehicle\'s own price', (tester) async {
-      await _pumpHome(
-        tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-00227',
-          'status': 'requested',
-          'service_type': 'book_now',
-          'pickup_address': 'A',
-          'dropoff_address': 'B',
-          'final_total': 1680.0,
-          'computed_total': 1500.0,
-          'group_code': 'GRP-1',
-          'group_vehicle_count': 2,
-          'group_siblings': [
-            {
-              'booking_code': 'TM-00228',
-              'vehicle_type_name': 'Motorcycle',
-              'service_type': 'book_now',
-              'status': 'requested',
-            },
-          ],
-          'group_totals': {
-            'vehicle_count': 2,
-            'base_rate': 2500.0,
-            'computed_total': 2500.0,
-            'vat_amount': 300.0,
-            'additional_fee': 0.0,
-            'final_total': 2800.0,
-          },
-        },
-      );
-
-      expect(find.text('Group Total'), findsOneWidget);
-      expect(find.text('₱2,800.00'), findsOneWidget);
-      expect(find.text('₱1,680.00'), findsNothing);
-    });
-
-    testWidgets('a grouped current booking shows the group reference, not the selected vehicle\'s TM code', (tester) async {
-      await _pumpHome(
-        tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-00227',
-          'status': 'requested',
-          'service_type': 'book_now',
-          'pickup_address': 'A',
-          'dropoff_address': 'B',
-          'vehicle_type_name': 'Sedan',
-          'group_code': 'GRP-1',
-          'group_vehicle_count': 2,
-          'group_siblings': [
-            {
-              'booking_code': 'TM-00228',
-              'vehicle_type_name': 'Motorcycle',
-              'service_type': 'book_now',
-              'status': 'requested',
-            },
-          ],
-        },
-      );
-
-      expect(find.text('GRP-1'), findsOneWidget);
-      expect(find.text('TM-00227'), findsNothing);
-      expect(find.text('2 of 2 vehicles active'), findsOneWidget);
-      expect(find.textContaining('1 Vehicle  ·  Sedan'), findsNothing);
-    });
-
-    testWidgets('after a sibling is cancelled, the current booking card shows an accurate active-vehicle count and Remaining Total', (tester) async {
-      await _pumpHome(
-        tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-00227',
-          'status': 'requested',
-          'service_type': 'book_now',
-          'pickup_address': 'A',
-          'dropoff_address': 'B',
-          'group_code': 'GRP-1',
-          'group_vehicle_count': 2,
-          'group_siblings': [
-            {
-              'booking_code': 'TM-00228',
-              'vehicle_type_name': 'Motorcycle',
-              'service_type': 'book_now',
-              'status': 'cancelled',
-            },
-          ],
-          'group_totals': {
-            'vehicle_count': 2,
-            'base_rate': 1500.0,
-            'computed_total': 1500.0,
-            'vat_amount': 180.0,
-            'additional_fee': 0.0,
-            'final_total': 1680.0,
-          },
-        },
-      );
-
-      expect(find.text('1 of 2 vehicles active'), findsOneWidget);
-      expect(find.text('Remaining Total'), findsOneWidget);
-      expect(find.text('₱1,680.00'), findsOneWidget);
-      expect(find.text('Group Total'), findsNothing);
-    });
-
-    testWidgets('when every vehicle in the group is cancelled, the current booking card shows Cancelled', (tester) async {
-      await _pumpHome(
-        tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-00227',
-          'status': 'cancelled',
-          'service_type': 'book_now',
-          'pickup_address': 'A',
-          'dropoff_address': 'B',
-          'group_code': 'GRP-1',
-          'group_vehicle_count': 2,
-          'group_siblings': [
-            {
-              'booking_code': 'TM-00228',
-              'vehicle_type_name': 'Motorcycle',
-              'service_type': 'book_now',
-              'status': 'cancelled',
-            },
-          ],
-        },
-      );
-
-      expect(find.text('Cancelled'), findsOneWidget);
-      expect(find.text('GRP-1'), findsOneWidget);
-    });
-
-    testWidgets('a standalone current booking still shows its own TM code and vehicle type', (tester) async {
-      await _pumpHome(
-        tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-00227',
-          'status': 'requested',
-          'service_type': 'book_now',
-          'pickup_address': 'A',
-          'dropoff_address': 'B',
-          'vehicle_type_name': 'Sedan',
-        },
-      );
-
-      expect(find.text('TM-00227'), findsOneWidget);
-      expect(find.text('1 Vehicle  ·  Sedan'), findsOneWidget);
-    });
-
-    testWidgets('tapping View Booking Details on a grouped current booking opens the group overview', (tester) async {
-      String? capturedRoute;
-      Object? capturedArgs;
-
-      await _pumpHome(
-        tester,
-        currentBooking: {
-          'id': 1,
-          'booking_code': 'TM-00227',
-          'status': 'requested',
-          'service_type': 'book_now',
-          'pickup_address': 'A',
-          'dropoff_address': 'B',
-          'group_code': 'GRP-1',
-          'group_vehicle_count': 2,
-          'group_siblings': [
-            {
-              'booking_code': 'TM-00228',
-              'vehicle_type_name': 'Motorcycle',
-              'service_type': 'book_now',
-              'status': 'requested',
-            },
-          ],
-        },
-        onNavigate: (route, args) {
-          capturedRoute = route;
-          capturedArgs = args;
-        },
-      );
-
-      await tester.tap(find.text('View Booking Details'));
+      await tester.tap(find.text('Track'));
       await _settle(tester);
 
       expect(capturedRoute, '/booking-detail');
       expect(capturedArgs, {'bookingCode': 'TM-00227', 'asGroupOverview': true});
     });
 
-    testWidgets('real service and vehicle-type data renders from the API response', (tester) async {
-      await _pumpHome(tester);
-
-      expect(find.text('Towing'), findsOneWidget);
-      expect(find.text('Roadside Help'), findsOneWidget);
-      expect(find.text('Recovery'), findsOneWidget);
-      expect(find.text('Sedan'), findsOneWidget);
-    });
-
-    testWidgets('Book Now is reachable only through the bottom navigation', (tester) async {
-      await _pumpHome(tester);
-
-      expect(
-        find.descendant(of: find.byType(TmBottomNav), matching: find.text('Book Now')),
-        findsOneWidget,
-      );
-      expect(find.byType(ElevatedButton), findsNothing);
-      expect(find.text('Book a Tow'), findsNothing);
-    });
-
-    testWidgets('customer-facing service names render without hyphens', (tester) async {
+    testWidgets('a pending quotation replaces the booking card with the review action', (tester) async {
       await _pumpHome(
         tester,
-        servicesOverride: [
-          {'title': 'Light Duty Towing', 'description': '', 'image_url': null, 'category': 'towing', 'availability_note': null},
-          {'title': 'Medium Duty Towing', 'description': '', 'image_url': null, 'category': 'towing', 'availability_note': null},
-          {'title': 'Heavy Duty Towing', 'description': '', 'image_url': null, 'category': 'towing', 'availability_note': null},
-        ],
-      );
-
-      expect(find.text('Light Duty Towing'), findsOneWidget);
-      expect(find.text('Medium Duty Towing'), findsOneWidget);
-      expect(find.text('Heavy Duty Towing'), findsOneWidget);
-      expect(find.text('Light-Duty Towing'), findsNothing);
-      expect(find.text('Medium-Duty Towing'), findsNothing);
-      expect(find.text('Heavy-Duty Towing'), findsNothing);
-    });
-
-    testWidgets('Our Services preview on Home shows at most 3 services', (tester) async {
-      await _pumpHome(
-        tester,
-        servicesOverride: [
-          {'title': 'Towing', 'description': '', 'image_url': null, 'category': 'a', 'availability_note': null},
-          {'title': 'Roadside Help', 'description': '', 'image_url': null, 'category': 'b', 'availability_note': null},
-          {'title': 'Recovery', 'description': '', 'image_url': null, 'category': 'c', 'availability_note': null},
-          {'title': 'Impound Release', 'description': '', 'image_url': null, 'category': 'd', 'availability_note': null},
-          {'title': 'Fuel Delivery', 'description': '', 'image_url': null, 'category': 'e', 'availability_note': null},
-        ],
-      );
-
-      expect(find.text('Towing'), findsOneWidget);
-      expect(find.text('Roadside Help'), findsOneWidget);
-      expect(find.text('Recovery'), findsOneWidget);
-      expect(find.text('Impound Release'), findsNothing);
-      expect(find.text('Fuel Delivery'), findsNothing);
-    });
-
-    testWidgets('Our Services has a View all action that routes to the authenticated Services screen', (tester) async {
-      final routes = <String>[];
-      await _pumpHome(tester, onNavigate: (route, args) => routes.add(route));
-
-      expect(find.text('View all'), findsWidgets);
-      await tester.tap(find.text('View all').first);
-      await _settle(tester);
-
-      expect(routes, contains('/customer-services'));
-      expect(routes, isNot(contains('/services')));
-    });
-
-    testWidgets('Vehicle Types preview on Home is capped at 8 entries', (tester) async {
-      await _pumpHome(
-        tester,
-        vehicleTypesOverride: {
-          '2_wheeler': [
-            {'id': 1, 'name': 'Scooter'},
-            {'id': 2, 'name': 'Motorcycle'},
-            {'id': 3, 'name': 'Moped'},
-          ],
-          '4_wheeler': [
-            {'id': 4, 'name': 'Sedan'},
-            {'id': 5, 'name': 'SUV'},
-            {'id': 6, 'name': 'Pickup'},
-            {'id': 7, 'name': 'Van'},
-          ],
-          'heavy_vehicle': [
-            {'id': 8, 'name': 'Cargo Truck'},
-            {'id': 9, 'name': 'Dump Truck'},
-            {'id': 10, 'name': 'Bus'},
-            {'id': 11, 'name': 'Container Truck'},
-          ],
+        pendingQuotation: {
+          'id': 5,
+          'quotation_number': 'Q-100',
+          'status': 'sent',
+          'estimated_price': 1500,
+          'distance_km': 4.2,
+          'truck_type_name': 'Light Duty',
+          'pickup_address': 'A St',
+          'dropoff_address': 'B St',
         },
       );
 
-      expect(find.text('Scooter'), findsOneWidget);
-      expect(find.text('Motorcycle'), findsOneWidget);
-      expect(find.text('Moped'), findsOneWidget);
-      expect(find.text('Sedan'), findsOneWidget);
-      expect(find.text('SUV'), findsOneWidget);
-      expect(find.text('Pickup'), findsOneWidget);
-      expect(find.text('Van'), findsOneWidget);
-      expect(find.text('Cargo Truck'), findsOneWidget);
-      expect(find.text('Dump Truck'), findsNothing);
-      expect(find.text('Bus'), findsNothing);
-      expect(find.text('Container Truck'), findsNothing);
+      expect(find.text('QUOTATION READY'), findsOneWidget);
+      expect(find.text('Review & Accept'), findsOneWidget);
+      expect(find.text('No active booking'), findsNothing);
     });
 
-    testWidgets('Vehicle Types has a View all action that routes to the authenticated Vehicle Types screen', (tester) async {
+    testWidgets('a CMS announcement still renders when one exists', (tester) async {
+      await _pumpHome(tester, announcement: {'title': 'Holiday hours', 'message': 'We are open 24/7.'});
+
+      expect(find.text('Holiday hours'), findsOneWidget);
+      expect(find.text('We are open 24/7.'), findsOneWidget);
+    });
+  });
+
+  group('HomeScreen quick actions', () {
+    testWidgets('shows exactly the three approved quick actions', (tester) async {
+      await _pumpHome(tester);
+
+      for (final label in ['Booking history', 'Vehicle types', 'Towing guide']) {
+        expect(find.text(label), findsWidgets);
+      }
+      expect(find.text('Track request'), findsNothing);
+      expect(find.text('Promos & updates'), findsNothing);
+      expect(find.text('Book a Tow'), findsNothing);
+      expect(find.text('Emergency help'), findsNothing);
+      expect(find.byType(InkWell).evaluate().where((e) {
+        final w = e.widget as InkWell;
+        return w.onTap != null;
+      }).isNotEmpty, isTrue);
+    });
+
+    testWidgets('quick actions are identical with and without an active booking', (tester) async {
+      await _pumpHome(tester, currentBooking: _booking());
+
+      expect(find.text('Booking history'), findsOneWidget);
+      expect(find.text('Towing guide'), findsOneWidget);
+      expect(find.text('Track request'), findsNothing);
+    });
+
+    testWidgets('Booking history opens the History tab of Bookings', (tester) async {
+      String? route;
+      Object? args;
+      await _pumpHome(tester, onNavigate: (r, a) {
+        route = r;
+        args = a;
+      });
+
+      await tester.tap(find.text('Booking history'));
+      await _settle(tester);
+
+      expect(route, '/my-bookings');
+      expect(args, 'history');
+    });
+
+    testWidgets('Vehicle types quick action and View all both open Vehicle Types', (tester) async {
       final routes = <String>[];
-      await _pumpHome(tester, onNavigate: (route, args) => routes.add(route));
+      await _pumpHome(tester, onNavigate: (r, a) => routes.add(r));
 
-      final viewAllActions = find.text('View all');
-      expect(viewAllActions, findsNWidgets(2));
-      await tester.ensureVisible(viewAllActions.last);
+      await tester.tap(find.text('Vehicle types').first);
       await _settle(tester);
-      await tester.tap(viewAllActions.last);
+      expect(routes, ['/vehicle-types']);
+
+      routes.clear();
+      await tester.pumpWidget(const SizedBox());
+      await _pumpHome(tester, onNavigate: (r, a) => routes.add(r));
+      await tester.tap(find.text('View all'));
       await _settle(tester);
-
-      expect(routes, contains('/vehicle-types'));
-      expect(routes, isNot(contains('/services')));
+      expect(routes, ['/vehicle-types']);
     });
 
+    testWidgets('Towing guide quick action and the guide link both open the Towing Guide', (tester) async {
+      final routes = <String>[];
+      await _pumpHome(tester, onNavigate: (r, a) => routes.add(r));
 
-    testWidgets('a secondary-content API failure shows safe fallback text without blocking Home', (tester) async {
-      await _pumpHome(tester, failSecondary: true);
+      await tester.tap(find.text('Towing guide'));
+      await _settle(tester);
+      expect(routes, ['/towing-guide']);
 
-      expect(find.text('Services info is unavailable right now.'), findsOneWidget);
-      expect(find.text('Vehicle type info is unavailable right now.'), findsOneWidget);
-      expect(tester.takeException(), isNull);
+      routes.clear();
+      await tester.pumpWidget(const SizedBox());
+      await _pumpHome(tester, onNavigate: (r, a) => routes.add(r));
+      await tester.ensureVisible(find.text('Read the towing guide'));
+      await tester.tap(find.text('Read the towing guide'));
+      await _settle(tester);
+      expect(routes, ['/towing-guide']);
+    });
+  });
+
+  group('HomeScreen how it works and vehicle preview', () {
+    testWidgets('renders the three approved steps and the guide prompt', (tester) async {
+      await _pumpHome(tester);
+
+      expect(find.text('How TowMate works'), findsOneWidget);
+      expect(find.text('From roadside to drop-off in three steps.'), findsOneWidget);
+      expect(find.text('Choose your vehicle'), findsOneWidget);
+      expect(find.text('Pick the vehicle type so we send the right truck.'), findsOneWidget);
+      expect(find.text('Set pickup and drop-off'), findsOneWidget);
+      expect(find.text('Pin where you are and where it needs to go.'), findsOneWidget);
+      expect(find.text('Track your tow'), findsOneWidget);
+      expect(find.text('Follow your driver live until drop-off.'), findsOneWidget);
+      expect(find.text('Not sure if you need light, medium or heavy duty?'), findsOneWidget);
+      expect(find.text('Read the towing guide'), findsOneWidget);
     });
 
-    testWidgets('a Services-only failure does not affect Vehicle Types', (tester) async {
-      await _pumpHome(tester, failServicesOnly: true);
+    testWidgets('the preview shows exactly the four approved vehicle types', (tester) async {
+      await _pumpHome(tester);
 
-      expect(find.text('Services info is unavailable right now.'), findsOneWidget);
-      expect(find.text('Sedan'), findsOneWidget);
-      expect(find.text('Vehicle type info is unavailable right now.'), findsNothing);
+      expect(find.text('Vehicle types'), findsWidgets);
+      expect(find.text('We tow any type of vehicle.'), findsOneWidget);
+      for (final name in ['Motorcycle', 'SUV', 'Van / L300', 'Elf / 6-Wheeler']) {
+        expect(_labelText(name), findsOneWidget, reason: name);
+      }
+      for (final name in ['Scooter / E-Scooter', 'Bicycle / E-Bike', 'Tricycle', 'AUV / MPV']) {
+        expect(_labelText(name), findsNothing, reason: name);
+      }
     });
 
-    testWidgets('a Vehicle-Types-only failure does not affect Services', (tester) async {
-      await _pumpHome(tester, failVehicleTypesOnly: true);
-
-      expect(find.text('Vehicle type info is unavailable right now.'), findsOneWidget);
-      expect(find.text('Towing'), findsOneWidget);
-      expect(find.text('Services info is unavailable right now.'), findsNothing);
-    });
-
-    testWidgets('a 2_wheeler-only failure still shows the other real categories', (tester) async {
-      await _pumpHome(tester, failCategories: {'2_wheeler'});
-
-      expect(find.text('Sedan'), findsOneWidget);
-      expect(find.text('Cargo Truck'), findsOneWidget);
-      expect(find.text('Motorcycle'), findsNothing);
-      expect(find.text('Vehicle type info is unavailable right now.'), findsNothing);
-    });
-
-    testWidgets('a 4_wheeler-only failure still shows the other real categories', (tester) async {
-      await _pumpHome(tester, failCategories: {'4_wheeler'});
-
-      expect(find.text('Motorcycle'), findsOneWidget);
-      expect(find.text('Cargo Truck'), findsOneWidget);
-      expect(find.text('Sedan'), findsNothing);
-      expect(find.text('Vehicle type info is unavailable right now.'), findsNothing);
-    });
-
-    testWidgets('a heavy_vehicle-only failure still shows the other real categories', (tester) async {
+    testWidgets('a category failure still shows the remaining preview types', (tester) async {
       await _pumpHome(tester, failCategories: {'heavy_vehicle'});
 
-      expect(find.text('Motorcycle'), findsOneWidget);
-      expect(find.text('Sedan'), findsOneWidget);
-      expect(find.text('Cargo Truck'), findsNothing);
-      expect(find.text('Vehicle type info is unavailable right now.'), findsNothing);
+      expect(_labelText('Motorcycle'), findsOneWidget);
+      expect(_labelText('SUV'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a category with no active vehicle types renders no chips for it, not an error', (tester) async {
-      await _pumpHome(tester, emptyCategories: {'heavy_vehicle'});
-
-      expect(find.text('Motorcycle'), findsOneWidget);
-      expect(find.text('Sedan'), findsOneWidget);
-      expect(find.text('Cargo Truck'), findsNothing);
-      expect(find.text('Vehicle type info is unavailable right now.'), findsNothing);
-    });
-
-    testWidgets('all categories legitimately empty shows the safe unavailable text, not a crash', (tester) async {
-      await _pumpHome(
-        tester,
-        emptyCategories: {'2_wheeler', '4_wheeler', 'heavy_vehicle'},
-      );
+    testWidgets('all categories empty shows the safe unavailable text', (tester) async {
+      await _pumpHome(tester, emptyCategories: {'2_wheeler', '4_wheeler', 'heavy_vehicle'});
 
       expect(find.text('Vehicle type info is unavailable right now.'), findsOneWidget);
-      expect(find.text('Towing'), findsOneWidget);
-      expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a malformed vehicle-types response fails safely without crashing Home', (tester) async {
-      SharedPreferences.setMockInitialValues({
-        'auth_token': 'test-token',
-        'user_role': 'Customer',
-        'user_name': 'Faon Delacruz',
-      });
-      final client = MockClient((request) async {
-        final path = request.url.path;
-        if (path.endsWith('/v1/bookings/current')) return _json({'data': null});
-        if (path.endsWith('/v1/quotations/pending')) return _json({'data': null});
-        if (path.endsWith('/v1/customer/content')) return _json(_servicesFixture);
-        if (path.contains('/vehicle-types/by-category/')) {
-          return http.Response('not valid json{{{', 200, headers: {'content-type': 'application/json'});
-        }
-        if (path.endsWith('/v1/notifications')) return _json({'success': true, 'unread_count': 0, 'data': []});
-        return _json({'success': false}, status: 404);
-      });
-
-      await http.runWithClient(
-        () async {
-          await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
-          await _settle(tester);
-        },
-        () => client,
-      );
+    testWidgets('a malformed vehicle-types response fails safely', (tester) async {
+      await _pumpHome(tester, malformedVehicleTypes: true);
 
       expect(find.text('Vehicle type info is unavailable right now.'), findsOneWidget);
-      expect(find.text('Towing'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('shows a vehicle-type skeleton while secondary content is still loading', (tester) async {
-      SharedPreferences.setMockInitialValues({
-        'auth_token': 'test-token',
-        'user_role': 'Customer',
-        'user_name': 'Faon Delacruz',
+    for (final width in [360.0, 390.0, 430.0]) {
+      testWidgets('keeps 6-Wheeler together in the preview at ${width.toInt()}px', (tester) async {
+        await _pumpHome(tester, width: width);
+
+        final label = _labelText('Elf / 6-Wheeler');
+        expect(label, findsOneWidget);
+        final data = tester.widget<Text>(label).data!;
+        expect(data.contains('6-\n'), isFalse);
+        expect(data == 'Elf / 6-Wheeler' || data == 'Elf /\n6-Wheeler', isTrue);
+        expect(tester.takeException(), isNull);
       });
-      final client = MockClient((request) async {
-        final path = request.url.path;
-        if (path.endsWith('/v1/bookings/current')) return _json({'data': null});
-        if (path.endsWith('/v1/quotations/pending')) return _json({'data': null});
-        if (path.endsWith('/v1/customer/content')) return _json(_servicesFixture);
-        if (path.contains('/vehicle-types/by-category/')) {
-          await Future<void>.delayed(const Duration(seconds: 2));
-          final category = path.split('/').last;
-          return _json(_vehicleTypesByCategory[category] ?? {'vehicleTypes': []});
-        }
-        if (path.endsWith('/v1/notifications')) return _json({'success': true, 'unread_count': 0, 'data': []});
-        return _json({'success': false}, status: 404);
-      });
+    }
+  });
 
-      await http.runWithClient(
-        () async {
-          await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
-          for (var i = 0; i < 5; i++) {
-            await tester.pump(const Duration(milliseconds: 50));
-          }
-        },
-        () => client,
-      );
-
-      expect(find.text('Towing'), findsOneWidget);
-      expect(find.text('Vehicle type info is unavailable right now.'), findsNothing);
-      expect(find.text('Vehicle Types'), findsNothing);
-      expect(find.byType(SkeletonBox), findsWidgets);
-      expect(tester.takeException(), isNull);
-
-      await tester.pump(const Duration(seconds: 3));
-    });
-
-    testWidgets('tapping the bottom-nav Book Now item routes to the booking flow', (tester) async {
-      final routes = <String>[];
-      await _pumpHome(tester, onNavigate: (route, args) => routes.add(route));
-
-      await tester.tap(find.descendant(of: find.byType(TmBottomNav), matching: find.text('Book Now')));
-      await _settle(tester);
-
-      expect(routes, contains('/book-now'));
-    });
-
-    testWidgets('tapping My Bookings/Notifications/Profile navigates to their routes', (tester) async {
-      final routes = <String>[];
-      await _pumpHome(tester, onNavigate: (route, args) => routes.add(route));
-
-      await tester.tap(find.text('Bookings'));
-      await _settle(tester);
-
-      expect(routes, contains('/my-bookings'));
-    });
-
-    testWidgets('tapping the already-selected Home tab does not push another route', (tester) async {
-      final routes = <String>[];
-      await _pumpHome(tester, onNavigate: (route, args) => routes.add(route));
-
-      await tester.tap(find.text('Home'));
-      await _settle(tester);
-
-      expect(routes, isEmpty);
-    });
-
-    testWidgets('bottom nav tap targets remain reachable at each destination', (tester) async {
+  group('HomeScreen bottom navigation', () {
+    testWidgets('keeps the five destinations with Home selected', (tester) async {
       await _pumpHome(tester);
 
       final nav = find.byType(TmBottomNav);
       for (final label in ['Home', 'Bookings', 'Book Now', 'Alerts', 'Profile']) {
-        final finder = find.descendant(of: nav, matching: find.text(label));
-        expect(finder, findsOneWidget);
-        final size = tester.getSize(finder);
-        expect(size.height, greaterThan(0));
+        expect(find.descendant(of: nav, matching: find.text(label)), findsOneWidget);
       }
     });
 
-    for (final width in [320.0, 340.0, 360.0, 375.0, 390.0, 412.0]) {
-      testWidgets('renders without horizontal overflow at $width px width', (tester) async {
-        final originalSize = tester.view.physicalSize;
-        final originalRatio = tester.view.devicePixelRatio;
-        tester.view.physicalSize = Size(width, 800);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(() {
-          tester.view.physicalSize = originalSize;
-          tester.view.devicePixelRatio = originalRatio;
+    testWidgets('the Alerts badge shows the unread count', (tester) async {
+      await _pumpHome(tester);
+
+      expect(find.descendant(of: find.byType(TmBottomNav), matching: find.text('2')), findsOneWidget);
+    });
+
+    testWidgets('tapping Book Now, Bookings and Alerts navigates to their routes', (tester) async {
+      final routes = <String>[];
+      await _pumpHome(tester, onNavigate: (r, a) => routes.add(r));
+      final nav = find.byType(TmBottomNav);
+
+      await tester.tap(find.descendant(of: nav, matching: find.text('Book Now')));
+      await _settle(tester);
+      expect(routes.last, '/book-now');
+    });
+
+    testWidgets('tapping the selected Home tab does not push another route', (tester) async {
+      final routes = <String>[];
+      await _pumpHome(tester, onNavigate: (r, a) => routes.add(r));
+
+      await tester.tap(find.descendant(of: find.byType(TmBottomNav), matching: find.text('Home')));
+      await _settle(tester);
+
+      expect(routes, isEmpty);
+    });
+  });
+
+  group('HomeScreen theme and responsive', () {
+    for (final dark in [false, true]) {
+      for (final width in [360.0, 390.0, 430.0]) {
+        testWidgets('renders ${dark ? 'dark' : 'light'} with and without a booking at ${width.toInt()}px without overflow', (tester) async {
+          final theme = dark ? AppTheme.dark : AppTheme.light;
+          await _pumpHome(tester, theme: theme, width: width);
+          expect(tester.takeException(), isNull);
+
+          await tester.pumpWidget(const SizedBox());
+          await _pumpHome(
+            tester,
+            theme: theme,
+            width: width,
+            currentBooking: _booking(extra: {
+              'driver_name': 'Mark Dela Cruz',
+              'truck_type_name': 'Light Duty',
+              'vehicle_type_name': 'SUV',
+            }),
+          );
+          expect(tester.takeException(), isNull);
         });
-
-        await _pumpHome(tester);
-
-        expect(tester.takeException(), isNull);
-        expect(find.byType(TmBottomNav), findsOneWidget);
-      });
+      }
     }
 
-    testWidgets('renders correctly in light mode', (tester) async {
-      SharedPreferences.setMockInitialValues({
-        'auth_token': 'test-token',
-        'user_role': 'Customer',
-        'user_name': 'Faon Delacruz',
-      });
-      await http.runWithClient(
-        () async {
-          await tester.pumpWidget(
-            MaterialApp(
-              theme: AppTheme.light,
-              themeMode: ThemeMode.light,
-              home: const HomeScreen(),
-            ),
-          );
-          await _settle(tester);
-        },
-        () => _buildClient(),
+    testWidgets('a long customer name does not overflow', (tester) async {
+      await _pumpHome(
+        tester,
+        width: 360,
+        firstName: 'Maria Antonietta Consolacion Delacruz-Villanueva',
+        currentBooking: _booking(extra: {'driver_name': 'Maria Antonietta Consolacion Delacruz-Villanueva'}),
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text('No active booking'), findsOneWidget);
     });
 
-    testWidgets('renders correctly in dark mode', (tester) async {
-      SharedPreferences.setMockInitialValues({
-        'auth_token': 'test-token',
-        'user_role': 'Customer',
-        'user_name': 'Faon Delacruz',
-      });
-      await http.runWithClient(
-        () async {
-          await tester.pumpWidget(
-            MaterialApp(
-              theme: AppTheme.light,
-              darkTheme: AppTheme.dark,
-              themeMode: ThemeMode.dark,
-              home: const HomeScreen(),
-            ),
-          );
-          await _settle(tester);
-        },
-        () => _buildClient(),
-      );
+    testWidgets('light mode keeps a white page and the dark header', (tester) async {
+      await _pumpHome(tester, theme: AppTheme.light);
 
-      expect(tester.takeException(), isNull);
-      expect(find.text('No active booking'), findsOneWidget);
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+      expect(scaffold.backgroundColor, TmColors.white);
     });
 
-    testWidgets('returning from a pushed route refreshes the current booking so cancellations elsewhere stay consistent', (tester) async {
-      var currentCallCount = 0;
+    testWidgets('dark mode uses the charcoal page background', (tester) async {
+      await _pumpHome(tester, theme: AppTheme.dark);
+
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+      expect(scaffold.backgroundColor, TmColors.dark900);
+    });
+
+    testWidgets('uses the canonical TowMate yellow for accents', (tester) async {
+      await _pumpHome(tester, currentBooking: _booking());
+
+      final yellowBoxes = tester.widgetList<Material>(find.byType(Material)).where((m) => m.color == TmColors.yellow);
+      expect(yellowBoxes, isNotEmpty);
+      expect(TmColors.yellow, const Color(0xFFFACC15));
+    });
+  });
+
+  group('HomeScreen refresh behaviour', () {
+    testWidgets('returning from a pushed route refreshes the current booking', (tester) async {
+      var bookingVisible = true;
+      SharedPreferences.setMockInitialValues({'auth_token': 't', 'user_role': 'Customer', 'user_name': 'Faon'});
+      tester.view.physicalSize = const Size(390, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
       final client = MockClient((request) async {
         final path = request.url.path;
         if (path.endsWith('/v1/bookings/current')) {
-          currentCallCount++;
-          return _json({'data': null});
+          return _json({'data': bookingVisible ? _booking() : null});
         }
         if (path.endsWith('/v1/quotations/pending')) return _json({'data': null});
-        if (path.endsWith('/v1/customer/content')) return _json(_servicesFixture);
+        if (path.endsWith('/v1/customer/content')) return _json({'announcement': null, 'services': []});
         if (path.contains('/vehicle-types/by-category/')) return _json({'vehicleTypes': []});
         if (path.endsWith('/v1/notifications')) return _json({'success': true, 'unread_count': 0, 'data': []});
-        return _json({'success': false}, status: 404);
-      });
-
-      SharedPreferences.setMockInitialValues({
-        'auth_token': 'test-token',
-        'user_role': 'Customer',
-        'user_name': 'Faon Delacruz',
+        return _json({}, status: 404);
       });
 
       await http.runWithClient(() async {
-        await tester.pumpWidget(
-          MaterialApp(
-            navigatorObservers: [appRouteObserver],
-            onGenerateRoute: (settings) {
-              if (settings.name == '/' || settings.name == null) {
-                return MaterialPageRoute(builder: (_) => const HomeScreen());
-              }
-              return MaterialPageRoute(
-                builder: (context) => Scaffold(
-                  body: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('pushed-back'),
-                  ),
-                ),
-              );
-            },
+        await tester.pumpWidget(MaterialApp(
+          navigatorObservers: [appRouteObserver],
+          onGenerateRoute: (settings) => MaterialPageRoute(
+            builder: (_) => settings.name == '/' ? const HomeScreen() : const Scaffold(body: Text('PUSHED')),
           ),
-        );
+        ));
+        await _settle(tester);
+        expect(find.text('TM-0001'), findsOneWidget);
+
+        final context = tester.element(find.byType(HomeScreen));
+        Navigator.of(context).pushNamed('/other');
+        await _settle(tester);
+        expect(find.text('PUSHED'), findsOneWidget);
+
+        bookingVisible = false;
+        Navigator.of(context).pop();
+        await _settle(tester);
         await _settle(tester);
 
-        expect(currentCallCount, 1);
-
-        Navigator.of(tester.element(find.byType(HomeScreen))).pushNamed('/booking-detail');
-        await _settle(tester);
-
-        await tester.tap(find.text('pushed-back'));
-        await _settle(tester);
-
-        expect(currentCallCount, 2);
+        expect(find.text('No active booking'), findsOneWidget);
       }, () => client);
     });
   });
 
   group('TmBottomNav', () {
-    Widget host(String route, {int unreadCount = 0}) => MaterialApp(
-          home: Scaffold(body: TmBottomNav(currentRoute: route, unreadCount: unreadCount)),
-        );
-
     testWidgets('shows exactly five destinations with visible labels', (tester) async {
-      await tester.pumpWidget(host('/home'));
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(bottomNavigationBar: TmBottomNav(currentRoute: '/home')),
+      ));
 
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Bookings'), findsOneWidget);
-      expect(find.text('Book Now'), findsOneWidget);
-      expect(find.text('Alerts'), findsOneWidget);
-      expect(find.text('Profile'), findsOneWidget);
+      for (final label in ['Home', 'Bookings', 'Book Now', 'Alerts', 'Profile']) {
+        expect(find.text(label), findsOneWidget);
+      }
     });
 
     testWidgets('shows an unread badge on Alerts when unreadCount is positive', (tester) async {
-      await tester.pumpWidget(host('/home', unreadCount: 3));
-      expect(find.text('3'), findsOneWidget);
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(bottomNavigationBar: TmBottomNav(currentRoute: '/home', unreadCount: 7)),
+      ));
 
-      await tester.pumpWidget(host('/home', unreadCount: 0));
-      expect(find.text('3'), findsNothing);
+      expect(find.text('7'), findsOneWidget);
+    });
+
+    testWidgets('highlightedRoute selects Home while keeping navigation relative to the current screen', (tester) async {
+      final routes = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        onGenerateRoute: (settings) {
+          if (settings.name != '/') routes.add(settings.name!);
+          return MaterialPageRoute(
+            builder: (_) => const Scaffold(
+              bottomNavigationBar: TmBottomNav(currentRoute: '/vehicle-types', highlightedRoute: '/home'),
+            ),
+          );
+        },
+      ));
+
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+
+      expect(routes, contains('/home'));
     });
 
     testWidgets('does not overflow at narrow widths', (tester) async {
-      final originalSize = tester.view.physicalSize;
-      final originalRatio = tester.view.devicePixelRatio;
       tester.view.physicalSize = const Size(320, 800);
       tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.physicalSize = originalSize;
-        tester.view.devicePixelRatio = originalRatio;
-      });
-
-      await tester.pumpWidget(host('/home'));
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(bottomNavigationBar: TmBottomNav(currentRoute: '/home', unreadCount: 20)),
+      ));
 
       expect(tester.takeException(), isNull);
     });

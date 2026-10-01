@@ -1,16 +1,19 @@
 import 'dart:async';
+import 'dart:ui' show PathMetric;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import '../../core/route_observer.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart';
-import '../../models/service.dart';
 import '../../services/api_service.dart';
-import '../../widgets/cms_image.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/tm_bottom_nav.dart';
+import '../../widgets/vehicle_type_widgets.dart';
+
+const _previewVehicleNames = ['Motorcycle', 'SUV', 'Van / L300', 'Elf / 6-Wheeler'];
+const _headerColor = TmColors.black;
+const _headerOverlap = 64.0;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,13 +26,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
   BookingModel? _booking;
   QuotationModel? _quotation;
   Map<String, dynamic>? _announcement;
-  List<Service> _services = [];
-  List<Map<String, dynamic>> _twoWheelers = [];
-  List<Map<String, dynamic>> _fourWheelers = [];
-  List<Map<String, dynamic>> _heavyVehicles = [];
+  List<String> _vehicleNames = [];
   bool _loading = true;
   bool _secondaryLoading = true;
-  bool _secondaryError = false;
   String? _name;
   Timer? _pollTimer;
 
@@ -44,15 +43,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    ApiService.getUserName().then((n) {
-      if (mounted) setState(() => _name = n);
-    });
+    _loadName();
     _loadData().then((_) {
       if (mounted) _loadSecondaryContent();
     });
     _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _loadData());
     _fetchUnreadCount();
     _notifTimer = Timer.periodic(const Duration(seconds: 60), (_) => _fetchUnreadCount());
+  }
+
+  Future<void> _loadName() async {
+    final first = await ApiService.getUserFirstName();
+    final full = await ApiService.getUserName();
+    if (!mounted) return;
+    final firstTrimmed = first?.trim() ?? '';
+    final fallback = (full ?? '').trim().split(RegExp(r'\s+')).first;
+    final resolved = firstTrimmed.isNotEmpty ? firstTrimmed : fallback;
+    setState(() => _name = resolved.isEmpty ? null : resolved);
   }
 
   Future<void> _fetchUnreadCount() async {
@@ -101,7 +108,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     final newQuotation = results[1] as QuotationModel?;
     final content = results[2] as Map<String, dynamic>?;
     final newAnnouncement = content?['announcement'] as Map<String, dynamic>?;
-    final rawServices = content?['services'] as List<dynamic>?;
 
     if (!_initialLoad) {
       final newQuotId = newQuotation?.id;
@@ -124,11 +130,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
       _booking = newBooking;
       _quotation = newQuotation;
       _announcement = newAnnouncement;
-      if (rawServices != null) {
-        _services = rawServices
-            .map((s) => Service.fromJson(s as Map<String, dynamic>))
-            .toList();
-      }
       _loading = false;
       _lastSeenQuotationId = newQuotation?.id ?? _lastSeenQuotationId;
       _lastSeenQuotationStatus = newQuotation?.status ?? _lastSeenQuotationStatus;
@@ -144,16 +145,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
       ApiService.fetchVehicleTypesByCategory('heavy_vehicle'),
     ]);
     if (!mounted) return;
-    final twoWheelers = results[0];
-    final fourWheelers = results[1];
-    final heavyVehicles = results[2];
+    final names = [
+      for (final list in results)
+        for (final v in list) (v['name'] as String?) ?? '',
+    ].where((n) => n.isNotEmpty).toList();
     setState(() {
-      _twoWheelers = twoWheelers;
-      _fourWheelers = fourWheelers;
-      _heavyVehicles = heavyVehicles;
+      _vehicleNames = names;
       _secondaryLoading = false;
-      _secondaryError = twoWheelers.isEmpty && fourWheelers.isEmpty && heavyVehicles.isEmpty;
     });
+  }
+
+  List<String> get _previewNames {
+    final preferred = _previewVehicleNames.where(_vehicleNames.contains).toList();
+    if (preferred.length >= _previewVehicleNames.length) return preferred;
+    final rest = _vehicleNames.where((n) => !preferred.contains(n));
+    return [...preferred, ...rest].take(_previewVehicleNames.length).toList();
   }
 
   void _notify(String message) {
@@ -191,126 +197,632 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     _loadData();
   }
 
+  void _openBookingDetails() {
+    final booking = _booking;
+    if (booking == null) return;
+    Navigator.pushNamed(
+      context,
+      '/booking-detail',
+      arguments: booking.isGrouped
+          ? {'bookingCode': booking.bookingCode, 'asGroupOverview': true}
+          : booking.bookingCode,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.bg,
       bottomNavigationBar: TmBottomNav(currentRoute: '/home', unreadCount: _unreadCount),
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            const _HomeHeader(),
-            Expanded(
-              child: _loading
-                  ? const _HomeSkeleton()
-                  : RefreshIndicator(
-                      color: TmColors.black,
-                      onRefresh: () => _loadData().then((_) => _loadSecondaryContent()),
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _Greeting(greeting: _greeting, name: _name),
-                            if (_announcement != null) ...[
-                              const SizedBox(height: 16),
-                              _AnnouncementBanner(announcement: _announcement!),
-                            ],
-                            const SizedBox(height: 28),
-                            if (_quotation != null)
-                              _QuotationReadyCard(
-                                quotation: _quotation!,
-                                onTap: _openQuotation,
-                              )
-                            else
-                              _CurrentBookingSection(
-                                booking: _booking,
-                                onViewDetails: _booking == null
-                                    ? null
-                                    : () => Navigator.pushNamed(
-                                          context,
-                                          '/booking-detail',
-                                          arguments: _booking!.isGrouped
-                                              ? {
-                                                  'bookingCode': _booking!.bookingCode,
-                                                  'asGroupOverview': true,
-                                                }
-                                              : _booking!.bookingCode,
-                                        ),
-                              ),
-                            const SizedBox(height: 32),
-                            _SectionHeading(
-                              title: 'Our Services',
-                              subtitle: 'Solutions for every situation',
-                              onViewAll: _services.isNotEmpty
-                                  ? () => Navigator.pushNamed(context, '/customer-services')
-                                  : null,
+      body: _loading
+          ? const _HomeSkeleton()
+          : RefreshIndicator(
+              color: TmColors.black,
+              edgeOffset: MediaQuery.paddingOf(context).top,
+              onRefresh: () => _loadData().then((_) => _loadSecondaryContent()),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _HomeHeader(greeting: _greeting, name: _name),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _quotation != null
+                          ? _QuotationReadyCard(quotation: _quotation!, onTap: _openQuotation)
+                          : _CurrentBookingCard(
+                              booking: _booking,
+                              onTrack: _booking == null ? null : _openBookingDetails,
                             ),
-                            const SizedBox(height: 14),
-                            _ServicesSection(services: _services),
-                            if (_secondaryLoading) ...[
-                              const SizedBox(height: 28),
-                              const _VehicleTypesSkeletonPreview(),
-                            ] else if (_twoWheelers.isNotEmpty ||
-                                _fourWheelers.isNotEmpty ||
-                                _heavyVehicles.isNotEmpty) ...[
-                              const SizedBox(height: 28),
-                              _SectionHeading(
-                                title: 'Vehicle Types',
-                                subtitle: 'We tow any type of vehicle',
-                                onViewAll: () => Navigator.pushNamed(context, '/vehicle-types'),
-                              ),
-                              const SizedBox(height: 14),
-                              _VehicleTypesSection(
-                                twoWheelers: _twoWheelers,
-                                fourWheelers: _fourWheelers,
-                                heavyVehicles: _heavyVehicles,
-                              ),
-                            ] else if (_secondaryError) ...[
-                              const SizedBox(height: 20),
-                              Text(
-                                'Vehicle type info is unavailable right now.',
-                                style: GoogleFonts.inter(
-                                  color: context.textTertiary,
-                                  fontSize: 12.5,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
                     ),
+                    if (_announcement != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                        child: _AnnouncementBanner(announcement: _announcement!),
+                      ),
+                    const SizedBox(height: 28),
+                    const _QuickActions(),
+                    const SizedBox(height: 28),
+                    const _HowItWorks(),
+                    _VehicleTypesPreview(
+                      loading: _secondaryLoading,
+                      names: _previewNames,
+                    ),
+                    const SizedBox(height: 28),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
-      ),
     );
   }
 }
 
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader();
+  const _HomeHeader({required this.greeting, required this.name});
+  final String greeting;
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: -_headerOverlap,
+          child: const DecoratedBox(
+            decoration: BoxDecoration(
+              color: _headerColor,
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+              child: CustomPaint(painter: _RoadPainter()),
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(24, topInset + 20, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RichText(
+                text: TextSpan(
+                  style: GoogleFonts.inter(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.6,
+                  ),
+                  children: const [
+                    TextSpan(text: 'Tow', style: TextStyle(color: TmColors.white)),
+                    TextSpan(text: 'Mate', style: TextStyle(color: TmColors.yellow)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (greeting.isNotEmpty)
+                Text(
+                  '$greeting,',
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFFD4D4D4),
+                    fontSize: 16,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              if (name != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  name!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    color: TmColors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
+                    height: 1.1,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RoadPainter extends CustomPainter {
+  const _RoadPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final road = Path()
+      ..moveTo(w * 0.86, h + 40)
+      ..cubicTo(w * 0.70, h * 0.78, w * 0.98, h * 0.40, w * 1.04, h * 0.02);
+
+    final edge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 74
+      ..color = TmColors.white.withValues(alpha: 0.07);
+    final surface = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 68
+      ..color = Color.alphaBlend(TmColors.white.withValues(alpha: 0.04), _headerColor);
+
+    canvas.drawPath(road, edge);
+    canvas.drawPath(road, surface);
+
+    final dash = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..color = TmColors.yellow.withValues(alpha: 0.55);
+    for (final PathMetric metric in road.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        canvas.drawPath(metric.extractPath(distance, distance + 12), dash);
+        distance += 24;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoadPainter oldDelegate) => false;
+}
+
+BoxDecoration _cardDecoration(BuildContext context) => BoxDecoration(
+      color: context.card,
+      borderRadius: BorderRadius.circular(22),
+      border: context.isDark ? Border.all(color: context.divider) : null,
+      boxShadow: context.isDark
+          ? null
+          : [
+              BoxShadow(
+                color: TmColors.black.withValues(alpha: 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+    );
+
+Color _mutedText(BuildContext context) =>
+    context.isDark ? const Color(0xFFA3A3A3) : const Color(0xFF6B6B6B);
+
+class _CardLabel extends StatelessWidget {
+  const _CardLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: GoogleFonts.inter(
+        color: _mutedText(context),
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.1,
+      ),
+    );
+  }
+}
+
+int _progressStage(String status) {
+  return switch (status) {
+    'assigned' || 'delayed' => 1,
+    'on_the_way' || 'arrived_pickup' => 2,
+    'in_progress' ||
+    'loading_vehicle' ||
+    'on_job' ||
+    'arrived_dropoff' ||
+    'waiting_verification' =>
+      3,
+    _ => 0,
+  };
+}
+
+const _progressLabels = ['Requested', 'Assigned', 'On the way', 'Towing'];
+
+class _CurrentBookingCard extends StatelessWidget {
+  const _CurrentBookingCard({required this.booking, required this.onTrack});
+  final BookingModel? booking;
+  final VoidCallback? onTrack;
+
+  @override
+  Widget build(BuildContext context) {
+    final b = booking;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: _cardDecoration(context),
+      child: b == null ? _empty(context) : _active(context, b),
+    );
+  }
+
+  Widget _empty(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: TmColors.yellow,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.local_shipping_outlined, color: TmColors.black, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _CardLabel('CURRENT BOOKING'),
+                  const SizedBox(height: 4),
+                  Text(
+                    'No active booking',
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Once you request a tow, your driver and live status show up here.',
+                    style: GoogleFonts.inter(
+                      color: _mutedText(context),
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: TmColors.yellow.withValues(alpha: context.isDark ? 0.14 : 0.18),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                decoration: const BoxDecoration(color: TmColors.yellow, shape: BoxShape.circle),
+                child: const Icon(Icons.add, size: 18, color: TmColors.black),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14),
+                    children: const [
+                      TextSpan(text: 'Need a tow? Tap '),
+                      TextSpan(text: 'Book Now', style: TextStyle(fontWeight: FontWeight.w700)),
+                      TextSpan(text: ' below.'),
+                    ],
+                  ),
+                ),
+              ),
+              Icon(Icons.arrow_downward, size: 18, color: context.textPrimary),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _active(BuildContext context, BookingModel b) {
+    final isGrouped = b.isGrouped;
+    final vehicleCount = 1 + (b.groupSiblings?.length ?? 0);
+    final vehicleLabel = vehicleCount > 1 ? '$vehicleCount Vehicles' : '1 Vehicle';
+    final headline = isGrouped ? (b.groupCode ?? 'Group Request') : b.bookingCode;
+    final statusText = isGrouped
+        ? (b.groupAllCancelled
+            ? 'Cancelled'
+            : b.groupAllCompleted
+                ? 'Completed'
+                : 'Active')
+        : b.humanStatus;
+    final summary = isGrouped
+        ? (b.groupAllCancelled || b.groupAllCompleted ? vehicleLabel : b.groupActiveStatusText)
+        : (b.displayVehicleName.isNotEmpty ? '$vehicleLabel  ·  ${b.displayVehicleName}' : vehicleLabel);
+    final stage = isGrouped ? 0 : _progressStage(b.status);
+    final driver = (b.driverName ?? b.teamLeaderName)?.trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Flexible(child: _CardLabel('CURRENT BOOKING')),
+            const SizedBox(width: 8),
+            Flexible(child: _StatusPill(text: statusText)),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          headline,
+          style: GoogleFonts.inter(
+            color: context.textPrimary,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.6,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          summary,
+          style: GoogleFonts.inter(color: _mutedText(context), fontSize: 14),
+        ),
+        if (!isGrouped) ...[
+          const SizedBox(height: 16),
+          _ProgressBar(stage: stage),
+        ],
+        const SizedBox(height: 16),
+        _RouteBox(pickup: b.pickupAddress, dropoff: b.dropoffAddress),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            if (driver != null && driver.isNotEmpty) ...[
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: context.isDark ? TmColors.dark700 : TmColors.black,
+                child: Text(
+                  _initials(driver),
+                  style: GoogleFonts.inter(
+                    color: TmColors.yellow,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      driver,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: context.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (b.truckTypeName.isNotEmpty)
+                      Text(
+                        b.truckTypeName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(color: _mutedText(context), fontSize: 13),
+                      ),
+                  ],
+                ),
+              ),
+            ] else
+              const Spacer(),
+            const SizedBox(width: 12),
+            _TrackButton(onTap: onTrack),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static String _initials(String name) {
+    final parts = name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.text});
+  final String text;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
+        color: TmColors.yellow,
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Center(
-        child: RichText(
-          text: TextSpan(
-            style: GoogleFonts.inter(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(color: TmColors.black, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                color: TmColors.black,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressBar extends StatelessWidget {
+  const _ProgressBar({required this.stage});
+  final int stage;
+
+  @override
+  Widget build(BuildContext context) {
+    final inactive = context.isDark ? TmColors.dark600 : TmColors.grey300;
+    return Column(
+      children: [
+        Row(
+          children: [
+            for (var i = 0; i < _progressLabels.length; i++) ...[
+              Expanded(
+                child: Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: i <= stage ? TmColors.yellow : inactive,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              if (i != _progressLabels.length - 1) const SizedBox(width: 6),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (var i = 0; i < _progressLabels.length; i++)
+              Expanded(
+                child: Text(
+                  _progressLabels[i],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    color: i == stage ? context.textPrimary : _mutedText(context),
+                    fontSize: 11.5,
+                    fontWeight: i == stage ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RouteBox extends StatelessWidget {
+  const _RouteBox({required this.pickup, required this.dropoff});
+  final String pickup;
+  final String dropoff;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.isDark ? TmColors.dark700 : TmColors.grey100,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Column(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: context.textPrimary, width: 2),
+                  ),
+                ),
+                Container(width: 1.5, height: 30, color: context.textTertiary.withValues(alpha: 0.6)),
+                Container(width: 12, height: 12, color: TmColors.yellow),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _routeLine(context, 'Pickup', pickup),
+                const SizedBox(height: 12),
+                _routeLine(context, 'Drop-off', dropoff),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _routeLine(BuildContext context, String label, String address) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: GoogleFonts.inter(color: _mutedText(context), fontSize: 13)),
+        const SizedBox(height: 1),
+        Text(
+          address,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(
+            color: context.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            height: 1.3,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TrackButton extends StatelessWidget {
+  const _TrackButton({required this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: TmColors.yellow,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              TextSpan(text: 'Tow', style: TextStyle(color: context.textPrimary)),
-              const TextSpan(text: 'Mate', style: TextStyle(color: TmColors.yellow)),
+              Text(
+                'Track',
+                style: GoogleFonts.inter(
+                  color: TmColors.black,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right, size: 20, color: TmColors.black),
             ],
           ),
         ),
@@ -319,116 +831,77 @@ class _HomeHeader extends StatelessWidget {
   }
 }
 
-class _Greeting extends StatelessWidget {
-  const _Greeting({required this.greeting, required this.name});
-  final String greeting;
-  final String? name;
-
-  @override
-  Widget build(BuildContext context) {
-    final firstName = (name != null && name!.trim().isNotEmpty)
-        ? name!.trim().split(' ').first
-        : null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$greeting,',
-          style: GoogleFonts.inter(
-            color: context.textSecondary,
-            fontSize: 13.5,
-            letterSpacing: 0.2,
-          ),
-        ),
-        if (firstName != null) ...[
-          const SizedBox(height: 3),
-          Text(
-            firstName,
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 27,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.7,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-Color _secondaryTextColor(BuildContext context) =>
-    context.isDark ? TmColors.grey500 : const Color(0xFF6B6B6B);
-
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.title, required this.subtitle, this.onViewAll});
-  final String title;
-  final String subtitle;
-  final VoidCallback? onViewAll;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.4,
-                ),
-              ),
-            ),
-            if (onViewAll != null) _ViewAllAction(onTap: onViewAll!),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: GoogleFonts.inter(
-            color: _secondaryTextColor(context),
-            fontSize: 12.5,
-            letterSpacing: 0.1,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ViewAllAction extends StatelessWidget {
-  const _ViewAllAction({required this.onTap});
+class _QuotationReadyCard extends StatelessWidget {
+  const _QuotationReadyCard({required this.quotation, required this.onTap});
+  final QuotationModel quotation;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'View all',
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.1,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: _CardLabel(
+                  quotation.isPriceReviewRequested ? 'PRICE REVIEW REQUESTED' : 'QUOTATION READY',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: _StatusPill(
+                  text: quotation.isPriceReviewRequested ? 'Under Review' : 'Awaiting Response',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '₱${quotation.estimatedPrice.toStringAsFixed(0)}',
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${quotation.quotationNumber}  ·  ${quotation.truckTypeName}  ·  ${quotation.distanceKm.toStringAsFixed(1)} km',
+            style: GoogleFonts.inter(color: _mutedText(context), fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          _RouteBox(pickup: quotation.pickupAddress, dropoff: quotation.dropoffAddress),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: TmColors.yellow,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  child: Text(
+                    'Review & Accept',
+                    style: GoogleFonts.inter(
+                      color: TmColors.black,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
               ),
             ),
-            Icon(Icons.chevron_right, size: 16, color: context.textPrimary),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -488,460 +961,350 @@ class _AnnouncementBanner extends StatelessWidget {
   }
 }
 
-class _QuotationReadyCard extends StatelessWidget {
-  const _QuotationReadyCard({required this.quotation, required this.onTap});
-  final QuotationModel quotation;
+class _QuickActions extends StatelessWidget {
+  const _QuickActions();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quick actions',
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.history,
+                  label: 'Booking history',
+                  onTap: () => Navigator.pushNamed(context, '/my-bookings', arguments: 'history'),
+                ),
+              ),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.directions_car_outlined,
+                  label: 'Vehicle types',
+                  onTap: () => Navigator.pushNamed(context, '/vehicle-types'),
+                ),
+              ),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.menu_book_outlined,
+                  label: 'Towing guide',
+                  onTap: () => Navigator.pushNamed(context, '/towing-guide'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({required this.icon, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          quotation.isPriceReviewRequested ? 'Price Review Requested' : 'Quotation Ready',
-          style: GoogleFonts.inter(
-            color: context.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: context.surface,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(icon, size: 26, color: context.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                color: context.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            border: Border.all(color: context.divider),
-            borderRadius: BorderRadius.circular(14),
+      ),
+    );
+  }
+}
+
+class _HowItWorks extends StatelessWidget {
+  const _HowItWorks();
+
+  static const _steps = [
+    ('Choose your vehicle', 'Pick the vehicle type so we send the right truck.'),
+    ('Set pickup and drop-off', 'Pin where you are and where it needs to go.'),
+    ('Track your tow', 'Follow your driver live until drop-off.'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final band = context.isDark ? const Color(0xFF181818) : const Color(0xFFF6F7F9);
+    return Container(
+      width: double.infinity,
+      color: band,
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'How TowMate works',
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const SizedBox(height: 2),
+          Text(
+            'From roadside to drop-off in three steps.',
+            style: GoogleFonts.inter(color: _mutedText(context), fontSize: 14),
+          ),
+          const SizedBox(height: 20),
+          for (var i = 0; i < _steps.length; i++)
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    quotation.quotationNumber,
-                    style: GoogleFonts.inter(
-                      color: context.textSecondary,
-                      fontSize: 12,
-                      letterSpacing: 0.3,
-                    ),
+                  Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(color: TmColors.yellow, shape: BoxShape.circle),
+                        child: Text(
+                          '${i + 1}',
+                          style: GoogleFonts.inter(
+                            color: TmColors.black,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      if (i != _steps.length - 1)
+                        Expanded(
+                          child: Container(
+                            width: 1.5,
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            color: context.divider,
+                          ),
+                        ),
+                    ],
                   ),
-                  Text(
-                    quotation.isPriceReviewRequested ? 'Under Review' : 'Awaiting Response',
-                    style: GoogleFonts.inter(
-                      color: context.textTertiary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: i == _steps.length - 1 ? 0 : 22),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _steps[i].$1,
+                            style: GoogleFonts.inter(
+                              color: context.textPrimary,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _steps[i].$2,
+                            style: GoogleFonts.inter(
+                              color: _mutedText(context),
+                              fontSize: 14.5,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              Text(
-                '₱${quotation.estimatedPrice.toStringAsFixed(0)}',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.6,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${quotation.truckTypeName}  ·  ${quotation.distanceKm.toStringAsFixed(1)} km',
-                style: GoogleFonts.inter(
-                  color: context.textTertiary,
-                  fontSize: 12,
-                  letterSpacing: 0.1,
-                ),
-              ),
-              const SizedBox(height: 14),
-              _AddressLine(label: 'Pickup', address: quotation.pickupAddress),
-              const SizedBox(height: 8),
-              _AddressLine(label: 'Dropoff', address: quotation.dropoffAddress),
-              const SizedBox(height: 14),
-              GestureDetector(
-                onTap: onTap,
-                child: Text(
-                  'Review & Accept',
-                  style: GoogleFonts.inter(
-                    color: TmColors.black,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CurrentBookingSection extends StatelessWidget {
-  const _CurrentBookingSection({required this.booking, required this.onViewDetails});
-  final BookingModel? booking;
-  final VoidCallback? onViewDetails;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Current Booking',
-          style: GoogleFonts.inter(
-            color: _secondaryTextColor(context),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        booking == null ? _emptyState(context) : _activeCard(context, booking!),
-      ],
-    );
-  }
-
-  Widget _emptyState(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-      decoration: BoxDecoration(
-        color: context.card,
-        border: Border.all(color: context.divider),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'No active booking',
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 14.5,
-              fontWeight: FontWeight.w600,
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Your active towing request will appear here.',
-            style: GoogleFonts.inter(
-              color: context.textTertiary,
-              fontSize: 12.5,
-              letterSpacing: 0.1,
-              height: 1.4,
+          const SizedBox(height: 22),
+          Divider(color: context.divider, height: 1),
+          InkWell(
+            onTap: () => Navigator.pushNamed(context, '/towing-guide'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Not sure if you need light, medium or heavy duty?',
+                          style: GoogleFonts.inter(color: _mutedText(context), fontSize: 14.5),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Read the towing guide',
+                          style: GoogleFonts.inter(
+                            color: context.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            decoration: TextDecoration.underline,
+                            decorationColor: TmColors.yellow,
+                            decorationThickness: 2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: context.textPrimary),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _activeCard(BuildContext context, BookingModel booking) {
-    final isGrouped = booking.isGrouped;
-    final vehicleCount = 1 + (booking.groupSiblings?.length ?? 0);
-    final vehicleLabel = vehicleCount > 1 ? '$vehicleCount Vehicles' : '1 Vehicle';
-    final priceValue = booking.groupTotals?.finalTotal ?? booking.finalTotal ?? booking.computedTotal;
-    final priceLabel = booking.groupTotals != null ? booking.groupTotalLabel : 'Estimated Price';
-    final headingText = isGrouped ? (booking.groupCode ?? 'Group Request') : booking.bookingCode;
-    final statusText = isGrouped
-        ? (booking.groupAllCancelled
-            ? 'Cancelled'
-            : booking.groupAllCompleted
-                ? 'Completed'
-                : 'Active')
-        : booking.humanStatus;
+class _VehicleTypesPreview extends StatelessWidget {
+  const _VehicleTypesPreview({required this.loading, required this.names});
+  final bool loading;
+  final List<String> names;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: context.card,
-        border: Border.all(color: context.divider),
-        borderRadius: BorderRadius.circular(16),
-      ),
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                headingText,
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.3,
+              Expanded(
+                child: Text(
+                  'Vehicle types',
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
                 ),
               ),
-              statusText == 'Active'
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: TmColors.success,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        statusText,
+              InkWell(
+                onTap: () => Navigator.pushNamed(context, '/vehicle-types'),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'View all',
                         style: GoogleFonts.inter(
-                          color: TmColors.black,
-                          fontSize: 12,
+                          color: context.textPrimary,
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                    )
-                  : Text(
-                      statusText,
-                      style: GoogleFonts.inter(
-                        color: context.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                      Icon(Icons.chevron_right, size: 18, color: context.textPrimary),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 4),
           Text(
-            isGrouped
-                ? (booking.groupAllCancelled || booking.groupAllCompleted
-                    ? vehicleLabel
-                    : booking.groupActiveStatusText)
-                : (booking.displayVehicleName.isNotEmpty
-                    ? '$vehicleLabel  ·  ${booking.displayVehicleName}'
-                    : vehicleLabel),
-            style: GoogleFonts.inter(
-              color: _secondaryTextColor(context),
-              fontSize: 12,
-              letterSpacing: 0.1,
-            ),
+            'We tow any type of vehicle.',
+            style: GoogleFonts.inter(color: _mutedText(context), fontSize: 14),
           ),
-          const SizedBox(height: 14),
-          _AddressLine(label: 'Pickup', address: booking.pickupAddress),
-          const SizedBox(height: 8),
-          _AddressLine(label: 'Dropoff', address: booking.dropoffAddress),
-          if (priceValue != null) ...[
-            const SizedBox(height: 14),
+          const SizedBox(height: 16),
+          if (loading)
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  priceLabel,
-                  style: GoogleFonts.inter(
-                    color: _secondaryTextColor(context),
-                    fontSize: 12,
-                    letterSpacing: 0.1,
+                for (var i = 0; i < 4; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: i == 3 ? 0 : 8),
+                      child: SkeletonBox(
+                        width: double.infinity,
+                        height: 72,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
                   ),
-                ),
-                Text(
-                  '₱${NumberFormat('#,##0.00', 'en_PH').format(priceValue)}',
-                  style: GoogleFonts.inter(
-                    color: context.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.1,
+              ],
+            )
+          else if (names.isEmpty)
+            Text(
+              'Vehicle type info is unavailable right now.',
+              style: GoogleFonts.inter(color: context.textTertiary, fontSize: 12.5),
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < names.length; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: i == names.length - 1 ? 0 : 8),
+                      child: _PreviewTile(name: names[i]),
+                    ),
                   ),
-                ),
               ],
             ),
-          ],
-          if (onViewDetails != null) ...[
-            const SizedBox(height: 14),
-            Divider(color: context.divider, height: 1),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: onViewDetails,
-              child: Text(
-                'View Booking Details',
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.1,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
   }
 }
 
-class _ServicesSection extends StatelessWidget {
-  const _ServicesSection({required this.services});
-  final List<Service> services;
+class _PreviewTile extends StatelessWidget {
+  const _PreviewTile({required this.name});
+  final String name;
 
   @override
   Widget build(BuildContext context) {
-    if (services.isEmpty) {
-      return Text(
-        'Services info is unavailable right now.',
-        style: GoogleFonts.inter(color: context.textTertiary, fontSize: 12.5),
-      );
-    }
-
-    final shown = services.take(3).toList();
-    return Row(
+    return Column(
       children: [
-        for (var i = 0; i < shown.length; i++)
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(right: i == shown.length - 1 ? 0 : 10),
-              child: _ServiceChip(service: shown[i]),
-            ),
+        Container(
+          width: double.infinity,
+          height: 72,
+          decoration: BoxDecoration(
+            color: context.surface,
+            borderRadius: BorderRadius.circular(16),
           ),
-      ],
-    );
-  }
-}
-
-class _ServiceChip extends StatelessWidget {
-  const _ServiceChip({required this.service});
-  final Service service;
-
-  bool get _hasImage => service.imageUrl != null && service.imageUrl!.isNotEmpty;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      decoration: BoxDecoration(
-        color: context.card,
-        border: Border.all(color: context.divider),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_hasImage) ...[
-            SizedBox(
-              width: 26,
-              height: 26,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(7),
-                child: CmsImage(imageUrl: service.imageUrl),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          Text(
-            service.title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _VehicleTypesSection extends StatelessWidget {
-  const _VehicleTypesSection({
-    required this.twoWheelers,
-    required this.fourWheelers,
-    required this.heavyVehicles,
-  });
-  final List<Map<String, dynamic>> twoWheelers;
-  final List<Map<String, dynamic>> fourWheelers;
-  final List<Map<String, dynamic>> heavyVehicles;
-
-  @override
-  Widget build(BuildContext context) {
-    final entries = [
-      for (final v in twoWheelers) (v['name'] as String?) ?? '',
-      for (final v in fourWheelers) (v['name'] as String?) ?? '',
-      for (final v in heavyVehicles) (v['name'] as String?) ?? '',
-    ].where((name) => name.isNotEmpty).take(8).toList();
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final name in entries)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: context.bg,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: context.divider),
-            ),
-            child: Text(
-              name,
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 11.5,
-                letterSpacing: 0.1,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _VehicleTypesSkeletonPreview extends StatelessWidget {
-  const _VehicleTypesSkeletonPreview();
-
-  @override
-  Widget build(BuildContext context) {
-    const widths = [86.0, 104.0, 72.0, 96.0, 80.0];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final w in widths)
-          SkeletonBox(width: w, height: 32, borderRadius: BorderRadius.circular(10)),
-      ],
-    );
-  }
-}
-
-class _AddressLine extends StatelessWidget {
-  const _AddressLine({required this.label, required this.address});
-  final String label;
-  final String address;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 52,
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              color: _secondaryTextColor(context),
-              fontSize: 12,
-              letterSpacing: 0.3,
-            ),
-          ),
+          child: Icon(vehicleIconFor(name), size: 28, color: context.textPrimary),
         ),
-        Expanded(
-          child: Text(
-            address,
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 13,
-              letterSpacing: 0.1,
-              height: 1.4,
-            ),
-          ),
-        ),
+        const SizedBox(height: 8),
+        VehicleTypeLabel(name: name, color: context.textPrimary, fontSize: 12.5),
       ],
     );
   }
@@ -954,46 +1317,36 @@ class _HomeSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SkeletonBox(width: 110, height: 15),
-          const SizedBox(height: 8),
-          const SkeletonBox(width: 160, height: 26),
-          const SizedBox(height: 24),
-          SkeletonBox(
-            width: double.infinity,
-            height: 56,
-            borderRadius: BorderRadius.circular(14),
+          const _HomeHeader(greeting: '', name: null),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: SkeletonBox(
+              width: double.infinity,
+              height: 190,
+              borderRadius: BorderRadius.circular(22),
+            ),
           ),
           const SizedBox(height: 28),
-          const SkeletonBox(width: 130, height: 12),
-          const SizedBox(height: 12),
-          SkeletonBox(
-            width: double.infinity,
-            height: 150,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          const SizedBox(height: 32),
-          const SkeletonBox(width: 100, height: 17),
-          const SizedBox(height: 4),
-          const SkeletonBox(width: 160, height: 12),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              for (var i = 0; i < 3; i++)
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(right: i == 2 ? 0 : 10),
-                    child: SkeletonBox(
-                      width: double.infinity,
-                      height: 84,
-                      borderRadius: BorderRadius.circular(12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                for (var i = 0; i < 3; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: i == 2 ? 0 : 10),
+                      child: SkeletonBox(
+                        width: double.infinity,
+                        height: 84,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

@@ -17,7 +17,9 @@ String _serviceTypeLabel(String? serviceType) =>
     serviceType == 'schedule' ? 'Scheduled' : 'Book Now';
 
 class MyBookingsScreen extends StatefulWidget {
-  const MyBookingsScreen({super.key});
+  const MyBookingsScreen({super.key, this.initialTab = 0});
+
+  final int initialTab;
 
   @override
   State<MyBookingsScreen> createState() => _MyBookingsScreenState();
@@ -31,7 +33,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with RouteAware {
   bool _hasMore = false;
   bool _fetchFailed = false;
   int _page = 1;
-  int _tab = 0;
+  late int _tab = widget.initialTab;
 
   @override
   void initState() {

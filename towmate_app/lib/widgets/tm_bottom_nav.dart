@@ -7,10 +7,14 @@ class TmBottomNav extends StatelessWidget {
     super.key,
     required this.currentRoute,
     this.unreadCount = 0,
+    this.highlightedRoute,
   });
 
   final String currentRoute;
   final int unreadCount;
+  final String? highlightedRoute;
+
+  String get _selected => highlightedRoute ?? currentRoute;
 
   static const _pushRoutes = {'/book-now', '/notifications', '/profile'};
 
@@ -58,14 +62,14 @@ class TmBottomNav extends StatelessWidget {
                         icon: Icons.home_outlined,
                         selectedIcon: Icons.home,
                         label: 'Home',
-                        selected: currentRoute == '/home',
+                        selected: _selected == '/home',
                         onTap: () => _go(context, '/home'),
                       ),
                       _NavItem(
                         icon: Icons.receipt_long_outlined,
                         selectedIcon: Icons.receipt_long,
                         label: 'Bookings',
-                        selected: currentRoute == '/my-bookings',
+                        selected: _selected == '/my-bookings',
                         onTap: () => _go(context, '/my-bookings'),
                       ),
                       const Expanded(child: SizedBox.shrink()),
@@ -73,7 +77,7 @@ class TmBottomNav extends StatelessWidget {
                         icon: Icons.notifications_outlined,
                         selectedIcon: Icons.notifications,
                         label: 'Alerts',
-                        selected: currentRoute == '/notifications',
+                        selected: _selected == '/notifications',
                         onTap: () => _go(context, '/notifications'),
                         badgeCount: unreadCount,
                       ),
@@ -81,7 +85,7 @@ class TmBottomNav extends StatelessWidget {
                         icon: Icons.person_outline,
                         selectedIcon: Icons.person,
                         label: 'Profile',
-                        selected: currentRoute == '/profile',
+                        selected: _selected == '/profile',
                         onTap: () => _go(context, '/profile'),
                       ),
                     ],
@@ -93,7 +97,7 @@ class TmBottomNav extends StatelessWidget {
           Positioned(
             top: 0,
             child: _BookNowNavItem(
-              selected: currentRoute == '/book-now',
+              selected: _selected == '/book-now',
               diameter: _fabDiameter,
               onTap: () => _go(context, '/book-now'),
             ),
