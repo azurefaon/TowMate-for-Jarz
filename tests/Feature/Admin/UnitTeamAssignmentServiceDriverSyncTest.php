@@ -60,56 +60,7 @@ function driverSyncLeader(array $attributes): User
     return User::factory()->create($attributes);
 }
 
-it('populates an empty unit driver_name from the team leaders driver details on assignment', function () {
-    $truckType = driverSyncTruckType();
-    $teamLeaderRole = driverSyncTeamLeaderRole();
-    $actor = driverSyncActor();
-
-    $teamLeader = driverSyncLeader([
-        'role_id' => $teamLeaderRole->id,
-        'driver_first_name' => 'PAULO',
-        'driver_middle_name' => null,
-        'driver_last_name' => 'PAULO',
-    ]);
-
-    $unit = Unit::create([
-        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
-        'plate_number' => fake()->unique()->bothify('???-####'),
-        'truck_type_id' => $truckType->id,
-        'status' => 'available',
-    ]);
-
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $teamLeader->id, $actor);
-
-    expect($unit->fresh()->driver_name)->toBe('PAULO PAULO')
-        ->and($unit->fresh()->driver_id)->toBeNull();
-});
-
-it('includes the middle name when building the driver full name', function () {
-    $truckType = driverSyncTruckType();
-    $teamLeaderRole = driverSyncTeamLeaderRole();
-    $actor = driverSyncActor();
-
-    $teamLeader = driverSyncLeader([
-        'role_id' => $teamLeaderRole->id,
-        'driver_first_name' => 'Juan',
-        'driver_middle_name' => 'Santos',
-        'driver_last_name' => 'Dela Cruz',
-    ]);
-
-    $unit = Unit::create([
-        'name' => 'Driver Sync Unit ' . fake()->unique()->numerify('##'),
-        'plate_number' => fake()->unique()->bothify('???-####'),
-        'truck_type_id' => $truckType->id,
-        'status' => 'available',
-    ]);
-
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $teamLeader->id, $actor);
-
-    expect($unit->fresh()->driver_name)->toBe('Juan Santos Dela Cruz');
-});
-
-it('carries the team leaders crew member details into empty unit crew slots', function () {
+it('does not populate driver or crew from the team leaders stored details on assignment', function () {
     $truckType = driverSyncTruckType();
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
@@ -132,9 +83,34 @@ it('carries the team leaders crew member details into empty unit crew slots', fu
     app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $teamLeader->id, $actor);
 
     $fresh = $unit->fresh();
-    expect($fresh->crew_member_1_name)->toBe('Crew One')
-        ->and($fresh->crew_member_2_name)->toBe('Crew Two');
+    expect($fresh->team_leader_id)->toBe($teamLeader->id)
+        ->and($fresh->driver_name)->toBeNull()
+        ->and($fresh->driver_personnel_id)->toBeNull()
+        ->and($fresh->crew_member_1_name)->toBeNull()
+        ->and($fresh->crew_member_2_name)->toBeNull()
+        ->and($fresh->crew_member_1_personnel_id)->toBeNull()
+        ->and($fresh->driver_seeded_by_team_leader_id)->toBeNull();
 });
+
+function driverSyncAssignLegacySeeded(Unit $unit, User $teamLeader, User $actor): void
+{
+    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $teamLeader->id, $actor);
+
+    $unit->refresh();
+    $updates = [];
+
+    if (blank($unit->driver_name) && filled($teamLeader->driver_personnel_id)) {
+        $updates['driver_name'] = build_full_name($teamLeader->driver_first_name, $teamLeader->driver_middle_name, $teamLeader->driver_last_name);
+        $updates['driver_personnel_id'] = $teamLeader->driver_personnel_id;
+    }
+
+    if (blank($unit->crew_member_1_name) && filled($teamLeader->crew_member_1_personnel_id)) {
+        $updates['crew_member_1_name'] = $teamLeader->crew_member_1_name;
+        $updates['crew_member_1_personnel_id'] = $teamLeader->crew_member_1_personnel_id;
+    }
+
+    $unit->update($updates);
+}
 
 it('never overwrites an existing driver or crew member already on the unit', function () {
     $truckType = driverSyncTruckType();
@@ -187,7 +163,7 @@ it('leaves driver_name empty when the team leader has no driver details on file'
     expect($unit->fresh()->driver_name)->toBeNull();
 });
 
-it('releases the seeded driver and crew from the source unit when the team leader is borrowed elsewhere', function () {
+it('releases legacy seeded driver and crew without a seed owner from the source unit when the team leader is borrowed elsewhere', function () {
     $truckType = driverSyncTruckType();
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
@@ -213,10 +189,10 @@ it('releases the seeded driver and crew from the source unit when the team leade
     ]);
 
     $svc = app(UnitTeamAssignmentService::class);
-    $svc->assignTeamLeader($unitA, $teamLeader->id, $actor);
+    driverSyncAssignLegacySeeded($unitA, $teamLeader, $actor);
     expect($unitA->fresh()->driver_name)->toBe('PAULO PAULO');
 
-    $svc->assignTeamLeader($unitB, $teamLeader->id, $actor);
+    driverSyncAssignLegacySeeded($unitB, $teamLeader, $actor);
 
     expect($unitA->fresh()->driver_name)->toBeNull()
         ->and($unitA->fresh()->crew_member_1_name)->toBeNull()
@@ -224,7 +200,7 @@ it('releases the seeded driver and crew from the source unit when the team leade
         ->and($unitB->fresh()->crew_member_1_name)->toBe('Crew One');
 });
 
-it('releases the seeded driver from a unit when its team leader is removed outright', function () {
+it('releases a legacy seeded driver without a seed owner when its team leader is removed outright', function () {
     $truckType = driverSyncTruckType();
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
@@ -243,7 +219,7 @@ it('releases the seeded driver from a unit when its team leader is removed outri
     ]);
 
     $svc = app(UnitTeamAssignmentService::class);
-    $svc->assignTeamLeader($unit, $teamLeader->id, $actor);
+    driverSyncAssignLegacySeeded($unit, $teamLeader, $actor);
     expect($unit->fresh()->driver_name)->toBe('PAULO PAULO');
 
     $svc->removeTeamLeader($unit, $actor);
@@ -252,7 +228,7 @@ it('releases the seeded driver from a unit when its team leader is removed outri
         ->and($unit->fresh()->driver_name)->toBeNull();
 });
 
-it('releases the seeded driver from the unit a borrowed team leader is returned from', function () {
+it('releases a legacy seeded driver without a seed owner from the unit a borrowed team leader is returned from', function () {
     $truckType = driverSyncTruckType();
     $teamLeaderRole = driverSyncTeamLeaderRole();
     $actor = driverSyncActor();
@@ -278,7 +254,7 @@ it('releases the seeded driver from the unit a borrowed team leader is returned 
     ]);
 
     $svc = app(UnitTeamAssignmentService::class);
-    $svc->assignTeamLeader($borrowedToUnit, $teamLeader->id, $actor);
+    driverSyncAssignLegacySeeded($borrowedToUnit, $teamLeader, $actor);
     expect($borrowedToUnit->fresh()->driver_name)->toBe('PAULO PAULO');
 
     $svc->returnTeamLeader($borrowedToUnit, $actor);
@@ -346,7 +322,7 @@ it('does not clear a driver name that is an active independent loan even if it m
 
     $svc = app(UnitTeamAssignmentService::class);
     $svc->assignSlotPerson($unit, 'driver_1', $loanSourceUnit, 'driver_1', $actor);
-    $svc->assignTeamLeader($unit, $teamLeader->id, $actor);
+    driverSyncAssignLegacySeeded($unit, $teamLeader, $actor);
 
     $svc->removeTeamLeader($unit, $actor);
 

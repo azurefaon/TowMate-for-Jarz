@@ -492,62 +492,6 @@
                             </div>
                         @endif
 
-                        @php
-                            $showTLSections =
-                                $isTLEdit || ($hasOldRoleId && (string) old('role_id') === (string) $tlRoleId);
-                        @endphp
-                        <div id="sectionDriverDetails" class="role-section-box"
-                            @if (!$showTLSections) hidden @endif>
-                            <div class="role-section-header"><span>Driver Details</span></div>
-                            <div class="role-section-body">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Driver <span class="required-mark">*</span></label>
-                                        <select name="driver_personnel_id">
-                                            <option value="">{{ $isTLEdit ? "No driver assigned" : "Select a driver" }}</option>
-                                            @foreach ($driverOptions as $option)
-                                                <option value="{{ $option->id }}" @selected((string) old('driver_personnel_id', $user->driver_personnel_id ?? '') === (string) $option->id)>{{ $option->full_name }}</option>
-                                            @endforeach
-                                        </select>
-                                        @error('driver_personnel_id')
-                                            <small class="error-text">{{ $message }}</small>
-                                        @enderror
-                                        @if ($isTLEdit && blank($user->driver_personnel_id) && filled($user->driver_first_name))
-                                            <small class="field-hint">Legacy entry "{{ build_full_name($user->driver_first_name, $user->driver_middle_name, $user->driver_last_name) }}" is not linked to Personnel and will not be assigned to a truck.</small>
-                                        @endif
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="sectionCrewMembers" class="role-section-box"
-                            @if (!$showTLSections) hidden @endif>
-                            <div class="role-section-header"><span>Crew Members</span></div>
-                            <div class="role-section-body">
-                                <div class="form-row">
-                                    @foreach ([1, 2] as $crewSlot)
-                                        @php($crewField = "crew_member_{$crewSlot}_personnel_id")
-                                        @php($crewLegacy = "crew_member_{$crewSlot}_name")
-                                        <div class="form-group">
-                                            <label>Crew Member {{ $crewSlot }} <span class="field-optional">optional</span></label>
-                                            <select name="{{ $crewField }}">
-                                                <option value="">No crew member assigned</option>
-                                                @foreach ($crewOptions as $option)
-                                                    <option value="{{ $option->id }}" @selected((string) old($crewField, $user->{$crewField} ?? '') === (string) $option->id)>{{ $option->full_name }}</option>
-                                                @endforeach
-                                            </select>
-                                            @error($crewField)
-                                                <small class="error-text">{{ $message }}</small>
-                                            @enderror
-                                            @if ($isTLEdit && blank($user->{$crewField}) && filled($user->{$crewLegacy}))
-                                                <small class="field-hint">Legacy entry "{{ $user->{$crewLegacy} }}" is not linked to Personnel and will not be assigned to a truck.</small>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </div>
-
                         <div class="form-actions">
                             <a href="{{ route('system-admin.users.index') }}" class="btn-cancel">Cancel</a>
                             <button type="submit" class="btn-primary-submit" id="createUserSubmit">
@@ -589,8 +533,6 @@
             const formRoleHeadline = document.getElementById('formRoleHeadline');
             const createUserSubmit = document.getElementById('createUserSubmit');
 
-            const sectionDriverDetails = document.getElementById('sectionDriverDetails');
-            const sectionCrewMembers = document.getElementById('sectionCrewMembers');
 
             const phoneInput = document.getElementById('phoneInput');
             const phoneRequiredMark = document.getElementById('phoneRequiredMark');
@@ -616,9 +558,6 @@
                 if (formRoleHeadline) formRoleHeadline.textContent = `Creating a ${roleLabel} account`;
                 if (roleChooser) roleChooser.hidden = true;
                 if (formSection) formSection.hidden = false;
-
-                if (sectionDriverDetails) sectionDriverDetails.hidden = !isTL;
-                if (sectionCrewMembers) sectionCrewMembers.hidden = !isTL;
 
                 setPhoneRequired(isTL);
 

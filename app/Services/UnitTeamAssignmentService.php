@@ -75,22 +75,6 @@ class UnitTeamAssignmentService
                 $this->releaseTeamLeaderSeededPersonnel($sourceUnit, $teamLeader);
             }
 
-            $personnelUpdates = [];
-
-            foreach (self::STAGED_SLOTS as $slot => $stagedColumn) {
-                $personnel = $this->seedablePersonnel($teamLeader->{$stagedColumn}, $slot, $target);
-
-                if ($personnel && blank($target->{Unit::SLOT_COLUMNS[$slot]})) {
-                    $personnelUpdates[Unit::SLOT_COLUMNS[$slot]] = $personnel->full_name;
-                    $personnelUpdates[Unit::SLOT_PERSONNEL_COLUMNS[$slot]] = $personnel->id;
-                    $personnelUpdates[Unit::SLOT_SEED_COLUMNS[$slot]] = $teamLeader->id;
-                }
-            }
-
-            if ($personnelUpdates !== []) {
-                $target->update($personnelUpdates);
-            }
-
             if ($sourceUnit) {
                 UnitCrewLoan::create([
                     'from_unit_id' => $sourceUnit->id,
@@ -518,27 +502,6 @@ class UnitTeamAssignmentService
             'reference' => $unit->name,
             'description' => "{$slot} duty set to {$status}.",
         ]);
-    }
-
-    protected function seedablePersonnel(?int $personnelId, string $slot, Unit $target): ?Personnel
-    {
-        if (! $personnelId) {
-            return null;
-        }
-
-        if ($slot === 'driver_1' && $target->driver_id) {
-            return null;
-        }
-
-        $personnel = Personnel::active()
-            ->where('role', $slot === 'driver_1' ? 'driver' : 'crew')
-            ->find($personnelId);
-
-        if (! $personnel || Unit::unitIdsHoldingPersonnel($personnel->id)->isNotEmpty()) {
-            return null;
-        }
-
-        return $personnel;
     }
 
     public function detachTeamLeaderFromUnits(User $teamLeader, array $unitUpdates = []): void

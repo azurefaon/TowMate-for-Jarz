@@ -50,6 +50,29 @@ function pbaUnit(array $attrs = []): Unit
     ], $attrs));
 }
 
+function pbaAssignSeeded(Unit $unit, int $leaderId, User $actor): void
+{
+    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leaderId, $actor);
+
+    $leader = User::findOrFail($leaderId);
+    $seeds = [
+        'driver_1' => 'driver_personnel_id',
+        'crew_member_1' => 'crew_member_1_personnel_id',
+        'crew_member_2' => 'crew_member_2_personnel_id',
+    ];
+
+    foreach ($seeds as $slot => $stagedColumn) {
+        if ($leader->{$stagedColumn}) {
+            $person = Personnel::findOrFail($leader->{$stagedColumn});
+            $unit->update([
+                Unit::SLOT_COLUMNS[$slot] => $person->full_name,
+                Unit::SLOT_PERSONNEL_COLUMNS[$slot] => $person->id,
+                Unit::SLOT_SEED_COLUMNS[$slot] => $leader->id,
+            ]);
+        }
+    }
+}
+
 function pbaPlaced(Personnel $person, string $slot, array $attrs = []): Unit
 {
     return pbaUnit(array_merge([
@@ -213,144 +236,6 @@ it('removing a person from a slot clears the id but keeps the loan history', fun
         ->and(Personnel::find($person->id))->not->toBeNull();
 });
 
-it('seeds stable personnel ids from the team leader when assigned to a unit', function () {
-    $dispatcher = pbaDispatcher();
-    $driver = pbaPerson('Drive', 'Er', 'driver');
-    $crew1 = pbaPerson('Crew', 'One');
-    $crew2 = pbaPerson('Crew', 'Two');
-    $leader = User::factory()->create([
-        'role_id' => 3,
-        'driver_personnel_id' => $driver->id,
-        'crew_member_1_personnel_id' => $crew1->id,
-        'crew_member_2_personnel_id' => $crew2->id,
-    ]);
-    $unit = pbaUnit();
-
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
-
-    $fresh = $unit->fresh();
-    expect($fresh->driver_personnel_id)->toBe($driver->id)
-        ->and($fresh->crew_member_1_personnel_id)->toBe($crew1->id)
-        ->and($fresh->crew_member_2_personnel_id)->toBe($crew2->id)
-        ->and($fresh->driver_name)->toBe('Drive Er')
-        ->and($fresh->crew_member_2_name)->toBe('Crew Two');
-});
-
-it('does not seed legacy staged names, inactive personnel, or a person already on another unit', function () {
-    $dispatcher = pbaDispatcher();
-    $taken = pbaPerson('Already', 'Placed');
-    $inactive = pbaPerson('Idle', 'Person', 'crew', 'inactive');
-    pbaPlaced($taken, 'crew_member_1');
-    $leader = User::factory()->create([
-        'role_id' => 3,
-        'driver_first_name' => 'Free', 'driver_last_name' => 'Text',
-        'crew_member_1_personnel_id' => $taken->id,
-        'crew_member_2_personnel_id' => $inactive->id,
-    ]);
-    $unit = pbaUnit();
-
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
-
-    $fresh = $unit->fresh();
-    expect($fresh->driver_name)->toBeNull()
-        ->and($fresh->crew_member_1_name)->toBeNull()
-        ->and($fresh->crew_member_2_name)->toBeNull();
-});
-
-it('creates a team leader with canonical personnel ids and ignores free-text crew fields', function () {
-    $admin = pbaSystemAdmin();
-    SystemSetting::setValue('max_team_leaders', 10);
-    $driver = pbaPerson('Drive', 'Er', 'driver');
-    $crew = pbaPerson('Crew', 'One');
-
-    $this->actingAs($admin)
-        ->post(route('system-admin.users.store'), pbaTlPayload([
-            'driver_personnel_id' => $driver->id,
-            'crew_member_1_personnel_id' => $crew->id,
-            'crew_member_1_name' => 'Typed Ghost',
-            'driver_first_name' => 'Typed',
-        ]))
-        ->assertRedirect(route('system-admin.users.index'));
-
-    $leader = User::where('role_id', 3)->latest('id')->first();
-    expect($leader->driver_personnel_id)->toBe($driver->id)
-        ->and($leader->crew_member_1_personnel_id)->toBe($crew->id)
-        ->and($leader->crew_member_1_name)->toBe('Crew One')
-        ->and($leader->driver_first_name)->toBe('Drive');
-});
-
-it('rejects wrong-role, inactive, duplicate and already-staged personnel on team leader create', function () {
-    $admin = pbaSystemAdmin();
-    SystemSetting::setValue('max_team_leaders', 10);
-    $driver = pbaPerson('Drive', 'Er', 'driver');
-    $crew = pbaPerson('Crew', 'One');
-    $inactive = pbaPerson('Idle', 'Crew', 'crew', 'inactive');
-    User::factory()->create(['role_id' => 3, 'crew_member_2_personnel_id' => pbaPerson('Staged', 'Elsewhere')->id]);
-    $staged = Personnel::where('first_name', 'Staged')->first();
-
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload(['driver_personnel_id' => $crew->id]))
-        ->assertSessionHasErrors('driver_personnel_id');
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload(['crew_member_1_personnel_id' => $driver->id]))
-        ->assertSessionHasErrors('crew_member_1_personnel_id');
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload(['crew_member_1_personnel_id' => $inactive->id]))
-        ->assertSessionHasErrors('crew_member_1_personnel_id');
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload(['crew_member_1_personnel_id' => $crew->id, 'crew_member_2_personnel_id' => $crew->id]))
-        ->assertSessionHasErrors('crew_member_2_personnel_id');
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload(['crew_member_1_personnel_id' => $staged->id]))
-        ->assertSessionHasErrors('crew_member_1_personnel_id');
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload(['crew_member_1_personnel_id' => 999999]))
-        ->assertSessionHasErrors('crew_member_1_personnel_id');
-
-    expect(User::where('role_id', 3)->count())->toBe(1);
-});
-
-it('edits a team leader through personnel ids and leaves unlinked legacy text untouched', function () {
-    $admin = pbaSystemAdmin();
-    $crew = pbaPerson('Crew', 'One');
-    $leader = User::factory()->create([
-        'role_id' => 3, 'phone' => '09171234567',
-        'driver_first_name' => 'Legacy', 'driver_last_name' => 'Driver',
-        'crew_member_1_name' => 'Legacy Crew',
-    ]);
-
-    $this->actingAs($admin)
-        ->putJson(route('system-admin.users.update', $leader->id), [
-            'first_name' => 'Tee', 'last_name' => 'Ell', 'phone' => '09171234567',
-            'crew_member_2_personnel_id' => $crew->id,
-            'crew_member_1_name' => 'Typed Over',
-        ])
-        ->assertSuccessful();
-
-    $fresh = $leader->fresh();
-    expect($fresh->crew_member_2_personnel_id)->toBe($crew->id)
-        ->and($fresh->crew_member_2_name)->toBe('Crew One')
-        ->and($fresh->crew_member_1_name)->toBe('Legacy Crew')
-        ->and($fresh->driver_first_name)->toBe('Legacy');
-
-    $this->actingAs($admin)
-        ->putJson(route('system-admin.users.update', $leader->id), [
-            'first_name' => 'Tee', 'last_name' => 'Ell', 'phone' => '09171234567',
-        ])
-        ->assertSuccessful();
-
-    expect($leader->fresh()->crew_member_2_personnel_id)->toBeNull()
-        ->and($leader->fresh()->crew_member_2_name)->toBeNull();
-});
-
-it('rejects an invalid personnel id on team leader edit', function () {
-    $admin = pbaSystemAdmin();
-    $driver = pbaPerson('Drive', 'Er', 'driver');
-    $leader = User::factory()->create(['role_id' => 3, 'phone' => '09171234567']);
-
-    $this->actingAs($admin)
-        ->putJson(route('system-admin.users.update', $leader->id), [
-            'first_name' => 'Tee', 'last_name' => 'Ell', 'phone' => '09171234567',
-            'crew_member_1_personnel_id' => $driver->id,
-        ])
-        ->assertStatus(422)
-        ->assertJsonValidationErrors('crew_member_1_personnel_id');
-});
-
 it('resolves the owner truck team display through ids and flags unlinked legacy names', function () {
     pbaRoles();
     $owner = User::factory()->create(['role_id' => 1, 'status' => 'active', 'must_change_password' => false]);
@@ -452,24 +337,6 @@ it('reconciliation links an active loan only when its unit slot resolved to the 
         ->and($away->fresh()->crew_member_2_personnel_id)->toBe($person->id);
 });
 
-it('requires a valid active driver personnel record to create a team leader', function () {
-    $admin = pbaSystemAdmin();
-    SystemSetting::setValue('max_team_leaders', 10);
-    $crew = pbaPerson('Crew', 'Person');
-    $inactiveDriver = pbaPerson('Idle', 'Driver', 'driver', 'inactive');
-
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload())
-        ->assertSessionHasErrors(['driver_personnel_id' => 'Select a Driver from Personnel for this Team Leader.']);
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload(['driver_personnel_id' => $crew->id]))
-        ->assertSessionHasErrors('driver_personnel_id');
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload(['driver_personnel_id' => $inactiveDriver->id]))
-        ->assertSessionHasErrors('driver_personnel_id');
-    $this->actingAs($admin)->post(route('system-admin.users.store'), pbaTlPayload(['driver_first_name' => 'Typed', 'driver_last_name' => 'Driver']))
-        ->assertSessionHasErrors('driver_personnel_id');
-
-    expect(User::where('role_id', 3)->count())->toBe(0);
-});
-
 it('clears the current ids and name snapshots of the team when its team leader is removed', function () {
     $dispatcher = pbaDispatcher();
     $driver = pbaPerson('Drive', 'Er', 'driver');
@@ -483,7 +350,7 @@ it('clears the current ids and name snapshots of the team when its team leader i
     ]);
     $unit = pbaUnit();
     $service = app(UnitTeamAssignmentService::class);
-    $service->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
     expect($unit->fresh()->crew_member_1_name)->toBe('Crew One');
 
     $service->removeTeamLeader($unit, $dispatcher);
@@ -545,7 +412,7 @@ it('keeps the loan name snapshot readable after the person leaves the unit and t
     $home = pbaUnit();
     $unit = pbaUnit();
     $service = app(UnitTeamAssignmentService::class);
-    $service->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
     $service->assignSlotPerson($home, 'crew_member_2', $unit, 'crew_member_1', $dispatcher);
 
     $service->removeTeamLeader($unit, $dispatcher);
@@ -562,23 +429,6 @@ function pbaSeededLeader(array $staged = []): User
     return User::factory()->create(array_merge(['role_id' => 3], $staged));
 }
 
-it('records the seeding team leader on every slot it seeds', function () {
-    $dispatcher = pbaDispatcher();
-    $driver = pbaPerson('Drive', 'Er', 'driver');
-    $crew = pbaPerson('Crew', 'One');
-    $leader = pbaSeededLeader(['driver_personnel_id' => $driver->id, 'crew_member_1_personnel_id' => $crew->id]);
-    $unit = pbaUnit();
-
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
-
-    $fresh = $unit->fresh();
-    expect($fresh->crew_member_1_personnel_id)->toBe($crew->id)
-        ->and($fresh->crew_member_1_name)->toBe('Crew One')
-        ->and($fresh->crew_member_1_seeded_by_team_leader_id)->toBe($leader->id)
-        ->and($fresh->driver_seeded_by_team_leader_id)->toBe($leader->id)
-        ->and($fresh->crew_member_2_seeded_by_team_leader_id)->toBeNull();
-});
-
 it('clears the originally seeded crew on removal even after the staged crew was edited', function () {
     $dispatcher = pbaDispatcher();
     $crewA = pbaPerson('Crew', 'Aye');
@@ -586,7 +436,7 @@ it('clears the originally seeded crew on removal even after the staged crew was 
     $leader = pbaSeededLeader(['crew_member_1_personnel_id' => $crewA->id]);
     $unit = pbaUnit();
     $service = app(UnitTeamAssignmentService::class);
-    $service->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
 
     $leader->update(['crew_member_1_personnel_id' => $crewB->id, 'crew_member_1_name' => 'Crew Bee']);
     expect($unit->fresh()->crew_member_1_personnel_id)->toBe($crewA->id);
@@ -606,7 +456,7 @@ it('clears the originally seeded driver on removal even after the staged driver 
     $leader = pbaSeededLeader(['driver_personnel_id' => $driverA->id]);
     $unit = pbaUnit();
     $service = app(UnitTeamAssignmentService::class);
-    $service->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
 
     $leader->update(['driver_personnel_id' => $driverB->id]);
     expect($unit->fresh()->driver_personnel_id)->toBe($driverA->id);
@@ -634,7 +484,7 @@ it('does not clear a manually assigned slot, another leaders slot, or driver 2 o
         'driver_2_personnel_id' => $driver2->id,
     ]);
     $service = app(UnitTeamAssignmentService::class);
-    $service->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
 
     $service->removeTeamLeader($unit, $dispatcher);
 
@@ -661,7 +511,7 @@ it('protects an actively loaned slot from team leader removal and keeps seed own
     $home = pbaUnit();
     $away = pbaUnit();
     $service = app(UnitTeamAssignmentService::class);
-    $service->assignTeamLeader($home, $leader->id, $dispatcher);
+    pbaAssignSeeded($home, $leader->id, $dispatcher);
 
     $service->assignSlotPerson($away, 'crew_member_2', $home, 'crew_member_1', $dispatcher);
 
@@ -692,7 +542,7 @@ it('drops seed ownership when a slot is removed and refilled so the old leader c
     $unit = pbaUnit();
     $donor = pbaPlaced($replacement, 'crew_member_1');
     $service = app(UnitTeamAssignmentService::class);
-    $service->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
 
     $service->removeSlotPerson($unit, 'crew_member_1', $dispatcher);
     expect($unit->fresh()->crew_member_1_seeded_by_team_leader_id)->toBeNull();
@@ -712,7 +562,7 @@ it('moves slots on whole-team transfer without leaving seed ownership on the des
     $source = pbaUnit();
     $target = pbaUnit();
     $service = app(UnitTeamAssignmentService::class);
-    $service->assignTeamLeader($source, $leader->id, $dispatcher);
+    pbaAssignSeeded($source, $leader->id, $dispatcher);
 
     $service->transferTeam($source, $target, $dispatcher);
 
@@ -756,7 +606,7 @@ it('releases the seeded driver and crew when an assigned team leader is archived
     $crew = pbaPerson('Crew', 'One');
     $leader = pbaSeededLeader(['driver_personnel_id' => $driver->id, 'crew_member_1_personnel_id' => $crew->id]);
     $unit = pbaUnit(['driver_2_name' => 'Second Legacy']);
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
 
     $this->actingAs($admin)
         ->patch(route('system-admin.users.archive', $leader->id), ['reason' => 'left'])
@@ -803,7 +653,7 @@ it('keeps a loan-protected borrowed person and the loan snapshot when the team l
     $home = pbaUnit();
     $away = pbaUnit();
     $service = app(UnitTeamAssignmentService::class);
-    $service->assignTeamLeader($home, $owner->id, $dispatcher);
+    pbaAssignSeeded($home, $owner->id, $dispatcher);
     $service->assignSlotPerson($away, 'crew_member_2', $home, 'crew_member_1', $dispatcher);
     $away->update(['team_leader_id' => $leader->id]);
 
@@ -853,7 +703,7 @@ it('releases the seeded team when a team leader is purged', function () {
     $crew = pbaPerson('Purge', 'Crew');
     $leader = pbaSeededLeader(['crew_member_1_personnel_id' => $crew->id]);
     $unit = pbaUnit();
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
 
     app(\App\Services\UserPurgeService::class)->purge($leader);
 
@@ -868,7 +718,7 @@ it('purging an account-backed driver clears only driver_id and keeps the unit te
     $leader = pbaSeededLeader(['crew_member_1_personnel_id' => $crew->id]);
     $driverAccount = User::factory()->create(['role_id' => 4]);
     $unit = pbaUnit(['driver_id' => $driverAccount->id]);
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
 
     app(\App\Services\UserPurgeService::class)->purge($driverAccount);
 
@@ -885,7 +735,7 @@ it('purging a team leader keeps the unrelated account-backed driver and releases
     $leader = pbaSeededLeader(['crew_member_1_personnel_id' => $crew->id]);
     $driverAccount = User::factory()->create(['role_id' => 4]);
     $unit = pbaUnit(['driver_id' => $driverAccount->id]);
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
 
     app(\App\Services\UserPurgeService::class)->purge($leader);
 
@@ -902,7 +752,7 @@ it('purging an unassigned user leaves unit assignments unchanged', function () {
     $driverAccount = User::factory()->create(['role_id' => 4]);
     $bystander = User::factory()->create(['role_id' => 2]);
     $unit = pbaUnit(['driver_id' => $driverAccount->id]);
-    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+    pbaAssignSeeded($unit, $leader->id, $dispatcher);
 
     app(\App\Services\UserPurgeService::class)->purge($bystander);
 
@@ -910,4 +760,121 @@ it('purging an unassigned user leaves unit assignments unchanged', function () {
     expect($fresh->team_leader_id)->toBe($leader->id)
         ->and($fresh->driver_id)->toBe($driverAccount->id)
         ->and($fresh->crew_member_1_personnel_id)->toBe($crew->id);
+});
+
+it('creates a team leader without any driver or crew template', function () {
+    $admin = pbaSystemAdmin();
+    SystemSetting::setValue('max_team_leaders', 10);
+
+    $this->actingAs($admin)
+        ->post(route('system-admin.users.store'), pbaTlPayload([
+            'driver_personnel_id' => 999,
+            'crew_member_1_personnel_id' => 999,
+            'driver_first_name' => 'Typed',
+            'crew_member_1_name' => 'Typed Crew',
+        ]))
+        ->assertRedirect(route('system-admin.users.index'));
+
+    $leader = User::where('role_id', 3)->latest('id')->first();
+    expect($leader)->not->toBeNull()
+        ->and($leader->driver_personnel_id)->toBeNull()
+        ->and($leader->crew_member_1_personnel_id)->toBeNull()
+        ->and($leader->driver_first_name)->toBeNull()
+        ->and($leader->crew_member_1_name)->toBeNull()
+        ->and(Personnel::count())->toBe(0);
+});
+
+it('renders no driver or crew template inputs on team leader create or edit', function () {
+    $admin = pbaSystemAdmin();
+    $leader = User::factory()->create([
+        'role_id' => 3, 'phone' => '09171234567',
+        'driver_first_name' => 'Legacy', 'driver_last_name' => 'Driver', 'crew_member_1_name' => 'Legacy Crew',
+    ]);
+
+    $create = $this->actingAs($admin)->get(route('system-admin.users.create'))->assertOk();
+    $edit = $this->actingAs($admin)->get(route('system-admin.users.edit', $leader->id))->assertOk();
+
+    foreach ([$create, $edit] as $response) {
+        $response->assertDontSee('Driver Details')
+            ->assertDontSee('Crew Members')
+            ->assertDontSee('driver_personnel_id')
+            ->assertDontSee('crew_member_1_personnel_id')
+            ->assertDontSee('is not linked to Personnel');
+    }
+});
+
+it('editing a team leader leaves hidden legacy staged values untouched', function () {
+    $admin = pbaSystemAdmin();
+    $driver = pbaPerson('Drive', 'Er', 'driver');
+    $leader = User::factory()->create([
+        'role_id' => 3, 'phone' => '09171234567',
+        'driver_personnel_id' => $driver->id,
+        'driver_first_name' => 'Drive', 'driver_last_name' => 'Er',
+        'crew_member_1_name' => 'Legacy Crew',
+    ]);
+
+    $this->actingAs($admin)
+        ->putJson(route('system-admin.users.update', $leader->id), [
+            'first_name' => 'Renamed', 'last_name' => 'Leader', 'phone' => '09171234567',
+            'driver_personnel_id' => '', 'crew_member_1_name' => 'Typed Over', 'driver_first_name' => 'Typed',
+        ])
+        ->assertSuccessful();
+
+    $fresh = $leader->fresh();
+    expect($fresh->first_name)->toBe('Renamed')
+        ->and($fresh->driver_personnel_id)->toBe($driver->id)
+        ->and($fresh->driver_first_name)->toBe('Drive')
+        ->and($fresh->crew_member_1_name)->toBe('Legacy Crew');
+});
+
+it('assigning a team leader sets only the team leader and never seeds driver or crew', function () {
+    $dispatcher = pbaDispatcher();
+    $driver = pbaPerson('Drive', 'Er', 'driver');
+    $crew = pbaPerson('Crew', 'One');
+    $leader = pbaSeededLeader(['driver_personnel_id' => $driver->id, 'crew_member_1_personnel_id' => $crew->id]);
+    $unit = pbaUnit();
+
+    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+
+    $fresh = $unit->fresh();
+    expect($fresh->team_leader_id)->toBe($leader->id)
+        ->and($fresh->driver_personnel_id)->toBeNull()
+        ->and($fresh->driver_name)->toBeNull()
+        ->and($fresh->crew_member_1_personnel_id)->toBeNull()
+        ->and($fresh->crew_member_1_name)->toBeNull()
+        ->and($fresh->driver_seeded_by_team_leader_id)->toBeNull()
+        ->and($fresh->crew_member_1_seeded_by_team_leader_id)->toBeNull();
+});
+
+it('assigning a team leader preserves the existing driver and crew on the unit', function () {
+    $dispatcher = pbaDispatcher();
+    $existingCrew = pbaPerson('Existing', 'Crew');
+    $existingDriver = pbaPerson('Existing', 'Driver', 'driver');
+    $leader = pbaSeededLeader();
+    $unit = pbaPlaced($existingCrew, 'crew_member_1', [
+        'driver_name' => $existingDriver->full_name,
+        'driver_personnel_id' => $existingDriver->id,
+    ]);
+
+    app(UnitTeamAssignmentService::class)->assignTeamLeader($unit, $leader->id, $dispatcher);
+
+    $fresh = $unit->fresh();
+    expect($fresh->team_leader_id)->toBe($leader->id)
+        ->and($fresh->crew_member_1_personnel_id)->toBe($existingCrew->id)
+        ->and($fresh->driver_personnel_id)->toBe($existingDriver->id);
+});
+
+it('still assigns driver and crew directly through the personnel-backed flow after a team leader is assigned', function () {
+    $dispatcher = pbaDispatcher();
+    $crew = pbaPerson('Direct', 'Crew');
+    $leader = pbaSeededLeader();
+    $source = pbaPlaced($crew, 'crew_member_1');
+    $unit = pbaUnit();
+    $service = app(UnitTeamAssignmentService::class);
+    $service->assignTeamLeader($unit, $leader->id, $dispatcher);
+
+    $service->assignSlotPerson($unit, 'crew_member_1', $source, 'crew_member_1', $dispatcher);
+
+    expect($unit->fresh()->crew_member_1_personnel_id)->toBe($crew->id)
+        ->and($unit->fresh()->team_leader_id)->toBe($leader->id);
 });
