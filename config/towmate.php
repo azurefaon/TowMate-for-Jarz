@@ -34,12 +34,17 @@ return [
     'demo_arrival_enabled' => filter_var(env('TL_DEMO_ARRIVAL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
     /*
-    | Production only: the ONE Team Leader account (by email) that may use the
-    | presentation arrival simulator on bookings actually assigned to them,
-    | and only while demo_arrival_enabled is true. Unset/blank = nobody.
+    | Production only: comma-separated allowlist of Team Leader emails that may
+    | use the presentation arrival simulator on bookings actually assigned to
+    | them, and only while demo_arrival_enabled is true. Entries are trimmed
+    | and lowercased; blanks are ignored; unset/blank = nobody.
     */
-    'demo_team_leader_email' => filled(env('TL_DEMO_TEAM_LEADER_EMAIL'))
-        ? strtolower(trim((string) env('TL_DEMO_TEAM_LEADER_EMAIL')))
-        : null,
+    'demo_team_leader_emails' => array_values(array_unique(array_filter(
+        array_map(
+            fn (string $email) => strtolower(trim($email)),
+            explode(',', (string) env('TL_DEMO_TEAM_LEADER_EMAILS', '')),
+        ),
+        fn (string $email) => $email !== '',
+    ))),
 
 ];

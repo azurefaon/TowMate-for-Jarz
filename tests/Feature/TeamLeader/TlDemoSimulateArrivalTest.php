@@ -270,25 +270,27 @@ it('rerunning the seed command resets a simulated booking to assigned without du
 // ---------------------------------------------------------------------------
 // Production presentation gate:
 //   TL_DEMO_ARRIVAL_ENABLED  (config towmate.demo_arrival_enabled)
-//   TL_DEMO_TEAM_LEADER_EMAIL (config towmate.demo_team_leader_email)
+//   TL_DEMO_TEAM_LEADER_EMAILS (config towmate.demo_team_leader_emails, an allowlist)
 // In production the demo/fixture customer + note checks are NOT used: any booking
-// actually assigned to the ONE configured Team Leader qualifies.
+// actually assigned to an allowlisted Team Leader qualifies.
 // ---------------------------------------------------------------------------
 
 const SIM_PRESENTER_EMAIL = 'presenter.tl@example.com';
 
-function simAsProduction(?bool $flag, ?string $email, Closure $fn, string $env = 'production'): void
+/** @param array<int,string>|string|null $emails the already-parsed allowlist (a lone string = one entry) */
+function simAsProduction(?bool $flag, array|string|null $emails, Closure $fn, string $env = 'production'): void
 {
+    $list = array_values(array_filter((array) $emails, fn ($e) => is_string($e) && $e !== ''));
     $originalEnv = app()['env'];
     $originalFlag = config('towmate.demo_arrival_enabled');
-    $originalEmail = config('towmate.demo_team_leader_email');
+    $originalEmails = config('towmate.demo_team_leader_emails');
     app()['env'] = $env;
-    config(['towmate.demo_arrival_enabled' => $flag, 'towmate.demo_team_leader_email' => $email]);
+    config(['towmate.demo_arrival_enabled' => $flag, 'towmate.demo_team_leader_emails' => $list]);
     try {
         $fn();
     } finally {
         app()['env'] = $originalEnv;
-        config(['towmate.demo_arrival_enabled' => $originalFlag, 'towmate.demo_team_leader_email' => $originalEmail]);
+        config(['towmate.demo_arrival_enabled' => $originalFlag, 'towmate.demo_team_leader_emails' => $originalEmails]);
     }
 }
 
@@ -321,36 +323,44 @@ function simSnapshot(Booking $booking): array
     ];
 }
 
-it('E: the demo flag and the presentation email both default to OFF/unset', function () {
+it('E: the demo flag defaults OFF and the presentation allowlist defaults empty, with trimming/lowercasing', function () {
     $repository = \Illuminate\Support\Env::getRepository();
     $previous = [
         'flag' => \Illuminate\Support\Env::get('TL_DEMO_ARRIVAL_ENABLED'),
-        'email' => \Illuminate\Support\Env::get('TL_DEMO_TEAM_LEADER_EMAIL'),
+        'email' => \Illuminate\Support\Env::get('TL_DEMO_TEAM_LEADER_EMAILS'),
     ];
     $repository->clear('TL_DEMO_ARRIVAL_ENABLED');
-    $repository->clear('TL_DEMO_TEAM_LEADER_EMAIL');
+    $repository->clear('TL_DEMO_TEAM_LEADER_EMAILS');
     try {
         $config = require config_path('towmate.php');
         expect($config['demo_arrival_enabled'])->toBeFalse()
-            ->and($config['demo_team_leader_email'])->toBeNull();
+            ->and($config['demo_team_leader_emails'])->toBe([]);
 
         foreach (['true' => true, '1' => true, 'false' => false, '0' => false, '' => false, 'garbage' => false] as $raw => $expected) {
             $repository->set('TL_DEMO_ARRIVAL_ENABLED', (string) $raw);
             expect((require config_path('towmate.php'))['demo_arrival_enabled'])->toBe($expected, "raw={$raw}");
         }
 
-        foreach (['' => null, '   ' => null, '  Presenter.TL@Example.com ' => 'presenter.tl@example.com'] as $raw => $expected) {
-            $repository->set('TL_DEMO_TEAM_LEADER_EMAIL', (string) $raw);
-            expect((require config_path('towmate.php'))['demo_team_leader_email'])->toBe($expected, "email raw=[{$raw}]");
+        $cases = [
+            '' => [],
+            '   ' => [],
+            ' , ,, ' => [],
+            '  Presenter.TL@Example.com ' => ['presenter.tl@example.com'],
+            'a@x.com,b@x.com,c@x.com' => ['a@x.com', 'b@x.com', 'c@x.com'],
+            '  A@X.com ,  b@x.COM,, ,A@x.com ' => ['a@x.com', 'b@x.com'],
+        ];
+        foreach ($cases as $raw => $expected) {
+            $repository->set('TL_DEMO_TEAM_LEADER_EMAILS', (string) $raw);
+            expect((require config_path('towmate.php'))['demo_team_leader_emails'])->toBe($expected, "emails raw=[{$raw}]");
         }
     } finally {
         $repository->clear('TL_DEMO_ARRIVAL_ENABLED');
-        $repository->clear('TL_DEMO_TEAM_LEADER_EMAIL');
+        $repository->clear('TL_DEMO_TEAM_LEADER_EMAILS');
         if ($previous['flag'] !== null) {
             $repository->set('TL_DEMO_ARRIVAL_ENABLED', (string) $previous['flag']);
         }
         if ($previous['email'] !== null) {
-            $repository->set('TL_DEMO_TEAM_LEADER_EMAIL', (string) $previous['email']);
+            $repository->set('TL_DEMO_TEAM_LEADER_EMAILS', (string) $previous['email']);
         }
     }
 });
@@ -526,4 +536,104 @@ it('staging stays closed even with the flag and email configured', function () {
         simSimulate($tl, $booking)->assertNotFound();
         expect(simOffered($tl))->toBeFalse();
     }, 'staging');
+});
+
+// ---------------------------------------------------------------------------
+// Allowlist (several presenters)
+// ---------------------------------------------------------------------------
+
+const SIM_PRESENTER_2_EMAIL = 'presenter.two@example.com';
+
+function simPresenterTwo(string $status = 'on_the_way'): array
+{
+    [$tl, $booking] = simOtherTeamLeader();
+    $tl->update(['email' => SIM_PRESENTER_2_EMAIL]);
+    $booking->update(['status' => $status]);
+
+    return [$tl->fresh(), $booking->fresh()];
+}
+
+it('allowlist: the first and the second configured Team Leader each work on their own booking', function () {
+    [$one, $oneBooking] = simPresenter('on_the_way');
+    [$two, $twoBooking] = simPresenterTwo('on_job');
+
+    simAsProduction(true, [SIM_PRESENTER_EMAIL, SIM_PRESENTER_2_EMAIL], function () use ($one, $oneBooking, $two, $twoBooking) {
+        expect(simOffered($one))->toBeTrue()->and(simOffered($two))->toBeTrue();
+
+        simSimulate($one, $oneBooking)->assertOk()->assertJson(['status' => 'arrived_pickup']);
+        simSimulate($two, $twoBooking)->assertOk()->assertJson(['status' => 'arrived_dropoff']);
+    });
+
+    expect($oneBooking->fresh()->status)->toBe('arrived_pickup')
+        ->and($twoBooking->fresh()->status)->toBe('arrived_dropoff');
+});
+
+it('allowlist: a configured Team Leader cannot simulate another Team Leader\'s booking, even another allowlisted one', function () {
+    [$one] = simPresenter('on_the_way');
+    [, $twoBooking] = simPresenterTwo('on_the_way');
+
+    simAsProduction(true, [SIM_PRESENTER_EMAIL, SIM_PRESENTER_2_EMAIL], function () use ($one, $twoBooking) {
+        simSimulate($one, $twoBooking)->assertNotFound();
+    });
+
+    expect($twoBooking->fresh()->status)->toBe('on_the_way')
+        ->and(AuditLog::where('action', 'demo_arrival_simulated')->count())->toBe(0);
+});
+
+it('allowlist: an unlisted Team Leader is blocked while listed ones work', function () {
+    [$listed, $listedBooking] = simPresenter('on_the_way');
+    [$unlisted, $unlistedBooking] = simPresenterTwo('on_the_way');
+
+    simAsProduction(true, [SIM_PRESENTER_EMAIL], function () use ($listed, $listedBooking, $unlisted, $unlistedBooking) {
+        expect(simOffered($listed))->toBeTrue()->and(simOffered($unlisted))->toBeFalse();
+        simSimulate($unlisted, $unlistedBooking)->assertNotFound();
+        simSimulate($listed, $listedBooking)->assertOk();
+    });
+
+    expect($unlistedBooking->fresh()->status)->toBe('on_the_way')
+        ->and($listedBooking->fresh()->status)->toBe('arrived_pickup');
+});
+
+it('allowlist: an empty allowlist blocks everyone and the flag off blocks everyone', function () {
+    [$one, $oneBooking] = simPresenter('on_the_way');
+    [$two, $twoBooking] = simPresenterTwo('on_the_way');
+
+    simAsProduction(true, [], function () use ($one, $oneBooking, $two, $twoBooking) {
+        simSimulate($one, $oneBooking)->assertNotFound();
+        simSimulate($two, $twoBooking)->assertNotFound();
+        expect(simOffered($one))->toBeFalse()->and(simOffered($two))->toBeFalse();
+    });
+
+    simAsProduction(false, [SIM_PRESENTER_EMAIL, SIM_PRESENTER_2_EMAIL], function () use ($one, $oneBooking, $two, $twoBooking) {
+        simSimulate($one, $oneBooking)->assertNotFound();
+        simSimulate($two, $twoBooking)->assertNotFound();
+        expect(simOffered($one))->toBeFalse()->and(simOffered($two))->toBeFalse();
+    });
+
+    expect($oneBooking->fresh()->status)->toBe('on_the_way')
+        ->and($twoBooking->fresh()->status)->toBe('on_the_way');
+});
+
+it('allowlist: matching ignores the case/whitespace of the stored account email', function () {
+    [$tl, $booking] = simPresenter('on_the_way');
+    \Illuminate\Support\Facades\DB::table('users')->where('id', $tl->id)->update(['email' => '  Presenter.TL@Example.COM ']);
+
+    simAsProduction(true, [SIM_PRESENTER_EMAIL], function () use ($tl, $booking) {
+        simSimulate($tl->fresh(), $booking)->assertOk()->assertJson(['status' => 'arrived_pickup']);
+    });
+});
+
+it('allowlist: the normal arrival endpoint keeps the 150 m rule for every allowlisted Team Leader', function () {
+    [$one, $oneBooking] = simPresenter('on_the_way');
+    [$two, $twoBooking] = simPresenterTwo('on_the_way');
+
+    simAsProduction(true, [SIM_PRESENTER_EMAIL, SIM_PRESENTER_2_EMAIL], function () use ($one, $oneBooking, $two, $twoBooking) {
+        foreach ([[$one, $oneBooking], [$two, $twoBooking]] as [$tl, $booking]) {
+            Sanctum::actingAs($tl);
+            $url = "/api/v1/team-leader/task/{$booking->booking_code}/status";
+            test()->patchJson($url, ['status' => 'arrived_pickup'])->assertStatus(422);
+            test()->patchJson($url, ['status' => 'arrived_pickup', 'lat' => 0.0, 'lng' => 0.0, 'is_demo' => true])->assertStatus(422);
+            expect($booking->fresh()->status)->toBe('on_the_way');
+        }
+    });
 });

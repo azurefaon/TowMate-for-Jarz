@@ -52,9 +52,9 @@ final class TlDemoFixture
     }
 
     /**
-     * local/testing: the seeded demo Team Leader. production: ONLY the single
-     * Team Leader named by TL_DEMO_TEAM_LEADER_EMAIL, and only while
-     * TL_DEMO_ARRIVAL_ENABLED is true (blank/unset email means nobody).
+     * local/testing: the seeded demo Team Leader. production: ONLY a Team
+     * Leader whose email is in the TL_DEMO_TEAM_LEADER_EMAILS allowlist, and
+     * only while TL_DEMO_ARRIVAL_ENABLED is true (blank/unset list = nobody).
      */
     public static function isDemoUser(?User $user): bool
     {
@@ -63,20 +63,21 @@ final class TlDemoFixture
         }
 
         if (app()->environment('production')) {
-            $configured = config('towmate.demo_team_leader_email');
+            $allowlist = config('towmate.demo_team_leader_emails');
+            $email = strtolower(trim((string) $user->email));
 
             return config('towmate.demo_arrival_enabled') === true
-                && is_string($configured)
-                && $configured !== ''
+                && is_array($allowlist)
+                && $email !== ''
                 && (int) $user->role_id === 3
-                && strtolower(trim((string) $user->email)) === $configured;
+                && in_array($email, $allowlist, true);
         }
 
         return strtolower((string) $user->email) === self::TL_EMAIL;
     }
 
     /**
-     * production: any booking actually assigned to the presentation Team
+     * production: any booking actually assigned to the allowlisted Team
      * Leader (no demo customer / note / fixture needed). local/testing: the
      * seeded fixture exactly as before.
      */
