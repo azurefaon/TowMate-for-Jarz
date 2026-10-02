@@ -333,3 +333,67 @@ it('keeps a legacy booking vehicle_image_path readable without a booking_vehicle
     expect($legacyBooking->vehicle_image_paths)->toBe(['vehicle_images/legacy-photo.jpg']);
     expect(BookingVehiclePhoto::where('booking_id', $legacyBooking->id)->count())->toBe(0);
 });
+
+// The dispatch drawer reads bookings.vehicle_image_path, so every vehicle booking must carry
+// ITS OWN uploaded photos in that column (mirrored from booking_vehicle_photos), never another vehicle's.
+function bvpAssertOwnPhotosMirrored(Booking $booking, int $expectedCount): void
+{
+    $rowPaths = BookingVehiclePhoto::where('booking_id', $booking->id)->orderBy('id')->pluck('path')->all();
+
+    expect($rowPaths)->toHaveCount($expectedCount);
+    expect($booking->fresh()->vehicle_image_paths)->toBe($rowPaths);
+}
+
+it('persists distinct Book Now photos on each vehicle booking without cross-copying', function () {
+    [$user, $customer] = bvpCustomer();
+    $truck = bvpTruckType();
+    $vehicle = bvpVehicleType($truck->id);
+    bvpReadyUnit($truck);
+    $extraTruck = bvpTruckType();
+    $extraVehicle = bvpVehicleType($extraTruck->id);
+    bvpReadyUnit($extraTruck);
+    Sanctum::actingAs($user, ['*']);
+
+    test()->postJson('/api/v1/bookings', bvpBasePayload($vehicle, [
+        'vehicle_images' => bvpImages(1),
+        'extra_vehicles' => json_encode([['vehicle_type_id' => $extraVehicle->id, 'service_type' => 'book_now']]),
+        'extra_vehicle_images' => [0 => bvpImages(2)],
+    ]))->assertCreated();
+
+    $primary = Booking::where('customer_id', $customer->id)->where('truck_type_id', $truck->id)->latest()->first();
+    $sibling = Booking::where('customer_id', $customer->id)->where('truck_type_id', $extraTruck->id)->latest()->first();
+
+    bvpAssertOwnPhotosMirrored($primary, 1);
+    bvpAssertOwnPhotosMirrored($sibling, 2);
+    expect(array_intersect($primary->fresh()->vehicle_image_paths, $sibling->fresh()->vehicle_image_paths))->toBe([]);
+});
+
+it('persists distinct Scheduled photos on each sibling vehicle booking so the dispatch drawer can show them', function () {
+    [$user, $customer] = bvpCustomer();
+    $truck = bvpTruckType();
+    $vehicle = bvpVehicleType($truck->id);
+    $extraTruck = bvpTruckType();
+    $extraVehicle = bvpVehicleType($extraTruck->id);
+    $thirdTruck = bvpTruckType();
+    $thirdVehicle = bvpVehicleType($thirdTruck->id);
+    Sanctum::actingAs($user, ['*']);
+
+    test()->postJson('/api/v1/bookings', bvpBasePayload($vehicle, [
+        'vehicle_images' => bvpImages(1),
+        'service_type' => 'schedule',
+        'scheduled_date' => now()->addDay()->toDateString(),
+        'scheduled_time' => '10:00',
+        'extra_vehicles' => json_encode([['vehicle_type_id' => $extraVehicle->id], ['vehicle_type_id' => $thirdVehicle->id]]),
+        'extra_vehicle_images' => [0 => bvpImages(2), 1 => bvpImages(3)],
+    ]))->assertCreated();
+
+    $primary = Booking::where('customer_id', $customer->id)->where('truck_type_id', $truck->id)->latest()->first();
+    $second = Booking::where('customer_id', $customer->id)->where('truck_type_id', $extraTruck->id)->latest()->first();
+    $third = Booking::where('customer_id', $customer->id)->where('truck_type_id', $thirdTruck->id)->latest()->first();
+
+    bvpAssertOwnPhotosMirrored($primary, 1);
+    bvpAssertOwnPhotosMirrored($second, 2);
+    bvpAssertOwnPhotosMirrored($third, 3);
+    $all = array_merge($primary->fresh()->vehicle_image_paths, $second->fresh()->vehicle_image_paths, $third->fresh()->vehicle_image_paths);
+    expect($all)->toHaveCount(6)->and(array_unique($all))->toHaveCount(6);
+});

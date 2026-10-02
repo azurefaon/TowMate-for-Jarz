@@ -658,6 +658,7 @@ class CustomerBookingController extends Controller
                     $siblingFiles = $extraFilesByIndex[$ev['_index']] ?? [];
                     $siblingPaths = $this->bookingService->storeVehiclePhotosFor($sibling, 0, $siblingFiles);
                     $storedPhotoPaths = array_merge($storedPhotoPaths, $siblingPaths);
+                    $sibling->update(['vehicle_image_path' => json_encode($siblingPaths)]);
 
                     $scheduleLineItems[] = [
                         'booking_id'       => $sibling->id,
