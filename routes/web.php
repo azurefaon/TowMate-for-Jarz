@@ -123,6 +123,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
+Route::post('/session/keep-alive', fn () => response()->json(['ok' => true]))
+    ->middleware(['auth', 'idle.timeout:touch'])
+    ->name('session.keep-alive');
+
 require __DIR__ . '/auth.php';
 
 Route::view('/driver', 'dashboard')
@@ -131,7 +135,7 @@ Route::view('/driver', 'dashboard')
 
 Route::prefix('control-center')
     ->name('control-center.')
-    ->middleware(['auth', 'role:1,2', 'force.password.change', 'touch.dispatcher.presence'])
+    ->middleware(['auth', 'idle.timeout', 'role:1,2', 'force.password.change', 'touch.dispatcher.presence'])
     ->group(function () {
         Route::get('/', [ControlCenterController::class, 'index'])->name('index');
         Route::get('/live', [ControlCenterController::class, 'live'])->name('live');
@@ -139,7 +143,7 @@ Route::prefix('control-center')
 
 Route::prefix('admin-dashboard')
     ->name('admin.')
-    ->middleware(['auth', 'role:2', 'force.password.change', 'touch.dispatcher.presence'])
+    ->middleware(['auth', 'idle.timeout', 'role:2', 'force.password.change', 'touch.dispatcher.presence'])
     ->group(function () {
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/live-overview', [AdminController::class, 'liveOverview'])->name('live-overview');
@@ -189,6 +193,7 @@ Route::prefix('admin-dashboard')
         Route::get('/quotations/floating-panel', [DispatchController::class, 'floatingQuotationsPanel'])->name('quotations.floating-panel');
         Route::post('/booking/{booking}/service-fee', [DispatchController::class, 'applyServiceFee'])->name('booking.service-fee');
         Route::post('/booking/{booking}/mark-risk', [DispatchController::class, 'markCustomerRisk'])->name('booking.mark-risk');
+        Route::get('/booking/{booking}/photos', [DispatchController::class, 'bookingPhotos'])->name('booking.photos');
         Route::get('/booking/{booking}/detail-bundle', [DispatchController::class, 'bookingDetailBundle'])->name('booking.detail-bundle');
         Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');
         Route::post('/jobs/{booking}/confirm-payment', [JobsController::class, 'confirmPayment'])->name('jobs.confirm-payment');
@@ -217,7 +222,7 @@ Route::prefix('admin-dashboard')
 
 Route::prefix('superadmin')
     ->name('superadmin.')
-    ->middleware(['auth', 'role:1', 'force.password.change'])
+    ->middleware(['auth', 'idle.timeout', 'role:1', 'force.password.change'])
     ->group(function () {
         Route::get('/dashboard', [SuperAdminController::class, 'index'])->name('dashboard');
         Route::get('/revenue', [ReportsController::class, 'revenue'])->name('revenue.index');
@@ -342,7 +347,7 @@ Route::get('/settings', [SystemSettingsController::class, 'index'])->name('setti
 
 Route::prefix('system-admin')
     ->name('system-admin.')
-    ->middleware(['auth', 'role:6', 'force.password.change'])
+    ->middleware(['auth', 'idle.timeout', 'role:6', 'force.password.change'])
     ->group(function () {
         Route::get('/dashboard', [SystemAdminDashboardController::class, 'index'])->name('dashboard');
 

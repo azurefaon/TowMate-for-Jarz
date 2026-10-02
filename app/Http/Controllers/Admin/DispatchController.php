@@ -1402,7 +1402,7 @@ class DispatchController extends Controller
         if ($groupExtraVehicles->isNotEmpty()) {
             $groupBookingsById = Booking::whereIn('id', $groupExtraVehicles->pluck('booking_id')->filter()->all())
                 ->with('vehicleType')
-                ->get(['id', 'booking_code', 'vehicle_type_id', 'assigned_unit_id', 'selected_unit_id', 'status'])
+                ->get(['id', 'booking_code', 'vehicle_type_id', 'assigned_unit_id', 'selected_unit_id', 'status', 'vehicle_image_path'])
                 ->keyBy('id');
 
             $groupVehicles = $groupExtraVehicles
@@ -1434,6 +1434,7 @@ class DispatchController extends Controller
                         'assigned_unit_id' => $b?->assigned_unit_id,
                         'selected_unit_id' => $b?->selected_unit_id,
                         'status' => $b?->status,
+                        'photos' => $b ? $this->vehiclePhotoUrls($b) : [],
                     ];
                 })
                 ->values()
@@ -1613,8 +1614,20 @@ class DispatchController extends Controller
                 'assigned_unit_id' => $sibling->assigned_unit_id,
                 'selected_unit_id' => null,
                 'status' => $sibling->status,
+                'photos' => $this->vehiclePhotoUrls($sibling),
             ];
         })->values()->toArray();
+    }
+
+    /** Each grouped vehicle is its own Booking row with its own photo(s). */
+    private function vehiclePhotoUrls(Booking $booking): array
+    {
+        return collect($booking->vehicle_image_paths)
+            ->filter(fn($p) => filled($p))
+            ->map(fn($p) => protected_file_url($p))
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private function enrichExtraVehicles(array $vehicles): array
@@ -2541,6 +2554,27 @@ class DispatchController extends Controller
             ->values();
 
         return response()->json($data);
+    }
+
+    /**
+     * Fresh signed vehicle-photo URLs for a booking (or its whole group), generated
+     * at request time. The dispatch page only renders these once at load, and
+     * protected_file_url() links expire (30 min), so the drawer re-fetches them on open.
+     */
+    public function bookingPhotos(Booking $booking)
+    {
+        $bookings = $booking->group_code
+            ? Booking::where('group_code', $booking->group_code)->orderBy('id')->get(['id', 'vehicle_image_path'])
+            : collect([$booking]);
+
+        return response()->json([
+            'success' => true,
+            'booking_id' => $booking->id,
+            'vehicles' => $bookings->map(fn(Booking $b) => [
+                'booking_id' => $b->id,
+                'photos' => $this->vehiclePhotoUrls($b),
+            ])->values(),
+        ]);
     }
 
     public function bookingDetailBundle(Booking $booking)

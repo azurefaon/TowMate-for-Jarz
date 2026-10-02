@@ -34,6 +34,21 @@ return [
 
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Dashboard Idle Timeout (web staff roles only)
+    |--------------------------------------------------------------------------
+    |
+    | Seconds of continuous USER inactivity before the idle warning appears and
+    | before the session is force-logged-out. Background polling does not count
+    | as activity. Keep warning < logout. Override via env for local testing only.
+    |
+    */
+
+    'idle_warning_seconds' => (int) env('SESSION_IDLE_WARNING_SECONDS', 1500),
+
+    'idle_timeout_seconds' => (int) env('SESSION_IDLE_TIMEOUT_SECONDS', 1800),
+
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 
     /*

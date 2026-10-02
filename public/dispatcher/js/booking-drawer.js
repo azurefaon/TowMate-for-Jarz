@@ -496,6 +496,14 @@
                 }
             }
         }
+        // Fresh signed URLs for the (single) vehicle; grouped photos arrive via group_vehicles.
+        if (
+            !(Array.isArray(data.group_vehicles) && data.group_vehicles.length > 1) &&
+            Array.isArray(data.vehicle_image_paths) &&
+            data.vehicle_image_paths.length
+        ) {
+            state.photos = data.vehicle_image_paths;
+        }
         if (typeof data.estimated_price !== "undefined") {
             state.currentPrice =
                 parseFloat(data.estimated_price) || state.currentPrice;
@@ -605,6 +613,13 @@
         var closeBtn = document.getElementById("rbDrawerCloseBtn");
         (closeBtn || drawerEl).focus();
 
+        // Photo URLs rendered with the page are short-lived signed links, so a drawer
+        // opened long after page load needs fresh ones. Quoted bookings get them from
+        // the quotation-details fetch below; only un-quoted bookings need this request.
+        if (!state.quotationId && !state.isMockPreview) {
+            refreshVehiclePhotos(state);
+        }
+
         if (state.quotationId) {
             var openedState = state;
             fetchQuotationDetails(state.quotationId)
@@ -616,6 +631,36 @@
                 .catch(function () {});
         }
     };
+
+    function refreshVehiclePhotos(openedState) {
+        var url = fillRoute(window.RB_ROUTES.bookingPhotos, openedState.bookingCode);
+        fetch(url, { headers: { Accept: "application/json" }, credentials: "same-origin" })
+            .then(function (res) {
+                if (!res.ok) throw new Error("photo refresh " + res.status);
+                return res.json();
+            })
+            .then(function (payload) {
+                if (state !== openedState || !payload || !Array.isArray(payload.vehicles)) return;
+                var photosById = {};
+                payload.vehicles.forEach(function (v) {
+                    photosById[String(v.booking_id)] = Array.isArray(v.photos) ? v.photos : [];
+                });
+                if (isGrouped(openedState)) {
+                    openedState.groupVehicles.forEach(function (v) {
+                        if (photosById.hasOwnProperty(String(v.booking_id))) {
+                            v.photos = photosById[String(v.booking_id)];
+                        }
+                    });
+                } else if (photosById.hasOwnProperty(String(payload.booking_id))) {
+                    openedState.photos = photosById[String(payload.booking_id)];
+                }
+                renderDrawer();
+            })
+            .catch(function (err) {
+                // Keep the photos already on the drawer; the fallback text covers a broken link.
+                if (window.console) console.warn("Vehicle photo refresh failed", err);
+            });
+    }
 
     async function closeBookingDrawer() {
         if (state && hasStagedDraftChanges(state)) {
@@ -703,8 +748,17 @@
         );
     }
 
+    // Grouped bookings: every vehicle is its own booking with its own photos, so
+    // the photo box must follow the active vehicle tab, not the anchor booking.
+    function currentPhotos(s) {
+        var vehicle = activeVehicle(s);
+        if (!vehicle) return s.photos;
+        return Array.isArray(vehicle.photos) ? vehicle.photos : [];
+    }
+
     function photoStackHtml(s) {
-        var n = s.photos.length;
+        var photos = currentPhotos(s);
+        var n = photos.length;
         if (!n) {
             return (
                 '<div class="rb-photo-stack-wrap">' +
@@ -728,7 +782,7 @@
                   n +
                   "</div>"
                 : "";
-        var firstUrl = s.photos[0];
+        var firstUrl = photos[0];
         var imgHtml = firstUrl
             ? '<img src="' +
               esc(firstUrl) +
@@ -1716,7 +1770,7 @@
 
         byId("rbPhotoStackTrigger", function (el) {
             el.onclick = function () {
-                openLightbox(s.photos, 0);
+                openLightbox(currentPhotos(s), 0);
             };
         });
 

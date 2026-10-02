@@ -2982,6 +2982,7 @@
             assign:      "{{ route('admin.booking.assign', ':booking') }}",
             reschedule:  "{{ route('admin.booking.reschedule', ':booking') }}",
             saveDraft:   "{{ route('admin.booking.save-draft', ':booking') }}",
+            bookingPhotos: "{{ route('admin.booking.photos', ':booking') }}",
             detailBundle: "{{ route('admin.booking.detail-bundle', ':booking') }}",
             updatePricing: "{{ route('admin.active-bookings.update-pricing', ':booking') }}",
             voidInvoice: "{{ route('admin.invoices.void', ':invoice') }}",

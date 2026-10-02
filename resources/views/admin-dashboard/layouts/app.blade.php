@@ -433,6 +433,8 @@
         })();
     </script>
 
+    @include('partials.idle-timeout')
+
     @stack('scripts')
 
 </body>

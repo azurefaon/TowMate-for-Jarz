@@ -686,6 +686,8 @@
 
     <script src="{{ asset('superadmin/js/components.js') }}" defer></script>
 
+    @include('partials.idle-timeout')
+
     @stack('scripts')
 
 </body>
