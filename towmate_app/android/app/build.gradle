@@ -6,6 +6,12 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Firebase (FCM) is enabled only once android/app/google-services.json exists,
+// so builds keep working before the Firebase project is set up.
+if (file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
+}
+
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file("key.properties")
 
@@ -61,5 +67,5 @@ configurations.all {
 }
 
 dependencies {
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.0.4'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.4'
 }

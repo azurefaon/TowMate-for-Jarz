@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart';
 import '../../services/api_service.dart';
+import '../../services/push_notification_service.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/tm_bottom_nav.dart';
 import '../../widgets/vehicle_type_widgets.dart';
@@ -34,7 +35,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
 
   int? _lastSeenQuotationId;
   String? _lastSeenQuotationStatus;
-  String? _lastSeenStatus;
   int _unreadCount = 0;
   bool _initialLoad = true;
   Timer? _notifTimer;
@@ -49,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     });
     _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _loadData());
     _fetchUnreadCount();
+    unawaited(PushNotificationService.instance.startForCustomer());
     _notifTimer = Timer.periodic(const Duration(seconds: 60), (_) => _fetchUnreadCount());
   }
 
@@ -112,7 +113,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     if (!_initialLoad) {
       final newQuotId = newQuotation?.id;
       final newQuotStatus = newQuotation?.status;
-      final newStatus = newBooking?.status;
 
       if (newQuotId != null && newQuotId != _lastSeenQuotationId) {
         _notify('New quotation received — tap to review.');
@@ -121,8 +121,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
           newQuotStatus != _lastSeenQuotationStatus &&
           _lastSeenQuotationStatus == 'price_review_requested') {
         _notify('Your quotation has been updated — tap to review.');
-      } else if (newStatus != null && newStatus != _lastSeenStatus) {
-        _notify('Booking status updated: ${newBooking!.humanStatus}');
       }
     }
 
@@ -133,7 +131,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
       _loading = false;
       _lastSeenQuotationId = newQuotation?.id ?? _lastSeenQuotationId;
       _lastSeenQuotationStatus = newQuotation?.status ?? _lastSeenQuotationStatus;
-      _lastSeenStatus = newBooking?.status ?? _lastSeenStatus;
       _initialLoad = false;
     });
   }

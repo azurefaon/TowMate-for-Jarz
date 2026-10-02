@@ -90,6 +90,7 @@ class ApiService {
     await prefs.remove('must_change_password');
     await prefs.remove('duty_class');
     await prefs.remove('user_auth_provider');
+    await prefs.remove(_pushTokenPrefKey);
 
     unawaited(clearBookingDraft());
   }
@@ -1544,7 +1545,50 @@ class ApiService {
     return 'Unknown location';
   }
 
+  static const _pushTokenPrefKey = 'registered_push_token';
+
+  /// Registers this device's FCM token for the authenticated account.
+  /// Never throws; a failure here must not affect the session.
+  static Future<bool> registerDeviceToken(String fcmToken) async {
+    try {
+      final token = await getToken();
+      if (token == null) return false;
+      final res = await apiClient
+          .post(
+            Uri.parse('$baseUrl/v1/device-tokens'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({'token': fcmToken, 'platform': 'android'}),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return false;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_pushTokenPrefKey, fcmToken);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Best-effort removal of this device's token from the current account.
+  static Future<void> unregisterDeviceToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final fcmToken = prefs.getString(_pushTokenPrefKey);
+      final token = await getToken();
+      if (fcmToken == null || token == null) return;
+      await prefs.remove(_pushTokenPrefKey);
+      await apiClient
+          .send(
+            http.Request('DELETE', Uri.parse('$baseUrl/v1/device-tokens'))
+              ..headers.addAll({..._headers, 'Authorization': 'Bearer $token'})
+              ..body = jsonEncode({'token': fcmToken}),
+          )
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {}
+  }
+
   static Future<Map<String, dynamic>> logout(String csrfToken) async {
+    await unregisterDeviceToken();
     try {
       final token = await getToken();
       await apiClient

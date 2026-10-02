@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "191576105651",
+    "project_id": "mapsforjarz",
+    "storage_bucket": "mapsforjarz.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:191576105651:android:91c6b9090064860d2586c6",
+        "android_client_info": {
+          "package_name": "com.jarztowing.towmate"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "191576105651-mcgl4vn335r3i37fpa5ehqg1jd361bft.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.jarztowing.towmate",
+            "certificate_hash": "eae1d0c31c7b96b66af3372d2c91e15fe74e6650"
+          }
+        },
+        {
+          "client_id": "191576105651-878s9u31fll8hj4rqetrhpv5tg77iujt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfQHziGb3-_reB-92fNshnA3-8DeZyRy0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "191576105651-878s9u31fll8hj4rqetrhpv5tg77iujt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

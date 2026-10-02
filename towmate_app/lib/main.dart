@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'core/app_prefs.dart';
@@ -29,6 +30,7 @@ import 'screens/team_leader/tl_history_screen.dart';
 import 'screens/team_leader/tl_home_screen.dart';
 import 'screens/team_leader/tl_profile_screen.dart';
 import 'services/api_service.dart';
+import 'services/push_notification_service.dart';
 import 'services/tl_presence_controller.dart';
 
 final themeModeNotifier = AppPrefs.themeModeNotifier;
@@ -38,6 +40,8 @@ void main() async {
   FlutterError.onError = (details) {
     if (kDebugMode) FlutterError.dumpErrorToConsole(details);
   };
+  // Push is optional: never awaited, never allowed to block or crash startup.
+  unawaited(PushNotificationService.instance.initialize());
   runApp(const MyApp());
 }
 
