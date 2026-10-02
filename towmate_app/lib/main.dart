@@ -16,6 +16,7 @@ import 'screens/customer/towing_guide_screen.dart';
 import 'screens/customer/edit_profile_screen.dart';
 import 'screens/customer/get_started_screen.dart';
 import 'screens/customer/home_screen.dart';
+import 'screens/customer/live_tracking_screen.dart';
 import 'screens/customer/login_screen.dart';
 import 'screens/customer/my_bookings_screen.dart';
 import 'screens/customer/notifications_screen.dart';
@@ -76,6 +77,12 @@ class MyApp extends StatelessWidget {
             } else {
               page = const MyBookingsScreen();
             }
+          } else if (settings.name == '/live-tracking') {
+            // Customer Live Tracking v1: exactly one booking_code.
+            final code = settings.arguments;
+            page = code is String && code.isNotEmpty
+                ? LiveTrackingScreen(bookingCode: code)
+                : const MyBookingsScreen();
           } else if (settings.name == '/booking-success') {
             final bookings = settings.arguments;
             page = bookings is List<BookingGroupSibling> && bookings.isNotEmpty

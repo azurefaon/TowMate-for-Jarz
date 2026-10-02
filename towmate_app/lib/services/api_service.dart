@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/session_coordinator.dart';
 import '../models/booking_model.dart';
 import '../models/quotation_model.dart';
+import '../models/tracking_model.dart';
 import '../models/truck_type_model.dart';
 import '../models/vehicle_category_model.dart';
 import '../models/vehicle_type_model.dart';
@@ -1254,6 +1255,31 @@ class ApiService {
         if (body['success'] == true) {
           return (body['data'] as Map<String, dynamic>)['pdf_url'] as String?;
         }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Customer Live Tracking v1. Returns null on a transient failure (network,
+  /// timeout, 429, 5xx) so the caller keeps its last snapshot and ages it;
+  /// a 404 means this customer can no longer track the booking, so it is
+  /// reported as a "not trackable" snapshot and polling stops.
+  static Future<TrackingSnapshot?> fetchBookingTracking(String code) async {
+    try {
+      final token = await getToken();
+      final response = await apiClient
+          .get(
+            Uri.parse('$baseUrl/v1/bookings/${Uri.encodeComponent(code)}/tracking'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 404) return TrackingSnapshot.ended(code);
+      if (response.statusCode != 200) return null;
+      final body = jsonDecode(response.body);
+      if (body is Map && body['success'] == true && body['data'] is Map) {
+        return TrackingSnapshot.fromJson(Map<String, dynamic>.from(body['data'] as Map));
       }
       return null;
     } catch (_) {

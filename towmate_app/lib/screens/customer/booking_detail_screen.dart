@@ -6,9 +6,11 @@ import '../../core/status_style.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart' show QuotationSentPrice;
+import '../../models/tracking_model.dart';
 import '../../services/api_service.dart';
 import '../../widgets/booking_cancel_dialog.dart';
 import '../../widgets/group_cancel_sheet.dart';
+import '../../widgets/live_tracking_widgets.dart';
 import '../../widgets/quotation_price_cards.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/status_badge.dart';
@@ -50,6 +52,15 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       _loading = false;
       _fetchError = result == null;
     });
+  }
+
+  /// Live tracking reported the job left on_the_way/on_job: refresh the
+  /// booking quietly (no skeleton) so the tracking UI disappears promptly and
+  /// the real new status shows.
+  Future<void> _refreshAfterTrackingEnded() async {
+    final result = await ApiService.fetchBookingDetail(widget.bookingCode);
+    if (!mounted || result == null) return;
+    setState(() => _booking = result);
   }
 
   Future<void> _viewReceipt() async {
@@ -231,6 +242,29 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           widget.asGroupOverview ? _GroupStatusCard(booking: b) : _BookingStatusCard(booking: b),
+          if (!widget.asGroupOverview && isTrackableStatus(b.status))
+            LiveTrackingScope(
+              key: ValueKey('detail-tracking-scope-${b.bookingCode}'),
+              bookingCode: b.bookingCode,
+              enabled: true,
+              status: b.status,
+              onEnded: _refreshAfterTrackingEnded,
+              builder: (context, controller) => controller == null || controller.ended
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: LiveTrackingDetailCard(
+                        bookingCode: b.bookingCode,
+                        status: b.status,
+                        controller: controller,
+                      ),
+                    ),
+            ),
+          if (widget.asGroupOverview)
+            _GroupLiveTrackingSection(
+              vehicles: b.groupVehicles ?? const <GroupVehicleBreakdown>[],
+              onTrackingEnded: _refreshAfterTrackingEnded,
+            ),
           const SizedBox(height: 20),
 
           Text(
@@ -580,6 +614,79 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         'bank_transfer' => 'Bank Transfer',
         _ => method ?? '—',
       };
+}
+
+/// Group overview: one live tracking row per on_the_way/on_job booking_code,
+/// each bound to its OWN booking_code. Numbering matches "Vehicles in this
+/// group" (sorted by booking_code). Hidden when no vehicle is trackable.
+class _GroupLiveTrackingSection extends StatefulWidget {
+  const _GroupLiveTrackingSection({required this.vehicles, required this.onTrackingEnded});
+  final List<GroupVehicleBreakdown> vehicles;
+  final VoidCallback onTrackingEnded;
+
+  @override
+  State<_GroupLiveTrackingSection> createState() => _GroupLiveTrackingSectionState();
+}
+
+class _GroupLiveTrackingSectionState extends State<_GroupLiveTrackingSection> {
+  /// booking_code → status at the moment its backend tracking ended. Such a
+  /// row stays hidden until the booking's own status changes.
+  final Map<String, String> _ended = {};
+
+  @override
+  void didUpdateWidget(covariant _GroupLiveTrackingSection old) {
+    super.didUpdateWidget(old);
+    final current = {for (final v in widget.vehicles) v.bookingCode: v.status};
+    _ended.removeWhere((code, status) => current[code] != status);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...widget.vehicles]..sort((a, b) => a.bookingCode.compareTo(b.bookingCode));
+    final trackable = <(int, GroupVehicleBreakdown)>[
+      for (var i = 0; i < sorted.length; i++)
+        if (isTrackableStatus(sorted[i].status)) (i + 1, sorted[i]),
+    ];
+    if (trackable.isEmpty) return const SizedBox.shrink();
+    final anyVisible = trackable.any((t) => !_ended.containsKey(t.$2.bookingCode));
+
+    return Padding(
+      padding: EdgeInsets.only(top: anyVisible ? 20 : 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (anyVisible) ...[
+            Text('LIVE TRACKING', style: sectionEyebrowStyle(context)),
+            const SizedBox(height: 8),
+          ],
+          for (var j = 0; j < trackable.length; j++)
+            LiveTrackingScope(
+              key: ValueKey('group-tracking-scope-${trackable[j].$2.bookingCode}'),
+              bookingCode: trackable[j].$2.bookingCode,
+              enabled: true,
+              status: trackable[j].$2.status,
+              onEnded: () {
+                if (mounted) setState(() => _ended[trackable[j].$2.bookingCode] = trackable[j].$2.status);
+                widget.onTrackingEnded();
+              },
+              builder: (context, controller) => controller == null || controller.ended
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: EdgeInsets.only(top: j == 0 ? 0 : 10),
+                      child: LiveTrackingDetailCard(
+                        bookingCode: trackable[j].$2.bookingCode,
+                        status: trackable[j].$2.status,
+                        controller: controller,
+                        title: trackable[j].$2.displayVehicleName.isNotEmpty
+                            ? 'Vehicle ${trackable[j].$1} · ${trackable[j].$2.displayVehicleName}'
+                            : 'Vehicle ${trackable[j].$1}',
+                      ),
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _GroupStatusCard extends StatelessWidget {

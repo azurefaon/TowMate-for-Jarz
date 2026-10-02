@@ -6,9 +6,13 @@ import '../../core/route_observer.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart';
+import '../../models/tracking_model.dart';
 import '../../services/api_service.dart';
+import '../../services/live_tracking_controller.dart';
 import '../../services/push_notification_service.dart';
+import '../../widgets/live_tracking_widgets.dart';
 import '../../widgets/skeleton_box.dart';
+import '../../widgets/status_badge.dart';
 import '../../widgets/tm_bottom_nav.dart';
 import '../../widgets/vehicle_type_widgets.dart';
 
@@ -206,6 +210,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     );
   }
 
+  /// Single on_the_way/on_job booking: the card gets the shared live
+  /// tracking controller for that booking_code. Every other case renders the
+  /// card exactly as before (grouped rows bind their own controllers).
+  Widget _currentBookingCard() {
+    final b = _booking;
+    final singleTrackable = b != null && !b.isGrouped && isTrackableStatus(b.status);
+    return LiveTrackingScope(
+      bookingCode: b?.bookingCode ?? '',
+      enabled: singleTrackable,
+      status: b?.status,
+      onEnded: _loadData,
+      builder: (context, controller) => _CurrentBookingCard(
+        booking: b,
+        tracking: controller,
+        onTrack: b == null ? null : _openBookingDetails,
+        onTrackLive: (code) => openLiveTracking(context, code),
+        onTrackingEnded: _loadData,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -227,10 +252,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: _quotation != null
                           ? _QuotationReadyCard(quotation: _quotation!, onTap: _openQuotation)
-                          : _CurrentBookingCard(
-                              booking: _booking,
-                              onTrack: _booking == null ? null : _openBookingDetails,
-                            ),
+                          : _currentBookingCard(),
                     ),
                     if (_announcement != null)
                       Padding(
@@ -427,9 +449,20 @@ int _progressStage(String status) {
 const _progressLabels = ['Requested', 'Assigned', 'On the way', 'Towing'];
 
 class _CurrentBookingCard extends StatelessWidget {
-  const _CurrentBookingCard({required this.booking, required this.onTrack});
+  const _CurrentBookingCard({
+    required this.booking,
+    required this.onTrack,
+    this.tracking,
+    this.onTrackLive,
+    this.onTrackingEnded,
+  });
   final BookingModel? booking;
   final VoidCallback? onTrack;
+
+  /// Shared controller for a single on_the_way/on_job booking; null otherwise.
+  final LiveTrackingController? tracking;
+  final void Function(String bookingCode)? onTrackLive;
+  final VoidCallback? onTrackingEnded;
 
   @override
   Widget build(BuildContext context) {
@@ -542,6 +575,8 @@ class _CurrentBookingCard extends StatelessWidget {
         : (b.displayVehicleName.isNotEmpty ? '$vehicleLabel  ·  ${b.displayVehicleName}' : vehicleLabel);
     final stage = isGrouped ? 0 : _progressStage(b.status);
     final driver = (b.driverName ?? b.teamLeaderName)?.trim();
+    final liveTracking = tracking;
+    final showLive = !isGrouped && liveTracking != null && !liveTracking.ended;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -573,10 +608,22 @@ class _CurrentBookingCard extends StatelessWidget {
           const SizedBox(height: 16),
           _ProgressBar(stage: stage),
         ],
+        if (showLive) ...[
+          const SizedBox(height: 16),
+          LiveTrackingCompactBlock(controller: liveTracking, status: b.status),
+        ],
+        if (isGrouped) ...[
+          const SizedBox(height: 16),
+          _GroupVehicleRows(
+            booking: b,
+            onTrackLive: onTrackLive,
+            onTrackingEnded: onTrackingEnded,
+          ),
+        ],
         const SizedBox(height: 16),
         _RouteBox(pickup: b.pickupAddress, dropoff: b.dropoffAddress),
         const SizedBox(height: 16),
-        Row(
+        LayoutBuilder(builder: (context, constraints) => Row(
           children: [
             if (driver != null && driver.isNotEmpty) ...[
               CircleAvatar(
@@ -619,9 +666,20 @@ class _CurrentBookingCard extends StatelessWidget {
             ] else
               const Spacer(),
             const SizedBox(width: 12),
-            _TrackButton(onTap: onTrack),
+            if (isGrouped)
+              _TrackButton(label: 'View group', onTap: onTrack)
+            else if (showLive)
+              // "Track live" is wider than "Track": cap it to half of the row
+              // (its label scales down) so the driver block keeps room and the
+              // row can never overflow on narrow widths or large text scales.
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.5),
+                child: TrackLiveButton(onTap: () => onTrackLive?.call(b.bookingCode)),
+              )
+            else
+              _TrackButton(onTap: onTrack),
           ],
-        ),
+        )),
       ],
     );
   }
@@ -794,8 +852,9 @@ class _RouteBox extends StatelessWidget {
 }
 
 class _TrackButton extends StatelessWidget {
-  const _TrackButton({required this.onTap});
+  const _TrackButton({required this.onTap, this.label = 'Track'});
   final VoidCallback? onTap;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -811,7 +870,7 @@ class _TrackButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Track',
+                label,
                 style: GoogleFonts.inter(
                   color: TmColors.black,
                   fontSize: 16,
@@ -824,6 +883,117 @@ class _TrackButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Grouped Home card: one row per booking_code (current booking + siblings,
+/// sorted by booking_code). Only on_the_way/on_job rows bind a controller —
+/// each to ITS OWN booking_code — and get their own freshness/ETA/distance
+/// and "Track live". No combined ETA, no "track all".
+class _GroupVehicleRows extends StatelessWidget {
+  const _GroupVehicleRows({required this.booking, this.onTrackLive, this.onTrackingEnded});
+  final BookingModel booking;
+  final void Function(String bookingCode)? onTrackLive;
+  final VoidCallback? onTrackingEnded;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <({String code, String vehicle, String status})>[
+      (code: booking.bookingCode, vehicle: booking.displayVehicleName, status: booking.status),
+      for (final s in booking.groupSiblings ?? const <BookingGroupSibling>[])
+        (code: s.bookingCode, vehicle: s.displayVehicleName, status: s.status),
+    ]..sort((a, b) => a.code.compareTo(b.code));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) Divider(color: context.divider, height: 20),
+          LiveTrackingScope(
+            key: ValueKey('home-group-row-${rows[i].code}'),
+            bookingCode: rows[i].code,
+            enabled: isTrackableStatus(rows[i].status),
+            status: rows[i].status,
+            onEnded: onTrackingEnded,
+            builder: (context, controller) => _GroupVehicleRow(
+              index: i + 1,
+              bookingCode: rows[i].code,
+              vehicleName: rows[i].vehicle,
+              status: rows[i].status,
+              tracking: controller,
+              onTrackLive: onTrackLive,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _GroupVehicleRow extends StatelessWidget {
+  const _GroupVehicleRow({
+    required this.index,
+    required this.bookingCode,
+    required this.vehicleName,
+    required this.status,
+    required this.tracking,
+    required this.onTrackLive,
+  });
+  final int index;
+  final String bookingCode;
+  final String vehicleName;
+  final String status;
+  final LiveTrackingController? tracking;
+  final void Function(String bookingCode)? onTrackLive;
+
+  @override
+  Widget build(BuildContext context) {
+    final liveTracking = tracking;
+    final showLive = liveTracking != null && !liveTracking.ended;
+    final title = vehicleName.isNotEmpty ? 'Vehicle $index · $vehicleName' : 'Vehicle $index';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      color: context.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    bookingCode,
+                    style: GoogleFonts.inter(color: _mutedText(context), fontSize: 13),
+                  ),
+                  const SizedBox(height: 6),
+                  StatusBadge(status: status, label: humanStatusLabel(status), compact: true),
+                ],
+              ),
+            ),
+            if (showLive) ...[
+              const SizedBox(width: 10),
+              TrackLiveButton(compact: true, onTap: () => onTrackLive?.call(bookingCode)),
+            ],
+          ],
+        ),
+        if (showLive) ...[
+          const SizedBox(height: 10),
+          LiveTrackingCompactBlock(controller: liveTracking, status: status),
+        ],
+      ],
     );
   }
 }

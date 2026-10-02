@@ -305,11 +305,16 @@ void main() {
       );
 
       expect(find.text('GRP-1'), findsOneWidget);
-      expect(find.text('TM-00227'), findsNothing);
       expect(find.text('Active'), findsOneWidget);
       expect(find.text('2 of 2 vehicles active'), findsOneWidget);
+      // Live Tracking v1: the group card lists each vehicle by its own
+      // booking_code; the group-level action is "View group" (never "Track").
+      expect(find.text('TM-00227'), findsOneWidget);
+      expect(find.text('TM-00228'), findsOneWidget);
+      expect(find.text('Track'), findsNothing);
+      expect(find.text('Track live'), findsNothing);
 
-      await tester.tap(find.text('Track'));
+      await tester.tap(find.text('View group'));
       await _settle(tester);
 
       expect(capturedRoute, '/booking-detail');
