@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\TruckType;
+use App\Models\Unit;
 use App\Models\VehicleCategory;
 use App\Models\VehicleType;
 use App\Services\BookingService;
@@ -24,6 +25,9 @@ class CustomerBookingController extends Controller
     private const INACTIVE_STATUSES = ['completed', 'cancelled', 'rejected', 'not_responding'];
     private const ACTIVE_JOB_STATUSES = ['on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
     private const BOOK_NOW_PENDING_STATUSES = ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed', 'accepted', 'assigned'];
+    private const TRACKING_PHASES = ['on_the_way' => 'pickup', 'on_job' => 'dropoff'];
+    private const TRACKING_LIVE_MAX_AGE = 30;
+    private const TRACKING_UNAVAILABLE_AFTER = 90;
 
     public function __construct(
         private readonly BookingService $bookingService,
@@ -1117,6 +1121,82 @@ class CustomerBookingController extends Controller
                 'quotation_number'  => $quotation?->quotation_number,
             ],
         ]);
+    }
+
+    /**
+     * Customer Live Tracking v1.
+     *
+     * Only on_the_way (pickup leg) and on_job (drop-off leg) are trackable.
+     * Location comes solely from the booking's OWN assigned unit — a grouped
+     * sibling never falls back to another sibling's unit. Freshness is
+     * computed from server time only; coordinates older than
+     * TRACKING_UNAVAILABLE_AFTER are never returned.
+     */
+    public function tracking(string $code): JsonResponse
+    {
+        $customer = Customer::where('user_id', auth()->id())->first();
+
+        $booking = $customer
+            ? Booking::where('booking_code', $code)
+                ->where('customer_id', $customer->id)
+                ->first(['id', 'booking_code', 'status', 'assigned_unit_id', 'pickup_lat', 'pickup_lng', 'dropoff_lat', 'dropoff_lng'])
+            : null;
+
+        if (!$booking) {
+            return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
+        }
+
+        $phase = self::TRACKING_PHASES[$booking->status] ?? null;
+
+        $payload = [
+            'tracking'     => $phase !== null,
+            'booking_code' => $booking->booking_code,
+            'status'       => $booking->status,
+            'phase'        => $phase,
+            'freshness'    => null,
+            'location'     => null,
+            'last_seen'    => null,
+            'destination'  => null,
+        ];
+
+        if ($phase !== null) {
+            [$destLat, $destLng] = $phase === 'pickup'
+                ? [$booking->pickup_lat, $booking->pickup_lng]
+                : [$booking->dropoff_lat, $booking->dropoff_lng];
+
+            $payload['destination'] = ($destLat !== null && $destLng !== null)
+                ? ['lat' => (float) $destLat, 'lng' => (float) $destLng]
+                : null;
+
+            $payload['freshness'] = 'unavailable';
+
+            $unit = $booking->assigned_unit_id
+                ? Unit::query()
+                    ->select(['id', 'current_lat', 'current_lng', 'location_accuracy', 'location_updated_at'])
+                    ->find($booking->assigned_unit_id)
+                : null;
+
+            if ($unit && $unit->current_lat !== null && $unit->current_lng !== null && $unit->location_updated_at !== null) {
+                $ageSeconds = max(0, now()->getTimestamp() - $unit->location_updated_at->getTimestamp());
+
+                if ($ageSeconds <= self::TRACKING_UNAVAILABLE_AFTER) {
+                    $payload['freshness'] = $ageSeconds <= self::TRACKING_LIVE_MAX_AGE ? 'live' : 'updating';
+                    $payload['location'] = [
+                        'lat'         => (float) $unit->current_lat,
+                        'lng'         => (float) $unit->current_lng,
+                        'accuracy'    => $unit->location_accuracy !== null ? (float) $unit->location_accuracy : null,
+                        'age_seconds' => $ageSeconds,
+                    ];
+                } else {
+                    // Stale: age only, never coordinates.
+                    $payload['last_seen'] = ['age_seconds' => $ageSeconds];
+                }
+            }
+        }
+
+        return response()
+            ->json(['success' => true, 'data' => $payload])
+            ->header('Cache-Control', 'no-store, private');
     }
 
     public function receipt(string $code): JsonResponse

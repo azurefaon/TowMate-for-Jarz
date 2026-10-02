@@ -129,6 +129,11 @@ class AppServiceProvider extends ServiceProvider
         // frequently by the app's own polling/refresh behavior.
         RateLimiter::for('customer-notifications', fn(Request $r) => Limit::perMinute(60)->by($byUser($r, 'notifications')));
 
+        // Live tow-truck tracking poll — the app polls while a job is
+        // on_the_way/on_job; ~30/min per customer leaves headroom above a
+        // normal polling cadence without allowing location scraping.
+        RateLimiter::for('customer-booking-tracking', fn(Request $r) => Limit::perMinute(30)->by($byUser($r, 'booking-tracking')));
+
         // Team Leader task lifecycle mutations (accept/status/return/complete/
         // claim-next) — higher than customer mutations since a real job
         // legitimately moves through several transitions in quick succession.

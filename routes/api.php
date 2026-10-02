@@ -68,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('bookings/check-duplicate-route', [CustomerBookingController::class, 'checkDuplicateRoute']);
         Route::get('bookings/{code}/detail', [CustomerBookingController::class, 'detail']);
         Route::get('bookings/{code}/receipt', [CustomerBookingController::class, 'receipt']);
+        Route::get('bookings/{code}/tracking', [CustomerBookingController::class, 'tracking'])->middleware('throttle:customer-booking-tracking');
         Route::post('bookings/{code}/cancel', [CustomerBookingController::class, 'cancelBooking'])->middleware('throttle:customer-booking-cancel');
         Route::post('bookings/group/{groupCode}/cancel', [CustomerBookingController::class, 'cancelGroupBookings'])->middleware('throttle:customer-booking-cancel');
 
@@ -97,7 +98,6 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::apiResource('bookings', BookingController::class)->except(['store']);
-        Route::get('/bookings/{booking}/track', [BookingController::class, 'show']);
     });
 
     Route::post('v1/team-leader/auth/change-password', [TLAuthController::class, 'changePassword']);
