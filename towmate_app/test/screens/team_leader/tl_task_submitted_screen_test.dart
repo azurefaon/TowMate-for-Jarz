@@ -165,7 +165,7 @@ void main() {
 
       expect(find.text('Task'), findsOneWidget);
       expect(find.text('Navigate'), findsOneWidget);
-      expect(find.text('Emergency'), findsOneWidget);
+      expect(find.text('Emergency'), findsNothing);
     });
 
     testWidgets('renders correctly in light mode', (tester) async {

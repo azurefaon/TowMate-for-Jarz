@@ -243,7 +243,6 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
                       children: [
                         _taskTab(task),
                         _navigateTab(task),
-                        _emergencyTab(),
                       ],
                     ),
             ),
@@ -418,99 +417,6 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
     return TlNavigateScreen(task: task);
   }
 
-  Widget _emergencyTab() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Emergency',
-              style: GoogleFonts.inter(
-                color: TmColors.black,
-                fontSize: 18,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Contact dispatch if you need immediate assistance.',
-              style: GoogleFonts.inter(color: TmColors.grey500, fontSize: 13),
-            ),
-            const SizedBox(height: 24),
-            _emergencyCard(
-              icon: Icons.support_agent_rounded,
-              title: 'Contact Dispatch',
-              subtitle: 'Report an issue or request assistance',
-              color: TmColors.yellow,
-            ),
-            const SizedBox(height: 12),
-            _emergencyCard(
-              icon: Icons.warning_amber_rounded,
-              title: 'Report Incident',
-              subtitle: 'Vehicle breakdown, accident, or hazard',
-              color: TmColors.error,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _emergencyCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: TmColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: TmColors.grey300),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(color: TmColors.black, fontSize: 14),
-                ),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.inter(
-                    color: TmColors.grey500,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: TmColors.grey300,
-            size: 20,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _doneView(TaskModel task) {
     if (task.status == 'completed') {
       return TlCompletedScreen(task: task, onUpdate: onTaskUpdated);
@@ -522,7 +428,6 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
     const tabs = [
       (Icons.assignment_outlined, Icons.assignment_rounded, 'Task'),
       (Icons.map_outlined, Icons.map_rounded, 'Navigate'),
-      (Icons.warning_amber_outlined, Icons.warning_amber_rounded, 'Emergency'),
     ];
     return Container(
       color: TmColors.white,

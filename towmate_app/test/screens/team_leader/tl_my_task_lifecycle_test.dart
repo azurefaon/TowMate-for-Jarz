@@ -251,13 +251,14 @@ void main() {
       expect(find.text('Classification'), findsNothing);
     });
 
-    tlTest('shell has no Drawer/hamburger and keeps Task/Navigate/Emergency', (t) async {
+    tlTest('shell has no Drawer/hamburger and keeps Task/Navigate and has no Emergency tab', (t) async {
       await pumpApp(t, initial: '/tl-active-task', task: () => _task('on_the_way'));
       expect(find.byType(Drawer), findsNothing);
       expect(find.byIcon(Icons.menu_rounded), findsNothing);
-      for (final s in ['Task', 'Navigate', 'Emergency']) {
+      for (final s in ['Task', 'Navigate']) {
         expect(find.text(s), findsOneWidget);
       }
+      expect(find.text('Emergency'), findsNothing);
     });
 
     test('TaskModel parses assigned status without an operational step', () {

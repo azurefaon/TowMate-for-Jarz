@@ -307,12 +307,12 @@ void main() {
       expect(tester.state<ScaffoldState>(find.byType(Scaffold).first).hasDrawer, isFalse);
     });
 
-    tlTest('active task keeps the Task, Navigate and Emergency tabs', (tester) async {
+    tlTest('active task keeps the Task and Navigate tabs and no Emergency tab', (tester) async {
       await pumpShell(tester, task: activeTask);
 
       expect(find.text('Task'), findsOneWidget);
       expect(find.text('Navigate'), findsOneWidget);
-      expect(find.text('Emergency'), findsOneWidget);
+      expect(find.text('Emergency'), findsNothing);
     });
 
     tlTest('active task shows the assigned team card', (tester) async {
