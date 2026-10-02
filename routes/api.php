@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\TeamLeader\TLDemoController;
 use App\Http\Controllers\Api\TeamLeader\TLTaskController;
 use App\Http\Controllers\Api\TeamLeader\TLLocationController;
 use App\Http\Controllers\Api\CustomerQuotationController;
+use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\CustomerContentController;
@@ -83,6 +84,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('notifications',            [NotificationController::class, 'index']);
             Route::post('notifications/mark-read', [NotificationController::class, 'markAllRead']);
             Route::post('notifications/{id}/read', [NotificationController::class, 'markRead']);
+            Route::post('device-tokens',           [DeviceTokenController::class, 'store']);
+            Route::delete('device-tokens',         [DeviceTokenController::class, 'destroy']);
         });
 
         Route::prefix('quotations')->group(function () {

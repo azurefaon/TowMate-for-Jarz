@@ -36,6 +36,13 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
     ],
 
+    // Firebase Cloud Messaging (HTTP v1). Server-side secrets only.
+    'fcm' => [
+        'project_id' => env('FCM_PROJECT_ID'),
+        'service_account_base64' => env('FCM_SERVICE_ACCOUNT_JSON_BASE64'),
+        'service_account_path' => env('FCM_SERVICE_ACCOUNT_PATH'),
+    ],
+
     'openrouteservice' => [
         'key' => env('OPENROUTESERVICE_API_KEY'),
         'base_url' => env('OPENROUTESERVICE_BASE_URL', 'https://api.openrouteservice.org'),

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\InvoiceMail;
 use App\Models\AuditLog;
 use App\Models\Booking;
+use App\Services\Push\BookingStatusPush;
 use App\Models\Invoice;
 use App\Models\Unit;
 use App\Models\User;
@@ -151,6 +152,8 @@ class TLTaskController extends Controller
             BookingStatusUpdated::safeFire($result['booking']);
         } catch (\Throwable) {}
 
+        app(BookingStatusPush::class)->notify($result['booking'], 'assigned');
+
         return response()->json([
             'success' => true,
             'data'    => $this->formatTask($result['booking']),
@@ -234,10 +237,11 @@ class TLTaskController extends Controller
                 $updates['completed_at'] = now();
             }
 
+            $from = $locked->status;
             $locked->update($updates);
             $locked->load(self::TASK_RELATIONS);
 
-            return ['status' => 200, 'booking' => $locked];
+            return ['status' => 200, 'booking' => $locked, 'from' => $from];
         });
 
         if ($result['status'] !== 200) {
@@ -252,6 +256,9 @@ class TLTaskController extends Controller
         // behave, and keeping Back/Return/Reassign/Cancel from this status
         // free of any invoice to leak or leave stale.
         try { BookingStatusUpdated::safeFire($booking); } catch (\Throwable) {}
+
+        // Real, committed transition only (the 4xx paths returned above).
+        app(BookingStatusPush::class)->notify($booking, $result['from']);
 
         if ($booking->customer && $booking->customer->user_id) {
             $notifMap = [

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\BookingReceiptMail;
 use App\Models\AuditLog;
 use App\Models\Booking;
+use App\Services\Push\BookingStatusPush;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\CustomerNotificationService;
@@ -231,6 +232,10 @@ class JobsController extends Controller
                 bookingCode: $booking->booking_code,
             );
         }
+
+        // Dispatcher payment confirmation is the authoritative `completed`
+        // transition; the `already` path returned above, so this fires once.
+        app(BookingStatusPush::class)->notify($booking);
 
         $bookingId = $booking->id;
         $quotationId = $booking->quotation_id;
