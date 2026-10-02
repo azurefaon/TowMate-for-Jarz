@@ -1758,11 +1758,13 @@
                                     data-customer="{{ e($booking->customer->full_name ?? 'Guest') }}"
                                     data-phone="{{ e($booking->customer->phone ?? 'N/A') }}">
 
-                                <button type="button" class="bdm-trigger-btn bdm-trigger-btn--card"
-                                    onclick="event.stopPropagation(); window.openBookingDetailModal('{{ $booking->job_code }}')"
-                                    aria-label="View booking details for {{ $booking->job_code }}">
-                                    Details
-                                </button>
+                                @if ($queueBucket !== 'returned')
+                                    <button type="button" class="bdm-trigger-btn bdm-trigger-btn--card"
+                                        onclick="event.stopPropagation(); window.openBookingDetailModal('{{ $booking->job_code }}')"
+                                        aria-label="View booking details for {{ $booking->job_code }}">
+                                        Details
+                                    </button>
+                                @endif
 
                                 @if ($queueBucket === 'returned')
                                     @php
