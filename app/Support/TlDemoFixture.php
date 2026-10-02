@@ -7,7 +7,7 @@ use App\Models\Booking;
 use App\Models\User;
 
 /**
- * Single guard for the LOCAL/DEMO-only "simulate arrival" affordance.
+ * Single guard for the LOCAL/DEMO/presentation-only "simulate arrival" affordance.
  *
  * Used by BOTH the dedicated endpoint (enforcement) and the task payload
  * (whether the app shows the button), so the two can never disagree. Every
@@ -51,15 +51,43 @@ final class TlDemoFixture
         return app()->environment('production') && config('towmate.demo_arrival_enabled') === true;
     }
 
+    /**
+     * local/testing: the seeded demo Team Leader. production: ONLY the single
+     * Team Leader named by TL_DEMO_TEAM_LEADER_EMAIL, and only while
+     * TL_DEMO_ARRIVAL_ENABLED is true (blank/unset email means nobody).
+     */
     public static function isDemoUser(?User $user): bool
     {
-        return $user !== null && strtolower((string) $user->email) === self::TL_EMAIL;
+        if ($user === null) {
+            return false;
+        }
+
+        if (app()->environment('production')) {
+            $configured = config('towmate.demo_team_leader_email');
+
+            return config('towmate.demo_arrival_enabled') === true
+                && is_string($configured)
+                && $configured !== ''
+                && (int) $user->role_id === 3
+                && strtolower(trim((string) $user->email)) === $configured;
+        }
+
+        return strtolower((string) $user->email) === self::TL_EMAIL;
     }
 
+    /**
+     * production: any booking actually assigned to the presentation Team
+     * Leader (no demo customer / note / fixture needed). local/testing: the
+     * seeded fixture exactly as before.
+     */
     public static function isDemoBooking(Booking $booking, ?User $user): bool
     {
         if (! self::isDemoUser($user)) {
             return false;
+        }
+
+        if (app()->environment('production')) {
+            return (int) $booking->assigned_team_leader_id === (int) $user->id;
         }
 
         $booking->loadMissing('customer');

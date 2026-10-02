@@ -268,20 +268,27 @@ it('rerunning the seed command resets a simulated booking to assigned without du
 });
 
 // ---------------------------------------------------------------------------
-// Production demo gate: TL_DEMO_ARRIVAL_ENABLED (config towmate.demo_arrival_enabled)
+// Production presentation gate:
+//   TL_DEMO_ARRIVAL_ENABLED  (config towmate.demo_arrival_enabled)
+//   TL_DEMO_TEAM_LEADER_EMAIL (config towmate.demo_team_leader_email)
+// In production the demo/fixture customer + note checks are NOT used: any booking
+// actually assigned to the ONE configured Team Leader qualifies.
 // ---------------------------------------------------------------------------
 
-function simAsEnvironment(string $env, ?bool $flag, Closure $fn): void
+const SIM_PRESENTER_EMAIL = 'presenter.tl@example.com';
+
+function simAsProduction(?bool $flag, ?string $email, Closure $fn, string $env = 'production'): void
 {
     $originalEnv = app()['env'];
     $originalFlag = config('towmate.demo_arrival_enabled');
+    $originalEmail = config('towmate.demo_team_leader_email');
     app()['env'] = $env;
-    config(['towmate.demo_arrival_enabled' => $flag]);
+    config(['towmate.demo_arrival_enabled' => $flag, 'towmate.demo_team_leader_email' => $email]);
     try {
         $fn();
     } finally {
         app()['env'] = $originalEnv;
-        config(['towmate.demo_arrival_enabled' => $originalFlag]);
+        config(['towmate.demo_arrival_enabled' => $originalFlag, 'towmate.demo_team_leader_email' => $originalEmail]);
     }
 }
 
@@ -292,31 +299,66 @@ function simOffered(User $as): bool
     return (bool) test()->getJson('/api/v1/team-leader/task')->assertOk()->json('data.demo_arrival_available');
 }
 
-it('E: the demo flag defaults to OFF when TL_DEMO_ARRIVAL_ENABLED is absent', function () {
+/** A real, ordinary Team Leader + ordinary booking (no demo customer, no DEMO note). */
+function simPresenter(string $status = 'on_the_way'): array
+{
+    [$tl, $booking] = simOtherTeamLeader();
+    $tl->update(['email' => SIM_PRESENTER_EMAIL]);
+    $booking->update(['status' => $status]);
+
+    return [$tl->fresh(), $booking->fresh()];
+}
+
+function simSnapshot(Booking $booking): array
+{
+    $b = $booking->fresh();
+    $unit = Unit::find($b->assigned_unit_id);
+
+    return [
+        'pickup' => [$b->pickup_lat, $b->pickup_lng],
+        'dropoff' => [$b->dropoff_lat, $b->dropoff_lng],
+        'unit' => [$unit?->current_lat, $unit?->current_lng, $unit?->location_updated_at],
+    ];
+}
+
+it('E: the demo flag and the presentation email both default to OFF/unset', function () {
     $repository = \Illuminate\Support\Env::getRepository();
-    $previous = \Illuminate\Support\Env::get('TL_DEMO_ARRIVAL_ENABLED');
+    $previous = [
+        'flag' => \Illuminate\Support\Env::get('TL_DEMO_ARRIVAL_ENABLED'),
+        'email' => \Illuminate\Support\Env::get('TL_DEMO_TEAM_LEADER_EMAIL'),
+    ];
     $repository->clear('TL_DEMO_ARRIVAL_ENABLED');
+    $repository->clear('TL_DEMO_TEAM_LEADER_EMAIL');
     try {
         $config = require config_path('towmate.php');
-        expect($config['demo_arrival_enabled'])->toBeFalse();
+        expect($config['demo_arrival_enabled'])->toBeFalse()
+            ->and($config['demo_team_leader_email'])->toBeNull();
 
         foreach (['true' => true, '1' => true, 'false' => false, '0' => false, '' => false, 'garbage' => false] as $raw => $expected) {
             $repository->set('TL_DEMO_ARRIVAL_ENABLED', (string) $raw);
             expect((require config_path('towmate.php'))['demo_arrival_enabled'])->toBe($expected, "raw={$raw}");
         }
+
+        foreach (['' => null, '   ' => null, '  Presenter.TL@Example.com ' => 'presenter.tl@example.com'] as $raw => $expected) {
+            $repository->set('TL_DEMO_TEAM_LEADER_EMAIL', (string) $raw);
+            expect((require config_path('towmate.php'))['demo_team_leader_email'])->toBe($expected, "email raw=[{$raw}]");
+        }
     } finally {
         $repository->clear('TL_DEMO_ARRIVAL_ENABLED');
-        if ($previous !== null) {
-            $repository->set('TL_DEMO_ARRIVAL_ENABLED', (string) $previous);
+        $repository->clear('TL_DEMO_TEAM_LEADER_EMAIL');
+        if ($previous['flag'] !== null) {
+            $repository->set('TL_DEMO_ARRIVAL_ENABLED', (string) $previous['flag']);
+        }
+        if ($previous['email'] !== null) {
+            $repository->set('TL_DEMO_TEAM_LEADER_EMAIL', (string) $previous['email']);
         }
     }
 });
 
-it('A: production with the flag false or unset: 404 and the simulator is not offered', function (?bool $flag) {
-    [$tl, $booking] = simSeedDemo();
-    $booking->update(['status' => 'on_the_way']);
+it('A: production with the flag false or unset: 404 and not offered, even for the configured Team Leader', function (?bool $flag) {
+    [$tl, $booking] = simPresenter();
 
-    simAsEnvironment('production', $flag, function () use ($tl, $booking) {
+    simAsProduction($flag, SIM_PRESENTER_EMAIL, function () use ($tl, $booking) {
         simSimulate($tl, $booking)->assertNotFound();
         expect(simOffered($tl))->toBeFalse();
     });
@@ -325,117 +367,163 @@ it('A: production with the flag false or unset: 404 and the simulator is not off
         ->and(AuditLog::where('action', 'demo_arrival_simulated')->count())->toBe(0);
 })->with([false, null]);
 
-it('B: production with the flag true still blocks any non-demo Team Leader', function () {
+it('B: production with the flag true and no configured email: nobody can use it', function (?string $email) {
+    [$presenter, $presenterBooking] = simPresenter();
     [$demoTl, $demoBooking] = simSeedDemo();
     $demoBooking->update(['status' => 'on_the_way']);
-    [$other, $otherBooking] = simOtherTeamLeader();
 
-    simAsEnvironment('production', true, function () use ($other, $otherBooking, $demoBooking) {
+    simAsProduction(true, $email, function () use ($presenter, $presenterBooking, $demoTl, $demoBooking) {
+        simSimulate($presenter, $presenterBooking)->assertNotFound();
+        simSimulate($demoTl, $demoBooking)->assertNotFound();
+        expect(simOffered($presenter))->toBeFalse()->and(simOffered($demoTl))->toBeFalse();
+    });
+
+    expect($presenterBooking->fresh()->status)->toBe('on_the_way')
+        ->and($demoBooking->fresh()->status)->toBe('on_the_way');
+})->with([null, '']);
+
+it('B: production with the flag true blocks every Team Leader except the configured one', function () {
+    [$presenter, $presenterBooking] = simPresenter();
+    [$other, $otherBooking] = simOtherTeamLeader();
+    [$fixtureTl, $fixtureBooking] = simSeedDemo();
+    $fixtureBooking->update(['status' => 'on_the_way']);
+
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($other, $otherBooking, $fixtureTl, $fixtureBooking) {
+        // An ordinary Team Leader, even on their own booking.
         simSimulate($other, $otherBooking)->assertNotFound();
-        simSimulate($other, $demoBooking)->assertNotFound();
         expect(simOffered($other))->toBeFalse();
+        // The old seeded demo Team Leader no longer gets production access.
+        simSimulate($fixtureTl, $fixtureBooking)->assertNotFound();
+        expect(simOffered($fixtureTl))->toBeFalse();
     });
 
     expect($otherBooking->fresh()->status)->toBe('on_the_way')
-        ->and($demoBooking->fresh()->status)->toBe('on_the_way');
+        ->and($fixtureBooking->fresh()->status)->toBe('on_the_way')
+        ->and($presenterBooking->fresh()->status)->toBe('on_the_way');
 });
 
-it('C: production with the flag true still blocks a non-demo booking, even for the demo Team Leader', function () {
-    [$tl, $booking] = simSeedDemo();
-    $booking->update(['status' => 'on_the_way', 'dispatcher_note' => 'Ordinary customer job']);
+it('B: a non-Team-Leader account with the configured email is not a demo user', function () {
+    $role = Role::find(2) ?? tap(new Role(['name' => 'Dispatcher', 'description' => 'Dispatcher']), function ($r) {
+        $r->id = 2;
+        $r->save();
+    });
+    $impostor = User::factory()->create(['role_id' => $role->id, 'email' => SIM_PRESENTER_EMAIL]);
 
-    simAsEnvironment('production', true, function () use ($tl, $booking) {
-        simSimulate($tl, $booking)->assertNotFound();
-        expect(simOffered($tl))->toBeFalse();
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($impostor) {
+        expect(TlDemoFixture::isDemoUser($impostor))->toBeFalse();
+    });
+});
+
+it('C: production, configured Team Leader, but the booking belongs to another Team Leader: 404, no change', function () {
+    [$presenter] = simPresenter();
+    [, $foreignBooking] = simOtherTeamLeader();
+
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($presenter, $foreignBooking) {
+        simSimulate($presenter, $foreignBooking)->assertNotFound();
     });
 
-    expect($booking->fresh()->status)->toBe('on_the_way');
+    expect($foreignBooking->fresh()->status)->toBe('on_the_way')
+        ->and(AuditLog::where('action', 'demo_arrival_simulated')->count())->toBe(0);
 });
 
-it('C: production with the flag true blocks a demo booking whose customer is not the demo customer', function () {
-    [$tl, $booking] = simSeedDemo();
-    $booking->update(['status' => 'on_the_way']);
-    $booking->customer->update(['email' => 'someone.else@example.com']);
+it('D: configured Team Leader + own ordinary on_the_way booking: simulated arrival at pickup, no GPS written', function () {
+    [$tl, $booking] = simPresenter('on_the_way');
+    $before = simSnapshot($booking);
 
-    simAsEnvironment('production', true, function () use ($tl, $booking) {
-        simSimulate($tl, $booking)->assertNotFound();
-        expect(simOffered($tl))->toBeFalse();
-    });
-
-    expect($booking->fresh()->status)->toBe('on_the_way');
-});
-
-it('D: production with the flag true and the real demo fixture: offered, no GPS, both legs', function () {
-    [$tl, $booking] = simSeedDemo();
-    $booking->update(['status' => 'on_the_way']);
-    $unit = Unit::find($booking->assigned_unit_id);
-    $before = [
-        'pickup' => [$booking->fresh()->pickup_lat, $booking->fresh()->pickup_lng],
-        'dropoff' => [$booking->fresh()->dropoff_lat, $booking->fresh()->dropoff_lng],
-        'unit' => [$unit?->current_lat, $unit?->current_lng, $unit?->location_updated_at],
-    ];
-
-    simAsEnvironment('production', true, function () use ($tl, $booking) {
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($tl, $booking) {
         expect(simOffered($tl))->toBeTrue();
         simSimulate($tl, $booking)->assertOk()->assertJson(['success' => true, 'status' => 'arrived_pickup']);
         expect($booking->fresh()->status)->toBe('arrived_pickup')
-            ->and(simOffered($tl))->toBeFalse(); // not offered at arrived_pickup
+            ->and(simOffered($tl))->toBeFalse();
+    });
 
-        $booking->update(['status' => 'on_job']);
+    expect(simSnapshot($booking))->toEqual($before)
+        ->and(AuditLog::where('action', 'demo_arrival_simulated')->where('entity_id', $booking->id)->count())->toBe(1);
+});
+
+it('D: configured Team Leader + own ordinary on_job booking: simulated arrival at drop-off, no GPS written', function () {
+    [$tl, $booking] = simPresenter('on_job');
+    $before = simSnapshot($booking);
+
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($tl, $booking) {
         expect(simOffered($tl))->toBeTrue();
         simSimulate($tl, $booking)->assertOk()->assertJson(['status' => 'arrived_dropoff']);
         expect($booking->fresh()->status)->toBe('arrived_dropoff');
     });
 
-    $fresh = $booking->fresh();
-    $unitAfter = Unit::find($booking->assigned_unit_id);
-    expect([$fresh->pickup_lat, $fresh->pickup_lng])->toEqual($before['pickup'])
-        ->and([$fresh->dropoff_lat, $fresh->dropoff_lng])->toEqual($before['dropoff'])
-        ->and([$unitAfter?->current_lat, $unitAfter?->current_lng, $unitAfter?->location_updated_at])->toEqual($before['unit'])
-        ->and(AuditLog::where('action', 'demo_arrival_simulated')->count())->toBe(2);
+    expect(simSnapshot($booking))->toEqual($before);
 });
 
-it('D: production with the flag true keeps ownership and lifecycle rules for the demo fixture', function () {
-    [$tl, $booking] = simSeedDemo();
-    [$other] = simOtherTeamLeader();
+it('D: the configured email matches case-insensitively and ignores client-supplied targets', function () {
+    [$tl, $booking] = simPresenter('on_the_way');
 
-    simAsEnvironment('production', true, function () use ($tl, $booking, $other) {
-        // Wrong lifecycle stage: rejected with zero mutation.
-        foreach (['assigned', 'accepted', 'arrived_pickup', 'in_progress', 'arrived_dropoff', 'waiting_verification', 'completed'] as $status) {
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($tl, $booking) {
+        simSimulate($tl, $booking, ['status' => 'completed', 'target' => 'completed', 'skip_location' => true])
+            ->assertOk()->assertJson(['status' => 'arrived_pickup']);
+    });
+
+    expect($booking->fresh()->status)->toBe('arrived_pickup');
+});
+
+it('D: lifecycle rules still apply to the configured Team Leader', function () {
+    [$tl, $booking] = simPresenter();
+
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($tl, $booking) {
+        foreach (['assigned', 'accepted', 'arrived_pickup', 'in_progress', 'loading_vehicle', 'arrived_dropoff', 'waiting_verification', 'completed', 'returned'] as $status) {
             $booking->update(['status' => $status]);
             simSimulate($tl, $booking)->assertStatus(422);
             expect($booking->fresh()->status)->toBe($status);
         }
 
-        // Reassigned away from the demo Team Leader: no longer allowed.
-        $booking->update(['status' => 'on_the_way', 'assigned_team_leader_id' => $other->id]);
-        simSimulate($tl, $booking)->assertNotFound();
-        expect($booking->fresh()->status)->toBe('on_the_way');
+        foreach (['assigned' => false, 'accepted' => true, 'on_the_way' => true, 'arrived_pickup' => false, 'on_job' => true, 'arrived_dropoff' => false] as $status => $expected) {
+            $booking->update(['status' => $status]);
+            expect(simOffered($tl))->toBe($expected, $status);
+        }
     });
 });
 
-it('production with the flag true: the normal arrival endpoint still enforces the 150 m rule', function () {
-    [$tl, $booking] = simSeedDemo();
-    $booking->update(['status' => 'on_the_way']);
+it('D: if the booking is reassigned away from the configured Team Leader the simulator stops working', function () {
+    [$tl, $booking] = simPresenter();
+    [$other] = simOtherTeamLeader();
+    $booking->update(['assigned_team_leader_id' => $other->id]);
 
-    simAsEnvironment('production', true, function () use ($tl, $booking) {
-        Sanctum::actingAs($tl);
-        test()->patchJson("/api/v1/team-leader/task/{$booking->booking_code}/status", ['status' => 'arrived_pickup'])
-            ->assertStatus(422);
-        test()->patchJson("/api/v1/team-leader/task/{$booking->booking_code}/status", [
-            'status' => 'arrived_pickup', 'lat' => 0.0, 'lng' => 0.0, 'is_demo' => true,
-        ])->assertStatus(422);
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($tl, $booking) {
+        simSimulate($tl, $booking)->assertNotFound();
     });
 
     expect($booking->fresh()->status)->toBe('on_the_way');
 });
 
-it('staging stays closed even with the flag true', function () {
-    [$tl, $booking] = simSeedDemo();
-    $booking->update(['status' => 'on_the_way']);
+it('production demo mode requires authentication', function () {
+    [, $booking] = simPresenter();
 
-    simAsEnvironment('staging', true, function () use ($tl, $booking) {
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($booking) {
+        test()->postJson("/api/v1/team-leader/demo/task/{$booking->booking_code}/simulate-arrival")->assertUnauthorized();
+    });
+});
+
+it('production demo mode: the normal arrival endpoint still enforces the 150 m rule', function () {
+    [$tl, $booking] = simPresenter('on_the_way');
+
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($tl, $booking) {
+        Sanctum::actingAs($tl);
+        $url = "/api/v1/team-leader/task/{$booking->booking_code}/status";
+
+        test()->patchJson($url, ['status' => 'arrived_pickup'])->assertStatus(422);
+        test()->patchJson($url, ['status' => 'arrived_pickup', 'lat' => 0.0, 'lng' => 0.0, 'is_demo' => true])->assertStatus(422);
+        expect($booking->fresh()->status)->toBe('on_the_way');
+
+        // Genuinely at the pickup point: the real endpoint still works.
+        test()->patchJson($url, ['status' => 'arrived_pickup', 'lat' => 14.6760, 'lng' => 121.0437])->assertOk();
+        expect($booking->fresh()->status)->toBe('arrived_pickup');
+    });
+});
+
+it('staging stays closed even with the flag and email configured', function () {
+    [$tl, $booking] = simPresenter();
+
+    simAsProduction(true, SIM_PRESENTER_EMAIL, function () use ($tl, $booking) {
         simSimulate($tl, $booking)->assertNotFound();
         expect(simOffered($tl))->toBeFalse();
-    });
+    }, 'staging');
 });

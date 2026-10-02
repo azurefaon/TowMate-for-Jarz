@@ -33,4 +33,13 @@ return [
 
     'demo_arrival_enabled' => filter_var(env('TL_DEMO_ARRIVAL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
+    /*
+    | Production only: the ONE Team Leader account (by email) that may use the
+    | presentation arrival simulator on bookings actually assigned to them,
+    | and only while demo_arrival_enabled is true. Unset/blank = nobody.
+    */
+    'demo_team_leader_email' => filled(env('TL_DEMO_TEAM_LEADER_EMAIL'))
+        ? strtolower(trim((string) env('TL_DEMO_TEAM_LEADER_EMAIL')))
+        : null,
+
 ];
