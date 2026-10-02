@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/screens/customer/booking_detail_screen.dart';
 import 'package:towmate_app/services/live_tracking_controller.dart';
+import 'package:towmate_app/widgets/status_badge.dart';
 
 http.Response _json(Object body, {int status = 200}) =>
     http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json'});
@@ -172,6 +173,14 @@ void main() {
       expect(find.text('2.1 km'), findsOneWidget);
       expect(find.text('Track tow truck'), findsOneWidget);
 
+      // Simplified card: the status is shown at the top of the screen, so the
+      // card repeats no status badge, freshness dot or "Live" label.
+      expect(find.descendant(of: card, matching: find.byType(StatusBadge)), findsNothing);
+      expect(find.descendant(of: card, matching: find.byKey(const ValueKey('tracking-freshness-dot'))), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('Live')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('On the way')), findsNothing);
+      expect(find.descendant(of: card, matching: find.textContaining('heading to')), findsNothing);
+
       // Placed before the total amount (i.e. right after the status card).
       expect(tester.getTopLeft(card).dy, lessThan(tester.getTopLeft(find.text('Total Amount')).dy));
 
@@ -215,6 +224,18 @@ void main() {
       expect(find.text('Live location temporarily unavailable'), findsOneWidget);
       expect(find.byKey(const ValueKey('tracking-eta')), findsNothing);
       expect(find.byKey(const ValueKey('tracking-distance')), findsNothing);
+      expect(find.byKey(const ValueKey('tracking-freshness-dot')), findsNothing);
+    });
+
+    testWidgets('updating: ETA and distance are still shown (muted), without a freshness label', (tester) async {
+      await _pump(
+        tester,
+        details: [_detail()],
+        tracking: {'TM-00225': _tracking('TM-00225', freshness: 'updating')},
+      );
+      expect(find.byKey(const ValueKey('tracking-eta')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tracking-distance')), findsOneWidget);
+      expect(find.text('Updating'), findsNothing);
     });
 
     testWidgets('when tracking ends, the card disappears and the booking refreshes to its new status', (tester) async {

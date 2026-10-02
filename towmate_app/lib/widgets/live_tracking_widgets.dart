@@ -4,10 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/route_observer.dart';
 import '../core/status_style.dart';
 import '../core/theme.dart';
-import '../models/booking_model.dart' show humanStatusLabel;
 import '../models/tracking_model.dart';
 import '../services/live_tracking_controller.dart';
-import 'status_badge.dart';
 
 /// Route used to open the dedicated Live Tracking map for one booking_code.
 const String kLiveTrackingRoute = '/live-tracking';
@@ -478,14 +476,9 @@ class LiveTrackingDetailCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          Row(
-            children: [
-              Flexible(child: StatusBadge(status: status, label: humanStatusLabel(status), compact: true)),
-              const SizedBox(width: 10),
-              Flexible(child: TrackingFreshnessIndicator(controller: controller)),
-            ],
-          ),
-          const SizedBox(height: 12),
+          // The booking status is already shown at the top of Booking
+          // Details, so this card carries only ETA / distance / the action.
+          // Freshness still gates ETA and distance (see _detailMain).
           _detailMain(context, pickup),
           const SizedBox(height: 14),
           SizedBox(
