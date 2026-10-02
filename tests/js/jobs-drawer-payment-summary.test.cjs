@@ -38,18 +38,18 @@ function makeFillField(elements) {
 
 function makeElements() {
     return {
-        'drawer-payment-method': { textContent: '' },
-        'drawer-submitted-at': { textContent: '' },
-        'drawer-amount-due-wrap': { style: {} },
-        'drawer-amount-due': { textContent: '' },
-        'drawer-amount-submitted-wrap': { style: {} },
-        'drawer-amount-submitted-label': { textContent: '' },
-        'drawer-amount-submitted': { textContent: '' },
-        'drawer-difference-wrap': { style: {} },
-        'drawer-difference-label': { textContent: '' },
-        'drawer-difference': { textContent: '' },
-        'drawer-amount-paid-wrap': { style: {} },
-        'drawer-amount-paid': { textContent: '' },
+        'job-detail-payment-method': { textContent: '' },
+        'job-detail-submitted-at': { textContent: '' },
+        'job-detail-amount-due-wrap': { style: {} },
+        'job-detail-amount-due': { textContent: '' },
+        'job-detail-amount-submitted-wrap': { style: {} },
+        'job-detail-amount-submitted-label': { textContent: '' },
+        'job-detail-amount-submitted': { textContent: '' },
+        'job-detail-difference-wrap': { style: {} },
+        'job-detail-difference-label': { textContent: '' },
+        'job-detail-difference': { textContent: '' },
+        'job-detail-amount-paid-wrap': { style: {} },
+        'job-detail-amount-paid': { textContent: '' },
     };
 }
 
@@ -80,14 +80,14 @@ const cashMismatch = run({
         amountSubmitted: '26,000.00',
     },
 });
-assertEqual('cash mismatch: amount due label unchanged', cashMismatch['drawer-amount-due-wrap'].style.display, '');
-assertEqual('cash mismatch: amount due value', cashMismatch['drawer-amount-due'].textContent, '₱25,870.40');
-assertEqual('cash mismatch: submitted label becomes Cash Received', cashMismatch['drawer-amount-submitted-label'].textContent, 'Cash Received');
-assertEqual('cash mismatch: submitted value', cashMismatch['drawer-amount-submitted'].textContent, '₱26,000.00');
-assertEqual('cash mismatch: difference label becomes Change', cashMismatch['drawer-difference-label'].textContent, 'Change');
-assertEqual('cash mismatch: change value has no leading +', cashMismatch['drawer-difference'].textContent, '₱129.60');
-assertEqual('cash mismatch: payment method unchanged', cashMismatch['drawer-payment-method'].textContent, 'Cash');
-assertEqual('cash mismatch: submitted at unchanged', cashMismatch['drawer-submitted-at'].textContent, 'Sep 18, 2026 5:25 PM');
+assertEqual('cash mismatch: amount due label unchanged', cashMismatch['job-detail-amount-due-wrap'].style.display, '');
+assertEqual('cash mismatch: amount due value', cashMismatch['job-detail-amount-due'].textContent, '₱25,870.40');
+assertEqual('cash mismatch: submitted label becomes Cash Received', cashMismatch['job-detail-amount-submitted-label'].textContent, 'Cash Received');
+assertEqual('cash mismatch: submitted value', cashMismatch['job-detail-amount-submitted'].textContent, '₱26,000.00');
+assertEqual('cash mismatch: difference label becomes Change', cashMismatch['job-detail-difference-label'].textContent, 'Change');
+assertEqual('cash mismatch: change value has no leading +', cashMismatch['job-detail-difference'].textContent, '₱129.60');
+assertEqual('cash mismatch: payment method unchanged', cashMismatch['job-detail-payment-method'].textContent, 'Cash');
+assertEqual('cash mismatch: submitted at unchanged', cashMismatch['job-detail-submitted-at'].textContent, 'Sep 18, 2026 5:25 PM');
 
 const gcashMismatch = run({
     dataset: {
@@ -98,9 +98,9 @@ const gcashMismatch = run({
         amountSubmitted: '26,000.00',
     },
 });
-assertEqual('gcash mismatch: submitted label stays Amount Submitted', gcashMismatch['drawer-amount-submitted-label'].textContent, 'Amount Submitted');
-assertEqual('gcash mismatch: difference label stays Difference', gcashMismatch['drawer-difference-label'].textContent, 'Difference');
-assertEqual('gcash mismatch: difference value keeps leading +', gcashMismatch['drawer-difference'].textContent, '₱+129.60');
+assertEqual('gcash mismatch: submitted label stays Amount Submitted', gcashMismatch['job-detail-amount-submitted-label'].textContent, 'Amount Submitted');
+assertEqual('gcash mismatch: difference label stays Difference', gcashMismatch['job-detail-difference-label'].textContent, 'Difference');
+assertEqual('gcash mismatch: difference value keeps leading +', gcashMismatch['job-detail-difference'].textContent, '₱+129.60');
 
 const bankMismatch = run({
     dataset: {
@@ -111,8 +111,8 @@ const bankMismatch = run({
         amountSubmitted: '26,000.00',
     },
 });
-assertEqual('bank transfer mismatch: submitted label stays Amount Submitted', bankMismatch['drawer-amount-submitted-label'].textContent, 'Amount Submitted');
-assertEqual('bank transfer mismatch: difference label stays Difference', bankMismatch['drawer-difference-label'].textContent, 'Difference');
+assertEqual('bank transfer mismatch: submitted label stays Amount Submitted', bankMismatch['job-detail-amount-submitted-label'].textContent, 'Amount Submitted');
+assertEqual('bank transfer mismatch: difference label stays Difference', bankMismatch['job-detail-difference-label'].textContent, 'Difference');
 
 const cashExactMatch = run({
     dataset: {
@@ -123,10 +123,10 @@ const cashExactMatch = run({
         amountSubmitted: '25,870.40',
     },
 });
-assertEqual('cash exact match: submitted wrap hidden', cashExactMatch['drawer-amount-submitted-wrap'].style.display, 'none');
-assertEqual('cash exact match: difference wrap hidden', cashExactMatch['drawer-difference-wrap'].style.display, 'none');
-assertEqual('cash exact match: paid wrap shown', cashExactMatch['drawer-amount-paid-wrap'].style.display, '');
-assertEqual('cash exact match: amount paid value', cashExactMatch['drawer-amount-paid'].textContent, '₱25,870.40');
+assertEqual('cash exact match: submitted wrap hidden', cashExactMatch['job-detail-amount-submitted-wrap'].style.display, 'none');
+assertEqual('cash exact match: difference wrap hidden', cashExactMatch['job-detail-difference-wrap'].style.display, 'none');
+assertEqual('cash exact match: paid wrap shown', cashExactMatch['job-detail-amount-paid-wrap'].style.display, '');
+assertEqual('cash exact match: amount paid value', cashExactMatch['job-detail-amount-paid'].textContent, '₱25,870.40');
 
 const notReady = run({
     dataset: {
@@ -135,9 +135,9 @@ const notReady = run({
         total: '25,870.40',
     },
 });
-assertEqual('not ready: submitted wrap hidden', notReady['drawer-amount-submitted-wrap'].style.display, 'none');
-assertEqual('not ready: difference wrap hidden', notReady['drawer-difference-wrap'].style.display, 'none');
-assertEqual('not ready: payment method placeholder', notReady['drawer-payment-method'].textContent, 'Not yet submitted');
+assertEqual('not ready: submitted wrap hidden', notReady['job-detail-amount-submitted-wrap'].style.display, 'none');
+assertEqual('not ready: difference wrap hidden', notReady['job-detail-difference-wrap'].style.display, 'none');
+assertEqual('not ready: payment method placeholder', notReady['job-detail-payment-method'].textContent, 'Not yet submitted');
 
 if (failures > 0) {
     console.error(failures + ' assertion(s) failed');

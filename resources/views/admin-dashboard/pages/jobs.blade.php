@@ -9,6 +9,11 @@
 @section('content')
     <div class="jobs-page" data-csrf="{{ csrf_token() }}">
 
+        <div class="jobs-header">
+            <h1 class="jobs-title">Active Jobs</h1>
+            <p class="jobs-subtitle">Monitor active towing jobs, assignments, and job progress.</p>
+        </div>
+
         <div class="jobs-tabs" id="jobsTabs">
             <button type="button" class="rb-tab is-active" data-tab="all">All <span class="rb-tab-count">{{ $stats['total'] }}</span></button>
             <button type="button" class="rb-tab" data-tab="assigned">Assigned <span class="rb-tab-count">{{ $stats['assigned'] }}</span></button>
@@ -32,8 +37,8 @@
                         <th>Status</th>
                         <th>Unit / Team</th>
                         <th>Route</th>
-                        <th>Payment</th>
                         <th>Updated</th>
+                        <th class="jobs-col-chevron" aria-label="Expand"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -88,7 +93,7 @@
                             ?: optional($job->unit)->driver?->full_name
                             ?: optional($job->unit)->driver?->name
                             ?: optional($job->unit)->driver_name
-                            ?: 'No member recorded';
+                            ?: 'No driver recorded';
                         $pickup     = $job->pickup_address ?? 'Pickup pending';
                         $dropoff    = $job->dropoff_address ?? 'Drop-off pending';
 
@@ -124,7 +129,7 @@
                             ->values()
                             ->all();
                     @endphp
-                    <tr class="jobs-row js-open-job-row" tabindex="0"
+                    <tr class="jobs-row js-open-job-row" tabindex="0" aria-expanded="false"
                         aria-label="Open {{ $job->booking_code }}, {{ $customer }}"
                         data-bucket="{{ $bucket }}"
                         data-status="{{ $job->status }}"
@@ -176,19 +181,13 @@
                             <div class="jobs-route-line">{{ $pickup }}</div>
                             <div class="jobs-route-line jobs-route-line--drop">→ {{ $dropoff }}</div>
                         </td>
-                        <td>
-                            @if ($isAwaiting)
-                                @if ($paymentReady)
-                                    <div class="jobs-cell-primary">{{ $paymentMethodLabel }}</div>
-                                    <div class="jobs-cell-secondary">₱{{ $amountSubmitted ? number_format((float) $amountSubmitted, 2) : '0.00' }}</div>
-                                @else
-                                    <span class="jobs-cell-secondary">Payment not yet submitted</span>
-                                @endif
-                            @else
-                                <span class="jobs-cell-secondary">—</span>
-                            @endif
-                        </td>
                         <td class="jobs-cell-secondary">{{ $job->updated_at?->diffForHumans() }}</td>
+                        <td class="jobs-chevron-cell" aria-hidden="true">
+                            <svg class="jobs-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+                        </td>
+                    </tr>
+                    <tr class="jobs-detail-row" data-detail-for="{{ $job->booking_code }}" hidden>
+                        <td colspan="6"></td>
                     </tr>
                 @empty
                     <tr>
@@ -209,153 +208,155 @@
             {{ $jobs->onEachSide(1)->links() }}
         </div>
 
-        <div class="jobs-drawer-backdrop" id="jobsDrawerBackdrop"></div>
-        <div class="jobs-drawer" id="jobsDrawer">
-            <div class="jobs-drawer-head">
-                <div>
-                    <p class="jobs-drawer-eyebrow" id="drawerBookingCode">—</p>
-                    <span class="jobs-drawer-status" id="drawerStatus"></span>
-                </div>
-                <button type="button" class="jobs-drawer-close" id="jobsDrawerClose" aria-label="Close">×</button>
-            </div>
+        {{-- Inline job detail. The single template below is cloned by jobs.js into
+             the open row's sibling .jobs-detail-row (one open at a time), so its
+             ids are unique in the live DOM. Facts live in ONE place each: the
+             booking code, customer name, status, unit/team and amount are NOT
+             repeated here (only the route is, short in the row / full here). --}}
+        <template id="jobsDetailTemplate">
+            <div class="jobs-detail">
+                <div class="jobs-detail-cols">
+                    <div class="jobs-detail-col">
+                        <section class="jobs-detail-sec">
+                            <h3 class="jobs-detail-title">Customer</h3>
+                            <dl class="jobs-detail-list">
+                                <div class="jobs-detail-item">
+                                    <dt>Phone</dt>
+                                    <dd id="job-detail-phone">—</dd>
+                                </div>
+                                <div class="jobs-detail-item">
+                                    <dt>Email</dt>
+                                    <dd id="job-detail-email">—</dd>
+                                </div>
+                            </dl>
+                        </section>
 
-            <div class="jobs-drawer-body">
-                <div class="jobs-drawer-section">
-                    <div class="jobs-drawer-section-title">Customer</div>
-                    <div class="jobs-drawer-grid">
-                        <div class="jobs-drawer-item full-width">
-                            <span class="jobs-drawer-label">Name</span>
-                            <span class="jobs-drawer-value" id="drawer-customer">—</span>
-                        </div>
-                        <div class="jobs-drawer-item">
-                            <span class="jobs-drawer-label">Phone</span>
-                            <span class="jobs-drawer-value" id="drawer-phone">—</span>
-                        </div>
-                        <div class="jobs-drawer-item">
-                            <span class="jobs-drawer-label">Email</span>
-                            <span class="jobs-drawer-value" id="drawer-email">—</span>
-                        </div>
+                        <section class="jobs-detail-sec">
+                            <h3 class="jobs-detail-title">Route</h3>
+                            <dl class="jobs-detail-list">
+                                <div class="jobs-detail-item">
+                                    <dt>Pickup</dt>
+                                    <dd id="job-detail-pickup">—</dd>
+                                </div>
+                                <div class="jobs-detail-item">
+                                    <dt>Drop-off</dt>
+                                    <dd id="job-detail-dropoff">—</dd>
+                                </div>
+                                <div class="jobs-detail-item" id="job-detail-distance-wrap" style="display:none;">
+                                    <dt>Distance</dt>
+                                    <dd id="job-detail-distance">—</dd>
+                                </div>
+                            </dl>
+                        </section>
+                    </div>
+
+                    <div class="jobs-detail-col">
+                        <section class="jobs-detail-sec">
+                            <h3 class="jobs-detail-title" id="job-detail-unit-title">Team / Service</h3>
+                            <dl class="jobs-detail-list">
+                                <div class="jobs-detail-item">
+                                    <dt>Unit</dt>
+                                    <dd id="job-detail-unit">—</dd>
+                                </div>
+                                <div class="jobs-detail-item">
+                                    <dt>Team Leader</dt>
+                                    <dd id="job-detail-teamleader">—</dd>
+                                </div>
+                                <div class="jobs-detail-item">
+                                    <dt>Driver</dt>
+                                    <dd id="job-detail-driver">—</dd>
+                                </div>
+                                <div class="jobs-detail-item">
+                                    <dt>Truck type</dt>
+                                    <dd id="job-detail-service">—</dd>
+                                </div>
+                                <div class="jobs-detail-item" id="job-detail-completed-wrap" style="display:none;">
+                                    <dt>Service completed</dt>
+                                    <dd id="job-detail-completed-at">—</dd>
+                                </div>
+                                {{-- Shown once, only while there is no payment section (see jobs.js). --}}
+                                <div class="jobs-detail-item" id="job-detail-agreed-wrap" style="display:none;">
+                                    <dt>Agreed amount</dt>
+                                    <dd id="job-detail-agreed">—</dd>
+                                </div>
+                            </dl>
+                        </section>
                     </div>
                 </div>
 
-                <div class="jobs-drawer-section">
-                    <div class="jobs-drawer-section-title">Route</div>
-                    <div class="rb-route">
-                        <div class="rb-route-row">
-                            <span class="rb-route-dot rb-pick"></span>
-                            <span class="rb-route-addr" id="drawer-pickup">—</span>
-                        </div>
-                        <div class="rb-route-row">
-                            <span class="rb-route-dot rb-drop"></span>
-                            <span class="rb-route-addr" id="drawer-dropoff">—</span>
-                        </div>
-                        <div class="rb-route-meta" id="drawer-distance-wrap" style="display:none;">
-                            <span>Distance</span>
-                            <span id="drawer-distance">—</span>
-                        </div>
-                    </div>
-                </div>
+                <section class="jobs-detail-sec" id="job-detail-vehicles-section" style="display:none;">
+                    <h3 class="jobs-detail-title">Vehicles in This Request</h3>
+                    <table class="jobs-detail-table">
+                        <thead>
+                            <tr>
+                                <th>Booking</th>
+                                <th>Unit</th>
+                                <th>Team Leader</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="job-detail-vehicles-grid"></tbody>
+                    </table>
+                </section>
 
-                <div class="jobs-drawer-section">
-                    <div class="jobs-drawer-section-title">Truck Type</div>
-                    <div class="jobs-drawer-grid">
-                        <div class="jobs-drawer-item">
-                            <span class="jobs-drawer-value" id="drawer-service">—</span>
-                        </div>
-                        <div class="jobs-drawer-item" id="drawer-completed-wrap" style="display:none;">
-                            <span class="jobs-drawer-label">Service Completed</span>
-                            <span class="jobs-drawer-value" id="drawer-completed-at">—</span>
-                        </div>
-                    </div>
-                </div>
+                <section class="jobs-detail-sec" id="job-detail-vehicle-photos-section" style="display:none;">
+                    <h3 class="jobs-detail-title">Vehicle Photos</h3>
+                    <div class="jobs-photo-grid" id="job-detail-vehicle-photos-grid"></div>
+                </section>
 
-                <div class="jobs-drawer-section">
-                    <div class="jobs-drawer-section-title" id="drawer-unit-title">Assigned Unit</div>
-                    <div class="jobs-drawer-grid">
-                        <div class="jobs-drawer-item">
-                            <span class="jobs-drawer-label">Unit</span>
-                            <span class="jobs-drawer-value" id="drawer-unit">—</span>
+                <section class="jobs-detail-sec" id="job-detail-payment-section" style="display:none;">
+                    <h3 class="jobs-detail-title">Payment</h3>
+                    <dl class="jobs-detail-list jobs-detail-list--row">
+                        <div class="jobs-detail-item" id="job-detail-amount-due-wrap">
+                            <dt>Agreed amount</dt>
+                            <dd id="job-detail-amount-due">—</dd>
                         </div>
-                        <div class="jobs-drawer-item">
-                            <span class="jobs-drawer-label">Team Leader</span>
-                            <span class="jobs-drawer-value" id="drawer-teamleader">—</span>
+                        <div class="jobs-detail-item" id="job-detail-amount-submitted-wrap">
+                            <dt id="job-detail-amount-submitted-label">Amount Submitted</dt>
+                            <dd id="job-detail-amount-submitted">—</dd>
                         </div>
-                        <div class="jobs-drawer-item full-width">
-                            <span class="jobs-drawer-label">Member Driver</span>
-                            <span class="jobs-drawer-value" id="drawer-driver">—</span>
+                        <div class="jobs-detail-item" id="job-detail-difference-wrap">
+                            <dt id="job-detail-difference-label">Difference</dt>
+                            <dd id="job-detail-difference">—</dd>
                         </div>
-                    </div>
-                </div>
+                        <div class="jobs-detail-item" id="job-detail-amount-paid-wrap">
+                            <dt>Agreed amount (paid in full)</dt>
+                            <dd id="job-detail-amount-paid">—</dd>
+                        </div>
+                        <div class="jobs-detail-item">
+                            <dt>Payment method</dt>
+                            <dd id="job-detail-payment-method">—</dd>
+                        </div>
+                        <div class="jobs-detail-item">
+                            <dt>Submitted at</dt>
+                            <dd id="job-detail-submitted-at">—</dd>
+                        </div>
+                    </dl>
+                </section>
 
-                <div class="jobs-drawer-section" id="drawer-vehicles-section" style="display:none;">
-                    <div class="jobs-drawer-section-title">Vehicles in This Request</div>
-                    <div class="jobs-drawer-grid" id="drawer-vehicles-grid"></div>
-                </div>
-
-                <div class="jobs-drawer-section" id="drawer-vehicle-photos-section" style="display:none;">
-                    <div class="jobs-drawer-section-title">Vehicle Photos</div>
-                    <div class="jobs-photo-grid" id="drawer-vehicle-photos-grid"></div>
-                </div>
-
-                <div class="jobs-drawer-section" id="drawer-payment-section" style="display:none;">
-                    <div class="jobs-drawer-section-title">Payment Summary</div>
-                    <div class="jobs-drawer-grid">
-                        <div class="jobs-drawer-item" id="drawer-amount-due-wrap">
-                            <span class="jobs-drawer-label">Amount Due</span>
-                            <span class="jobs-drawer-value" id="drawer-amount-due">—</span>
-                        </div>
-                        <div class="jobs-drawer-item" id="drawer-amount-submitted-wrap">
-                            <span class="jobs-drawer-label" id="drawer-amount-submitted-label">Amount Submitted</span>
-                            <span class="jobs-drawer-value" id="drawer-amount-submitted">—</span>
-                        </div>
-                        <div class="jobs-drawer-item" id="drawer-difference-wrap">
-                            <span class="jobs-drawer-label" id="drawer-difference-label">Difference</span>
-                            <span class="jobs-drawer-value" id="drawer-difference">—</span>
-                        </div>
-                        <div class="jobs-drawer-item" id="drawer-amount-paid-wrap">
-                            <span class="jobs-drawer-label">Amount Paid</span>
-                            <span class="jobs-drawer-value" id="drawer-amount-paid">—</span>
-                        </div>
-                        <div class="jobs-drawer-item">
-                            <span class="jobs-drawer-label">Payment Method</span>
-                            <span class="jobs-drawer-value" id="drawer-payment-method">—</span>
-                        </div>
-                        <div class="jobs-drawer-item">
-                            <span class="jobs-drawer-label">Submitted At</span>
-                            <span class="jobs-drawer-value" id="drawer-submitted-at">—</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="jobs-drawer-section" id="drawer-proof-section" style="display:none;">
-                    <div class="jobs-drawer-section-title">Payment Proof</div>
-                    <a id="drawer-proof-link" href="#" target="_blank" rel="noopener noreferrer" class="jobs-proof-box">
-                        <img id="drawer-proof-img" src="" alt="Payment proof">
+                <section class="jobs-detail-sec" id="job-detail-proof-section" style="display:none;">
+                    <h3 class="jobs-detail-title">Payment Proof</h3>
+                    <a id="job-detail-proof-link" href="#" target="_blank" rel="noopener noreferrer" class="jobs-proof-box">
+                        <img id="job-detail-proof-img" src="" alt="Payment proof">
                         <span>View full size</span>
                     </a>
-                    <p class="jobs-cash-note" id="drawer-cash-note" style="display:none;">Cash received on-site — no proof image required.</p>
-                </div>
+                    <p class="jobs-cash-note" id="job-detail-cash-note" style="display:none;">Cash received on-site — no proof image required.</p>
+                </section>
 
-                <div class="jobs-drawer-section" id="drawer-signature-section" style="display:none;">
-                    <div class="jobs-drawer-section-title">Customer Acknowledgment</div>
+                <section class="jobs-detail-sec" id="job-detail-signature-section" style="display:none;">
+                    <h3 class="jobs-detail-title">Customer Acknowledgment</h3>
                     <div class="jobs-signature-box">
-                        <img id="drawer-signature-img" src="" alt="Customer signature">
-                        <span class="jobs-signature-caption" id="drawer-signature-caption">—</span>
+                        <img id="job-detail-signature-img" src="" alt="Customer signature">
+                        <span class="jobs-signature-caption" id="job-detail-signature-caption">—</span>
                     </div>
+                </section>
+
+                <div class="jobs-detail-actions">
+                    <button type="button" id="job-detail-reassign-btn" class="jobs-action-btn" style="display:none;">Reassign task</button>
+                    <button type="button" id="job-detail-confirm-btn" class="jobs-action-btn jobs-action-btn--primary" style="display:none;"><span>Confirm payment</span></button>
                 </div>
             </div>
-
-            <div class="jobs-drawer-foot">
-                <button type="button" id="drawerReassignBtn" class="btn rtn-btn-secondary" style="display:none;">
-                    <i data-lucide="repeat"></i>
-                    <span>Reassign Task</span>
-                </button>
-                <button type="button" id="drawerConfirmPaymentBtn" class="btn btn-confirm-payment" style="display:none;">
-                    <i data-lucide="check-circle"></i>
-                    <span>Confirm Payment</span>
-                </button>
-            </div>
-        </div>
+        </template>
 
         {{-- Reassign Task modal: only ever offered while status is exactly
              'assigned' — before the Team Leader has accepted, nothing

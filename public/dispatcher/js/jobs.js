@@ -9,6 +9,43 @@ document.addEventListener("DOMContentLoaded", function () {
     const rows = document.querySelectorAll(".js-open-job-row");
     const searchInput = document.getElementById("jobsSearch");
 
+    // The single inline-detail template; cloned into the open row's sibling
+    // .jobs-detail-row so only one detail exists (and its ids are unique).
+    const detailTemplate = document.getElementById("jobsDetailTemplate");
+
+    // The currently expanded job row (also the row the reassign / confirm
+    // actions operate on).
+    let currentRow = null;
+
+    // Elements inside the open detail; rebound every time a detail is opened.
+    let paymentSection = null;
+    let proofSection = null;
+    let signatureSection = null;
+    let proofLink = null;
+    let proofImg = null;
+    let cashNote = null;
+    let signatureImg = null;
+    let signatureCaption = null;
+    let completedWrap = null;
+    let distanceWrap = null;
+    let unitTitle = null;
+    let vehiclesSection = null;
+    let vehiclesGrid = null;
+    let vehiclePhotosSection = null;
+    let vehiclePhotosGrid = null;
+    let confirmBtn = null;
+    let reassignBtn = null;
+
+    const fillField = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value || "—";
+    };
+
+    function detailRowFor(row) {
+        const next = row ? row.nextElementSibling : null;
+        return next && next.classList.contains("jobs-detail-row") ? next : null;
+    }
+
     function applyFilters() {
         const activeTabBtn = document.querySelector("#jobsTabs .rb-tab.is-active");
         const tab = activeTabBtn ? activeTabBtn.dataset.tab : "all";
@@ -18,7 +55,12 @@ document.addEventListener("DOMContentLoaded", function () {
             const matchesTab = tab === "all" || row.dataset.bucket === tab;
             const text = (row.textContent || "").toLowerCase();
             const matchesQuery = !query || text.indexOf(query) > -1;
-            row.style.display = matchesTab && matchesQuery ? "" : "none";
+            const visible = matchesTab && matchesQuery;
+            row.style.display = visible ? "" : "none";
+
+            const detailRow = detailRowFor(row);
+            if (detailRow) detailRow.style.display = visible ? "" : "none";
+            if (!visible && currentRow === row) closeDetail();
         });
     }
 
@@ -32,66 +74,53 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (searchInput) searchInput.addEventListener("input", applyFilters);
 
-    const drawer = document.getElementById("jobsDrawer");
-    const backdrop = document.getElementById("jobsDrawerBackdrop");
-    const closeBtn = document.getElementById("jobsDrawerClose");
-    const confirmBtn = document.getElementById("drawerConfirmPaymentBtn");
-    const reassignBtn = document.getElementById("drawerReassignBtn");
+    function bindDetailElements() {
+        paymentSection = document.getElementById("job-detail-payment-section");
+        proofSection = document.getElementById("job-detail-proof-section");
+        signatureSection = document.getElementById("job-detail-signature-section");
+        proofLink = document.getElementById("job-detail-proof-link");
+        proofImg = document.getElementById("job-detail-proof-img");
+        cashNote = document.getElementById("job-detail-cash-note");
+        signatureImg = document.getElementById("job-detail-signature-img");
+        signatureCaption = document.getElementById("job-detail-signature-caption");
+        completedWrap = document.getElementById("job-detail-completed-wrap");
+        distanceWrap = document.getElementById("job-detail-distance-wrap");
+        unitTitle = document.getElementById("job-detail-unit-title");
+        vehiclesSection = document.getElementById("job-detail-vehicles-section");
+        vehiclesGrid = document.getElementById("job-detail-vehicles-grid");
+        vehiclePhotosSection = document.getElementById("job-detail-vehicle-photos-section");
+        vehiclePhotosGrid = document.getElementById("job-detail-vehicle-photos-grid");
+        confirmBtn = document.getElementById("job-detail-confirm-btn");
+        reassignBtn = document.getElementById("job-detail-reassign-btn");
+    }
 
-    const paymentSection = document.getElementById("drawer-payment-section");
-    const proofSection = document.getElementById("drawer-proof-section");
-    const signatureSection = document.getElementById("drawer-signature-section");
-    const proofLink = document.getElementById("drawer-proof-link");
-    const proofImg = document.getElementById("drawer-proof-img");
-    const cashNote = document.getElementById("drawer-cash-note");
-    const signatureImg = document.getElementById("drawer-signature-img");
-    const signatureCaption = document.getElementById("drawer-signature-caption");
-    const completedWrap = document.getElementById("drawer-completed-wrap");
-    const distanceWrap = document.getElementById("drawer-distance-wrap");
-    const unitTitle = document.getElementById("drawer-unit-title");
-    const vehiclesSection = document.getElementById("drawer-vehicles-section");
-    const vehiclesGrid = document.getElementById("drawer-vehicles-grid");
-    const vehiclePhotosSection = document.getElementById("drawer-vehicle-photos-section");
-    const vehiclePhotosGrid = document.getElementById("drawer-vehicle-photos-grid");
-
-    let currentRow = null;
-
-    const fillField = (id, value) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = value || "—";
-    };
-
-    function openDrawer(row) {
-        if (!drawer || !row) return;
-        currentRow = row;
-
+    function renderDetail(row) {
         const bucket = row.dataset.bucket;
         const isAwaiting = bucket === "awaiting-verification";
 
-        fillField("drawerBookingCode", row.dataset.bookingCode);
-        const statusEl = document.getElementById("drawerStatus");
-        if (statusEl) {
-            statusEl.textContent = row.dataset.statusLabel || "";
-            statusEl.className = "jobs-drawer-status jobs-status-" + row.dataset.bucketClass;
-        }
-
-        fillField("drawer-customer", row.dataset.customer);
-        fillField("drawer-phone", row.dataset.phone);
-        fillField("drawer-email", row.dataset.email);
-        fillField("drawer-pickup", row.dataset.pickup);
-        fillField("drawer-dropoff", row.dataset.dropoff);
+        fillField("job-detail-phone", row.dataset.phone);
+        fillField("job-detail-email", row.dataset.email);
+        fillField("job-detail-pickup", row.dataset.pickup);
+        fillField("job-detail-dropoff", row.dataset.dropoff);
 
         const distanceKm = row.dataset.distanceKm;
         const hasDistance = distanceKm !== undefined && distanceKm !== "";
         if (distanceWrap) distanceWrap.style.display = hasDistance ? "" : "none";
-        if (hasDistance) fillField("drawer-distance", parseFloat(distanceKm).toFixed(1) + " km");
+        if (hasDistance) fillField("job-detail-distance", parseFloat(distanceKm).toFixed(1) + " km");
 
-        fillField("drawer-service", row.dataset.service);
-        fillField("drawer-unit", row.dataset.unit);
-        fillField("drawer-teamleader", row.dataset.teamleader);
-        fillField("drawer-driver", row.dataset.driver);
+        fillField("job-detail-service", row.dataset.service);
+        fillField("job-detail-unit", row.dataset.unit);
+        fillField("job-detail-teamleader", row.dataset.teamleader);
+        fillField("job-detail-driver", row.dataset.driver);
 
-        if (unitTitle) unitTitle.textContent = isAwaiting ? "Unit Used at Service" : "Assigned Unit";
+        if (unitTitle) unitTitle.textContent = isAwaiting ? "Unit Used at Service" : "Team / Service";
+
+        // The agreed amount is shown exactly once: here for jobs that have no
+        // payment section, otherwise as part of the payment section below.
+        const agreedWrap = document.getElementById("job-detail-agreed-wrap");
+        const hasTotal = !!row.dataset.total;
+        if (agreedWrap) agreedWrap.style.display = !isAwaiting && hasTotal ? "" : "none";
+        if (!isAwaiting && hasTotal) fillField("job-detail-agreed", "₱" + row.dataset.total);
 
         let groupVehicles = [];
         try {
@@ -103,17 +132,13 @@ document.addEventListener("DOMContentLoaded", function () {
             vehiclesGrid.textContent = "";
             if (groupVehicles.length > 1) {
                 groupVehicles.forEach(function (v) {
-                    const item = document.createElement("div");
-                    item.className = "jobs-drawer-item full-width";
-                    const label = document.createElement("span");
-                    label.className = "jobs-drawer-label";
-                    label.textContent = v.booking_code;
-                    const value = document.createElement("span");
-                    value.className = "jobs-drawer-value";
-                    value.textContent = v.unit + " · " + v.team_leader + " · " + v.status;
-                    item.appendChild(label);
-                    item.appendChild(value);
-                    vehiclesGrid.appendChild(item);
+                    const tr = document.createElement("tr");
+                    [v.booking_code, v.unit, v.team_leader, v.status].forEach(function (text) {
+                        const td = document.createElement("td");
+                        td.textContent = text || "—";
+                        tr.appendChild(td);
+                    });
+                    vehiclesGrid.appendChild(tr);
                 });
                 vehiclesSection.style.display = "";
             } else {
@@ -149,20 +174,20 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (completedWrap) completedWrap.style.display = isAwaiting ? "" : "none";
-        if (isAwaiting) fillField("drawer-completed-at", row.dataset.serviceCompletedAt);
+        if (isAwaiting) fillField("job-detail-completed-at", row.dataset.serviceCompletedAt);
 
         const paymentReady = row.dataset.paymentReady === "1";
         const isCash = row.dataset.paymentMethod === "Cash";
 
         if (paymentSection) paymentSection.style.display = isAwaiting ? "" : "none";
         if (isAwaiting) {
-            fillField("drawer-payment-method", paymentReady ? row.dataset.paymentMethod : "Not yet submitted");
-            fillField("drawer-submitted-at", paymentReady ? row.dataset.paymentSubmittedAt : "—");
+            fillField("job-detail-payment-method", paymentReady ? row.dataset.paymentMethod : "Not yet submitted");
+            fillField("job-detail-submitted-at", paymentReady ? row.dataset.paymentSubmittedAt : "—");
 
-            const dueWrap = document.getElementById("drawer-amount-due-wrap");
-            const submittedWrap = document.getElementById("drawer-amount-submitted-wrap");
-            const diffWrap = document.getElementById("drawer-difference-wrap");
-            const paidWrap = document.getElementById("drawer-amount-paid-wrap");
+            const dueWrap = document.getElementById("job-detail-amount-due-wrap");
+            const submittedWrap = document.getElementById("job-detail-amount-submitted-wrap");
+            const diffWrap = document.getElementById("job-detail-difference-wrap");
+            const paidWrap = document.getElementById("job-detail-amount-paid-wrap");
 
             const toNumber = (v) => {
                 const n = parseFloat((v || "").replace(/,/g, ""));
@@ -175,7 +200,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (!paymentReady) {
                 if (dueWrap) dueWrap.style.display = "";
-                fillField("drawer-amount-due", dueAmount !== null ? "₱" + row.dataset.total : "—");
+                fillField("job-detail-amount-due", dueAmount !== null ? "₱" + row.dataset.total : "—");
                 if (submittedWrap) submittedWrap.style.display = "none";
                 if (diffWrap) diffWrap.style.display = "none";
                 if (paidWrap) paidWrap.style.display = "none";
@@ -185,28 +210,28 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (diffWrap) diffWrap.style.display = "none";
                 if (paidWrap) {
                     paidWrap.style.display = "";
-                    fillField("drawer-amount-paid", "₱" + row.dataset.amountSubmitted);
+                    fillField("job-detail-amount-paid", "₱" + row.dataset.amountSubmitted);
                 }
             } else {
                 if (dueWrap) {
                     dueWrap.style.display = "";
-                    fillField("drawer-amount-due", "₱" + row.dataset.total);
+                    fillField("job-detail-amount-due", "₱" + row.dataset.total);
                 }
                 if (submittedWrap) {
                     submittedWrap.style.display = "";
-                    fillField("drawer-amount-submitted-label", isCash ? "Cash Received" : "Amount Submitted");
-                    fillField("drawer-amount-submitted", "₱" + row.dataset.amountSubmitted);
+                    fillField("job-detail-amount-submitted-label", isCash ? "Cash Received" : "Amount Submitted");
+                    fillField("job-detail-amount-submitted", "₱" + row.dataset.amountSubmitted);
                 }
                 if (diffWrap) {
                     diffWrap.style.display = "";
                     const diff = submittedAmount - dueAmount;
                     if (isCash) {
-                        fillField("drawer-difference-label", "Change");
-                        fillField("drawer-difference", "₱" + diff.toFixed(2));
+                        fillField("job-detail-difference-label", "Change");
+                        fillField("job-detail-difference", "₱" + diff.toFixed(2));
                     } else {
-                        fillField("drawer-difference-label", "Difference");
+                        fillField("job-detail-difference-label", "Difference");
                         const sign = diff > 0 ? "+" : "";
-                        fillField("drawer-difference", "₱" + sign + diff.toFixed(2));
+                        fillField("job-detail-difference", "₱" + sign + diff.toFixed(2));
                     }
                 }
                 if (paidWrap) paidWrap.style.display = "none";
@@ -246,8 +271,7 @@ document.addEventListener("DOMContentLoaded", function () {
             confirmBtn.style.display = isAwaiting && paymentReady ? "" : "none";
             confirmBtn.disabled = false;
             confirmBtn.classList.remove("is-confirmed");
-            const span = confirmBtn.querySelector("span");
-            if (span) span.textContent = "Confirm Payment";
+            confirmBtn.addEventListener("click", onConfirmClick);
         }
 
         // Only offered while the booking's raw status is exactly "assigned" —
@@ -255,39 +279,61 @@ document.addEventListener("DOMContentLoaded", function () {
         // isn't precise enough to gate this.
         if (reassignBtn) {
             reassignBtn.style.display = row.dataset.status === "assigned" ? "" : "none";
+            reassignBtn.addEventListener("click", openReassignModal);
         }
-
-        if (typeof lucide !== "undefined") lucide.createIcons();
-
-        drawer.classList.add("is-open");
-        backdrop?.classList.add("is-open");
-        document.body.style.overflow = "hidden";
     }
 
-    function closeDrawer() {
-        if (!drawer) return;
-        drawer.classList.remove("is-open");
-        backdrop?.classList.remove("is-open");
-        document.body.style.overflow = "";
+    function openDetail(row) {
+        if (!detailTemplate || !row) return;
+        const detailRow = detailRowFor(row);
+        if (!detailRow || !detailRow.cells[0]) return;
+
+        if (currentRow && currentRow !== row) closeDetail();
+
+        const cell = detailRow.cells[0];
+        cell.textContent = "";
+        cell.appendChild(detailTemplate.content.cloneNode(true));
+        detailRow.hidden = false;
+
+        row.setAttribute("aria-expanded", "true");
+        row.classList.add("is-open");
+        currentRow = row;
+
+        bindDetailElements();
+        renderDetail(row);
+    }
+
+    function closeDetail() {
+        if (!currentRow) return;
+        const detailRow = detailRowFor(currentRow);
+        if (detailRow) {
+            detailRow.hidden = true;
+            if (detailRow.cells[0]) detailRow.cells[0].textContent = "";
+        }
+        currentRow.setAttribute("aria-expanded", "false");
+        currentRow.classList.remove("is-open");
         currentRow = null;
     }
 
+    function toggleDetail(row) {
+        if (currentRow === row) {
+            closeDetail();
+        } else {
+            openDetail(row);
+        }
+    }
+
     rows.forEach((row) => {
-        row.addEventListener("click", () => openDrawer(row));
+        row.addEventListener("click", () => toggleDetail(row));
         row.addEventListener("keydown", (e) => {
             if (e.key !== "Enter" && e.key !== " ") return;
             e.preventDefault();
-            openDrawer(row);
+            toggleDetail(row);
         });
     });
-    backdrop?.addEventListener("click", closeDrawer);
-    closeBtn?.addEventListener("click", closeDrawer);
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && drawer?.classList.contains("is-open")) closeDrawer();
-    });
 
-    confirmBtn?.addEventListener("click", async function () {
-        if (!currentRow || confirmBtn.disabled) return;
+    async function onConfirmClick() {
+        if (!currentRow || !confirmBtn || confirmBtn.disabled) return;
 
         const confirmUrl = currentRow.dataset.confirmUrl;
         if (!confirmUrl) return;
@@ -311,7 +357,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (data.success) {
                 if (span) span.textContent = "Payment Verified · Receipt Sent";
                 confirmBtn.classList.add("is-confirmed");
-                setTimeout(() => { closeDrawer(); window.location.reload(); }, 1200);
+                setTimeout(() => { closeDetail(); window.location.reload(); }, 1200);
             } else {
                 if (span) span.textContent = data.message || "Failed";
                 confirmBtn.disabled = false;
@@ -320,7 +366,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (span) span.textContent = "Error — retry";
             confirmBtn.disabled = false;
         }
-    });
+    }
 
     // ---- Reassign Task (dispatcher correction of an accidental assignment) ----
     const jrModal = document.getElementById("jrReassignModal");
@@ -412,7 +458,6 @@ document.addEventListener("DOMContentLoaded", function () {
         validateReassignForm();
     }
 
-    reassignBtn?.addEventListener("click", openReassignModal);
     jrModalCloseBtn?.addEventListener("click", closeReassignModal);
     jrModalCancelBtn?.addEventListener("click", closeReassignModal);
     jrModal?.addEventListener("click", function (e) {
@@ -455,8 +500,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            // Update the row + drawer in place — no full reload needed since
-            // the booking's status/bucket doesn't change, only ownership.
+            // Update the row + inline detail in place — no full reload needed
+            // since the booking's status/bucket doesn't change, only ownership.
             currentRow.dataset.unit = data.unit_name || "";
             currentRow.dataset.teamleader = data.team_leader_name || "";
             currentRow.dataset.driver = data.driver_name || "";
@@ -469,9 +514,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (secondary) secondary.textContent = data.team_leader_name || "Unassigned";
             }
 
-            fillField("drawer-unit", data.unit_name);
-            fillField("drawer-teamleader", data.team_leader_name);
-            fillField("drawer-driver", data.driver_name);
+            fillField("job-detail-unit", data.unit_name);
+            fillField("job-detail-teamleader", data.team_leader_name);
+            fillField("job-detail-driver", data.driver_name);
             if (jrCurrentUnit) jrCurrentUnit.textContent = data.unit_name || "—";
             if (jrCurrentTl) jrCurrentTl.textContent = data.team_leader_name || "—";
 
@@ -484,8 +529,14 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    // Escape closes the reassign modal first; otherwise it collapses the open job.
     document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape" && jrModal && jrModal.style.display !== "none") closeReassignModal();
+        if (e.key !== "Escape") return;
+        if (jrModal && jrModal.style.display !== "none") {
+            closeReassignModal();
+            return;
+        }
+        closeDetail();
     });
 
     const params = new URLSearchParams(window.location.search);
@@ -499,6 +550,7 @@ document.addEventListener("DOMContentLoaded", function () {
             target.scrollIntoView({ behavior: "smooth", block: "center" });
             target.classList.add("jobs-row--highlight");
             setTimeout(() => target.classList.remove("jobs-row--highlight"), 2600);
+            openDetail(target);
         }
         window.history.replaceState({}, document.title, window.location.pathname);
     }

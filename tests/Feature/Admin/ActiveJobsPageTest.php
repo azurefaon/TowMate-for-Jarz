@@ -317,20 +317,28 @@ it('no longer applies the old purple/colored status classes', function () {
         ->and($html)->toContain('jobs-status-text');
 });
 
-it('shows a plain dash for payment when a job is not awaiting verification', function () {
+it('has no Payment table column; payment lives only in the inline detail for awaiting jobs', function () {
     ajRoles();
     $dispatcher = ajDispatcher();
-    ajBooking('in_progress');
+    $booking = ajBooking('in_progress');
 
     $html = $this->actingAs($dispatcher)
         ->get(route('admin.jobs'))
         ->assertOk()
         ->getContent();
 
-    expect($html)->toContain('>—<');
+    expect($html)->not->toContain('<th>Payment</th>')
+        ->and($html)->not->toContain('Payment not yet submitted');
+
+    // The row itself carries no payment text/amount for a non-awaiting job.
+    $pos = strpos($html, 'data-booking-code="' . $booking->booking_code . '"');
+    $rowStart = strrpos(substr($html, 0, $pos), '<tr class="jobs-row');
+    $row = substr($html, $rowStart, strpos($html, '</tr>', $pos) - $rowStart);
+    expect($row)->toContain('data-payment-ready="0"')
+        ->and($row)->not->toContain('₱');
 });
 
-it('keeps rows keyboard-focusable and still wired to the existing drawer markup', function () {
+it('has the approved columns, a plain chevron column and a page heading/subtitle', function () {
     ajRoles();
     $dispatcher = ajDispatcher();
     ajBooking('assigned');
@@ -340,12 +348,118 @@ it('keeps rows keyboard-focusable and still wired to the existing drawer markup'
         ->assertOk()
         ->getContent();
 
-    expect($html)->toContain('class="jobs-row js-open-job-row" tabindex="0"')
-        ->and($html)->toContain('id="jobsDrawer"')
-        ->and($html)->toContain('id="drawerConfirmPaymentBtn"');
+    expect($html)->toContain('<h1 class="jobs-title">Active Jobs</h1>')
+        ->and($html)->toContain('<p class="jobs-subtitle">Monitor active towing jobs, assignments, and job progress.</p>')
+        ->and($html)->toContain('<th>Booking / Customer</th>')
+        ->and($html)->toContain('<th>Status</th>')
+        ->and($html)->toContain('<th>Unit / Team</th>')
+        ->and($html)->toContain('<th>Route</th>')
+        ->and($html)->toContain('<th>Updated</th>')
+        ->and($html)->toContain('<th class="jobs-col-chevron" aria-label="Expand"></th>')
+        ->and($html)->toContain('class="jobs-chevron"')
+        ->and($html)->not->toContain('Active Operations');
 });
 
-it('renames the drawer Service Summary section to Route, using real pickup/drop-off data', function () {
+it('renders one hidden inline detail row directly after every job row, and no drawer', function () {
+    ajRoles();
+    $dispatcher = ajDispatcher();
+    $a = ajBooking('assigned');
+    $b = ajBooking('on_the_way');
+
+    $html = $this->actingAs($dispatcher)
+        ->get(route('admin.jobs'))
+        ->assertOk()
+        ->getContent();
+
+    foreach ([$a, $b] as $booking) {
+        $pos = strpos($html, 'data-booking-code="' . $booking->booking_code . '"');
+        $rowEnd = strpos($html, '</tr>', $pos) + strlen('</tr>');
+        expect(trim(substr($html, $rowEnd, 140)))
+            ->toStartWith('<tr class="jobs-detail-row" data-detail-for="' . $booking->booking_code . '" hidden>');
+    }
+
+    expect(substr_count($html, 'class="jobs-detail-row"'))->toBe(2)
+        ->and($html)->not->toContain('jobsDrawer')
+        ->and($html)->not->toContain('jobs-drawer')
+        ->and($html)->not->toContain('drawerConfirmPaymentBtn')
+        ->and($html)->toContain('id="jobsDetailTemplate"');
+});
+
+it('uses Driver / No driver recorded wording and has no Member Driver label', function () {
+    ajRoles();
+    $dispatcher = ajDispatcher();
+    $booking = ajBooking('assigned');
+
+    $html = $this->actingAs($dispatcher)
+        ->get(route('admin.jobs'))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->toContain('data-driver="No driver recorded"')
+        ->and($html)->toContain('<dt>Driver</dt>')
+        ->and($html)->not->toContain('Member Driver')
+        ->and($html)->not->toContain('No member recorded');
+});
+
+it('shows the agreed amount only in the inline detail, never in the table row', function () {
+    ajRoles();
+    $dispatcher = ajDispatcher();
+    $booking = ajBooking('in_progress');
+
+    $html = $this->actingAs($dispatcher)
+        ->get(route('admin.jobs'))
+        ->assertOk()
+        ->getContent();
+
+    $pos = strpos($html, 'data-booking-code="' . $booking->booking_code . '"');
+    $rowStart = strrpos(substr($html, 0, $pos), '<tr class="jobs-row');
+    $row = substr($html, $rowStart, strpos($html, '</tr>', $pos) - $rowStart);
+
+    // Existing data source (booking/group total) feeds the detail; the row
+    // never prints an amount.
+    expect($row)->toContain('data-total="1,950.00"')
+        ->and($row)->not->toContain('₱')
+        ->and($html)->toContain('<dt>Agreed amount</dt>')
+        ->and(substr_count($html, 'id="job-detail-agreed"'))->toBe(1);
+});
+
+it('jobs.js has no drawer code and implements one-open-at-a-time, Escape and ?booking auto-open', function () {
+    $js = file_get_contents(public_path('dispatcher/js/jobs.js'));
+
+    expect($js)->not->toContain('openDrawer')
+        ->and($js)->not->toContain('closeDrawer')
+        ->and($js)->not->toContain('jobsDrawer')
+        ->and($js)->not->toContain('drawerConfirmPaymentBtn')
+        // one open at a time
+        ->and($js)->toContain('if (currentRow && currentRow !== row) closeDetail();')
+        // Escape: reassign modal first, otherwise collapse the open job
+        ->and($js)->toContain('closeReassignModal();' . "\n" . '            return;')
+        // ?booking=CODE still highlights/scrolls/clears AND now expands the row
+        ->and($js)->toContain('target.classList.add("jobs-row--highlight");')
+        ->and($js)->toContain('openDetail(target);')
+        ->and($js)->toContain('window.history.replaceState')
+        // reassign stays limited to the exact "assigned" status
+        ->and($js)->toContain('row.dataset.status === "assigned"');
+});
+
+it('keeps rows keyboard-focusable and wired to the inline detail (confirm payment + reassign hooks)', function () {
+    ajRoles();
+    $dispatcher = ajDispatcher();
+    ajBooking('assigned');
+
+    $html = $this->actingAs($dispatcher)
+        ->get(route('admin.jobs'))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->toContain('class="jobs-row js-open-job-row" tabindex="0" aria-expanded="false"')
+        ->and($html)->toContain('id="job-detail-confirm-btn"')
+        ->and($html)->toContain('id="job-detail-reassign-btn"')
+        ->and($html)->toContain('data-confirm-url=')
+        ->and($html)->toContain('id="jrReassignModal"');
+});
+
+it('shows a Route section (not Service Summary) in the inline detail, using real pickup/drop-off data', function () {
     ajRoles();
     $dispatcher = ajDispatcher();
     $booking = ajBooking('assigned', [
@@ -360,15 +474,17 @@ it('renames the drawer Service Summary section to Route, using real pickup/drop-
         ->getContent();
 
     expect($html)->not->toContain('Service Summary');
-    expect($html)->toContain('<div class="jobs-drawer-section-title">Route</div>');
+    expect($html)->toContain('<h3 class="jobs-detail-title">Route</h3>')
+        ->and($html)->toContain('id="job-detail-pickup"')
+        ->and($html)->toContain('id="job-detail-dropoff"');
 
-    // The drawer's pickup/drop-off values are the row's real dataset values,
+    // The detail's pickup/drop-off values are the row's real dataset values,
     // which come straight from the booking's own pickup_address/dropoff_address.
     expect($html)->toContain('data-pickup="Katipunan Avenue, Quezon City"');
     expect($html)->toContain('data-dropoff="SM Megamall, Mandaluyong"');
 });
 
-it('exposes the booking distance to the drawer without recalculating it', function () {
+it('exposes the booking distance to the inline detail without recalculating it', function () {
     ajRoles();
     $dispatcher = ajDispatcher();
     $booking = ajBooking('assigned');
@@ -382,8 +498,8 @@ it('exposes the booking distance to the drawer without recalculating it', functi
     // Same authoritative distance_km column used everywhere else — a plain
     // pass-through, not a new calculation.
     expect($html)->toContain('data-distance-km="8.4');
-    expect($html)->toContain('id="drawer-distance-wrap"');
-    expect($html)->toContain('id="drawer-distance"');
+    expect($html)->toContain('id="job-detail-distance-wrap"');
+    expect($html)->toContain('id="job-detail-distance"');
     expect($booking->fresh()->distance_km)->toEqual(8.4);
 });
 
@@ -397,16 +513,16 @@ it('removes the old yellow/hollow timeline dots and connecting line from the rou
         ->assertOk()
         ->getContent();
 
-    // The OLD yellow-filled/hollow timeline dots and connecting line —
-    // distinct from the new .rb-route-dot (green pickup / red drop-off)
-    // reused from Dispatch Queue below, which intentionally does use dots.
+    // Neither the old yellow/hollow timeline dots nor the .rb-route-dot
+    // (green pickup / red drop-off) are used by the inline detail.
     expect($html)->not->toContain('class="route-dot')
+        ->and($html)->not->toContain('rb-route-dot')
         ->and($html)->not->toContain('jobs-drawer-route-line')
         ->and($html)->not->toContain('route-from')
         ->and($html)->not->toContain('route-to');
 });
 
-it('uses the same .rb-route markup/classes as the approved Dispatch Queue route component', function () {
+it('renders the inline detail route as plain labelled text, with no .rb-route dot component', function () {
     ajRoles();
     $dispatcher = ajDispatcher();
     $booking = ajBooking('assigned');
@@ -417,17 +533,13 @@ it('uses the same .rb-route markup/classes as the approved Dispatch Queue route 
         ->assertOk()
         ->getContent();
 
-    // Same container, same green pickup dot, same red drop-off dot, same
-    // dashed-divider distance row — identical to booking-drawer.js's
-    // routeSectionHtml() used by both Book Now and Scheduled.
-    expect($html)->toContain('<div class="rb-route">')
-        ->and($html)->toContain('<span class="rb-route-dot rb-pick"></span>')
-        ->and($html)->toContain('<span class="rb-route-dot rb-drop"></span>')
-        ->and($html)->toContain('class="rb-route-meta"')
-        ->and($html)->toContain('<span class="rb-route-addr" id="drawer-pickup">');
+    expect($html)->not->toContain('rb-route')
+        ->and($html)->toContain('<dt>Pickup</dt>')
+        ->and($html)->toContain('<dt>Drop-off</dt>')
+        ->and($html)->toContain('<dt>Distance</dt>');
 });
 
-it('renames the drawer Service Type label to Truck Type, using the real truck type value', function () {
+it('labels the inline detail Truck type (not Service Type), using the real truck type value', function () {
     ajRoles();
     $dispatcher = ajDispatcher();
     $truckType = ajTruckType('Medium Duty');
@@ -461,8 +573,8 @@ it('renames the drawer Service Type label to Truck Type, using the real truck ty
         ->getContent();
 
     expect($html)->not->toContain('>Service Type<');
-    expect($html)->toContain('<div class="jobs-drawer-section-title">Truck Type</div>');
-    // data-service is what jobs.js renders into the drawer's Truck Type
+    expect($html)->toContain('<dt>Truck type</dt>');
+    // data-service is what jobs.js renders into the inline detail's Truck type
     // value — confirmed to come from the booking's real truckType relation.
     expect($html)->toContain('data-service="' . $truckType->name . '"');
     expect($booking->truckType->name)->toBe('Medium Duty');
