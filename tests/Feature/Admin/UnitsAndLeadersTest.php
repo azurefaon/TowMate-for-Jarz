@@ -560,7 +560,7 @@ it('25. Existing dispatch transaction still rejects a stale/ineligible Unit', fu
 // Page-render (HTML) scenarios A-I
 // ===========================================================================
 
-it('34. [A] Available unit page render: Duty Available, Workload Free, Availability Available, Transfer Team shown', function () {
+it('34. [A] Available unit page render: Duty Available, Availability Available, Transfer Team shown', function () {
     ulRoles();
     $dispatcher = ulDispatcher();
     $tl = ulTeamLeader('Bea Fernandez');
@@ -571,7 +571,8 @@ it('34. [A] Available unit page render: Duty Available, Workload Free, Availabil
     expect($html)->toContain('Bea Fernandez')
         ->and($html)->toContain('Paolo Cruz')
         ->and($html)->toContain('Available') // Duty + Availability values
-        ->and($html)->toContain('Free') // Workload
+        // Workload is no longer shown separately: Availability already says Busy.
+        ->and($html)->toContain('ul-status ul-status--available">Available')
         ->and($html)->toContain('Transfer team');
 });
 
@@ -592,7 +593,7 @@ it('35. [B] Offline TL but operationally Available: Presence Offline, Duty Avail
         ->and($html)->toContain('Offline');
 });
 
-it('36. [C] Duty Unavailable renders Availability Not Available with the reason', function () {
+it('36. [C] Duty Unavailable renders Availability Unavailable with the reason', function () {
     ulRoles();
     $dispatcher = ulDispatcher();
     $tl = ulTeamLeader('Carlo Duty Off');
@@ -602,7 +603,8 @@ it('36. [C] Duty Unavailable renders Availability Not Available with the reason'
     $html = $this->actingAs($dispatcher)->get(route('admin.drivers'))->assertOk()->getContent();
 
     expect($html)->toContain('JARZ Charlie')
-        ->and($html)->toContain('Not Available')
+        ->and($html)->toContain('ul-status ul-status--unavailable">Unavailable')
+        ->and($html)->toContain('Off duty') // the reason lives in the Team column
         ->and($html)->toContain('Unavailable');
 });
 
@@ -677,7 +679,7 @@ it('40. [E] Reserved unit hides Assign/Return/Transfer and shows View Booking + 
         ->and($html)->toContain($booking->booking_code)
         ->and($html)->toContain('Reserved')
         ->and($html)->toContain('View booking')
-        ->and($html)->toContain('Not Available')
+        ->and($html)->toContain('ul-status ul-status--reserved">Reserved')
         ->and($html)->not->toContain('data-action="open-assign"')
         ->and($html)->not->toContain('data-action="return-team-leader"')
         ->and($html)->not->toContain('data-action="return-slot"')
@@ -713,7 +715,7 @@ it('41. [F] Active-Job/Busy unit shows Workload Busy, View Job, booking code, an
         ->and($html)->toContain($booking->booking_code)
         ->and($html)->toContain('View job')
         ->and($html)->toContain('Busy')
-        ->and($html)->toContain('Not Available')
+        ->and($html)->toContain('ul-status ul-status--busy">Busy')
         ->and($html)->not->toContain('data-action="open-assign"')
         ->and($html)->not->toContain('data-action="return-team-leader"')
         ->and($html)->not->toContain('data-action="return-slot"')
