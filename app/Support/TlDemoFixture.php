@@ -37,9 +37,18 @@ final class TlDemoFixture
     /** Statuses in which the app may offer the button (accepted first moves to on_the_way via the normal path). */
     private const OFFER_STATUSES = ['accepted', 'on_the_way', 'on_job'];
 
+    /**
+     * local/testing always; production only when TL_DEMO_ARRIVAL_ENABLED is
+     * explicitly true. Every other environment (e.g. staging) stays closed, and
+     * the fixture/ownership/transition checks apply in all cases.
+     */
     public static function environmentAllowsDemo(): bool
     {
-        return app()->environment(['local', 'testing']);
+        if (app()->environment(['local', 'testing'])) {
+            return true;
+        }
+
+        return app()->environment('production') && config('towmate.demo_arrival_enabled') === true;
     }
 
     public static function isDemoUser(?User $user): bool

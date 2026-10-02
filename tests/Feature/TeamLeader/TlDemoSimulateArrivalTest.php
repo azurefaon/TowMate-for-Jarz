@@ -266,3 +266,176 @@ it('rerunning the seed command resets a simulated booking to assigned without du
         ->and(User::where('email', TlDemoFixture::TL_EMAIL)->count())->toBe(1)
         ->and(Booking::where('assigned_team_leader_id', $tl->id)->count())->toBe(1);
 });
+
+// ---------------------------------------------------------------------------
+// Production demo gate: TL_DEMO_ARRIVAL_ENABLED (config towmate.demo_arrival_enabled)
+// ---------------------------------------------------------------------------
+
+function simAsEnvironment(string $env, ?bool $flag, Closure $fn): void
+{
+    $originalEnv = app()['env'];
+    $originalFlag = config('towmate.demo_arrival_enabled');
+    app()['env'] = $env;
+    config(['towmate.demo_arrival_enabled' => $flag]);
+    try {
+        $fn();
+    } finally {
+        app()['env'] = $originalEnv;
+        config(['towmate.demo_arrival_enabled' => $originalFlag]);
+    }
+}
+
+function simOffered(User $as): bool
+{
+    Sanctum::actingAs($as);
+
+    return (bool) test()->getJson('/api/v1/team-leader/task')->assertOk()->json('data.demo_arrival_available');
+}
+
+it('E: the demo flag defaults to OFF when TL_DEMO_ARRIVAL_ENABLED is absent', function () {
+    $repository = \Illuminate\Support\Env::getRepository();
+    $previous = \Illuminate\Support\Env::get('TL_DEMO_ARRIVAL_ENABLED');
+    $repository->clear('TL_DEMO_ARRIVAL_ENABLED');
+    try {
+        $config = require config_path('towmate.php');
+        expect($config['demo_arrival_enabled'])->toBeFalse();
+
+        foreach (['true' => true, '1' => true, 'false' => false, '0' => false, '' => false, 'garbage' => false] as $raw => $expected) {
+            $repository->set('TL_DEMO_ARRIVAL_ENABLED', (string) $raw);
+            expect((require config_path('towmate.php'))['demo_arrival_enabled'])->toBe($expected, "raw={$raw}");
+        }
+    } finally {
+        $repository->clear('TL_DEMO_ARRIVAL_ENABLED');
+        if ($previous !== null) {
+            $repository->set('TL_DEMO_ARRIVAL_ENABLED', (string) $previous);
+        }
+    }
+});
+
+it('A: production with the flag false or unset: 404 and the simulator is not offered', function (?bool $flag) {
+    [$tl, $booking] = simSeedDemo();
+    $booking->update(['status' => 'on_the_way']);
+
+    simAsEnvironment('production', $flag, function () use ($tl, $booking) {
+        simSimulate($tl, $booking)->assertNotFound();
+        expect(simOffered($tl))->toBeFalse();
+    });
+
+    expect($booking->fresh()->status)->toBe('on_the_way')
+        ->and(AuditLog::where('action', 'demo_arrival_simulated')->count())->toBe(0);
+})->with([false, null]);
+
+it('B: production with the flag true still blocks any non-demo Team Leader', function () {
+    [$demoTl, $demoBooking] = simSeedDemo();
+    $demoBooking->update(['status' => 'on_the_way']);
+    [$other, $otherBooking] = simOtherTeamLeader();
+
+    simAsEnvironment('production', true, function () use ($other, $otherBooking, $demoBooking) {
+        simSimulate($other, $otherBooking)->assertNotFound();
+        simSimulate($other, $demoBooking)->assertNotFound();
+        expect(simOffered($other))->toBeFalse();
+    });
+
+    expect($otherBooking->fresh()->status)->toBe('on_the_way')
+        ->and($demoBooking->fresh()->status)->toBe('on_the_way');
+});
+
+it('C: production with the flag true still blocks a non-demo booking, even for the demo Team Leader', function () {
+    [$tl, $booking] = simSeedDemo();
+    $booking->update(['status' => 'on_the_way', 'dispatcher_note' => 'Ordinary customer job']);
+
+    simAsEnvironment('production', true, function () use ($tl, $booking) {
+        simSimulate($tl, $booking)->assertNotFound();
+        expect(simOffered($tl))->toBeFalse();
+    });
+
+    expect($booking->fresh()->status)->toBe('on_the_way');
+});
+
+it('C: production with the flag true blocks a demo booking whose customer is not the demo customer', function () {
+    [$tl, $booking] = simSeedDemo();
+    $booking->update(['status' => 'on_the_way']);
+    $booking->customer->update(['email' => 'someone.else@example.com']);
+
+    simAsEnvironment('production', true, function () use ($tl, $booking) {
+        simSimulate($tl, $booking)->assertNotFound();
+        expect(simOffered($tl))->toBeFalse();
+    });
+
+    expect($booking->fresh()->status)->toBe('on_the_way');
+});
+
+it('D: production with the flag true and the real demo fixture: offered, no GPS, both legs', function () {
+    [$tl, $booking] = simSeedDemo();
+    $booking->update(['status' => 'on_the_way']);
+    $unit = Unit::find($booking->assigned_unit_id);
+    $before = [
+        'pickup' => [$booking->fresh()->pickup_lat, $booking->fresh()->pickup_lng],
+        'dropoff' => [$booking->fresh()->dropoff_lat, $booking->fresh()->dropoff_lng],
+        'unit' => [$unit?->current_lat, $unit?->current_lng, $unit?->location_updated_at],
+    ];
+
+    simAsEnvironment('production', true, function () use ($tl, $booking) {
+        expect(simOffered($tl))->toBeTrue();
+        simSimulate($tl, $booking)->assertOk()->assertJson(['success' => true, 'status' => 'arrived_pickup']);
+        expect($booking->fresh()->status)->toBe('arrived_pickup')
+            ->and(simOffered($tl))->toBeFalse(); // not offered at arrived_pickup
+
+        $booking->update(['status' => 'on_job']);
+        expect(simOffered($tl))->toBeTrue();
+        simSimulate($tl, $booking)->assertOk()->assertJson(['status' => 'arrived_dropoff']);
+        expect($booking->fresh()->status)->toBe('arrived_dropoff');
+    });
+
+    $fresh = $booking->fresh();
+    $unitAfter = Unit::find($booking->assigned_unit_id);
+    expect([$fresh->pickup_lat, $fresh->pickup_lng])->toEqual($before['pickup'])
+        ->and([$fresh->dropoff_lat, $fresh->dropoff_lng])->toEqual($before['dropoff'])
+        ->and([$unitAfter?->current_lat, $unitAfter?->current_lng, $unitAfter?->location_updated_at])->toEqual($before['unit'])
+        ->and(AuditLog::where('action', 'demo_arrival_simulated')->count())->toBe(2);
+});
+
+it('D: production with the flag true keeps ownership and lifecycle rules for the demo fixture', function () {
+    [$tl, $booking] = simSeedDemo();
+    [$other] = simOtherTeamLeader();
+
+    simAsEnvironment('production', true, function () use ($tl, $booking, $other) {
+        // Wrong lifecycle stage: rejected with zero mutation.
+        foreach (['assigned', 'accepted', 'arrived_pickup', 'in_progress', 'arrived_dropoff', 'waiting_verification', 'completed'] as $status) {
+            $booking->update(['status' => $status]);
+            simSimulate($tl, $booking)->assertStatus(422);
+            expect($booking->fresh()->status)->toBe($status);
+        }
+
+        // Reassigned away from the demo Team Leader: no longer allowed.
+        $booking->update(['status' => 'on_the_way', 'assigned_team_leader_id' => $other->id]);
+        simSimulate($tl, $booking)->assertNotFound();
+        expect($booking->fresh()->status)->toBe('on_the_way');
+    });
+});
+
+it('production with the flag true: the normal arrival endpoint still enforces the 150 m rule', function () {
+    [$tl, $booking] = simSeedDemo();
+    $booking->update(['status' => 'on_the_way']);
+
+    simAsEnvironment('production', true, function () use ($tl, $booking) {
+        Sanctum::actingAs($tl);
+        test()->patchJson("/api/v1/team-leader/task/{$booking->booking_code}/status", ['status' => 'arrived_pickup'])
+            ->assertStatus(422);
+        test()->patchJson("/api/v1/team-leader/task/{$booking->booking_code}/status", [
+            'status' => 'arrived_pickup', 'lat' => 0.0, 'lng' => 0.0, 'is_demo' => true,
+        ])->assertStatus(422);
+    });
+
+    expect($booking->fresh()->status)->toBe('on_the_way');
+});
+
+it('staging stays closed even with the flag true', function () {
+    [$tl, $booking] = simSeedDemo();
+    $booking->update(['status' => 'on_the_way']);
+
+    simAsEnvironment('staging', true, function () use ($tl, $booking) {
+        simSimulate($tl, $booking)->assertNotFound();
+        expect(simOffered($tl))->toBeFalse();
+    });
+});

@@ -153,8 +153,9 @@ it('C: is_demo=true on the normal endpoint cannot bypass GPS at pickup', functio
 });
 
 it('D: no environment/config flag can turn the normal endpoint into a GPS bypass', function () {
-    // The old key is gone entirely, and setting it (or a client flag) does nothing.
-    expect(array_key_exists('demo_arrival_enabled', config('towmate')))->toBeFalse();
+    // The production demo gate (config towmate.demo_arrival_enabled) only opens the
+    // dedicated demo endpoint for the demo fixture; it never affects this one.
+    expect(array_key_exists('demo_arrival_enabled', config('towmate')))->toBeTrue();
 
     foreach ([true, false] as $enabled) {
         config(['towmate.demo_arrival_enabled' => $enabled]);

@@ -19,4 +19,18 @@ return [
 
     'current_privacy_version' => env('TOWMATE_PRIVACY_VERSION', '1.0'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Team Leader Demo Arrival (presentation only)
+    |--------------------------------------------------------------------------
+    |
+    | OFF by default. local/testing always allow the demo-arrival simulator for
+    | the seeded demo fixture; production allows it ONLY while this is true.
+    | It never relaxes the fixture checks (demo Team Leader account + demo
+    | booking marker + ownership + lifecycle transition) — see TlDemoFixture.
+    |
+    */
+
+    'demo_arrival_enabled' => filter_var(env('TL_DEMO_ARRIVAL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
 ];
