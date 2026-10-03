@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AuditLog;
+use App\Models\Booking;
 use App\Models\Personnel;
 use App\Models\Unit;
 use App\Models\UnitCrewLoan;
@@ -199,6 +200,60 @@ class UnitTeamAssignmentService
     }
 
     /**
+     * Everyone currently engaged operationally, by Personnel id and by
+     * normalized name: on any unit slot, on an open borrow/transfer loan, or
+     * named as the driver of an active job. Names are included so a legacy
+     * slot, a name-only loan, or a duplicate Personnel record can never make a
+     * placed or busy person look free. Regular/home unit is irrelevant here.
+     *
+     * @return array{ids: int[], names: string[]}
+     */
+    public function engagedPersonnel(): array
+    {
+        $ids = [];
+        $names = [];
+        $norm = fn (?string $value) => mb_strtolower(preg_replace('/\s+/', ' ', trim((string) $value)));
+
+        foreach (Unit::whereNull('archived_at')->get() as $unit) {
+            foreach (Unit::SLOT_PERSONNEL_COLUMNS as $slot => $idColumn) {
+                if ($unit->{$idColumn}) {
+                    $ids[] = (int) $unit->{$idColumn};
+                }
+                if (filled($unit->{Unit::SLOT_COLUMNS[$slot]})) {
+                    $names[] = $norm($unit->{Unit::SLOT_COLUMNS[$slot]});
+                }
+            }
+        }
+
+        foreach (UnitCrewLoan::whereNull('returned_at')->get() as $loan) {
+            if ($loan->personnel_id) {
+                $ids[] = (int) $loan->personnel_id;
+            }
+            if (filled($loan->person_name)) {
+                $names[] = $norm($loan->person_name);
+            }
+        }
+
+        $busyDrivers = Booking::whereIn('status', app(TeamLeaderAvailabilityService::class)->busyStatusesList())
+            ->whereNull('returned_at')
+            ->whereNotNull('driver_name')
+            ->pluck('driver_name');
+        foreach ($busyDrivers as $name) {
+            $names[] = $norm($name);
+        }
+
+        return ['ids' => array_values(array_unique($ids)), 'names' => array_values(array_unique(array_filter($names)))];
+    }
+
+    public function isPersonnelEngaged(Personnel $personnel): bool
+    {
+        $engaged = $this->engagedPersonnel();
+
+        return in_array((int) $personnel->id, $engaged['ids'], true)
+            || in_array(mb_strtolower(preg_replace('/\s+/', ' ', trim((string) $personnel->full_name))), $engaged['names'], true);
+    }
+
+    /**
      * Places an active, registered Personnel record that is not currently on
      * any unit directly into an empty Driver/Crew slot (no source unit to
      * borrow from, so no loan is created).
@@ -236,8 +291,8 @@ class UnitTeamAssignmentService
             if ($personnel->role !== $expectedRole) {
                 throw new RuntimeException('This person cannot fill that slot.');
             }
-            if (Unit::unitIdsHoldingPersonnel($personnel->id)->isNotEmpty()) {
-                throw new RuntimeException('This person is already assigned to a unit. Borrow them from that unit instead.');
+            if ($this->isPersonnelEngaged($personnel)) {
+                throw new RuntimeException('This person is already assigned to a unit, on loan, or on an active job and cannot be assigned.');
             }
 
             $target->update([$toColumn => $personnel->full_name, $toPersonnelColumn => $personnel->id] + $this->seedValue($toSlot, null));

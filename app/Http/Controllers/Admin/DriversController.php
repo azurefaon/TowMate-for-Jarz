@@ -127,6 +127,12 @@ class DriversController extends Controller
 
                     $state = $this->availability->evaluate($unit);
 
+                    // A person on a unit that is busy with a job is committed
+                    // to it and must not be offered for another unit.
+                    if ($state['active_booking']) {
+                        continue;
+                    }
+
                     $people->push([
                         'name' => $name,
                         'personnel_id' => $personnel->id,
@@ -134,24 +140,22 @@ class DriversController extends Controller
                         'source_unit_name' => $unit->name,
                         'from_slot' => $slot,
                         'duty' => $slot === 'driver_1' ? $unit->driverDutyStatus() : $unit->crewDutyStatus($slot === 'crew_member_1' ? 1 : 2),
-                        'eligible' => ! $state['active_booking'] && ! $state['reservation'],
+                        'eligible' => ! $state['reservation'],
                     ]);
                 }
             }
 
-            // Active registered Personnel not on any unit slot are directly
-            // assignable too — they have no source unit to borrow from.
-            $heldIds = $units
-                ->flatMap(fn (Unit $unit) => collect(Unit::SLOT_PERSONNEL_COLUMNS)->map(fn ($column) => $unit->{$column}))
-                ->filter()
-                ->map(fn ($id) => (int) $id)
-                ->all();
+            // Active registered Personnel who are genuinely free — not on any
+            // unit slot, on an open loan, or on an active job (by id or name).
+            $engaged = $this->teamAssignment->engagedPersonnel();
+            $normalize = fn (?string $value) => mb_strtolower(preg_replace('/\s+/', ' ', trim((string) $value)));
 
             Personnel::where('role', $role)
                 ->where('personnel_status', 'active')
-                ->whereNotIn('id', $heldIds)
+                ->whereNotIn('id', $engaged['ids'])
                 ->orderBy('first_name')
                 ->get()
+                ->reject(fn (Personnel $personnel) => in_array($normalize($personnel->full_name), $engaged['names'], true))
                 ->each(function (Personnel $personnel) use ($people) {
                     $people->push([
                         'name' => $personnel->full_name,

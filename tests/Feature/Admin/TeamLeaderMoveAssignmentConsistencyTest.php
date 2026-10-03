@@ -192,7 +192,7 @@ it('does not treat a unit with an archived or dangling team leader as dispatchab
         ->and($row['reasons'])->toContain('no_team_leader');
 });
 
-it('offers an active unassigned driver and excludes invalid or busy ones', function () {
+it('offers an active unassigned driver and excludes invalid or busy ones entirely', function () {
     $dispatcher = tlmUser(2, 'TLM Dispatcher');
     $target = tlmUnit(tlmUser(3, 'TLM Target Leader'), ['driver_name' => null]);
 
@@ -211,10 +211,9 @@ it('offers an active unassigned driver and excludes invalid or busy ones', funct
             ->assertOk()->json('people')
     )->keyBy('personnel_id');
 
-    expect($people->keys()->all())->toEqualCanonicalizing([$free->id, $busyDriver->id])
+    expect($people->keys()->all())->toEqual([$free->id])
         ->and($people[$free->id]['eligible'])->toBeTrue()
-        ->and($people[$free->id]['source_unit_id'])->toBeNull()
-        ->and($people[$busyDriver->id]['eligible'])->toBeFalse();
+        ->and($people[$free->id]['source_unit_id'])->toBeNull();
 
     // The unassigned driver can then actually be assigned to the empty slot.
     $this->actingAs($dispatcher)->postJson(route('admin.drivers.units.assign-slot', $target), [
@@ -248,4 +247,97 @@ it('refuses to assign an inactive or already-placed personnel record as unassign
     }
 
     expect($target->fresh()->driver_personnel_id)->toBeNull();
+});
+
+function ipPeople(User $dispatcher, int $excludeUnitId): \Illuminate\Support\Collection
+{
+    return collect(
+        test()->actingAs($dispatcher)
+            ->getJson(route('admin.drivers.eligible-people', ['role' => 'driver', 'exclude_unit_id' => $excludeUnitId]))
+            ->assertOk()->json('people')
+    );
+}
+
+function ipDriver(string $first = 'Kevin Michael', string $last = 'Camaya'): Personnel
+{
+    return Personnel::create(['first_name' => $first, 'last_name' => $last, 'role' => 'driver', 'personnel_status' => 'active']);
+}
+
+it('excludes a driver borrowed to a busy unit and never labels them Unassigned', function () {
+    $dispatcher = tlmUser(2, 'TLM Dispatcher');
+    $kevin = ipDriver();
+    $home = tlmUnit(tlmUser(3, 'TLM Home Leader'), ['driver_name' => $kevin->full_name, 'driver_personnel_id' => $kevin->id]);
+    $busyLeader = tlmUser(3, 'TLM Busy Leader');
+    $busyUnit = tlmUnit($busyLeader, ['driver_name' => null, 'status' => 'on_job']);
+    $target = tlmUnit(tlmUser(3, 'TLM Target Leader'), ['driver_name' => null]);
+
+    app(\App\Services\UnitTeamAssignmentService::class)->assignSlotPerson($busyUnit, 'driver_1', $home, 'driver_1', $dispatcher);
+    tlmBooking($busyUnit, $busyLeader, 'on_the_way');
+
+    $people = ipPeople($dispatcher, $target->id);
+
+    expect($people->where('personnel_id', $kevin->id)->isEmpty())->toBeTrue()
+        ->and($people->where('source_unit_name', 'Unassigned')->where('name', $kevin->full_name)->isEmpty())->toBeTrue();
+
+    // Assigning him directly is refused server-side too.
+    $this->actingAs($dispatcher)->postJson(route('admin.drivers.units.assign-slot', $target), [
+        'to_slot' => 'driver_1', 'personnel_id' => $kevin->id,
+    ])->assertStatus(422);
+});
+
+it('excludes a driver on a name-only loan or duplicate personnel record, and frees them when it ends', function () {
+    $dispatcher = tlmUser(2, 'TLM Dispatcher');
+    $kevin = ipDriver();
+    $home = tlmUnit(tlmUser(3, 'TLM Home Leader'));
+    $away = tlmUnit(tlmUser(3, 'TLM Away Leader'), ['driver_name' => 'Kevin Michael Camaya']); // legacy: no personnel id
+    $target = tlmUnit(tlmUser(3, 'TLM Target Leader'), ['driver_name' => null]);
+    $loan = UnitCrewLoan::create([
+        'from_unit_id' => $home->id, 'to_unit_id' => $away->id,
+        'from_slot' => 'driver_1', 'to_slot' => 'driver_1',
+        'person_name' => 'Kevin Michael Camaya', 'borrowed_at' => now(),
+    ]);
+
+    expect(ipPeople($dispatcher, $target->id)->where('personnel_id', $kevin->id)->isEmpty())->toBeTrue();
+
+    // Loan ends and the legacy slot is cleared -> genuinely free again.
+    $loan->update(['returned_at' => now()]);
+    $away->update(['driver_name' => null]);
+
+    $row = ipPeople($dispatcher, $target->id)->firstWhere('personnel_id', $kevin->id);
+    expect($row)->not->toBeNull()->and($row['source_unit_name'])->toBe('Unassigned')->and($row['eligible'])->toBeTrue();
+});
+
+it('excludes a driver named on an active job and frees them when the job ends', function () {
+    $dispatcher = tlmUser(2, 'TLM Dispatcher');
+    $kevin = ipDriver();
+    $leader = tlmUser(3, 'TLM Job Leader');
+    $jobUnit = tlmUnit($leader, ['status' => 'on_job']);
+    $booking = tlmBooking($jobUnit, $leader, 'on_the_way');
+    $booking->update(['driver_name' => $kevin->full_name]);
+    $target = tlmUnit(tlmUser(3, 'TLM Target Leader'), ['driver_name' => null]);
+
+    expect(ipPeople($dispatcher, $target->id)->where('personnel_id', $kevin->id)->isEmpty())->toBeTrue();
+
+    $booking->update(['status' => 'completed']);
+
+    expect(ipPeople($dispatcher, $target->id)->where('personnel_id', $kevin->id)->isNotEmpty())->toBeTrue();
+});
+
+it('shows a driver placed on a free unit under that unit, not Unassigned, and a returned borrow goes home', function () {
+    $dispatcher = tlmUser(2, 'TLM Dispatcher');
+    $kevin = ipDriver();
+    $home = tlmUnit(tlmUser(3, 'TLM Home Leader'), ['driver_name' => $kevin->full_name, 'driver_personnel_id' => $kevin->id]);
+    $away = tlmUnit(tlmUser(3, 'TLM Away Leader'), ['driver_name' => null]);
+    $target = tlmUnit(tlmUser(3, 'TLM Target Leader'), ['driver_name' => null]);
+    $service = app(\App\Services\UnitTeamAssignmentService::class);
+
+    $row = ipPeople($dispatcher, $target->id)->firstWhere('personnel_id', $kevin->id);
+    expect($row['source_unit_id'])->toBe($home->id)->and($row['source_unit_name'])->toBe($home->name);
+
+    $service->assignSlotPerson($away, 'driver_1', $home, 'driver_1', $dispatcher);
+    expect(ipPeople($dispatcher, $target->id)->where('personnel_id', $kevin->id)->isEmpty())->toBeTrue();
+
+    $service->returnSlotPerson(UnitCrewLoan::firstOrFail(), $dispatcher);
+    $row = ipPeople($dispatcher, $target->id)->firstWhere('personnel_id', $kevin->id);
+    expect($row['source_unit_id'])->toBe($home->id);
 });
