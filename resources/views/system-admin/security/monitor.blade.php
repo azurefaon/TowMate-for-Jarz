@@ -67,7 +67,6 @@
                         <th>Event</th>
                         <th>Account</th>
                         <th>Role</th>
-                        <th>IP Address</th>
                         <th>Details</th>
                     </tr>
                 </thead>
@@ -76,14 +75,13 @@
                         <tr>
                             <td class="sa-muted">{{ $event->created_at->format('M d, Y g:i A') }}</td>
                             <td>{{ ucwords(str_replace('_', ' ', $event->action)) }}</td>
-                            <td>{{ $event->user?->full_name ?: ($event->user?->name ?: ($event->reference ?: '—')) }}</td>
+                            <td>{{ $event->user?->full_name ?: ($event->user?->name ?: (redact_ip_addresses($event->reference) ?: '—')) }}</td>
                             <td>{{ ($event->user?->role?->name ?? '—') === 'Admin' ? 'Dispatcher' : ($event->user?->role?->name ?? '—') }}</td>
-                            <td class="sa-muted">{{ $event->ip_address ?: '—' }}</td>
-                            <td class="sa-muted">{{ $event->description ?: '—' }}</td>
+                            <td class="sa-muted">{{ redact_ip_addresses($event->description) ?: '—' }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="sa-table-empty">No security events recorded yet.</td>
+                            <td colspan="5" class="sa-table-empty">No security events recorded yet.</td>
                         </tr>
                     @endforelse
                 </tbody>

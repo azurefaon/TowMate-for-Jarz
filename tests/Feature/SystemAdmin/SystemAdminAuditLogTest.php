@@ -48,7 +48,7 @@ it('renders technical and security logs that are excluded from owner business ac
         ->get(route('system-admin.audit-logs.index'))
         ->assertOk()
         ->assertSee('Failed Login')
-        ->assertSee('203.0.113.7');
+        ->assertDontSee('203.0.113.7');
 });
 
 it('filters logs by category', function () {
@@ -123,7 +123,7 @@ it('paginates audit log results', function () {
         ->assertSee('owner-pagination', false);
 });
 
-it('displays the ip address column', function () {
+it('does not display an ip address column or value', function () {
     $admin = auditLogSystemAdmin();
 
     AuditLog::create(['user_id' => null, 'action' => 'failed_login', 'ip_address' => '198.51.100.9']);
@@ -131,7 +131,8 @@ it('displays the ip address column', function () {
     $this->actingAs($admin)
         ->get(route('system-admin.audit-logs.index'))
         ->assertOk()
-        ->assertSee('198.51.100.9');
+        ->assertDontSee('198.51.100.9')
+        ->assertDontSee('IP Address');
 });
 
 it('is only reachable by system admin, not owner', function () {

@@ -140,3 +140,36 @@ if (!function_exists('is_public_email')) {
         return in_array($domain, public_email_domains(), true);
     }
 }
+
+if (!function_exists('redact_ip_addresses')) {
+    /**
+     * Display-only: strips IPv4/IPv6 addresses (and phrases like "from IP x")
+     * from free text shown to System Admins. Never used when storing data.
+     */
+    function redact_ip_addresses(?string $text): ?string
+    {
+        if ($text === null || $text === '') {
+            return $text;
+        }
+
+        $hex = '[0-9a-f]{1,4}';
+        $ipv4 = '(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.]*\d)';
+        $ipv6 = "(?<![\w:])(?:(?:{$hex}:){7}{$hex}|(?:{$hex}:){1,7}:(?:{$hex}(?::{$hex}){0,6})?|::(?:{$hex}(?::{$hex}){0,6})?)(?![\w:])";
+        $ip = "(?:{$ipv4}|{$ipv6})";
+
+        $clean = preg_replace(
+            "/[\s,;(]*\b(?:(?:from|via|at)\s+)?(?:(?:client|source|remote|request)\s+)?IP(?:\s+address)?\b\s*[:=]?\s*{$ip}\)?/i",
+            '',
+            $text
+        ) ?? $text;
+
+        $clean = preg_replace("/{$ip}/i", '', $clean) ?? $clean;
+        $clean = trim(preg_replace(['/[ \t]{2,}/', '/\s+([.,;])/'], [' ', '$1'], $clean) ?? $clean);
+
+        if ($clean !== trim($text) && $clean !== '' && ! preg_match('/[.!?]$/', $clean)) {
+            $clean .= '.';
+        }
+
+        return $clean;
+    }
+}

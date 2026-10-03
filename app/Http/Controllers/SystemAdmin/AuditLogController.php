@@ -39,6 +39,14 @@ class AuditLogController extends Controller
             ->when($category !== '', fn ($q) => $q->where('category', $category))
             ->when(filled($userId), fn ($q) => $q->where('user_id', $userId))
             ->when($search !== '', function ($q) use ($search) {
+                // IPs are hidden from System Admin output, so an IP-like term
+                // must not be usable to probe which rows contain one.
+                if (preg_match('/^[\d.]*\d\.[\d.]*$|:/', $search)) {
+                    $q->where('action', 'like', "%{$search}%");
+
+                    return;
+                }
+
                 $q->where(function ($q2) use ($search) {
                     $q2->where('description', 'like', "%{$search}%")
                         ->orWhere('reference', 'like', "%{$search}%")

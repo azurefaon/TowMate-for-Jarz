@@ -35,7 +35,6 @@
                         <th>Date &amp; Time</th>
                         <th>Event</th>
                         <th>Account</th>
-                        <th>IP Address</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -43,12 +42,11 @@
                         <tr>
                             <td class="sa-muted">{{ $event->created_at->format('M d, Y g:i A') }}</td>
                             <td>{{ ucwords(str_replace('_', ' ', $event->action)) }}</td>
-                            <td>{{ $event->user?->full_name ?: ($event->user?->name ?: ($event->reference ?: '—')) }}</td>
-                            <td class="sa-muted">{{ $event->ip_address ?: '—' }}</td>
+                            <td>{{ $event->user?->full_name ?: ($event->user?->name ?: (redact_ip_addresses($event->reference) ?: '—')) }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="sa-table-empty">No security events recorded yet.</td>
+                            <td colspan="3" class="sa-table-empty">No security events recorded yet.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -76,7 +74,7 @@
                         <tr>
                             <td class="sa-muted">{{ $event->created_at->format('M d, Y g:i A') }}</td>
                             <td>{{ ucwords(str_replace('_', ' ', $event->action)) }}</td>
-                            <td>{{ $event->reference ?: '—' }}</td>
+                            <td>{{ redact_ip_addresses($event->reference) ?: '—' }}</td>
                             <td class="sa-muted">{{ $event->user?->full_name ?: ($event->user?->name ?: 'System') }}</td>
                         </tr>
                     @empty

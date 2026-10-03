@@ -51,7 +51,6 @@
                         <th>Activity</th>
                         <th>User</th>
                         <th>Details</th>
-                        <th>IP Address</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -61,12 +60,11 @@
                             <td>{{ $categories[$log->category] ?? ucfirst($log->category ?? 'System') }}</td>
                             <td>{{ $log->activity_label }}</td>
                             <td>{{ $log->user?->full_name ?: ($log->user?->name ?: 'System') }}</td>
-                            <td class="sa-muted">{{ $log->description ?: ($log->reference ?: '—') }}</td>
-                            <td class="sa-muted">{{ $log->ip_address ?: '—' }}</td>
+                            <td class="sa-muted">{{ redact_ip_addresses($log->description) ?: (redact_ip_addresses($log->reference) ?: '—') }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="sa-table-empty">No audit log entries match these filters.</td>
+                            <td colspan="5" class="sa-table-empty">No audit log entries match these filters.</td>
                         </tr>
                     @endforelse
                 </tbody>

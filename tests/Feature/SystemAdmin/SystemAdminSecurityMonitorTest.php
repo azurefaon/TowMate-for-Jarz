@@ -82,7 +82,8 @@ it('renders the security events table using real audit data', function () {
         ->get(route('system-admin.security.monitor'))
         ->assertOk()
         ->assertSee('Account Temporarily Locked')
-        ->assertSee('10.0.0.5');
+        ->assertDontSee('10.0.0.5')
+        ->assertDontSee('IP Address');
 });
 
 it('does not render invented risk score or severity fields', function () {
