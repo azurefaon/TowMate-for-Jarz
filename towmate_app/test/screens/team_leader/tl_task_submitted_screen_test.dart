@@ -160,11 +160,12 @@ void main() {
       expect(find.text('Waiting for dispatcher confirmation to close the job.'), findsOneWidget);
     });
 
-    testWidgets('preserves the existing active-task bottom navigation tabs', (tester) async {
+    testWidgets('shows no leftover Task/Navigate tabs once payment is submitted', (tester) async {
       await pumpScreen(tester, task: submittedTaskJson());
 
-      expect(find.text('Task'), findsOneWidget);
-      expect(find.text('Navigate'), findsOneWidget);
+      expect(find.text('Waiting for dispatcher confirmation to close the job.'), findsOneWidget);
+      expect(find.text('Navigate'), findsNothing);
+      expect(find.byIcon(Icons.map_outlined), findsNothing);
       expect(find.text('Emergency'), findsNothing);
     });
 

@@ -107,6 +107,56 @@ void main() {
     await _runScenario(tester, ['on_the_way', 'arrived_pickup'], labels);
   });
 
+  testWidgets('a quotation arriving mid-session raises no in-app banner (push handles it)', (tester) async {
+    SharedPreferences.setMockInitialValues({'auth_token': 't', 'user_role': 'Customer', 'user_name': 'Faon'});
+    tester.view.physicalSize = const Size(390, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    Map<String, dynamic>? pending;
+    final client = MockClient((request) async {
+      final path = request.url.path;
+      if (path.endsWith('/v1/bookings/current')) return _json({'data': null});
+      if (path.endsWith('/v1/quotations/pending')) return _json({'data': pending});
+      if (path.endsWith('/v1/customer/content')) return _json({'announcement': null, 'services': []});
+      if (path.contains('/vehicle-types/by-category/')) return _json({'vehicleTypes': []});
+      if (path.endsWith('/v1/notifications')) return _json({'success': true, 'unread_count': 0, 'data': []});
+      return _json({});
+    });
+
+    await http.runWithClient(() async {
+      await tester.pumpWidget(MaterialApp(
+        navigatorObservers: [appRouteObserver],
+        home: const HomeScreen(),
+      ));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      pending = {
+        'id': 42,
+        'quotation_number': 'Q-0042',
+        'status': 'sent',
+        'estimated_price': 1500,
+        'distance_km': 5.2,
+        'pickup_address': '123 Main St',
+        'dropoff_address': '456 Side St',
+      };
+      await tester.pump(const Duration(seconds: 31));
+      for (var j = 0; j < 10; j++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.text('QUOTATION READY'), findsOneWidget);
+      expect(find.byType(MaterialBanner), findsNothing);
+      expect(find.textContaining('New quotation received'), findsNothing);
+      expect(find.textContaining('tap to review'), findsNothing);
+      expect(find.text('Dismiss'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+    }, () => client);
+  });
+
   testWidgets('5: stays stable without a banner in dark mode', (tester) async {
     await _runScenario(tester, ['on_the_way', 'arrived_pickup'], labels, theme: AppTheme.dark);
   });

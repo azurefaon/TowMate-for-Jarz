@@ -36,11 +36,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
   bool _secondaryLoading = true;
   String? _name;
   Timer? _pollTimer;
-
-  int? _lastSeenQuotationId;
-  String? _lastSeenQuotationStatus;
   int _unreadCount = 0;
-  bool _initialLoad = true;
   Timer? _notifTimer;
 
   @override
@@ -114,28 +110,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     final content = results[2] as Map<String, dynamic>?;
     final newAnnouncement = content?['announcement'] as Map<String, dynamic>?;
 
-    if (!_initialLoad) {
-      final newQuotId = newQuotation?.id;
-      final newQuotStatus = newQuotation?.status;
-
-      if (newQuotId != null && newQuotId != _lastSeenQuotationId) {
-        _notify('New quotation received — tap to review.');
-      } else if (newQuotId != null &&
-          newQuotStatus != null &&
-          newQuotStatus != _lastSeenQuotationStatus &&
-          _lastSeenQuotationStatus == 'price_review_requested') {
-        _notify('Your quotation has been updated — tap to review.');
-      }
-    }
-
     setState(() {
       _booking = newBooking;
       _quotation = newQuotation;
       _announcement = newAnnouncement;
       _loading = false;
-      _lastSeenQuotationId = newQuotation?.id ?? _lastSeenQuotationId;
-      _lastSeenQuotationStatus = newQuotation?.status ?? _lastSeenQuotationStatus;
-      _initialLoad = false;
     });
   }
 
@@ -161,29 +140,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     if (preferred.length >= _previewVehicleNames.length) return preferred;
     final rest = _vehicleNames.where((n) => !preferred.contains(n));
     return [...preferred, ...rest].take(_previewVehicleNames.length).toList();
-  }
-
-  void _notify(String message) {
-    ScaffoldMessenger.of(context).showMaterialBanner(
-      MaterialBanner(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        content: Text(
-          message,
-          style: GoogleFonts.inter(color: TmColors.black, fontSize: 13),
-        ),
-        backgroundColor: TmColors.yellow,
-        leading: const Icon(Icons.notifications, color: TmColors.black, size: 20),
-        actions: [
-          TextButton(
-            onPressed: () => ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
-            child: Text(
-              'Dismiss',
-              style: GoogleFonts.inter(color: TmColors.black, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   String get _greeting {

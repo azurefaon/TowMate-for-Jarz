@@ -217,6 +217,8 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
 
     final task = _task!;
     final isDone = task.status == 'completed' || task.status == 'returned';
+    // Driving is over once payment verification starts: no Navigate tab.
+    final showNavigate = !isDone && task.status != 'waiting_verification';
 
     return PopScope(
       canPop: isDone,
@@ -238,15 +240,17 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
             Expanded(
               child: isDone
                   ? _doneView(task)
-                  : IndexedStack(
-                      index: _tabIndex,
-                      children: [
-                        _taskTab(task),
-                        _navigateTab(task),
-                      ],
-                    ),
+                  : showNavigate
+                      ? IndexedStack(
+                          index: _tabIndex,
+                          children: [
+                            _taskTab(task),
+                            _navigateTab(task),
+                          ],
+                        )
+                      : _taskTab(task),
             ),
-            if (!isDone) _bottomNav(),
+            if (showNavigate) _bottomNav(),
           ],
         ),
       ),

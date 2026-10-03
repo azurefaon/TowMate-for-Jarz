@@ -315,6 +315,27 @@ void main() {
       expect(find.text('Emergency'), findsNothing);
     });
 
+    tlTest('payment verification step shows no Navigate tab or bottom nav', (tester) async {
+      await pumpShell(tester, task: {...activeTask, 'status': 'waiting_verification'});
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Navigate'), findsNothing);
+      expect(find.byIcon(Icons.map_outlined), findsNothing);
+      expect(find.byIcon(Icons.map_rounded), findsNothing);
+    });
+
+    tlTest('submitted payment awaiting dispatcher shows no Navigate tab', (tester) async {
+      await pumpShell(tester, task: {
+        ...activeTask,
+        'status': 'waiting_verification',
+        'payment_method': 'cash',
+      });
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Navigate'), findsNothing);
+      expect(find.byIcon(Icons.map_outlined), findsNothing);
+    });
+
     tlTest('active task shows the assigned team card', (tester) async {
       await pumpShell(tester, task: activeTask);
 
