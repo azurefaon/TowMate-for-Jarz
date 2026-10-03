@@ -79,6 +79,12 @@ Route::get('/track-booking', [PublicTrackController::class, 'index'])
     ->middleware('throttle:30,1')
     ->name('public.track');
 
+// Own per-IP bucket (prefix) so verification attempts don't share the
+// generic public throttle; PublicTrackController also caps failures per reference.
+Route::post('/track-booking', [PublicTrackController::class, 'verify'])
+    ->middleware('throttle:10,1,public-track-verify:')
+    ->name('public.track.verify');
+
 Route::get('/quotation/{quotation}', [QuotationController::class, 'show'])
     ->middleware(['signed', 'throttle:30,1'])
     ->name('quotation.show');

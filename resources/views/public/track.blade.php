@@ -79,7 +79,23 @@
 
         .search-form {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
+        }
+
+        .search-form .search-input {
+            min-width: 0;
+        }
+
+        .search-form .search-input--digits {
+            flex: 0 0 140px;
+        }
+
+        @media (max-width: 480px) {
+            .search-form .search-input,
+            .search-form .search-btn {
+                flex: 1 1 100%;
+            }
         }
 
         .search-input {
@@ -574,28 +590,45 @@
         <h1>Track Your <span>Booking</span></h1>
         <p>Enter your booking or quotation reference number to see your current status.</p>
         <div class="search-shell">
-            <form class="search-form" method="GET" action="{{ route('public.track') }}">
-                <input type="text" name="ref" class="search-input" placeholder="ex. QT-20260502-0001"
-                    value="{{ $ref }}" autocomplete="off" autofocus>
-                <button type="submit" class="search-btn">Track</button>
+            <form class="search-form" method="POST" action="{{ route('public.track.verify') }}">
+                @csrf
+                <input type="text" name="ref" class="search-input" placeholder="Booking reference"
+                    aria-label="Booking reference" value="{{ $ref }}" maxlength="40" autocomplete="off"
+                    required @if ($ref === '') autofocus @endif>
+                <input type="text" name="phone_last4" class="search-input search-input--digits"
+                    placeholder="Last 4 digits" aria-label="Last 4 digits of phone" inputmode="numeric"
+                    pattern="[0-9]{4}" maxlength="4" autocomplete="off" required
+                    @if ($ref !== '') autofocus @endif>
+                <button type="submit" class="search-btn">Track booking</button>
             </form>
-            <p class="search-hint">Use the reference number from your booking confirmation or quotation email.</p>
+            <p class="search-hint">Enter your booking reference and the last 4 digits of the phone number used for the booking.</p>
         </div>
     </div>
 
     <div class="page-body">
 
-        @if ($ref !== '' && $error)
-            <div class="alert alert-error">{!! $error !!}</div>
+        @php
+            // Public page shows only the general area: the street-level first
+            // segment and a trailing country/postal code are dropped, keeping
+            // at most the last two remaining segments (e.g. "Quezon City, Metro Manila").
+            $areaOf = function (?string $address): string {
+                $parts = array_values(array_filter(
+                    array_map('trim', explode(',', (string) $address)),
+                    fn ($part) => $part !== '' && ! preg_match('/^(philippines|\d{4})$/i', $part)
+                ));
+                $area = array_slice(array_slice($parts, 1), -2);
+
+                return $area ? implode(', ', $area) : '—';
+            };
+        @endphp
+
+        @if ($error)
+            <div class="alert alert-error">{{ $error }}</div>
         @endif
 
-        @if (session('error'))
-            <div class="alert alert-error">{{ session('error') }}</div>
-        @endif
-
-        @if ($ref === '' && !$booking)
+        @if (! $error && ! $booking && ! $quotation)
             <div class="alert alert-info">
-                Enter your reference number above to track your booking status in real time.
+                Enter your booking reference and phone digits above to see your booking status.
             </div>
         @endif
 
@@ -647,12 +680,6 @@
 
                 $statusLabel = $statusLabels[$status] ?? ucfirst(str_replace('_', ' ', $status));
                 $pillClass = 'pill-' . $status;
-
-                $baseRate = (float) ($booking->base_rate ?? ($booking->truckType?->base_rate ?? 0));
-                $distanceKm = (float) ($booking->distance_km ?? 0);
-                $distanceFee = app(\App\Services\BookingService::class)->distanceFeeFor($distanceKm, (float) ($booking->truckType?->per_km_rate ?? 0));
-                $finalTotal = (float) ($booking->final_total ?? 0);
-                $priceLocked = (bool) $booking->price_locked_at;
             @endphp
 
             <div class="result-card">
@@ -690,15 +717,15 @@
                     <div class="route-row">
                         <div class="route-dot dot-a">A</div>
                         <div class="route-addr">
-                            <label>Pickup</label>
-                            <p>{{ $booking->pickup_address ?? '—' }}</p>
+                            <label>Pickup area</label>
+                            <p>{{ $areaOf($booking->pickup_address) }}</p>
                         </div>
                     </div>
                     <div class="route-row">
                         <div class="route-dot dot-b">B</div>
                         <div class="route-addr">
-                            <label>Drop-off</label>
-                            <p>{{ $booking->dropoff_address ?? '—' }}</p>
+                            <label>Drop-off area</label>
+                            <p>{{ $areaOf($booking->dropoff_address) }}</p>
                         </div>
                     </div>
                 </div>
@@ -710,49 +737,11 @@
                             <p>{{ $booking->truckType?->name ?? '—' }}</p>
                         </div>
                         <div class="detail-item">
-                            <label>Distance</label>
-                            <p>{{ number_format($distanceKm, 2) }} km</p>
-                        </div>
-                        <div class="detail-item">
                             <label>Booked On</label>
                             <p>{{ $booking->created_at->format('M d, Y g:i A') }}</p>
                         </div>
-                        @if ($booking->unit?->teamLeader)
-                            <div class="detail-item">
-                                <label>Team Leader</label>
-                                <p>{{ $booking->unit->teamLeader->full_name ?? $booking->unit->teamLeader->name }}</p>
-                            </div>
-                        @endif
-                        @if ($booking->display_unit_name)
-                            <div class="detail-item">
-                                <label>Assigned Unit</label>
-                                <p>{{ $booking->display_unit_name }}
-                                    {{ $booking->display_unit_plate_number ? '· ' . $booking->display_unit_plate_number : '' }}</p>
-                            </div>
-                        @endif
                     </div>
                 </div>
-
-                @if ($finalTotal > 0)
-                    <div class="price-row">
-                        <div>
-                            <div class="price-label">Final Amount</div>
-                            @if ($priceLocked)
-                                {{-- <span class="price-locked">Price Locked</span> --}}
-                            @endif
-                        </div>
-                        <div class="price-value">₱{{ number_format($finalTotal, 2) }}</div>
-                    </div>
-                @endif
-
-                @if ($booking->currentInvoice)
-                    <div class="price-row">
-                        <div>
-                            <div class="price-label">Invoice {{ $booking->currentInvoice->invoice_number }}</div>
-                        </div>
-                        <div class="price-value">₱{{ number_format((float) $booking->currentInvoice->total, 2) }}</div>
-                    </div>
-                @endif
 
                 <div class="card-footer">
                     Last updated: {{ $booking->updated_at->diffForHumans() }} &nbsp;·&nbsp;
@@ -780,20 +769,12 @@
                         @endphp
                         <div style="background:#fff;border:1px solid #e5e7eb;padding:14px 16px;margin-bottom:8px;">
                             <div
-                                style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                                style="display:flex;justify-content:space-between;align-items:flex-start;">
                                 <div style="font-size:0.8rem;font-weight:700;">Vehicle {{ $gbIdx + 2 }} &mdash;
                                     {{ $gb->truckType?->name ?? 'Tow Truck' }}</div>
                                 <span
                                     style="font-size:0.72rem;font-weight:700;padding:3px 8px;background:#f0fdf4;color:#15803d;">{{ $gbLabel }}</span>
                             </div>
-                            @if ($gb->unit?->teamLeader)
-                                <div style="font-size:0.8rem;color:#374151;">Team Leader:
-                                    {{ $gb->unit->teamLeader->full_name ?? $gb->unit->teamLeader->name }}</div>
-                            @endif
-                            @if ($gb->final_total > 0)
-                                <div style="font-size:0.8rem;color:#374151;margin-top:4px;">Amount:
-                                    &#8369;{{ number_format((float) $gb->final_total, 2) }}</div>
-                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -902,15 +883,15 @@
                     <div class="route-row">
                         <div class="route-dot dot-a">A</div>
                         <div class="route-addr">
-                            <label>Pickup</label>
-                            <p>{{ $quotation->pickup_address ?? '—' }}</p>
+                            <label>Pickup area</label>
+                            <p>{{ $areaOf($quotation->pickup_address) }}</p>
                         </div>
                     </div>
                     <div class="route-row">
                         <div class="route-dot dot-b">B</div>
                         <div class="route-addr">
-                            <label>Drop-off</label>
-                            <p>{{ $quotation->dropoff_address ?? '—' }}</p>
+                            <label>Drop-off area</label>
+                            <p>{{ $areaOf($quotation->dropoff_address) }}</p>
                         </div>
                     </div>
                 </div>
@@ -920,10 +901,6 @@
                         <div class="detail-item">
                             <label>Truck Type</label>
                             <p>{{ $quotation->truckType?->name ?? '—' }}</p>
-                        </div>
-                        <div class="detail-item">
-                            <label>Distance</label>
-                            <p>{{ number_format((float) $quotation->distance_km, 2) }} km</p>
                         </div>
                         <div class="detail-item">
                             <label>Requested On</label>
@@ -938,13 +915,6 @@
                         @endif
                     </div>
                 </div>
-
-                @if ($quotation->estimated_price > 0)
-                    <div class="price-row">
-                        <div class="price-label">Estimated Amount</div>
-                        <div class="price-value">₱{{ number_format($quotation->estimated_price, 2) }}</div>
-                    </div>
-                @endif
 
                 <div class="card-footer">
                     Submitted: {{ $quotation->created_at->diffForHumans() }} &nbsp;·&nbsp;
