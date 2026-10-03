@@ -372,7 +372,6 @@ Route::prefix('system-admin')
 
         Route::get('/settings', [SystemAdminSystemSettingsController::class, 'index'])->name('settings.index');
         Route::post('/settings/update', [SystemAdminSystemSettingsController::class, 'update'])->name('settings.update');
-        Route::post('/settings/upload-apk', [SystemAdminSystemSettingsController::class, 'uploadApk'])->name('settings.upload-apk');
 
         Route::get('/maintenance', [DataProtectionController::class, 'index'])->name('maintenance.index');
         Route::post('/maintenance/backups', [DataProtectionController::class, 'store'])->name('maintenance.backups.store');

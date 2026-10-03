@@ -1,13 +1,9 @@
 @extends('layouts.system-admin')
 
 @section('title', 'System Settings')
-@section('subtitle', 'Technical limits and mobile application distribution')
+@section('subtitle', 'Technical limits and account retention')
 
 @section('content')
-    @if (session('apk_success'))
-        <div class="sa-flash sa-flash-success">{{ session('apk_success') }}</div>
-    @endif
-
     <div class="sa-panel">
         <div class="sa-panel-head">
             <h3>Account &amp; Retention</h3>
@@ -45,35 +41,6 @@
 
                 <div class="sa-form-actions">
                     <button type="submit" class="sa-btn sa-btn-primary">Save Settings</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="sa-panel">
-        <div class="sa-panel-head">
-            <h3>Mobile Application</h3>
-            <p>The Android package served from the staff login page.</p>
-        </div>
-        <div class="sa-panel-body">
-            <p class="sa-form-help">
-                Current file: <strong>{{ $apkExists ? 'towmate.apk' : 'Not uploaded' }}</strong>
-                @if ($apkExists)
-                    ({{ $apkSizeMb }} MB, updated {{ $apkUpdatedAt->format('M d, Y g:i A') }})
-                @endif
-            </p>
-
-            <form method="POST" action="{{ route('system-admin.settings.upload-apk') }}" enctype="multipart/form-data">
-                @csrf
-                <div class="sa-form-grid">
-                    <div class="sa-form-group">
-                        <label for="apk_file">Replace APK</label>
-                        <input type="file" id="apk_file" name="apk_file" accept=".apk" required>
-                        @error('apk_file') <span class="sa-form-error">{{ $message }}</span> @enderror
-                    </div>
-                </div>
-                <div class="sa-form-actions">
-                    <button type="submit" class="sa-btn sa-btn-primary">Upload</button>
                 </div>
             </form>
         </div>

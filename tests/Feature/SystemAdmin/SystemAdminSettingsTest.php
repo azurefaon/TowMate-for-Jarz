@@ -3,13 +3,8 @@
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\User;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
-function fakeSystemAdminApkFile(string $name = 'towmate.apk', int $kilobytes = 50): UploadedFile
-{
-    return UploadedFile::fake()->createWithContent($name, "PK\x03\x04" . str_repeat('A', $kilobytes * 1024));
-}
 
 function saSettingsPinRole(int $id, string $name): Role
 {
@@ -86,52 +81,6 @@ it('never renders environment secrets on the settings page', function () {
     expect($html)->not->toContain('DB_PASSWORD');
     expect($html)->not->toContain('MAIL_PASSWORD');
     expect($html)->not->toContain('PAYMONGO');
-});
-
-it('uploads a replacement apk through the shared release service', function () {
-    Storage::fake('apk_releases');
-    $admin = saSettingsAdmin();
-
-    $this->actingAs($admin)->post(route('system-admin.settings.upload-apk'), [
-        'apk_file' => fakeSystemAdminApkFile(),
-    ])->assertRedirect()->assertSessionHas('apk_success');
-
-    $filename = SystemSetting::getValue('android_apk_filename');
-    expect($filename)->not->toBeNull();
-    Storage::disk('apk_releases')->assertExists($filename);
-});
-
-it('rejects a non-apk file upload', function () {
-    $admin = saSettingsAdmin();
-
-    $file = UploadedFile::fake()->create('not-an-apk.txt', 10);
-
-    $this->actingAs($admin)->post(route('system-admin.settings.upload-apk'), [
-        'apk_file' => $file,
-    ])->assertSessionHasErrors(['apk_file']);
-});
-
-it('rejects a file with an apk extension but invalid package content', function () {
-    $admin = saSettingsAdmin();
-
-    $this->actingAs($admin)->post(route('system-admin.settings.upload-apk'), [
-        'apk_file' => UploadedFile::fake()->create('fake.apk', 50),
-    ])->assertSessionHasErrors(['apk_file']);
-});
-
-it('makes a system admin upload the one the public download route serves', function () {
-    Storage::fake('apk_releases');
-    config(['filesystems.legacy_apk_path' => storage_path('framework/testing/no-legacy-apk-' . uniqid() . '.apk')]);
-    $admin = saSettingsAdmin();
-
-    $this->actingAs($admin)->post(route('system-admin.settings.upload-apk'), [
-        'apk_file' => fakeSystemAdminApkFile(),
-    ])->assertRedirect()->assertSessionHas('apk_success');
-
-    $response = $this->get(route('download.android'));
-
-    $response->assertOk();
-    $response->assertHeader('content-disposition');
 });
 
 it('does not expose business pricing, discount, or payment policy fields', function () {
