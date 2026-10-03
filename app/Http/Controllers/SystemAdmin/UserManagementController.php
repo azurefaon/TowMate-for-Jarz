@@ -40,14 +40,15 @@ class UserManagementController extends Controller
                 $bucket === 'deleted',
                 fn($query) => $query->whereNotNull('pending_delete_at')
             )
-            // The main list ($bucket === null) intentionally shows every
-            // lifecycle state (Active, Inactive, Archived, Pending Deletion)
-            // so a user never silently disappears from it; only permanently
-            // anonymized records are hidden.
-            ;
+            // The main list holds current accounts only; archived and
+            // pending-deletion accounts live on their dedicated pages.
+            ->when(
+                $bucket === null,
+                fn($query) => $query->whereNull('archived_at')->whereNull('pending_delete_at')
+            );
     }
 
-    protected function applyFilters($query, Request $request, bool $lifecycleAware = false)
+    protected function applyFilters($query, Request $request)
     {
         if ($request->filled('search')) {
             $query->where(function ($subQuery) use ($request) {
@@ -61,17 +62,7 @@ class UserManagementController extends Controller
         }
 
         if ($request->filled('status')) {
-            if ($lifecycleAware) {
-                match ($request->status) {
-                    'pending_deletion' => $query->whereNotNull('pending_delete_at'),
-                    'archived' => $query->whereNotNull('archived_at')->whereNull('pending_delete_at'),
-                    'active', 'inactive' => $query->where('status', $request->status)
-                        ->whereNull('archived_at')->whereNull('pending_delete_at'),
-                    default => $query->where('status', $request->status),
-                };
-            } else {
-                $query->where('status', $request->status);
-            }
+            $query->where('status', $request->status);
         }
 
         return $query;
@@ -239,7 +230,7 @@ class UserManagementController extends Controller
     public function index(Request $request)
     {
         $users = $this->applySort(
-            $this->applyFilters($this->baseUserQuery(), $request, true),
+            $this->applyFilters($this->baseUserQuery(), $request),
             $request
         )->paginate(10);
 
@@ -699,7 +690,7 @@ class UserManagementController extends Controller
         ]);
 
         return redirect()->route('system-admin.users.index')
-            ->with('success', 'User marked for deletion. The account stays listed as Pending Deletion until it is cancelled or the retention period ends.');
+            ->with('success', 'User moved to Pending Deletion. Cancel the deletion from Users Pending Deletion before the retention period ends to keep the account.');
     }
 
     public function restoreFromDeleted($id): RedirectResponse

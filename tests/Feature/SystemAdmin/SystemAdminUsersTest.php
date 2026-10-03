@@ -458,7 +458,7 @@ it('keeps the archive reason requirement on the destroy route', function () {
     expect($dispatcher->fresh()->archived_at)->toBeNull();
 });
 
-it('keeps a user in the main list marked Pending Deletion after Delete', function () {
+it('moves a deleted user out of the main list and into Pending Deletion', function () {
     $admin = usersSystemAdmin();
     $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'active', 'name' => 'Pending Pat', 'email' => 'pending.pat@example.com']);
 
@@ -469,24 +469,19 @@ it('keeps a user in the main list marked Pending Deletion after Delete', functio
     expect($dispatcher->fresh()->pending_delete_at)->not->toBeNull();
 
     $this->actingAs($admin)->get(route('system-admin.users.index'))
-        ->assertOk()->assertSee('pending.pat@example.com')->assertSee('Pending Deletion')->assertSee('Cancel deletion');
+        ->assertOk()->assertDontSee('pending.pat@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['search' => 'pending.pat']))
+        ->assertDontSee('pending.pat@example.com');
 
-    // Still present in the dedicated Pending Deletion view.
     $this->actingAs($admin)->get(route('system-admin.users.deleted'))
         ->assertOk()->assertSee('pending.pat@example.com');
-
-    // Searchable and filterable from the main list.
-    $this->actingAs($admin)->get(route('system-admin.users.index', ['search' => 'pending.pat']))
+    $this->actingAs($admin)->get(route('system-admin.users.deleted', ['search' => 'pending.pat']))
         ->assertSee('pending.pat@example.com');
-    $this->actingAs($admin)->get(route('system-admin.users.index', ['status' => 'pending_deletion']))
-        ->assertSee('pending.pat@example.com');
-    $this->actingAs($admin)->get(route('system-admin.users.index', ['status' => 'active']))
-        ->assertDontSee('pending.pat@example.com');
 });
 
-it('cancelling deletion from the main list restores the user to active', function () {
+it('cancelling deletion restores the user to active and back into the main list', function () {
     $admin = usersSystemAdmin();
-    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'inactive', 'pending_delete_at' => now(), 'pending_delete_reason' => 'x']);
+    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'inactive', 'email' => 'cancel.me@example.com', 'pending_delete_at' => now(), 'pending_delete_reason' => 'x']);
 
     $this->actingAs($admin)
         ->patch(route('system-admin.users.restore-from-deleted', $dispatcher->id))
@@ -494,9 +489,12 @@ it('cancelling deletion from the main list restores the user to active', functio
 
     $fresh = $dispatcher->fresh();
     expect($fresh->pending_delete_at)->toBeNull()->and($fresh->status)->toBe('active');
+
+    $this->actingAs($admin)->get(route('system-admin.users.index'))->assertSee('cancel.me@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.deleted'))->assertDontSee('cancel.me@example.com');
 });
 
-it('keeps an archived user in the main list marked Archived and filterable', function () {
+it('moves an archived user out of the main list and restores it back', function () {
     $admin = usersSystemAdmin();
     $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'active', 'email' => 'archived.al@example.com']);
 
@@ -504,14 +502,27 @@ it('keeps an archived user in the main list marked Archived and filterable', fun
         ->patch(route('system-admin.users.archive', $dispatcher->id), ['reason' => 'No longer needed'])
         ->assertRedirect(route('system-admin.users.index'));
 
-    $this->actingAs($admin)->get(route('system-admin.users.index'))
-        ->assertSee('archived.al@example.com')->assertSee('Archived');
-    $this->actingAs($admin)->get(route('system-admin.users.index', ['status' => 'archived']))
-        ->assertSee('archived.al@example.com');
-    $this->actingAs($admin)->get(route('system-admin.users.index', ['status' => 'inactive']))
-        ->assertDontSee('archived.al@example.com');
-    $this->actingAs($admin)->get(route('system-admin.users.archived'))
-        ->assertSee('archived.al@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.index'))->assertDontSee('archived.al@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['status' => 'inactive']))->assertDontSee('archived.al@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.archived'))->assertSee('archived.al@example.com');
+
+    $this->actingAs($admin)->patch(route('system-admin.users.restore', $dispatcher->id))
+        ->assertRedirect(route('system-admin.users.archived'));
+
+    $this->actingAs($admin)->get(route('system-admin.users.index'))->assertSee('archived.al@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.archived'))->assertDontSee('archived.al@example.com');
+});
+
+it('only offers current-account statuses in the main status filter', function () {
+    $admin = usersSystemAdmin();
+
+    $html = $this->actingAs($admin)->get(route('system-admin.users.index'))->assertOk()->getContent();
+
+    expect($html)->toContain('data-value="active"')
+        ->toContain('data-value="inactive"')
+        ->toContain('data-value="locked"')
+        ->not->toContain('data-value="archived"')
+        ->not->toContain('data-value="pending_deletion"');
 });
 
 it('does not list permanently anonymized users in the main list', function () {
@@ -596,27 +607,25 @@ it('counts customers in pagination and sorts them by created date', function () 
     expect($oldest->email)->toBe('page-customer-1@example.com');
 });
 
-it('applies the active, inactive, archived and pending deletion filters to customers', function () {
+it('lists active and inactive customers in the main list and keeps archived and pending customers on their own pages', function () {
     $admin = usersSystemAdmin();
     usersCustomer(['email' => 'c-active@example.com']);
     usersCustomer(['email' => 'c-inactive@example.com', 'status' => 'inactive']);
     usersCustomer(['email' => 'c-archived@example.com', 'status' => 'inactive', 'archived_at' => now(), 'archived_reason' => 'x']);
     usersCustomer(['email' => 'c-pending@example.com', 'pending_delete_at' => now(), 'pending_delete_reason' => 'x']);
 
-    $seen = fn (string $status) => $this->actingAs($admin)
-        ->get(route('system-admin.users.index', ['role' => 5, 'status' => $status]))
-        ->viewData('users')->getCollection()->pluck('email')->all();
+    $emails = fn (array $query) => $this->actingAs($admin)
+        ->get(route('system-admin.users.index', $query))
+        ->viewData('users')->getCollection()->pluck('email')->sort()->values()->all();
 
-    expect($seen('active'))->toBe(['c-active@example.com'])
-        ->and($seen('inactive'))->toBe(['c-inactive@example.com'])
-        ->and($seen('archived'))->toBe(['c-archived@example.com'])
-        ->and($seen('pending_deletion'))->toBe(['c-pending@example.com']);
+    expect($emails(['role' => 5]))->toBe(['c-active@example.com', 'c-inactive@example.com'])
+        ->and($emails(['role' => 5, 'status' => 'active']))->toBe(['c-active@example.com'])
+        ->and($emails(['role' => 5, 'status' => 'inactive']))->toBe(['c-inactive@example.com']);
 
-    // All four stay visible in the main list and in the dedicated views.
-    $this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 5]))
-        ->assertSee('c-archived@example.com')->assertSee('c-pending@example.com');
-    $this->actingAs($admin)->get(route('system-admin.users.archived'))->assertSee('c-archived@example.com');
-    $this->actingAs($admin)->get(route('system-admin.users.deleted'))->assertSee('c-pending@example.com');
+    expect($this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 5]))->viewData('users')->total())->toBe(2);
+
+    $this->actingAs($admin)->get(route('system-admin.users.archived'))->assertSee('c-archived@example.com')->assertDontSee('c-pending@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.deleted'))->assertSee('c-pending@example.com')->assertDontSee('c-archived@example.com');
 });
 
 it('archives and queues a customer for deletion through the existing lifecycle', function () {
@@ -633,19 +642,52 @@ it('archives and queues a customer for deletion through the existing lifecycle',
     expect($other->fresh()->pending_delete_at)->not->toBeNull();
 });
 
-it('does not expose staff-only or owner-only actions on customer rows', function () {
+it('puts customer actions in the three-dot menu without staff-only or owner-only actions', function () {
     $admin = usersSystemAdmin();
     $customer = usersCustomer(['email' => 'actions.customer@example.com']);
+    $inactive = usersCustomer(['email' => 'inactive.customer@example.com', 'status' => 'inactive']);
     $locked = usersCustomer(['email' => 'locked.customer@example.com', 'status' => 'locked']);
 
     $html = $this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 5]))->assertOk()->getContent();
 
-    expect($html)->not->toContain(route('system-admin.users.edit', $customer->id))
-        ->and($html)->not->toContain(route('system-admin.users.edit', $locked->id))
-        ->and($html)->not->toContain(route('superadmin.users.unlock', $locked->id))
-        ->and($html)->toContain('Locked (inactivity)')
-        ->and($html)->toContain(route('system-admin.users.archive', $customer))
-        ->and($html)->toContain(route('system-admin.users.queue-for-deletion', $customer->id));
+    // Pull out each customer's row so assertions are per row.
+    $row = function (string $email) use ($html) {
+        $start = strpos($html, $email);
+        $end = strpos($html, '</tr>', $start);
+
+        return substr($html, $start, $end - $start);
+    };
+
+    foreach ([$customer, $inactive, $locked] as $user) {
+        $r = $row($user->email);
+        expect($r)->toContain('class="u-menu-trigger"')
+            ->toContain('class="u-menu-dropdown"')
+            ->toContain(route('system-admin.users.archive', $user))
+            ->toContain(route('system-admin.users.queue-for-deletion', $user->id))
+            ->not->toContain('class="action-btn')
+            ->not->toContain(route('system-admin.users.edit', $user->id))
+            ->not->toContain(route('superadmin.users.unlock', $user->id));
+    }
+
+    expect($row($customer->email))->toContain('<span>Deactivate</span>')->toContain(route('system-admin.users.toggle', $customer->id));
+    expect($row($inactive->email))->toContain('<span>Activate</span>');
+    expect($row($locked->email))->toContain('Locked (inactivity)')
+        ->not->toContain(route('system-admin.users.toggle', $locked->id));
 
     $this->actingAs($admin)->get(route('system-admin.users.edit', $customer->id))->assertForbidden();
+});
+
+it('keeps the staff row actions unchanged', function () {
+    $admin = usersSystemAdmin();
+    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'active', 'email' => 'staff.row@example.com']);
+
+    $html = $this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 2]))->assertOk()->getContent();
+    $start = strpos($html, 'staff.row@example.com');
+    $row = substr($html, $start, strpos($html, '</tr>', $start) - $start);
+
+    expect($row)->toContain(route('system-admin.users.edit', $dispatcher->id))
+        ->toContain('class="u-menu-trigger"')
+        ->toContain('<span>Deactivate</span>')
+        ->toContain(route('system-admin.users.archive', $dispatcher))
+        ->toContain(route('system-admin.users.queue-for-deletion', $dispatcher->id));
 });

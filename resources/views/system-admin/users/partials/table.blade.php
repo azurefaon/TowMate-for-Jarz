@@ -25,6 +25,7 @@
                         }
 
                         $dispatcherOnline = (int) $user->role_id === 2 && $presence === 'online';
+                        $isCustomer = ($user->role->name ?? null) === 'Customer';
                         $roleLabel = ($user->role->name ?? null) === 'Admin' ? 'Dispatcher' : ($user->role->name ?? '—');
                     @endphp
                     <td data-label="User">
@@ -60,97 +61,27 @@
                     </td>
 
                     <td data-label="Status">
-                        @if ($user->pending_delete_at)
-                            <span class="ua-status-text ua-status-pending-deletion" title="Deletion requested {{ $user->pending_delete_at->diffForHumans() }}">Pending Deletion</span>
-                        @elseif ($user->archived_at)
-                            <span class="ua-status-text ua-status-archived">Archived</span>
-                        @else
-                            <span class="ua-status-text ua-status-{{ $user->status }}">{{ ucfirst($user->status) }}</span>
-                        @endif
+                        <span class="ua-status-text ua-status-{{ $user->status }}">{{ ucfirst($user->status) }}</span>
                     </td>
 
                     <td data-label="Created At">{{ $user->created_at->format('M d, Y') }}</td>
                     <td data-label="Last Updated">{{ $user->updated_at->diffForHumans() }}</td>
 
                     <td data-label="Actions" class="u-actions-col">
-                        @if ($user->pending_delete_at)
-                            <form method="POST" action="{{ route('system-admin.users.restore-from-deleted', $user->id) }}"
-                                class="js-confirm-action" data-confirm-title="Cancel deletion?"
-                                data-confirm-message="<strong>{{ $user->name }}</strong> will be restored as an active account."
-                                data-confirm-button="Cancel Deletion" style="display:inline;">
-                                @csrf
-                                @method('PATCH')
-                                <button type="submit" class="action-btn activate-btn" title="Cancel deletion and restore this user">Cancel deletion</button>
-                            </form>
-                        @elseif ($user->archived_at)
-                            <form method="POST" action="{{ route('system-admin.users.restore', $user->id) }}" style="display:inline;">
-                                @csrf
-                                @method('PATCH')
-                                <button type="submit" class="action-btn activate-btn" title="Restore this user from the archive">Restore</button>
-                            </form>
-                        @elseif (($user->role->name ?? null) === 'Customer')
-                            <div class="action-group">
-                                @if ($user->status === 'locked')
+                            <div class="ua-actions">
+                                @if ($isCustomer && $user->status === 'locked')
                                     {{-- Inactivity-locked customers unlock themselves via password reset;
                                          the manual unlock action is Owner-only. --}}
                                     <span class="ua-muted" title="The customer can restore access by resetting their password.">Locked (inactivity)</span>
-                                @else
-                                    <form method="POST"
-                                        action="{{ route('system-admin.users.toggle', $user->id) }}"
-                                        style="display:inline;">
-                                        @csrf
-                                        @method('PATCH')
-                                        @if ($user->status === 'active')
-                                            <button type="submit" class="action-btn deactivate-btn"
-                                                title="Set user inactive">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><circle cx="12" cy="12" r="7.2"/><line x1="12" y1="12" x2="12" y2="7.3"/></svg>
-                                                Inactive
-                                            </button>
-                                        @else
-                                            <button type="submit" class="action-btn activate-btn"
-                                                title="Set user active">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6 12.5 L10 16.5 L18 7.5"/></svg>
-                                                Active
-                                            </button>
-                                        @endif
-                                    </form>
                                 @endif
 
-                                <form method="POST"
-                                    action="{{ route('system-admin.users.archive', $user) }}"
-                                    class="js-confirm-action" data-confirm-title="Move user to archive?"
-                                    data-confirm-message="<strong>{{ $user->name }}</strong> will be moved to the archive panel."
-                                    data-confirm-button="Move to Archive" data-require-reason="true" style="display:inline;">
-                                    @csrf
-                                    @method('PATCH')
-                                    <button type="submit" class="action-btn archive-btn"
-                                        title="Move user to archive">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 6.5 L20 6.5 L20 9 L4 9 Z"/><path d="M5 9 L5 18.5 L19 18.5 L19 9"/><line x1="10" y1="12.5" x2="14" y2="12.5"/></svg>
-                                        Archive
-                                    </button>
-                                </form>
-
-                                <form method="POST"
-                                    action="{{ route('system-admin.users.queue-for-deletion', $user->id) }}"
-                                    class="js-confirm-action" data-confirm-title="Delete this user?"
-                                    data-confirm-message="<strong>{{ $user->name }}</strong> will be moved to Pending Deletion and permanently removed after the retention period, unless the deletion is cancelled before then."
-                                    data-confirm-button="Delete" data-confirm-variant="danger" data-require-reason="true" style="display:inline;">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="action-btn delete-btn"
-                                        title="Move user to Pending Deletion">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M5 7.5 L19 7.5"/><path d="M9.5 7.5 L9.5 5 L14.5 5 L14.5 7.5"/><path d="M7 7.5 L7.8 19 L16.2 19 L17 7.5"/><line x1="10.3" y1="10.8" x2="10.3" y2="15.8"/><line x1="13.7" y1="10.8" x2="13.7" y2="15.8"/></svg>
-                                        Delete
-                                    </button>
-                                </form>
-                            </div>
-                        @else
-                            <div class="ua-actions">
+                                @unless ($isCustomer)
                                 <a href="{{ route('system-admin.users.edit', $user->id) }}"
                                     class="ua-edit-btn">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M14.2 5.3 L18.7 9.8 L8.5 20 L4.3 20.2 L4.5 16 Z"/><line x1="12.6" y1="6.9" x2="17.1" y2="11.4"/></svg>
                                     Edit
                                 </a>
+                                @endunless
 
                                 @if ($user->id !== auth()->id())
                                     <div class="u-menu">
@@ -160,6 +91,7 @@
                                         </button>
 
                                         <div class="u-menu-dropdown" role="menu">
+                                            @unless ($user->status === 'locked')
                                             <form method="POST"
                                                 action="{{ route('system-admin.users.toggle', $user->id) }}"
                                                 class="u-menu-form">
@@ -179,6 +111,7 @@
                                                     </button>
                                                 @endif
                                             </form>
+                                            @endunless
 
                                             <form method="POST"
                                                 action="{{ route('system-admin.users.archive', $user) }}"
@@ -215,7 +148,6 @@
                                     </div>
                                 @endif
                             </div>
-                        @endif
                     </td>
                 </tr>
             @empty
