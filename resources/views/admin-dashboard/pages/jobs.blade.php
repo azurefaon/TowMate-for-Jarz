@@ -153,6 +153,7 @@
                         data-total="{{ $finalTotal }}"
                         data-service-completed-at="{{ $serviceCompletedAt?->format('M d, Y g:i A') }}"
                         data-payment-ready="{{ $paymentReady ? '1' : '0' }}"
+                        data-unit-released="{{ $job->status === 'waiting_verification' && $job->payment_submitted_at !== null ? '1' : '0' }}"
                         data-payment-method="{{ $paymentMethodLabel ?? '' }}"
                         data-amount-submitted="{{ $amountSubmitted ? number_format((float) $amountSubmitted, 2) : '' }}"
                         data-payment-submitted-at="{{ $paymentSubmittedAt?->format('M d, Y g:i A') }}"
@@ -281,6 +282,13 @@
                                     <dd id="job-detail-agreed">—</dd>
                                 </div>
                             </dl>
+                            {{-- Once payment is submitted the unit and Team Leader are released
+                                 (TLTaskController::complete); the booking stays here only for
+                                 payment verification. Display only. --}}
+                            <div id="job-detail-unit-released" style="display:none; margin-top:10px;">
+                                <div class="jobs-cell-primary">Service completed — unit released</div>
+                                <div class="jobs-cell-secondary">The unit and Team Leader are available for another job while payment is awaiting verification.</div>
+                            </div>
                         </section>
                     </div>
                 </div>

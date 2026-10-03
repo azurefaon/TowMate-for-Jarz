@@ -120,6 +120,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (unitTitle) unitTitle.textContent = isAwaiting ? "Unit Used at Service" : "Team / Service";
 
+        const unitReleasedNote = document.getElementById("job-detail-unit-released");
+        if (unitReleasedNote) unitReleasedNote.style.display = row.dataset.unitReleased === "1" ? "" : "none";
+
         // The agreed amount is shown exactly once: here for jobs that have no
         // payment section, otherwise as part of the payment section below.
         const agreedWrap = document.getElementById("job-detail-agreed-wrap");

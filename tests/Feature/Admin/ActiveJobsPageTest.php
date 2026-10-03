@@ -613,3 +613,44 @@ it('keeps the confirm-payment route and controller wiring intact (untouched by t
 
     expect($booking->fresh()->status)->toBe('assigned');
 });
+
+it('marks the unit as released only once payment is submitted for verification', function () {
+    ajRoles();
+    $dispatcher = ajDispatcher();
+    $leader = ajTeamLeader('Released Leader');
+    $booking = ajBooking('waiting_verification', ['team_leader' => $leader, 'unit_name' => 'JARZ Released']);
+    $booking->update(['payment_method' => 'cash', 'payment_submitted_at' => now()]);
+    $unitStatus = $booking->unit->fresh()->status;
+
+    $this->actingAs($dispatcher)
+        ->get(route('admin.jobs'))
+        ->assertOk()
+        ->assertSee('data-unit-released="1"', false)
+        ->assertSee('Service completed — unit released')
+        ->assertSee('The unit and Team Leader are available for another job while payment is awaiting verification.')
+        // The note is display-only: the row still names the unit and Team Leader used.
+        ->assertSee('data-unit="JARZ Released"', false)
+        ->assertSee('Released Leader');
+
+    // Rendering the page changes no lifecycle state.
+    $fresh = $booking->fresh();
+    expect($fresh->status)->toBe('waiting_verification');
+    expect($fresh->assigned_unit_id)->toBe($booking->assigned_unit_id);
+    expect($fresh->assigned_team_leader_id)->toBe($leader->id);
+    expect($booking->unit->fresh()->status)->toBe($unitStatus);
+});
+
+it('does not mark the unit as released before payment is submitted', function (string $status) {
+    ajRoles();
+    $dispatcher = ajDispatcher();
+    ajBooking($status);
+
+    $this->actingAs($dispatcher)
+        ->get(route('admin.jobs'))
+        ->assertOk()
+        ->assertSee('data-unit-released="0"', false)
+        ->assertDontSee('data-unit-released="1"', false);
+})->with([
+    'assigned', 'accepted', 'on_the_way', 'arrived_pickup', 'in_progress',
+    'loading_vehicle', 'on_job', 'arrived_dropoff', 'waiting_verification',
+]);
