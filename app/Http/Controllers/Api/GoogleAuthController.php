@@ -256,7 +256,7 @@ class GoogleAuthController extends Controller
             return response()->json(['success' => false, 'message' => 'Your account was locked due to inactivity. Reset your password to reactivate it.'], 423);
         }
 
-        if ($user->status !== 'active') {
+        if (! $user->canUseApi()) {
             return response()->json(['success' => false, 'message' => 'Account is inactive. Please contact support.'], 403);
         }
 

@@ -253,7 +253,9 @@ class AuthController extends Controller
             ], 423);
         }
 
-        if ($user->status !== 'active') {
+        // canUseApi() also covers accounts still status=active but queued for
+        // deletion (or anonymized), which a status-only check let through.
+        if (! $user->canUseApi()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Account is inactive. Please contact support.',

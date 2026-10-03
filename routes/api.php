@@ -40,7 +40,9 @@ Route::get('/media/mobile/{filename}', [CustomerContentController::class, 'media
     ->where('filename', '[A-Za-z0-9._-]+');
 Route::get('/v1/vehicle-types/by-category/{category}', [VehicleTypeController::class, 'getByCategory']);
 
-Route::middleware('auth:sanctum')->group(function () {
+// account.active re-checks the account's current state on every request, so a
+// deactivated/archived account can't keep using a token it already holds.
+Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
 
     Route::get('/user', function (Request $request) {
         return response()->json($request->user()->load('role'));

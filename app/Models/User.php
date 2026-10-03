@@ -72,6 +72,35 @@ class User extends Authenticatable
 
             $user->email = strtolower(trim((string) $user->email));
         });
+
+        // Any path that disables an account (deactivate, archive, queue for
+        // deletion, inactivity auto-lock, anonymize-on-purge) drops its
+        // Sanctum tokens here, inside the same save/transaction. Reactivating
+        // never restores them — the user logs in again for a new token.
+        static::saved(function (User $user) {
+            if ($user->wasChanged(self::ACCOUNT_STATE_COLUMNS) && ! $user->canUseApi()) {
+                $user->tokens()->delete();
+            }
+        });
+    }
+
+    /** Columns whose change can take an account out of service. */
+    public const ACCOUNT_STATE_COLUMNS = ['status', 'archived_at', 'pending_delete_at', 'anonymized_at'];
+
+    /**
+     * Single definition of "may this account use the API right now?". Same
+     * states the password-reset eligibility check already treats as
+     * unavailable: anything but status=active (inactive, or 'locked' by the
+     * inactivity auto-lock), archived, pending deletion, or anonymized. The
+     * temporary brute-force lockout (locked_until) is deliberately not part
+     * of this — it only gates new logins.
+     */
+    public function canUseApi(): bool
+    {
+        return $this->status === 'active'
+            && $this->archived_at === null
+            && $this->pending_delete_at === null
+            && $this->anonymized_at === null;
     }
 
     public function getFullNameAttribute(): string

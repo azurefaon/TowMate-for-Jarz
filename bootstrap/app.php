@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'force.password.change' => \App\Http\Middleware\ForcePasswordChange::class,
             'tl'                 => \App\Http\Middleware\EnsureTeamLeader::class,
             'password_changed'   => \App\Http\Middleware\EnsurePasswordChanged::class,
+            'account.active'     => \App\Http\Middleware\EnsureAccountActive::class,
             'idle.timeout'       => \App\Http\Middleware\EnforceIdleTimeout::class,
             'touch.dispatcher.presence' => \App\Http\Middleware\TouchDispatcherPresence::class,
         ]);
