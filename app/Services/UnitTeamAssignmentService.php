@@ -103,6 +103,158 @@ class UnitTeamAssignmentService
         });
     }
 
+    /**
+     * Owner-level Regular Unit change for a Team Leader.
+     *
+     * units.team_leader_id is the canonical "who leads this unit now" link —
+     * Units & Leaders, Dispatcher availability and booking assignment all
+     * read it. users.home_unit_id is the Regular Unit shown on Personnel and
+     * must never drift from it, so both are written in one transaction:
+     * the old unit releases the leader, the new unit receives them, and any
+     * open borrow loan for the leader is closed (the new Regular Unit
+     * supersedes the old home it would have returned to).
+     */
+    public function setTeamLeaderRegularUnit(User $teamLeader, ?int $unitId, User $actor): User
+    {
+        return DB::transaction(function () use ($teamLeader, $unitId, $actor) {
+            $leader = User::lockForUpdate()->findOrFail($teamLeader->id);
+
+            if ((int) $leader->role_id !== 3) {
+                throw new RuntimeException('Selected person is not a Team Leader.');
+            }
+
+            $oldHomeUnit = $leader->home_unit_id ? Unit::find($leader->home_unit_id) : null;
+
+            $target = null;
+            if ($unitId) {
+                $target = Unit::lockForUpdate()->whereNull('archived_at')->find($unitId);
+
+                if (! $target) {
+                    throw new RuntimeException('Selected unit is invalid or archived.');
+                }
+            }
+
+            $source = Unit::lockForUpdate()->where('team_leader_id', $leader->id)->first();
+            $needsMove = $source && (! $target || (int) $source->id !== (int) $target->id);
+            $needsPlacement = $target && (! $source || (int) $source->id !== (int) $target->id);
+
+            if ($needsMove || $needsPlacement) {
+                if ($this->isBusy($leader)) {
+                    throw new RuntimeException('This Team Leader currently has an active job and cannot be moved.');
+                }
+            }
+
+            if ($needsMove) {
+                $this->assertUnitTeamIsMovable($source, 'move the Team Leader from');
+            }
+
+            if ($needsPlacement) {
+                $this->assertUnitTeamIsMovable($target, 'move a Team Leader to');
+
+                if ($target->team_leader_id) {
+                    throw new RuntimeException("{$target->name} already has a Team Leader assigned. Remove or move that Team Leader first.");
+                }
+            }
+
+            try {
+                if ($needsMove) {
+                    $source->update(['team_leader_id' => null]);
+                }
+
+                if ($needsPlacement) {
+                    $target->update(['team_leader_id' => $leader->id]);
+                }
+            } catch (QueryException $e) {
+                if ((string) $e->getCode() === '23505') {
+                    throw new RuntimeException('This unit or Team Leader was just assigned elsewhere. Please try again.');
+                }
+
+                throw $e;
+            }
+
+            if ($needsMove) {
+                $this->releaseTeamLeaderSeededPersonnel($source, $leader);
+            }
+
+            UnitCrewLoan::where('person_user_id', $leader->id)
+                ->where('to_slot', 'team_leader')
+                ->whereNull('returned_at')
+                ->update(['returned_at' => now()]);
+
+            $leader->update(['home_unit_id' => $target?->id]);
+
+            AuditLog::create([
+                'user_id' => $actor->id,
+                'action' => 'personnel_home_unit_changed',
+                'entity_type' => 'User',
+                'entity_id' => $leader->id,
+                'reference' => $leader->full_name,
+                'description' => "Home Unit for {$leader->full_name} changed from " . ($oldHomeUnit->name ?? 'None') . ' to ' . ($target->name ?? 'None') . '.',
+                'old_value' => ['home_unit' => $oldHomeUnit->name ?? 'None'],
+                'new_value' => ['home_unit' => $target->name ?? 'None'],
+            ]);
+
+            return $leader->fresh();
+        });
+    }
+
+    /**
+     * Places an active, registered Personnel record that is not currently on
+     * any unit directly into an empty Driver/Crew slot (no source unit to
+     * borrow from, so no loan is created).
+     */
+    public function assignUnassignedPerson(Unit $targetUnit, string $toSlot, int $personnelId, User $actor): Unit
+    {
+        return DB::transaction(function () use ($targetUnit, $toSlot, $personnelId, $actor) {
+            $target = Unit::lockForUpdate()->findOrFail($targetUnit->id);
+
+            $toColumn = Unit::SLOT_COLUMNS[$toSlot] ?? null;
+            $toPersonnelColumn = Unit::SLOT_PERSONNEL_COLUMNS[$toSlot] ?? null;
+            if (! $toColumn || ! $toPersonnelColumn || ! in_array($toSlot, ['driver_1', 'crew_member_1', 'crew_member_2'], true)) {
+                throw new RuntimeException('Invalid slot.');
+            }
+
+            $this->assertUnitTeamIsMovable($target, 'assign a person to');
+
+            if ($toSlot === 'driver_1' && $target->driver_id) {
+                throw new RuntimeException('Driver 1 already has a linked account assigned. Unassign it first before assigning.');
+            }
+            if (filled($target->{$toColumn})) {
+                throw new RuntimeException('That slot is already filled. Clear it first before assigning.');
+            }
+
+            $personnel = Personnel::lockForUpdate()->find($personnelId);
+
+            if (! $personnel) {
+                throw new RuntimeException('This person is not a registered Personnel record.');
+            }
+            if ($personnel->personnel_status !== 'active') {
+                throw new RuntimeException('This person is inactive and cannot be assigned.');
+            }
+
+            $expectedRole = str_starts_with($toSlot, 'driver_') ? 'driver' : 'crew';
+            if ($personnel->role !== $expectedRole) {
+                throw new RuntimeException('This person cannot fill that slot.');
+            }
+            if (Unit::unitIdsHoldingPersonnel($personnel->id)->isNotEmpty()) {
+                throw new RuntimeException('This person is already assigned to a unit. Borrow them from that unit instead.');
+            }
+
+            $target->update([$toColumn => $personnel->full_name, $toPersonnelColumn => $personnel->id] + $this->seedValue($toSlot, null));
+
+            AuditLog::create([
+                'user_id' => $actor->id,
+                'action' => 'crew_assigned',
+                'entity_type' => 'Unit',
+                'entity_id' => $target->id,
+                'reference' => $personnel->full_name,
+                'description' => "{$personnel->full_name} assigned to {$target->name}.",
+            ]);
+
+            return $target->fresh();
+        });
+    }
+
     public function returnTeamLeader(Unit $currentUnit, User $actor): Unit
     {
         return DB::transaction(function () use ($currentUnit, $actor) {

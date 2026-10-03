@@ -26,6 +26,10 @@
             <div class="type-feedback type-feedback--success" id="personnelSessionAlert">{{ session('success') }}</div>
         @endif
 
+        @if ($errors->has('home_unit_id'))
+            <div class="type-feedback type-feedback--error" id="personnelHomeUnitError">{{ $errors->first('home_unit_id') }}</div>
+        @endif
+
         @include('superadmin.fleet._tabs')
 
         <form method="GET" id="ppFilterForm" class="pp-toolbar">

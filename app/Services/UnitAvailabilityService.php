@@ -45,6 +45,19 @@ class UnitAvailabilityService
         return $teamLeader?->dutyStatus() ?? 'unavailable';
     }
 
+    /**
+     * A unit's team_leader_id only counts when it resolves to a live Team
+     * Leader account — a dangling, archived/anonymized or non-TL reference
+     * must not leave the unit dispatchable with nobody to receive the job.
+     */
+    protected function isValidTeamLeader(?User $teamLeader): bool
+    {
+        return $teamLeader !== null
+            && (int) $teamLeader->role_id === 3
+            && $teamLeader->archived_at === null
+            && $teamLeader->anonymized_at === null;
+    }
+
     public function driverDuty(Unit $unit): string
     {
         return $unit->driverDutyStatus();
@@ -140,7 +153,7 @@ class UnitAvailabilityService
             if ($operationalState === 'maintenance') {
                 $reasons[] = 'maintenance';
             }
-            if ($teamLeaderId <= 0) {
+            if ($teamLeaderId <= 0 || ! $this->isValidTeamLeader($teamLeader)) {
                 $reasons[] = 'no_team_leader';
             } elseif ($teamLeaderDuty === 'unavailable') {
                 $reasons[] = 'team_leader_duty_unavailable';

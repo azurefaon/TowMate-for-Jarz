@@ -793,6 +793,9 @@ class DispatchController extends Controller
                         ! $selectedUnit
                         || $selectedUnit->status !== 'available'
                         || empty($selectedUnit->team_leader_id)
+                        || ! $selectedUnit->teamLeader
+                        || $selectedUnit->teamLeader->archived_at
+                        || (int) $selectedUnit->teamLeader->role_id !== 3
                         || $busyTeamLeaderIds->contains((int) $selectedUnit->team_leader_id)
                     ) {
                         return response()->json([

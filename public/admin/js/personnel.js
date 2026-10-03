@@ -241,10 +241,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
-            await postForm(homeUnitUrl, {
+            const homeUnitResponse = await postForm(homeUnitUrl, {
                 _method: 'PATCH',
                 home_unit_id: document.getElementById('pmHomeUnit').value,
             });
+
+            if (homeUnitResponse.status === 422) {
+                const payload = await homeUnitResponse.json().catch(() => ({}));
+                showAlert(payload.message || 'Unable to change the Regular Unit.', true);
+                return;
+            }
 
             closeModal(manageModal);
             showAlert('Personnel updated.');

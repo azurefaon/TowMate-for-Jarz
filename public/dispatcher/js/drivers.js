@@ -394,11 +394,16 @@ document.addEventListener("DOMContentLoaded", function () {
             body = { team_leader_id: person.id };
         } else {
             url = BASE + "/units/" + assignContext.unitId + "/assign-slot";
-            body = {
-                to_slot: assignContext.slot,
-                source_unit_id: person.source_unit_id,
-                from_slot: person.from_slot,
-            };
+            body = person.source_unit_id
+                ? {
+                    to_slot: assignContext.slot,
+                    source_unit_id: person.source_unit_id,
+                    from_slot: person.from_slot,
+                }
+                : {
+                    to_slot: assignContext.slot,
+                    personnel_id: person.personnel_id,
+                };
         }
 
         post(url, body).then(function (res) {

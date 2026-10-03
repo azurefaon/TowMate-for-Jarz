@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Personnel;
 use App\Models\Unit;
 use App\Models\UnitCrewLoan;
 use App\Models\User;
@@ -138,6 +139,31 @@ class DriversController extends Controller
                 }
             }
 
+            // Active registered Personnel not on any unit slot are directly
+            // assignable too — they have no source unit to borrow from.
+            $heldIds = $units
+                ->flatMap(fn (Unit $unit) => collect(Unit::SLOT_PERSONNEL_COLUMNS)->map(fn ($column) => $unit->{$column}))
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            Personnel::where('role', $role)
+                ->where('personnel_status', 'active')
+                ->whereNotIn('id', $heldIds)
+                ->orderBy('first_name')
+                ->get()
+                ->each(function (Personnel $personnel) use ($people) {
+                    $people->push([
+                        'name' => $personnel->full_name,
+                        'personnel_id' => $personnel->id,
+                        'source_unit_id' => null,
+                        'source_unit_name' => 'Unassigned',
+                        'from_slot' => null,
+                        'duty' => 'available',
+                        'eligible' => true,
+                    ]);
+                });
+
             return response()->json(['people' => $people->values()]);
         }
 
@@ -172,13 +198,18 @@ class DriversController extends Controller
     {
         $validated = $request->validate([
             'to_slot' => 'required|string|in:driver_1,crew_member_1,crew_member_2',
-            'source_unit_id' => 'required|integer|exists:units,id',
-            'from_slot' => 'required|string|in:driver_1,driver_2,crew_member_1,crew_member_2',
+            'source_unit_id' => 'nullable|required_without:personnel_id|integer|exists:units,id',
+            'from_slot' => 'nullable|required_with:source_unit_id|string|in:driver_1,driver_2,crew_member_1,crew_member_2',
+            'personnel_id' => 'nullable|required_without:source_unit_id|integer|exists:personnel,id',
         ]);
 
         try {
-            $sourceUnit = Unit::findOrFail($validated['source_unit_id']);
-            $this->teamAssignment->assignSlotPerson($unit, $validated['to_slot'], $sourceUnit, $validated['from_slot'], Auth::user());
+            if (empty($validated['source_unit_id'])) {
+                $this->teamAssignment->assignUnassignedPerson($unit, $validated['to_slot'], (int) $validated['personnel_id'], Auth::user());
+            } else {
+                $sourceUnit = Unit::findOrFail($validated['source_unit_id']);
+                $this->teamAssignment->assignSlotPerson($unit, $validated['to_slot'], $sourceUnit, $validated['from_slot'], Auth::user());
+            }
         } catch (RuntimeException $e) {
             return $this->fail($request, $e->getMessage());
         }

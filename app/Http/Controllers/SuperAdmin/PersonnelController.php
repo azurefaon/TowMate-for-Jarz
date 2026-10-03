@@ -8,13 +8,17 @@ use App\Models\Personnel;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\PersonnelService;
+use App\Services\UnitTeamAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use RuntimeException;
 
 class PersonnelController extends Controller
 {
-    public function __construct(protected PersonnelService $personnel)
-    {
+    public function __construct(
+        protected PersonnelService $personnel,
+        protected UnitTeamAssignmentService $assignment,
+    ) {
     }
 
     public function index(Request $request)
@@ -188,6 +192,20 @@ class PersonnelController extends Controller
 
         if ((int) $person->home_unit_id === (int) $newHomeUnitId) {
             return back()->with('success', 'Home Unit is unchanged.');
+        }
+
+        if ((int) $person->role_id === 3) {
+            try {
+                $this->assignment->setTeamLeaderRegularUnit($person, $newHomeUnitId ? (int) $newHomeUnitId : null, $request->user());
+            } catch (RuntimeException $e) {
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => $e->getMessage()], 422);
+                }
+
+                return back()->withErrors(['home_unit_id' => $e->getMessage()]);
+            }
+
+            return back()->with('success', 'Home Unit updated.');
         }
 
         $person->update(['home_unit_id' => $newHomeUnitId]);
