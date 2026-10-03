@@ -358,6 +358,80 @@ Future<void> _pumpToStep2(
   );
 }
 
+Future<void> _pumpScheduledSingleToStep2(
+  WidgetTester tester, {
+  Size size = const Size(390, 844),
+  required Map<String, dynamic> pricing,
+}) async {
+    SharedPreferences.setMockInitialValues({
+      'auth_token': 'test-token',
+      'user_role': 'Customer',
+    });
+    final previousPlatform = ImagePickerPlatform.instance;
+    ImagePickerPlatform.instance = _FakeImagePickerPlatform(
+      _createFakePhotoFile(),
+    );
+    addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await http.runWithClient(
+      () async {
+        await tester.pumpWidget(const MaterialApp(home: BookNowScreen()));
+        await _settle(tester);
+
+        await tester.enterText(find.byType(TextField).first, 'Rizal');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park').first);
+        await _settle(tester);
+        await tester.enterText(find.byType(TextField).last, 'Fairview');
+        await tester.pump(const Duration(milliseconds: 500));
+        await _settle(tester);
+        await tester.tap(find.text('Rizal Park').first);
+        await _settle(tester);
+        await tester.tap(find.text('Continue'));
+        await _settle(tester);
+
+        await tester.ensureVisible(find.text('4-Wheeler').last);
+        await tester.tap(find.text('4-Wheeler').last);
+        await _settle(tester);
+        await tester.ensureVisible(find.text('Sedan').last);
+        await tester.tap(find.text('Sedan').last);
+        await _settle(tester);
+        await tester.tap(find.text('Schedule entire request').last);
+        await _settle(tester);
+        await tester.tap(find.text('Select date'));
+        await _settle(tester);
+        await tester.tap(find.text('OK'));
+        await _settle(tester);
+        await tester.tap(find.text('Select time'));
+        await _settle(tester);
+        await tester.tap(find.text('OK'));
+        await _settle(tester);
+
+        await tester.ensureVisible(find.text('Continue'));
+        await tester.tap(find.text('Continue'));
+        await _settle(tester);
+
+        await tester.tap(find.text('Add vehicle photos'));
+        await _settle(tester);
+        await tester.tap(find.text('Choose from Gallery'));
+        await _settle(tester);
+
+        await tester.ensureVisible(find.text('Continue'));
+        await tester.tap(find.text('Continue'));
+        await _settle(tester);
+      },
+      () => _client(
+        readyTruckTypeIds: const [2],
+        pricingOverride: pricing,
+      ),
+    );
+}
+
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
   binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -375,9 +449,8 @@ void main() {
         pricingOverride: _pricingResponse(distanceKm: 3.5),
       );
 
-      expect(find.text('Distance Fee'), findsOneWidget);
+      expect(find.text('Distance charge'), findsOneWidget);
       expect(find.text('₱0.00'), findsOneWidget);
-      expect(find.text('First 4 km included.'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
     });
@@ -390,9 +463,9 @@ void main() {
           pricingOverride: _pricingResponse(distanceKm: 6.0, perKmRate: 300),
         );
 
-        expect(find.text('Distance Fee'), findsOneWidget);
+        expect(find.text('Distance charge'), findsOneWidget);
         expect(find.text('₱600.00'), findsOneWidget);
-        expect(find.text('First 4 km included.'), findsOneWidget);
+        expect(find.text('2.00 km'), findsOneWidget);
 
         await tester.pumpWidget(const SizedBox());
       },
@@ -444,11 +517,115 @@ void main() {
 
         expect(find.textContaining('8.48 km'), findsOneWidget);
         expect(find.textContaining('5.64 km'), findsOneWidget);
-        expect(find.textContaining('Billed distance is'), findsOneWidget);
+        expect(find.text('Trip distance'), findsOneWidget);
+        expect(find.text('Billed distance'), findsOneWidget);
 
         await tester.pumpWidget(const SizedBox());
       },
     );
+
+    testWidgets(
+      'Price Summary shows the full distance calculation from pricing data',
+      (tester) async {
+        final resp = _pricingResponse(
+          distanceKm: 8.38,
+          baseRate: 1500,
+          perKmRate: 300,
+        );
+        await _pumpToStep2(
+          tester,
+          routeDistanceKm: 15.29,
+          pricingOverride: resp,
+        );
+        final p = resp['pricing'] as Map;
+
+        expect(find.text('Trip distance'), findsOneWidget);
+        expect(find.text('Used for the map and estimated travel time.'),
+            findsOneWidget);
+        expect(find.textContaining('15.29 km'), findsOneWidget);
+        expect(find.text('Billed distance'), findsOneWidget);
+        expect(find.text('8.38 km'), findsOneWidget);
+        expect(find.text('Included in base rate'), findsOneWidget);
+        expect(find.text('4.00 km'), findsOneWidget);
+        expect(find.text('Chargeable distance'), findsOneWidget);
+        expect(find.text('4.38 km'), findsOneWidget);
+        expect(find.text('Distance rate'), findsOneWidget);
+        expect(find.text('₱300 / km'), findsOneWidget);
+        expect(find.text('Distance charge'), findsOneWidget);
+        expect(
+          find.text('₱${_priceFmt.format(p['distance_fee'])}'),
+          findsOneWidget,
+        );
+        expect(find.text('Distance Fee'), findsNothing);
+        expect(
+          find.text('₱${_priceFmt.format(p['final_total'])}'),
+          findsOneWidget,
+        );
+
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets('info button explains why billed distance differs', (
+      tester,
+    ) async {
+      await _pumpToStep2(
+        tester,
+        routeDistanceKm: 15.29,
+        pricingOverride: _pricingResponse(distanceKm: 8.38, perKmRate: 300),
+      );
+
+      final info = find.byTooltip('Why is my billed distance different?');
+      expect(info, findsOneWidget);
+      await tester.ensureVisible(info);
+      await tester.tap(info);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Why is my billed distance different?'), findsOneWidget);
+      expect(find.textContaining('straight-line distance'), findsOneWidget);
+      expect(
+        find.textContaining('first 4.00 km. Only the remaining 4.38 km'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('₱300 per km'), findsOneWidget);
+
+      await tester.tap(find.text('Got it'));
+      await tester.pumpAndSettle();
+      expect(find.text('Why is my billed distance different?'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    for (final w in [320.0, 360.0]) {
+      testWidgets('distance breakdown renders without overflow at ${w.toInt()}px',
+          (tester) async {
+        await _pumpToStep2(
+          tester,
+          size: Size(w, 844),
+          routeDistanceKm: 15.29,
+          pricingOverride: _pricingResponse(distanceKm: 8.38),
+        );
+        expect(find.text('Distance charge'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
+
+    testWidgets('within 4 km shows 0.00 chargeable distance', (tester) async {
+      await _pumpToStep2(
+        tester,
+        routeDistanceKm: 3.9,
+        pricingOverride: _pricingResponse(distanceKm: 3.5),
+      );
+
+      expect(find.text('Chargeable distance'), findsOneWidget);
+      expect(find.text('0.00 km'), findsOneWidget);
+      expect(find.text('Included in base rate'), findsOneWidget);
+      expect(find.text('4.00 km'), findsOneWidget);
+      expect(find.text('3.50 km'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
 
     testWidgets('Truck Type / Tow Type is never exposed on the Review screen', (
       tester,
@@ -1298,85 +1475,61 @@ void main() {
     testWidgets(
       'Vehicle 1 scheduled alone (no extras): Estimated Request Total is not shown',
       (tester) async {
-        SharedPreferences.setMockInitialValues({
-          'auth_token': 'test-token',
-          'user_role': 'Customer',
-        });
-        final previousPlatform = ImagePickerPlatform.instance;
-        ImagePickerPlatform.instance = _FakeImagePickerPlatform(
-          _createFakePhotoFile(),
-        );
-        addTearDown(() => ImagePickerPlatform.instance = previousPlatform);
-        tester.view.physicalSize = const Size(390, 844);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-
-        await http.runWithClient(
-          () async {
-            await tester.pumpWidget(const MaterialApp(home: BookNowScreen()));
-            await _settle(tester);
-
-            await tester.enterText(find.byType(TextField).first, 'Rizal');
-            await tester.pump(const Duration(milliseconds: 500));
-            await _settle(tester);
-            await tester.tap(find.text('Rizal Park').first);
-            await _settle(tester);
-            await tester.enterText(find.byType(TextField).last, 'Fairview');
-            await tester.pump(const Duration(milliseconds: 500));
-            await _settle(tester);
-            await tester.tap(find.text('Rizal Park').first);
-            await _settle(tester);
-            await tester.tap(find.text('Continue'));
-            await _settle(tester);
-
-            await tester.ensureVisible(find.text('4-Wheeler').last);
-            await tester.tap(find.text('4-Wheeler').last);
-            await _settle(tester);
-            await tester.ensureVisible(find.text('Sedan').last);
-            await tester.tap(find.text('Sedan').last);
-            await _settle(tester);
-            await tester.tap(find.text('Schedule entire request').last);
-            await _settle(tester);
-            await tester.tap(find.text('Select date'));
-            await _settle(tester);
-            await tester.tap(find.text('OK'));
-            await _settle(tester);
-            await tester.tap(find.text('Select time'));
-            await _settle(tester);
-            await tester.tap(find.text('OK'));
-            await _settle(tester);
-
-            await tester.ensureVisible(find.text('Continue'));
-            await tester.tap(find.text('Continue'));
-            await _settle(tester);
-
-            await tester.tap(find.text('Add vehicle photos'));
-            await _settle(tester);
-            await tester.tap(find.text('Choose from Gallery'));
-            await _settle(tester);
-
-            await tester.ensureVisible(find.text('Continue'));
-            await tester.tap(find.text('Continue'));
-            await _settle(tester);
-          },
-          () => _client(
-            readyTruckTypeIds: const [2],
-            pricingOverride: _pricingResponse(),
-          ),
+        await _pumpScheduledSingleToStep2(
+          tester,
+          pricing: _pricingResponse(distanceKm: 8.38),
         );
 
         expect(find.text('Estimated Request Total'), findsNothing);
         expect(find.text('Total'), findsNothing);
         expect(find.text('VEHICLE 1'), findsOneWidget);
         expect(find.text('Estimated Base Rate'), findsOneWidget);
-        expect(find.text('Estimated Distance Fee'), findsOneWidget);
+        expect(find.text('Estimated Distance Fee'), findsNothing);
+        expect(find.text('Billed distance'), findsOneWidget);
+        expect(find.text('8.38 km'), findsOneWidget);
+        expect(find.text('Included in base rate'), findsOneWidget);
+        expect(find.text('4.00 km'), findsOneWidget);
+        expect(find.text('Chargeable distance'), findsOneWidget);
+        expect(find.text('4.38 km'), findsOneWidget);
+        expect(find.text('Distance rate'), findsOneWidget);
+        expect(find.text('₱300 / km'), findsOneWidget);
+        expect(find.text('Distance charge'), findsOneWidget);
+        expect(find.text('₱1,314.00'), findsOneWidget);
         expect(find.text('Estimated VAT'), findsOneWidget);
         expect(find.text('Estimated Total'), findsOneWidget);
+        final sp = (_pricingResponse(distanceKm: 8.38)['pricing'] as Map);
+        expect(
+          find.text('₱${_priceFmt.format(sp['final_total'])}'),
+          findsOneWidget,
+        );
+
+        final info = find.byTooltip('Why is my billed distance different?');
+        await tester.ensureVisible(info);
+        await tester.tap(info);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('straight-line distance'), findsOneWidget);
+        expect(
+          find.textContaining('first 4.00 km. Only the remaining 4.38 km'),
+          findsOneWidget,
+        );
 
         await tester.pumpWidget(const SizedBox());
       },
     );
+
+    for (final w in [320.0, 360.0]) {
+      testWidgets('Scheduled distance breakdown has no overflow at ${w.toInt()}px',
+          (tester) async {
+        await _pumpScheduledSingleToStep2(
+          tester,
+          size: Size(w, 844),
+          pricing: _pricingResponse(distanceKm: 8.38),
+        );
+        expect(find.text('Distance charge'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
 
     testWidgets(
       'an all-Scheduled group renders every vehicle uniformly under one Price Summary',

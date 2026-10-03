@@ -1168,15 +1168,6 @@ class _BookNowScreenState extends State<BookNowScreen> {
       timeStr = '$h:$m $period';
     }
 
-    final pricingMap = _pricingPreview?['pricing'] as Map<String, dynamic>?;
-    final canonicalDistanceKm = pricingMap != null
-        ? (pricingMap['distance_km'] as num?)?.toDouble()
-        : null;
-    final bool distanceDiffers =
-        _distanceKm != null &&
-        canonicalDistanceKm != null &&
-        (_distanceKm! - canonicalDistanceKm).abs() > 0.05;
-
     final List<_ReviewVehicle> allVehicles = [
       (
         label: 'Vehicle 1',
@@ -1217,16 +1208,13 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 Container(height: 1, color: context.divider),
                 const SizedBox(height: 14),
                 _ReviewRow(
-                  label: 'Distance',
+                  label: 'Trip distance',
                   value:
                       '${_distanceKm!.toStringAsFixed(2)} km'
                       '${_durationMin != null ? ' · ${_durationMin!.toInt()} min' : ''}',
-                  caption: distanceDiffers
-                      ? 'Driving distance for map & ETA. Billed distance is '
-                            '${canonicalDistanceKm.toStringAsFixed(2)} km — see Price Summary.'
-                      : (_routeFallback
-                            ? 'Estimated distance (route unavailable)'
-                            : null),
+                  caption: _routeFallback
+                      ? 'Estimated distance (route unavailable)'
+                      : 'Used for the map and estimated travel time.',
                 ),
               ],
               if (hasSchedule && dateStr != null) ...[
@@ -4604,6 +4592,54 @@ class _PriceBreakdown extends StatelessWidget {
     return _buildBookNowBreakdown(context);
   }
 
+  /// Customer-facing distance rows shared by the single-vehicle Book Now and
+  /// Scheduled breakdowns. Every value comes from the server pricing preview;
+  /// the UI only formats it. Returns null when the preview lacks the fields.
+  /// Single-vehicle only: the preview's per_km_rate belongs to the primary
+  /// vehicle.
+  List<Widget>? _distanceRows(BuildContext context) {
+    if (pricing['distance_km'] == null ||
+        pricing['extra_distance'] == null ||
+        pricing['per_km_rate'] == null) {
+      return null;
+    }
+    final billedKm = _num(pricing['distance_km']);
+    final chargeableKm = _num(pricing['extra_distance']);
+    final perKmRate = _num(pricing['per_km_rate']);
+    // Preview has no included_km field. When the trip is billable beyond the
+    // allowance it is exactly billed - chargeable; otherwise fall back to the
+    // server's fixed 4 km allowance (BookingService::distanceFeeFor).
+    final includedKm = chargeableKm > 0 ? billedKm - chargeableKm : 4.0;
+    final rateText = perKmRate == perKmRate.roundToDouble()
+        ? '₱${perKmRate.toStringAsFixed(0)}'
+        : '₱${priceFmt.format(perKmRate)}';
+    return [
+      _BRow(
+        label: 'Billed distance',
+        value: '${billedKm.toStringAsFixed(2)} km',
+        onInfo: () => _showBilledDistanceInfo(
+          context,
+          includedKm: includedKm,
+          chargeableKm: chargeableKm,
+          rateText: rateText,
+        ),
+      ),
+      _BRow(
+        label: 'Included in base rate',
+        value: '${includedKm.toStringAsFixed(2)} km',
+      ),
+      _BRow(
+        label: 'Chargeable distance',
+        value: '${chargeableKm.toStringAsFixed(2)} km',
+      ),
+      _BRow(label: 'Distance rate', value: '$rateText / km'),
+      _BRow(
+        label: 'Distance charge',
+        value: '₱${priceFmt.format(_num(pricing['distance_fee']))}',
+      ),
+    ];
+  }
+
   Widget _buildBookNowBreakdown(BuildContext context) {
     final baseRate = _num(pricing['base_rate']);
     final baseRateTotal = _num(pricing['base_rate_total']);
@@ -4613,6 +4649,8 @@ class _PriceBreakdown extends StatelessWidget {
     final vatAmount = _num(pricing['vat_amount']);
     final finalTotal = _num(pricing['final_total']);
     final bool combinedBaseRate = bookNowVehicleCount > 1 && baseRateTotal > 0;
+    final distanceRows =
+        bookNowVehicleCount <= 1 ? _distanceRows(context) : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4627,11 +4665,14 @@ class _PriceBreakdown extends StatelessWidget {
               ? 'Starting rate for the selected vehicle classes.'
               : 'Starting rate for $primaryVehicleName. The total below adds distance, fees, and VAT.',
         ),
-        _BRow(
-          label: 'Distance Fee',
-          value: '₱${priceFmt.format(distanceFee)}',
-          caption: 'First 4 km included.',
-        ),
+        if (distanceRows != null)
+          ...distanceRows
+        else
+          _BRow(
+            label: 'Distance Fee',
+            value: '₱${priceFmt.format(distanceFee)}',
+            caption: 'First 4 km included.',
+          ),
         if (discountAmount > 0)
           _BRow(
             label: 'Discount',
@@ -4754,11 +4795,14 @@ class _PriceBreakdown extends StatelessWidget {
             label: multiVehicle ? 'Base Rate' : 'Estimated Base Rate',
             value: '₱${priceFmt.format(baseRates[i])}',
           ),
-          _BRow(
-            label: multiVehicle ? 'Distance Fee' : 'Estimated Distance Fee',
-            value: '₱${priceFmt.format(distanceFees[i])}',
-            caption: multiVehicle ? 'First 4 km included.' : null,
-          ),
+          if (!multiVehicle && _distanceRows(context) != null)
+            ...?_distanceRows(context)
+          else
+            _BRow(
+              label: multiVehicle ? 'Distance Fee' : 'Estimated Distance Fee',
+              value: '₱${priceFmt.format(distanceFees[i])}',
+              caption: multiVehicle ? 'First 4 km included.' : null,
+            ),
           _BRow(
             label: multiVehicle ? 'VAT (12%)' : 'Estimated VAT',
             value: '₱${priceFmt.format(vatAmounts[i])}',
@@ -4798,11 +4842,80 @@ class _PriceBreakdown extends StatelessWidget {
   }
 }
 
+void _showBilledDistanceInfo(
+  BuildContext context, {
+  required double includedKm,
+  required double chargeableKm,
+  required String rateText,
+}) {
+  final style = GoogleFonts.inter(
+    color: context.textPrimary,
+    fontSize: 14,
+    height: 1.5,
+  );
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(
+        'Why is my billed distance different?',
+        style: GoogleFonts.inter(
+          color: ctx.textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Trip distance is the driving route shown on the map and used '
+              'for your estimated travel time.',
+              style: style,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Billed distance is the straight-line distance between your '
+              'pickup and drop-off. TowMate uses it to calculate your fare, '
+              'so it can be shorter than the driving route.',
+              style: style,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Your base rate already includes the first '
+              '${includedKm.toStringAsFixed(2)} km. Only the remaining '
+              '${chargeableKm.toStringAsFixed(2)} km is charged at '
+              '$rateText per km.',
+              style: style,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: Text(
+            'Got it',
+            style: GoogleFonts.inter(color: ctx.textPrimary),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _BRow extends StatelessWidget {
-  const _BRow({required this.label, required this.value, this.caption});
+  const _BRow({
+    required this.label,
+    required this.value,
+    this.caption,
+    this.onInfo,
+  });
   final String label;
   final String value;
   final String? caption;
+  final VoidCallback? onInfo;
 
   @override
   Widget build(BuildContext context) {
@@ -4814,13 +4927,35 @@ class _BRow extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    color: context.textPrimary,
-                    fontSize: 14,
-                    letterSpacing: 0.1,
-                  ),
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: GoogleFonts.inter(
+                          color: context.textPrimary,
+                          fontSize: 14,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                    ),
+                    if (onInfo != null)
+                      IconButton(
+                        tooltip: 'Why is my billed distance different?',
+                        onPressed: onInfo,
+                        icon: Icon(
+                          Icons.help_outline,
+                          size: 18,
+                          color: secondaryTextColor(context),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 48,
+                          minHeight: 48,
+                        ),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
                 ),
               ),
               Text(
