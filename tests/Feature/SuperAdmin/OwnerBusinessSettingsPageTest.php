@@ -83,23 +83,26 @@ it('keeps all five customer app content sections reachable', function () {
     $response->assertSee('data-mc-section="mc-coverage-areas"', false);
 });
 
-it('renders payment details fields with their real field names', function () {
+it('does not render payment details fields', function () {
     $response = $this->actingAs(bsOwner())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
-    $response->assertSee('name="settings[bank_name]"', false);
-    $response->assertSee('name="settings[bank_account_name]"', false);
-    $response->assertSee('name="settings[bank_account_number]"', false);
-    $response->assertSee('name="settings[gcash_name]"', false);
-    $response->assertSee('name="settings[gcash_number]"', false);
+    $response->assertDontSee('Payment Details');
+    $response->assertDontSee('name="settings[bank_name]"', false);
+    $response->assertDontSee('name="settings[bank_account_name]"', false);
+    $response->assertDontSee('name="settings[bank_account_number]"', false);
+    $response->assertDontSee('name="settings[gcash_name]"', false);
+    $response->assertDontSee('name="settings[gcash_number]"', false);
+    $response->assertDontSee('name="settings[payment_terms]"', false);
 });
 
-it('renders discount settings fields with their real field names', function () {
+it('does not render discount settings fields', function () {
     $response = $this->actingAs(bsOwner())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
-    $response->assertSee('name="settings[discount_percentage]"', false);
-    $response->assertSee('name="settings[discount_reason]"', false);
+    $response->assertDontSee('Discount Settings');
+    $response->assertDontSee('name="settings[discount_percentage]"', false);
+    $response->assertDontSee('name="settings[discount_reason]"', false);
 });
 
 it('keeps the pricing and payment form wired to the exact existing update route', function () {
@@ -189,20 +192,20 @@ it('exposes tab and subnav navigation markup for the client-side switcher', func
     $response->assertSee('data-tab="customer-content"', false);
 });
 
-it('renders price adjustment and additional charge settings fields with their real field names', function () {
+it('does not render price adjustment or additional charge settings', function () {
     $response = $this->actingAs(bsOwner())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
-    $response->assertSee('Price Adjustment Settings');
-    $response->assertSee('name="settings[dispatcher_discount_enabled]"', false);
-    $response->assertSee('name="settings[max_dispatcher_discount_percentage]"', false);
-    $response->assertSee('name="settings[dispatcher_discount_require_reason]"', false);
-    $response->assertSee('name="settings[price_adjustment_form]"', false);
+    $response->assertDontSee('Price Adjustment Settings');
+    $response->assertDontSee('name="settings[dispatcher_discount_enabled]"', false);
+    $response->assertDontSee('name="settings[max_dispatcher_discount_percentage]"', false);
+    $response->assertDontSee('name="settings[dispatcher_discount_require_reason]"', false);
+    $response->assertDontSee('name="settings[price_adjustment_form]"', false);
 
-    $response->assertSee('Additional Charge Settings');
-    $response->assertSee('name="settings[max_additional_charge]"', false);
-    $response->assertSee('name="settings[additional_charge_require_reason]"', false);
-    $response->assertSee('name="settings[additional_charge_form]"', false);
+    $response->assertDontSee('Additional Charge Settings');
+    $response->assertDontSee('name="settings[max_additional_charge]"', false);
+    $response->assertDontSee('name="settings[additional_charge_require_reason]"', false);
+    $response->assertDontSee('name="settings[additional_charge_form]"', false);
 });
 
 it('does not render the inert owner-approval controls', function () {

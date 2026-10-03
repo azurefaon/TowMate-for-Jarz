@@ -28,34 +28,35 @@ function opdsDispatcher(): User
     return User::factory()->create(['role_id' => 2, 'status' => 'active', 'must_change_password' => false]);
 }
 
-it('1: Payment Details fields render with their real field names', function () {
+it('1: the four removed sections are not rendered on the Owner settings page', function () {
     $response = test()->actingAs(opdsOwner())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
-    $response->assertSee('Payment Details');
-    $response->assertSee('name="settings[bank_name]"', false);
-    $response->assertSee('name="settings[bank_account_name]"', false);
-    $response->assertSee('name="settings[bank_account_number]"', false);
-    $response->assertSee('name="settings[gcash_name]"', false);
-    $response->assertSee('name="settings[gcash_number]"', false);
-    $response->assertSee('name="settings[payment_terms]"', false);
+    $response->assertDontSee('Payment Details');
+    $response->assertDontSee('Discount Settings');
+    $response->assertDontSee('Price Adjustment Settings');
+    $response->assertDontSee('Additional Charge Settings');
+
+    foreach ([
+        'bank_name', 'bank_account_name', 'bank_account_number', 'gcash_name', 'gcash_number',
+        'payment_terms', 'discount_percentage', 'discount_reason', 'dispatcher_discount_enabled',
+        'max_dispatcher_discount_percentage', 'dispatcher_discount_require_reason', 'price_adjustment_form',
+        'max_additional_charge', 'additional_charge_require_reason', 'additional_charge_form',
+    ] as $field) {
+        $response->assertDontSee('name="settings['.$field.']"', false);
+    }
 });
 
-it('2: existing configured payment values populate the form', function () {
+it('2: existing configured payment values are kept but not exposed on the page', function () {
     SystemSetting::setValue('bank_name', 'BPI');
-    SystemSetting::setValue('bank_account_name', 'JARZ Towing Services Inc.');
-    SystemSetting::setValue('bank_account_number', '1234-5678-90');
-    SystemSetting::setValue('gcash_name', 'JARZ Towing');
     SystemSetting::setValue('gcash_number', '09171234567');
 
     $response = test()->actingAs(opdsOwner())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
-    $response->assertSee('value="BPI"', false);
-    $response->assertSee('value="JARZ Towing Services Inc."', false);
-    $response->assertSee('value="1234-5678-90"', false);
-    $response->assertSee('value="JARZ Towing"', false);
-    $response->assertSee('value="09171234567"', false);
+    $response->assertDontSee('value="BPI"', false);
+    $response->assertDontSee('value="09171234567"', false);
+    expect(SystemSetting::getValue('bank_name'))->toBe('BPI');
 });
 
 it('3: Owner can update Payment Details', function () {
@@ -78,26 +79,6 @@ it('3: Owner can update Payment Details', function () {
         ->and(SystemSetting::getValue('payment_terms'))->toBe('Due upon receipt');
 });
 
-it('4: Discount Settings fields render with their real field names', function () {
-    $response = test()->actingAs(opdsOwner())->get(route('superadmin.settings.index'));
-
-    $response->assertOk();
-    $response->assertSee('Discount Settings');
-    $response->assertSee('name="settings[discount_percentage]"', false);
-    $response->assertSee('name="settings[discount_reason]"', false);
-});
-
-it('5: existing configured discount values populate the form', function () {
-    SystemSetting::setValue('discount_percentage', '20');
-    SystemSetting::setValue('discount_reason', 'PWD/Senior Citizen discount');
-
-    $response = test()->actingAs(opdsOwner())->get(route('superadmin.settings.index'));
-
-    $response->assertOk();
-    $response->assertSee('value="20"', false);
-    $response->assertSee('value="PWD/Senior Citizen discount"', false);
-});
-
 it('6: Owner can update Discount Settings', function () {
     $this->actingAs(opdsOwner())->post(route('superadmin.settings.update'), [
         'settings' => [
@@ -108,22 +89,6 @@ it('6: Owner can update Discount Settings', function () {
 
     expect(SystemSetting::getValue('discount_percentage'))->toBe('15')
         ->and(SystemSetting::getValue('discount_reason'))->toBe('Statutory discount');
-});
-
-it('7: dispatcher pricing limit settings render with their real field names', function () {
-    $response = test()->actingAs(opdsOwner())->get(route('superadmin.settings.index'));
-
-    $response->assertOk();
-    $response->assertSee('Price Adjustment Settings');
-    $response->assertSee('name="settings[dispatcher_discount_enabled]"', false);
-    $response->assertSee('name="settings[max_dispatcher_discount_percentage]"', false);
-    $response->assertSee('name="settings[dispatcher_discount_require_reason]"', false);
-    $response->assertSee('name="settings[price_adjustment_form]"', false);
-
-    $response->assertSee('Additional Charge Settings');
-    $response->assertSee('name="settings[max_additional_charge]"', false);
-    $response->assertSee('name="settings[additional_charge_require_reason]"', false);
-    $response->assertSee('name="settings[additional_charge_form]"', false);
 });
 
 it('8: Owner can update dispatcher pricing limit settings', function () {
