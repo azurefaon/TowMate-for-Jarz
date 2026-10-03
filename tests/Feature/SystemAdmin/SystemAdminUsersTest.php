@@ -219,7 +219,7 @@ it('queues an account for deletion and can cancel it before purge', function () 
 
     $this->actingAs($admin)
         ->delete(route('system-admin.users.queue-for-deletion', $dispatcher->id), ['reason' => 'Left the company'])
-        ->assertRedirect(route('system-admin.users.deleted'));
+        ->assertRedirect(route('system-admin.users.index'));
 
     expect($dispatcher->fresh()->pending_delete_at)->not->toBeNull();
 
@@ -456,4 +456,80 @@ it('keeps the archive reason requirement on the destroy route', function () {
         ->assertSessionHasErrors('reason');
 
     expect($dispatcher->fresh()->archived_at)->toBeNull();
+});
+
+it('keeps a user in the main list marked Pending Deletion after Delete', function () {
+    $admin = usersSystemAdmin();
+    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'active', 'name' => 'Pending Pat', 'email' => 'pending.pat@example.com']);
+
+    $this->actingAs($admin)
+        ->delete(route('system-admin.users.queue-for-deletion', $dispatcher->id), ['reason' => 'Left the company'])
+        ->assertRedirect(route('system-admin.users.index'));
+
+    expect($dispatcher->fresh()->pending_delete_at)->not->toBeNull();
+
+    $this->actingAs($admin)->get(route('system-admin.users.index'))
+        ->assertOk()->assertSee('pending.pat@example.com')->assertSee('Pending Deletion')->assertSee('Cancel deletion');
+
+    // Still present in the dedicated Pending Deletion view.
+    $this->actingAs($admin)->get(route('system-admin.users.deleted'))
+        ->assertOk()->assertSee('pending.pat@example.com');
+
+    // Searchable and filterable from the main list.
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['search' => 'pending.pat']))
+        ->assertSee('pending.pat@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['status' => 'pending_deletion']))
+        ->assertSee('pending.pat@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['status' => 'active']))
+        ->assertDontSee('pending.pat@example.com');
+});
+
+it('cancelling deletion from the main list restores the user to active', function () {
+    $admin = usersSystemAdmin();
+    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'inactive', 'pending_delete_at' => now(), 'pending_delete_reason' => 'x']);
+
+    $this->actingAs($admin)
+        ->patch(route('system-admin.users.restore-from-deleted', $dispatcher->id))
+        ->assertRedirect(route('system-admin.users.index'));
+
+    $fresh = $dispatcher->fresh();
+    expect($fresh->pending_delete_at)->toBeNull()->and($fresh->status)->toBe('active');
+});
+
+it('keeps an archived user in the main list marked Archived and filterable', function () {
+    $admin = usersSystemAdmin();
+    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'active', 'email' => 'archived.al@example.com']);
+
+    $this->actingAs($admin)
+        ->patch(route('system-admin.users.archive', $dispatcher->id), ['reason' => 'No longer needed'])
+        ->assertRedirect(route('system-admin.users.index'));
+
+    $this->actingAs($admin)->get(route('system-admin.users.index'))
+        ->assertSee('archived.al@example.com')->assertSee('Archived');
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['status' => 'archived']))
+        ->assertSee('archived.al@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['status' => 'inactive']))
+        ->assertDontSee('archived.al@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.archived'))
+        ->assertSee('archived.al@example.com');
+});
+
+it('does not list permanently anonymized users in the main list', function () {
+    $admin = usersSystemAdmin();
+    User::factory()->create(['role_id' => 2, 'email' => 'gone.gary@example.com', 'anonymized_at' => now()]);
+
+    $this->actingAs($admin)->get(route('system-admin.users.index'))->assertDontSee('gone.gary@example.com');
+});
+
+it('still purges only users past the retention period', function () {
+    usersSystemAdmin();
+    $expired = User::factory()->create(['role_id' => 2, 'pending_delete_at' => now()->subDays(60), 'pending_delete_reason' => 'x']);
+    $recent = User::factory()->create(['role_id' => 2, 'pending_delete_at' => now()->subDays(2), 'pending_delete_reason' => 'x']);
+
+    $this->artisan('towmate:purge-deleted-users')->assertSuccessful();
+
+    $freshExpired = $expired->fresh();
+    expect($freshExpired === null || $freshExpired->anonymized_at !== null)->toBeTrue()
+        ->and($recent->fresh()->anonymized_at)->toBeNull()
+        ->and($recent->fresh()->pending_delete_at)->not->toBeNull();
 });

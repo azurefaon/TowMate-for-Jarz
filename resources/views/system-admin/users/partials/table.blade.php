@@ -60,14 +60,35 @@
                     </td>
 
                     <td data-label="Status">
-                        <span class="ua-status-text ua-status-{{ $user->status }}">{{ ucfirst($user->status) }}</span>
+                        @if ($user->pending_delete_at)
+                            <span class="ua-status-text ua-status-pending-deletion" title="Deletion requested {{ $user->pending_delete_at->diffForHumans() }}">Pending Deletion</span>
+                        @elseif ($user->archived_at)
+                            <span class="ua-status-text ua-status-archived">Archived</span>
+                        @else
+                            <span class="ua-status-text ua-status-{{ $user->status }}">{{ ucfirst($user->status) }}</span>
+                        @endif
                     </td>
 
                     <td data-label="Created At">{{ $user->created_at->format('M d, Y') }}</td>
                     <td data-label="Last Updated">{{ $user->updated_at->diffForHumans() }}</td>
 
                     <td data-label="Actions" class="u-actions-col">
-                        @if (($user->role->name ?? null) === 'Customer')
+                        @if ($user->pending_delete_at)
+                            <form method="POST" action="{{ route('system-admin.users.restore-from-deleted', $user->id) }}"
+                                class="js-confirm-action" data-confirm-title="Cancel deletion?"
+                                data-confirm-message="<strong>{{ $user->name }}</strong> will be restored as an active account."
+                                data-confirm-button="Cancel Deletion" style="display:inline;">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="action-btn activate-btn" title="Cancel deletion and restore this user">Cancel deletion</button>
+                            </form>
+                        @elseif ($user->archived_at)
+                            <form method="POST" action="{{ route('system-admin.users.restore', $user->id) }}" style="display:inline;">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="action-btn activate-btn" title="Restore this user from the archive">Restore</button>
+                            </form>
+                        @elseif (($user->role->name ?? null) === 'Customer')
                             <div class="action-group">
                                 @if ($user->status === 'locked')
                                     <form method="POST"

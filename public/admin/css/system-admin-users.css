@@ -747,6 +747,11 @@
     color: #525252;
 }
 
+.user-management-page .ua-status-pending-deletion {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
 .user-management-page .ua-status-locked {
     color: #b91c1c;
 }

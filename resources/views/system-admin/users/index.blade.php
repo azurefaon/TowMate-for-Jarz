@@ -85,7 +85,7 @@
                             }
                         }
 
-                        $statusOptions = ['' => 'All Status', 'active' => 'Active', 'inactive' => 'Inactive'];
+                        $statusOptions = ['' => 'All Status', 'active' => 'Active', 'inactive' => 'Inactive', 'archived' => 'Archived', 'pending_deletion' => 'Pending Deletion'];
                         $statusLabel = $statusOptions[request('status')] ?? 'All Status';
 
                         $sortOptions = [
