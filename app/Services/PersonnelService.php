@@ -34,8 +34,12 @@ class PersonnelService
     ) {
     }
 
+    protected ?array $engagementIndex = null;
+
     public function listPersonnel(string $search = '', string $roleFilter = '', int $perPage = 7, int $page = 1): LengthAwarePaginator
     {
+        $this->engagementIndex = null;
+
         $accounts = User::whereIn('role_id', self::ACCOUNT_ROLE_IDS)
             ->whereNull('archived_at')
             ->whereNull('anonymized_at')
@@ -131,21 +135,21 @@ class PersonnelService
         return $currentUnit ? 'Assigned' : 'Unassigned';
     }
 
+    /**
+     * Current operational unit (id link, legacy slot name, open loan, or
+     * active job) from the same index dispatch eligibility uses — never just
+     * the regular/home unit.
+     */
     protected function findCurrentUnitForRecord(Personnel $record): ?Unit
     {
-        $columns = $record->role === 'driver'
-            ? ['driver_personnel_id', 'driver_2_personnel_id']
-            : ['crew_member_1_personnel_id', 'crew_member_2_personnel_id'];
+        $this->engagementIndex ??= app(UnitTeamAssignmentService::class)->engagementIndex();
 
-        foreach ($columns as $column) {
-            $unit = Unit::whereNull('archived_at')->where($column, $record->id)->first();
+        $role = $record->role === 'driver' ? 'driver' : 'crew';
+        $name = mb_strtolower(preg_replace('/\s+/', ' ', trim((string) $record->full_name)));
 
-            if ($unit) {
-                return $unit;
-            }
-        }
-
-        return null;
+        return $this->engagementIndex['ids'][(int) $record->id]
+            ?? $this->engagementIndex['names'][$role . '|' . $name]
+            ?? null;
     }
 
     protected function resolveAccountAvailability(User $person, ?Unit $currentUnit, bool $borrowed): string

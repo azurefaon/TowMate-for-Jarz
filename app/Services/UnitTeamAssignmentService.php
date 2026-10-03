@@ -200,51 +200,84 @@ class UnitTeamAssignmentService
     }
 
     /**
+     * Current operational placement of every engaged person, keyed by
+     * Personnel id and by "role|normalized name", each mapping to the Unit
+     * they are currently operating on: a unit slot (id or legacy name), an
+     * open loan's destination unit, or the unit of an active job whose driver
+     * is named. Single source for dispatch eligibility and Owner Personnel.
+     * Regular/home unit is irrelevant here.
+     *
+     * @return array{ids: array<int, Unit>, names: array<string, Unit>}
+     */
+    public function engagementIndex(): array
+    {
+        $ids = [];
+        $names = [];
+        $norm = fn (?string $value) => mb_strtolower(preg_replace('/\s+/', ' ', trim((string) $value)));
+        $roleOf = fn (string $slot) => str_starts_with($slot, 'driver') ? 'driver' : 'crew';
+
+        $units = Unit::whereNull('archived_at')->get();
+
+        foreach ($units as $unit) {
+            foreach (Unit::SLOT_PERSONNEL_COLUMNS as $slot => $idColumn) {
+                if ($unit->{$idColumn}) {
+                    $ids[(int) $unit->{$idColumn}] ??= $unit;
+                }
+                $name = $unit->{Unit::SLOT_COLUMNS[$slot]};
+                if (filled($name)) {
+                    $names[$roleOf($slot) . '|' . $norm($name)] ??= $unit;
+                }
+            }
+        }
+
+        $unitsById = $units->keyBy('id');
+        foreach (UnitCrewLoan::whereNull('returned_at')->get() as $loan) {
+            $toUnit = $unitsById->get($loan->to_unit_id) ?? Unit::find($loan->to_unit_id);
+            if (! $toUnit) {
+                continue;
+            }
+            if ($loan->personnel_id) {
+                $ids[(int) $loan->personnel_id] ??= $toUnit;
+            }
+            if (filled($loan->person_name)) {
+                $names[$roleOf((string) $loan->to_slot) . '|' . $norm($loan->person_name)] ??= $toUnit;
+            }
+        }
+
+        $jobs = Booking::whereIn('status', app(TeamLeaderAvailabilityService::class)->busyStatusesList())
+            ->whereNull('returned_at')
+            ->whereNotNull('driver_name')
+            ->get(['driver_name', 'assigned_unit_id']);
+        foreach ($jobs as $job) {
+            $unit = $unitsById->get($job->assigned_unit_id) ?? ($job->assigned_unit_id ? Unit::find($job->assigned_unit_id) : null);
+            if ($unit) {
+                $names['driver|' . $norm($job->driver_name)] ??= $unit;
+            }
+        }
+
+        return ['ids' => $ids, 'names' => $names];
+    }
+
+    /**
      * Everyone currently engaged operationally, by Personnel id and by
-     * normalized name: on any unit slot, on an open borrow/transfer loan, or
-     * named as the driver of an active job. Names are included so a legacy
-     * slot, a name-only loan, or a duplicate Personnel record can never make a
-     * placed or busy person look free. Regular/home unit is irrelevant here.
+     * normalized name (role-agnostic, deliberately conservative) so a legacy
+     * slot, a name-only loan, or a duplicate Personnel record can never make
+     * a placed or busy person look free.
      *
      * @return array{ids: int[], names: string[]}
      */
     public function engagedPersonnel(): array
     {
-        $ids = [];
-        $names = [];
-        $norm = fn (?string $value) => mb_strtolower(preg_replace('/\s+/', ' ', trim((string) $value)));
+        $index = $this->engagementIndex();
 
-        foreach (Unit::whereNull('archived_at')->get() as $unit) {
-            foreach (Unit::SLOT_PERSONNEL_COLUMNS as $slot => $idColumn) {
-                if ($unit->{$idColumn}) {
-                    $ids[] = (int) $unit->{$idColumn};
-                }
-                if (filled($unit->{Unit::SLOT_COLUMNS[$slot]})) {
-                    $names[] = $norm($unit->{Unit::SLOT_COLUMNS[$slot]});
-                }
-            }
-        }
-
-        foreach (UnitCrewLoan::whereNull('returned_at')->get() as $loan) {
-            if ($loan->personnel_id) {
-                $ids[] = (int) $loan->personnel_id;
-            }
-            if (filled($loan->person_name)) {
-                $names[] = $norm($loan->person_name);
-            }
-        }
-
-        $busyDrivers = Booking::whereIn('status', app(TeamLeaderAvailabilityService::class)->busyStatusesList())
-            ->whereNull('returned_at')
-            ->whereNotNull('driver_name')
-            ->pluck('driver_name');
-        foreach ($busyDrivers as $name) {
-            $names[] = $norm($name);
-        }
-
-        return ['ids' => array_values(array_unique($ids)), 'names' => array_values(array_unique(array_filter($names)))];
+        return [
+            'ids' => array_map('intval', array_keys($index['ids'])),
+            'names' => array_values(array_unique(array_map(
+                fn (string $key) => substr($key, strpos($key, '|') + 1),
+                array_keys($index['names'])
+            ))),
+        ];
     }
-
     public function isPersonnelEngaged(Personnel $personnel): bool
     {
         $engaged = $this->engagedPersonnel();

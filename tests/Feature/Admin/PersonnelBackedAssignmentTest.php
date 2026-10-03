@@ -248,7 +248,7 @@ it('resolves the owner truck team display through ids and flags unlinked legacy 
     $response->assertOk()->assertSee('Linked Crew')->assertSee('Ghost Crewman')->assertSee('Unlinked');
 });
 
-it('shows personnel as assigned only through the id link, not a matching name', function () {
+it('shows personnel as assigned through the id link or an exact name match on a unit slot', function () {
     pbaRoles();
     $owner = User::factory()->create(['role_id' => 1, 'status' => 'active', 'must_change_password' => false]);
     $person = pbaPerson('Same', 'Name');
@@ -256,7 +256,7 @@ it('shows personnel as assigned only through the id link, not a matching name', 
 
     $service = app(\App\Services\PersonnelService::class);
     $row = $service->listPersonnel('Same Name')->first();
-    expect($row['current_unit'])->toBeNull();
+    expect($row['current_unit']->id)->toBe($unit->id);
 
     $unit->update(['crew_member_1_personnel_id' => $person->id]);
     $row = $service->listPersonnel('Same Name')->first();
