@@ -10,7 +10,7 @@ return [
 
         'local' => [
             'driver' => 'local',
-            'root' => storage_path('app/private'),
+            'root' => env('PRIVATE_STORAGE_ROOT', storage_path('app/private')),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/') . '/protected-storage',
             'serve' => true,
             'throw' => false,
@@ -19,7 +19,7 @@ return [
 
         'public' => [
             'driver' => 'local',
-            'root' => storage_path('app/public'),
+            'root' => env('PUBLIC_STORAGE_ROOT', storage_path('app/public')),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
@@ -63,7 +63,7 @@ return [
     ],
 
     'links' => [
-        public_path('storage') => storage_path('app/public'),
+        public_path('storage') => env('PUBLIC_STORAGE_ROOT', storage_path('app/public')),
     ],
 
 ];
