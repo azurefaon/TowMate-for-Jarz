@@ -35,6 +35,10 @@ document.addEventListener("DOMContentLoaded", function () {
     let vehiclePhotosGrid = null;
     let confirmBtn = null;
     let reassignBtn = null;
+    let cancelBtn = null;
+    // Mirrors JobsController::DISPATCHER_CANCELLABLE_STATUSES (display only -
+    // the server re-validates the status after locking the booking).
+    const CANCELLABLE_STATUSES = ["assigned", "accepted", "on_the_way", "arrived_pickup", "in_progress"];
 
     const fillField = (id, value) => {
         const el = document.getElementById(id);
@@ -92,6 +96,7 @@ document.addEventListener("DOMContentLoaded", function () {
         vehiclePhotosGrid = document.getElementById("job-detail-vehicle-photos-grid");
         confirmBtn = document.getElementById("job-detail-confirm-btn");
         reassignBtn = document.getElementById("job-detail-reassign-btn");
+        cancelBtn = document.getElementById("job-detail-cancel-btn");
     }
 
     function renderDetail(row) {
@@ -281,6 +286,11 @@ document.addEventListener("DOMContentLoaded", function () {
             reassignBtn.style.display = row.dataset.status === "assigned" ? "" : "none";
             reassignBtn.addEventListener("click", openReassignModal);
         }
+
+        if (cancelBtn) {
+            cancelBtn.style.display = CANCELLABLE_STATUSES.indexOf(row.dataset.status) !== -1 ? "" : "none";
+            cancelBtn.addEventListener("click", openCancelModal);
+        }
     }
 
     function openDetail(row) {
@@ -367,6 +377,81 @@ document.addEventListener("DOMContentLoaded", function () {
             confirmBtn.disabled = false;
         }
     }
+
+    // ---- Cancel booking (dispatcher override once the customer cannot self-cancel) ----
+    const jcModal = document.getElementById("jcCancelModal");
+    const jcBookingCode = document.getElementById("jcCancelBookingCode");
+    const jcCloseBtn = document.getElementById("jcCancelCloseBtn");
+    const jcReason = document.getElementById("jcCancelReason");
+    const jcError = document.getElementById("jcCancelError");
+    const jcDismissBtn = document.getElementById("jcCancelDismissBtn");
+    const jcConfirmBtn = document.getElementById("jcCancelConfirmBtn");
+
+    function closeCancelModal() {
+        if (!jcModal) return;
+        jcModal.style.display = "none";
+        jcModal.setAttribute("aria-hidden", "true");
+    }
+
+    function validateCancelForm() {
+        if (jcConfirmBtn) jcConfirmBtn.disabled = !(jcReason && jcReason.value.trim());
+    }
+
+    function openCancelModal() {
+        if (!currentRow || !jcModal) return;
+        if (jcBookingCode) jcBookingCode.textContent = currentRow.dataset.bookingCode || "—";
+        if (jcReason) jcReason.value = "";
+        if (jcError) jcError.textContent = "";
+        if (jcConfirmBtn) jcConfirmBtn.textContent = "Confirm cancellation";
+        validateCancelForm();
+        jcModal.style.display = "";
+        jcModal.setAttribute("aria-hidden", "false");
+        if (jcReason) jcReason.focus();
+    }
+
+    jcCloseBtn?.addEventListener("click", closeCancelModal);
+    jcDismissBtn?.addEventListener("click", closeCancelModal);
+    jcModal?.addEventListener("click", function (e) {
+        if (e.target === jcModal) closeCancelModal();
+    });
+    jcReason?.addEventListener("input", validateCancelForm);
+
+    jcConfirmBtn?.addEventListener("click", async function () {
+        if (!currentRow || jcConfirmBtn.disabled) return;
+        const cancelUrl = currentRow.dataset.cancelUrl;
+        if (!cancelUrl) return;
+
+        jcConfirmBtn.disabled = true;
+        jcConfirmBtn.textContent = "Cancelling…";
+        if (jcError) jcError.textContent = "";
+
+        try {
+            const res = await fetch(cancelUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": csrfToken,
+                    Accept: "application/json",
+                },
+                body: JSON.stringify({ reason: jcReason ? jcReason.value.trim() : "" }),
+            });
+            const data = await res.json().catch(function () { return {}; });
+
+            if (!res.ok || !data.success) {
+                if (jcError) jcError.textContent = data.message || "Could not cancel this booking.";
+                jcConfirmBtn.disabled = false;
+                jcConfirmBtn.textContent = "Confirm cancellation";
+                return;
+            }
+
+            closeCancelModal();
+            window.location.reload();
+        } catch (e) {
+            if (jcError) jcError.textContent = "Error — retry.";
+            jcConfirmBtn.disabled = false;
+            jcConfirmBtn.textContent = "Confirm cancellation";
+        }
+    });
 
     // ---- Reassign Task (dispatcher correction of an accidental assignment) ----
     const jrModal = document.getElementById("jrReassignModal");
@@ -532,6 +617,10 @@ document.addEventListener("DOMContentLoaded", function () {
     // Escape closes the reassign modal first; otherwise it collapses the open job.
     document.addEventListener("keydown", function (e) {
         if (e.key !== "Escape") return;
+        if (jcModal && jcModal.style.display !== "none") {
+            closeCancelModal();
+            return;
+        }
         if (jrModal && jrModal.style.display !== "none") {
             closeReassignModal();
             return;

@@ -137,6 +137,7 @@
                         data-confirm-url="{{ route('admin.jobs.confirm-payment', $job) }}"
                         data-reassign-options-url="{{ route('admin.jobs.reassign-options', $job) }}"
                         data-reassign-url="{{ route('admin.jobs.reassign', $job) }}"
+                        data-cancel-url="{{ route('admin.jobs.cancel', $job) }}"
                         data-customer="{{ $customer }}"
                         data-phone="{{ $custPhone }}"
                         data-email="{{ $custEmail }}"
@@ -353,6 +354,7 @@
 
                 <div class="jobs-detail-actions">
                     <button type="button" id="job-detail-reassign-btn" class="jobs-action-btn" style="display:none;">Reassign task</button>
+                    <button type="button" id="job-detail-cancel-btn" class="jobs-action-btn" style="display:none;">Cancel booking</button>
                     <button type="button" id="job-detail-confirm-btn" class="jobs-action-btn jobs-action-btn--primary" style="display:none;"><span>Confirm payment</span></button>
                 </div>
             </div>
@@ -414,6 +416,38 @@
                     <div class="rtn-modal-footer-actions">
                         <button type="button" class="rtn-btn-secondary" id="jrModalCancelBtn">Cancel</button>
                         <button type="button" class="rtn-btn-primary" id="jrModalConfirmBtn" disabled>Confirm Reassignment</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Cancel booking modal: offered only for the statuses the server
+             allows (JobsController::DISPATCHER_CANCELLABLE_STATUSES). --}}
+        <div id="jcCancelModal" class="rtn-modal-overlay" style="display:none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="jcCancelTitle">
+            <div class="rtn-modal-card">
+                <div class="rtn-modal-header">
+                    <div>
+                        <span class="rtn-modal-title" id="jcCancelTitle">Cancel this active booking?</span>
+                        <span class="rtn-modal-subtitle" id="jcCancelBookingCode">—</span>
+                    </div>
+                    <button type="button" class="rtn-modal-close" id="jcCancelCloseBtn" aria-label="Close">&times;</button>
+                </div>
+
+                <div class="rtn-modal-body rtn-modal-body--single">
+                    <div class="rtn-modal-list-col rtn-modal-list-col--full">
+                        <p class="jobs-cell-secondary">
+                            This will stop the active job and remove it from Active Jobs. This action cannot be undone.
+                        </p>
+                        <div class="rtn-modal-section-title" style="margin-top:16px;">Cancellation reason <span style="color:#b91c1c;">*</span></div>
+                        <textarea id="jcCancelReason" class="rtn-search-input" rows="3" maxlength="1000" placeholder="Why is this booking being cancelled?"></textarea>
+                    </div>
+                </div>
+
+                <div class="rtn-modal-footer">
+                    <span class="rtn-modal-footer-note" id="jcCancelError"></span>
+                    <div class="rtn-modal-footer-actions">
+                        <button type="button" class="rtn-btn-secondary" id="jcCancelDismissBtn">Cancel</button>
+                        <button type="button" class="rtn-btn-primary" id="jcCancelConfirmBtn" disabled>Confirm cancellation</button>
                     </div>
                 </div>
             </div>

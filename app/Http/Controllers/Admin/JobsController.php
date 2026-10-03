@@ -37,6 +37,16 @@ class JobsController extends Controller
      */
     public const REASSIGNABLE_STATUS = 'assigned';
 
+    /**
+     * Statuses a dispatcher may cancel from Active Jobs after the customer can
+     * no longer self-cancel. Deliberately stops before loading_vehicle: once the
+     * vehicle is being loaded/towed, cancelling is not a plain operational
+     * cancel. 'returned' keeps using the Dispatcher Queue reject flow.
+     */
+    public const DISPATCHER_CANCELLABLE_STATUSES = [
+        'assigned', 'accepted', 'on_the_way', 'arrived_pickup', 'in_progress',
+    ];
+
     public const REASSIGN_REASONS = [
         'Wrong TL / Unit selected',
         'Assigned TL unavailable',
@@ -540,6 +550,154 @@ class JobsController extends Controller
                     ?? $locked->unit?->driver_name,
             ]);
         });
+    }
+
+    /**
+     * Operational-only cancellation of an active booking. No fee, invoice,
+     * receipt or payment behaviour - any agreed charge lives in the reason text
+     * only and is settled outside TowMate. Cancels ONLY the selected booking.
+     */
+    public function cancel(Request $request, Booking $booking)
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $reason = trim(strip_tags((string) $validated['reason']));
+        if ($reason === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'A cancellation reason is required.',
+                'errors' => ['reason' => ['A cancellation reason is required.']],
+            ], 422);
+        }
+
+        $actor = $request->user();
+
+        $result = DB::transaction(function () use ($booking, $reason, $actor) {
+            // The status read before the lock may be stale (TL progress, a
+            // concurrent cancel, payment submission) - re-check after locking.
+            $locked = Booking::whereKey($booking->id)->lockForUpdate()->first();
+
+            if (! $locked) {
+                return ['status' => 404, 'message' => 'Booking not found.'];
+            }
+
+            if (! in_array($locked->status, self::DISPATCHER_CANCELLABLE_STATUSES, true)) {
+                return ['status' => 409, 'message' => $this->cancelBlockedMessage($locked->status)];
+            }
+
+            $previousStatus = $locked->status;
+            $previousTl = $locked->assigned_team_leader_id
+                ? User::find($locked->assigned_team_leader_id)
+                : null;
+            $previousUnit = $locked->assigned_unit_id
+                ? Unit::find($locked->assigned_unit_id)
+                : null;
+
+            $snapshot = [
+                'previous_status' => $previousStatus,
+                'team_leader_id' => $locked->assigned_team_leader_id,
+                'team_leader_name' => $previousTl?->full_name ?? $previousTl?->name,
+                'unit_id' => $locked->assigned_unit_id,
+                'unit_name' => $previousUnit?->name,
+                'driver_name' => $locked->driver_name,
+                'assigned_at' => $locked->assigned_at?->toIso8601String(),
+            ];
+
+            // Another still-active booking (e.g. a group sibling) may share this
+            // unit / Team Leader - never free what it still needs.
+            $unitStillNeeded = $locked->assigned_unit_id
+                && $this->otherActiveBookingExists($locked, 'assigned_unit_id', (int) $locked->assigned_unit_id);
+            $tlStillNeeded = $locked->assigned_team_leader_id
+                && $this->otherActiveBookingExists($locked, 'assigned_team_leader_id', (int) $locked->assigned_team_leader_id);
+
+            $locked->update([
+                'status' => 'cancelled',
+                'quotation_status' => 'cancelled',
+                'rejection_reason' => $reason,
+                'assigned_team_leader_id' => null,
+                'assigned_unit_id' => null,
+                'driver_name' => null,
+            ]);
+
+            $unitReleased = false;
+            if ($previousUnit && ! $unitStillNeeded) {
+                $unitReleased = Unit::whereKey($previousUnit->id)
+                    ->where('status', 'on_job')
+                    ->update(['status' => 'available']) > 0;
+            }
+
+            $tlReleased = false;
+            if ($previousTl && ! $tlStillNeeded) {
+                app(TeamLeaderAvailabilityService::class)->setOperationalOverride($previousTl, 'available');
+                $tlReleased = true;
+            }
+
+            AuditLog::create([
+                'user_id' => $actor?->id,
+                'action' => 'booking_cancelled_by_dispatcher',
+                'category' => 'dispatch',
+                'entity_type' => 'Booking',
+                'entity_id' => $locked->id,
+                'reference' => $locked->job_code,
+                'description' => 'Cancelled by dispatcher from ' . $previousStatus . ' - ' . $reason,
+                'old_value' => $snapshot,
+                'new_value' => [
+                    'status' => 'cancelled',
+                    'reason' => $reason,
+                    'actor_id' => $actor?->id,
+                    'actor_role_id' => $actor?->role_id,
+                    'cancelled_at' => now()->toIso8601String(),
+                    'booking_code' => $locked->booking_code,
+                    'group_code' => $locked->group_code,
+                    'unit_released' => $unitReleased,
+                    'team_leader_released' => $tlReleased,
+                ],
+            ]);
+
+            return ['status' => 200, 'booking' => $locked];
+        });
+
+        if ($result['status'] !== 200) {
+            return response()->json(['success' => false, 'message' => $result['message']], $result['status']);
+        }
+
+        $cancelled = $result['booking']->fresh(['customer', 'truckType']);
+
+        try {
+            event(new \App\Events\BookingCancelled($cancelled));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('BookingCancelled broadcast failed', [
+                'booking_id' => $cancelled->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+        BookingStatusUpdated::safeFire($cancelled);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Booking cancelled.',
+            'status' => 'cancelled',
+        ]);
+    }
+
+    private function otherActiveBookingExists(Booking $booking, string $column, int $value): bool
+    {
+        return Booking::where($column, $value)
+            ->where('id', '!=', $booking->id)
+            ->whereIn('status', $this->activeStatuses)
+            ->exists();
+    }
+
+    private function cancelBlockedMessage(string $status): string
+    {
+        return match ($status) {
+            'cancelled', 'rejected' => 'This booking is already cancelled.',
+            'completed' => 'This booking is already completed and cannot be cancelled.',
+            'returned' => 'Returned tasks are cancelled from the Dispatcher Queue.',
+            default => 'This booking can no longer be cancelled from Active Jobs (current status: ' . $status . ').',
+        };
     }
 
     private function reassignBlockedMessage(string $status): string

@@ -199,6 +199,7 @@ Route::prefix('admin-dashboard')
         Route::post('/jobs/{booking}/confirm-payment', [JobsController::class, 'confirmPayment'])->name('jobs.confirm-payment');
         Route::get('/jobs/{booking}/reassign-options', [JobsController::class, 'reassignOptions'])->name('jobs.reassign-options');
         Route::post('/jobs/{booking}/reassign', [JobsController::class, 'reassign'])->name('jobs.reassign');
+        Route::post('/jobs/{booking}/cancel', [JobsController::class, 'cancel'])->name('jobs.cancel');
         Route::view('/jobs/mock-preview', 'admin-dashboard.pages.jobs-mock')->name('jobs.mock-preview');
         Route::get('/booking-history', [\App\Http\Controllers\Admin\BookingHistoryController::class, 'index'])->name('booking-history');
         Route::post('/booking/{id}/update-status', [DispatchController::class, 'updateStatus'])->name('booking.updateStatus');
