@@ -43,14 +43,14 @@ function usersSystemAdmin(array $attrs = []): User
     ], $attrs));
 }
 
-it('excludes customer accounts from the default staff users list', function () {
+it('includes customer accounts in the main users list with a Customer role label', function () {
     $admin = usersSystemAdmin();
-    $customer = User::factory()->create(['role_id' => 5, 'status' => 'active', 'email' => 'customer@example.com']);
+    User::factory()->create(['role_id' => 5, 'status' => 'active', 'email' => 'customer@example.com']);
 
-    $this->actingAs($admin)
-        ->get(route('system-admin.users.index'))
-        ->assertOk()
-        ->assertDontSee('customer@example.com');
+    $response = $this->actingAs($admin)->get(route('system-admin.users.index'))->assertOk();
+
+    $response->assertSee('customer@example.com');
+    expect($response->viewData('users')->getCollection()->firstWhere('email', 'customer@example.com')->role->name)->toBe('Customer');
 });
 
 it('filters the users list by role and account status', function () {
@@ -532,4 +532,120 @@ it('still purges only users past the retention period', function () {
     expect($freshExpired === null || $freshExpired->anonymized_at !== null)->toBeTrue()
         ->and($recent->fresh()->anonymized_at)->toBeNull()
         ->and($recent->fresh()->pending_delete_at)->not->toBeNull();
+});
+
+function usersCustomer(array $attrs = []): User
+{
+    return User::factory()->create(array_merge(['role_id' => 5, 'status' => 'active'], $attrs));
+}
+
+it('filters the users list to customers only and keeps them in All Roles', function () {
+    $admin = usersSystemAdmin();
+    usersCustomer(['email' => 'only.customer@example.com']);
+    User::factory()->create(['role_id' => 2, 'status' => 'active', 'email' => 'staff.dispatcher@example.com']);
+
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 5]))
+        ->assertOk()->assertSee('only.customer@example.com')->assertDontSee('staff.dispatcher@example.com');
+
+    $this->actingAs($admin)->get(route('system-admin.users.index'))
+        ->assertSee('only.customer@example.com')->assertSee('staff.dispatcher@example.com');
+
+    // Staff role filter is unchanged and excludes customers.
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 2]))
+        ->assertSee('staff.dispatcher@example.com')->assertDontSee('only.customer@example.com');
+});
+
+it('offers Customer in the role filter but never as a creatable role', function () {
+    $admin = usersSystemAdmin();
+
+    $index = $this->actingAs($admin)->get(route('system-admin.users.index'))->assertOk();
+    expect($index->viewData('roles')->pluck('name')->all())->toContain('Customer', 'Admin', 'Team Leader', 'System Admin')
+        ->not->toContain('Owner', 'Driver');
+
+    $create = $this->actingAs($admin)->get(route('system-admin.users.create'))->assertOk();
+    expect($create->viewData('roles')->pluck('name')->all())->not->toContain('Customer');
+
+    $this->actingAs($admin)->post(route('system-admin.users.store'), [
+        'first_name' => 'New', 'last_name' => 'Customer', 'email' => 'new.customer@gmail.com',
+        'password' => 'Password@12345', 'password_confirmation' => 'Password@12345', 'role_id' => 5,
+    ])->assertSessionHasErrors('role_id');
+    expect(User::where('email', 'new.customer@gmail.com')->exists())->toBeFalse();
+});
+
+it('searches customers by name and email', function () {
+    $admin = usersSystemAdmin();
+    usersCustomer(['name' => 'Searchable Customer', 'email' => 'findme.customer@example.com']);
+
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['search' => 'Searchable']))
+        ->assertSee('findme.customer@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['search' => 'findme.customer']))
+        ->assertSee('findme.customer@example.com');
+});
+
+it('counts customers in pagination and sorts them by created date', function () {
+    $admin = usersSystemAdmin();
+    foreach (range(1, 12) as $i) {
+        usersCustomer(['email' => "page-customer-{$i}@example.com", 'created_at' => now()->subMinutes(100 - $i)]);
+    }
+
+    $users = $this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 5]))->assertOk()->viewData('users');
+    expect($users->total())->toBe(12)->and($users->count())->toBe(10)
+        ->and($users->first()->email)->toBe('page-customer-12@example.com');
+
+    $oldest = $this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 5, 'sort' => 'oldest']))->viewData('users')->first();
+    expect($oldest->email)->toBe('page-customer-1@example.com');
+});
+
+it('applies the active, inactive, archived and pending deletion filters to customers', function () {
+    $admin = usersSystemAdmin();
+    usersCustomer(['email' => 'c-active@example.com']);
+    usersCustomer(['email' => 'c-inactive@example.com', 'status' => 'inactive']);
+    usersCustomer(['email' => 'c-archived@example.com', 'status' => 'inactive', 'archived_at' => now(), 'archived_reason' => 'x']);
+    usersCustomer(['email' => 'c-pending@example.com', 'pending_delete_at' => now(), 'pending_delete_reason' => 'x']);
+
+    $seen = fn (string $status) => $this->actingAs($admin)
+        ->get(route('system-admin.users.index', ['role' => 5, 'status' => $status]))
+        ->viewData('users')->getCollection()->pluck('email')->all();
+
+    expect($seen('active'))->toBe(['c-active@example.com'])
+        ->and($seen('inactive'))->toBe(['c-inactive@example.com'])
+        ->and($seen('archived'))->toBe(['c-archived@example.com'])
+        ->and($seen('pending_deletion'))->toBe(['c-pending@example.com']);
+
+    // All four stay visible in the main list and in the dedicated views.
+    $this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 5]))
+        ->assertSee('c-archived@example.com')->assertSee('c-pending@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.archived'))->assertSee('c-archived@example.com');
+    $this->actingAs($admin)->get(route('system-admin.users.deleted'))->assertSee('c-pending@example.com');
+});
+
+it('archives and queues a customer for deletion through the existing lifecycle', function () {
+    $admin = usersSystemAdmin();
+    $customer = usersCustomer();
+    $other = usersCustomer();
+
+    $this->actingAs($admin)->patch(route('system-admin.users.archive', $customer), ['reason' => 'Requested'])
+        ->assertRedirect(route('system-admin.users.index'));
+    expect($customer->fresh()->archived_at)->not->toBeNull();
+
+    $this->actingAs($admin)->delete(route('system-admin.users.queue-for-deletion', $other->id), ['reason' => 'Requested'])
+        ->assertRedirect(route('system-admin.users.index'));
+    expect($other->fresh()->pending_delete_at)->not->toBeNull();
+});
+
+it('does not expose staff-only or owner-only actions on customer rows', function () {
+    $admin = usersSystemAdmin();
+    $customer = usersCustomer(['email' => 'actions.customer@example.com']);
+    $locked = usersCustomer(['email' => 'locked.customer@example.com', 'status' => 'locked']);
+
+    $html = $this->actingAs($admin)->get(route('system-admin.users.index', ['role' => 5]))->assertOk()->getContent();
+
+    expect($html)->not->toContain(route('system-admin.users.edit', $customer->id))
+        ->and($html)->not->toContain(route('system-admin.users.edit', $locked->id))
+        ->and($html)->not->toContain(route('superadmin.users.unlock', $locked->id))
+        ->and($html)->toContain('Locked (inactivity)')
+        ->and($html)->toContain(route('system-admin.users.archive', $customer))
+        ->and($html)->toContain(route('system-admin.users.queue-for-deletion', $customer->id));
+
+    $this->actingAs($admin)->get(route('system-admin.users.edit', $customer->id))->assertForbidden();
 });

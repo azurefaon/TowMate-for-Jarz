@@ -91,17 +91,9 @@
                         @elseif (($user->role->name ?? null) === 'Customer')
                             <div class="action-group">
                                 @if ($user->status === 'locked')
-                                    <form method="POST"
-                                        action="{{ route('superadmin.users.unlock', $user->id) }}"
-                                        style="display:inline;">
-                                        @csrf
-                                        @method('PATCH')
-                                        <button type="submit" class="action-btn activate-btn"
-                                            title="Unlock this account">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11 L7 8.2 A5 4.6 0 0 1 16.5 7"/><rect x="5.5" y="11" width="13" height="9" rx="1.6"/><circle cx="12" cy="15.2" r="1.4"/></svg>
-                                            Unlock
-                                        </button>
-                                    </form>
+                                    {{-- Inactivity-locked customers unlock themselves via password reset;
+                                         the manual unlock action is Owner-only. --}}
+                                    <span class="ua-muted" title="The customer can restore access by resetting their password.">Locked (inactivity)</span>
                                 @else
                                     <form method="POST"
                                         action="{{ route('system-admin.users.toggle', $user->id) }}"

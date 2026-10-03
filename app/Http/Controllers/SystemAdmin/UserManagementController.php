@@ -29,7 +29,7 @@ class UserManagementController extends Controller
     {
         return User::with('role')
             ->whereHas('role', function ($q) {
-                $q->whereNotIn('id', [1, 4, 5]);
+                $q->whereNotIn('id', [1, 4]);
             })
             ->whereNull('anonymized_at')
             ->when(
@@ -93,7 +93,7 @@ class UserManagementController extends Controller
     protected function getUserStats(): array
     {
         $baseQuery = User::whereHas('role', function ($q) {
-            $q->whereNotIn('id', [1, 4, 5]);
+            $q->whereNotIn('id', [1, 4]);
         });
 
         return [
@@ -147,6 +147,18 @@ class UserManagementController extends Controller
             : 'unique:users,email';
 
         return $rules;
+    }
+
+    /**
+     * Roles a System Admin can see and filter in User Management: staff plus
+     * Customer accounts. Customers are listed but never creatable or
+     * convertible here — that stays on manageableRoles().
+     */
+    protected function listableRoles()
+    {
+        return Role::whereNotIn('id', [1, 4])
+            ->orderBy('name')
+            ->get();
     }
 
     protected function manageableRoles()
@@ -237,7 +249,7 @@ class UserManagementController extends Controller
             return view('system-admin.users.partials.table', compact('users', 'busyTeamLeaderIds'))->render();
         }
 
-        $roles = $this->manageableRoles();
+        $roles = $this->listableRoles();
         $stats = $this->getUserStats();
 
         return view('system-admin.users.index', compact('users', 'roles', 'stats', 'busyTeamLeaderIds'));
@@ -254,7 +266,7 @@ class UserManagementController extends Controller
             return view('system-admin.users.partials.archived-table', compact('archivedUsers'))->render();
         }
 
-        $roles = $this->manageableRoles();
+        $roles = $this->listableRoles();
         $stats = $this->getUserStats();
 
         return view('system-admin.users.archived', compact('archivedUsers', 'roles', 'stats'));
@@ -273,7 +285,7 @@ class UserManagementController extends Controller
             return view('system-admin.users.partials.deleted-table', compact('deletedUsers', 'retentionDays'))->render();
         }
 
-        $roles = $this->manageableRoles();
+        $roles = $this->listableRoles();
         $stats = $this->getUserStats();
 
         return view('system-admin.users.deleted', compact('deletedUsers', 'roles', 'stats', 'retentionDays'));
