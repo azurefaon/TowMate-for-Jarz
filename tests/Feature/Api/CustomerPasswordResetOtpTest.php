@@ -33,13 +33,13 @@ it('1: OTP request returns a generic response for an existing account', function
 
     $response = test()->postJson('/api/password/forgot', ['email' => $user->email]);
 
-    $response->assertOk()->assertJson(['success' => true, 'message' => 'If this email is registered, an OTP has been sent.']);
+    $response->assertOk()->assertJson(['success' => true, 'message' => "If an account uses this email, we'll send password reset instructions. Please check your inbox."]);
 });
 
 it('2: OTP request returns the identical generic response for a nonexistent account', function () {
     $response = test()->postJson('/api/password/forgot', ['email' => 'nobody-' . uniqid() . '@example.com']);
 
-    $response->assertOk()->assertJson(['success' => true, 'message' => 'If this email is registered, an OTP has been sent.']);
+    $response->assertOk()->assertJson(['success' => true, 'message' => "If an account uses this email, we'll send password reset instructions. Please check your inbox."]);
 });
 
 // 3 — plaintext storage ───────────────────────────────────────────────────
@@ -61,7 +61,7 @@ it('4: the OTP expires server-side after its TTL', function () {
 
     test()->postJson('/api/password/verify-otp', ['email' => $user->email, 'otp' => $otp])
         ->assertStatus(422)
-        ->assertJson(['success' => false, 'message' => 'OTP has expired. Please request a new one.']);
+        ->assertJson(['success' => false, 'message' => 'Invalid or expired code. Please try again or request a new one.']);
 });
 
 // 5/6 — attempt lockout ────────────────────────────────────────────────────
@@ -298,7 +298,7 @@ it('26: an inactive account cannot complete a password reset while the response 
     Mail::fake();
 
     $response = test()->postJson('/api/password/forgot', ['email' => $user->email]);
-    $response->assertOk()->assertJson(['success' => true, 'message' => 'If this email is registered, an OTP has been sent.']);
+    $response->assertOk()->assertJson(['success' => true, 'message' => "If an account uses this email, we'll send password reset instructions. Please check your inbox."]);
 
     Mail::assertNothingQueued();
     expect($user->fresh()->password_reset_otp_hash)->toBeNull();
@@ -309,7 +309,7 @@ it('26: an archived account cannot complete a password reset while the response 
     Mail::fake();
 
     $response = test()->postJson('/api/password/forgot', ['email' => $user->email]);
-    $response->assertOk()->assertJson(['success' => true, 'message' => 'If this email is registered, an OTP has been sent.']);
+    $response->assertOk()->assertJson(['success' => true, 'message' => "If an account uses this email, we'll send password reset instructions. Please check your inbox."]);
 
     Mail::assertNothingQueued();
     expect($user->fresh()->password_reset_otp_hash)->toBeNull();
@@ -320,7 +320,7 @@ it('26: an anonymized account cannot complete a password reset while the respons
     Mail::fake();
 
     test()->postJson('/api/password/forgot', ['email' => $user->email])
-        ->assertOk()->assertJson(['success' => true, 'message' => 'If this email is registered, an OTP has been sent.']);
+        ->assertOk()->assertJson(['success' => true, 'message' => "If an account uses this email, we'll send password reset instructions. Please check your inbox."]);
 
     Mail::assertNothingQueued();
 });
@@ -330,7 +330,7 @@ it('26: a pending-deletion account cannot complete a password reset while the re
     Mail::fake();
 
     test()->postJson('/api/password/forgot', ['email' => $user->email])
-        ->assertOk()->assertJson(['success' => true, 'message' => 'If this email is registered, an OTP has been sent.']);
+        ->assertOk()->assertJson(['success' => true, 'message' => "If an account uses this email, we'll send password reset instructions. Please check your inbox."]);
 
     Mail::assertNothingQueued();
 });

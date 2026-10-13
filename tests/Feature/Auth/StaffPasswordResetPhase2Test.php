@@ -30,7 +30,7 @@ it('20a: an inactive staff account gets the identical generic response and no OT
     $response = test()->post(route('password.email'), ['email' => $user->email]);
 
     $response->assertRedirect(route('password.otp.show'));
-    $response->assertSessionHas('status', 'If an account exists for that email, a verification code has been sent.');
+    $response->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
     expect(StaffPasswordResetOtp::where('email', $user->email)->exists())->toBeFalse();
     Mail::assertNothingQueued();
 });
@@ -40,7 +40,7 @@ it('20b: an archived staff account gets the identical generic response and no OT
     Mail::fake();
 
     test()->post(route('password.email'), ['email' => $user->email])
-        ->assertSessionHas('status', 'If an account exists for that email, a verification code has been sent.');
+        ->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
 
     expect(StaffPasswordResetOtp::where('email', $user->email)->exists())->toBeFalse();
     Mail::assertNothingQueued();
@@ -51,7 +51,7 @@ it('20c: a pending-deletion staff account gets the identical generic response an
     Mail::fake();
 
     test()->post(route('password.email'), ['email' => $user->email])
-        ->assertSessionHas('status', 'If an account exists for that email, a verification code has been sent.');
+        ->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
 
     expect(StaffPasswordResetOtp::where('email', $user->email)->exists())->toBeFalse();
     Mail::assertNothingQueued();
@@ -126,6 +126,15 @@ it('other database-backed web sessions for the account are invalidated after a s
 
 function phase2VerifiedResetSession(User $user)
 {
+    // Mirror the state left by a real successful verify step: a verified code row exists.
+    StaffPasswordResetOtp::updateOrCreate(['email' => $user->email], [
+        'otp_hash' => Hash::make('123456'),
+        'expires_at' => now()->addMinutes(5),
+        'verified_at' => now(),
+        'failed_attempts' => 0,
+        'last_sent_at' => now(),
+    ]);
+
     $withSession = test()->withSession([
         'staff_pw_reset_verified_email' => $user->email,
         'staff_pw_reset_verified_until' => now()->addMinutes(10),
