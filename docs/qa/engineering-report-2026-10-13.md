@@ -1,7 +1,7 @@
 # Engineering Report — TC004.02, TC015.12, TC028.03 (2026-10-13)
 
 Branch `main`. Commits (local, **not pushed, not deployed**):
-`1cf915a` TC004.02 · `a3d2c03` TC015.12 · `a0979fe` TC028.03 · `83765f2` fix-up (badge CSS, Google test message).
+`1cf915a` TC004.02 · `a3d2c03` TC015.12 · `a0f734c` TC028.03 · `83765f2` fix-up (badge CSS, Google test message).
 
 ## Root causes and fixes
 
