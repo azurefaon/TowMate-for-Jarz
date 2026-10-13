@@ -237,6 +237,7 @@ Route::prefix('superadmin')
         Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
         Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
         Route::get('/reports/export-pdf', [ReportsController::class, 'exportSummaryPdf'])->name('reports.export-pdf');
+        Route::get('/reports/export-xlsx', [ReportsController::class, 'exportSummaryXlsx'])->name('reports.export-xlsx');
         Route::get('/reports/bookings', [ReportsController::class, 'bookings'])->name('reports.bookings');
         Route::get('/reports/activity', [ReportsController::class, 'activity'])->name('reports.activity');
         Route::get('/reports/activity/export', [ReportsController::class, 'exportActivityPdf'])->name('reports.activity.export');

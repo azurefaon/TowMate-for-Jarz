@@ -144,6 +144,9 @@
                     <a class="reports-export-btn" href="{{ route('superadmin.reports.export-pdf', array_merge($pdfBaseParams, ['section' => 'financial'])) }}">
                         <i data-lucide="file-text"></i> Export Financial PDF
                     </a>
+                    <a class="reports-export-btn" href="{{ route('superadmin.reports.export-xlsx', array_merge($pdfBaseParams, ['section' => 'financial'])) }}">
+                        <i data-lucide="file-spreadsheet"></i> Export Financial Excel
+                    </a>
                 </div>
             </div>
 
@@ -207,6 +210,9 @@
                 <a class="reports-export-btn" href="{{ route('superadmin.reports.export-pdf', array_merge($pdfBaseParams, ['section' => 'vehicle'])) }}">
                     <i data-lucide="file-text"></i> Export Fleet PDF
                 </a>
+                <a class="reports-export-btn" href="{{ route('superadmin.reports.export-xlsx', array_merge($pdfBaseParams, ['section' => 'vehicle'])) }}">
+                    <i data-lucide="file-spreadsheet"></i> Export Fleet Excel
+                </a>
             </div>
         </div>
 
@@ -221,6 +227,9 @@
                 </a>
                 <a class="reports-export-btn" href="{{ route('superadmin.reports.export-pdf', array_merge($pdfBaseParams, ['section' => 'booking'])) }}">
                     <i data-lucide="file-text"></i> Export Booking PDF
+                </a>
+                <a class="reports-export-btn" href="{{ route('superadmin.reports.export-xlsx', array_merge($pdfBaseParams, ['section' => 'booking'])) }}">
+                    <i data-lucide="file-spreadsheet"></i> Export Booking Excel
                 </a>
             </div>
         </div>
