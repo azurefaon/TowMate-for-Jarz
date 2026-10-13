@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="{{ asset('dispatcher/css/dashboard.css') }}">
     <link rel="stylesheet" href="{{ asset('dispatcher/css/sidebar.css') }}">
     <link rel="stylesheet" href="{{ asset('dispatcher/css/dispatch.css') }}">
+    <link rel="stylesheet" href="{{ asset('dispatcher/css/customer-risk-badge.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     @stack('styles')
     <script src="https://unpkg.com/lucide@latest"></script>

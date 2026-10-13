@@ -1,4 +1,3 @@
-@include('admin-dashboard.partials.customer-risk-badge', ['customer' => null])
 <style>
     .incoming-card {
         position: relative;
