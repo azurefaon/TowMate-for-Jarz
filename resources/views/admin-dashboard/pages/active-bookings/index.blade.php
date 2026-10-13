@@ -328,7 +328,7 @@
                     <span class="job-code">{{ $booking->job_code }}</span>
                 </td>
                 <td>
-                    <div class="customer-name">{{ $booking->customer->full_name ?? 'Guest' }}</div>
+                    <div class="customer-name">{{ $booking->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $booking->customer])</div>
                     <div style="font-size: 0.85rem; color: #64748b;">{{ $booking->customer->phone ?? 'N/A' }}</div>
                 </td>
                 <td>

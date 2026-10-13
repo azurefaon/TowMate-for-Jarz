@@ -199,6 +199,7 @@ Route::prefix('admin-dashboard')
         Route::get('/quotations/floating-panel', [DispatchController::class, 'floatingQuotationsPanel'])->name('quotations.floating-panel');
         Route::post('/booking/{booking}/service-fee', [DispatchController::class, 'applyServiceFee'])->name('booking.service-fee');
         Route::post('/booking/{booking}/mark-risk', [DispatchController::class, 'markCustomerRisk'])->name('booking.mark-risk');
+        Route::post('/booking/{booking}/clear-risk', [DispatchController::class, 'clearCustomerRisk'])->name('booking.clear-risk');
         Route::get('/booking/{booking}/photos', [DispatchController::class, 'bookingPhotos'])->name('booking.photos');
         Route::get('/booking/{booking}/detail-bundle', [DispatchController::class, 'bookingDetailBundle'])->name('booking.detail-bundle');
         Route::get('/jobs', [JobsController::class, 'index'])->name('jobs');

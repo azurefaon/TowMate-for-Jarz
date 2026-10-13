@@ -1787,7 +1787,7 @@
                                                 <div class="rtn-info-grid">
                                                     <div class="rtn-panel">
                                                         <span class="rtn-panel-label">Customer Information</span>
-                                                        <span class="rtn-customer-name">{{ $booking->customer->full_name ?? 'Guest' }}</span>
+                                                        <span class="rtn-customer-name">{{ $booking->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $booking->customer])</span>
                                                         <span class="rtn-customer-line">{{ $booking->customer->phone ?? 'N/A' }}</span>
                                                         @if (filled($booking->customer->email ?? null))
                                                             <span class="rtn-customer-line">{{ $booking->customer->email }}</span>
@@ -1880,7 +1880,7 @@
 
                                         <div class="incoming-details">
                                             <span><strong>Customer:</strong>
-                                                {{ $booking->customer->full_name ?? 'Guest' }}</span>
+                                                {{ $booking->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $booking->customer])</span>
                                             <span><strong>Phone:</strong> {{ $booking->customer->phone ?? 'N/A' }}</span>
                                             <span><strong>Vehicle:</strong>
                                                 {{ $booking->truckType->name ?? 'Unknown' }}</span>
@@ -2144,7 +2144,7 @@
                                         data-group-roster="{{ json_encode($bnRoster) }}">
                                         <td>
                                             <div class="jobs-cell-primary jobs-booking-code">{{ $bnPrimary->booking_code }}{{ $bnCount > 1 ? ' (+' . ($bnCount - 1) . ')' : '' }}</div>
-                                            <div class="jobs-cell-secondary">{{ $bnPrimary->customer->full_name ?? 'Guest' }}</div>
+                                            <div class="jobs-cell-secondary">{{ $bnPrimary->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $bnPrimary->customer])</div>
                                         </td>
                                         <td>
                                             <div class="jobs-cell-primary">{{ $bnPrimary->created_at->format('M d, Y g:i A') }}</div>
@@ -2280,7 +2280,7 @@
                                             data-group-roster="{{ json_encode($schRoster) }}">
                                             <td>
                                                 <div class="jobs-cell-primary jobs-booking-code">{{ $sch->booking_code }}{{ $schCount > 1 ? ' (+' . ($schCount - 1) . ')' : '' }}</div>
-                                                <div class="jobs-cell-secondary">{{ $sch->customer->full_name ?? 'Guest' }}</div>
+                                                <div class="jobs-cell-secondary">{{ $sch->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $sch->customer])</div>
                                             </td>
                                             <td>
                                                 <div class="jobs-cell-primary">{{ $schScheduledFor ? $schScheduledFor->format('M d, Y g:i A') : 'Schedule pending' }}</div>
