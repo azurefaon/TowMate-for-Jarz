@@ -1,7 +1,10 @@
 # Engineering Report — TC004.02, TC015.12, TC028.03 (2026-10-13)
 
-Branch `main`. Commits (local, **not pushed, not deployed**):
-`1cf915a` TC004.02 · `a3d2c03` TC015.12 · `a0f734c` TC028.03 · `83765f2` fix-up (badge CSS, Google test message).
+QA branch `qa/towmate-retest-20261013` (pushed to origin; **remote `main` untouched at `ccd9f5f`; nothing deployed**).
+Commits: `1cf915a` TC004.02 · `a3d2c03` TC015.12 · `a0f734c` TC028.03 · `83765f2` fix-up (badge CSS, Google test message) · `e6c267c`, `08eee95` docs.
+A later docs-only commit on the same branch adds the final verification section below and the staging/QA checklist.
+
+> **Superseded figures:** the "Test results" numbers further down are from the first verification pass. The authoritative, final-commit numbers are in `docs/qa/final-verification-and-staging-2026-10-13.md`.
 
 ## Root causes and fixes
 
