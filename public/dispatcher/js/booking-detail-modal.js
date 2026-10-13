@@ -114,8 +114,8 @@
             '<textarea id="bdmRiskReason" maxlength="500" placeholder="Reason (required)"></textarea>' +
             '<div class="bdm-void-error" id="bdmRiskError" style="display:none"></div>' +
             '<div class="bdm-adj-form-actions">' +
-            '<button type="button" class="bdm-btn-primary" id="bdmRiskSave" data-booking-id="' + esc(booking.id) + '">' + (risk ? "Update risk" : "Mark risk") + "</button>" +
-            (risk ? '<button type="button" class="bdm-btn-secondary" id="bdmRiskClear" data-booking-id="' + esc(booking.id) + '">Clear risk</button>' : "") +
+            '<button type="button" class="bdm-btn-primary" id="bdmRiskSave" data-booking-id="' + esc(booking.booking_code) + '">' + (risk ? "Update risk" : "Mark risk") + "</button>" +
+            (risk ? '<button type="button" class="bdm-btn-secondary" id="bdmRiskClear" data-booking-id="' + esc(booking.booking_code) + '">Clear risk</button>' : "") +
             "</div></div>"
         );
     }
@@ -129,7 +129,7 @@
         function submit(action, body, buttons) {
             errorEl.style.display = "none";
             buttons.forEach(function (b) { if (b) b.disabled = true; });
-            fetch("/admin-dashboard/booking/" + encodeURIComponent(booking.id) + "/" + action, {
+            fetch("/admin-dashboard/booking/" + encodeURIComponent(booking.booking_code) + "/" + action, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -196,7 +196,7 @@
             row("Email", customer.email);
 
         // Only the dispatcher bundle carries the "risk" key; skip the controls otherwise.
-        var showRisk = Object.prototype.hasOwnProperty.call(customer, "risk") && booking && booking.id;
+        var showRisk = Object.prototype.hasOwnProperty.call(customer, "risk") && booking && booking.booking_code;
         if (showRisk) html += renderCustomerRisk(customer, booking);
 
         el("bdmCustomerSection").innerHTML = html;

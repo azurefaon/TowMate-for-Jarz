@@ -22,4 +22,9 @@ check('clear requires a reason client-side', source.includes('Enter a reason for
 check('requests carry the CSRF token', /submit\([\s\S]*X-CSRF-TOKEN/.test(source));
 check('customer name/phone/email are escaped via row()', /renderCustomer[\s\S]*row\("Name", customer\.full_name\)/.test(source));
 
+// Booking route key is booking_code; a numeric id 404s on the server.
+check("risk URLs are built from booking_code, never the numeric id",
+    source.includes('encodeURIComponent(booking.booking_code) + "/" + action') && !source.includes('encodeURIComponent(booking.id)'));
+check("risk buttons carry booking_code", source.split("esc(booking.booking_code) + '\"").length - 1 === 2 && !source.includes("data-booking-id=\"' + esc(booking.id)"));
+
 process.exit(failures ? 1 : 0);
