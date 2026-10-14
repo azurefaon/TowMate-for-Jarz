@@ -108,7 +108,7 @@
         return (
             '<div class="bdm-row"><span class="bdm-row-label">Customer risk (current)</span>' +
             '<span class="bdm-row-value" id="bdmRiskStatus">' + statusHtml + "</span></div>" +
-            '<div class="bdm-row"><span class="bdm-row-label">Risk status applies to the customer, not only this booking. It is informational and does not change this booking.</span></div>' +
+            '<p class="bdm-risk-note" style="margin:6px 0 10px;font-size:0.78rem;color:#6b7280;white-space:normal;line-height:1.4">Risk status applies to the customer, not only this booking. It is informational and does not change this booking.</p>' +
             '<div class="bdm-void-form" id="bdmRiskForm" style="display:block">' +
             '<select id="bdmRiskLevel" aria-label="Risk level"><option value="">Select risk level</option>' + options + "</select>" +
             '<textarea id="bdmRiskReason" maxlength="500" placeholder="Reason (required)"></textarea>' +

@@ -200,6 +200,11 @@
             customerName: d.customerName || "Guest",
             customerPhone: d.customerPhone || "",
             customerEmail: d.customerEmail || "",
+            // Customer risk (informational, customer-wide). Controls render only where the row opts in.
+            customerRiskControls: d.riskControls === "1",
+            customerRiskLevel: d.customerRiskLevel || "",
+            customerRiskLabel: d.customerRiskLabel || "",
+            customerRiskReason: d.customerRiskReason || "",
             pickup: d.pickup || "",
             pickupNotes: d.pickupNotes || "",
             dropoff: d.dropoff || "",
@@ -717,6 +722,63 @@
             cells +
             "</div></div>"
         );
+    }
+
+    function customerRiskSectionHtml(s) {
+        if (!s.customerRiskControls || !s.bookingCode || s.isMockPreview) return "";
+        var flagged = !!s.customerRiskLevel;
+        var status = flagged
+            ? '<span class="cust-risk-badge cust-risk-badge--' + esc(s.customerRiskLevel) + '" data-customer-risk="' + esc(s.customerRiskLevel) + '">&#9873; ' + esc(s.customerRiskLabel) + "</span>" +
+              (s.customerRiskReason ? ' <span class="rb-inline-note">' + esc(s.customerRiskReason) + "</span>" : "")
+            : '<span class="rb-inline-note">No risk flag</span>';
+        return (
+            '<div class="rb-section" id="rbRiskSection"><h4>Customer risk (current)</h4>' +
+            '<div id="rbRiskStatus">' + status + "</div>" +
+            '<div class="rb-inline-note" style="margin:6px 0 8px">Applies to the customer, not only this booking. Informational: it does not change this booking.</div>' +
+            '<select id="rbRiskLevel" aria-label="Risk level" style="width:100%;margin-bottom:6px"><option value="">Select risk level</option>' +
+            '<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="blacklist">Blacklist</option></select>' +
+            '<textarea id="rbRiskReason" maxlength="500" placeholder="Reason (required)" style="width:100%;min-height:56px"></textarea>' +
+            '<div id="rbRiskError" class="rb-inline-note" style="display:none;color:#D8402C;margin:4px 0"></div>' +
+            '<div style="display:flex;gap:8px;margin-top:6px">' +
+            '<button type="button" class="rb-btn rb-btn-primary" id="rbRiskSave">' + (flagged ? "Update risk" : "Mark risk") + "</button>" +
+            (flagged ? '<button type="button" class="rb-btn rb-btn-secondary" id="rbRiskClear">Clear risk</button>' : "") +
+            "</div></div>"
+        );
+    }
+
+    // POSTs to the dispatcher risk endpoints (route key is booking_code). Reloads so every badge
+    // on the page reflects the customer's new current status.
+    function submitCustomerRisk(action, body) {
+        var errorEl = document.getElementById("rbRiskError");
+        var buttons = [document.getElementById("rbRiskSave"), document.getElementById("rbRiskClear")];
+        errorEl.style.display = "none";
+        buttons.forEach(function (b) { if (b) b.disabled = true; });
+        var csrf = window.RB_CSRF || (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+        fetch("/admin-dashboard/booking/" + encodeURIComponent(state.bookingCode) + "/" + action, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-TOKEN": csrf },
+            credentials: "same-origin",
+            body: JSON.stringify(body),
+        })
+            .then(function (res) {
+                return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+            })
+            .then(function (result) {
+                if (!result.ok || !result.data || !result.data.success) {
+                    var errs = result.data && result.data.errors;
+                    var first = errs ? Object.keys(errs).map(function (k) { return errs[k][0]; })[0] : null;
+                    errorEl.textContent = first || (result.data && result.data.message) || "Unable to update customer risk.";
+                    errorEl.style.display = "";
+                    buttons.forEach(function (b) { if (b) b.disabled = false; });
+                    return;
+                }
+                window.location.reload();
+            })
+            .catch(function () {
+                errorEl.textContent = "Unable to update customer risk.";
+                errorEl.style.display = "";
+                buttons.forEach(function (b) { if (b) b.disabled = false; });
+            });
     }
 
     function vehicleSectionHtml(s) {
@@ -1729,6 +1791,7 @@
             '<div class="rb-two-col">' +
             '<div class="rb-col-left">' +
             requestSectionHtml(s) +
+            customerRiskSectionHtml(s) +
             serviceScheduleSectionHtml(s) +
             vehicleAndRouteSectionHtml(s) +
             customerNoteSectionHtml(s) +
@@ -1766,6 +1829,32 @@
 
         byId("rbDrawerCloseBtn", function (el) {
             el.onclick = closeBookingDrawer;
+        });
+
+        byId("rbRiskSave", function (el) {
+            el.onclick = function () {
+                var level = document.getElementById("rbRiskLevel").value;
+                var reason = document.getElementById("rbRiskReason").value.trim();
+                if (!level || !reason) {
+                    var err = document.getElementById("rbRiskError");
+                    err.textContent = "Select a risk level and enter a reason.";
+                    err.style.display = "";
+                    return;
+                }
+                submitCustomerRisk("mark-risk", { risk_level: level, risk_reason: reason });
+            };
+        });
+        byId("rbRiskClear", function (el) {
+            el.onclick = function () {
+                var reason = document.getElementById("rbRiskReason").value.trim();
+                if (!reason) {
+                    var err = document.getElementById("rbRiskError");
+                    err.textContent = "Enter a reason for clearing the risk status.";
+                    err.style.display = "";
+                    return;
+                }
+                submitCustomerRisk("clear-risk", { risk_reason: reason });
+            };
         });
 
         byId("rbPhotoStackTrigger", function (el) {

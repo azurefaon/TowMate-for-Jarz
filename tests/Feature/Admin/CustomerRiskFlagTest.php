@@ -273,9 +273,30 @@ it('gives the dispatcher a visible way to open customer and risk details from th
 
     $html = $this->actingAs($dispatcher)->get(route('admin.dispatch'))->assertOk()->getContent();
 
-    // Intermediate Booking row
-    expect($html)->toContain("openBookingDetailModal('{$queued->job_code}')");
-    // Returned card footer
+    // Intermediate Booking row opens the unified drawer on click; the drawer reads the customer's
+    // risk from the row's data attributes and shows the controls only when the row opts in.
+    preg_match('/<tr[^>]*data-booking-code="' . preg_quote($queued->booking_code, '/') . '"[^>]*>/s', $html, $row);
+    expect($row)->not->toBeEmpty()
+        ->and($row[0])->toContain('data-risk-controls="1"')
+        ->and($row[0])->toContain('data-customer-risk-level=""');
+    // ...and the team's design (no per-row modal trigger) is preserved.
+    expect($html)->not->toContain("window.openBookingDetailModal('{$queued->booking_code}')");
+
+    // Returned card (no drawer) gets an explicit button in its footer.
     expect($html)->toContain("openBookingDetailModal('{$returned->job_code}')")
         ->and($html)->toContain('Customer &amp; Risk');
+});
+
+it('passes a flagged customer\'s current risk to the drawer through the row data attributes', function () {
+    $dispatcher = crfUser(2, 'Dispatcher');
+    $customer = crfCustomer('Flagged Queue Customer');
+    $customer->update(['risk_level' => 'high', 'risk_reason' => 'Chargeback history']);
+    $queued = crfBooking($customer, 'requested');
+
+    $html = $this->actingAs($dispatcher)->get(route('admin.dispatch'))->assertOk()->getContent();
+
+    preg_match('/<tr[^>]*data-booking-code="' . preg_quote($queued->booking_code, '/') . '"[^>]*>/s', $html, $row);
+    expect($row[0])->toContain('data-customer-risk-level="high"')
+        ->and($row[0])->toContain('data-customer-risk-label="High risk"')
+        ->and($row[0])->toContain('data-customer-risk-reason="Chargeback history"');
 });
