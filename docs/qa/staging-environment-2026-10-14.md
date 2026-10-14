@@ -52,3 +52,10 @@ All passed unless noted. These are developer smoke tests, **not QA execution**; 
 
 ## Not verified
 Microsoft Excel opening the files; the booking-detail modal in a real browser (the HTTP calls it makes were tested, the clicks were not); delivery of real email (intentionally disabled).
+
+## Update 2026-10-14 (second pass)
+- `ext-gd`/`ext-zip` now declared in `composer.json`; the temporary `RAILPACK_PHP_EXTENSIONS` variable was deleted from staging and a fresh build installed `gd` and `zip` from `composer.json` alone.
+- `/api/v1/bookings` dead resource routes removed (405 instead of 500); regression test `tests/Feature/Api/CustomerBookingRoutesTest.php`.
+- Real-browser test (Chrome via automation) found the risk controls were not reachable from the visible dispatch queue; they now live in the unified booking drawer (row click) and, for the Returned card, behind a "Customer & Risk" button. 14 browser checks pass on staging with no JS or HTTP errors.
+- The three exported workbooks were opened in real Microsoft Excel: no errors, numeric/date cells typed correctly, a customer named `=HYPERLINK(...)` is stored as literal text.
+- Staging now runs the branch tip `2101273`. The two empty Postgres service shells no longer exist in the project.
