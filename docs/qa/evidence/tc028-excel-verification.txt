@@ -1,0 +1,29 @@
+﻿Microsoft Excel 16.0 build 19127 opened the staging exports of 2026-10-14 (read-only, via COM automation)
+== booking.xlsx: opened without error (COM Open succeeded; a corrupt file would throw); sheets = Booking Report, Booking Details
+   [Booking Report] used=A1:C18 formulaCells=0 errorCells=0
+   [Booking Details] used=A1:G10 formulaCells=0 errorCells=0
+   row 3 : Booking # | Created | Customer | Status | amount 'Amount' [String] fmt General
+   row 4 : TM-QA0005 | 2026-10-14 10:12 | QA Customer | Returned | amount '₱1,980.00' [Double] fmt "₱"#,##0.00
+   row 5 : TM-QA0006 | 2026-10-14 08:25 | '=HYPERLINK("http://evil.test","click") | Completed | amount '₱1,700.00' [Double] fmt "₱"#,##0.00
+   row 6 : TM-QA0001 | 2026-10-14 02:21 | QA Customer | Requested | amount '₱1,860.00' [Double] fmt "₱"#,##0.00
+   row 7 : TM-QA0002 | 2026-10-14 00:21 | QA Customer | Completed | amount '₱2,016.00' [Double] fmt "₱"#,##0.00
+   row 8 : TM-QA0003 | 2026-10-13 22:21 | QA Other Customer | Completed | amount '₱3,120.50' [Double] fmt "₱"#,##0.00
+   row 9 : TM-QA0004 | 2026-10-13 20:21 | QA Customer | Cancelled | amount '₱1,500.00' [Double] fmt "₱"#,##0.00
+   row 10 : Total (6 bookings listed) |  |  |  | amount '₱12,176.50' [Double] fmt "₱"#,##0.00
+== vehicle.xlsx: opened without error (COM Open succeeded; a corrupt file would throw); sheets = Vehicle Report
+   [Vehicle Report] used=A1:C10 formulaCells=0 errorCells=0
+   Unit | Trips | Revenue
+   QA Unit Alpha | 2 | ₱3,716.00
+   QA Unit Bravo | 1 | ₱3,120.50
+   Total (2 vehicles used) | 3 | ₱6,836.50
+== financial.xlsx: opened without error (COM Open succeeded; a corrupt file would throw); sheets = Financial Report
+   [Financial Report] used=A1:B12 formulaCells=0 errorCells=0
+   From | 2026-10-01
+   To | 2026-10-31
+   Timezone | Asia/Manila
+   Item | Amount
+   Additional Fees Collected | ₱0.00
+   VAT Collected | ₱0.00
+   Cash Received | ₱0.00
+   Average Revenue per Completed Booking | ₱0.00
+   Total Revenue | ₱6,836.50

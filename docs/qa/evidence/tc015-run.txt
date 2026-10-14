@@ -1,0 +1,54 @@
+# TC015.12 staging run 2026-10-14T03:09:05Z
+## Drawer + Returned-card modal (real Chrome)
+PASS  dispatcher signs in through the real login form
+PASS  queue row TM-QA0001 is visible
+PASS  no per-row modal button (team design preserved)
+PASS  clicking the row opens the booking drawer with a Customer risk section
+PASS  unflagged customer shows "No risk flag"
+PASS  Mark risk with nothing filled in shows an inline error  -> Select a risk level and enter a reason.
+PASS  Mark risk (High + reason) saved; page reloaded
+PASS  High risk badge is visible on the queue row  -> ⚑ High risk
+PASS  reopened drawer shows the current status and reason  -> ⚑ High risk Browser test: repeated no-shows
+PASS  Clear risk with no reason is blocked  -> Enter a reason for clearing the risk status.
+PASS  Update risk (High -> Medium) works; badge shows Medium
+PASS  the same customer's Returned card shows the Medium badge
+PASS  Returned card button opens the modal showing the current status
+PASS  Clear risk (via the Returned-card modal) removes every badge
+INFO  http errors: []
+INFO  js errors: []
+
+## Permissions, persistence, other customers (HTTP)
+PASS  dispatcher login  -> https://towmate-staging-staging.up.railway.app/admin-dashboard
+PASS  dispatch page loads with CSRF token
+PASS  detail bundle: no risk flag yet  -> null
+INFO  bundle booking ids -> id=1 code=TM-QA0001
+PASS  mark without reason rejected  -> 422
+PASS  mark High risk with reason  -> {"level":"high","label":"High risk","reason":"Staging smoke: repeated no-shows"}
+PASS  booking history shows "Current: High risk" badge
+PASS  dispatch page shows badge
+PASS  persists after new login; other booking of same customer shows it  -> High risk
+PASS  a different customer is unaffected
+PASS  owner cannot change risk  -> 403
+PASS  anonymous cannot change risk  -> 419
+PASS  clear without reason rejected  -> 422
+PASS  clear with reason  -> 200
+PASS  badge gone after clear
+
+## Customer-facing privacy (HTTP, customer token)
+PASS  dispatcher flags customer@staging.test (blacklist)  -> 200
+PASS  customer API login  -> 200
+PASS  login response has no risk data
+PASS  /api/v1/profile has no risk data  -> 200
+PASS  /api/v1/bookings/history has no risk data  -> 200
+PASS  /api/v1/bookings/current has no risk data  -> 200
+PASS  /api/v1/bookings/TM-QA0002/detail has no risk data  -> 200
+PASS  cleared again  -> 200
+PASS  recovered customer can log in with the new password  -> 200
+PASS  old password no longer works  -> 401
+
+# Owner audit view
+PASS  Owner signs in  -> /superadmin/dashboard
+PASS  Owner business activity lists "Customer Risk Updated" entries
+PASS  entries show the reasons recorded by the Dispatcher
+PASS  entries identify the acting Dispatcher (QA Dispatcher)
+PASS  entries show readable old -> new risk values

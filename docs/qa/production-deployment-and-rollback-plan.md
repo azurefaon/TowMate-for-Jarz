@@ -16,11 +16,19 @@ Production today: Railway project `humorous-fulfillment`, environment `productio
 ## Verified so far (on staging, not production)
 Staging was built from this branch with `composer.json` alone (no extension variable): `install-php-extensions` list included `gd zip`; PHP 8.2.34. Smoke-tested over HTTP and in real Chrome; the three exported workbooks were opened in real Microsoft Excel (no errors, numbers/dates typed correctly, formula text stored as text). Targeted PHP tests pass; remaining failures are the pre-existing baseline set (none new).
 
+## Verified on production (read-only) — 2026-10-14
+- **Backup taken and verified:** `pg_dump -Fc` run inside the production Postgres container (PostgreSQL 18.6, DB `railway`, 13 MB). Archive fully read back with `pg_restore` (OK), 40 tables with data, 338,525 bytes, SHA-256 `cf1896426681b88a984a1e680049c4c22090b06e32e152affc3dc52e4784ad7c`, copied to `C:\Users\caval\TowMate_backups\towmate_prod_20261014T030123Z.dump` (+ `.sha256` and exact row counts: users 24, customers 31, bookings 116, quotations 101, invoices 12, audit_logs 2250, migrations 158). **Contains customer data — move it to secure storage; it is deliberately outside the OneDrive-synced folders and the repo.** A test *restore* was not performed (copying production data into staging was declined as a privacy risk); restoring uses `pg_restore -d <db> --clean --if-exists <file>`.
+- **Migrations:** production has 158 applied, same as the branch → no pending migration.
+- **Mail:** `MAIL_MAILER=brevo`; Brevo API key accepted (HTTP 200 on the account endpoint); sender `MAIL_FROM_ADDRESS` is a registered, active Brevo sender; plan is the **free tier, 300 emails/day**. No email was sent by these checks.
+- **Queue:** `QUEUE_CONNECTION=database`; a `queue:work` process is running (since Oct 3); 0 pending jobs; 32 old failed jobs, latest 2026-08-21 (pre-existing).
+- **PHP runtime:** 8.2.27 with `gd` and `zip` already loaded (so the PhpSpreadsheet requirement is already satisfied at runtime), `memory_limit=128M`.
+- **Export memory:** measured peak ~102 MB at 5,000 booking rows and ~134 MB at 10,000, so the workbook's detail-row cap was lowered to 5,000 (commit after `fb1c8a2`). Production holds 116 bookings in total, so normal ranges are tiny.
+
 ## Pre-flight (before pressing anything)
 1. Owner approves the release and confirms the exact commit SHA.
 2. Merge path decision (owner): production builds from `main`. Either (a) open a pull request `qa/towmate-retest-20261013` -> `main` and merge it after review, or (b) fast-forward `main`. Do not force-push. **Merging to `main` triggers an automatic production deploy**, so treat the merge itself as the deploy button.
-3. Take a **database backup** of the production `Postgres` service (Railway dashboard -> Postgres -> Backups, or `pg_dump` via the Railway connection string) and note the timestamp. The release has no migrations, so this is a safety net only.
-4. Record the current production deployment id (Railway dashboard -> TowMate-for-Jarz -> Deployments) so it can be redeployed instantly.
+3. **Database backup: done** (see "Verified on production"). If the merge is delayed by more than a day, take a fresh one: `railway ssh --service Postgres --environment production -- sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/<name>.dump'` and copy it out. The release has no migrations, so this is a safety net only.
+4. The current production deployment is `007d44f0-1efc-45e5-9c77-09c3aaff0722` (`ccd9f5f`, SUCCESS) — recorded for reference only; rollback uses the clean-export method below.
 5. Choose a low-traffic window; allow ~10 minutes (Railway build 3-5 min; `composer install` autoload generation is slow).
 6. Confirm production has the `SUPERADMIN_*`/mail variables it already uses; **do not change any variables**. (Do not copy staging variables: staging uses `MAIL_MAILER=log`, which would stop real emails.)
 
@@ -39,8 +47,18 @@ Staging was built from this branch with `composer.json` alone (no extension vari
 
 ## Rollback
 Trigger if: build ok but login broken, repeated 500s, reports/dispatch pages broken, or password recovery failing for real users.
-1. **Fast (about 2 minutes):** Railway dashboard -> TowMate-for-Jarz -> Deployments -> the deployment recorded in pre-flight (`ccd9f5f`) -> Redeploy. (Config for the service is unchanged, so this restores the previous code exactly.)
-2. **Git-level:** `git revert -m 1 <merge-commit>` on `main` and push (never force-push); Railway redeploys the revert.
+
+**Important (verified 2026-10-14):** Railway marks superseded deployments `REMOVED` (all deployments before the current `ccd9f5f` one already are), so the dashboard "Redeploy" button on the old deployment should **not** be relied on. The rollback below was **rehearsed on staging**: deploying the previous code took ~3 minutes and staging then served the old code (new route 404).
+
+1. **Fast (about 3 minutes) — deploy the previous code from a clean export:**
+   ```
+   mkdir C:\tmq_rollback ; git archive ccd9f5f | tar -x -C C:\tmq_rollback
+   cd C:\tmq_rollback
+   railway up --project 81ffd7ff-741f-4d0a-8a44-55e3697cecf9 --environment production --service TowMate-for-Jarz --detach
+   ```
+   (use the exact `--environment production` flag deliberately; this is the only command in this plan that targets production by CLI).
+2. **Then make it stick (same day):** `git revert -m 1 <merge-commit>` on `main` and push (never force-push). Until `main` is reverted, the next push to `main` would redeploy the new code.
+3. If the rollback upload also fails, the database is untouched and no data is at risk; fix forward or contact the owner.
 3. **Data:** nothing to roll back — no migrations. Data written while the new code was live stays valid for the old code: customer risk uses the existing `customers.risk_*` columns; audit rows are additive; password-reset storage columns and hash formats are unchanged, so codes issued before or after remain usable.
 4. Keep the DB backup until the release has been stable for a few days.
 

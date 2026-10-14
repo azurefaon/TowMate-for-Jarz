@@ -1,0 +1,19 @@
+INFO  mails already in log before test: staff=0 ghost=0
+PASS  forgot-password page loads
+INFO  native browser check on blank email: valueMissing=true
+PASS  blank email -> server shows a required-field error  -> The email field is required.
+INFO  native browser check on "abc": typeMismatch=true
+PASS  malformed email -> invalid-format error  -> The email field must be a valid email address.
+PASS  unregistered email -> goes to the code-entry page  -> /forgot-password/verify
+PASS  registered and unregistered emails show identical confirmation text and the same next page  -> If an account uses this email, we'll send password reset instructions. Please check your inbox.
+PASS  confirmation text equals the approved wording
+PASS  both pages show the 6-box code entry
+PASS  wrong code -> generic invalid/expired message  -> Invalid or expired verification code. Request a new code if needed.
+PASS  unknown-account wrong code shows the identical message  -> Invalid or expired verification code. Request a new code if needed.
+PASS  exactly one reset email was produced for the registered account  -> mails now 1
+PASS  no reset email was produced for the unregistered address
+PASS  correct code accepted -> reset-password page
+PASS  password reset completes -> success page
+PASS  sign-in with the NEW password works  -> /admin-dashboard
+PASS  sign-in with the OLD password is rejected  -> /dispatcher/login
+PASS  the already-used code is rejected (single use)  -> Invalid or expired verification code. Request a new code if needed.
