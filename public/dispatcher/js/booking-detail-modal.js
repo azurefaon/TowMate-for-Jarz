@@ -85,15 +85,122 @@
         el("bdmStatus").textContent = humanize(booking.status);
     }
 
-    function renderCustomer(customer) {
+    var RISK_LEVELS = [
+        { value: "low", label: "Low" },
+        { value: "medium", label: "Medium" },
+        { value: "high", label: "High" },
+        { value: "blacklist", label: "Blacklist" },
+    ];
+
+    // Risk is a customer-wide, informational flag: it never blocks or alters a booking.
+    function renderCustomerRisk(customer, booking) {
+        var risk = customer.risk || null;
+        var statusHtml = risk
+            ? '<span class="cust-risk-badge cust-risk-badge--' + esc(risk.level) + '" data-customer-risk="' + esc(risk.level) + '">&#9873; ' +
+              esc(risk.label) + "</span>" +
+              (risk.reason ? ' <span class="bdm-row-label">' + esc(risk.reason) + "</span>" : "")
+            : "No risk flag";
+
+        var options = RISK_LEVELS.map(function (lvl) {
+            return '<option value="' + lvl.value + '">' + lvl.label + "</option>";
+        }).join("");
+
+        return (
+            '<div class="bdm-row"><span class="bdm-row-label">Customer risk (current)</span>' +
+            '<span class="bdm-row-value" id="bdmRiskStatus">' + statusHtml + "</span></div>" +
+            '<p class="bdm-risk-note" style="margin:6px 0 10px;font-size:0.78rem;color:#6b7280;white-space:normal;line-height:1.4">Risk status applies to the customer, not only this booking. It is informational and does not change this booking.</p>' +
+            '<div class="bdm-void-form" id="bdmRiskForm" style="display:block">' +
+            '<select id="bdmRiskLevel" aria-label="Risk level"><option value="">Select risk level</option>' + options + "</select>" +
+            '<textarea id="bdmRiskReason" maxlength="500" placeholder="Reason (required)"></textarea>' +
+            '<div class="bdm-void-error" id="bdmRiskError" style="display:none"></div>' +
+            '<div class="bdm-adj-form-actions">' +
+            '<button type="button" class="bdm-btn-primary" id="bdmRiskSave" data-booking-id="' + esc(booking.booking_code) + '">' + (risk ? "Update risk" : "Mark risk") + "</button>" +
+            (risk ? '<button type="button" class="bdm-btn-secondary" id="bdmRiskClear" data-booking-id="' + esc(booking.booking_code) + '">Clear risk</button>' : "") +
+            "</div></div>"
+        );
+    }
+
+    function wireCustomerRisk(booking) {
+        var saveBtn = el("bdmRiskSave");
+        if (!saveBtn) return;
+        var clearBtn = el("bdmRiskClear");
+        var errorEl = el("bdmRiskError");
+
+        function submit(action, body, buttons) {
+            errorEl.style.display = "none";
+            buttons.forEach(function (b) { if (b) b.disabled = true; });
+            fetch("/admin-dashboard/booking/" + encodeURIComponent(booking.booking_code) + "/" + action, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN": window.RB_CSRF || "",
+                },
+                credentials: "same-origin",
+                body: JSON.stringify(body),
+            })
+                .then(function (res) {
+                    return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+                })
+                .then(function (result) {
+                    if (!result.ok || !result.data || !result.data.success) {
+                        var errs = result.data && result.data.errors;
+                        var first = errs ? Object.keys(errs).map(function (k) { return errs[k][0]; })[0] : null;
+                        errorEl.textContent = first || (result.data && result.data.message) || "Unable to update customer risk.";
+                        errorEl.style.display = "";
+                        buttons.forEach(function (b) { if (b) b.disabled = false; });
+                        return;
+                    }
+                    // Reload so every badge on the page reflects the customer's new current status.
+                    window.location.reload();
+                })
+                .catch(function () {
+                    errorEl.textContent = "Unable to update customer risk.";
+                    errorEl.style.display = "";
+                    buttons.forEach(function (b) { if (b) b.disabled = false; });
+                });
+        }
+
+        saveBtn.addEventListener("click", function () {
+            var level = el("bdmRiskLevel").value;
+            var reason = el("bdmRiskReason").value.trim();
+            if (!level || !reason) {
+                errorEl.textContent = "Select a risk level and enter a reason.";
+                errorEl.style.display = "";
+                return;
+            }
+            submit("mark-risk", { risk_level: level, risk_reason: reason }, [saveBtn, clearBtn]);
+        });
+
+        if (clearBtn) {
+            clearBtn.addEventListener("click", function () {
+                var reason = el("bdmRiskReason").value.trim();
+                if (!reason) {
+                    errorEl.textContent = "Enter a reason for clearing the risk status.";
+                    errorEl.style.display = "";
+                    return;
+                }
+                submit("clear-risk", { risk_reason: reason }, [saveBtn, clearBtn]);
+            });
+        }
+    }
+
+    function renderCustomer(customer, booking) {
         if (!customer) {
             el("bdmCustomerSection").innerHTML = emptyState("No customer information available.");
             return;
         }
-        el("bdmCustomerSection").innerHTML =
+        var html =
             row("Name", customer.full_name) +
             row("Phone", customer.phone) +
             row("Email", customer.email);
+
+        // Only the dispatcher bundle carries the "risk" key; skip the controls otherwise.
+        var showRisk = Object.prototype.hasOwnProperty.call(customer, "risk") && booking && booking.booking_code;
+        if (showRisk) html += renderCustomerRisk(customer, booking);
+
+        el("bdmCustomerSection").innerHTML = html;
+        if (showRisk) wireCustomerRisk(booking);
     }
 
     function renderTrip(data) {
@@ -467,7 +574,7 @@
     function render(data) {
         lastBundleData = data;
         renderHeader(data);
-        renderCustomer(data.customer);
+        renderCustomer(data.customer, data.booking);
         renderTrip(data);
         renderVehicles(data.vehicles);
         renderQuotation(data.quotation);

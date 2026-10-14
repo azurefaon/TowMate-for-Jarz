@@ -1,0 +1,8 @@
+PASS  api blank email -> 422  -> 422
+PASS  api malformed email -> 422  -> 422
+PASS  api registered & unregistered identical response  -> 200 If an account uses this email, we'll send password reset instructions. Please check your inbox.
+PASS  api wrong code vs unknown account: identical response  -> Invalid or expired code. Please try again or request a new one.
+PASS  api correct code accepted  -> 200
+PASS  api password reset  -> Password reset successfully. You can now log in.
+PASS  api reset token cannot be reused  -> 422
+PASS  api consumed code rejected  -> 422

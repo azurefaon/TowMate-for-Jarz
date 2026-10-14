@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\DocumentGenerationService;
 use App\Services\ReportMetricsService;
+use App\Services\ReportWorkbookBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -233,15 +234,7 @@ class ReportsController extends Controller
         $bucket = (string) $request->query('bucket', '');
         $statuses = self::BUCKETS[$bucket] ?? null;
 
-        $query = Booking::with(['customer', 'truckType', 'unit'])
-            ->whereBetween('created_at', [$start, $end])
-            ->when($statuses, fn ($q) => $q->whereIn('status', $statuses))
-            ->when($filters['truck_type_id'], fn ($q, $id) => $q->where('truck_type_id', $id))
-            ->when($filters['min_amount'] !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
-            ->when($filters['max_amount'] !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']))
-            ->orderByDesc('created_at');
-
-        $bookings = $query->paginate(20)->withQueryString();
+        $bookings = $this->bookingDetailQuery($start, $end, $filters, $statuses)->paginate(20)->withQueryString();
 
         return view('superadmin.reports.bookings', [
             'bookings'   => $bookings,
@@ -251,6 +244,17 @@ class ReportsController extends Controller
             'end'        => Carbon::parse($end),
             'period'     => $period,
         ]);
+    }
+
+    protected function bookingDetailQuery($start, $end, array $filters, ?array $statuses = null)
+    {
+        return Booking::with(['customer', 'truckType', 'unit'])
+            ->whereBetween('created_at', [$start, $end])
+            ->when($statuses, fn ($q) => $q->whereIn('status', $statuses))
+            ->when($filters['truck_type_id'], fn ($q, $id) => $q->where('truck_type_id', $id))
+            ->when($filters['min_amount'] !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
+            ->when($filters['max_amount'] !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']))
+            ->orderByDesc('created_at');
     }
 
     public function activity(Request $request)
@@ -506,6 +510,37 @@ class ReportsController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
+    }
+
+    public function exportSummaryXlsx(Request $request, ReportWorkbookBuilder $workbooks)
+    {
+        $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'period' => ['nullable', 'in:' . implode(',', self::PERIODS)],
+            'section' => ['nullable', 'in:' . implode(',', array_keys(self::REPORT_SECTIONS))],
+            'truck_type_id' => ['nullable', 'integer'],
+            'min_amount' => ['nullable', 'numeric', 'min:0'],
+            'max_amount' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        [$start, $end, $period] = $this->resolveRange($request);
+        $filters = $this->resolveFilters($request);
+        $summary = $this->buildSummary($start, $end, $filters);
+        $section = (string) $request->query('section', 'all');
+
+        $truckTypeName = $filters['truck_type_id'] ? TruckType::find($filters['truck_type_id'])?->name : null;
+
+        $detailQuery = in_array($section, ['all', 'booking'], true)
+            ? $this->bookingDetailQuery($start, $end, $filters)
+            : null;
+
+        $spreadsheet = $workbooks->build($summary, $section, $period, $filters, $truckTypeName, $detailQuery);
+        $filename = 'towmate-' . $section . '-report-' . $period . '-' . now()->format('Y-m-d') . '.xlsx';
+
+        return response()->streamDownload(function () use ($workbooks, $spreadsheet) {
+            $workbooks->write($spreadsheet, 'php://output');
+        }, $filename, ['Content-Type' => ReportWorkbookBuilder::MIME]);
     }
 
     public function exportActivityPdf(Request $request)

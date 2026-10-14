@@ -28,6 +28,13 @@ class Customer extends Model
         'is_senior',
     ];
 
+    // Risk data is dispatcher-internal and must never serialize into customer-facing responses.
+    protected $hidden = [
+        'risk_level',
+        'risk_reason',
+        'blacklisted_at',
+    ];
+
     protected $casts = [
         'is_pwd' => 'boolean',
         'is_senior' => 'boolean',
@@ -95,9 +102,17 @@ class Customer extends Model
         return strtolower((string) ($this->risk_level ?? '')) === 'blacklisted';
     }
 
+    public function getHasRiskFlagAttribute(): bool
+    {
+        return $this->risk_status_label !== 'Clear';
+    }
+
     public function getRiskStatusLabelAttribute(): string
     {
         return match (strtolower((string) ($this->risk_level ?? ''))) {
+            'low' => 'Low risk',
+            'medium' => 'Medium risk',
+            'high' => 'High risk',
             'watchlist' => 'Watchlist',
             'blacklisted' => 'Blacklisted',
             default => 'Clear',

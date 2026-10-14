@@ -237,7 +237,7 @@
                 <h3>👤 Customer Details</h3>
                 <div class="detail-row">
                     <span class="detail-label">Name</span>
-                    <span class="detail-value">{{ $booking->customer->full_name ?? 'Guest' }}</span>
+                    <span class="detail-value">{{ $booking->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $booking->customer])</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Phone</span>

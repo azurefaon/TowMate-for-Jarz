@@ -99,7 +99,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
             Route::post('{quotation}/request-price-review', [CustomerQuotationController::class, 'requestPriceReview'])->middleware('throttle:customer-quotation-action');
         });
 
-        Route::apiResource('bookings', BookingController::class)->except(['store']);
     });
 
     Route::post('v1/team-leader/auth/change-password', [TLAuthController::class, 'changePassword']);

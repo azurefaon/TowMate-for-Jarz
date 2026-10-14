@@ -164,7 +164,7 @@
                         data-vehicle-images="{{ json_encode($vehicleImages) }}">
                         <td>
                             <div class="jobs-cell-primary jobs-booking-code">{{ $job->booking_code }}@if ($siblingCount > 1)<span class="jobs-cell-secondary"> (+{{ $siblingCount - 1 }})</span>@endif</div>
-                            <div class="jobs-cell-secondary">{{ $customer }}</div>
+                            <div class="jobs-cell-secondary">{{ $customer }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $job->customer])</div>
                             @if ($siblingCount > 1)
                                 <div class="jobs-cell-secondary">{{ $groupOperationalDoneCount }} of {{ $siblingCount }} vehicles completed</div>
                             @endif

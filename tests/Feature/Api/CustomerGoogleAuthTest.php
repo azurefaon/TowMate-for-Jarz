@@ -286,7 +286,7 @@ it('a Google-only account cannot receive a local password-reset flow, while stay
     $response = test()->postJson('/api/password/forgot', ['email' => $user->email]);
 
     $response->assertOk();
-    expect($response->json('message'))->toBe('If this email is registered, an OTP has been sent.');
+    expect($response->json('message'))->toBe("If an account uses this email, we'll send password reset instructions. Please check your inbox.");
     expect($user->fresh()->password_reset_otp_hash)->toBeNull();
 });
 

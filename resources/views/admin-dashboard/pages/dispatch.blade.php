@@ -1787,7 +1787,7 @@
                                                 <div class="rtn-info-grid">
                                                     <div class="rtn-panel">
                                                         <span class="rtn-panel-label">Customer Information</span>
-                                                        <span class="rtn-customer-name">{{ $booking->customer->full_name ?? 'Guest' }}</span>
+                                                        <span class="rtn-customer-name">{{ $booking->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $booking->customer])</span>
                                                         <span class="rtn-customer-line">{{ $booking->customer->phone ?? 'N/A' }}</span>
                                                         @if (filled($booking->customer->email ?? null))
                                                             <span class="rtn-customer-line">{{ $booking->customer->email }}</span>
@@ -1842,6 +1842,11 @@
                                                 <div class="rtn-footer">
                                                     <span class="rtn-footer-note">Reassignment releases this task back into normal dispatch.</span>
                                                     <div class="rtn-footer-actions">
+                                                        <button type="button" class="rtn-btn-secondary"
+                                                            onclick="window.openBookingDetailModal('{{ $booking->job_code }}')"
+                                                            aria-label="View customer and risk details for {{ $booking->job_code }}">
+                                                            Customer &amp; Risk
+                                                        </button>
                                                         <button type="button" class="btn-reject"
                                                             data-id="{{ $booking->job_code }}" data-action="reject">
                                                             Cancel Booking
@@ -1880,7 +1885,7 @@
 
                                         <div class="incoming-details">
                                             <span><strong>Customer:</strong>
-                                                {{ $booking->customer->full_name ?? 'Guest' }}</span>
+                                                {{ $booking->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $booking->customer])</span>
                                             <span><strong>Phone:</strong> {{ $booking->customer->phone ?? 'N/A' }}</span>
                                             <span><strong>Vehicle:</strong>
                                                 {{ $booking->truckType->name ?? 'Unknown' }}</span>
@@ -2117,6 +2122,10 @@
                                         data-customer-name="{{ e($bnPrimary->customer->full_name ?? 'Guest') }}"
                                         data-customer-phone="{{ e($bnPrimary->customer->phone ?? 'N/A') }}"
                                         data-customer-email="{{ e($bnPrimary->customer->email ?? '') }}"
+                                        data-risk-controls="1"
+                                        data-customer-risk-level="{{ $bnPrimary->customer?->has_risk_flag ? strtolower($bnPrimary->customer->risk_level) : '' }}"
+                                        data-customer-risk-label="{{ $bnPrimary->customer?->has_risk_flag ? $bnPrimary->customer->risk_status_label : '' }}"
+                                        data-customer-risk-reason="{{ e($bnPrimary->customer?->has_risk_flag ? ($bnPrimary->customer->risk_reason ?? '') : '') }}"
                                         data-pickup="{{ $bnPrimary->pickup_address ?? '' }}"
                                         data-pickup-notes="{{ e($bnPrimary->pickup_notes ?? '') }}"
                                         data-dropoff="{{ $bnPrimary->dropoff_address ?? '' }}"
@@ -2144,7 +2153,7 @@
                                         data-group-roster="{{ json_encode($bnRoster) }}">
                                         <td>
                                             <div class="jobs-cell-primary jobs-booking-code">{{ $bnPrimary->booking_code }}{{ $bnCount > 1 ? ' (+' . ($bnCount - 1) . ')' : '' }}</div>
-                                            <div class="jobs-cell-secondary">{{ $bnPrimary->customer->full_name ?? 'Guest' }}</div>
+                                            <div class="jobs-cell-secondary">{{ $bnPrimary->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $bnPrimary->customer])</div>
                                         </td>
                                         <td>
                                             <div class="jobs-cell-primary">{{ $bnPrimary->created_at->format('M d, Y g:i A') }}</div>
@@ -2253,6 +2262,10 @@
                                             data-customer-name="{{ e($sch->customer->full_name ?? 'Guest') }}"
                                             data-customer-phone="{{ e($sch->customer->phone ?? 'N/A') }}"
                                             data-customer-email="{{ e($sch->customer->email ?? '') }}"
+                                        data-risk-controls="1"
+                                        data-customer-risk-level="{{ $sch->customer?->has_risk_flag ? strtolower($sch->customer->risk_level) : '' }}"
+                                        data-customer-risk-label="{{ $sch->customer?->has_risk_flag ? $sch->customer->risk_status_label : '' }}"
+                                        data-customer-risk-reason="{{ e($sch->customer?->has_risk_flag ? ($sch->customer->risk_reason ?? '') : '') }}"
                                             data-pickup="{{ $sch->pickup_address ?? '' }}"
                                             data-pickup-notes="{{ e($sch->pickup_notes ?? '') }}"
                                             data-dropoff="{{ $sch->dropoff_address ?? '' }}"
@@ -2280,7 +2293,7 @@
                                             data-group-roster="{{ json_encode($schRoster) }}">
                                             <td>
                                                 <div class="jobs-cell-primary jobs-booking-code">{{ $sch->booking_code }}{{ $schCount > 1 ? ' (+' . ($schCount - 1) . ')' : '' }}</div>
-                                                <div class="jobs-cell-secondary">{{ $sch->customer->full_name ?? 'Guest' }}</div>
+                                                <div class="jobs-cell-secondary">{{ $sch->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $sch->customer])</div>
                                             </td>
                                             <td>
                                                 <div class="jobs-cell-primary">{{ $schScheduledFor ? $schScheduledFor->format('M d, Y g:i A') : 'Schedule pending' }}</div>

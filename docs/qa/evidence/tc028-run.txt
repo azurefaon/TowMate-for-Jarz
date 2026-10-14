@@ -1,0 +1,20 @@
+# TC028.03 staging run 2026-10-14T03:10:41Z
+PASS  owner login  -> https://towmate-staging-staging.up.railway.app/superadmin/dashboard
+PASS  reports page has the three Export Excel buttons
+PASS  booking xlsx downloads as a real workbook  -> 200 8619 bytes attachment; filename=towmate-booking-report-month-2026-10-14.xlsx
+PASS  vehicle xlsx downloads as a real workbook  -> 200 6694 bytes attachment; filename=towmate-vehicle-report-month-2026-10-14.xlsx
+PASS  financial xlsx downloads as a real workbook  -> 200 6672 bytes attachment; filename=towmate-financial-report-month-2026-10-14.xlsx
+PASS  PDF export still works  -> 200 1241939 bytes
+PASS  invalid section rejected  -> 302
+PASS  dispatcher cannot download the export  -> 403
+day-oct13 200 8359 PK
+day-oct14 200 8499 PK
+range-oct13-14 200 8617 PK
+empty-2025 200 8158 PK
+invalid date -> 302
+
+## Date-range boundaries (workbook contents read back)
+day-oct13       range 2026-10-13..2026-10-13  bookings=2 [TM-QA0003,TM-QA0004] total=4620.5
+day-oct14       range 2026-10-14..2026-10-14  bookings=4 [TM-QA0001,TM-QA0002,TM-QA0005,TM-QA0006] total=7556
+range-oct13-14  range 2026-10-13..2026-10-14  bookings=6 [TM-QA0001,TM-QA0002,TM-QA0003,TM-QA0004,TM-QA0005,TM-QA0006] total=12176.5
+empty-2025      range 2025-01-01..2025-01-31  bookings=0 [] total=0

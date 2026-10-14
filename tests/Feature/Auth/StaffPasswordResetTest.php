@@ -40,7 +40,7 @@ it('A: a valid registered email gets the generic response and an OTP is generate
     $response = test()->post(route('password.email'), ['email' => $user->email]);
 
     $response->assertRedirect(route('password.otp.show'));
-    $response->assertSessionHas('status', 'If an account exists for that email, a verification code has been sent.');
+    $response->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
 
     expect(StaffPasswordResetOtp::where('email', $user->email)->exists())->toBeTrue();
     Mail::assertQueued(StaffPasswordResetOtpMail::class);
@@ -53,7 +53,7 @@ it('B: an unknown email gets the identical generic response and no OTP is create
     $response = test()->post(route('password.email'), ['email' => 'nobody-' . uniqid() . '@example.com']);
 
     $response->assertRedirect(route('password.otp.show'));
-    $response->assertSessionHas('status', 'If an account exists for that email, a verification code has been sent.');
+    $response->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
 
     expect(StaffPasswordResetOtp::count())->toBe(0);
     Mail::assertNothingQueued();
@@ -109,7 +109,7 @@ it('F: resend invalidates the previous OTP and the new one works', function () {
         return true;
     });
 
-    test()->travel(61)->seconds(); // clear the resend cooldown
+    test()->travel(301)->seconds(); // clear the 300s resend cooldown (RESEND_COOLDOWN_SECONDS)
 
     $secondOtp = null;
     test()->withSession(['staff_pw_reset_email' => $user->email])->post(route('password.otp.resend'));
@@ -328,6 +328,15 @@ it('U: normal login is unaffected by this change', function () {
 
 function verifiedResetSession(User $user)
 {
+    // Mirror the state left by a real successful verify step: a verified code row exists.
+    StaffPasswordResetOtp::updateOrCreate(['email' => $user->email], [
+        'otp_hash' => Hash::make('123456'),
+        'expires_at' => now()->addMinutes(5),
+        'verified_at' => now(),
+        'failed_attempts' => 0,
+        'last_sent_at' => now(),
+    ]);
+
     $withSession = test()->withSession([
         'staff_pw_reset_verified_email' => $user->email,
         'staff_pw_reset_verified_until' => now()->addMinutes(10),

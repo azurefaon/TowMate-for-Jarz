@@ -1313,53 +1313,103 @@ class DispatchController extends Controller
             'risk_reason' => 'required|string|max:500',
         ]);
 
-        $customer = $booking->customer;
+        $riskLevel = $validated['risk_level'] === 'blacklist' ? 'blacklisted' : $validated['risk_level'];
 
-        if (!$customer) {
+        return $this->applyCustomerRisk($booking, $riskLevel, trim($validated['risk_reason']));
+    }
+
+    public function clearCustomerRisk(Request $request, Booking $booking)
+    {
+        $validated = $request->validate([
+            'risk_reason' => 'required|string|max:500',
+        ]);
+
+        return $this->applyCustomerRisk($booking, null, trim($validated['risk_reason']));
+    }
+
+    /**
+     * Risk is a customer-wide, informational flag. Passing a null level clears it.
+     * The customer row is locked so concurrent changes serialize and each audit
+     * record captures a consistent old -> new transition.
+     */
+    private function applyCustomerRisk(Booking $booking, ?string $riskLevel, string $reason)
+    {
+        if (! $booking->customer_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Customer not found.',
             ], 404);
         }
 
-        $riskLevel = $validated['risk_level'] === 'blacklist' ? 'blacklisted' : $validated['risk_level'];
-        $previousRiskLevel = $customer->risk_level;
+        $customer = DB::transaction(function () use ($booking, $riskLevel, $reason) {
+            $customer = Customer::whereKey($booking->customer_id)->lockForUpdate()->first();
 
-        $customer->update([
-            'risk_level' => $riskLevel,
-            'risk_reason' => $validated['risk_reason'],
-            'blacklisted_at' => $riskLevel === 'blacklisted' ? now() : null,
-        ]);
+            if (! $customer) {
+                return null;
+            }
+
+            $previousRiskLevel = $customer->risk_level;
+
+            $customer->update([
+                'risk_level' => $riskLevel,
+                'risk_reason' => $riskLevel === null ? null : $reason,
+                'blacklisted_at' => $riskLevel === 'blacklisted' ? now() : null,
+            ]);
+
+            $oldRiskLabel = $this->customerRiskLabel($previousRiskLevel);
+            $newRiskLabel = $this->customerRiskLabel($riskLevel);
+
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'customer_risk_updated',
+                'entity_type' => 'Customer',
+                'entity_id' => $customer->id,
+                'reference' => $customer->full_name,
+                'description' => "Customer risk changed from {$oldRiskLabel} to {$newRiskLabel}. Reason: {$reason}",
+                'old_value' => ['risk' => $oldRiskLabel],
+                'new_value' => ['risk' => $newRiskLabel, 'reason' => $reason],
+            ]);
+
+            return $customer;
+        });
+
+        if (! $customer) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Customer not found.',
+            ], 404);
+        }
 
         Log::warning('Customer risk level updated', [
             'customer_id' => $customer->id,
             'risk_level' => $riskLevel,
-            'reason' => $validated['risk_reason'],
             'booking_id' => $booking->id,
             'dispatcher_id' => auth()->id(),
         ]);
 
-        $oldRiskLabel = $this->customerRiskLabel($previousRiskLevel);
-        $newRiskLabel = $this->customerRiskLabel($riskLevel);
-
-        AuditLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'customer_risk_updated',
-            'entity_type' => 'Customer',
-            'entity_id' => $customer->id,
-            'reference' => $customer->full_name,
-            'description' => "Customer risk changed from {$oldRiskLabel} to {$newRiskLabel}. Reason: {$validated['risk_reason']}",
-            'old_value' => ['risk' => $oldRiskLabel],
-            'new_value' => ['risk' => $newRiskLabel, 'reason' => $validated['risk_reason']],
-        ]);
-
         return response()->json([
             'success' => true,
-            'message' => 'Customer marked as ' . $riskLevel . ' risk.',
+            'message' => $riskLevel === null
+                ? 'Customer risk status cleared.'
+                : 'Customer marked as ' . $riskLevel . ' risk.',
             'risk_level' => $riskLevel,
+            'risk' => $this->customerRiskPayload($customer),
         ]);
     }
 
+    /** Dispatcher-facing description of the customer's CURRENT risk status. */
+    private function customerRiskPayload(?Customer $customer): ?array
+    {
+        if (! $customer || ! $customer->has_risk_flag) {
+            return null;
+        }
+
+        return [
+            'level' => strtolower((string) $customer->risk_level),
+            'label' => $customer->risk_status_label,
+            'reason' => $customer->risk_reason,
+        ];
+    }
     public function getQuotationDetails(Quotation $quotation)
     {
         $quotation->load(['customer', 'truckType', 'sourceBooking']);
@@ -2653,6 +2703,7 @@ class DispatchController extends Controller
                 'full_name' => $booking->customer->full_name,
                 'phone' => $booking->customer->phone,
                 'email' => $booking->customer->email,
+                'risk' => $this->customerRiskPayload($booking->customer),
             ] : null,
             'vehicles' => $vehicles,
             'assignment' => [

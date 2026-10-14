@@ -27,6 +27,10 @@ class StaffPasswordResetController extends Controller
     private const REQUEST_RATE_LIMIT = 3;
     private const REQUEST_RATE_DECAY_MINUTES = 15;
 
+    // Shown for every syntactically valid email, registered or not.
+    private const GENERIC_MESSAGE = "If an account uses this email, we'll send password reset instructions. Please check your inbox.";
+    private const INVALID_CODE_MESSAGE = 'Invalid or expired verification code. Request a new code if needed.';
+
 
     public function create(): View
     {
@@ -41,7 +45,7 @@ class StaffPasswordResetController extends Controller
 
         $email = strtolower(trim($validated['email']));
 
-        $genericMessage = 'If an account exists for that email, a verification code has been sent.';
+        $genericMessage = self::GENERIC_MESSAGE;
 
         $rateKey = 'staff-pwreset-request:' . $email;
         if (RateLimiter::tooManyAttempts($rateKey, self::REQUEST_RATE_LIMIT)) {
@@ -73,7 +77,7 @@ class StaffPasswordResetController extends Controller
             return back()->withErrors(['otp' => 'Please wait before requesting a new code.']);
         }
 
-        $genericMessage = 'If an account exists for that email, a new verification code has been sent.';
+        $genericMessage = self::GENERIC_MESSAGE;
 
         $rateKey = 'staff-pwreset-request:' . $email;
         if (RateLimiter::tooManyAttempts($rateKey, self::REQUEST_RATE_LIMIT)) {
@@ -160,27 +164,35 @@ class StaffPasswordResetController extends Controller
         }
         RateLimiter::hit($verifyRateKey, 60);
 
-        $record = StaffPasswordResetOtp::where('email', $email)->first();
+        // Counting attempts and flipping verified_at happen under a row lock so
+        // concurrent guesses cannot exceed the cap and one code cannot verify twice.
+        $verified = DB::transaction(function () use ($email, $validated) {
+            $record = StaffPasswordResetOtp::where('email', $email)->lockForUpdate()->first();
 
-        if (! $record || $record->verified_at) {
-            return back()->withErrors(['otp' => 'Verification code expired. Request a new code.']);
+            if (! $record || $record->verified_at || $record->isExpired()) {
+                return false;
+            }
+
+            if ($record->failed_attempts >= self::MAX_FAILED_ATTEMPTS) {
+                $record->delete();
+
+                return false;
+            }
+
+            if (! Hash::check($validated['otp'], $record->otp_hash)) {
+                $record->increment('failed_attempts');
+
+                return false;
+            }
+
+            $record->update(['verified_at' => now()]);
+
+            return true;
+        });
+
+        if (! $verified) {
+            return back()->withErrors(['otp' => self::INVALID_CODE_MESSAGE]);
         }
-
-        if ($record->isExpired()) {
-            return back()->withErrors(['otp' => 'Verification code expired. Request a new code.']);
-        }
-
-        if ($record->failed_attempts >= self::MAX_FAILED_ATTEMPTS) {
-            $record->delete();
-            return back()->withErrors(['otp' => 'Too many incorrect attempts. Request a new code.']);
-        }
-
-        if (! Hash::check($validated['otp'], $record->otp_hash)) {
-            $record->increment('failed_attempts');
-            return back()->withErrors(['otp' => 'Incorrect verification code.']);
-        }
-
-        $record->update(['verified_at' => now()]);
 
         session([
             'staff_pw_reset_verified_email' => $email,
@@ -215,25 +227,59 @@ class StaffPasswordResetController extends Controller
             'password' => ['required', 'confirmed', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
         ]);
 
-        $user = User::where('email', $email)->first();
+        $newHash = Hash::make($validated['password']);
 
-        if (! $user) {
-            $this->clearResetSession();
-            return redirect()->route('password.request')
-                ->withErrors(['email' => 'Please verify your email again to reset your password.']);
-        }
+        // Lock order: otp row, then user row. Consuming the verified code is the
+        // first write, so a second concurrent reset finds no code and fails.
+        $user = DB::transaction(function () use ($email, $validated, $newHash) {
+            $record = StaffPasswordResetOtp::where('email', $email)
+                ->whereNotNull('verified_at')
+                ->lockForUpdate()
+                ->first();
 
-        if (Hash::check($validated['password'], $user->password)) {
+            if (! $record) {
+                return null;
+            }
+
+            $user = User::where('email', $email)->lockForUpdate()->first();
+
+            if (! $user) {
+                return null;
+            }
+
+            if (Hash::check($validated['password'], $user->password)) {
+                return 'same';
+            }
+
+            $consumed = StaffPasswordResetOtp::where('id', $record->id)
+                ->whereNotNull('verified_at')
+                ->delete();
+
+            if ($consumed !== 1) {
+                return null;
+            }
+
+            $user->forceFill([
+                'password' => $newHash,
+                'remember_token' => Str::random(60),
+                'must_change_password' => false,
+            ])->save();
+
+            return $user;
+        });
+
+        if ($user === 'same') {
             return back()->withErrors([
                 'password' => 'Your new password cannot be the same as your current password.',
             ]);
         }
 
-        $user->forceFill([
-            'password' => Hash::make($validated['password']),
-            'remember_token' => Str::random(60),
-            'must_change_password' => false,
-        ])->save();
+        if (! $user) {
+            $this->clearResetSession();
+
+            return redirect()->route('password.request')
+                ->withErrors(['email' => 'Please verify your email again to reset your password.']);
+        }
 
         $user->tokens()->delete();
         $request->session()->regenerate();
@@ -242,7 +288,6 @@ class StaffPasswordResetController extends Controller
             DB::table(config('session.table', 'sessions'))->where('user_id', $user->id)->delete();
         }
 
-        StaffPasswordResetOtp::where('email', $email)->delete();
         $this->clearResetSession();
 
         AuditLog::create([

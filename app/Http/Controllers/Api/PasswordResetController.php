@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
@@ -20,12 +21,16 @@ class PasswordResetController extends Controller
     private const MAX_FAILED_ATTEMPTS = 5;
     private const RESEND_COOLDOWN_SECONDS = 60;
 
+    // Shown for every syntactically valid email, registered or not.
+    private const GENERIC_MESSAGE = "If an account uses this email, we'll send password reset instructions. Please check your inbox.";
+    private const INVALID_CODE_MESSAGE = 'Invalid or expired code. Please try again or request a new one.';
+
     public function sendOtp(Request $request): JsonResponse
     {
         $validated = $request->validate(['email' => 'required|email|max:255']);
         $email = strtolower(trim($validated['email']));
 
-        $generic = response()->json(['success' => true, 'message' => 'If this email is registered, an OTP has been sent.']);
+        $generic = response()->json(['success' => true, 'message' => self::GENERIC_MESSAGE]);
 
         $user = User::where('email', $email)->first();
 
@@ -68,59 +73,79 @@ class PasswordResetController extends Controller
         ]);
 
         $email = strtolower(trim($validated['email']));
-        $genericFail = response()->json(['success' => false, 'message' => 'Invalid OTP. Please try again.'], 422);
 
-        $user = User::where('email', $email)->first();
-
-        if (! $user || ! $this->isEligibleForPasswordReset($user) || ! $user->password_reset_otp_hash) {
-            return $genericFail;
-        }
-
-        if (! $user->password_reset_otp_expires_at || now()->isAfter($user->password_reset_otp_expires_at)) {
-            $this->clearOtpState($user);
-
-            return response()->json(['success' => false, 'message' => 'OTP has expired. Please request a new one.'], 422);
-        }
-
-        if ($user->password_reset_attempts >= self::MAX_FAILED_ATTEMPTS) {
-            $this->clearOtpState($user);
-
-            return $genericFail;
-        }
-
-        if (! Hash::check($validated['otp'], $user->password_reset_otp_hash)) {
-            $user->increment('password_reset_attempts');
-
-            if ($user->fresh()->password_reset_attempts >= self::MAX_FAILED_ATTEMPTS) {
-                $this->clearOtpState($user);
-
-                AuditLog::create([
-                    'user_id' => $user->id,
-                    'action' => 'customer_password_reset_otp_locked',
-                    'entity_type' => 'User',
-                    'entity_id' => $user->id,
-                    'description' => 'OTP invalidated after too many failed verification attempts.',
-                ]);
-            } else {
-                AuditLog::create([
-                    'user_id' => $user->id,
-                    'action' => 'customer_password_reset_otp_verify_failed',
-                    'entity_type' => 'User',
-                    'entity_id' => $user->id,
-                ]);
-            }
-
-            return $genericFail;
-        }
+        // One safe response for unknown account, ineligible account, wrong,
+        // expired, locked-out or already-consumed codes.
+        $genericFail = response()->json(['success' => false, 'message' => self::INVALID_CODE_MESSAGE], 422);
 
         $rawToken = bin2hex(random_bytes(32));
 
-        $user->forceFill([
-            'password_reset_otp_hash' => null,
-            'password_reset_attempts' => 0,
-            'password_reset_token_hash' => hash('sha256', $rawToken),
-            'password_reset_token_expires_at' => now()->addMinutes(self::RESET_TOKEN_TTL_MINUTES),
-        ])->save();
+        // The user row is locked while the code is checked, the attempt counter
+        // is changed and the code is consumed, so concurrent requests cannot
+        // both redeem one code or bypass the attempt cap.
+        [$status, $user] = DB::transaction(function () use ($email, $validated, $rawToken) {
+            $user = User::where('email', $email)->lockForUpdate()->first();
+
+            if (! $user || ! $this->isEligibleForPasswordReset($user) || ! $user->password_reset_otp_hash) {
+                return ['fail', null];
+            }
+
+            if (! $user->password_reset_otp_expires_at || now()->isAfter($user->password_reset_otp_expires_at)) {
+                $this->clearOtpState($user);
+
+                return ['fail', null];
+            }
+
+            if ($user->password_reset_attempts >= self::MAX_FAILED_ATTEMPTS) {
+                $this->clearOtpState($user);
+
+                return ['fail', null];
+            }
+
+            if (! Hash::check($validated['otp'], $user->password_reset_otp_hash)) {
+                $user->increment('password_reset_attempts');
+                $locked = $user->fresh()->password_reset_attempts >= self::MAX_FAILED_ATTEMPTS;
+
+                if ($locked) {
+                    $this->clearOtpState($user);
+                }
+
+                return [$locked ? 'locked' : 'wrong', $user];
+            }
+
+            // Compare-and-swap: only the request that still sees the code wins.
+            $consumed = User::where('id', $user->id)
+                ->where('password_reset_otp_hash', $user->password_reset_otp_hash)
+                ->update([
+                    'password_reset_otp_hash' => null,
+                    'password_reset_attempts' => 0,
+                    'password_reset_token_hash' => hash('sha256', $rawToken),
+                    'password_reset_token_expires_at' => now()->addMinutes(self::RESET_TOKEN_TTL_MINUTES),
+                ]);
+
+            return $consumed === 1 ? ['verified', $user] : ['fail', null];
+        });
+
+        if ($status === 'locked') {
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'customer_password_reset_otp_locked',
+                'entity_type' => 'User',
+                'entity_id' => $user->id,
+                'description' => 'OTP invalidated after too many failed verification attempts.',
+            ]);
+        } elseif ($status === 'wrong') {
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'customer_password_reset_otp_verify_failed',
+                'entity_type' => 'User',
+                'entity_id' => $user->id,
+            ]);
+        }
+
+        if ($status !== 'verified') {
+            return $genericFail;
+        }
 
         AuditLog::create([
             'user_id' => $user->id,
@@ -152,34 +177,55 @@ class PasswordResetController extends Controller
         }
 
         $email = strtolower(trim($validated['email']));
-        $user = User::where('email', $email)->first();
+        $newHash = Hash::make($validated['password']);
 
-        if (! $user || ! $this->isEligibleForPasswordReset($user) || ! $user->password_reset_token_hash) {
+        $user = DB::transaction(function () use ($email, $validated, $newHash) {
+            $user = User::where('email', $email)->lockForUpdate()->first();
+
+            if (! $user || ! $this->isEligibleForPasswordReset($user) || ! $user->password_reset_token_hash) {
+                return null;
+            }
+
+            if (! $user->password_reset_token_expires_at || now()->isAfter($user->password_reset_token_expires_at)) {
+                $this->clearResetTokenState($user);
+
+                return null;
+            }
+
+            if (! hash_equals($user->password_reset_token_hash, hash('sha256', $validated['reset_token']))) {
+                return null;
+            }
+
+            // Compare-and-swap: consuming the token is the first write, so a
+            // concurrent request that already used it affects zero rows.
+            $consumed = User::where('id', $user->id)
+                ->where('password_reset_token_hash', $user->password_reset_token_hash)
+                ->update([
+                    'password_reset_token_hash' => null,
+                    'password_reset_token_expires_at' => null,
+                ]);
+
+            if ($consumed !== 1) {
+                return null;
+            }
+
+            $user->forceFill([
+                'password'                           => $newHash,
+                'password_reset_otp_hash'            => null,
+                'password_reset_otp_expires_at'      => null,
+                'password_reset_attempts'            => 0,
+                'password_reset_resend_available_at' => null,
+                'password_reset_token_hash'          => null,
+                'password_reset_token_expires_at'    => null,
+                ...($user->status === 'locked' ? ['status' => 'active', 'last_login_at' => now()] : []),
+            ])->save();
+
+            return $user;
+        });
+
+        if (! $user) {
             return $genericFail;
         }
-
-        if (! $user->password_reset_token_expires_at || now()->isAfter($user->password_reset_token_expires_at)) {
-            $this->clearResetTokenState($user);
-
-            return $genericFail;
-        }
-
-        if (! hash_equals($user->password_reset_token_hash, hash('sha256', $validated['reset_token']))) {
-            return $genericFail;
-        }
-
-        $wasLocked = $user->status === 'locked';
-
-        $user->forceFill([
-            'password'                           => Hash::make($validated['password']),
-            'password_reset_otp_hash'            => null,
-            'password_reset_otp_expires_at'      => null,
-            'password_reset_attempts'            => 0,
-            'password_reset_resend_available_at' => null,
-            'password_reset_token_hash'          => null,
-            'password_reset_token_expires_at'    => null,
-            ...($wasLocked ? ['status' => 'active', 'last_login_at' => now()] : []),
-        ])->save();
 
         $user->tokens()->delete();
 

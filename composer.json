@@ -10,6 +10,8 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "ext-gd": "*",
+        "ext-zip": "*",
         "dompdf/dompdf": "^3.1",
         "endroid/qr-code": "^6",
         "google/apiclient": "^2.19",
@@ -17,6 +19,7 @@
         "laravel/reverb": "^1.10",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^2.10.1",
+        "phpoffice/phpspreadsheet": "^5.10",
         "symfony/brevo-mailer": "^7.4",
         "symfony/http-client": "^7.4"
     },

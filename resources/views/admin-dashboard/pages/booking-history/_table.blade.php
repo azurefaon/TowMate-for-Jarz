@@ -45,7 +45,7 @@
     <tr>
         <td>
             <div class="jobs-cell-primary jobs-booking-code">{{ $booking->job_code }}</div>
-            <div class="jobs-cell-secondary">{{ $booking->customer->full_name ?? 'Guest' }}</div>
+            <div class="jobs-cell-secondary">{{ $booking->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $booking->customer, 'prefix' => 'Current: '])</div>
         </td>
         <td>
             <span class="jobs-status-text {{ $isCompleted ? 'jobs-status-text--emphasis bh-status--completed' : 'bh-status--cancelled' }}">
