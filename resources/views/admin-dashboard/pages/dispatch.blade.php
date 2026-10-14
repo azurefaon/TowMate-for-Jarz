@@ -1842,6 +1842,11 @@
                                                 <div class="rtn-footer">
                                                     <span class="rtn-footer-note">Reassignment releases this task back into normal dispatch.</span>
                                                     <div class="rtn-footer-actions">
+                                                        <button type="button" class="rtn-btn-secondary"
+                                                            onclick="window.openBookingDetailModal('{{ $booking->job_code }}')"
+                                                            aria-label="View customer and risk details for {{ $booking->job_code }}">
+                                                            Customer &amp; Risk
+                                                        </button>
                                                         <button type="button" class="btn-reject"
                                                             data-id="{{ $booking->job_code }}" data-action="reject">
                                                             Cancel Booking
@@ -2144,7 +2149,8 @@
                                         data-group-roster="{{ json_encode($bnRoster) }}">
                                         <td>
                                             <div class="jobs-cell-primary jobs-booking-code">{{ $bnPrimary->booking_code }}{{ $bnCount > 1 ? ' (+' . ($bnCount - 1) . ')' : '' }}</div>
-                                            <div class="jobs-cell-secondary">{{ $bnPrimary->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $bnPrimary->customer])</div>
+                                            <div class="jobs-cell-secondary">{{ $bnPrimary->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $bnPrimary->customer])
+    <button type="button" class="bdm-trigger-btn" style="margin-left:6px" onclick="event.stopPropagation(); window.openBookingDetailModal('{{ $bnPrimary->job_code }}')" aria-label="View customer and risk details for {{ $bnPrimary->job_code }}">Details</button></div>
                                         </td>
                                         <td>
                                             <div class="jobs-cell-primary">{{ $bnPrimary->created_at->format('M d, Y g:i A') }}</div>
@@ -2280,7 +2286,8 @@
                                             data-group-roster="{{ json_encode($schRoster) }}">
                                             <td>
                                                 <div class="jobs-cell-primary jobs-booking-code">{{ $sch->booking_code }}{{ $schCount > 1 ? ' (+' . ($schCount - 1) . ')' : '' }}</div>
-                                                <div class="jobs-cell-secondary">{{ $sch->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $sch->customer])</div>
+                                                <div class="jobs-cell-secondary">{{ $sch->customer->full_name ?? 'Guest' }} @include('admin-dashboard.partials.customer-risk-badge', ['customer' => $sch->customer])
+    <button type="button" class="bdm-trigger-btn" style="margin-left:6px" onclick="event.stopPropagation(); window.openBookingDetailModal('{{ $sch->job_code }}')" aria-label="View customer and risk details for {{ $sch->job_code }}">Details</button></div>
                                             </td>
                                             <td>
                                                 <div class="jobs-cell-primary">{{ $schScheduledFor ? $schScheduledFor->format('M d, Y g:i A') : 'Schedule pending' }}</div>

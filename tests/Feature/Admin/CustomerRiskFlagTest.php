@@ -261,3 +261,21 @@ it('never serializes risk data into customer-facing output', function () {
     $response = $this->getJson('/api/v1/profile');
     expect($response->getContent())->not->toContain('SECRET_RISK_REASON')->not->toContain('blacklisted');
 });
+
+// ── The controls must be reachable from the visible dispatch queue ─────────
+// (Regression: the only Details trigger used to sit on cards that no tab displayed, so a
+// Dispatcher had no clickable way to open the customer-risk controls.)
+it('gives the dispatcher a visible way to open customer and risk details from the dispatch queue', function () {
+    $dispatcher = crfUser(2, 'Dispatcher');
+    $queued = crfBooking(crfCustomer('Queue Customer'), 'requested');
+    $returned = crfBooking(crfCustomer('Returned Customer'), 'returned');
+    $returned->forceFill(['returned_at' => now(), 'return_reason' => 'customer_cancelled'])->save();
+
+    $html = $this->actingAs($dispatcher)->get(route('admin.dispatch'))->assertOk()->getContent();
+
+    // Intermediate Booking row
+    expect($html)->toContain("openBookingDetailModal('{$queued->job_code}')");
+    // Returned card footer
+    expect($html)->toContain("openBookingDetailModal('{$returned->job_code}')")
+        ->and($html)->toContain('Customer &amp; Risk');
+});
