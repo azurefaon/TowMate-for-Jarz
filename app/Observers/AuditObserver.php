@@ -69,6 +69,45 @@ class AuditObserver
     }
 
     /**
+     * Marks the current audit state before a transaction. Queued diffs and the
+     * manual-log registry live in memory and survive a database rollback, so a
+     * caller that rolls back must hand this to restore() — otherwise flush()
+     * would write audit rows for changes that never committed.
+     */
+    public static function checkpoint(): array
+    {
+        return [
+            'pending' => count(static::$pending),
+            'registry' => AuditLogService::registrySnapshot(),
+        ];
+    }
+
+    /**
+     * DB::transaction() that also drops the audit entries queued inside it if it
+     * rolls back, so a failed cancellation or reschedule never leaves audit rows
+     * for changes that did not commit. Identical to DB::transaction() on success.
+     */
+    public static function transaction(callable $callback): mixed
+    {
+        $checkpoint = static::checkpoint();
+
+        try {
+            return \Illuminate\Support\Facades\DB::transaction($callback);
+        } catch (\Throwable $e) {
+            static::restore($checkpoint);
+
+            throw $e;
+        }
+    }
+
+    /** Drops everything queued since checkpoint() — call after a rollback. */
+    public static function restore(array $checkpoint): void
+    {
+        static::$pending = array_slice(static::$pending, 0, $checkpoint['pending']);
+        AuditLogService::restoreRegistry($checkpoint['registry']);
+    }
+
+    /**
      * Reconciles every queued diff against this request's manual audit-log
      * writes: enrich a matching row if one already exists, otherwise insert
      * a freshly generated one. Call once, at end of request.

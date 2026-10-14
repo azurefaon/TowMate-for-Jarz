@@ -53,27 +53,6 @@ function vaoOrderedActiveNames(): array
         ->all();
 }
 
-it('renders the edit order control and inline order bar within each truck type header', function () {
-    $owner = vaoOwner();
-    $truckType = vaoTruckType();
-    vaoVehicleType(['required_truck_type_id' => $truckType->id]);
-
-    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
-    $content = $response->getContent();
-
-    $response->assertOk();
-    $response->assertSee('id="vcOrderBar"', false);
-    expect($content)->toContain('js-vc-edit-order-btn');
-    expect($content)->toContain('Edit Order');
-    expect($content)->toContain('js-vc-order-save');
-    expect($content)->toContain('Save Order');
-    expect($content)->toContain('js-vc-order-cancel');
-    expect($content)->toContain('js-vc-add-category-btn');
-    expect($content)->toContain('Add Category');
-    expect($content)->not->toContain('id="vcCategoriesBtn"');
-    expect($content)->not->toContain('id="vcEditOrderBtn"');
-});
-
 it('does not render a separate arrange order modal anymore', function () {
     $owner = vaoOwner();
 
@@ -99,50 +78,6 @@ it('scopes each vehicle list to a single truck type and category for drag reorde
     expect($content)->toContain('data-category="cars_suvs"');
 });
 
-it('only renders a drag handle for active vehicle rows', function () {
-    $owner = vaoOwner();
-    $truckType = vaoTruckType();
-    vaoVehicleType(['name' => 'VAO Handle Active', 'category' => 'cars_suvs', 'required_truck_type_id' => $truckType->id, 'display_order' => 10, 'status' => 'active']);
-    vaoVehicleType(['name' => 'VAO Handle Inactive', 'category' => 'cars_suvs', 'required_truck_type_id' => $truckType->id, 'display_order' => 20, 'status' => 'inactive']);
-
-    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
-    $content = $response->getContent();
-
-    $response->assertOk();
-    expect(substr_count($content, 'class="vc-drag-handle"'))->toBe(1);
-});
-
-it('keeps the small add category modal hidden by default and drops the bulk categories modal', function () {
-    $owner = vaoOwner();
-
-    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
-    $content = $response->getContent();
-
-    $response->assertOk();
-    expect($content)->toContain('<div class="vc-modal vc-modal--sm" id="addCategoryModal">');
-    expect($content)->not->toContain('is-open" id="addCategoryModal"');
-    expect($content)->not->toContain('id="categoriesModal"');
-    expect($content)->not->toContain('vc-arrange-category');
-});
-
-it('shows a newly created truck type with zero vehicles instead of hiding it', function () {
-    $owner = vaoOwner();
-    $withVehicles = vaoTruckType(['name' => 'VAO Has Vehicles']);
-    vaoVehicleType(['required_truck_type_id' => $withVehicles->id]);
-    $empty = vaoTruckType(['name' => 'DAWDAawdadwa', 'class' => null]);
-
-    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
-    $content = $response->getContent();
-
-    $response->assertOk();
-    expect($content)->toContain($empty->name);
-    expect($content)->toContain('No categories yet for this truck type.');
-
-    $emptyGroupPos = strpos($content, 'data-truck-type-id="' . $empty->id . '"');
-    $withVehiclesGroupPos = strpos($content, 'data-truck-type-id="' . $withVehicles->id . '"');
-    expect([$emptyGroupPos, $withVehiclesGroupPos])->each->not->toBeFalse();
-});
-
 it('still hides truck types with no matching results while a filter is active', function () {
     $owner = vaoOwner();
     $withVehicles = vaoTruckType(['name' => 'VAO Filter Match']);
@@ -157,91 +92,6 @@ it('still hides truck types with no matching results while a filter is active', 
     expect($content)->not->toContain('data-truck-type-id="' . $empty->id . '"');
 });
 
-it('lays the toolbar out in one row: search, category, then status, with no global add button', function () {
-    $owner = vaoOwner();
-
-    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
-    $content = $response->getContent();
-
-    $response->assertOk();
-
-    $searchPos = strpos($content, 'id="vcSearch"');
-    $categoryFilterPos = strpos($content, 'id="vcCategoryFilter"');
-    $statusFilterPos = strpos($content, 'id="vcStatusFilter"');
-
-    expect([$searchPos, $categoryFilterPos, $statusFilterPos])->each->not->toBeFalse();
-    expect($searchPos)->toBeLessThan($categoryFilterPos);
-    expect($categoryFilterPos)->toBeLessThan($statusFilterPos);
-    expect($content)->not->toContain('id="vcAddBtn"');
-});
-
-it('lays the toolbar out as a single wrapping flex row', function () {
-    $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
-
-    preg_match('/\.vc-toolbar\s*\{[^}]*\}/s', $css, $toolbarRule);
-
-    expect($toolbarRule)->not->toBeEmpty();
-    expect($toolbarRule[0])->toContain('display: flex');
-    expect($toolbarRule[0])->toContain('flex-wrap: wrap');
-    expect($toolbarRule[0])->not->toContain('flex-direction: column');
-});
-
-it('does not use space-between on the toolbar row', function () {
-    $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
-
-    preg_match('/\.vc-toolbar\s*\{[^}]*\}/s', $css, $rule);
-
-    expect($rule)->not->toBeEmpty();
-    expect($rule[0])->not->toContain('space-between');
-});
-
-it('lets toolbar controls wrap onto additional rows without a fixed row height', function () {
-    $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
-
-    preg_match('/\.vc-toolbar\s*\{[^}]*\}/s', $css, $toolbarRule);
-
-    expect($toolbarRule)->not->toBeEmpty();
-    expect($toolbarRule[0])->not->toMatch('/(?<![a-z-])height:\s*\d/');
-});
-
-it('does not use a fixed pixel width for the search box that could overlap other toolbar controls', function () {
-    $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
-
-    preg_match('/\.vc-page \.search-box\s*\{[^}]*\}/s', $css, $searchBoxRule);
-
-    expect($searchBoxRule)->not->toBeEmpty();
-    expect($searchBoxRule[0])->not->toMatch('/(?<![a-z-])width:\s*\d+px/');
-});
-
-it('does not rely on viewport-height units for the toolbar or order hint layout', function () {
-    $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
-
-    preg_match('/\.vc-toolbar\s*\{[^}]*\}/s', $css, $toolbarRule);
-    preg_match('/\.vc-order-hint\s*\{[^}]*\}/s', $css, $orderHintRule);
-
-    expect($toolbarRule)->not->toBeEmpty();
-    expect($orderHintRule)->not->toBeEmpty();
-    expect($toolbarRule[0])->not->toContain('vh');
-    expect($orderHintRule[0])->not->toContain('vh');
-});
-
-it('shows the drag instruction as plain text, not a bordered card', function () {
-    $owner = vaoOwner();
-
-    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
-    $content = $response->getContent();
-    $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
-
-    $response->assertOk();
-    expect($content)->toContain('<p class="vc-order-hint" id="vcOrderBar">');
-
-    preg_match('/\.vc-order-hint\s*\{[^}]*\}/s', $css, $orderHintRule);
-
-    expect($orderHintRule)->not->toBeEmpty();
-    expect($orderHintRule[0])->not->toContain('border');
-    expect($orderHintRule[0])->not->toContain('background');
-});
-
 it('points the owner layout favicon at the working JARZ logo instead of the deleted default', function () {
     $owner = vaoOwner();
 
@@ -253,43 +103,6 @@ it('points the owner layout favicon at the working JARZ logo instead of the dele
     expect($content)->toContain('dispatcher/images/jarz-logo.png');
     expect($content)->not->toContain('admin/images/logo.png');
     expect(substr_count($content, 'rel="icon"'))->toBe(1);
-});
-
-it('shows a vehicle count beside each category in the arrange panel', function () {
-    $owner = vaoOwner();
-    $truckType = vaoTruckType();
-    vaoVehicleType(['name' => 'VAO Count Vehicle A', 'category' => 'cars_suvs', 'required_truck_type_id' => $truckType->id, 'display_order' => 10]);
-    vaoVehicleType(['name' => 'VAO Count Vehicle B', 'category' => 'cars_suvs', 'required_truck_type_id' => $truckType->id, 'display_order' => 20]);
-
-    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
-
-    $response->assertOk();
-    $response->assertSee('<span class="vc-count">2</span>', false);
-});
-
-it('renders vehicle groups directly on the page instead of inside a nested scrolling tree', function () {
-    $css = file_get_contents(public_path('admin/css/vehicle-types.css'));
-
-    preg_match('/\.vc-groups\s*\{[^}]*\}/s', $css, $groupsRule);
-
-    expect($groupsRule)->not->toBeEmpty();
-    expect($groupsRule[0])->not->toContain('overflow-y');
-    expect($groupsRule[0])->not->toContain('max-height');
-});
-
-it('gives each truck type its own add category trigger for the small add category modal', function () {
-    $owner = vaoOwner();
-    $truckType = vaoTruckType();
-    vaoVehicleType(['required_truck_type_id' => $truckType->id]);
-
-    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
-    $content = $response->getContent();
-
-    $response->assertOk();
-    expect($content)->toContain('data-truck-type-name="' . $truckType->name . '"');
-    expect(substr_count($content, 'id="addCategoryModal"'))->toBe(1);
-    expect(substr_count($content, 'id="addCategoryName"'))->toBe(1);
-    expect(substr_count($content, 'id="addCategorySaveBtn"'))->toBe(1);
 });
 
 it('creates a new category with a generated slug', function () {
@@ -348,16 +161,6 @@ it('rejects renaming a category to a name already used by another category', fun
 
     $response->assertStatus(422);
     expect($category->fresh()->name)->toBe('VAO Other Name');
-});
-
-it('makes a newly created category available in the add vehicle type form', function () {
-    $owner = vaoOwner();
-    VehicleCategory::create(['slug' => 'vao_new_form_cat', 'name' => 'VAO New Form Category']);
-
-    $response = test()->actingAs($owner)->get(route('superadmin.vehicle-types.index'));
-
-    $response->assertOk();
-    $response->assertSee('<option value="vao_new_form_cat">VAO New Form Category</option>', false);
 });
 
 it('reorders vehicles within a single group via the reorder endpoint', function () {

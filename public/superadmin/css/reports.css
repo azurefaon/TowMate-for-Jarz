@@ -360,3 +360,10 @@
         gap: 6px;
     }
 }
+
+.reports-basis-note {
+    margin: 0 0 16px;
+    color: #525252;
+    font-size: 13px;
+    line-height: 20px;
+}

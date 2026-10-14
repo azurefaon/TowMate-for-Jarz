@@ -1,0 +1,223 @@
+/* ---------------------------------------------------------------
+   Owner Trucks (Fleet Revision 2). Builds on truck-types.css, which
+   holds the shared fleet header, table, menu, modal and field styles.
+   --------------------------------------------------------------- */
+
+.tk-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.tk-btn-lg {
+    height: 44px;
+    padding: 0 18px;
+}
+
+.tk-select {
+    flex-basis: 212px;
+}
+
+/* ---------- Table ---------- */
+
+.tk-table td {
+    white-space: normal;
+}
+
+.tk-col-truck,
+.tk-col-plate {
+    width: 1%;
+    white-space: nowrap !important;
+}
+
+.tk-col-plate {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
+.tk-col-type {
+    min-width: 140px;
+}
+
+.tk-col-team {
+    min-width: 220px;
+}
+
+.tk-col-status {
+    min-width: 200px;
+}
+
+/* Short lines stay on one line; the status reasons are the column that wraps. */
+.tk-table td.tk-col-type,
+.tk-col-team .tt-sub {
+    white-space: nowrap;
+}
+
+.tk-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--tt-text);
+    text-decoration: underline;
+    text-decoration-color: #a3a3a3;
+    text-underline-offset: 4px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.tk-link:hover {
+    text-decoration-color: var(--tt-text);
+}
+
+.tk-warn {
+    color: var(--tt-red);
+}
+
+.tk-badge {
+    white-space: nowrap;
+}
+
+.tk-badge.is-available {
+    background: #15803d;
+}
+
+.tk-badge.is-on_job {
+    background: #1d4ed8;
+}
+
+.tk-badge.is-reserved {
+    background: #6d28d9;
+}
+
+.tk-badge.is-maintenance {
+    background: #c2410c;
+}
+
+.tk-badge.is-not_ready {
+    background: #b91c1c;
+}
+
+.tk-reason {
+    display: block;
+    margin-top: 6px;
+    color: var(--tt-body);
+}
+
+.tk-reason + .tk-reason {
+    margin-top: 2px;
+}
+
+/* ---------- Dialogs ---------- */
+
+.tk-dialog--form {
+    max-width: 640px;
+}
+
+.tk-dialog--form .tt-dialog-body {
+    padding-bottom: 24px;
+}
+
+.tk-dialog--view {
+    max-width: 560px;
+}
+
+.tk-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.tk-readonly {
+    display: flex;
+    align-items: center;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--tt-border);
+    border-radius: 8px;
+    background: var(--tt-tint);
+    color: var(--tt-text);
+}
+
+.tk-name-field {
+    margin-bottom: 16px;
+}
+
+.tk-name-field[hidden] {
+    display: none;
+}
+
+.tk-hint {
+    margin-top: 6px !important;
+    color: var(--tt-muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.tk-field-select {
+    flex: none;
+}
+
+.tk-field-select select {
+    padding-left: 12px;
+}
+
+.tt-field.has-error .tk-field-select select,
+.tt-field.has-error .tk-field-select select:focus {
+    border: 2px solid var(--tt-red) !important;
+}
+
+.tk-facts {
+    margin: 0;
+}
+
+.tk-facts > div {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.tk-facts > div + div {
+    border-top: 1px solid var(--tt-divider);
+}
+
+.tk-facts dt {
+    color: var(--tt-body);
+}
+
+.tk-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.tk-fact-note {
+    display: block;
+    color: var(--tt-body);
+}
+
+/* ---------- Laptop widths ---------- */
+
+@media (max-width: 1360px) {
+    .tk-col-type {
+        min-width: 120px;
+    }
+
+    .tk-col-team {
+        min-width: 190px;
+    }
+
+    .tk-col-status {
+        min-width: 170px;
+    }
+}
+
+@media (max-width: 720px) {
+    .tk-header-actions {
+        flex-wrap: wrap;
+    }
+
+    .tk-facts > div {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+}

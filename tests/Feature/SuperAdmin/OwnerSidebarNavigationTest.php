@@ -56,155 +56,151 @@ function sbNavBooking(array $overrides = []): Booking
     ], $overrides));
 }
 
-it('renders Dashboard instead of Overview in the sidebar', function () {
+/** Matches a top-level sidebar row link, optionally requiring the active state. */
+function sbNavLinkPattern(string $route, bool $active): string
+{
+    $class = $active ? 'sidebar-link active' : 'sidebar-link ';
+
+    return '/href="' . preg_quote(route($route), '/') . '"\s*class="' . preg_quote($class, '/') . '"/';
+}
+
+/** Matches a submenu link, optionally requiring the active state and aria-current. */
+function sbNavSublinkPattern(string $route, string $label, bool $active): string
+{
+    $tail = $active ? 'class="sidebar-sublink active"\s*aria-current="page">' : 'class="sidebar-sublink "\s*>';
+
+    return '/href="' . preg_quote(route($route), '/') . '"\s*' . $tail . preg_quote($label, '/') . '<\/a>/';
+}
+
+function sbNavGroupPattern(string $key, bool $expanded): string
+{
+    return '/id="sidebarGroup' . $key . 'Toggle"\s*aria-expanded="' . ($expanded ? 'true' : 'false') . '"\s*aria-controls="sidebarGroup' . $key . '"/';
+}
+
+it('renders the Revision 2 navigation structure and wording', function () {
     $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
 
     $response->assertOk();
-    $response->assertSee('>Dashboard<', false);
+    $response->assertSeeInOrder([
+        '>Dashboard<',
+        '>Operations<',
+        '>Bookings<',
+        '>Customers<',
+        '>Operations Monitor<',
+        '>Management<',
+        '>Fleet Management<',
+        '>Truck Types &amp; Rates<',
+        '>Trucks<',
+        '>Vehicle Types<',
+        '>Personnel<',
+        '>Home Assignments<',
+        '>Reports &amp; Revenue<',
+        '>Revenue<',
+        '>Reports<',
+        '>Activity Report<',
+        '>Business Settings<',
+    ], false);
+
     $response->assertDontSee('>Overview<', false);
+    $response->assertDontSee('>Oversight<', false);
+    $response->assertDontSee('>Business Activity<', false);
+    $response->assertDontSee('sidebarGroupBusiness', false);
+    $response->assertDontSee('sidebarGroupOversight', false);
 });
 
-it('keeps the dashboard route unchanged', function () {
+it('keeps the logo, collapse toggle, scrolling nav and fixed footer regions', function () {
     $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
 
     $response->assertOk();
-    expect(route('superadmin.dashboard'))->toContain('/superadmin/dashboard');
+    $response->assertSee('dispatcher/images/jarz-logo.png', false);
+    $response->assertSee('onclick="toggleSidebar()"', false);
+    $response->assertSee('aria-label="Collapse sidebar"', false);
+    $response->assertSee('data-lucide="panel-left-close"', false);
+    $response->assertSee('data-lucide="panel-left-open"', false);
+    $response->assertSee('class="sidebar-nav" id="sidebarNav"', false);
+    $response->assertSee('class="sidebar-footer"', false);
+    expect(strpos($response->getContent(), 'class="sidebar-footer"'))
+        ->toBeGreaterThan(strpos($response->getContent(), '>Activity Report<'));
 });
 
-it('renders Business, Fleet Management, Oversight, and Management as sidebar destinations', function () {
+it('links every sidebar destination to its existing route', function () {
     $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
 
     $response->assertOk();
-    $response->assertSee('>Business<', false);
-    $response->assertSee('>Fleet Management<', false);
-    $response->assertSee('>Oversight<', false);
-    $response->assertSee('>Management<', false);
+
+    foreach ([
+        'superadmin.dashboard',
+        'superadmin.bookings.index',
+        'superadmin.customers.index',
+        'superadmin.monitoring.index',
+        'superadmin.truck-types.index',
+        'superadmin.unit-truck.index',
+        'superadmin.vehicle-types.index',
+        'superadmin.personnel.index',
+        'superadmin.home-assignments.index',
+        'superadmin.revenue.index',
+        'superadmin.reports.index',
+        'superadmin.reports.activity',
+        'superadmin.settings.index',
+    ] as $route) {
+        $response->assertSee('href="' . route($route) . '"', false);
+    }
 });
 
-it('renders Fleet Management as a single sidebar link rather than a collapsible group', function () {
+it('marks only Dashboard active and keeps both groups closed on the dashboard', function () {
     $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
+    $html = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('<a href="' . route('superadmin.truck-types.index') . '" title="Fleet Management"', false);
-    $response->assertDontSee('sidebarGroupFleet', false);
+    expect(preg_match(sbNavLinkPattern('superadmin.dashboard', true), $html))->toBe(1);
+    expect(substr_count($html, 'aria-current="page"'))->toBe(1);
+    expect(preg_match(sbNavGroupPattern('Fleet', false), $html))->toBe(1);
+    expect(preg_match(sbNavGroupPattern('Reports', false), $html))->toBe(1);
 });
 
-it('lists Revenue, Reports, and Bookings under Business', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
+it('highlights top-level rows on their own pages', function (string $route) {
+    $response = $this->actingAs(sbNavOwner())->get(route($route));
+    $html = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('id="sidebarGroupBusiness"', false);
-    $response->assertSee('Revenue');
-    $response->assertSee('Reports');
-    $response->assertSee('Bookings');
-});
+    expect(preg_match(sbNavLinkPattern($route, true), $html))->toBe(1);
+    expect(substr_count($html, 'aria-current="page"'))->toBe(1);
+})->with([
+    'bookings' => 'superadmin.bookings.index',
+    'customers' => 'superadmin.customers.index',
+    'operations monitor' => 'superadmin.monitoring.index',
+    'business settings' => 'superadmin.settings.index',
+]);
 
-it('no longer lists Trucks, Truck Types and Rates, or Vehicle Types as separate sidebar children', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
-
-    $response->assertOk();
-    $response->assertDontSee('title="Trucks"', false);
-    $response->assertDontSee('title="Truck Types &amp; Rates"', false);
-    $response->assertDontSee('title="Vehicle Types"', false);
-});
-
-it('lists Operations Monitor and Business Activity under Oversight', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
+it('opens the owning group and highlights the submenu item', function (string $route, string $label, string $group, string $otherGroup) {
+    $response = $this->actingAs(sbNavOwner())->get(route($route));
+    $html = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('id="sidebarGroupOversight"', false);
-    $response->assertSee('Operations Monitor');
-    $response->assertSee('Business Activity');
-});
+    expect(preg_match(sbNavSublinkPattern($route, $label, true), $html))->toBe(1);
+    expect(substr_count($html, 'aria-current="page"'))->toBe(1);
+    expect(preg_match(sbNavGroupPattern($group, true), $html))->toBe(1);
+    expect(preg_match(sbNavGroupPattern($otherGroup, false), $html))->toBe(1);
+    $response->assertSee('class="sidebar-group has-active"', false);
+    $response->assertSee('class="sidebar-subnav is-open" id="sidebarGroup' . $group . '"', false);
+})->with([
+    'truck types' => ['superadmin.truck-types.index', 'Truck Types &amp; Rates', 'Fleet', 'Reports'],
+    'trucks' => ['superadmin.unit-truck.index', 'Trucks', 'Fleet', 'Reports'],
+    'vehicle types' => ['superadmin.vehicle-types.index', 'Vehicle Types', 'Fleet', 'Reports'],
+    'personnel' => ['superadmin.personnel.index', 'Personnel', 'Fleet', 'Reports'],
+    'home assignments' => ['superadmin.home-assignments.index', 'Home Assignments', 'Fleet', 'Reports'],
+    'revenue' => ['superadmin.revenue.index', 'Revenue', 'Reports', 'Fleet'],
+    'reports' => ['superadmin.reports.index', 'Reports', 'Reports', 'Fleet'],
+    'activity report' => ['superadmin.reports.activity', 'Activity Report', 'Reports', 'Fleet'],
+]);
 
-it('lists Business Settings under Management', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
-
-    $response->assertOk();
-    $response->assertSee('id="sidebarGroupManagement"', false);
-    $response->assertSee('Business Settings');
-});
-
-it('expands Business when on the Revenue page', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.revenue.index'));
-
-    $response->assertOk();
-    $response->assertSee('aria-expanded="true" aria-controls="sidebarGroupBusiness"', false);
-    $response->assertSee('aria-expanded="false" aria-controls="sidebarGroupOversight"', false);
-    $response->assertSee('aria-expanded="false" aria-controls="sidebarGroupManagement"', false);
-});
-
-it('expands Business when on the Reports page', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.reports.index'));
+it('keeps Trucks highlighted on the Archived Units page', function () {
+    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.units.archived'));
+    $html = $response->getContent();
 
     $response->assertOk();
-    $response->assertSee('aria-expanded="true" aria-controls="sidebarGroupBusiness"', false);
-});
-
-it('expands Business when on the Bookings page', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.bookings.index'));
-
-    $response->assertOk();
-    $response->assertSee('aria-expanded="true" aria-controls="sidebarGroupBusiness"', false);
-});
-
-it('highlights Fleet Management as active on the Trucks page without expanding a submenu', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.unit-truck.index'));
-
-    $response->assertOk();
-    expect(preg_match('/title="Fleet Management"\s*class="active"/', $response->getContent()))->toBe(1);
-    $response->assertDontSee('sidebarGroupFleet', false);
-});
-
-it('highlights Fleet Management as active on the Truck Types page', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.truck-types.index'));
-
-    $response->assertOk();
-    expect(preg_match('/title="Fleet Management"\s*class="active"/', $response->getContent()))->toBe(1);
-});
-
-it('highlights Fleet Management as active on the Vehicle Types page', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.vehicle-types.index'));
-
-    $response->assertOk();
-    expect(preg_match('/title="Fleet Management"\s*class="active"/', $response->getContent()))->toBe(1);
-});
-
-it('expands Oversight when on the Operations Monitor page', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.monitoring.index'));
-
-    $response->assertOk();
-    $response->assertSee('aria-expanded="true" aria-controls="sidebarGroupOversight"', false);
-});
-
-it('expands Oversight when on the Business Activity page', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.reports.activity'));
-
-    $response->assertOk();
-    $response->assertSee('aria-expanded="true" aria-controls="sidebarGroupOversight"', false);
-});
-
-it('expands Management when on the Business Settings page', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.settings.index'));
-
-    $response->assertOk();
-    $response->assertSee('aria-expanded="true" aria-controls="sidebarGroupManagement"', false);
-});
-
-it('does not mark any child navigation item active while on the dashboard', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
-
-    $response->assertOk();
-    expect(substr_count($response->getContent(), 'class="active"'))->toBe(1);
-});
-
-it('keeps all groups collapsed while on the dashboard', function () {
-    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
-
-    $response->assertOk();
-    $response->assertSee('aria-expanded="false" aria-controls="sidebarGroupBusiness"', false);
-    $response->assertSee('aria-expanded="false" aria-controls="sidebarGroupOversight"', false);
-    $response->assertSee('aria-expanded="false" aria-controls="sidebarGroupManagement"', false);
+    expect(preg_match(sbNavSublinkPattern('superadmin.unit-truck.index', 'Trucks', true), $html))->toBe(1);
+    expect(preg_match(sbNavGroupPattern('Fleet', true), $html))->toBe(1);
 });
 
 it('still renders the existing bookings needs-attention badge from its existing source', function () {
@@ -217,7 +213,14 @@ it('still renders the existing bookings needs-attention badge from its existing 
     $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
 
     $response->assertOk();
-    $response->assertSee('<span class="badge">2</span>', false);
+    $response->assertSee('<span class="sidebar-count">2<span class="sidebar-sr"> pending</span></span>', false);
+});
+
+it('hides the bookings badge when nothing needs attention', function () {
+    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
+
+    $response->assertOk();
+    $response->assertDontSee('class="sidebar-count"', false);
 });
 
 it('does not let the dispatcher gain access to owner routes because of the sidebar restructure', function () {
@@ -229,17 +232,21 @@ it('does not let the dispatcher gain access to owner routes because of the sideb
     $this->actingAs($dispatcher)->get(route('superadmin.settings.index'))->assertForbidden();
 });
 
-it('does not rely on a fragile fixed max-height for the expanded submenu', function () {
+it('uses the approved sidebar sizes, colours and font', function () {
     $css = file_get_contents(public_path('superadmin/css/panel.css'));
 
-    expect($css)->not->toContain('max-height: 240px');
-    expect($css)->toContain('grid-template-rows: 0fr');
-    expect($css)->toContain('grid-template-rows: 1fr');
+    expect($css)->toContain('width: 256px;');
+    expect($css)->toContain('width: 92px;');
+    expect($css)->toContain('--sb-bg: #171717;');
+    expect($css)->toContain('--sb-text: #a6acb6;');
+    expect($css)->toContain('--sb-accent: #facc15;');
+    expect($css)->toContain('font-family: "JARZ Sidebar Inter"');
+    expect(file_exists(public_path('superadmin/fonts/inter-latin-400.woff2')))->toBeTrue();
 });
 
-it('scopes the top-level sidebar list padding so it no longer leaks into nested submenus', function () {
+it('limits the collapsed rail to desktop so the mobile drawer keeps its full layout', function () {
     $css = file_get_contents(public_path('superadmin/css/panel.css'));
 
-    expect($css)->toContain('.sidebar > ul');
-    expect($css)->not->toContain('.sidebar ul {');
+    expect($css)->toContain('@media (min-width: 1025px)');
+    expect($css)->not->toMatch('/^\.sidebar\.collapsed \{/m');
 });

@@ -1,0 +1,127 @@
+/* ---------------------------------------------------------------
+   Owner Personnel (Fleet Revision 2). Builds on truck-types.css,
+   which holds the shared fleet header, table, modal and field styles.
+   --------------------------------------------------------------- */
+
+.pp-select {
+    flex-basis: 220px;
+}
+
+.pp-table td {
+    white-space: normal;
+}
+
+.pp-col-name {
+    min-width: 200px;
+}
+
+.pp-col-current {
+    min-width: 190px;
+}
+
+.pp-table td.tt-col-actions {
+    vertical-align: top;
+}
+
+/* ---------- Dialogs ---------- */
+
+.pp-dialog {
+    max-width: 660px;
+}
+
+.pp-dialog .tt-dialog-body {
+    padding-bottom: 8px;
+}
+
+.pp-field-select {
+    flex: none;
+}
+
+.pp-field-select select {
+    padding-left: 12px;
+}
+
+.tt-field.has-error .pp-field-select select,
+.tt-field.has-error .pp-field-select select:focus {
+    border: 2px solid var(--tt-red) !important;
+}
+
+.pp-hint {
+    margin-top: 8px !important;
+    color: var(--tt-muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.pp-hint[hidden],
+.pp-manage[hidden] {
+    display: none;
+}
+
+.pp-manage-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.pp-manage-text {
+    margin-top: 6px !important;
+    color: var(--tt-body);
+}
+
+.pp-facts {
+    margin: 0;
+}
+
+.pp-facts > div {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.pp-facts > div + div {
+    border-top: 1px solid var(--tt-divider);
+}
+
+.pp-facts dt {
+    color: var(--tt-body);
+}
+
+.pp-facts dd {
+    margin: 0;
+}
+
+.pp-fact-note {
+    display: block;
+    margin-top: 2px;
+    color: var(--tt-muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+@media (max-width: 1360px) {
+    .pp-col-name {
+        min-width: 180px;
+    }
+
+    .pp-col-current {
+        min-width: 160px;
+    }
+}
+
+.pp-elsewhere {
+    margin-top: 10px !important;
+    padding: 10px 12px;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    background: #fefce8;
+    color: var(--tt-text);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.pp-elsewhere[hidden] {
+    display: none;
+}

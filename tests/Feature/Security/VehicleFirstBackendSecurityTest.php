@@ -229,11 +229,15 @@ it('keeps a Book Now extra vehicle as Book Now when its derived truck type has a
     $response->assertCreated();
 
     $primaryBooking = Booking::where('customer_id', $customer->id)->where('truck_type_id', $primaryTruck->id)->latest()->first();
-    $spoofedSibling = Booking::where('customer_id', $customer->id)->where('truck_type_id', $extraTruck->id)->exists();
+    $sibling = Booking::where('customer_id', $customer->id)->where('truck_type_id', $extraTruck->id)->first();
 
     expect($primaryBooking->extra_vehicles)->not->toBeEmpty();
     expect((int) $primaryBooking->extra_vehicles[0]['truck_type_id'])->toBe($extraTruck->id);
-    expect($spoofedSibling)->toBeFalse();
+    // Each extra vehicle is its own booking in the primary's group, with the server-derived truck type.
+    expect($sibling)->not->toBeNull();
+    expect($sibling->group_code)->not->toBeNull()->toBe($primaryBooking->fresh()->group_code);
+    expect($sibling->service_type)->toBe('book_now');
+    expect((int) $sibling->vehicle_type_id)->toBe($extraVehicle->id);
 });
 
 it('still enforces the maximum of 6 vehicles server-side even with valid vehicle types', function () {

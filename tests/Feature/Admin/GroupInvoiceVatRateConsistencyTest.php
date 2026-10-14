@@ -23,12 +23,12 @@ function givrRole(int $id, string $name): Role
     });
 }
 
-function givrDispatcher(): User
+function givrVatDispatcher(): User
 {
     return User::factory()->create(['role_id' => givrRole(2, 'Dispatcher')->id, 'status' => 'active']);
 }
 
-function givrTruckType(float $baseRate, float $perKmRate, string $name): TruckType
+function givrVatTruckType(float $baseRate, float $perKmRate, string $name): TruckType
 {
     return TruckType::create([
         'name' => $name,
@@ -91,7 +91,7 @@ function givrProgressToArrivedDropoff(Booking $booking): void
 it('derives the group invoice subtotal from each vehicle own taxable subtotal using the Owner-configured VAT rate, not a hardcoded 12 percent', function () {
     SystemSetting::setValue('vat_rate_percentage', 15);
 
-    $dispatcher = givrDispatcher();
+    $dispatcher = givrVatDispatcher();
     $user = User::factory()->create(['role_id' => givrRole(5, 'Customer')->id, 'status' => 'active']);
     $customer = Customer::create([
         'user_id' => $user->id,
@@ -100,11 +100,11 @@ it('derives the group invoice subtotal from each vehicle own taxable subtotal us
         'email' => $user->email,
     ]);
 
-    $truckLight = givrTruckType(1500, 60, 'GIVR Light Duty');
+    $truckLight = givrVatTruckType(1500, 60, 'GIVR Light Duty');
     [$unitLight, $leaderLight] = givrReadyUnit($truckLight, 'GIVR Light Unit');
     $vehicleSedan = givrVehicleType($truckLight->id, 'GIVR Sedan');
 
-    $truckMedium = givrTruckType(2500, 100, 'GIVR Medium Duty');
+    $truckMedium = givrVatTruckType(2500, 100, 'GIVR Medium Duty');
     [$unitMedium, $leaderMedium] = givrReadyUnit($truckMedium, 'GIVR Medium Unit');
     $vehicleVan = givrVehicleType($truckMedium->id, 'GIVR Van');
 

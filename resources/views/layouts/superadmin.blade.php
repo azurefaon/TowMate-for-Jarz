@@ -26,47 +26,12 @@
             color: var(--jarz-text);
         }
 
-        .sidebar,
         .content {
             border-color: var(--jarz-line) !important;
         }
 
-        .sidebar {
-            background: var(--jarz-sidebar);
-        }
-
-        .sidebar li a,
-        .sidebar li button {
-            color: #ffffff;
-        }
-
-        .sidebar li button.sidebar-group-toggle {
-            color: #e5e5e5;
-        }
-
-        .sidebar .sidebar-section {
-            color: #a3a3a3;
-        }
-
         .content {
             color: var(--jarz-text);
-        }
-
-        .sidebar li a:hover,
-        .sidebar li button:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: #ffffff;
-        }
-
-        .sidebar li a.active,
-        .sidebar li button.active {
-            background: var(--jarz-accent);
-            color: #171717;
-        }
-
-        .sidebar li a.active .nav-chip,
-        .sidebar li button.active .nav-chip {
-            color: #171717;
         }
 
         .badge {
@@ -339,183 +304,170 @@
 <body class="superadmin-shell">
 
     @php
-        $sidebarChevron = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>';
+        $sidebarGroups = [
+            'Fleet' => [
+                'label' => 'Fleet Management',
+                'icon' => 'truck',
+                'items' => [
+                    ['label' => 'Truck Types & Rates', 'route' => 'superadmin.truck-types.index', 'active' => ['superadmin.truck-types.*', 'superadmin.truck-type-config.*']],
+                    ['label' => 'Trucks', 'route' => 'superadmin.unit-truck.index', 'active' => ['superadmin.unit-truck.*', 'superadmin.units.*']],
+                    ['label' => 'Vehicle Types', 'route' => 'superadmin.vehicle-types.index', 'active' => ['superadmin.vehicle-types.*', 'superadmin.vehicle-categories.*']],
+                    ['label' => 'Personnel', 'route' => 'superadmin.personnel.index', 'active' => ['superadmin.personnel.*', 'superadmin.personnel-records.*']],
+                    ['label' => 'Home Assignments', 'route' => 'superadmin.home-assignments.index', 'active' => ['superadmin.home-assignments.*']],
+                ],
+            ],
+            'Reports' => [
+                'label' => 'Reports & Revenue',
+                'icon' => 'chart-column',
+                'items' => [
+                    ['label' => 'Revenue', 'route' => 'superadmin.revenue.index', 'active' => ['superadmin.revenue.*']],
+                    ['label' => 'Reports', 'route' => 'superadmin.reports.index', 'active' => ['superadmin.reports.index', 'superadmin.reports.bookings', 'superadmin.reports.export*']],
+                    ['label' => 'Activity Report', 'route' => 'superadmin.reports.activity', 'active' => ['superadmin.reports.activity*']],
+                ],
+            ],
+        ];
 
-        $businessGroupActive = request()->routeIs('superadmin.revenue.*')
-            || request()->routeIs('superadmin.reports.index')
-            || request()->routeIs('superadmin.reports.bookings')
-            || request()->routeIs('superadmin.reports.export*')
-            || request()->routeIs('superadmin.bookings.*');
+        foreach ($sidebarGroups as $key => $group) {
+            foreach ($group['items'] as $i => $item) {
+                $sidebarGroups[$key]['items'][$i]['isActive'] = request()->routeIs(...$item['active']);
+            }
+            $sidebarGroups[$key]['isActive'] = collect($sidebarGroups[$key]['items'])->contains('isActive', true);
+        }
 
-        $fleetGroupActive = request()->routeIs('superadmin.unit-truck.*')
-            || request()->routeIs('superadmin.units.*')
-            || request()->routeIs('superadmin.truck-types.*')
-            || request()->routeIs('superadmin.vehicle-types.*')
-            || request()->routeIs('superadmin.personnel.*')
-            || request()->routeIs('superadmin.home-assignments.*');
-
-        $oversightGroupActive = request()->routeIs('superadmin.monitoring.*')
-            || request()->routeIs('superadmin.reports.activity*');
-
-        $managementGroupActive = request()->routeIs('superadmin.settings.*');
+        $sidebarLinks = [
+            'dashboard' => request()->routeIs('superadmin.dashboard'),
+            'bookings' => request()->routeIs('superadmin.bookings.*'),
+            'customers' => request()->routeIs('superadmin.customers.*'),
+            'monitoring' => request()->routeIs('superadmin.monitoring.*'),
+            'settings' => request()->routeIs('superadmin.settings.*'),
+        ];
     @endphp
 
-    <div class="sidebar" id="sidebar">
+    <aside class="sidebar" id="sidebar" aria-label="Owner navigation">
 
-        <ul>
+        <div class="sidebar-header">
+            <img src="{{ asset('dispatcher/images/jarz-logo.png') }}" alt="JARZ Towing Services" class="sidebar-logo">
 
-            <div class="brand">
-                <img src="{{ asset('dispatcher/images/jarz-logo.png') }}" alt="JARZ" class="brand-logo">
+            <button type="button" class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()"
+                aria-controls="sidebarNav" aria-expanded="true" aria-label="Collapse sidebar">
+                <i data-lucide="panel-left-close" class="sidebar-toggle-close" aria-hidden="true"></i>
+                <i data-lucide="panel-left-open" class="sidebar-toggle-open" aria-hidden="true"></i>
+                <span class="sidebar-tooltip" id="sidebarToggleTooltip" aria-hidden="true">Collapse sidebar</span>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav" id="sidebarNav">
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="{{ route('superadmin.dashboard') }}"
+                        class="sidebar-link {{ $sidebarLinks['dashboard'] ? 'active' : '' }}"
+                        @if ($sidebarLinks['dashboard']) aria-current="page" @endif>
+                        <span class="sidebar-icon"><i data-lucide="layout-dashboard" aria-hidden="true"></i></span>
+                        <span class="sidebar-label">Dashboard</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="sidebar-section">
+                <h2 class="sidebar-section-title" id="sidebarSectionOperations">Operations</h2>
+                <ul class="sidebar-menu" aria-labelledby="sidebarSectionOperations">
+                    <li>
+                        <a href="{{ route('superadmin.bookings.index') }}"
+                            class="sidebar-link {{ $sidebarLinks['bookings'] ? 'active' : '' }}"
+                            @if ($sidebarLinks['bookings']) aria-current="page" @endif>
+                            <span class="sidebar-icon"><i data-lucide="clipboard-list" aria-hidden="true"></i></span>
+                            <span class="sidebar-label">Bookings</span>
+                            @if (isset($pendingBookings) && $pendingBookings > 0)
+                                <span class="sidebar-count">{{ $pendingBookings }}<span class="sidebar-sr"> pending</span></span>
+                            @endif
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('superadmin.customers.index') }}"
+                            class="sidebar-link {{ $sidebarLinks['customers'] ? 'active' : '' }}"
+                            @if ($sidebarLinks['customers']) aria-current="page" @endif>
+                            <span class="sidebar-icon"><i data-lucide="users" aria-hidden="true"></i></span>
+                            <span class="sidebar-label">Customers</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('superadmin.monitoring.index') }}"
+                            class="sidebar-link {{ $sidebarLinks['monitoring'] ? 'active' : '' }}"
+                            @if ($sidebarLinks['monitoring']) aria-current="page" @endif>
+                            <span class="sidebar-icon"><i data-lucide="activity" aria-hidden="true"></i></span>
+                            <span class="sidebar-label">Operations Monitor</span>
+                        </a>
+                    </li>
+                </ul>
             </div>
 
-            <li>
-                <a href="{{ route('superadmin.dashboard') }}" title="Dashboard"
-                    class="{{ request()->routeIs('superadmin.dashboard') ? 'active' : '' }}">
-                    <span class="nav-chip">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                            <path d="M4 15.5 A8 8 0 0 1 20 15.5" />
-                            <line x1="12" y1="15.5" x2="16" y2="10.5" />
-                            <circle cx="12" cy="15.5" r="1.1" fill="currentColor" stroke="none"/>
-                        </svg>
-                    </span>
-                    <span>Dashboard</span>
-                </a>
-            </li>
+            <div class="sidebar-section">
+                <h2 class="sidebar-section-title" id="sidebarSectionManagement">Management</h2>
+                <ul class="sidebar-menu" aria-labelledby="sidebarSectionManagement">
+                    @foreach ($sidebarGroups as $key => $group)
+                        <li class="sidebar-group {{ $group['isActive'] ? 'has-active' : '' }}">
+                            <button type="button" class="sidebar-link sidebar-group-toggle"
+                                id="sidebarGroup{{ $key }}Toggle"
+                                aria-expanded="{{ $group['isActive'] ? 'true' : 'false' }}"
+                                aria-controls="sidebarGroup{{ $key }}">
+                                <span class="sidebar-icon"><i data-lucide="{{ $group['icon'] }}" aria-hidden="true"></i></span>
+                                <span class="sidebar-label">{{ $group['label'] }}</span>
+                                <span class="sidebar-chevron"><i data-lucide="chevron-down" aria-hidden="true"></i></span>
+                            </button>
 
-            <div class="sidebar-divider"></div>
-
-            <li>
-                <button type="button" class="sidebar-group-toggle" title="Business"
-                    aria-expanded="{{ $businessGroupActive ? 'true' : 'false' }}" aria-controls="sidebarGroupBusiness">
-                    <span class="nav-chip">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-                            <rect x="3.5" y="8" width="17" height="11" rx="1.2" />
-                            <path d="M9 8 L9 6 A1.5 1.5 0 0 1 10.5 4.5 L13.5 4.5 A1.5 1.5 0 0 1 15 6 L15 8" />
-                            <line x1="3.5" y1="12.5" x2="20.5" y2="12.5" />
-                        </svg>
-                    </span>
-                    <span>Business</span>
-                    <span class="sidebar-group-chevron">{!! $sidebarChevron !!}</span>
-                </button>
-
-                <div class="sidebar-subnav {{ $businessGroupActive ? 'is-open' : '' }}" id="sidebarGroupBusiness">
-                    <ul class="sidebar-subnav-list">
-                        <li>
-                            <a href="{{ route('superadmin.revenue.index') }}" title="Revenue"
-                                class="{{ request()->routeIs('superadmin.revenue.*') ? 'active' : '' }}">
-                                <span>Revenue</span>
-                            </a>
+                            <div class="sidebar-subnav {{ $group['isActive'] ? 'is-open' : '' }}" id="sidebarGroup{{ $key }}">
+                                <p class="sidebar-flyout-title" aria-hidden="true">{{ $group['label'] }}</p>
+                                <ul class="sidebar-subnav-list" aria-labelledby="sidebarGroup{{ $key }}Toggle">
+                                    @foreach ($group['items'] as $item)
+                                        <li>
+                                            <a href="{{ route($item['route']) }}"
+                                                class="sidebar-sublink {{ $item['isActive'] ? 'active' : '' }}"
+                                                @if ($item['isActive']) aria-current="page"@endif>{{ $item['label'] }}</a>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
                         </li>
-                        <li>
-                            <a href="{{ route('superadmin.reports.index') }}" title="Reports"
-                                class="{{ request()->routeIs('superadmin.reports.index') || request()->routeIs('superadmin.reports.bookings') || request()->routeIs('superadmin.reports.export*') ? 'active' : '' }}">
-                                <span>Reports</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a href="{{ route('superadmin.bookings.index') }}" title="Bookings"
-                                class="{{ request()->routeIs('superadmin.bookings.*') ? 'active' : '' }}">
-                                <span>Bookings</span>
+                    @endforeach
+                </ul>
+            </div>
+        </nav>
 
-                                @if (isset($pendingBookings) && $pendingBookings > 0)
-                                    <span class="badge">{{ $pendingBookings }}</span>
-                                @endif
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
+        <div class="sidebar-footer">
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="{{ route('superadmin.settings.index') }}"
+                        class="sidebar-link {{ $sidebarLinks['settings'] ? 'active' : '' }}"
+                        @if ($sidebarLinks['settings']) aria-current="page" @endif>
+                        <span class="sidebar-icon"><i data-lucide="sliders-horizontal" aria-hidden="true"></i></span>
+                        <span class="sidebar-label">Business Settings</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
 
-            <div class="sidebar-divider"></div>
+        <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display:none;">
+            @csrf
+        </form>
 
-            <li>
-                <a href="{{ route('superadmin.truck-types.index') }}" title="Fleet Management"
-                    class="{{ $fleetGroupActive ? 'active' : '' }}">
-                    <span class="nav-chip">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-                            <path d="M3 16 L3 10 L11 10 L11 16" />
-                            <path d="M11 12 L16 12 L19 15.2 L19 16" />
-                            <line x1="3" y1="16" x2="20" y2="16" />
-                            <circle cx="7" cy="18" r="1.6" />
-                            <circle cx="16" cy="18" r="1.6" />
-                        </svg>
-                    </span>
-                    <span>Fleet Management</span>
-                </a>
-            </li>
-
-            <div class="sidebar-divider"></div>
-
-            <li>
-                <button type="button" class="sidebar-group-toggle" title="Oversight"
-                    aria-expanded="{{ $oversightGroupActive ? 'true' : 'false' }}" aria-controls="sidebarGroupOversight">
-                    <span class="nav-chip">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-                            <rect x="3.5" y="5" width="17" height="11" rx="1" />
-                            <line x1="9" y1="19" x2="15" y2="19" />
-                            <line x1="12" y1="16" x2="12" y2="19" />
-                        </svg>
-                    </span>
-                    <span>Oversight</span>
-                    <span class="sidebar-group-chevron">{!! $sidebarChevron !!}</span>
-                </button>
-
-                <div class="sidebar-subnav {{ $oversightGroupActive ? 'is-open' : '' }}" id="sidebarGroupOversight">
-                    <ul class="sidebar-subnav-list">
-                        <li>
-                            <a href="{{ route('superadmin.monitoring.index') }}" title="Operations Monitor"
-                                class="{{ request()->routeIs('superadmin.monitoring.*') ? 'active' : '' }}">
-                                <span>Operations Monitor</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a href="{{ route('superadmin.reports.activity') }}" title="Business Activity"
-                                class="{{ request()->routeIs('superadmin.reports.activity*') ? 'active' : '' }}">
-                                <span>Business Activity</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
-
-            <div class="sidebar-divider"></div>
-
-            <li>
-                <button type="button" class="sidebar-group-toggle" title="Management"
-                    aria-expanded="{{ $managementGroupActive ? 'true' : 'false' }}" aria-controls="sidebarGroupManagement">
-                    <span class="nav-chip">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-                            <path d="M12 3.5 L18.5 7.2 L18.5 14.8 L12 18.5 L5.5 14.8 L5.5 7.2 Z" />
-                            <circle cx="12" cy="11" r="2.2" />
-                            <line x1="12" y1="3.5" x2="12" y2="6" />
-                        </svg>
-                    </span>
-                    <span>Management</span>
-                    <span class="sidebar-group-chevron">{!! $sidebarChevron !!}</span>
-                </button>
-
-                <div class="sidebar-subnav {{ $managementGroupActive ? 'is-open' : '' }}" id="sidebarGroupManagement">
-                    <ul class="sidebar-subnav-list">
-                        <li>
-                            <a href="{{ route('superadmin.settings.index') }}" title="Business Settings"
-                                class="{{ request()->routeIs('superadmin.settings.*') ? 'active' : '' }}">
-                                <span>Business Settings</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
-
-            <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display:none;">
-                @csrf
-            </form>
-
-        </ul>
-    </div>
+    </aside>
 
     <div id="sidebarOverlay"></div>
 
     <div class="content" id="content">
+
+        <script>
+            // Restore the desktop collapsed rail before first paint.
+            (function () {
+                try {
+                    if (localStorage.getItem('jarzOwnerSidebarCollapsed') === '1') {
+                        document.body.classList.add('sidebar-no-transition');
+                        document.getElementById('sidebar').classList.add('collapsed', 'active');
+                        document.getElementById('content').classList.add('expanded', 'shifted');
+                    }
+                } catch (e) {}
+            })();
+        </script>
 
         <div class="mobile-menu">
             <button id="menuToggle" class="menu-toggle">
@@ -594,6 +546,12 @@
 
             sidebar.classList.toggle('collapsed');
             content.classList.toggle('expanded');
+
+            try {
+                localStorage.setItem('jarzOwnerSidebarCollapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
+            } catch (e) {}
+
+            syncSidebarCollapsedState();
         }
         const menuBtn = document.getElementById("menuToggle");
         const sidebar = document.getElementById("sidebar");
@@ -673,15 +631,208 @@
             }
         });
 
-        document.querySelectorAll('.sidebar-group-toggle').forEach((toggle) => {
-            toggle.addEventListener('click', () => {
-                const panel = document.getElementById(toggle.getAttribute('aria-controls'));
-                const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+        // Collapsed rail (desktop only): groups open as flyout menus instead of inline lists.
+        const sidebarDesktopQuery = window.matchMedia('(min-width: 1025px)');
+        const sidebarToggleBtn = document.getElementById('sidebarToggle');
+        const sidebarGroupToggles = document.querySelectorAll('.sidebar-group-toggle');
+        let openSidebarFlyout = null;
 
+        function isSidebarRail() {
+            return sidebar.classList.contains('collapsed') && sidebarDesktopQuery.matches;
+        }
+
+        function sidebarFlyoutLinks(panel) {
+            return [...panel.querySelectorAll('.sidebar-sublink')];
+        }
+
+        function positionSidebarFlyout(toggle, panel) {
+            const toggleRect = toggle.getBoundingClientRect();
+            const sidebarRect = sidebar.getBoundingClientRect();
+            const maxTop = window.innerHeight - panel.offsetHeight - 8;
+
+            panel.style.left = (sidebarRect.right + 8) + 'px';
+            panel.style.top = Math.max(8, Math.min(toggleRect.top, maxTop)) + 'px';
+        }
+
+        function closeSidebarFlyout(returnFocus) {
+            if (!openSidebarFlyout) {
+                return;
+            }
+
+            const { toggle, panel } = openSidebarFlyout;
+            panel.classList.remove('is-flyout');
+            panel.style.left = '';
+            panel.style.top = '';
+            toggle.setAttribute('aria-expanded', 'false');
+            openSidebarFlyout = null;
+
+            if (returnFocus) {
+                toggle.focus();
+            }
+        }
+
+        function openSidebarGroupFlyout(toggle, focusItem) {
+            closeSidebarFlyout(false);
+
+            const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+            if (!panel) {
+                return;
+            }
+
+            panel.classList.add('is-flyout');
+            toggle.setAttribute('aria-expanded', 'true');
+            positionSidebarFlyout(toggle, panel);
+            openSidebarFlyout = { toggle, panel };
+
+            const links = sidebarFlyoutLinks(panel);
+            if (focusItem === 'first') {
+                links[0]?.focus();
+            } else if (focusItem === 'last') {
+                links[links.length - 1]?.focus();
+            }
+        }
+
+        // Keeps aria state, the toggle label and rail tooltips in step with the current mode.
+        function syncSidebarCollapsedState() {
+            const collapsed = sidebar.classList.contains('collapsed');
+            const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+
+            closeSidebarFlyout(false);
+
+            sidebarToggleBtn.setAttribute('aria-expanded', String(!collapsed));
+            sidebarToggleBtn.setAttribute('aria-label', label);
+            document.getElementById('sidebarToggleTooltip').textContent = label;
+
+            sidebarGroupToggles.forEach((toggle) => {
+                const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+                const inlineOpen = panel?.classList.contains('is-open') ?? false;
+                toggle.setAttribute('aria-expanded', String(isSidebarRail() ? false : inlineOpen));
+            });
+
+            sidebar.querySelectorAll('.sidebar-link:not(.sidebar-group-toggle)').forEach((link) => {
+                const text = link.querySelector('.sidebar-label')?.textContent.trim();
+                if (isSidebarRail() && text) {
+                    link.setAttribute('title', text);
+                } else {
+                    link.removeAttribute('title');
+                }
+            });
+        }
+
+        sidebarGroupToggles.forEach((toggle) => {
+            const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+
+            toggle.addEventListener('click', (event) => {
+                if (isSidebarRail()) {
+                    if (openSidebarFlyout?.toggle === toggle) {
+                        closeSidebarFlyout(false);
+                    } else {
+                        // event.detail is 0 for Enter/Space, so keyboard users land on the first item.
+                        openSidebarGroupFlyout(toggle, event.detail === 0 ? 'first' : null);
+                    }
+                    return;
+                }
+
+                const isOpen = toggle.getAttribute('aria-expanded') === 'true';
                 toggle.setAttribute('aria-expanded', String(!isOpen));
                 panel?.classList.toggle('is-open', !isOpen);
             });
+
+            toggle.addEventListener('keydown', (event) => {
+                if (!isSidebarRail()) {
+                    return;
+                }
+
+                if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+                    event.preventDefault();
+                    openSidebarGroupFlyout(toggle, 'first');
+                } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    openSidebarGroupFlyout(toggle, 'last');
+                } else if (event.key === 'Escape' && openSidebarFlyout?.toggle === toggle) {
+                    closeSidebarFlyout(false);
+                }
+            });
+
+            panel?.addEventListener('keydown', (event) => {
+                if (!openSidebarFlyout || openSidebarFlyout.panel !== panel) {
+                    return;
+                }
+
+                const links = sidebarFlyoutLinks(panel);
+                const index = links.indexOf(document.activeElement);
+                let next = null;
+
+                if (event.key === 'ArrowDown') {
+                    next = links[(index + 1) % links.length];
+                } else if (event.key === 'ArrowUp') {
+                    next = links[(index - 1 + links.length) % links.length];
+                } else if (event.key === 'Home') {
+                    next = links[0];
+                } else if (event.key === 'End') {
+                    next = links[links.length - 1];
+                } else if (event.key === 'Escape' || event.key === 'ArrowLeft') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeSidebarFlyout(true);
+                    return;
+                }
+
+                if (next) {
+                    event.preventDefault();
+                    next.focus();
+                }
+            });
+
+            // Tabbing out of the toggle/flyout pair closes it.
+            [toggle, panel].forEach((el) => el?.addEventListener('focusout', (event) => {
+                if (!openSidebarFlyout || openSidebarFlyout.toggle !== toggle) {
+                    return;
+                }
+                const next = event.relatedTarget;
+                if (next && (toggle.contains(next) || panel.contains(next))) {
+                    return;
+                }
+                if (next) {
+                    closeSidebarFlyout(false);
+                }
+            }));
         });
+
+        document.addEventListener('pointerdown', (event) => {
+            if (!openSidebarFlyout) {
+                return;
+            }
+            const { toggle, panel } = openSidebarFlyout;
+            if (!toggle.contains(event.target) && !panel.contains(event.target)) {
+                closeSidebarFlyout(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && openSidebarFlyout) {
+                closeSidebarFlyout(true);
+            }
+        });
+
+        window.addEventListener('resize', () => closeSidebarFlyout(false));
+        document.getElementById('sidebarNav').addEventListener('scroll', () => closeSidebarFlyout(false));
+        sidebarDesktopQuery.addEventListener('change', syncSidebarCollapsedState);
+
+        // Pressed (yellow) state for Enter/Space, matching the mouse-down state.
+        sidebarToggleBtn.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                sidebarToggleBtn.classList.add('is-pressed');
+            }
+        });
+        ['keyup', 'blur'].forEach((type) => sidebarToggleBtn.addEventListener(type, () => {
+            sidebarToggleBtn.classList.remove('is-pressed');
+        }));
+
+        syncSidebarCollapsedState();
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            document.body.classList.remove('sidebar-no-transition');
+        }));
     </script>
 
     <script src="{{ asset('superadmin/js/components.js') }}" defer></script>

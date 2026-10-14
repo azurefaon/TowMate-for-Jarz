@@ -5,12 +5,19 @@ namespace Database\Seeders;
 use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
+use Database\Seeders\Concerns\ProtectsLiveData;
 use Illuminate\Database\Seeder;
 
 class UnitSeeder extends Seeder
 {
+    use ProtectsLiveData;
+
     public function run(): void
     {
+        if ($this->refuseOutsideLocal('Add trucks on the Trucks page.')) {
+            return;
+        }
+
         $truckType = TruckType::where('status', 'active')->first();
 
         if (! $truckType) {

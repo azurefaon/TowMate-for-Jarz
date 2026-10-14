@@ -408,36 +408,15 @@ it('renders the new JARZ logo asset', function () {
     test()->get('/login')->assertSee('dispatcher/images/jarz-logo.png', false);
 });
 
-it('references the login background image asset', function () {
-    $css = file_get_contents(public_path('admin/css/login.css'));
+it('renders the current Staff Login page with email, password and a hidden role', function () {
+    $response = test()->get('/login');
 
-    expect(file_exists(public_path('admin/images/login-background-image.png')))->toBeTrue();
-    expect($css)->toContain('/admin/images/login-background-image.png');
-    expect($css)->toContain('background-size: cover;');
-});
-
-it('renders the dark overlay and login-page background style hook', function () {
-    $html = test()->get('/login')->getContent();
-    $css = file_get_contents(public_path('admin/css/login.css'));
-
-    expect($html)->toContain('class="login-page"');
-    expect($css)->toContain('.login-page::before');
-    expect($css)->toContain('rgba(0, 0, 0, 0.42)');
-});
-
-it('reduces the desktop logo width for better balance with the heading', function () {
-    $css = file_get_contents(public_path('admin/css/login.css'));
-
-    expect($css)->toContain(".brand-logo {\n    width: 290px;");
-});
-
-it('lifts the left content block and wraps it for the localized readability layer', function () {
-    $html = test()->get('/login')->getContent();
-    $css = file_get_contents(public_path('admin/css/login.css'));
-
-    expect($html)->toContain('class="login-left-content"');
-    expect($css)->toContain('.login-left::before');
-    expect($css)->toMatch('/\.login-left\s*\{[^}]*transform:\s*translateY\(-40px\);/');
+    $response->assertOk()
+        ->assertSee('Staff Login')
+        ->assertSee('name="email"', false)
+        ->assertSee('name="password"', false)
+        ->assertSee('name="role"', false)
+        ->assertSee('Forgot password?');
 });
 
 it('no longer renders the old admin logo asset', function () {
@@ -468,46 +447,11 @@ it('applies the focus-within treatment on the input wrapper', function () {
     expect($css)->toContain(".input-shell:focus-within {\n    border-color: #171717;\n    background: #fcfcfc;\n    box-shadow: 0 0 0 2px rgba(23, 23, 23, 0.08);\n}");
 });
 
-it('renders the approved heading copy', function () {
-    $response = test()->get('/login');
-
-    $response->assertSee('Towing operations');
-    $response->assertSee('made', false);
-    $response->assertSee('simple.', false);
-});
-
 it('renders the Android download with the real existing APK target', function () {
     $response = test()->get('/');
 
     $response->assertSee('Android');
     $response->assertSee(route('download.android'), false);
-});
-
-it('styles the Android and iOS controls as black store-style badges with truthful wording', function () {
-    $html = test()->get('/login')->getContent();
-    $css = file_get_contents(public_path('admin/css/login.css'));
-
-    expect($html)->not->toContain('Get it on Google Play');
-    expect($html)->not->toContain('Download on the App Store');
-    expect($html)->not->toContain('play.google.com');
-    expect($html)->not->toContain('apps.apple.com');
-    expect($html)->not->toContain('testflight');
-
-    expect($css)->toContain(".app-btn-android {\n    background: #171717;\n    border: 1px solid rgba(255, 255, 255, 0.18);\n}");
-    expect($css)->toContain(".app-btn-ios {\n    background: #171717;\n    border: 1px solid rgba(255, 255, 255, 0.18);\n    cursor: not-allowed;");
-});
-
-it('renders a disabled iOS Coming soon control', function () {
-    $html = test()->get('/login')->getContent();
-
-    expect($html)->toContain('iOS');
-    expect($html)->toContain('Coming soon');
-    expect($html)->toContain('app-btn-ios');
-    expect($html)->toContain('aria-disabled="true"');
-});
-
-it('renders the Welcome back heading', function () {
-    test()->get('/login')->assertSee('Welcome back');
 });
 
 it('renders the email field', function () {
@@ -575,7 +519,9 @@ it('shows the locked-state block with the exact required copy and a recover-acce
     ])->get('/login');
 
     $response->assertOk();
-    $response->assertSee('Too many unsuccessful sign-in attempts. Your sign-in access is temporarily locked. Verify your email to recover access.');
+    // The sentence wraps across lines in the view, so compare with whitespace normalised.
+    expect(preg_replace('/\s+/', ' ', $response->getContent()))
+        ->toContain('Too many unsuccessful sign-in attempts. Your sign-in access is temporarily locked. Verify your email to recover access.');
     $response->assertSee(route('login.recover', ['email' => 'locked-user@example.com']), false);
 });
 

@@ -8,6 +8,7 @@ use App\Models\VehicleCategory;
 use App\Models\TruckType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -58,83 +59,97 @@ class VehicleTypeController extends Controller
     {
         $classOrder = ['light' => 1, 'medium' => 2, 'heavy' => 3];
 
-        return $truckTypes->sortBy(fn ($truck) => $classOrder[$truck->class] ?? 99)->values();
+        return $truckTypes->sortBy(fn ($truck) => [$classOrder[$truck->class] ?? 99, $truck->name])->values();
     }
 
-    protected function buildMainGroups($truckTypes, $vehicleCategories, Request $request): array
+    /**
+     * Groups vehicle types by required truck type, then category (alphabetical,
+     * as customers see categories). Within a category, active vehicles keep the
+     * customer order (display_order, then name) and are numbered from 1 — the
+     * scope saveOrder() reorders. Inactive vehicles follow, unnumbered.
+     */
+    protected function buildMainGroups($vehicleCategories, array $filters): array
     {
-        $orderedTruckTypes = $this->orderTruckTypesByClass($truckTypes);
-        $searchTerm = trim((string) $request->input('search', ''));
-        $categoryFilter = $request->input('category');
-        $statusFilter = $request->input('status');
-        $autoExpand = $searchTerm !== '';
-        $isFiltering = $searchTerm !== '' || $categoryFilter || $statusFilter;
+        $isFiltering = $filters['search'] !== '' || $filters['category'] !== '' || $filters['status'] !== '';
 
-        $vehicles = VehicleType::withCount('bookings')
-            ->when($searchTerm !== '', function ($query) use ($searchTerm) {
-                $query->where(function ($inner) use ($searchTerm) {
-                    $inner->where('name', 'like', "%{$searchTerm}%")
-                        ->orWhere('description', 'like', "%{$searchTerm}%");
-                });
-            })
-            ->when($categoryFilter, fn ($query) => $query->where('category', $categoryFilter))
-            ->when($statusFilter, fn ($query) => $query->where('status', $statusFilter))
+        $all = VehicleType::with('requiredTruckType')->withCount('bookings')
             ->orderBy('display_order')
             ->orderBy('name')
             ->get();
 
+        // Order number within each truck type + category, counted over every
+        // active vehicle so filtering never changes a number.
+        $rankCounters = [];
+        $groupRank = [];
+        foreach ($all->where('status', 'active') as $vehicle) {
+            $key = $vehicle->required_truck_type_id . '|' . $vehicle->category;
+            $groupRank[$vehicle->id] = $rankCounters[$key] = ($rankCounters[$key] ?? 0) + 1;
+        }
+
+        $matchingIds = VehicleType::query()
+            ->when($filters['search'] !== '', function ($query) use ($filters) {
+                $like = '%' . addcslashes($filters['search'], '%_\\') . '%';
+                $query->where(fn ($inner) => $inner->where('name', 'ilike', $like)->orWhere('description', 'ilike', $like));
+            })
+            ->when($filters['category'] !== '', fn ($query) => $query->where('category', $filters['category']))
+            ->when($filters['status'] !== '', fn ($query) => $query->where('status', $filters['status']))
+            ->pluck('id')
+            ->flip();
+
+        $vehicles = $all->filter(fn ($vehicle) => $matchingIds->has($vehicle->id))
+            ->each(fn ($vehicle) => $vehicle->group_rank = $groupRank[$vehicle->id] ?? null)
+            ->sortBy(fn ($vehicle) => [$vehicle->group_rank === null ? 1 : 0, $vehicle->group_rank ?? 0, $vehicle->name])
+            ->values();
+
+        $truckTypes = $this->orderTruckTypesByClass(TruckType::orderBy('name')->get());
+        $categoryNames = $vehicleCategories->keyBy('slug');
+
         $groups = [];
         $seenIds = [];
 
-        foreach ($orderedTruckTypes as $truckType) {
-            $categoryGroups = [];
+        foreach ($truckTypes as $truckType) {
+            $own = $vehicles->where('required_truck_type_id', $truckType->id);
+            $hasAnyVehicle = $all->contains('required_truck_type_id', $truckType->id);
 
-            foreach ($vehicleCategories as $category) {
-                $matched = $vehicles
-                    ->filter(fn ($vehicle) => (int) $vehicle->required_truck_type_id === $truckType->id && $vehicle->category === $category->slug)
-                    ->values();
-
-                if ($matched->isEmpty()) {
-                    continue;
-                }
-
-                foreach ($matched as $vehicle) {
-                    $seenIds[] = $vehicle->id;
-                }
-
-                $categoryGroups[] = [
-                    'category' => $category,
-                    'vehicles' => $matched,
-                    'open' => $autoExpand,
-                ];
-            }
-
-            if (empty($categoryGroups) && $isFiltering) {
+            // Empty active truck types still show when not filtering, so a new
+            // one is visible; inactive ones only appear while they hold vehicles.
+            if ($own->isEmpty() && ($isFiltering || $truckType->status !== 'active' || $hasAnyVehicle)) {
                 continue;
             }
 
-            $groups[] = [
-                'truckType' => $truckType,
-                'categories' => $categoryGroups,
-                'open' => $autoExpand,
-            ];
+            $groups[] = $this->truckTypeGroup($truckType, $own, $vehicleCategories, $categoryNames);
+            $seenIds = array_merge($seenIds, $own->pluck('id')->all());
         }
 
-        $remaining = $vehicles->reject(fn ($vehicle) => in_array($vehicle->id, $seenIds, true))->values();
-
+        $remaining = $vehicles->reject(fn ($vehicle) => in_array($vehicle->id, $seenIds, true));
         if ($remaining->isNotEmpty()) {
-            $groups[] = [
-                'truckType' => (object) ['id' => 0, 'name' => 'Other'],
-                'categories' => [[
-                    'category' => (object) ['slug' => null, 'name' => 'Uncategorized'],
-                    'vehicles' => $remaining,
-                    'open' => $autoExpand,
-                ]],
-                'open' => $autoExpand,
-            ];
+            $groups[] = $this->truckTypeGroup(null, $remaining, $vehicleCategories, $categoryNames);
         }
 
         return $groups;
+    }
+
+    protected function truckTypeGroup(?TruckType $truckType, $vehicles, $vehicleCategories, $categoryNames): array
+    {
+        $categories = $vehicleCategories
+            ->map(fn ($category) => ['slug' => $category->slug, 'name' => $category->name, 'vehicles' => $vehicles->where('category', $category->slug)->values()])
+            ->filter(fn ($group) => $group['vehicles']->isNotEmpty())
+            ->values();
+
+        // Vehicles whose category slug has no lookup row.
+        $unknown = $vehicles->reject(fn ($vehicle) => $categoryNames->has($vehicle->category))->values();
+        if ($unknown->isNotEmpty()) {
+            $categories->push(['slug' => null, 'name' => 'Unknown category', 'vehicles' => $unknown]);
+        }
+
+        return [
+            'truckType' => $truckType,
+            'count' => $vehicles->count(),
+            'categories' => $categories,
+            // Reordering needs a real group with at least two active vehicles.
+            'reorderable' => $truckType !== null && $categories->contains(fn ($group) => $group['slug'] !== null
+                && $group['vehicles']->whereNotNull('group_rank')->count() > 1),
+        ];
     }
 
     protected function assertRequiredTruckTypeCompatible(TruckType $truckType, ?float $weightKg): void
@@ -150,45 +165,63 @@ class VehicleTypeController extends Controller
         }
     }
 
+    /**
+     * A vehicle type shown to customers (active) must map to a truck type that
+     * can actually be dispatched. Called inside the saving transaction, with the
+     * truck type row locked, so it cannot be disabled between check and save.
+     * Weight compatibility and pricing are unchanged and checked separately.
+     */
+    protected function assertRequiredTruckTypeActive(?int $truckTypeId, string $field = 'required_truck_type_id'): TruckType
+    {
+        $truckType = $truckTypeId ? TruckType::whereKey($truckTypeId)->lockForUpdate()->first() : null;
+
+        if (! $truckType || $truckType->status !== 'active') {
+            $name = $truckType?->name ?? 'The required truck type';
+
+            throw ValidationException::withMessages([
+                $field => "{$name} is disabled. Re-enable it, or choose an active truck type, before keeping this vehicle type active.",
+            ]);
+        }
+
+        return $truckType;
+    }
+
     public function index(Request $request)
     {
-        $truckTypes = TruckType::where('status', 'active')->orderBy('name')->get();
+        $vehicleCategories = VehicleCategory::withCount('vehicleTypes')->orderBy('name')->get();
+
+        $filters = [
+            'search' => trim((string) $request->query('search', '')),
+            'category' => $vehicleCategories->contains('slug', $request->query('category')) ? (string) $request->query('category') : '',
+            'status' => in_array($request->query('status'), ['active', 'inactive'], true) ? (string) $request->query('status') : '',
+        ];
 
         $activeIds = $this->activeOrderedIds();
 
+        // Global customer-list position, kept for existing consumers.
         $positionByVehicleId = [];
         foreach ($activeIds as $index => $id) {
             $positionByVehicleId[$id] = $index + 1;
         }
 
-        $activeCount = count($activeIds);
+        $mainGroups = $this->buildMainGroups($vehicleCategories, $filters);
 
-        $vehicleCategories = VehicleCategory::orderBy('name')->get();
-
-        $mainGroups = $this->buildMainGroups($truckTypes, $vehicleCategories, $request);
-        $hasResults = $request->hasAny(['search', 'category', 'status'])
-            ? collect($mainGroups)->contains(fn ($group) => collect($group['categories'])->contains(fn ($cat) => $cat['vehicles']->isNotEmpty()))
-            : ! empty($mainGroups);
-
-        return view('superadmin.vehicle-types.index', compact(
-            'truckTypes',
-            'positionByVehicleId',
-            'activeCount',
-            'vehicleCategories',
-            'mainGroups',
-            'hasResults'
-        ));
+        return view('superadmin.vehicle-types.index', [
+            'filters' => $filters,
+            'hasFilters' => $filters['search'] !== '' || $filters['category'] !== '' || $filters['status'] !== '',
+            'mainGroups' => $mainGroups,
+            'shownCount' => collect($mainGroups)->sum('count'),
+            'totalCount' => VehicleType::count(),
+            'positionByVehicleId' => $positionByVehicleId,
+            'activeCount' => count($activeIds),
+            'vehicleCategories' => $vehicleCategories,
+            'truckTypes' => $this->orderTruckTypesByClass(TruckType::where('status', 'active')->get()),
+        ]);
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:100|unique:vehicle_types,name',
-            'category' => 'required|exists:vehicle_categories,slug',
-            'weight_kg' => 'nullable|numeric|min:0',
-            'required_truck_type_id' => 'required|exists:truck_types,id',
-            'description' => 'nullable|string|max:500',
-        ]);
+        $validated = $this->validateVehicleType($request);
 
         $requiredTruckType = TruckType::findOrFail($validated['required_truck_type_id']);
         $weightKg = $validated['weight_kg'] ?? null;
@@ -197,47 +230,103 @@ class VehicleTypeController extends Controller
         $validated['status'] = 'active';
         $validated['display_order'] = 0;
 
-        $vehicleType = VehicleType::create($validated);
-        $vehicleType->truckTypes()->sync([$requiredTruckType->id]);
+        $vehicleType = DB::transaction(function () use ($validated, $requiredTruckType) {
+            $this->assertRequiredTruckTypeActive($requiredTruckType->id);
 
-        $this->appendToActiveOrder($vehicleType->id);
+            $vehicleType = VehicleType::create($validated);
+            $vehicleType->truckTypes()->sync([$requiredTruckType->id]);
 
-        return redirect()->route('superadmin.vehicle-types.index')
-            ->with('success', 'Vehicle type created successfully.');
+            $this->appendToActiveOrder($vehicleType->id);
+
+            return $vehicleType;
+        });
+
+        return $this->backToList()->with('success', "{$vehicleType->name} added.");
     }
 
     public function update(Request $request, VehicleType $vehicleType)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:100|unique:vehicle_types,name,' . $vehicleType->id,
-            'category' => 'required|exists:vehicle_categories,slug',
-            'weight_kg' => 'nullable|numeric|min:0',
-            'required_truck_type_id' => 'required|exists:truck_types,id',
-            'description' => 'nullable|string|max:500',
-        ]);
+        $validated = $this->validateVehicleType($request, $vehicleType);
 
         $requiredTruckType = TruckType::findOrFail($validated['required_truck_type_id']);
         $weightKg = $validated['weight_kg'] ?? null;
         $this->assertRequiredTruckTypeCompatible($requiredTruckType, $weightKg !== null ? (float) $weightKg : null);
 
-        $vehicleType->update($validated);
-        $vehicleType->truckTypes()->sync([$requiredTruckType->id]);
+        DB::transaction(function () use ($vehicleType, $validated, $requiredTruckType) {
+            // Only a vehicle type customers can see needs a dispatchable truck type.
+            if ($vehicleType->status === 'active') {
+                $this->assertRequiredTruckTypeActive($requiredTruckType->id);
+            }
 
-        return redirect()->route('superadmin.vehicle-types.index')
-            ->with('success', 'Vehicle type updated successfully.');
+            $vehicleType->update($validated);
+            $vehicleType->truckTypes()->sync([$requiredTruckType->id]);
+        });
+
+        return $this->backToList()->with('success', "{$vehicleType->name} updated.");
+    }
+
+    /**
+     * Validates a copy with the weight's thousands separators removed, so a
+     * failed save sends back exactly what the owner typed.
+     */
+    protected function validateVehicleType(Request $request, ?VehicleType $vehicleType = null): array
+    {
+        $data = $request->all();
+        if (is_string($data['weight_kg'] ?? null)) {
+            $data['weight_kg'] = preg_replace('/[\s,]/', '', $data['weight_kg']);
+        }
+
+        return Validator::make($data, [
+            'name' => 'required|string|max:100|unique:vehicle_types,name' . ($vehicleType ? ',' . $vehicleType->id : ''),
+            'category' => 'required|exists:vehicle_categories,slug',
+            'weight_kg' => 'nullable|numeric|min:0',
+            'required_truck_type_id' => 'required|exists:truck_types,id',
+            'description' => 'nullable|string|max:500',
+        ], [
+            'name.required' => 'Enter a name.',
+            'name.unique' => 'A vehicle type with this name already exists.',
+            'category.required' => 'Choose a category.',
+            'category.exists' => 'Choose a category from the list.',
+            'weight_kg.numeric' => 'Enter a number, e.g. 1300',
+            'weight_kg.min' => 'Enter 0 or more.',
+            'required_truck_type_id.required' => 'Choose the truck type this vehicle needs.',
+            'required_truck_type_id.exists' => 'Choose a truck type from the list.',
+        ])->validate();
+    }
+
+    /** Return to the list the owner came from, keeping search and filters. */
+    protected function backToList()
+    {
+        $index = route('superadmin.vehicle-types.index');
+        $previous = url()->previous();
+
+        return redirect(str_starts_with($previous, $index) && ! str_starts_with($previous, $index . '/') ? $previous : $index);
     }
 
     public function toggleStatus(VehicleType $vehicleType)
     {
         $nextStatus = $vehicleType->status === 'active' ? 'inactive' : 'active';
 
-        $vehicleType->update(['status' => $nextStatus]);
+        try {
+            DB::transaction(function () use ($vehicleType, $nextStatus) {
+                // A legacy row with no required truck type has nothing to check.
+                if ($nextStatus === 'active' && $vehicleType->required_truck_type_id) {
+                    $this->assertRequiredTruckTypeActive((int) $vehicleType->required_truck_type_id);
+                }
 
-        if ($nextStatus === 'active') {
-            $this->appendToActiveOrder($vehicleType->id);
+                $vehicleType->update(['status' => $nextStatus]);
+
+                if ($nextStatus === 'active') {
+                    $this->appendToActiveOrder($vehicleType->id);
+                }
+            });
+        } catch (ValidationException $e) {
+            return back()->with('error', collect($e->errors())->flatten()->first());
         }
 
-        return back()->with('success', 'Vehicle type status updated successfully.');
+        return back()->with('success', $nextStatus === 'active'
+            ? "{$vehicleType->name} is shown to customers again, last in its category."
+            : "{$vehicleType->name} is now hidden from customers.");
     }
 
     public function saveOrder(Request $request)
@@ -355,7 +444,7 @@ class VehicleTypeController extends Controller
 
         $vehicleType->delete();
 
-        return back()->with('success', 'Vehicle type deleted successfully.');
+        return back()->with('success', "{$vehicleType->name} deleted.");
     }
 
     public function getByCategory($category)

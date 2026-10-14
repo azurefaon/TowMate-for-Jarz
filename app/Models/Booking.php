@@ -157,6 +157,7 @@ class Booking extends Model
         return [
             'quotation_generated' => 'boolean',
             'scheduled_date' => 'date',
+            'capacity_reserved_date' => 'date',
             'scheduled_for' => 'datetime',
             'assigned_at' => 'datetime',
             'completed_at' => 'datetime',

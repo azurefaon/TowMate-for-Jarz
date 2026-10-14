@@ -148,6 +148,17 @@ class AuditLogService
         static::$loggedEntities = [];
     }
 
+    /** See AuditObserver::checkpoint(): manual rows written inside a rolled-back transaction no longer exist. */
+    public static function registrySnapshot(): array
+    {
+        return static::$loggedEntities;
+    }
+
+    public static function restoreRegistry(array $snapshot): void
+    {
+        static::$loggedEntities = $snapshot;
+    }
+
     public function logLogin(User $user, Request $request, string $guard): void
     {
         AuditLog::create([

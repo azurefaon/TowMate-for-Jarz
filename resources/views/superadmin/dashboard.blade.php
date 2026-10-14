@@ -6,168 +6,207 @@
     <link rel="stylesheet" href="{{ asset('superadmin/css/dashboard.css') }}?v={{ filemtime(public_path('superadmin/css/dashboard.css')) }}">
 @endpush
 
+@php
+    $needsAction = [
+        ['label' => 'Pending Bookings', 'note' => 'New requests not yet reviewed', 'icon' => 'inbox', 'count' => $pendingBookingsCount],
+        ['label' => 'Awaiting Verification', 'note' => 'Completion or payment not yet confirmed', 'icon' => 'clipboard-check', 'count' => $verificationBookingsCount],
+        ['label' => 'Returned Jobs', 'note' => 'Returned by a team leader, back in the queue', 'icon' => 'undo-2', 'count' => $returnedJobsCount],
+    ];
+    $nothingWaiting = collect($needsAction)->sum('count') === 0;
+@endphp
+
 @section('content')
-    <div class="page-top">
-        <div>
+    <div class="od-page">
+        <header class="od-header">
             <h1>Dashboard</h1>
-            <p>Business overview for {{ $periodLabel }}.</p>
-        </div>
-    </div>
+            <p>Business overview for {{ $periodLabel }}</p>
+        </header>
 
-    <div class="od-summary-grid">
-        <div class="od-summary-card">
-            <span class="od-summary-label">Monthly Revenue</span>
-            <div class="od-summary-value">₱{{ number_format($revenueThisMonth, 2) }}</div>
-            <span class="od-summary-note">{{ $periodLabel }}</span>
-        </div>
+        <section class="od-kpis" aria-label="Key figures">
+            <article class="od-kpi">
+                <div class="od-kpi-head">
+                    <h2>Monthly Revenue</h2>
+                    <i data-lucide="banknote" aria-hidden="true"></i>
+                </div>
+                @php($revenueDisplay = '₱' . number_format($revenueThisMonth, 2))
+                <p @class(['od-kpi-value', 'is-long' => mb_strlen($revenueDisplay) > 11])>{{ $revenueDisplay }}</p>
+                <p class="od-kpi-note">Completed, paid jobs · {{ $periodLabel }}</p>
+            </article>
 
-        <div class="od-summary-card">
-            <span class="od-summary-label">Completed Jobs</span>
-            <div class="od-summary-value">{{ number_format($completedJobsCount) }}</div>
-            <span class="od-summary-note">This month</span>
-        </div>
+            <article class="od-kpi">
+                <div class="od-kpi-head">
+                    <h2>Completed Jobs</h2>
+                    <i data-lucide="circle-check" aria-hidden="true"></i>
+                </div>
+                <p class="od-kpi-value">{{ number_format($completedJobsCount) }}</p>
+                <p class="od-kpi-note">Completed, paid · this month</p>
+            </article>
 
-        <div class="od-summary-card">
-            <span class="od-summary-label">Active Jobs</span>
-            <div class="od-summary-value">{{ number_format($activeJobsCount) }}</div>
-            <span class="od-summary-note">Currently in progress</span>
-        </div>
+            <article class="od-kpi">
+                <div class="od-kpi-head">
+                    <h2>Active Jobs</h2>
+                    <i data-lucide="route" aria-hidden="true"></i>
+                </div>
+                <p class="od-kpi-value">{{ number_format($activeJobsCount) }}</p>
+                <p class="od-kpi-note">In progress now</p>
+            </article>
 
-        <div class="od-summary-card">
-            <span class="od-summary-label">Available Units</span>
-            <div class="od-summary-value">{{ number_format($availableUnitsCount) }}</div>
-            <span class="od-summary-note">Ready for dispatch</span>
-        </div>
-    </div>
+            <article class="od-kpi">
+                <div class="od-kpi-head">
+                    <h2>Available Units</h2>
+                    <i data-lucide="truck" aria-hidden="true"></i>
+                </div>
+                @if ($totalUnitsCount > 0)
+                    <p class="od-kpi-value">
+                        {{ number_format($availableUnitsCount) }}<span class="od-kpi-total"><span class="od-sr"> of</span> / {{ number_format($totalUnitsCount) }}</span>
+                    </p>
+                    <p class="od-kpi-note">Ready for dispatch / all units</p>
+                @else
+                    <p class="od-kpi-value">0</p>
+                    <p class="od-kpi-note">No units registered</p>
+                @endif
+            </article>
+        </section>
 
-    <div class="od-row">
-        <div class="od-panel">
-            <div class="od-panel-header">
-                <h2>Operations Overview</h2>
-            </div>
-
-            <div class="od-overview-list">
-                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
-                    <span>Pending Bookings</span>
-                    <span class="od-overview-count">{{ number_format($pendingBookingsCount) }}</span>
-                </a>
-                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
-                    <span>Scheduled Bookings</span>
-                    <span class="od-overview-count">{{ number_format($scheduledBookingsCount) }}</span>
-                </a>
-                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
-                    <span>Active Jobs</span>
-                    <span class="od-overview-count">{{ number_format($activeJobsCount) }}</span>
-                </a>
-                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
-                    <span>Jobs for Verification</span>
-                    <span class="od-overview-count">{{ number_format($verificationBookingsCount) }}</span>
-                </a>
-                <a href="{{ route('superadmin.monitoring.index') }}" class="od-overview-row">
-                    <span>Returned Jobs</span>
-                    <span class="od-overview-count">{{ number_format($returnedJobsCount) }}</span>
-                </a>
-            </div>
-        </div>
-
-        <div class="od-panel">
-            <div class="od-panel-header">
-                <h2>Revenue Trend</h2>
-                <span class="od-panel-note">Last 7 days</span>
-            </div>
-            <canvas id="revenueTrendChart" class="od-chart"></canvas>
-        </div>
-    </div>
-
-    <div class="od-row">
-        <div class="od-panel">
-            <div class="od-panel-header">
-                <h2>Recent Activity</h2>
-                <a href="{{ route('superadmin.reports.activity') }}" class="od-panel-link">View All</a>
-            </div>
-
-            <div class="od-activity-list">
-                @forelse ($recentActivity as $activity)
-                    <div class="od-activity-row">
-                        <div>
-                            <strong>{{ $activity['title'] }}</strong>
-                            <span class="od-activity-sub">{{ $activity['reference'] }}</span>
-                        </div>
-                        <span class="od-activity-time">{{ $activity['created_at']?->format('M j, Y g:i A') }}</span>
+        <div class="od-main">
+            <section class="od-panel od-revenue" aria-labelledby="odRevenueTitle">
+                <div class="od-panel-head">
+                    <div>
+                        <h2 id="odRevenueTitle">Revenue Trend</h2>
+                        <p>Completed, paid jobs · last 7 days</p>
                     </div>
-                @empty
-                    <p class="od-empty">No recent activity recorded yet.</p>
-                @endforelse
-            </div>
+                    <div class="od-total">
+                        <span>7-day total</span>
+                        <strong>₱{{ number_format($revenueTrendTotal, 2) }}</strong>
+                    </div>
+                </div>
+
+                @if ($revenueTrendTotal > 0)
+                    <div class="od-chart" aria-hidden="true">
+                        <div class="od-chart-axis">
+                            @foreach ($revenueChart['ticks'] as $tick)
+                                <span style="bottom: {{ $tick['percent'] }}%">{{ $tick['label'] }}</span>
+                            @endforeach
+                        </div>
+                        <div class="od-chart-plot">
+                            @foreach ($revenueChart['ticks'] as $tick)
+                                <span class="od-chart-grid {{ $tick['percent'] == 0 ? 'is-base' : '' }}" style="bottom: {{ $tick['percent'] }}%"></span>
+                            @endforeach
+                            @foreach ($revenueChart['bars'] as $bar)
+                                <div class="od-chart-col">
+                                    <span class="od-chart-bar {{ $bar['revenue'] > 0 ? '' : 'is-zero' }}" @if ($bar['revenue'] > 0) style="height: {{ $bar['percent'] }}%" @endif>
+                                        @if ($bar['is_peak'])
+                                            <span class="od-chart-peak">₱{{ number_format($bar['revenue']) }}</span>
+                                        @endif
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="od-chart-labels">
+                            @foreach ($revenueChart['bars'] as $bar)
+                                <span>{{ $bar['label'] }}</span>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <table class="od-sr">
+                        <caption>Daily revenue, last 7 days</caption>
+                        <tbody>
+                            @foreach ($revenueChart['bars'] as $bar)
+                                <tr>
+                                    <th scope="row">{{ $bar['label'] }}</th>
+                                    <td>₱{{ number_format($bar['revenue'], 2) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="od-empty od-empty-fill">
+                        <span class="od-empty-icon"><i data-lucide="chart-column" aria-hidden="true"></i></span>
+                        <p class="od-empty-title">No revenue in the last 7 days</p>
+                        <p class="od-empty-text">Revenue is recorded when a completed job's payment is confirmed.</p>
+                    </div>
+                @endif
+            </section>
+
+            <section class="od-panel od-ops" aria-labelledby="odOpsTitle">
+                <div class="od-panel-head">
+                    <div>
+                        <h2 id="odOpsTitle">Operations Overview</h2>
+                        <p>Current counts, all dates</p>
+                    </div>
+                    <a href="{{ route('superadmin.monitoring.index') }}" class="od-link-btn">
+                        Operations Monitor <i data-lucide="arrow-right" aria-hidden="true"></i>
+                    </a>
+                </div>
+
+                <div class="od-section-label">
+                    <h3>Needs action</h3>
+                    @if ($nothingWaiting)
+                        <span>Nothing waiting</span>
+                    @endif
+                </div>
+                <ul class="od-ops-list">
+                    @foreach ($needsAction as $row)
+                        <li class="od-ops-row">
+                            <span class="od-tile"><i data-lucide="{{ $row['icon'] }}" aria-hidden="true"></i></span>
+                            <div class="od-ops-text">
+                                <strong>{{ $row['label'] }}</strong>
+                                <span>{{ $row['note'] }}</span>
+                            </div>
+                            <span class="od-count {{ $row['count'] > 0 ? 'is-attention' : '' }}">{{ number_format($row['count']) }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+
+                <div class="od-section-label is-plain">
+                    <h3>Upcoming</h3>
+                </div>
+                <div class="od-ops-row od-ops-upcoming">
+                    <span class="od-tile"><i data-lucide="calendar" aria-hidden="true"></i></span>
+                    <div class="od-ops-text">
+                        <strong>Scheduled Bookings</strong>
+                        <span>Booked for a later date</span>
+                    </div>
+                    <span class="od-count {{ $scheduledBookingsCount > 0 ? '' : 'is-zero' }}">{{ number_format($scheduledBookingsCount) }}</span>
+                </div>
+            </section>
         </div>
 
-        <div class="od-panel">
-            <div class="od-panel-header">
-                <h2>Quick Access</h2>
+        <section class="od-panel od-activity" aria-labelledby="odActivityTitle">
+            <div class="od-panel-head">
+                <div>
+                    <h2 id="odActivityTitle">Recent Activity</h2>
+                    <p>Latest booking and quotation events</p>
+                </div>
+                @if (count($activityGroups) > 0)
+                    <a href="{{ route('superadmin.reports.activity') }}" class="od-link-btn">
+                        Activity Report <i data-lucide="arrow-right" aria-hidden="true"></i>
+                    </a>
+                @endif
             </div>
 
-            <div class="od-quick-grid">
-                <a href="{{ route('superadmin.bookings.index') }}" class="od-quick-item">
-                    <strong>Manage Bookings</strong>
-                    <span>View and handle all bookings</span>
-                </a>
-                <a href="{{ route('superadmin.unit-truck.index') }}" class="od-quick-item">
-                    <strong>Manage Units</strong>
-                    <span>View and update units</span>
-                </a>
-                <a href="{{ route('superadmin.personnel.index') }}" class="od-quick-item">
-                    <strong>Manage Personnel</strong>
-                    <span>Add or edit personnel records</span>
-                </a>
-                <a href="{{ route('superadmin.reports.index') }}" class="od-quick-item">
-                    <strong>View Reports</strong>
-                    <span>Revenue, performance and more</span>
-                </a>
-            </div>
-        </div>
+            @forelse ($activityGroups as $group)
+                <div class="od-section-label">
+                    <h3>{{ $group['label'] }}</h3>
+                </div>
+                <ul class="od-activity-list">
+                    @foreach ($group['items'] as $activity)
+                        <li class="od-activity-row">
+                            <span class="od-tile"><i data-lucide="{{ $activity['icon'] }}" aria-hidden="true"></i></span>
+                            <span class="od-activity-title">{{ $activity['title'] }}</span>
+                            <span class="od-activity-ref">{{ $activity['reference'] }}</span>
+                            <time class="od-activity-time" datetime="{{ $activity['created_at']->toIso8601String() }}">{{ $activity['created_at']->format('g:i A') }}</time>
+                        </li>
+                    @endforeach
+                </ul>
+            @empty
+                <div class="od-empty">
+                    <span class="od-empty-icon"><i data-lucide="history" aria-hidden="true"></i></span>
+                    <p class="od-empty-title">No recent activity</p>
+                    <p class="od-empty-text">Booking and quotation events will appear here.</p>
+                </div>
+            @endforelse
+        </section>
     </div>
 @endsection
-
-@push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const revenueTrendCanvas = document.getElementById('revenueTrendChart');
-            if (revenueTrendCanvas) {
-                new Chart(revenueTrendCanvas, {
-                    type: 'line',
-                    data: {
-                        labels: @json($revenueTrendLabels),
-                        datasets: [{
-                            label: 'Revenue',
-                            data: @json($revenueTrend),
-                            borderColor: '#171717',
-                            borderWidth: 2,
-                            tension: 0.3,
-                            fill: false,
-                            pointBackgroundColor: '#facc15',
-                            pointBorderColor: '#facc15',
-                            pointRadius: 3,
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: { color: '#f0f0f0' },
-                                border: { display: false },
-                            },
-                            x: {
-                                grid: { display: false },
-                                border: { display: false },
-                            },
-                        }
-                    }
-                });
-            }
-        });
-    </script>
-@endpush

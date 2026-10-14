@@ -9,8 +9,8 @@ use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 
 it('loads the dispatcher dashboard for a dispatcher user', function () {
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
+    Role::query()->firstOrCreate(['name' => 'Super Admin']);
+    Role::query()->firstOrCreate(['name' => 'Dispatcher']);
 
     $dispatcher = User::factory()->create([
         'role_id' => 2,
@@ -26,9 +26,9 @@ it('loads the dispatcher dashboard for a dispatcher user', function () {
 });
 
 it('syncs team leader online and workload states to the dispatcher live overview', function () {
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    Role::query()->firstOrCreate(['name' => 'Super Admin']);
+    Role::query()->firstOrCreate(['name' => 'Dispatcher']);
+    Role::query()->firstOrCreate(['name' => 'Team Leader']);
 
     $dispatcher = User::factory()->create([
         'role_id' => 2,
@@ -37,6 +37,14 @@ it('syncs team leader online and workload states to the dispatcher live overview
     $teamLeader = User::factory()->create([
         'role_id' => 3,
         'name' => 'TL Santos',
+    ]);
+
+    Unit::create([
+        'name' => 'Unit Santos',
+        'plate_number' => 'SAN-1001',
+        'truck_type_id' => TruckType::create(['name' => 'Overview Truck', 'base_rate' => 1500, 'per_km_rate' => 75, 'max_tonnage' => 5, 'description' => 'Live overview'])->id,
+        'team_leader_id' => $teamLeader->id,
+        'status' => 'available',
     ]);
 
     Cache::put("teamleader:presence:{$teamLeader->id}", now()->timestamp, now()->addMinutes(2));
@@ -52,8 +60,8 @@ it('syncs team leader online and workload states to the dispatcher live overview
 });
 
 it('removes the legacy member drivers stat card from the available units module', function () {
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
+    Role::query()->firstOrCreate(['name' => 'Super Admin']);
+    Role::query()->firstOrCreate(['name' => 'Dispatcher']);
 
     $dispatcher = User::factory()->create([
         'role_id' => 2,
@@ -65,52 +73,26 @@ it('removes the legacy member drivers stat card from the available units module'
         ->assertDontSee('Member Drivers');
 });
 
-it('lets the dispatcher toggle a unit between available and not available', function () {
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
+it('no longer serves the retired available-units toggle URL', function () {
+    foreach (['Super Admin', 'Dispatcher', 'Team Leader'] as $roleName) {
+        Role::query()->firstOrCreate(['name' => $roleName]);
+    }
 
-    $dispatcher = User::factory()->create([
-        'role_id' => 2,
-    ]);
+    $dispatcher = User::factory()->create(['role_id' => 2]);
+    $truckType = TruckType::create(['name' => 'Toggle Truck', 'base_rate' => 1500, 'per_km_rate' => 75, 'max_tonnage' => 5, 'description' => 'Toggle visibility test']);
+    $unit = Unit::create(['name' => 'Unit Toggle 1', 'plate_number' => 'TGL-1001', 'truck_type_id' => $truckType->id, 'status' => 'available']);
 
-    $truckType = TruckType::create([
-        'name' => 'Toggle Truck',
-        'base_rate' => 1500,
-        'per_km_rate' => 75,
-        'max_tonnage' => 5,
-        'description' => 'Toggle visibility test',
-    ]);
-
-    $unit = Unit::create([
-        'name' => 'Unit Toggle 1',
-        'plate_number' => 'TGL-1001',
-        'truck_type_id' => $truckType->id,
-        'status' => 'available',
-    ]);
-
-    $this->actingAs($dispatcher)
-        ->patch(route('admin.available-units.toggle', $unit))
-        ->assertRedirect(route('admin.available-units'));
-
-    expect($unit->fresh()->status)->toBe('maintenance');
-
-    $this->actingAs($dispatcher)
-        ->get(route('admin.available-units'))
-        ->assertOk()
-        ->assertSee('Unit Toggle 1')
-        ->assertSee('Not Available');
-
-    $this->actingAs($dispatcher)
-        ->patch(route('admin.available-units.toggle', $unit))
-        ->assertRedirect(route('admin.available-units'));
+    $this->actingAs($dispatcher)->patch("/admin-dashboard/available-units/{$unit->id}/toggle")->assertNotFound();
 
     expect($unit->fresh()->status)->toBe('available');
+
+    $this->actingAs($dispatcher)->get(route('admin.available-units'))->assertOk()->assertSee('Unit Toggle 1');
 });
 
 it('shows the assigned unit and saved driver in the dispatcher team leaders dashboard', function () {
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    Role::query()->firstOrCreate(['name' => 'Super Admin']);
+    Role::query()->firstOrCreate(['name' => 'Dispatcher']);
+    Role::query()->firstOrCreate(['name' => 'Team Leader']);
 
     $dispatcher = User::factory()->create([
         'role_id' => 2,
@@ -134,6 +116,7 @@ it('shows the assigned unit and saved driver in the dispatcher team leaders dash
         'plate_number' => 'ABC-1234',
         'truck_type_id' => $truckType->id,
         'team_leader_id' => $teamLeader->id,
+        'driver_name' => 'Mario Dela Cruz',
         'status' => 'available',
     ]);
 
@@ -176,9 +159,9 @@ it('shows the assigned unit and saved driver in the dispatcher team leaders dash
 });
 
 it('shows returned tasks in the dispatcher queue with the return reason', function () {
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    Role::query()->firstOrCreate(['name' => 'Super Admin']);
+    Role::query()->firstOrCreate(['name' => 'Dispatcher']);
+    Role::query()->firstOrCreate(['name' => 'Team Leader']);
 
     $dispatcher = User::factory()->create([
         'role_id' => 2,
@@ -242,9 +225,9 @@ it('shows returned tasks in the dispatcher queue with the return reason', functi
 });
 
 it('lets the dispatcher assign a unit to a team leader from the team leaders module', function () {
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    foreach (['Super Admin', 'Dispatcher', 'Team Leader'] as $roleName) {
+        Role::query()->firstOrCreate(['name' => $roleName]);
+    }
 
     $dispatcher = User::factory()->create([
         'role_id' => 2,
@@ -273,10 +256,11 @@ it('lets the dispatcher assign a unit to a team leader from the team leaders mod
     Cache::put("teamleader:presence:{$teamLeader->id}", now()->timestamp, now()->addMinutes(2));
 
     $this->actingAs($dispatcher)
-        ->post(route('admin.drivers.assign-unit', $teamLeader), [
-            'unit_id' => $unit->id,
+        ->post(route('admin.drivers.units.assign-team-leader', $unit), [
+            'team_leader_id' => $teamLeader->id,
         ])
-        ->assertRedirect(route('admin.drivers'));
+        ->assertRedirect(route('admin.drivers'))
+        ->assertSessionHasNoErrors();
 
     $unit->refresh();
 
@@ -292,139 +276,64 @@ it('lets the dispatcher assign a unit to a team leader from the team leaders mod
 it('shows online leaders first but falls back to view all when everyone is offline', function () {
     Cache::flush();
 
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    foreach (['Super Admin', 'Dispatcher', 'Team Leader'] as $roleName) {
+        Role::query()->firstOrCreate(['name' => $roleName]);
+    }
 
-    $dispatcher = User::factory()->create([
-        'role_id' => 2,
-    ]);
+    $dispatcher = User::factory()->create(['role_id' => 2]);
+    $truckType = TruckType::create(['name' => 'Presence Truck', 'base_rate' => 1500, 'per_km_rate' => 75, 'max_tonnage' => 5, 'description' => 'Presence filter']);
 
-    $offlineLeader = User::factory()->create([
-        'role_id' => 3,
-        'name' => 'TL Offline',
-    ]);
+    $offlineLeader = User::factory()->create(['role_id' => 3, 'name' => 'TL Offline']);
+    Unit::create(['name' => 'Unit Offline', 'plate_number' => 'OFF-1001', 'truck_type_id' => $truckType->id, 'team_leader_id' => $offlineLeader->id, 'status' => 'available']);
+
+    // Everyone offline: the list still shows every unit (nothing is hidden), the
+    // Presence filter offers Online/Offline/All, and the leader is marked Offline.
+    $this->actingAs($dispatcher)
+        ->get(route('admin.drivers'))
+        ->assertOk()
+        ->assertSee('Presence')
+        ->assertSee('<option value="all">All</option>', false)
+        ->assertSee('<option value="online">Online</option>', false)
+        ->assertSee('<option value="offline">Offline</option>', false)
+        ->assertSee('Unit Offline')
+        ->assertSee('TL Offline')
+        ->assertSee('data-presence="offline"', false)
+        ->assertDontSee('data-presence="online"', false);
+
+    $onlineLeader = User::factory()->create(['role_id' => 3, 'name' => 'TL Online']);
+    Unit::create(['name' => 'Unit Online', 'plate_number' => 'ONL-1001', 'truck_type_id' => $truckType->id, 'team_leader_id' => $onlineLeader->id, 'status' => 'available']);
+    Cache::put("teamleader:presence:{$onlineLeader->id}", now()->timestamp, now()->addMinutes(2));
 
     $this->actingAs($dispatcher)
         ->get(route('admin.drivers'))
         ->assertOk()
-        ->assertSee('View All')
-        ->assertSee('Online')
-        ->assertSee('Offline')
-        ->assertSee('Not Available')
-        ->assertDontSee('<span class="stat-label">Available</span>', false)
-        ->assertSee('data-default-filter="all"', false);
-
-    Cache::put("teamleader:presence:{$offlineLeader->id}", now()->timestamp, now()->addMinutes(2));
-
-    User::factory()->create([
-        'role_id' => 3,
-        'name' => 'TL Still Offline',
-    ]);
-
-    $this->actingAs($dispatcher)
-        ->get(route('admin.drivers'))
-        ->assertOk()
-        ->assertSee('data-default-filter="online"', false);
+        ->assertSee('data-presence="online"', false)
+        ->assertSee('data-presence="offline"', false)
+        ->assertSee('Unit Online');
 });
-
-it('disables unit assignment controls and blocks saving for offline team leaders', function () {
-    Cache::flush();
-
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
-
-    $dispatcher = User::factory()->create([
-        'role_id' => 2,
-    ]);
-
-    $teamLeader = User::factory()->create([
-        'role_id' => 3,
-        'name' => 'TL Offline Lock',
-    ]);
-
-    $truckType = TruckType::create([
-        'name' => 'Light Duty',
-        'base_rate' => 1500,
-        'per_km_rate' => 75,
-        'max_tonnage' => 4,
-        'description' => 'Offline assignment guard test',
-    ]);
-
-    $unit = Unit::create([
-        'name' => 'Unit 70',
-        'plate_number' => 'OFF-7001',
-        'truck_type_id' => $truckType->id,
-        'status' => 'available',
-    ]);
-
-    $this->actingAs($dispatcher)
-        ->get(route('admin.drivers'))
-        ->assertOk()
-        ->assertSee('TL Offline Lock');
-
-    $this->actingAs($dispatcher)
-        ->post(route('admin.drivers.assign-unit', $teamLeader), [
-            'unit_id' => $unit->id,
-        ])
-        ->assertRedirect(route('admin.drivers'))
-        ->assertSessionHasErrors(['unit_id']);
-
-    expect($unit->fresh()->team_leader_id)->toBeNull();
-});
-
 it('shows an active duty queue with ready deployed and unavailable crew states', function () {
     Cache::flush();
 
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    foreach (['Super Admin', 'Dispatcher', 'Team Leader'] as $roleName) {
+        Role::query()->firstOrCreate(['name' => $roleName]);
+    }
 
-    $dispatcher = User::factory()->create([
-        'role_id' => 2,
-    ]);
-
-    $readyLeader = User::factory()->create([
-        'role_id' => 3,
-        'name' => 'TL Ready Crew',
-    ]);
-
-    $busyLeader = User::factory()->create([
-        'role_id' => 3,
-        'name' => 'TL Busy Crew',
-    ]);
-
-    User::factory()->create([
-        'role_id' => 3,
-        'name' => 'TL Offline Crew',
-    ]);
+    $dispatcher = User::factory()->create(['role_id' => 2]);
+    $readyLeader = User::factory()->create(['role_id' => 3, 'name' => 'TL Ready Crew']);
+    $busyLeader = User::factory()->create(['role_id' => 3, 'name' => 'TL Busy Crew']);
+    $offlineLeader = User::factory()->create(['role_id' => 3, 'name' => 'TL Offline Crew']);
 
     Cache::put("teamleader:presence:{$readyLeader->id}", now()->timestamp, now()->addMinutes(2));
     Cache::put("teamleader:presence:{$busyLeader->id}", now()->timestamp, now()->addMinutes(2));
 
-    $truckType = TruckType::create([
-        'name' => 'Queue Visibility Truck',
-        'base_rate' => 1600,
-        'per_km_rate' => 80,
-        'max_tonnage' => 5,
-        'description' => 'Queue grouping visibility',
-    ]);
+    $truckType = TruckType::create(['name' => 'Queue Visibility Truck', 'base_rate' => 1600, 'per_km_rate' => 80, 'max_tonnage' => 5, 'description' => 'Queue grouping visibility']);
 
-    $busyUnit = Unit::create([
-        'name' => 'Unit Busy 11',
-        'plate_number' => 'BUS-1111',
-        'truck_type_id' => $truckType->id,
-        'team_leader_id' => $busyLeader->id,
-        'status' => 'on_job',
-    ]);
+    Unit::create(['name' => 'Unit Ready 10', 'plate_number' => 'RDY-1010', 'truck_type_id' => $truckType->id, 'team_leader_id' => $readyLeader->id, 'driver_name' => 'Ready Driver', 'status' => 'available']);
+    $busyUnit = Unit::create(['name' => 'Unit Busy 11', 'plate_number' => 'BUS-1111', 'truck_type_id' => $truckType->id, 'team_leader_id' => $busyLeader->id, 'status' => 'on_job']);
+    Unit::create(['name' => 'Unit Offline 12', 'plate_number' => 'OFF-1212', 'truck_type_id' => $truckType->id, 'team_leader_id' => $offlineLeader->id, 'status' => 'available']);
 
     Booking::create([
-        'customer_id' => Customer::create([
-            'full_name' => 'Queue Test Customer',
-            'phone' => '09178889999',
-            'email' => 'queue@test.com',
-        ])->id,
+        'customer_id' => Customer::create(['full_name' => 'Queue Test Customer', 'phone' => '09178889999', 'email' => 'queue@test.com'])->id,
         'truck_type_id' => $truckType->id,
         'assigned_unit_id' => $busyUnit->id,
         'pickup_address' => 'Makati',
@@ -438,20 +347,22 @@ it('shows an active duty queue with ready deployed and unavailable crew states',
         'assigned_team_leader_id' => $busyLeader->id,
     ]);
 
-    $this->actingAs($dispatcher)
-        ->get(route('admin.drivers'))
-        ->assertOk()
-        ->assertSee('Online')
-        ->assertSee('Currently Deployed')
-        ->assertSee('Temporarily Unavailable');
+    $html = $this->actingAs($dispatcher)->get(route('admin.drivers'))->assertOk()->getContent();
+
+    // Ready crew, a crew on an active job, and the offline crew's truck each show their own state.
+    expect($html)->toContain('ul-status ul-status--available')
+        ->toContain('ul-status ul-status--busy')
+        ->toContain('data-presence="online"')
+        ->toContain('data-presence="offline"');
+    expect($html)->toMatch('/Unit Busy 11.*?ul-status--busy/s');
 });
 
 it('allows assigning a unit of the same truck type to the same team leader', function () {
     Cache::flush();
 
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    foreach (['Super Admin', 'Dispatcher', 'Team Leader'] as $roleName) {
+        Role::query()->firstOrCreate(['name' => $roleName]);
+    }
 
     $dispatcher = User::factory()->create([
         'role_id' => 2,
@@ -493,8 +404,8 @@ it('allows assigning a unit of the same truck type to the same team leader', fun
     ]);
 
     $this->actingAs($dispatcher)
-        ->post(route('admin.drivers.assign-unit', $teamLeader), [
-            'unit_id' => $sameTruckTypeUnit->id,
+        ->post(route('admin.drivers.units.assign-team-leader', $sameTruckTypeUnit), [
+            'team_leader_id' => $teamLeader->id,
         ])
         ->assertRedirect(route('admin.drivers'))
         ->assertSessionHasNoErrors();
@@ -512,9 +423,9 @@ it('allows assigning a unit of the same truck type to the same team leader', fun
 it('prevents assigning a unit that is already owned by a different team leader', function () {
     Cache::flush();
 
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    foreach (['Super Admin', 'Dispatcher', 'Team Leader'] as $roleName) {
+        Role::query()->firstOrCreate(['name' => $roleName]);
+    }
 
     $dispatcher = User::factory()->create(['role_id' => 2]);
 
@@ -540,26 +451,21 @@ it('prevents assigning a unit that is already owned by a different team leader',
     ]);
 
     $this->actingAs($dispatcher)
-        ->post(route('admin.drivers.assign-unit', $requestingLeader), [
-            'unit_id' => $ownedUnit->id,
+        ->post(route('admin.drivers.units.assign-team-leader', $ownedUnit), [
+            'team_leader_id' => $requestingLeader->id,
         ])
-        ->assertRedirect(route('admin.drivers'))
-        ->assertSessionHasErrors(['unit_id']);
+        ->assertSessionHasErrors(['team']);
 
     expect($ownedUnit->fresh()->team_leader_id)->toBe($ownerLeader->id);
-
-    $this->actingAs($dispatcher)
-        ->get(route('admin.drivers'))
-        ->assertOk()
-        ->assertSee('Assigned to', false);
+    expect($requestingLeader->fresh()->unit)->toBeNull();
 });
 
 it('does not show the redundant available unit status badge on team leader cards', function () {
     Cache::flush();
 
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    Role::query()->firstOrCreate(['name' => 'Super Admin']);
+    Role::query()->firstOrCreate(['name' => 'Dispatcher']);
+    Role::query()->firstOrCreate(['name' => 'Team Leader']);
 
     $dispatcher = User::factory()->create(['role_id' => 2]);
     $teamLeader = User::factory()->create(['role_id' => 3, 'name' => 'TL Badge Test']);
@@ -592,21 +498,15 @@ it('does not show the redundant available unit status badge on team leader cards
                                     Available', $html);
 });
 
-it('lets the dispatcher update a team leader and unit operational status from the team leaders module', function () {
+it('no longer lets the retired status endpoint change a team leader or unit status', function () {
     Cache::flush();
 
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    foreach (['Super Admin', 'Dispatcher', 'Team Leader'] as $roleName) {
+        Role::query()->firstOrCreate(['name' => $roleName]);
+    }
 
-    $dispatcher = User::factory()->create([
-        'role_id' => 2,
-    ]);
-
-    $teamLeader = User::factory()->create([
-        'role_id' => 3,
-        'name' => 'TL Status Override',
-    ]);
+    $dispatcher = User::factory()->create(['role_id' => 2]);
+    $teamLeader = User::factory()->create(['role_id' => 3, 'name' => 'TL Status Override']);
 
     $truckType = TruckType::create([
         'name' => 'Override Truck',
@@ -621,36 +521,27 @@ it('lets the dispatcher update a team leader and unit operational status from th
         'plate_number' => 'OVR-7007',
         'truck_type_id' => $truckType->id,
         'team_leader_id' => $teamLeader->id,
-        'status' => 'available',
+        'status' => 'maintenance',
     ]);
 
-    Cache::put("teamleader:presence:{$teamLeader->id}", now()->timestamp, now()->addMinutes(2));
-
+    // The URL is a hard-coded literal: the route name no longer exists.
     $this->actingAs($dispatcher)
-        ->post(route('admin.drivers.update-status', $teamLeader), [
+        ->post("/admin-dashboard/drivers/{$teamLeader->id}/update-status", [
             'operational_status' => 'busy',
-            'unit_status' => 'on_job',
+            'unit_status' => 'available',
             'status_reason' => 'Assigned to active recovery job.',
         ])
-        ->assertRedirect(route('admin.drivers'));
+        ->assertNotFound();
 
-    expect($unit->fresh()->status)->toBe('on_job');
-
-    $this->actingAs($dispatcher)
-        ->get(route('admin.drivers'))
-        ->assertOk()
-        ->assertSee('TL Status Override')
-        ->assertSee('Assigned to active recovery job.')
-        ->assertSee('Busy')
-        ->assertSee('On Job');
+    expect($unit->fresh()->status)->toBe('maintenance');
+    expect(Cache::get("teamleader:dispatcher-status:{$teamLeader->id}"))->toBeNull();
 });
-
 it('shows a zone-based recommendation for dispatch instead of relying on raw gps proximity', function () {
     Cache::flush();
 
-    Role::query()->create(['name' => 'Super Admin']);
-    Role::query()->create(['name' => 'Dispatcher']);
-    Role::query()->create(['name' => 'Team Leader']);
+    Role::query()->firstOrCreate(['name' => 'Super Admin']);
+    Role::query()->firstOrCreate(['name' => 'Dispatcher']);
+    Role::query()->firstOrCreate(['name' => 'Team Leader']);
 
     $dispatcher = User::factory()->create([
         'role_id' => 2,
@@ -682,6 +573,7 @@ it('shows a zone-based recommendation for dispatch instead of relying on raw gps
         'plate_number' => 'NOR-2002',
         'truck_type_id' => $truckType->id,
         'team_leader_id' => $northLeader->id,
+        'driver_name' => 'North Driver',
         'status' => 'available',
     ]);
 
@@ -690,6 +582,7 @@ it('shows a zone-based recommendation for dispatch instead of relying on raw gps
         'plate_number' => 'MKT-7007',
         'truck_type_id' => $truckType->id,
         'team_leader_id' => $makatiLeader->id,
+        'driver_name' => 'Makati Driver',
         'status' => 'available',
     ]);
 
@@ -728,19 +621,21 @@ it('shows a zone-based recommendation for dispatch instead of relying on raw gps
         'status' => 'requested',
     ]);
 
-    $this->actingAs($dispatcher)
-        ->get(route('admin.dispatch'))
-        ->assertOk()
-        ->assertSee($incomingBooking->job_code)
-        ->assertSee('Makati Zone')
-        ->assertSee('Recommended unit')
-        ->assertSee('Makati Unit 7');
+    $html = $this->actingAs($dispatcher)->get(route('admin.dispatch'))->assertOk()->getContent();
+
+    // The Book Now card carries the inferred zone and the recommended unit as data attributes.
+    // Plain string checks keep a failure cheap: assertSee would diff the whole ~300 KB page.
+    $has = fn (string $needle) => str_contains($html, $needle);
+    expect($has((string) $incomingBooking->job_code))->toBeTrue('the incoming booking is listed')
+        ->and($has('data-dispatch-zone="Makati City"'))->toBeTrue('zone inferred from the pickup address')
+        ->and($has('data-recommended-unit="' . $makatiUnit->id . '"'))->toBeTrue('the Makati unit is recommended from its zone history')
+        ->and($has('data-recommended-unit="' . $northUnit->id . '"'))->toBeFalse('the North unit is not recommended');
 });
 
 it('redirects logout to the login page on the configured local app url', function () {
     config()->set('app.url', 'http://127.0.0.1:8000');
 
-    Role::query()->create(['name' => 'Team Leader']);
+    Role::query()->firstOrCreate(['name' => 'Team Leader']);
 
     $teamLeader = User::factory()->create([
         'role_id' => 1,

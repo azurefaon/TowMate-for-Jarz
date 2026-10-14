@@ -1,377 +1,484 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Units Overview')
+@section('title', 'Trucks')
 
 @push('styles')
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="{{ asset('admin/css/unit-truck.css') }}?v={{ filemtime(public_path('admin/css/unit-truck.css')) }}">
+    {{-- Shared fleet page styles (header, table, menus, modals, form fields). --}}
+    <link rel="stylesheet" href="{{ asset('superadmin/css/truck-types.css') }}?v={{ filemtime(public_path('superadmin/css/truck-types.css')) }}">
+    <link rel="stylesheet" href="{{ asset('superadmin/css/trucks.css') }}?v={{ filemtime(public_path('superadmin/css/trucks.css')) }}">
 @endpush
 
+@php
+    $formErrorCount = collect(['plate_number', 'truck_type_id'])->filter(fn ($field) => $errors->has($field))->count();
+    $reopenModal = $formErrorCount > 0 ? old('_modal', 'add') : null;
+    $editUnit = $reopenModal === 'edit' ? \App\Models\Unit::whereNull('archived_at')->find((int) old('_edit_id')) : null;
+    $formAction = $editUnit ? route('superadmin.units.update', $editUnit->id) : route('superadmin.units.store');
+
+    // A truck can keep a truck type that has since been disabled; keep it selectable when editing.
+    $oldTypeId = (int) old('truck_type_id');
+    $extraType = $oldTypeId && ! $truckTypes->contains('id', $oldTypeId) ? \App\Models\TruckType::find($oldTypeId) : null;
+
+    $typeLabel = fn ($type) => $type->name . ($type->class ? ' · ' . ucfirst($type->class) . ' class' : '');
+    $plateLabel = fn ($plate) => preg_replace('/^([A-Z]+)(\d+)$/', '$1 $2', strtoupper((string) $plate));
+    $total = $trucks->total();
+@endphp
+
 @section('content')
-    <div class="units-page" data-base-url="{{ url('/superadmin/units') }}">
+    <div class="tt-page tk-page" id="trucksPage"
+        data-index-url="{{ route('superadmin.unit-truck.index') }}"
+        data-store-url="{{ route('superadmin.units.store') }}"
+        data-update-url="{{ route('superadmin.units.update', '__ID__') }}"
+        data-toggle-url="{{ route('superadmin.units.toggle', '__ID__') }}"
+        data-archive-url="{{ route('superadmin.units.archive', '__ID__') }}"
+        @if ($reopenModal) data-reopen="{{ $reopenModal }}" @endif>
 
-        <div class="page-top">
+        <header class="tt-header">
             <div>
-                <h1>Units Overview</h1>
-                <p>Track towing units, Truck Type rates, and dispatcher-managed team assignments.</p>
+                <h1>Trucks</h1>
+                <p>Every truck in the fleet, its team and whether it can take a job.</p>
             </div>
-        </div>
-
-        @if (session('success'))
-            <div class="type-feedback type-feedback--success" id="unitsSuccessAlert">{{ session('success') }}</div>
-        @endif
-        @if (session('error'))
-            <div class="type-feedback type-feedback--error" id="unitsErrorAlert">{{ session('error') }}</div>
-        @endif
-
-        @include('superadmin.fleet._tabs')
-
-        <div class="u-toolbar">
-            <div class="u-toolbar-left">
-                <div class="search-box">
-                    <i data-lucide="search"></i>
-                    <input type="text" id="unitSearch" placeholder="Search by unit, plate, or leader...">
-                </div>
-
-                <select id="statusFilter" data-custom>
-                    <option value="all">All Status</option>
-                    <option value="available">Available</option>
-                    <option value="on_job">On Job</option>
-                    <option value="maintenance">Maintenance</option>
-                </select>
-            </div>
-
-            <div class="u-toolbar-right">
-                <a href="{{ route('superadmin.units.archived') }}" class="u-archived-btn">
-                    <i data-lucide="archive"></i>
-                    Archived Units{{ isset($archivedCount) && $archivedCount > 0 ? " ({$archivedCount})" : '' }}
+            <div class="tk-header-actions">
+                <a href="{{ route('superadmin.units.archived') }}" class="tt-btn tk-btn-lg">
+                    <i data-lucide="archive" aria-hidden="true"></i>
+                    Archived trucks ({{ number_format($archivedCount) }})
                 </a>
-                <button type="button" class="tt-add-btn" data-open-modal="addUnitModal">
-                    <i data-lucide="plus"></i>
-                    Add Truck
+                <button type="button" class="tt-btn tt-btn--primary" data-open-add>
+                    <i data-lucide="plus" aria-hidden="true"></i>
+                    Add truck
                 </button>
             </div>
-        </div>
+        </header>
 
-        <div class="table-card">
-            <div class="table-scroll">
-                <table class="modern-table">
-                    <thead>
-                        <tr>
-                            <th>Unit</th>
-                            <th>Plate</th>
-                            <th>Truck Type</th>
-                            <th>Team</th>
-                            <th class="align-right">Base Rate</th>
-                            <th class="align-right">Per km</th>
-                            <th class="align-right">Max Load</th>
-                            <th>Notes</th>
-                            <th>Status</th>
-                            <th class="u-actions-col"></th>
-                        </tr>
-                    </thead>
-
-                    <tbody id="unitsTable">
-                        @forelse ($units as $unit)
-                            <tr data-status="{{ $unit->status }}">
-
-                                <td data-label="Unit">
-                                    <span class="cell-main">{{ $unit->name }}</span>
-                                </td>
-
-                                <td data-label="Plate">
-                                    <span class="cell-main">{{ strtoupper($unit->plate_number) }}</span>
-                                </td>
-
-                                <td data-label="Truck Type">
-                                    @if ($unit->truckType)
-                                        <span class="cell-main">{{ $unit->truckType->name }}</span>
-                                    @else
-                                        <span class="not-assigned">-</span>
-                                    @endif
-                                </td>
-
-                                <td data-label="Team">
-                                    @include('superadmin.unit-truck._team_column', ['unit' => $unit])
-                                </td>
-
-                                <td data-label="Base Rate" class="align-right">
-                                    @if ($unit->truckType && $unit->truckType->base_rate)
-                                        <span class="cell-main">₱{{ number_format($unit->truckType->base_rate, 2) }}</span>
-                                    @else
-                                        <span class="not-assigned">-</span>
-                                    @endif
-                                </td>
-
-                                <td data-label="Per km" class="align-right">
-                                    @if ($unit->truckType && $unit->truckType->per_km_rate)
-                                        <span class="cell-main">₱{{ number_format($unit->truckType->per_km_rate, 2) }}</span>
-                                    @else
-                                        <span class="not-assigned">-</span>
-                                    @endif
-                                </td>
-
-                                <td data-label="Max Load" class="align-right">
-                                    @if ($unit->truckType && $unit->truckType->max_tonnage)
-                                        <span class="cell-main">{{ $unit->truckType->max_tonnage }} kg</span>
-                                    @else
-                                        <span class="not-assigned">-</span>
-                                    @endif
-                                </td>
-
-                                <td data-label="Notes">
-                                    @if ($unit->issue_note)
-                                        <span class="note-text" title="{{ $unit->issue_note }}">{{ $unit->issue_note }}</span>
-                                    @elseif ($unit->dispatcher_note)
-                                        <span class="note-text" title="{{ $unit->dispatcher_note }}">{{ $unit->dispatcher_note }}</span>
-                                    @else
-                                        <span class="not-assigned">-</span>
-                                    @endif
-                                </td>
-
-                                <td data-label="Status">
-                                    <span class="status-text status-{{ $unit->status }}">{{ ucwords(str_replace('_', ' ', $unit->status)) }}</span>
-                                </td>
-
-                                <td data-label="Actions" class="u-actions-col">
-                                    <div class="u-menu">
-                                        <button type="button" class="u-menu-trigger" aria-haspopup="menu"
-                                            aria-expanded="false" aria-label="Actions for {{ $unit->name }}">
-                                            <i data-lucide="more-vertical"></i>
-                                        </button>
-
-                                        <div class="u-menu-dropdown" role="menu">
-                                            <button type="button" class="u-menu-item js-edit-unit" role="menuitem"
-                                                data-id="{{ $unit->id }}"
-                                                data-plate="{{ $unit->plate_number }}"
-                                                data-truck="{{ $unit->truck_type_id }}">
-                                                <i data-lucide="pencil"></i>
-                                                <span>Edit Unit</span>
-                                            </button>
-
-                                            @if ($unit->status === 'maintenance')
-                                                <form method="POST" class="u-menu-form"
-                                                    action="{{ route('superadmin.units.toggle', $unit->id) }}">
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    <button type="submit" class="u-menu-item u-menu-item--positive" role="menuitem">
-                                                        <i data-lucide="check"></i>
-                                                        <span>Enable Unit</span>
-                                                    </button>
-                                                </form>
-                                            @else
-                                                <form method="POST" class="u-menu-form"
-                                                    action="{{ route('superadmin.units.toggle', $unit->id) }}">
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    <button type="submit" class="u-menu-item u-menu-item--danger" role="menuitem"
-                                                        {{ $unit->status === 'on_job' ? 'disabled' : '' }}
-                                                        title="{{ $unit->status === 'on_job' ? 'This truck cannot be disabled while it is assigned to an active job.' : '' }}">
-                                                        <i data-lucide="ban"></i>
-                                                        <span>Disable Unit</span>
-                                                    </button>
-                                                </form>
-                                            @endif
-
-                                            <div class="u-menu-divider"></div>
-
-                                            <form method="POST" class="u-menu-form js-confirm-delete"
-                                                action="{{ route('superadmin.units.archive', $unit->id) }}"
-                                                data-confirm-title="Move this unit to archive?"
-                                                data-confirm-message="{{ $unit->name }} will be moved out of the active fleet. You can restore it later from Archived Units."
-                                                data-confirm-button="Move to Archive">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="u-menu-item" role="menuitem"
-                                                    {{ $unit->status === 'on_job' ? 'disabled' : '' }}
-                                                    title="{{ $unit->status === 'on_job' ? 'Cannot archive a unit that is on a job' : '' }}">
-                                                    <i data-lucide="archive"></i>
-                                                    <span>Archive Unit</span>
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </td>
-
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="10">
-                                    <div class="empty-state">
-                                        <h3>No towing units yet</h3>
-                                        <p>Add the first tow unit to start organizing dispatch availability.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+        @if (session('success'))
+            <div class="tt-flash tt-flash--success" role="status">
+                <i data-lucide="circle-check" aria-hidden="true"></i>
+                <span>{{ session('success') }}</span>
             </div>
+        @endif
 
-            <div class="pagination-wrapper">
-                {{ $units->onEachSide(1)->links('vendor.pagination.owner-standard') }}
+        @if (session('error'))
+            <div class="tt-flash tt-flash--error" role="alert">
+                <i data-lucide="circle-alert" aria-hidden="true"></i>
+                <span>{{ session('error') }}</span>
             </div>
+        @endif
 
-        </div>
+        <form class="tt-filters" id="truckFilters" method="GET" action="{{ route('superadmin.unit-truck.index') }}" role="search">
+            <label class="tt-search">
+                <span class="tt-sr">Search trucks</span>
+                <i data-lucide="search" aria-hidden="true"></i>
+                <input type="search" name="search" value="{{ $filters['search'] }}"
+                    placeholder="Search unit name, plate or team leader" autocomplete="off">
+            </label>
 
-        <div id="addUnitModal" class="modal">
-            <div class="modal-card">
-                <div class="modal-header">
-                    <div>
-                        <h2>Add Truck</h2>
-                        <p>Enter the basic information for this truck. It will be named automatically.</p>
-                    </div>
-                    <button type="button" class="modal-close" data-close-modal="addUnitModal" aria-label="Close Add Truck">
-                        <i data-lucide="x"></i>
-                    </button>
-                </div>
+            <label class="tt-select tk-select">
+                <span class="tt-sr">Status</span>
+                <select name="status">
+                    <option value="" @selected($filters['status'] === '')>All statuses ({{ $statusTotal }})</option>
+                    @foreach ($readiness as $value => $label)
+                        <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }} ({{ $statusCounts[$value] ?? 0 }})</option>
+                    @endforeach
+                </select>
+                <i data-lucide="chevron-down" aria-hidden="true"></i>
+            </label>
 
-                <form method="POST" action="{{ route('superadmin.units.store') }}">
-                    @csrf
+            <noscript><button type="submit" class="tt-btn">Apply</button></noscript>
+        </form>
 
-                    <div class="form-group">
-                        <label>Unit Name</label>
-                        <p class="field-note">This truck will be named <strong>{{ $nextUnitName }}</strong>
-                            automatically.</p>
-                        <div class="u-readonly-field">{{ $nextUnitName }}</div>
-                    </div>
+        <div class="tt-card" id="truckResults" aria-live="polite" data-total="{{ $total }}">
+            {{-- Status counts for the filter menu, refreshed with each result swap. --}}
+            <template data-status-options>
+                <option value="">All statuses ({{ $statusTotal }})</option>
+                @foreach ($readiness as $value => $label)
+                    <option value="{{ $value }}">{{ $label }} ({{ $statusCounts[$value] ?? 0 }})</option>
+                @endforeach
+            </template>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="addPlate">Plate Number</label>
-                            <input type="text" name="plate_number" id="addPlate" maxlength="8" placeholder="ABC 1234" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="addTruckType">Truck Type</label>
-                            <select name="truck_type_id" id="addTruckType" required>
-                                <option value="">- Select -</option>
-                                @foreach ($truckTypes as $type)
-                                    <option value="{{ $type->id }}">{{ $type->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn-light" data-close-modal="addUnitModal">Cancel</button>
-                        <button type="submit" class="btn-dark">
-                            <i data-lucide="plus"></i>
-                            Add Truck
+            @if ($trucks->count() === 0)
+                <div class="tt-state">
+                    @if ($hasFilters)
+                        <span class="tt-state-icon"><i data-lucide="search-x" aria-hidden="true"></i></span>
+                        <p class="tt-state-title">No trucks match these filters</p>
+                        <p class="tt-state-text">Try a different unit name, plate, team leader, or status.</p>
+                        <a href="{{ route('superadmin.unit-truck.index') }}" class="tt-btn" data-clear-filters>Clear filters</a>
+                    @else
+                        <span class="tt-state-icon"><i data-lucide="truck" aria-hidden="true"></i></span>
+                        <p class="tt-state-title">No trucks yet</p>
+                        <p class="tt-state-text">Add a truck so dispatchers can assign a team to it.</p>
+                        <button type="button" class="tt-btn tt-btn--primary" data-open-add>
+                            <i data-lucide="plus" aria-hidden="true"></i>
+                            Add truck
                         </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                    @endif
+                </div>
+            @else
+                <div class="tt-table-wrap">
+                    <table class="tt-table tk-table">
+                        <caption class="tt-sr">Trucks, their teams, and dispatch readiness</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col" class="tk-col-truck">Truck</th>
+                                <th scope="col" class="tk-col-plate">Plate</th>
+                                <th scope="col" class="tk-col-type">Truck type</th>
+                                <th scope="col" class="tk-col-team">Team</th>
+                                <th scope="col" class="tk-col-status">Status</th>
+                                <th scope="col" class="tt-col-actions"><span class="tt-sr">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($trucks as $row)
+                                @php
+                                    $unit = $row['unit'];
+                                    $type = $unit->truckType;
+                                    $currentJob = in_array($row['state'], ['on_job', 'reserved'], true) ? $row['detail'] : '';
+                                @endphp
+                                <tr>
+                                    <td class="tk-col-truck">
+                                        <button type="button" class="tk-link" data-view="{{ $unit->id }}"
+                                            aria-haspopup="dialog">{{ $unit->name }}</button>
+                                    </td>
+                                    <td class="tk-col-plate">{{ $plateLabel($unit->plate_number) }}</td>
+                                    <td class="tk-col-type">
+                                        @if ($type)
+                                            <span class="tt-main">{{ $type->name }}</span>
+                                            <span class="tt-sub">{{ $type->class ? ucfirst($type->class) . ' class' : 'Class not set' }}</span>
+                                        @else
+                                            <span class="tt-muted">Not set</span>
+                                        @endif
+                                    </td>
+                                    <td class="tk-col-team">
+                                        @if ($row['leader'])
+                                            <span class="tt-main">{{ $row['leader'] }}</span>
+                                        @else
+                                            <span class="tt-main tk-warn">No team leader</span>
+                                        @endif
+                                        <span class="tt-sub">{{ $row['driver'] ? 'Driver: ' . $row['driver'] : 'No driver' }} · {{ count($row['crew']) ? 'Crew: ' . count($row['crew']) : 'No crew' }}</span>
+                                    </td>
+                                    <td class="tk-col-status">
+                                        <span class="tt-badge tk-badge is-{{ $row['state'] }}">{{ $row['label'] }}</span>
+                                        @if ($row['detail'])
+                                            <span class="tk-reason">{{ $row['detail'] }}</span>
+                                        @endif
+                                        @if ($row['also'])
+                                            <span class="tk-reason">{{ $row['also'] }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="tt-col-actions">
+                                        <div class="tt-actions">
+                                            <button type="button" class="tt-btn tt-btn--sm" data-edit
+                                                data-id="{{ $unit->id }}"
+                                                data-name="{{ $unit->name }}"
+                                                data-plate="{{ $plateLabel($unit->plate_number) }}"
+                                                data-type-id="{{ $unit->truck_type_id }}"
+                                                data-type-label="{{ $type ? $typeLabel($type) . ($type->status !== 'active' ? ' (inactive)' : '') : '' }}"
+                                                aria-label="Edit {{ $unit->name }}">Edit</button>
 
-        <div id="editUnitModal" class="modal">
-            <div class="modal-card">
-                <div class="modal-header">
-                    <div>
-                        <h2>Edit Tow Unit</h2>
-                        <p>Update the plate number and truck type.</p>
-                    </div>
-                    <button type="button" class="modal-close" data-close-modal="editUnitModal">✕</button>
+                                            <div class="tt-more">
+                                                <button type="button" class="tt-icon-btn" data-menu-toggle
+                                                    aria-haspopup="menu" aria-expanded="false"
+                                                    aria-controls="tkMenu{{ $unit->id }}"
+                                                    aria-label="More actions for {{ $unit->name }}">
+                                                    <i data-lucide="ellipsis" aria-hidden="true"></i>
+                                                </button>
+                                                <div class="tt-menu" id="tkMenu{{ $unit->id }}" role="menu" hidden>
+                                                    @if ($unit->status === 'maintenance')
+                                                        <button type="button" role="menuitem" class="tt-menu-item"
+                                                            data-action="service" data-id="{{ $unit->id }}" data-name="{{ $unit->name }}">
+                                                            <i data-lucide="circle-check" aria-hidden="true"></i>
+                                                            <span>Return to service</span>
+                                                        </button>
+                                                    @else
+                                                        <button type="button" role="menuitem" class="tt-menu-item"
+                                                            data-action="maintenance" data-id="{{ $unit->id }}" data-name="{{ $unit->name }}"
+                                                            data-current="{{ $currentJob }}"
+                                                            @if ($row['locked_reason']) aria-disabled="true" aria-describedby="tkMaintWhy{{ $unit->id }}" @endif>
+                                                            <i data-lucide="wrench" aria-hidden="true"></i>
+                                                            <span>Move to maintenance</span>
+                                                        </button>
+                                                        @if ($row['locked_reason'])
+                                                            <p class="tt-menu-why" id="tkMaintWhy{{ $unit->id }}">{{ $row['locked_reason'] }}</p>
+                                                        @endif
+                                                    @endif
+
+                                                    <button type="button" role="menuitem" class="tt-menu-item"
+                                                        data-action="archive" data-id="{{ $unit->id }}" data-name="{{ $unit->name }}"
+                                                        data-current="{{ $currentJob }}"
+                                                        @if ($row['locked_reason']) aria-disabled="true" aria-describedby="tkArchiveWhy{{ $unit->id }}" @endif>
+                                                        <i data-lucide="archive" aria-hidden="true"></i>
+                                                        <span>Archive</span>
+                                                    </button>
+                                                    @if ($row['locked_reason'])
+                                                        <p class="tt-menu-why" id="tkArchiveWhy{{ $unit->id }}">{{ $row['locked_reason'] }}</p>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {{-- Read-only details for the View dialog. --}}
+                                        <template id="tkView{{ $unit->id }}" data-title="{{ $unit->name }}"
+                                            data-subtitle="{{ $plateLabel($unit->plate_number) }}{{ $type ? ' · ' . $type->name : '' }}">
+                                            <section class="tt-section">
+                                                <h3>Status</h3>
+                                                <span class="tt-badge tk-badge is-{{ $row['state'] }}">{{ $row['label'] }}</span>
+                                                @if ($row['detail'])
+                                                    <p class="tk-reason">{{ $row['detail'] }}</p>
+                                                @endif
+                                                @if ($row['also'])
+                                                    <p class="tk-reason">{{ $row['also'] }}</p>
+                                                @endif
+                                            </section>
+                                            <section class="tt-section">
+                                                <h3>Truck</h3>
+                                                <dl class="tk-facts">
+                                                    <div><dt>Plate</dt><dd>{{ $plateLabel($unit->plate_number) }}</dd></div>
+                                                    <div><dt>Truck type</dt><dd>{{ $type->name ?? 'Not set' }}</dd></div>
+                                                    <div><dt>Class</dt><dd>{{ $type && $type->class ? ucfirst($type->class) : 'Not set' }}</dd></div>
+                                                    @if ($unit->dispatcher_note)
+                                                        <div><dt>Dispatcher note</dt><dd>{{ $unit->dispatcher_note }}</dd></div>
+                                                    @endif
+                                                </dl>
+                                            </section>
+                                            <section class="tt-section">
+                                                <h3>Team</h3>
+                                                <p class="tt-help">Dispatchers assign and change the team.</p>
+                                                <dl class="tk-facts">
+                                                    <div>
+                                                        <dt>Team leader</dt>
+                                                        <dd>
+                                                            @if ($row['leader'])
+                                                                {{ $row['leader'] }}
+                                                                <span class="tk-fact-note">{{ $row['leader_inactive'] ? "Account inactive · can't sign in" : ($row['leader_duty'] === 'unavailable' ? 'Off duty' : 'On duty') }} · {{ $row['leader_presence'] === 'online' ? 'App online' : 'App offline' }}</span>
+                                                            @else
+                                                                <span class="tk-warn">No team leader</span>
+                                                                @if ($row['leader_record'])
+                                                                    <span class="tk-fact-note">{{ $row['leader_record'] }} is no longer an active team leader.</span>
+                                                                @endif
+                                                            @endif
+                                                        </dd>
+                                                    </div>
+                                                    <div>
+                                                        <dt>Driver</dt>
+                                                        <dd>
+                                                            @if ($row['driver'])
+                                                                {{ $row['driver'] }}
+                                                                <span class="tk-fact-note">{{ $row['driver_inactive'] ? 'Inactive' : ($row['driver_duty'] === 'unavailable' ? 'Off duty' : 'On duty') }}</span>
+                                                            @else
+                                                                <span class="tk-warn">No driver</span>
+                                                            @endif
+                                                        </dd>
+                                                    </div>
+                                                    @if ($row['driver_2'])
+                                                        <div><dt>Second driver</dt><dd>{{ $row['driver_2'] }}</dd></div>
+                                                    @endif
+                                                    <div>
+                                                        <dt>Crew</dt>
+                                                        <dd>{{ count($row['crew']) ? implode(', ', $row['crew']) : 'No crew' }}</dd>
+                                                    </div>
+                                                    @if ($row['unlinked'])
+                                                        <div>
+                                                            <dt>Unlinked</dt>
+                                                            <dd>
+                                                                {{ implode(', ', $row['unlinked']) }}
+                                                                <span class="tk-fact-note">Not linked to a personnel record. Kept for history; dispatchers can't assign or borrow these names.</span>
+                                                            </dd>
+                                                        </div>
+                                                    @endif
+                                                </dl>
+                                            </section>
+                                        </template>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
 
-                <form method="POST" id="editUnitForm">
-                    @csrf
-                    @method('PUT')
+                <footer class="tt-footer">
+                    <p class="tt-count">Showing {{ number_format($trucks->firstItem()) }}–{{ number_format($trucks->lastItem()) }} of {{ number_format($total) }} {{ $total === 1 ? 'truck' : 'trucks' }}</p>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="editPlate">Plate Number</label>
-                            <input type="text" name="plate_number" id="editPlate" maxlength="8" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="editTruckType">Truck Type</label>
-                            <select name="truck_type_id" id="editTruckType" required>
-                                @foreach ($truckTypes as $type)
-                                    <option value="{{ $type->id }}">{{ $type->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
+                    @php
+                        $current = $trucks->currentPage();
+                        $last = $trucks->lastPage();
+                        $pages = collect([1, $current - 1, $current, $current + 1, $last])
+                            ->filter(fn ($p) => $p >= 1 && $p <= $last)
+                            ->unique()
+                            ->sort()
+                            ->values();
+                    @endphp
+                    <nav class="tt-pages" aria-label="Pagination">
+                        @if ($trucks->onFirstPage())
+                            <span class="tt-page-btn is-disabled" aria-hidden="true"><i data-lucide="chevron-left"></i></span>
+                        @else
+                            <a class="tt-page-btn" href="{{ $trucks->previousPageUrl() }}" data-page-link aria-label="Previous page"><i data-lucide="chevron-left" aria-hidden="true"></i></a>
+                        @endif
 
-                    <div class="modal-footer">
-                        <button type="button" class="btn-light" data-close-modal="editUnitModal">Cancel</button>
-                        <button type="submit" class="btn-dark">Update Unit</button>
-                    </div>
-                </form>
-            </div>
+                        @foreach ($pages as $i => $page)
+                            @if ($i > 0 && $page - $pages[$i - 1] > 1)
+                                <span class="tt-page-gap" aria-hidden="true">…</span>
+                            @endif
+                            @if ($page === $current)
+                                <span class="tt-page-btn is-current" aria-current="page">{{ $page }}</span>
+                            @else
+                                <a class="tt-page-btn" href="{{ $trucks->url($page) }}" data-page-link aria-label="Page {{ $page }}">{{ $page }}</a>
+                            @endif
+                        @endforeach
+
+                        @if ($trucks->hasMorePages())
+                            <a class="tt-page-btn" href="{{ $trucks->nextPageUrl() }}" data-page-link aria-label="Next page"><i data-lucide="chevron-right" aria-hidden="true"></i></a>
+                        @else
+                            <span class="tt-page-btn is-disabled" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+                        @endif
+                    </nav>
+                </footer>
+            @endif
         </div>
-
-        <div id="deleteDialog" class="sa-dialog-backdrop">
-            <div class="sa-dialog-card">
-                <h3 id="deleteDialogTitle">Confirm</h3>
-                <p id="deleteDialogMessage">This action cannot be undone.</p>
-                <div class="sa-dialog-actions">
-                    <button type="button" class="sa-dialog-btn cancel" id="deleteDialogCancel">Cancel</button>
-                    <button type="button" class="sa-dialog-btn confirm" id="deleteDialogConfirm">OK</button>
-                </div>
-            </div>
-        </div>
-
     </div>
+
+    {{-- Add / edit truck --}}
+    <div class="tt-modal" id="truckModal" hidden>
+        <div class="tt-modal-backdrop" data-close-modal></div>
+        <div class="tt-dialog tk-dialog--form" role="dialog" aria-modal="true" aria-labelledby="truckModalTitle" aria-describedby="truckModalDesc">
+            <form method="POST" action="{{ $formAction }}" id="truckForm" novalidate>
+                @csrf
+                <input type="hidden" name="_method" value="PUT" @disabled(! $editUnit)>
+                <input type="hidden" name="_modal" value="{{ $editUnit ? 'edit' : 'add' }}">
+                <input type="hidden" name="_edit_id" value="{{ $editUnit?->id }}">
+
+                <header class="tt-dialog-head">
+                    <div>
+                        <h2 id="truckModalTitle">{{ $editUnit ? 'Edit truck' : 'Add truck' }}</h2>
+                        <p id="truckModalDesc">{{ $editUnit ? $editUnit->name : 'The unit name is assigned automatically.' }}</p>
+                    </div>
+                    <button type="button" class="tt-icon-btn tt-dialog-close" data-close-modal aria-label="Close">
+                        <i data-lucide="x" aria-hidden="true"></i>
+                    </button>
+                </header>
+
+                <div class="tt-dialog-body">
+                    <div class="tt-form-alert" role="alert" data-form-alert @if ($formErrorCount === 0) hidden @endif>
+                        <i data-lucide="circle-alert" aria-hidden="true"></i>
+                        <span>
+                            @if ($formErrorCount === 1)
+                                Check the highlighted field. Everything else you entered is kept.
+                            @else
+                                Check the {{ $formErrorCount }} highlighted fields. Everything else you entered is kept.
+                            @endif
+                        </span>
+                    </div>
+
+                    <div class="tt-field tk-name-field" data-unit-name-field @if ($editUnit) hidden @endif>
+                        <span class="tk-label" id="tkUnitNameLabel">Unit name</span>
+                        <div class="tk-readonly" role="textbox" aria-readonly="true" aria-labelledby="tkUnitNameLabel">{{ $nextUnitName }}</div>
+                    </div>
+
+                    <div class="tt-grid">
+                        <div class="tt-field @error('plate_number') has-error @enderror">
+                            <label for="tkPlate">Plate number <span class="tt-req" aria-hidden="true">*</span></label>
+                            <input type="text" id="tkPlate" name="plate_number" maxlength="10" required autocomplete="off"
+                                value="{{ old('plate_number') }}" placeholder="e.g. ABC 1234"
+                                aria-describedby="tkPlateHelp @error('plate_number') tkPlateError @enderror"
+                                @error('plate_number') aria-invalid="true" @enderror>
+                            @error('plate_number')
+                                <p class="tt-error" id="tkPlateError"><i data-lucide="circle-alert" aria-hidden="true"></i>{{ $message }}</p>
+                            @enderror
+                            <p class="tk-hint" id="tkPlateHelp">3 letters and 3–4 digits, or 2 letters and 5 digits.</p>
+                        </div>
+
+                        <div class="tt-field @error('truck_type_id') has-error @enderror">
+                            <label for="tkType">Truck type <span class="tt-req" aria-hidden="true">*</span></label>
+                            <div class="tt-select tk-field-select">
+                                <select id="tkType" name="truck_type_id" required
+                                    @error('truck_type_id') aria-invalid="true" aria-describedby="tkTypeError" @enderror>
+                                    <option value="">Choose a truck type</option>
+                                    @foreach ($truckTypes as $type)
+                                        <option value="{{ $type->id }}" @selected($oldTypeId === $type->id)>{{ $typeLabel($type) }}</option>
+                                    @endforeach
+                                    @if ($extraType)
+                                        <option value="{{ $extraType->id }}" selected data-extra>{{ $typeLabel($extraType) }} (inactive)</option>
+                                    @endif
+                                </select>
+                                <i data-lucide="chevron-down" aria-hidden="true"></i>
+                            </div>
+                            @error('truck_type_id')
+                                <p class="tt-error" id="tkTypeError"><i data-lucide="circle-alert" aria-hidden="true"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="tt-dialog-foot">
+                    <button type="button" class="tt-btn" data-close-modal>Cancel</button>
+                    <button type="submit" class="tt-btn tt-btn--primary" data-submit-label>{{ $editUnit ? 'Save' : 'Add' }}</button>
+                </footer>
+            </form>
+        </div>
+    </div>
+
+    {{-- View truck (read-only) --}}
+    <div class="tt-modal" id="truckView" hidden>
+        <div class="tt-modal-backdrop" data-close-modal></div>
+        <div class="tt-dialog tk-dialog--view" role="dialog" aria-modal="true" aria-labelledby="tkViewTitle" aria-describedby="tkViewSubtitle">
+            <header class="tt-dialog-head">
+                <div>
+                    <h2 id="tkViewTitle"></h2>
+                    <p id="tkViewSubtitle"></p>
+                </div>
+                <button type="button" class="tt-icon-btn tt-dialog-close" data-close-modal aria-label="Close">
+                    <i data-lucide="x" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div class="tt-dialog-body" data-view-body></div>
+            <footer class="tt-dialog-foot">
+                <button type="button" class="tt-btn" data-close-modal>Close</button>
+                <button type="button" class="tt-btn tt-btn--primary" data-view-edit>Edit</button>
+            </footer>
+        </div>
+    </div>
+
+    {{-- Confirm maintenance / archive --}}
+    <div class="tt-modal" id="truckConfirm" hidden>
+        <div class="tt-modal-backdrop" data-close-modal></div>
+        <div class="tt-dialog tt-dialog--confirm" role="alertdialog" aria-modal="true" aria-labelledby="tkConfirmTitle" aria-describedby="tkConfirmText">
+            <form method="POST" id="truckConfirmForm">
+                @csrf
+                <input type="hidden" name="_method" value="PATCH">
+                <div class="tt-dialog-head">
+                    <div>
+                        <h2 id="tkConfirmTitle"></h2>
+                        <p id="tkConfirmText"></p>
+                    </div>
+                </div>
+                <footer class="tt-dialog-foot">
+                    <button type="button" class="tt-btn" data-close-modal>Cancel</button>
+                    <button type="submit" class="tt-btn tt-btn--primary" data-confirm-submit></button>
+                </footer>
+            </form>
+        </div>
+    </div>
+
+    {{-- Explains why an action is unavailable --}}
+    <div class="tt-modal" id="truckBlocked" hidden>
+        <div class="tt-modal-backdrop" data-close-modal></div>
+        <div class="tt-dialog tt-dialog--confirm" role="alertdialog" aria-modal="true" aria-labelledby="tkBlockedTitle" aria-describedby="tkBlockedText">
+            <div class="tt-dialog-head">
+                <div>
+                    <h2 id="tkBlockedTitle"></h2>
+                    <p id="tkBlockedText"></p>
+                </div>
+            </div>
+            <footer class="tt-dialog-foot">
+                <button type="button" class="tt-btn tt-btn--primary" data-close-modal>OK</button>
+            </footer>
+        </div>
+    </div>
+
+    {{-- Return to service needs no confirmation: it only makes the truck dispatchable again. --}}
+    <form method="POST" id="truckServiceForm" hidden>
+        @csrf
+        @method('PATCH')
+    </form>
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('admin/js/unit-truck.js') }}?v={{ filemtime(public_path('admin/js/unit-truck.js')) }}" defer></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const page = document.querySelector('.units-page');
-            if (!page) return;
-
-            ['unitsSuccessAlert', 'unitsErrorAlert'].forEach((id) => {
-                const alertEl = document.getElementById(id);
-                if (!alertEl) return;
-                setTimeout(() => {
-                    alertEl.classList.add('fade-out');
-                    setTimeout(() => alertEl.remove(), 300);
-                }, 3000);
-            });
-
-            const deleteDialog = document.getElementById('deleteDialog');
-            const deleteDialogTitle = document.getElementById('deleteDialogTitle');
-            const deleteDialogMessage = document.getElementById('deleteDialogMessage');
-            const deleteDialogCancel = document.getElementById('deleteDialogCancel');
-            const deleteDialogConfirm = document.getElementById('deleteDialogConfirm');
-            let pendingDelete = null;
-
-            function openDeleteDialog(title, message, confirmText, onConfirm) {
-                deleteDialogTitle.textContent = title;
-                deleteDialogMessage.textContent = message;
-                deleteDialogConfirm.textContent = confirmText;
-                pendingDelete = onConfirm;
-                deleteDialog.classList.add('is-open');
-            }
-
-            function closeDeleteDialog() {
-                deleteDialog.classList.remove('is-open');
-                pendingDelete = null;
-            }
-
-            document.querySelectorAll('.js-confirm-delete').forEach(form => {
-                form.addEventListener('submit', function(event) {
-                    event.preventDefault();
-
-                    openDeleteDialog(
-                        this.dataset.confirmTitle || 'Confirm',
-                        this.dataset.confirmMessage || 'This action cannot be undone.',
-                        this.dataset.confirmButton || 'OK',
-                        () => this.submit()
-                    );
-                });
-            });
-
-            deleteDialogCancel?.addEventListener('click', closeDeleteDialog);
-            deleteDialogConfirm?.addEventListener('click', () => {
-                const callback = pendingDelete;
-                closeDeleteDialog();
-
-                if (typeof callback === 'function') {
-                    callback();
-                }
-            });
-        });
-    </script>
+    <script src="{{ asset('superadmin/js/trucks.js') }}?v={{ filemtime(public_path('superadmin/js/trucks.js')) }}" defer></script>
 @endpush

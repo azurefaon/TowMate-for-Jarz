@@ -180,10 +180,10 @@ class ReportMetricsService
         return [
             'totalRevenue' => $revenue,
             'completedCount' => $completedJobs,
-            'averagePerBooking' => $completedJobs > 0 ? $revenue / $completedJobs : 0.0,
-            'additionalFees' => (float) $bookings->sum('additional_fee'),
-            'vatCollected' => (float) $bookings->sum('vat_amount'),
-            'cashReceived' => (float) $bookings->sum('cash_received'),
+            'averagePerBooking' => $completedJobs > 0 ? round($revenue / $completedJobs, 2) : 0.0,
+            'additionalFees' => round((float) $bookings->sum('additional_fee'), 2),
+            'vatCollected' => round((float) $bookings->sum('vat_amount'), 2),
+            'cashReceived' => round((float) $bookings->sum('cash_received'), 2),
         ];
     }
 
@@ -210,6 +210,7 @@ class ReportMetricsService
 
         $grouped = $bookings->groupBy('truck_type_id')
             ->map(fn (Collection $rows, $truckTypeId) => [
+                'truck_type_id' => (int) $truckTypeId,
                 'truck_type_name' => $rows->first()->truckType->name ?? 'Truck Type #' . $truckTypeId,
                 'jobs' => $rows->count(),
                 'revenue' => round($rows->sum(fn (Booking $b) => $this->allocatedRevenue($b)), 2),
@@ -254,6 +255,7 @@ class ReportMetricsService
                 $completedJobs = $rows->count();
 
                 return [
+                    'unit_id' => (int) $unitId,
                     'unit_name' => $rows->first()->unit->name ?? 'Unit #' . $unitId,
                     'truck_type_name' => $rows->first()->unit->truckType->name ?? '—',
                     'completed_jobs' => $completedJobs,
@@ -266,5 +268,33 @@ class ReportMetricsService
             ->values();
 
         return $limit !== null ? $grouped->take($limit)->values() : $grouped;
+    }
+
+    /**
+     * Collected revenue per calendar day (app timezone), using the same
+     * completed-and-paid definition and group allocation as revenueSummary()
+     * and averageRevenuePerJob(), so a daily trend always adds up to the
+     * matching period total. The optional filters are the same truck type and
+     * amount (final_total) filters every other method here takes.
+     *
+     * @return array<int, array{date: \Carbon\CarbonInterface, revenue: float}>
+     */
+    public function dailyRevenue($start, int $days, array $filters = []): array
+    {
+        $first = $start->copy()->startOfDay();
+        $last = $first->copy()->addDays($days - 1)->endOfDay();
+
+        $byDay = $this->completedPaidJobsQuery($first, $last, $filters)
+            ->get()
+            ->groupBy(fn (Booking $b) => $b->completed_at->toDateString())
+            ->map(fn (Collection $rows) => round($rows->sum(fn (Booking $b) => $this->allocatedRevenue($b)), 2));
+
+        $series = [];
+        for ($i = 0; $i < $days; $i++) {
+            $date = $first->copy()->addDays($i);
+            $series[] = ['date' => $date, 'revenue' => (float) ($byDay[$date->toDateString()] ?? 0.0)];
+        }
+
+        return $series;
     }
 }

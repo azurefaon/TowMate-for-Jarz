@@ -161,24 +161,26 @@ it('returns not found from the download route when no apk has been uploaded or c
     $this->get(route('download.android'))->assertNotFound();
 });
 
-it('hides the download action on the login page when no apk is configured', function () {
-    $response = $this->get('/login');
+it('hides the download action on the landing and app download pages when no apk is configured', function () {
+    $response = $this->get('/');
 
     $response->assertOk();
     $response->assertDontSee(route('download.android'), false);
+
+    $app = $this->get(route('app.download'));
+    $app->assertDontSee(route('download.android'), false);
 });
 
-it('shows the download action on the login page once the owner uploads an apk', function () {
+it('shows the download action on the landing and app download pages once the owner uploads an apk', function () {
     $owner = androidOwner();
     $this->actingAs($owner)->post(route('superadmin.settings.upload-apk'), [
         'apk_file' => fakeApkFile(),
     ])->assertRedirect();
 
     \Illuminate\Support\Facades\Auth::logout();
-    $response = $this->get('/login');
 
-    $response->assertOk();
-    $response->assertSee(route('download.android'), false);
+    $this->get('/')->assertOk()->assertSee(route('download.android'), false);
+    $this->get(route('app.download'))->assertOk()->assertSee(route('download.android'), false);
 });
 
 it('renders the mobile app tab on the owner settings page', function () {
@@ -231,12 +233,11 @@ it('keeps the existing owner settings tabs and content working alongside the new
     $response->assertSee('id="customer-content"', false);
 });
 
-it('keeps the existing public login page working alongside the android download section', function () {
-    $response = $this->get('/login');
+it('keeps the public login page working and shows iOS as coming soon on the landing page', function () {
+    $this->get('/login')->assertOk()->assertSee('name="password"', false);
 
-    $response->assertOk();
-    $response->assertSee('Towing operations');
-    $response->assertSee('Welcome back');
-    $response->assertSee('iOS');
-    $response->assertSee('Coming soon');
+    $landing = $this->get('/');
+    $landing->assertOk();
+    $landing->assertSee('iOS');
+    $landing->assertSee('Coming soon');
 });

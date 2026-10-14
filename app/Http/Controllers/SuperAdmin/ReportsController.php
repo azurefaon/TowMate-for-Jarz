@@ -100,6 +100,12 @@ class ReportsController extends Controller
         return $trend;
     }
 
+    /**
+     * Job counts are by creation date (bookings created in the period); revenue is
+     * the service's completed-by-completion-date figure, so a truck type that only
+     * has revenue from earlier bookings still appears and the column adds up to
+     * the Revenue page.
+     */
     protected function buildTruckTypePerformance($start, $end, array $filters = []): \Illuminate\Support\Collection
     {
         $base = fn () => Booking::whereBetween('created_at', [$start, $end])
@@ -107,28 +113,38 @@ class ReportsController extends Controller
             ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
             ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']));
 
-        return $base()
+        $counts = $base()
             ->whereNotNull('truck_type_id')
             ->with('truckType')
             ->selectRaw(
                 'truck_type_id, count(*) as total_jobs, '
                 . 'sum(case when status = ? then 1 else 0 end) as completed_jobs, '
-                . 'sum(case when status = ? then 1 else 0 end) as cancelled_jobs, '
-                . 'sum(case when status = ? then final_total else 0 end) as revenue',
-                ['completed', 'cancelled', 'completed']
+                . 'sum(case when status = ? then 1 else 0 end) as cancelled_jobs',
+                ['completed', 'cancelled']
             )
             ->groupBy('truck_type_id')
-            ->orderByDesc('total_jobs')
             ->get()
-            ->map(fn ($row) => [
-                'truck_type_name' => $row->truckType->name ?? 'Truck Type #' . $row->truck_type_id,
-                'total_jobs' => (int) $row->total_jobs,
-                'completed_jobs' => (int) $row->completed_jobs,
-                'cancelled_jobs' => (int) $row->cancelled_jobs,
-                'revenue' => (float) $row->revenue,
-            ]);
+            ->keyBy('truck_type_id');
+
+        $revenue = $this->metrics->revenueByTruckType($start, $end, $filters)->keyBy('truck_type_id');
+
+        return $counts->keys()->merge($revenue->keys())->unique()->values()
+            ->map(function ($id) use ($counts, $revenue) {
+                $row = $counts->get($id);
+
+                return [
+                    'truck_type_name' => $row?->truckType->name ?? ($revenue->get($id)['truck_type_name'] ?? 'Truck Type #' . $id),
+                    'total_jobs' => (int) ($row->total_jobs ?? 0),
+                    'completed_jobs' => (int) ($row->completed_jobs ?? 0),
+                    'cancelled_jobs' => (int) ($row->cancelled_jobs ?? 0),
+                    'revenue' => (float) ($revenue->get($id)['revenue'] ?? 0.0),
+                ];
+            })
+            ->sortByDesc('total_jobs')
+            ->values();
     }
 
+    /** Same split as the truck-type table: job counts by creation date, revenue from the service. */
     protected function buildFleetPerformance($start, $end, array $filters = []): \Illuminate\Support\Collection
     {
         $base = fn () => Booking::whereBetween('created_at', [$start, $end])
@@ -136,25 +152,35 @@ class ReportsController extends Controller
             ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
             ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']));
 
-        return $base()
+        $counts = $base()
             ->whereNotNull('assigned_unit_id')
             ->with('unit.truckType')
             ->selectRaw(
                 'assigned_unit_id, count(*) as total_jobs, '
-                . 'sum(case when status = ? then 1 else 0 end) as completed_jobs, '
-                . 'sum(case when status = ? then final_total else 0 end) as revenue',
-                ['completed', 'completed']
+                . 'sum(case when status = ? then 1 else 0 end) as completed_jobs',
+                ['completed']
             )
             ->groupBy('assigned_unit_id')
-            ->orderByDesc('total_jobs')
             ->get()
-            ->map(fn ($row) => [
-                'unit_name' => $row->display_unit_name ?? 'Unit #' . $row->assigned_unit_id,
-                'truck_type_name' => $row->unit->truckType->name ?? '—',
-                'total_jobs' => (int) $row->total_jobs,
-                'completed_jobs' => (int) $row->completed_jobs,
-                'revenue' => (float) $row->revenue,
-            ]);
+            ->keyBy('assigned_unit_id');
+
+        $revenue = $this->metrics->unitPerformance($start, $end, $filters)->keyBy('unit_id');
+
+        return $counts->keys()->merge($revenue->keys())->unique()->values()
+            ->map(function ($id) use ($counts, $revenue) {
+                $row = $counts->get($id);
+                $perf = $revenue->get($id);
+
+                return [
+                    'unit_name' => $row?->display_unit_name ?? ($perf['unit_name'] ?? 'Unit #' . $id),
+                    'truck_type_name' => $row?->unit->truckType->name ?? ($perf['truck_type_name'] ?? '—'),
+                    'total_jobs' => (int) ($row->total_jobs ?? 0),
+                    'completed_jobs' => (int) ($row->completed_jobs ?? 0),
+                    'revenue' => (float) ($perf['revenue'] ?? 0.0),
+                ];
+            })
+            ->sortByDesc('total_jobs')
+            ->values();
     }
 
     public function revenue(Request $request)
@@ -195,35 +221,20 @@ class ReportsController extends Controller
         ]);
     }
 
+    /**
+     * Daily completed revenue, by completion date: the service's dailyRevenue(), so
+     * the trend adds up to the period total (same query, group allocation, filters
+     * and app timezone).
+     */
     protected function buildRevenueTrend($start, $end, array $filters = []): array
     {
         $start = Carbon::parse($start)->startOfDay();
         $end = Carbon::parse($end)->endOfDay();
+        $days = (int) $start->copy()->diffInDays($end->copy()->startOfDay()) + 1;
 
-        $rows = Booking::query()
-            ->where('status', 'completed')
-            ->whereNotNull('completed_at')
-            ->whereBetween('completed_at', [$start, $end])
-            ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
-            ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
-            ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']))
-            ->selectRaw('DATE(completed_at) as day, sum(final_total) as revenue')
-            ->groupBy('day')
-            ->pluck('revenue', 'day');
-
-        $trend = [];
-        $cursor = $start->copy();
-
-        while ($cursor->lte($end)) {
-            $key = $cursor->toDateString();
-            $trend[] = [
-                'label' => $cursor->format('M j'),
-                'revenue' => (float) ($rows[$key] ?? 0),
-            ];
-            $cursor->addDay();
-        }
-
-        return $trend;
+        return collect($this->metrics->dailyRevenue($start, $days, $filters))
+            ->map(fn (array $row) => ['label' => $row['date']->format('M j'), 'revenue' => $row['revenue']])
+            ->all();
     }
 
     public function bookings(Request $request)
@@ -236,8 +247,16 @@ class ReportsController extends Controller
 
         $bookings = $this->bookingDetailQuery($start, $end, $filters, $statuses)->paginate(20)->withQueryString();
 
+        // Status wording and colour come from the same presenter as Owner → Bookings.
+        $presenter = app(\App\Services\OwnerBookingPresenter::class);
+        $rows = $bookings->getCollection()->map(fn (Booking $booking) => [
+            'booking' => $booking,
+            'status' => ['label' => $presenter->statusLabel($booking->status), 'tone' => $presenter->statusTone($booking->status)],
+        ]);
+
         return view('superadmin.reports.bookings', [
             'bookings'   => $bookings,
+            'rows'       => $rows,
             'bucket'     => $bucket,
             'bucketLabel'=> self::bucketLabel($bucket),
             'start'      => Carbon::parse($start),
@@ -292,6 +311,9 @@ class ReportsController extends Controller
 
         return view('superadmin.reports.activity', [
             'logs' => $logs,
+            // The range actually applied (the current month unless a custom range was chosen).
+            'rangeStart' => Carbon::parse($start),
+            'rangeEnd' => Carbon::parse($end),
             'period' => $period,
             'customRange' => $customRange,
             'fromInput' => $request->query('from'),
@@ -462,11 +484,12 @@ class ReportsController extends Controller
             fputcsv($handle, ['Date range', $summary['start']->toDateString() . ' to ' . $summary['end']->toDateString()]);
             fputcsv($handle, []);
             fputcsv($handle, ['Metric', 'Value']);
-            fputcsv($handle, ['Total Bookings', $summary['totalBookings']]);
-            fputcsv($handle, ['Total Revenue', number_format($summary['totalRevenue'], 2)]);
-            fputcsv($handle, ['Completed', $summary['completedCount']]);
-            fputcsv($handle, ['Pending', $summary['pendingCount']]);
-            fputcsv($handle, ['Cancelled', $summary['cancelledCount']]);
+            fputcsv($handle, ['Total Bookings (created in period)', $summary['totalBookings']]);
+            fputcsv($handle, ['Completed revenue (by completion date)', number_format($summary['totalRevenue'], 2)]);
+            fputcsv($handle, ['Completed jobs (by completion date)', $summary['completedJobsCount']]);
+            fputcsv($handle, ['Completed (created in period)', $summary['completedCount']]);
+            fputcsv($handle, ['Pending (created in period)', $summary['pendingCount']]);
+            fputcsv($handle, ['Cancelled (created in period)', $summary['cancelledCount']]);
             fputcsv($handle, []);
             fputcsv($handle, ['Status', 'Count']);
             foreach ($summary['pipeline'] as $row) {
@@ -613,7 +636,10 @@ class ReportsController extends Controller
             ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']));
 
         $totalBookings = $base()->count();
-        $totalRevenue = (float) $base()->where('status', 'completed')->sum('final_total');
+        // Revenue is never summed here: it comes from the shared service (completed jobs, by
+        // completion date, with the group fee/discount allocation), like Revenue and the Dashboard.
+        $revenue = $this->metrics->revenueSummary($start, $end, $filters);
+        $totalRevenue = $revenue['totalRevenue'];
         $completedCount = $base()->where('status', 'completed')->count();
         $pendingCount = $base()->where('status', 'requested')->count();
         $cancelledCount = $base()->where('status', 'cancelled')->count();
@@ -643,26 +669,17 @@ class ReportsController extends Controller
             return $row;
         });
 
-        $vehicleReport = $base()
-            ->where('status', 'completed')
-            ->whereNotNull('assigned_unit_id')
-            ->with('unit')
-            ->selectRaw('assigned_unit_id, count(*) as trips, sum(final_total) as revenue')
-            ->groupBy('assigned_unit_id')
-            ->orderByDesc('trips')
-            ->get()
-            ->map(fn ($row) => [
-                'unit_name' => $row->display_unit_name ?? 'Unit #' . $row->assigned_unit_id,
-                'trips' => (int) $row->trips,
-                'revenue' => (float) $row->revenue,
-            ]);
+        $vehicleReport = $this->metrics->unitPerformance($start, $end, $filters)
+            ->map(fn (array $row) => ['unit_name' => $row['unit_name'], 'trips' => $row['completed_jobs'], 'revenue' => $row['revenue']])
+            ->sortByDesc('trips')
+            ->values();
 
         $financial = [
-            'totalRevenue' => $totalRevenue,
-            'additionalFees' => (float) $base()->where('status', 'completed')->sum('additional_fee'),
-            'vatCollected' => (float) $base()->where('status', 'completed')->sum('vat_amount'),
-            'cashReceived' => (float) $base()->where('status', 'completed')->sum('cash_received'),
-            'averagePerBooking' => $this->metrics->averageRevenuePerJob($start, $end, $filters)['average'],
+            'totalRevenue' => $revenue['totalRevenue'],
+            'additionalFees' => $revenue['additionalFees'],
+            'vatCollected' => $revenue['vatCollected'],
+            'cashReceived' => $revenue['cashReceived'],
+            'averagePerBooking' => $revenue['averagePerBooking'],
         ];
 
         return [
@@ -671,6 +688,7 @@ class ReportsController extends Controller
             'totalBookings' => $totalBookings,
             'totalRevenue' => $totalRevenue,
             'completedCount' => $completedCount,
+            'completedJobsCount' => $revenue['completedCount'],
             'pendingCount' => $pendingCount,
             'cancelledCount' => $cancelledCount,
             'completionRate' => $totalBookings > 0 ? ($completedCount / $totalBookings) * 100 : 0.0,

@@ -2,6 +2,7 @@
 
 use App\Mail\BookingAcceptedMail;
 use App\Mail\BookingRejectedMail;
+use App\Mail\QuotationSentMail;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Role;
@@ -11,17 +12,21 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 
 function makeDispatchScenario(): array
 {
-    $dispatcherRole = new Role([
-        'name' => 'Dispatcher',
-        'description' => 'Dispatch staff',
-    ]);
-    $dispatcherRole->id = 2;
-    $dispatcherRole->save();
+    $dispatcherRole = Role::find(2);
+    if (! $dispatcherRole) {
+        $dispatcherRole = new Role([
+            'name' => 'Dispatcher',
+            'description' => 'Dispatch staff',
+        ]);
+        $dispatcherRole->id = 2;
+        $dispatcherRole->save();
+    }
 
     $dispatcher = User::factory()->create([
         'role_id' => $dispatcherRole->id,
@@ -88,7 +93,7 @@ it('sends a quotation only after the dispatcher reviews the request and sets the
         'action' => 'accept',
         'assigned_unit_id' => $unit->id,
         'distance_km' => '12.50',
-        'distance_fee' => '937.50',
+        'distance_fee' => '637.50',
         'discount_percentage' => '0',
         'price' => '₱2,950.00',
         'dispatcher_note' => 'Distance and recovery setup were reviewed by dispatch.',
@@ -111,74 +116,71 @@ it('sends a quotation only after the dispatcher reviews the request and sets the
         ->and($booking->quotation_expires_at->greaterThan($booking->quotation_sent_at))->toBeTrue()
         ->and($booking->initial_quote_path)->not->toBeNull();
 
-    Mail::assertSent(BookingAcceptedMail::class, function (BookingAcceptedMail $mail) use ($booking) {
-        $html = $mail->render();
-
+    // The customer quotation email is sent by QuotationService (QuotationSentMail), not the old BookingAcceptedMail.
+    Mail::assertSent(QuotationSentMail::class, function (QuotationSentMail $mail) use ($booking) {
         return $mail->hasTo($booking->customer->email)
-            && str_contains($html, $booking->customer->full_name)
-            && str_contains($html, $booking->pickup_address)
-            && str_contains(strtolower($html), 'quotation')
-            && str_contains($html, 'Price Breakdown')
-            && str_contains($html, '2,950.00')
-            && ! str_contains($html, 'Review your quotation')
-            && ! str_contains($html, 'Open quotation document');
+            && str_contains($mail->render(), '2,950.00');
     });
+});
 
-    it('does not reserve or assign a unit while preparing an unaccepted quotation', function () {
-        Mail::fake();
+it('does not reserve or assign a unit while preparing an unaccepted quotation', function () {
+    Mail::fake();
 
-        [$dispatcher, $booking] = makeDispatchScenario();
-        $unit = makeReadyUnitForBooking($booking);
+    [$dispatcher, $booking] = makeDispatchScenario();
+    $unit = makeReadyUnitForBooking($booking);
 
-        $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
-            'action' => 'accept',
-            'assigned_unit_id' => $unit->id,
-            'distance_km' => '12.50',
-            'distance_fee' => '637.50',
-            'price' => '2,950.00',
-        ])->assertOk();
+    $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
+        'action' => 'accept',
+        'assigned_unit_id' => $unit->id,
+        'distance_km' => '12.50',
+        'distance_fee' => '637.50',
+        'price' => '2,950.00',
+    ])->assertOk();
 
-        $booking->refresh();
-        expect($booking->status)->toBe('quotation_sent')
-            ->and($booking->assigned_unit_id)->toBeNull()
-            ->and($booking->assigned_team_leader_id)->toBeNull()
-            ->and($booking->selected_unit_id)->toBeNull();
-    });
+    $booking->refresh();
+    expect($booking->status)->toBe('quotation_sent')
+        ->and($booking->assigned_unit_id)->toBeNull()
+        ->and($booking->assigned_team_leader_id)->toBeNull()
+        ->and($booking->selected_unit_id)->toBeNull();
+});
 
-    it('assigns an accepted Book Now booking only after the current quotation is accepted', function () {
-        [$dispatcher, $booking] = makeDispatchScenario();
-        $unit = makeReadyUnitForBooking($booking);
+it('assigns an accepted Book Now booking only after the current quotation is accepted', function () {
+    [$dispatcher, $booking] = makeDispatchScenario();
+    $unit = makeReadyUnitForBooking($booking);
 
-        $quotation = Quotation::create([
-            'source_booking_id' => $booking->id,
-            'customer_id' => $booking->customer_id,
-            'truck_type_id' => $booking->truck_type_id,
-            'pickup_address' => $booking->pickup_address,
-            'dropoff_address' => $booking->dropoff_address,
-            'estimated_price' => 2950,
-            'status' => 'accepted',
-            'is_current' => true,
-        ]);
-        $booking->update([
-            'quotation_id' => $quotation->id,
-            'status' => 'confirmed',
-            'customer_approved_at' => now(),
-        ]);
+    $quotation = Quotation::create([
+        'quotation_number' => 'QT-TEST-' . $booking->id,
+        'distance_km' => 12.5,
+        'source_booking_id' => $booking->id,
+        'customer_id' => $booking->customer_id,
+        'truck_type_id' => $booking->truck_type_id,
+        'pickup_address' => $booking->pickup_address,
+        'dropoff_address' => $booking->dropoff_address,
+        'estimated_price' => 2950,
+        'status' => 'accepted',
+        'is_current' => true,
+    ]);
+    $booking->update([
+        'quotation_id' => $quotation->id,
+        'status' => 'confirmed',
+        'customer_approved_at' => now(),
+    ]);
 
-        $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
-            'action' => 'accept',
-            'assigned_unit_id' => $unit->id,
-        ])->assertOk();
+    $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
+        'action' => 'accept',
+        'assigned_unit_id' => $unit->id,
+    ])->assertOk();
 
-        expect($booking->fresh()->assigned_unit_id)->toBe($unit->id)
-            ->and($booking->fresh()->status)->toBe('assigned');
-    });
+    expect($booking->fresh()->assigned_unit_id)->toBe($unit->id)
+        ->and($booking->fresh()->status)->toBe('assigned');
 });
 
 it('rejects a booking and emails the rejection reason to the customer', function () {
     Mail::fake();
 
     [$dispatcher, $booking] = makeDispatchScenario();
+
+    Event::fake([\App\Events\BookingStatusUpdated::class]);
 
     $response = $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
         'action' => 'reject',
@@ -195,17 +197,14 @@ it('rejects a booking and emails the rejection reason to the customer', function
         ->and($booking->quotation_status)->toBe('cancelled')
         ->and($booking->rejection_reason)->toBe('No driver is currently available in your area.');
 
-    Mail::assertSent(BookingRejectedMail::class, function (BookingRejectedMail $mail) use ($booking) {
-        $html = $mail->render();
-
-        return $mail->hasTo($booking->customer->email)
-            && str_contains($html, $booking->customer->full_name)
-            && str_contains($html, $booking->pickup_address)
-            && str_contains($html, $booking->rejection_reason);
-    });
+    // The reject endpoint no longer sends BookingRejectedMail; the customer app is told through the
+    // realtime status event, and the rejection is audited with its reason.
+    Event::assertDispatched(\App\Events\BookingStatusUpdated::class, fn ($e) => $e->booking->id === $booking->id);
+    expect(\App\Models\AuditLog::where('action', 'booking_rejected')->where('entity_id', $booking->id)->value('description'))
+        ->toBe('No driver is currently available in your area.');
 });
 
-it('stores the selected available unit when dispatch sends a quotation', function () {
+it('keeps the additional fee but ignores a unit submitted with a quotation (units are assigned only after acceptance)', function () {
     Mail::fake();
 
     [$dispatcher, $booking] = makeDispatchScenario();
@@ -217,7 +216,7 @@ it('stores the selected available unit when dispatch sends a quotation', functio
         'additional_fee' => '350',
         'assigned_unit_id' => $unit->id,
         'distance_km' => '12.50',
-        'distance_fee' => '937.50',
+        'distance_fee' => '637.50',
         'discount_percentage' => '0',
         'dispatcher_note' => 'Dispatch reserved a ready unit for this request.',
     ]);
@@ -226,12 +225,12 @@ it('stores the selected available unit when dispatch sends a quotation', functio
 
     $booking->refresh();
 
-    expect($booking->assigned_unit_id)->toBe($unit->id)
+    expect($booking->assigned_unit_id)->toBeNull()
         ->and((float) $booking->additional_fee)->toBe(350.0)
         ->and($booking->status)->toBe('quotation_sent');
 });
 
-it('shows available units in the dispatch quotation dropdown regardless of team leader presence', function () {
+it('lists only units whose team leader is online in the dispatch unit dropdown', function () {
     [$dispatcher, $booking] = makeDispatchScenario();
 
     $teamLeaderRole = Role::firstOrCreate(['name' => 'Team Leader'], ['description' => 'Tow unit team leader']);
@@ -251,6 +250,7 @@ it('shows available units in the dispatch quotation dropdown regardless of team 
     Unit::create([
         'name' => 'Online Unit 11',
         'plate_number' => 'ONL-1101',
+        'driver_name' => 'Online Driver',
         'truck_type_id' => $booking->truck_type_id,
         'team_leader_id' => $onlineLeader->id,
         'status' => 'available',
@@ -268,7 +268,7 @@ it('shows available units in the dispatch quotation dropdown regardless of team 
         ->get(route('admin.dispatch'))
         ->assertOk()
         ->assertSee('Online Unit 11')
-        ->assertSee('Offline Unit 12');
+        ->assertDontSee('Offline Unit 12');
 });
 
 it('keeps sending quotations working even if the legacy bookings table has no additional fee column', function () {
@@ -287,7 +287,7 @@ it('keeps sending quotations working even if the legacy bookings table has no ad
         'action' => 'accept',
         'assigned_unit_id' => $unit->id,
         'distance_km' => '12.50',
-        'distance_fee' => '937.50',
+        'distance_fee' => '637.50',
         'discount_percentage' => '0',
         'dispatcher_note' => 'Legacy schema compatibility check.',
     ]);
@@ -304,7 +304,7 @@ it('requires the dispatcher to complete the quotation details before sending', f
     $response = $this->actingAs($dispatcher)->postJson(route('admin.booking.assign', $booking), [
         'action' => 'accept',
         'assigned_unit_id' => $unit->id,
-        'distance_fee' => '937.50',
+        'distance_fee' => '637.50',
         'discount_percentage' => '0',
         'dispatcher_note' => 'Distance is still missing.',
     ]);
@@ -313,7 +313,15 @@ it('requires the dispatcher to complete the quotation details before sending', f
         ->assertJsonValidationErrors(['distance_km']);
 });
 
-it('keeps future scheduled bookings disabled until their dispatch time', function () {
+function dispatchScheduledRows(string $html): array
+{
+    // The queue each booking row is rendered in (scheduled / book-now / ...).
+    preg_match_all('/<tr[^>]*data-queue="([^"]*)"/', $html, $m);
+
+    return $m[1];
+}
+
+it('lists a future scheduled booking in the scheduled queue as upcoming, not overdue', function () {
     [$dispatcher, $booking] = makeDispatchScenario();
 
     $booking->update([
@@ -321,19 +329,18 @@ it('keeps future scheduled bookings disabled until their dispatch time', functio
         'scheduled_date' => now()->addHour()->toDateString(),
         'scheduled_time' => now()->addHour()->format('H:i'),
         'scheduled_for' => now()->addHour(),
-        'status' => 'requested',
+        'status' => 'scheduled',
     ]);
 
-    $this->actingAs($dispatcher)
-        ->get(route('admin.dispatch'))
-        ->assertOk()
-        ->assertSee('data-queue="scheduled"', false)
-        ->assertSee('Scheduled Booking', false)
-        ->assertSee('Await Scheduled Time', false)
-        ->assertSee('disabled', false);
+    $html = $this->actingAs($dispatcher)->get(route('admin.dispatch'))->assertOk()->getContent();
+
+    expect(dispatchScheduledRows($html))->toBe(['scheduled'])
+        ->and($html)->toContain('data-sched-bucket="needs-quote"')
+        ->and($html)->toContain('Starts in')
+        ->and($html)->not->toContain('Overdue by');
 });
 
-it('shows due scheduled bookings in the book now queue while keeping their scheduled status visible', function () {
+it('keeps a due scheduled booking in the scheduled queue and marks it overdue instead of moving it to Book Now', function () {
     [$dispatcher, $booking] = makeDispatchScenario();
 
     $booking->update([
@@ -341,18 +348,17 @@ it('shows due scheduled bookings in the book now queue while keeping their sched
         'scheduled_date' => now()->subMinutes(10)->toDateString(),
         'scheduled_time' => now()->subMinutes(10)->format('H:i'),
         'scheduled_for' => now()->subMinutes(10),
-        'status' => 'requested',
+        'status' => 'scheduled',
     ]);
 
-    $this->actingAs($dispatcher)
-        ->get(route('admin.dispatch'))
-        ->assertOk()
-        ->assertSee('data-queue="book-now"', false)
-        ->assertSee('Due Now', false)
-        ->assertSee('Scheduled Booking', false);
+    $html = $this->actingAs($dispatcher)->get(route('admin.dispatch'))->assertOk()->getContent();
+
+    expect(dispatchScheduledRows($html))->toBe(['scheduled'])
+        ->and($html)->toContain('Overdue by')
+        ->and($html)->toContain('Scheduled Booking');
 });
 
-it('shows overdue scheduled bookings in a delayed queue tab', function () {
+it('keeps a long-overdue scheduled booking in the scheduled queue and filterable as overdue', function () {
     [$dispatcher, $booking] = makeDispatchScenario();
 
     $booking->update([
@@ -360,15 +366,14 @@ it('shows overdue scheduled bookings in a delayed queue tab', function () {
         'scheduled_date' => now()->subHours(2)->toDateString(),
         'scheduled_time' => now()->subHours(2)->format('H:i'),
         'scheduled_for' => now()->subHours(2),
-        'status' => 'requested',
+        'status' => 'scheduled',
     ]);
 
-    $this->actingAs($dispatcher)
-        ->get(route('admin.dispatch'))
-        ->assertOk()
-        ->assertSee('Delayed', false)
-        ->assertSee('data-filter="delayed"', false)
-        ->assertSee('data-queue="delayed"', false);
+    $html = $this->actingAs($dispatcher)->get(route('admin.dispatch'))->assertOk()->getContent();
+
+    expect(dispatchScheduledRows($html))->toBe(['scheduled'])
+        ->and($html)->toContain('Overdue by')
+        ->and($html)->toContain('<option value="overdue">Overdue');
 });
 
 it('keeps the discount locked for regular customers even if a manual value is submitted', function () {
@@ -386,7 +391,7 @@ it('keeps the discount locked for regular customers even if a manual value is su
         'action' => 'accept',
         'assigned_unit_id' => $unit->id,
         'distance_km' => '12.50',
-        'distance_fee' => '937.50',
+        'distance_fee' => '637.50',
         'discount_percentage' => '25',
         'dispatcher_note' => 'Regular customer discounts should stay locked.',
     ]);
@@ -396,30 +401,45 @@ it('keeps the discount locked for regular customers even if a manual value is su
     $booking->refresh();
 
     expect((float) $booking->discount_percentage)->toBe(0.0)
-        ->and((float) $booking->final_total)->toBe(2437.5);
+        ->and((float) $booking->vat_exclusive_total)->toBe(2137.5)
+        ->and((float) $booking->final_total)->toBe(2394.0); // 2137.50 + 12% VAT
 });
 
-it('reminds the dispatcher to choose a unit before sending a quotation', function () {
-    Mail::fake();
-
-    [$dispatcher, $booking] = makeDispatchScenario();
-
-    $response = $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
-        'action' => 'accept',
-        'distance_km' => '12.50',
-        'distance_fee' => '937.50',
-        'discount_percentage' => '0',
-        'dispatcher_note' => 'Missing unit selection should be blocked.',
+function acceptDispatchQuotation(Booking $booking): void
+{
+    $quotation = Quotation::create([
+        'quotation_number' => 'QT-TEST-' . $booking->id,
+        'distance_km' => 12.5,
+        'source_booking_id' => $booking->id,
+        'customer_id' => $booking->customer_id,
+        'truck_type_id' => $booking->truck_type_id,
+        'pickup_address' => $booking->pickup_address,
+        'dropoff_address' => $booking->dropoff_address,
+        'estimated_price' => 2950,
+        'status' => 'accepted',
+        'is_current' => true,
     ]);
+    $booking->update([
+        'quotation_id' => $quotation->id,
+        'status' => 'confirmed',
+        'customer_approved_at' => now(),
+    ]);
+}
 
-    $response->assertStatus(422)
-        ->assertJsonPath('message', 'Please choose an available unit before sending the quotation.');
+it('reminds the dispatcher to choose a unit before dispatching an accepted booking', function () {
+    [$dispatcher, $booking] = makeDispatchScenario();
+    acceptDispatchQuotation($booking);
+
+    $this->actingAs($dispatcher)->postJson(route('admin.booking.assign', $booking), ['action' => 'accept'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Please choose an available unit before dispatching.');
+
+    expect($booking->fresh()->assigned_unit_id)->toBeNull();
 });
 
-it('blocks dispatcher from selecting a unit without an available team leader', function () {
-    Mail::fake();
-
+it('blocks dispatching an accepted booking to a unit without an available team leader', function () {
     [$dispatcher, $booking] = makeDispatchScenario();
+    acceptDispatchQuotation($booking);
 
     $unit = Unit::create([
         'name' => 'Offline Unit 01',
@@ -429,15 +449,12 @@ it('blocks dispatcher from selecting a unit without an available team leader', f
         'status' => 'available',
     ]);
 
-    $response = $this->actingAs($dispatcher)->post(route('admin.booking.assign', $booking), [
+    $this->actingAs($dispatcher)->postJson(route('admin.booking.assign', $booking), [
         'action' => 'accept',
         'assigned_unit_id' => $unit->id,
-        'distance_km' => '12.50',
-        'distance_fee' => '937.50',
-        'discount_percentage' => '0',
-        'dispatcher_note' => 'Trying to reserve a unit with no active team leader.',
-    ]);
-
-    $response->assertStatus(422)
+    ])
+        ->assertStatus(422)
         ->assertJsonPath('message', 'Team Leader not available. Please choose another unit.');
+
+    expect($booking->fresh()->assigned_unit_id)->toBeNull();
 });

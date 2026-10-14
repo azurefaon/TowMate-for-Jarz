@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\SuperAdmin;
 
+use App\Exceptions\HomeTeamSaveException;
+use App\Exceptions\HomeUnitConflictException;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Personnel;
@@ -21,19 +23,39 @@ class PersonnelController extends Controller
     ) {
     }
 
+    /** Field messages shared by the add and edit forms. */
+    protected const MESSAGES = [
+        'first_name.required' => 'Enter a first name.',
+        'last_name.required' => 'Enter a last name.',
+        'role.required' => 'Choose a role.',
+        'role.in' => 'Choose Driver or Crew Member.',
+        'home_unit_id.exists' => 'Choose a unit from the list.',
+        'home_unit_id.integer' => 'Choose a unit from the list.',
+    ];
+
     public function index(Request $request)
     {
         $filters = [
             'search' => trim((string) $request->query('search', '')),
-            'role' => trim((string) $request->query('role', '')),
+            'role' => array_key_exists((string) $request->query('role'), PersonnelService::ROLE_FILTERS) ? (string) $request->query('role') : '',
+            'status' => array_key_exists((string) $request->query('status'), PersonnelService::STATUS_FILTERS) ? (string) $request->query('status') : '',
         ];
 
         $page = max(1, (int) $request->query('page', 1));
+        $personnel = $this->personnel->listPersonnel($filters['search'], $filters['role'], 7, $page, $filters['status']);
+
+        // A filter change can leave the requested page past the end.
+        if ($personnel->isEmpty() && $page > 1) {
+            return redirect($personnel->url(max(1, $personnel->lastPage())));
+        }
 
         return view('superadmin.personnel.index', [
-            'personnel' => $this->personnel->listPersonnel($filters['search'], $filters['role'], 7, $page),
+            'personnel' => $personnel,
             'units' => Unit::whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
             'filters' => $filters,
+            'hasFilters' => $filters['search'] !== '' || $filters['role'] !== '' || $filters['status'] !== '',
+            'roleFilters' => PersonnelService::ROLE_FILTERS,
+            'statusFilters' => PersonnelService::STATUS_FILTERS,
         ]);
     }
 
@@ -45,7 +67,7 @@ class PersonnelController extends Controller
             'last_name' => ['required', 'string', 'max:100'],
             'role' => ['required', Rule::in(['driver', 'crew'])],
             'home_unit_id' => ['nullable', 'integer', Rule::exists('units', 'id')->whereNull('archived_at')],
-        ]);
+        ], self::MESSAGES);
 
         if ($validated['role'] === 'driver' && $this->matchesDriverAccount($validated)) {
             return back()->withInput()->withErrors([
@@ -53,25 +75,20 @@ class PersonnelController extends Controller
             ]);
         }
 
-        $record = Personnel::create([
-            'first_name' => $validated['first_name'],
-            'middle_name' => $validated['middle_name'] ?? null,
-            'last_name' => $validated['last_name'],
-            'role' => $validated['role'],
-            'home_unit_id' => $validated['home_unit_id'] ?? null,
-            'personnel_status' => 'active',
-        ]);
+        try {
+            $record = $this->personnel->createRecord([
+                'first_name' => $validated['first_name'],
+                'middle_name' => $validated['middle_name'] ?? null,
+                'last_name' => $validated['last_name'],
+                'role' => $validated['role'],
+                'home_unit_id' => $validated['home_unit_id'] ?? null,
+                'personnel_status' => 'active',
+            ]);
+        } catch (RuntimeException $e) {
+            return $this->homeUnitRefused($request, $e);
+        }
 
-        AuditLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'personnel_created',
-            'entity_type' => 'Personnel',
-            'entity_id' => $record->id,
-            'reference' => $record->full_name,
-            'description' => "{$record->full_name} added as " . PersonnelService::PERSONNEL_ROLE_LABELS[$record->role] . '.',
-        ]);
-
-        return back()->with('success', 'Personnel added.');
+        return back()->with('success', "{$record->full_name} added.");
     }
 
     public function update(Request $request, Personnel $record)
@@ -81,7 +98,9 @@ class PersonnelController extends Controller
             'middle_name' => ['nullable', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
             'role' => ['required', Rule::in(['driver', 'crew'])],
-        ]);
+            // Optional: lets the edit form save the home unit in the same submit.
+            'home_unit_id' => ['sometimes', 'nullable', 'integer', Rule::exists('units', 'id')->whereNull('archived_at')],
+        ], self::MESSAGES);
 
         if ($validated['role'] !== $record->role && $this->isPlacedOrStaged($record)) {
             return back()->withInput()->withErrors([
@@ -89,8 +108,19 @@ class PersonnelController extends Controller
             ]);
         }
 
-        $record->update($validated);
+        $record->update(collect($validated)->except('home_unit_id')->all());
         $record->refresh();
+
+        // The home unit is its own locked write; if it's refused, the other
+        // details still save (and are audited) and the form says so.
+        $homeRefused = null;
+        if ($request->has('home_unit_id')) {
+            try {
+                $this->changeRecordHomeUnit($record, $validated['home_unit_id'] ?? null);
+            } catch (RuntimeException $e) {
+                $homeRefused = $this->rethrowDatabaseErrors($e);
+            }
+        }
 
         foreach (Unit::SLOT_PERSONNEL_COLUMNS as $slot => $idColumn) {
             Unit::where($idColumn, $record->id)->update([Unit::SLOT_COLUMNS[$slot] => $record->full_name]);
@@ -105,7 +135,37 @@ class PersonnelController extends Controller
             'description' => "{$record->full_name} updated.",
         ]);
 
-        return back()->with('success', 'Personnel updated.');
+        if ($homeRefused) {
+            return $this->homeUnitRefused($request, $homeRefused, "{$record->full_name}'s details were saved, but the home unit wasn't changed. ");
+        }
+
+        return back()->with('success', "{$record->full_name} updated.");
+    }
+
+    /**
+     * A home-unit write that was refused (422) or collided with another
+     * change (HomeUnitConflictException, 409). Nothing from it was saved.
+     */
+    protected function homeUnitRefused(Request $request, RuntimeException $e, string $prefix = '')
+    {
+        $this->rethrowDatabaseErrors($e);
+        $status = $e instanceof HomeUnitConflictException ? $e->status : 422;
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $prefix . $e->getMessage()], $status);
+        }
+
+        return back()->withInput()->withErrors(['home_unit_id' => $prefix . $e->getMessage()]);
+    }
+
+    /** QueryException is a RuntimeException too; a database error is not a refusal to show the owner. */
+    protected function rethrowDatabaseErrors(RuntimeException $e): RuntimeException
+    {
+        if ($e instanceof \PDOException) {
+            throw $e;
+        }
+
+        return $e;
     }
 
     protected function matchesDriverAccount(array $validated): bool
@@ -133,30 +193,21 @@ class PersonnelController extends Controller
     {
         $validated = $request->validate([
             'home_unit_id' => ['nullable', 'integer', Rule::exists('units', 'id')->whereNull('archived_at')],
-        ]);
+        ], self::MESSAGES);
 
-        $oldHomeUnit = $record->homeUnit;
-        $newHomeUnitId = $validated['home_unit_id'] ?? null;
-
-        if ((int) $record->home_unit_id === (int) $newHomeUnitId) {
-            return back()->with('success', 'Home Unit is unchanged.');
+        try {
+            $changed = $this->changeRecordHomeUnit($record, $validated['home_unit_id'] ?? null);
+        } catch (RuntimeException $e) {
+            return $this->homeUnitRefused($request, $e);
         }
 
-        $record->update(['home_unit_id' => $newHomeUnitId]);
-        $newHomeUnit = $newHomeUnitId ? Unit::find($newHomeUnitId) : null;
+        return back()->with('success', $changed ? 'Home Unit updated.' : 'Home Unit is unchanged.');
+    }
 
-        AuditLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'personnel_home_unit_changed',
-            'entity_type' => 'Personnel',
-            'entity_id' => $record->id,
-            'reference' => $record->full_name,
-            'description' => "Home Unit for {$record->full_name} changed from " . ($oldHomeUnit->name ?? 'None') . ' to ' . ($newHomeUnit->name ?? 'None') . '.',
-            'old_value' => ['home_unit' => $oldHomeUnit->name ?? 'None'],
-            'new_value' => ['home_unit' => $newHomeUnit->name ?? 'None'],
-        ]);
-
-        return back()->with('success', 'Home Unit updated.');
+    /** Sets a personnel record's home unit and audits it. Returns false when unchanged. */
+    protected function changeRecordHomeUnit(Personnel $record, $newHomeUnitId): bool
+    {
+        return $this->personnel->setRecordHomeUnit($record, $newHomeUnitId ? (int) $newHomeUnitId : null);
     }
 
     public function toggleRecordStatus(Personnel $record)
@@ -174,7 +225,9 @@ class PersonnelController extends Controller
             'description' => "{$record->full_name} set to " . ucfirst($newStatus) . '.',
         ]);
 
-        return back()->with('success', $newStatus === 'active' ? 'Personnel activated.' : 'Personnel deactivated.');
+        return back()->with('success', $newStatus === 'active'
+            ? "{$record->full_name} is active and can be placed on a unit."
+            : "{$record->full_name} is inactive and can't be placed on a unit.");
     }
 
     public function updateHomeUnit(Request $request, User $person)
@@ -185,44 +238,62 @@ class PersonnelController extends Controller
 
         $validated = $request->validate([
             'home_unit_id' => ['nullable', 'integer', Rule::exists('units', 'id')->whereNull('archived_at')],
-        ]);
+        ], self::MESSAGES);
 
-        $oldHomeUnit = $person->homeUnit;
         $newHomeUnitId = $validated['home_unit_id'] ?? null;
 
         if ((int) $person->home_unit_id === (int) $newHomeUnitId) {
             return back()->with('success', 'Home Unit is unchanged.');
         }
 
-        if ((int) $person->role_id === 3) {
-            try {
-                $this->assignment->setTeamLeaderRegularUnit($person, $newHomeUnitId ? (int) $newHomeUnitId : null, $request->user());
-            } catch (RuntimeException $e) {
-                if ($request->expectsJson()) {
-                    return response()->json(['message' => $e->getMessage()], 422);
-                }
-
-                return back()->withErrors(['home_unit_id' => $e->getMessage()]);
+        try {
+            if ((int) $person->role_id === 3) {
+                $this->personnel->setTeamLeaderHomeUnit($person, $newHomeUnitId ? (int) $newHomeUnitId : null, $request->user());
+            } else {
+                $this->personnel->setDriverAccountHomeUnit($person, $newHomeUnitId ? (int) $newHomeUnitId : null);
             }
-
-            return back()->with('success', 'Home Unit updated.');
+        } catch (RuntimeException $e) {
+            return $this->homeUnitRefused($request, $e);
         }
 
-        $person->update(['home_unit_id' => $newHomeUnitId]);
-        $newHomeUnit = $newHomeUnitId ? Unit::find($newHomeUnitId) : null;
+        return back()->with('success', 'Home Unit updated.');
+    }
 
-        AuditLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'personnel_home_unit_changed',
-            'entity_type' => 'User',
-            'entity_id' => $person->id,
-            'reference' => $person->full_name,
-            'description' => "Home Unit for {$person->full_name} changed from " . ($oldHomeUnit->name ?? 'None') . ' to ' . ($newHomeUnit->name ?? 'None') . '.',
-            'old_value' => ['home_unit' => $oldHomeUnit->name ?? 'None'],
-            'new_value' => ['home_unit' => $newHomeUnit->name ?? 'None'],
+    /**
+     * Edit Home Team: saves the whole team for one unit in a single
+     * transaction (PersonnelService::saveHomeTeam). JSON only.
+     */
+    public function saveHomeTeam(Request $request, int $unit)
+    {
+        $validated = $request->validate([
+            'token' => ['required', 'string', 'size:40'],
+            'team_leader' => ['present', 'array'],
+            'driver' => ['present', 'array'],
+            'crew' => ['present', 'array'],
+            'team_leader.*' => ['string', 'regex:/^account-\d+$/'],
+            'driver.*' => ['string', 'regex:/^(account|record)-\d+$/'],
+            'crew.*' => ['string', 'regex:/^record-\d+$/'],
+            'expected' => ['present', 'array'],
+            'expected.*' => ['nullable', 'integer'],
         ]);
 
-        return back()->with('success', 'Home Unit updated.');
+        try {
+            $saved = $this->personnel->saveHomeTeam(
+                $unit,
+                ['team_leader' => $validated['team_leader'], 'driver' => $validated['driver'], 'crew' => $validated['crew']],
+                $validated['token'],
+                $validated['expected'],
+                $request->user(),
+            );
+        } catch (HomeTeamSaveException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->status);
+        }
+
+        // The transaction has committed by the time this runs.
+        return response()->json([
+            'saved' => $saved,
+            'token' => $this->personnel->homeTeamToken($unit),
+        ]);
     }
 
     public function toggleEnabled(User $person)
@@ -247,10 +318,42 @@ class PersonnelController extends Controller
         return back()->with('success', $newState ? 'Personnel activated.' : 'Personnel deactivated.');
     }
 
-    public function homeAssignments()
+    public function homeAssignments(Request $request)
     {
+        $filters = [
+            'search' => trim((string) $request->query('search', '')),
+            'show' => $request->query('show') === 'missing' ? 'missing' : '',
+        ];
+
+        $people = $this->personnel->homeTeamPeople();
+        $roster = $this->personnel->homeAssignmentsRoster($people);
+
+        // Search matches the unit name, its plate (spaces ignored), or anyone on its home team.
+        $searched = $roster;
+        if ($filters['search'] !== '') {
+            $needle = mb_strtolower($filters['search']);
+            $plateNeedle = str_replace(' ', '', $needle);
+            $searched = $roster->filter(function (array $entry) use ($needle, $plateNeedle) {
+                $names = $entry['team_leaders']->concat($entry['drivers'])->concat($entry['crew'])->pluck('name');
+
+                return str_contains(mb_strtolower($entry['unit']->name), $needle)
+                    || ($plateNeedle !== '' && str_contains(mb_strtolower((string) $entry['unit']->plate_number), $plateNeedle))
+                    || $names->contains(fn ($name) => str_contains(mb_strtolower($name), $needle));
+            })->values();
+        }
+
+        $shown = $filters['show'] === 'missing' ? $searched->reject(fn (array $entry) => $entry['complete'])->values() : $searched;
+
         return view('superadmin.personnel.home-assignments', [
-            'roster' => $this->personnel->homeAssignmentsRoster(),
+            'roster' => $shown,
+            'filters' => $filters,
+            'hasFilters' => $filters['search'] !== '' || $filters['show'] !== '',
+            'searchedCount' => $searched->count(),
+            'missingCount' => $searched->reject(fn (array $entry) => $entry['complete'])->count(),
+            'totalUnits' => $roster->count(),
+            'people' => $people,
+            'units' => $roster->pluck('unit'),
+            'teamTokens' => $this->personnel->homeTeamTokens($people, $roster->pluck('unit.id')),
         ]);
     }
 }

@@ -2,6 +2,7 @@
 
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Quotation;
 use App\Models\Role;
 use App\Models\TruckType;
 use App\Models\User;
@@ -29,13 +30,13 @@ function bookingsDispatcher(): User
     return User::factory()->create(['role_id' => 2, 'status' => 'active']);
 }
 
-function bookingsCustomer(): Customer
+function bookingsCustomer(array $overrides = []): Customer
 {
-    return Customer::create([
+    return Customer::create(array_merge([
         'full_name' => 'Bookings Test Customer',
         'phone' => '0917' . fake()->unique()->numerify('#######'),
         'email' => 'bookings-' . uniqid() . '@example.com',
-    ]);
+    ], $overrides));
 }
 
 function bookingsTruckType(): TruckType
@@ -70,12 +71,20 @@ function bookingsCreate(array $overrides = []): Booking
     return $booking;
 }
 
+function bookingsIndex($test, array $query = [])
+{
+    return $test->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', $query));
+}
+
 it('owner can view bookings', function () {
-    $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index'))->assertOk();
+    bookingsIndex($this)->assertOk()->assertSee('All towing bookings, newest first');
 });
 
-it('dispatcher cannot access owner bookings', function () {
+it('dispatcher cannot access owner bookings or booking details', function () {
+    $booking = bookingsCreate();
+
     $this->actingAs(bookingsDispatcher())->get(route('superadmin.bookings.index'))->assertForbidden();
+    $this->actingAs(bookingsDispatcher())->getJson(route('superadmin.bookings.show', $booking->job_code))->assertForbidden();
 });
 
 it('owner cannot mutate bookings operationally because no such route exists', function () {
@@ -84,281 +93,214 @@ it('owner cannot mutate bookings operationally because no such route exists', fu
     expect(Route::has('superadmin.bookings.destroy'))->toBeFalse();
 });
 
-it('no longer renders the old period preset buttons or the filter-summary text', function () {
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index'));
+it('shows bookings from all dates by default, newest first', function () {
+    $old = bookingsCreate(['created_at' => now()->subDays(90)]);
+    $recent = bookingsCreate(['created_at' => now()->subDay()]);
+    $today = bookingsCreate(['created_at' => now()]);
+
+    $response = bookingsIndex($this);
 
     $response->assertOk();
-    $response->assertDontSee('booking-preset-btn', false);
-    $response->assertDontSee('bookingPeriodTabs', false);
-    $response->assertDontSee('This Week');
-    $response->assertDontSee('Last 30 Days');
-    $response->assertDontSee('Showing Today');
+    $response->assertSeeInOrder([$today->job_code, $recent->job_code, $old->job_code]);
+    $response->assertSee('All dates');
+    $response->assertSee('Showing 1–3 of 3 bookings');
 });
 
-it('defaults to today when no filters are supplied', function () {
-    $inBooking = bookingsCreate(['final_total' => 4321.00, 'created_at' => now()]);
-    $outBooking = bookingsCreate(['final_total' => 9999.00, 'created_at' => now()->subDays(5)]);
+it('applies the today, last 7 days and last 30 days presets by booking date', function () {
+    $today = bookingsCreate(['created_at' => now()->startOfDay()->addMinute()]);
+    $sixDays = bookingsCreate(['created_at' => now()->subDays(6)->startOfDay()->addMinute()]);
+    $eightDays = bookingsCreate(['created_at' => now()->subDays(8)]);
+    $fortyDays = bookingsCreate(['created_at' => now()->subDays(40)]);
 
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index'));
+    $todayResponse = bookingsIndex($this, ['date' => 'today']);
+    $todayResponse->assertSee($today->job_code)->assertDontSee($sixDays->job_code);
+
+    $weekResponse = bookingsIndex($this, ['date' => '7d']);
+    $weekResponse->assertSee($sixDays->job_code)->assertDontSee($eightDays->job_code);
+    $weekResponse->assertSee('Last 7 days');
+
+    $monthResponse = bookingsIndex($this, ['date' => '30d']);
+    $monthResponse->assertSee($eightDays->job_code)->assertDontSee($fortyDays->job_code);
+});
+
+it('filters an inclusive custom range and labels it', function () {
+    $inRange = bookingsCreate(['created_at' => now()->setDate(2026, 10, 5)->setTime(0, 1)]);
+    $edge = bookingsCreate(['created_at' => now()->setDate(2026, 10, 11)->setTime(23, 59)]);
+    $outOfRange = bookingsCreate(['created_at' => now()->setDate(2026, 10, 4)->setTime(23, 59)]);
+
+    $response = bookingsIndex($this, ['date' => 'custom', 'from' => '2026-10-05', 'to' => '2026-10-11']);
 
     $response->assertOk();
-    $response->assertSee($inBooking->job_code);
-    $response->assertDontSee($outBooking->job_code);
+    $response->assertSee($inRange->job_code)->assertSee($edge->job_code)->assertDontSee($outOfRange->job_code);
+    $response->assertSee('Oct 5 – Oct 11, 2026');
 });
 
-it('continues to support the existing week and month period presets', function () {
-    $booking = bookingsCreate(['final_total' => 5555.00, 'created_at' => now()->subDays(10)]);
+it('falls back to all dates for an incomplete, reversed or malformed custom range', function (array $query) {
+    $old = bookingsCreate(['created_at' => now()->subDays(200)]);
 
-    $weekResponse = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['period' => 'week']));
-    $weekResponse->assertOk();
-    $weekResponse->assertDontSee($booking->job_code);
-
-    $monthResponse = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['period' => 'month']));
-    $monthResponse->assertOk();
-    $monthResponse->assertSee($booking->job_code);
-});
-
-it('filters bookings by an explicit custom date range inclusive of both endpoints', function () {
-    $inRange = bookingsCreate(['final_total' => 1111.00, 'created_at' => now()->subDays(3)]);
-    $outOfRange = bookingsCreate(['final_total' => 2222.00, 'created_at' => now()->subDays(30)]);
-
-    $from = now()->subDays(3)->toDateString();
-    $to = now()->toDateString();
-
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
-        'from' => $from,
-        'to' => $to,
-    ]));
+    $response = bookingsIndex($this, ['date' => 'custom'] + $query);
 
     $response->assertOk();
-    $response->assertSee($inRange->job_code);
-    $response->assertDontSee($outOfRange->job_code);
+    $response->assertSee($old->job_code);
+    $response->assertSee('data-date="all"', false);
+    $response->assertSee('class="ob-clear" data-clear hidden', false);
+})->with([
+    'only from' => [['from' => '2026-10-05']],
+    'reversed' => [['from' => '2026-10-11', 'to' => '2026-10-05']],
+    'malformed' => [['from' => '2026-13-40', 'to' => 'tomorrow']],
+]);
+
+it('searches case-insensitively by customer name and address', function () {
+    $customer = bookingsCustomer(['full_name' => 'Maria Santos']);
+    $match = bookingsCreate(['customer_id' => $customer->id]);
+    $byAddress = bookingsCreate(['pickup_address' => 'Katipunan Ave., Quezon City']);
+    $other = bookingsCreate();
+
+    bookingsIndex($this, ['search' => 'maria santos'])->assertSee($match->job_code)->assertDontSee($other->job_code);
+    bookingsIndex($this, ['search' => 'KATIPUNAN'])->assertSee($byAddress->job_code)->assertDontSee($other->job_code);
 });
 
-it('falls back to the default period when only one side of the date range is supplied', function () {
-    $booking = bookingsCreate(['final_total' => 3333.00, 'created_at' => now()]);
+it('searches by booking code, by the displayed padded number and by phone digits', function () {
+    $coded = bookingsCreate(['booking_code' => 'TM-01048']);
+    $uncoded = bookingsCreate();
+    $phoneCustomer = bookingsCustomer(['phone' => '09175550142']);
+    $byPhone = bookingsCreate(['customer_id' => $phoneCustomer->id]);
 
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
-        'from' => now()->toDateString(),
-    ]));
+    bookingsIndex($this, ['search' => 'tm-01048'])->assertSee('TM-01048')->assertDontSee($uncoded->job_code);
+    bookingsIndex($this, ['search' => $uncoded->job_code])->assertSee($uncoded->job_code)->assertDontSee('TM-01048');
+    bookingsIndex($this, ['search' => '0917 555 0142'])->assertSee($byPhone->job_code)->assertDontSee('TM-01048');
+});
+
+it('filters each status group by its documented statuses', function (string $group, array $included, array $excluded) {
+    $in = collect($included)->map(fn ($status) => bookingsCreate(['status' => $status]));
+    $out = collect($excluded)->map(fn ($status) => bookingsCreate(['status' => $status]));
+
+    $response = bookingsIndex($this, ['status' => $group]);
 
     $response->assertOk();
-    $response->assertSee($booking->job_code);
+    $in->each(fn ($b) => $response->assertSee($b->job_code));
+    $out->each(fn ($b) => $response->assertDontSee($b->job_code));
+})->with([
+    'needs review' => ['needs_review', ['requested', 'reviewed'], ['quoted', 'completed']],
+    'quotation' => ['quotation', ['quoted', 'quotation_sent', 'confirmed'], ['requested', 'scheduled']],
+    'scheduled' => ['scheduled', ['scheduled', 'scheduled_confirmed'], ['confirmed']],
+    'on job' => ['on_job', ['accepted', 'assigned', 'on_the_way', 'arrived_pickup', 'in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff'], ['waiting_verification', 'completed']],
+    'payment' => ['payment', ['waiting_verification', 'payment_pending', 'payment_submitted'], ['completed', 'on_job']],
+    'returned' => ['returned', ['returned'], ['assigned']],
+    'completed' => ['completed', ['completed'], ['cancelled']],
+    'cancelled' => ['cancelled', ['cancelled'], ['rejected']],
+    'rejected' => ['rejected', ['rejected'], ['cancelled']],
+]);
+
+it('renders the status menu with the approved groups and wording', function () {
+    $response = bookingsIndex($this);
+
+    $response->assertSeeInOrder([
+        'All statuses', 'Needs review', 'Requested or under review', 'Quotation &amp; Confirmation',
+        'Quoted, quotation sent, or confirmed', 'Scheduled', 'On job', 'Accepted through arrival at drop-off',
+        'Payment &amp; verification', 'Verification or payment pending', 'Returned', 'Needs reassignment',
+        'Completed', 'Cancelled', 'Rejected',
+    ], false);
+    $response->assertSeeInOrder(['All dates', 'Today', 'Last 7 days', 'Last 30 days', 'Custom range']);
 });
 
-it('continues to support filtering bookings by status', function () {
-    $completedBooking = bookingsCreate(['final_total' => 6001.00, 'status' => 'completed', 'created_at' => now()]);
-    $scheduledBooking = bookingsCreate(['final_total' => 6002.00, 'status' => 'scheduled', 'created_at' => now()]);
+it('ignores an unknown status value', function () {
+    $booking = bookingsCreate();
 
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
-        'period' => 'today',
-        'status' => 'completed',
-    ]));
+    bookingsIndex($this, ['status' => 'bogus'])->assertSee($booking->job_code)->assertSee('data-status=""', false);
+});
+
+it('keeps search, status and date filters on pagination links', function () {
+    $customer = bookingsCustomer(['full_name' => 'Paged Customer']);
+    foreach (range(1, 12) as $i) {
+        bookingsCreate(['customer_id' => $customer->id, 'status' => 'completed', 'created_at' => now()->subMinutes($i)]);
+    }
+
+    $response = bookingsIndex($this, ['search' => 'paged', 'status' => 'completed', 'date' => '7d']);
 
     $response->assertOk();
-    $response->assertSee($completedBooking->job_code);
-    $response->assertDontSee($scheduledBooking->job_code);
+    $response->assertSee('Showing 1–10 of 12 bookings');
+    expect(preg_match('/href="[^"]*page=2[^"]*"/', $response->getContent(), $m))->toBe(1);
+    expect(html_entity_decode($m[0]))->toContain('search=paged')->toContain('status=completed')->toContain('date=7d');
+
+    bookingsIndex($this, ['search' => 'paged', 'status' => 'completed', 'date' => '7d', 'page' => 2])
+        ->assertSee('Showing 11–12 of 12 bookings');
 });
 
-it('renders the status filter as a single dropdown with the currently supported values', function () {
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['status' => 'on_job']));
+it('shows Clear filters only while a filter is active', function () {
+    bookingsCreate();
 
-    $response->assertOk();
-    $response->assertSee('id="bookingStatusSelect"', false);
-    $response->assertSee('<option value="" >All statuses</option>', false);
-    $response->assertSee('<option value="needs_attention" >Needs Attention</option>', false);
-    $response->assertSee('<option value="completed" >Completed</option>', false);
-    $response->assertSee('<option value="scheduled" >Scheduled</option>', false);
-    $response->assertSee('<option value="on_job" selected>On Job</option>', false);
-    $response->assertSee('<option value="returned" >Returned</option>', false);
-    $response->assertDontSee('booking-status-tab', false);
+    bookingsIndex($this)->assertSee('class="ob-clear" data-clear hidden', false);
+    bookingsIndex($this, ['status' => 'completed'])->assertSee('class="ob-clear" data-clear >', false);
 });
 
-it('filters bookings to needs-attention records combining requested and reviewed statuses', function () {
-    $requested = bookingsCreate(['final_total' => 8101.00, 'status' => 'requested', 'created_at' => now()]);
-    $reviewed = bookingsCreate(['final_total' => 8102.00, 'status' => 'reviewed', 'created_at' => now()]);
-    $completed = bookingsCreate(['final_total' => 8103.00, 'status' => 'completed', 'created_at' => now()]);
-    $scheduled = bookingsCreate(['final_total' => 8104.00, 'status' => 'scheduled', 'created_at' => now()]);
+it('distinguishes no bookings yet from no matching bookings', function () {
+    bookingsIndex($this)
+        ->assertSee('No bookings yet')
+        ->assertDontSee('No bookings match these filters');
 
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['status' => 'needs_attention']));
+    bookingsCreate();
 
-    $response->assertOk();
-    $response->assertSee('<option value="needs_attention" selected>Needs Attention</option>', false);
-    $response->assertSee($requested->job_code);
-    $response->assertSee($reviewed->job_code);
-    $response->assertDontSee($completed->job_code);
-    $response->assertDontSee($scheduled->job_code);
+    bookingsIndex($this, ['search' => 'no-such-booking'])
+        ->assertSee('No bookings match these filters')
+        ->assertSee('Try a different search, status, or booking date.');
 });
 
-it('composes the needs-attention filter with search', function () {
-    $customer = Customer::create([
-        'full_name' => 'Needs Attention Customer',
-        'phone' => '0917' . fake()->unique()->numerify('#######'),
-        'email' => 'bookings-needs-attention-' . uniqid() . '@example.com',
+it('renders solid status badges with full labels and one details action per row', function () {
+    $booking = bookingsCreate(['status' => 'scheduled_confirmed']);
+
+    $response = bookingsIndex($this);
+    $html = $response->getContent();
+
+    $response->assertSee('<span class="ob-badge tone-indigo">Scheduled, confirmed</span>', false);
+    expect(substr_count($html, 'data-booking="' . $booking->job_code . '"'))->toBe(1);
+    $response->assertDontSee('class="view-btn"', false);
+});
+
+it('shows list amounts only once they are quoted or confirmed', function () {
+    $requested = bookingsCreate(['status' => 'requested', 'final_total' => 1111]);
+    $quotedBooking = bookingsCreate(['status' => 'quotation_sent', 'final_total' => 2222]);
+    $quotation = Quotation::create([
+        'quotation_number' => 'Q-LIST-1', 'source_booking_id' => $quotedBooking->id, 'customer_id' => $quotedBooking->customer_id,
+        'truck_type_id' => $quotedBooking->truck_type_id, 'pickup_address' => 'Pickup A', 'dropoff_address' => 'Dropoff B',
+        'distance_km' => 5, 'estimated_price' => 2222, 'status' => 'sent',
     ]);
+    $quotedBooking->update(['quotation_id' => $quotation->id]);
+    $paid = bookingsCreate(['status' => 'completed', 'final_total' => 3333, 'completed_at' => now()]);
+    $cancelled = bookingsCreate(['status' => 'cancelled', 'final_total' => 4444]);
 
-    $matchingBooking = Booking::create([
-        'customer_id' => $customer->id,
-        'truck_type_id' => bookingsTruckType()->id,
-        'pickup_address' => 'Pickup A', 'dropoff_address' => 'Dropoff B', 'distance_km' => 5,
-        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
-        'final_total' => 8201.00,
-        'status' => 'requested',
-    ]);
+    $response = bookingsIndex($this);
 
-    $otherBooking = bookingsCreate(['final_total' => 8202.00, 'status' => 'reviewed', 'created_at' => now()]);
-
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
-        'search' => $customer->full_name,
-        'status' => 'needs_attention',
-    ]));
-
-    $response->assertOk();
-    $response->assertSee($matchingBooking->job_code);
-    $response->assertDontSee($otherBooking->job_code);
-    $response->assertSee('<option value="needs_attention" selected>Needs Attention</option>', false);
+    $response->assertDontSee('₱1,111.00', false);
+    $response->assertSeeInOrder(['₱2,222.00', 'Quotation sent'], false);
+    $response->assertSeeInOrder(['₱3,333.00', 'Payment confirmed'], false);
+    $response->assertDontSee('₱4,444.00', false);
 });
 
-it('composes the needs-attention filter with a custom date range', function () {
-    $inRange = bookingsCreate(['final_total' => 8301.00, 'status' => 'requested', 'created_at' => now()->subDays(2)]);
-    $outOfRange = bookingsCreate(['final_total' => 8302.00, 'status' => 'requested', 'created_at' => now()->subDays(20)]);
+it('returns only the results fragment for in-page refreshes', function () {
+    bookingsCreate();
 
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
-        'from' => now()->subDays(2)->toDateString(),
-        'to' => now()->toDateString(),
-        'status' => 'needs_attention',
-    ]));
+    $response = $this->actingAs(bookingsOwner())
+        ->get(route('superadmin.bookings.index'), ['X-Requested-With' => 'XMLHttpRequest']);
 
     $response->assertOk();
-    $response->assertSee($inRange->job_code);
-    $response->assertDontSee($outOfRange->job_code);
-    $response->assertSee('<option value="needs_attention" selected>Needs Attention</option>', false);
-});
-
-it('supports each currently supported status option from the dropdown', function () {
-    $scheduledBooking = bookingsCreate(['final_total' => 7101.00, 'status' => 'scheduled', 'created_at' => now()]);
-    $onJobBooking = bookingsCreate(['final_total' => 7102.00, 'status' => 'on_job', 'created_at' => now()]);
-    $returnedBooking = bookingsCreate(['final_total' => 7103.00, 'status' => 'returned', 'returned_at' => now(), 'created_at' => now()]);
-
-    $scheduled = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['status' => 'scheduled']));
-    $scheduled->assertOk()->assertSee($scheduledBooking->job_code)->assertDontSee($onJobBooking->job_code);
-
-    $onJob = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['status' => 'on_job']));
-    $onJob->assertOk()->assertSee($onJobBooking->job_code)->assertDontSee($scheduledBooking->job_code);
-
-    $returned = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', ['status' => 'returned']));
-    $returned->assertOk()->assertSee($returnedBooking->job_code)->assertDontSee($scheduledBooking->job_code);
-});
-
-it('persists the status filter alongside an active search term', function () {
-    $customer = Customer::create([
-        'full_name' => 'Persisted Filter Customer',
-        'phone' => '0917' . fake()->unique()->numerify('#######'),
-        'email' => 'bookings-persist-' . uniqid() . '@example.com',
-    ]);
-
-    $completedBooking = Booking::create([
-        'customer_id' => $customer->id,
-        'truck_type_id' => bookingsTruckType()->id,
-        'pickup_address' => 'Pickup A', 'dropoff_address' => 'Dropoff B', 'distance_km' => 5,
-        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
-        'final_total' => 7201.00,
-        'status' => 'completed',
-    ]);
-
-    $scheduledBooking = Booking::create([
-        'customer_id' => $customer->id,
-        'truck_type_id' => bookingsTruckType()->id,
-        'pickup_address' => 'Pickup A', 'dropoff_address' => 'Dropoff B', 'distance_km' => 5,
-        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
-        'final_total' => 7202.00,
-        'status' => 'scheduled',
-    ]);
-
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
-        'search' => $customer->full_name,
-        'status' => 'completed',
-    ]));
-
-    $response->assertOk();
-    $response->assertSee($completedBooking->job_code);
-    $response->assertDontSee($scheduledBooking->job_code);
-    $response->assertSee('<option value="completed" selected>Completed</option>', false);
-});
-
-it('persists the status filter alongside a custom date range', function () {
-    $completedBooking = bookingsCreate(['final_total' => 7301.00, 'status' => 'completed', 'created_at' => now()->subDays(2)]);
-    $scheduledBooking = bookingsCreate(['final_total' => 7302.00, 'status' => 'scheduled', 'created_at' => now()->subDays(2)]);
-
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
-        'from' => now()->subDays(2)->toDateString(),
-        'to' => now()->toDateString(),
-        'status' => 'completed',
-    ]));
-
-    $response->assertOk();
-    $response->assertSee($completedBooking->job_code);
-    $response->assertDontSee($scheduledBooking->job_code);
-    $response->assertSee('<option value="completed" selected>Completed</option>', false);
-});
-
-it('continues to support searching bookings by customer name', function () {
-    $customer = Customer::create([
-        'full_name' => 'Uniquely Named Customer',
-        'phone' => '0917' . fake()->unique()->numerify('#######'),
-        'email' => 'bookings-search-' . uniqid() . '@example.com',
-    ]);
-    $truckType = bookingsTruckType();
-
-    $matchingBooking = Booking::create([
-        'customer_id' => $customer->id,
-        'truck_type_id' => $truckType->id,
-        'pickup_address' => 'Pickup A', 'dropoff_address' => 'Dropoff B', 'distance_km' => 5,
-        'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 1800,
-        'final_total' => 7000.00,
-        'status' => 'completed',
-    ]);
-
-    $otherBooking = bookingsCreate(['final_total' => 8000.00]);
-
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
-        'search' => $customer->full_name,
-    ]));
-
-    $response->assertOk();
-    $response->assertSee($matchingBooking->job_code);
-    $response->assertDontSee($otherBooking->job_code);
-});
-
-it('renders an empty date range safely', function () {
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index', [
-        'from' => now()->addDays(10)->toDateString(),
-        'to' => now()->addDays(11)->toDateString(),
-    ]));
-
-    $response->assertOk();
-    $response->assertSee('No bookings found for the selected filters.');
+    $response->assertSee('data-results', false);
+    $response->assertDontSee('<html', false);
 });
 
 it('does not expose operational status-mutation controls to the owner', function () {
     bookingsCreate();
 
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index'));
-
-    $response->assertOk();
-    $response->assertDontSee('updateStatus');
+    bookingsIndex($this)->assertDontSee('updateStatus');
 });
 
 it('sidebar bookings badge counts requested and reviewed bookings globally, independent of the bookings page date filter', function () {
     bookingsCreate(['status' => 'requested', 'created_at' => now()->subDays(9)]);
     bookingsCreate(['status' => 'reviewed', 'created_at' => now()->subDays(20)]);
 
-    $expectedBadgeCount = Booking::whereIn('status', ['requested', 'reviewed'])->count();
-    expect($expectedBadgeCount)->toBe(2);
-
-    $response = $this->actingAs(bookingsOwner())->get(route('superadmin.bookings.index'));
+    $response = bookingsIndex($this, ['date' => 'today']);
 
     $response->assertOk();
-    $response->assertSee('No bookings found for the selected filters.');
-    $response->assertSee('<span class="badge">2</span>', false);
+    $response->assertSee('No bookings match these filters');
+    $response->assertSee('<span class="sidebar-count">2<span class="sidebar-sr"> pending</span></span>', false);
 });

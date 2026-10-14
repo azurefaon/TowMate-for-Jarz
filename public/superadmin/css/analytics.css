@@ -1,0 +1,975 @@
+/*
+ * Owner analytics pages: Revenue, Reports, Detailed Booking Report, Business Activity.
+ * Builds on bookings.css (font, --ob-* tokens, table and pager styles); the page root
+ * carries both classes: <div class="ob-page oa-page">.
+ */
+
+.oa-page {
+    min-width: 0;
+    padding-bottom: 32px;
+}
+
+.oa-page h1,
+.oa-page h2,
+.oa-page h3 {
+    font-weight: 500;
+}
+
+/* ---------- Cards, filters ---------- */
+
+.oa-card {
+    border: 1px solid var(--ob-border);
+    border-radius: 12px;
+    background: #ffffff;
+    min-width: 0;
+}
+
+.oa-card-body {
+    padding: 20px 24px 24px;
+}
+
+.oa-filter-card {
+    margin-bottom: 16px;
+    padding: 20px 24px;
+}
+
+.oa-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px;
+}
+
+.oa-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.oa-field > label,
+.oa-field-label {
+    font-weight: 500;
+    color: var(--ob-text);
+}
+
+.oa-select {
+    min-width: 220px;
+}
+
+/* The shared custom dropdown, in the Owner list style */
+.oa-page .custom-select {
+    position: relative;
+}
+
+.oa-page .custom-select-trigger {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ob-text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.oa-page .custom-select.is-open .custom-select-trigger,
+.oa-page .custom-select-trigger:focus-visible {
+    background: #ffffff;
+    color: var(--ob-text);
+    border-color: var(--ob-text);
+    box-shadow: 0 0 0 1px var(--ob-text);
+    outline: none;
+}
+
+.oa-page .custom-select-menu {
+    z-index: 30;
+    min-width: 100%;
+    margin-top: 6px;
+    padding: 6px;
+    border: 1px solid var(--ob-border);
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 8px 24px rgba(23, 23, 23, 0.12);
+}
+
+.oa-page .custom-select-option {
+    padding: 9px 12px;
+    border-radius: 8px;
+    color: var(--ob-text);
+    cursor: pointer;
+}
+
+.oa-page .custom-select-option.is-selected {
+    background: var(--ob-accent);
+    color: var(--ob-text);
+}
+
+.oa-page .custom-select-option:hover:not(.is-selected),
+.oa-page .custom-select-option.is-focused:not(.is-selected) {
+    background: var(--ob-soft);
+}
+
+/* ---------- Buttons ---------- */
+
+.oa-btn {
+    height: 44px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ob-text);
+    font: inherit;
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.oa-btn:hover {
+    border-color: var(--ob-faint);
+}
+
+.oa-btn:focus-visible,
+.oa-range-trigger:focus-visible {
+    outline: 2px solid var(--ob-text);
+    outline-offset: 2px;
+}
+
+.oa-btn--sm {
+    height: 36px;
+    padding: 0 12px;
+    font-weight: 400;
+}
+
+.oa-btn--primary {
+    border-color: var(--ob-accent);
+    background: var(--ob-accent);
+}
+
+.oa-btn--primary:hover {
+    border-color: #eab308;
+    background: #eab308;
+}
+
+.oa-btn--on-dark {
+    border-color: #525252;
+    background: transparent;
+    color: #ffffff;
+}
+
+.oa-btn--on-dark:hover {
+    border-color: #a3a3a3;
+}
+
+.oa-btn svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+}
+
+/* ---------- Date range popover ---------- */
+
+.oa-range {
+    position: relative;
+}
+
+.oa-range-trigger {
+    height: 44px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ob-text);
+    font: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.oa-range.is-open .oa-range-trigger {
+    border-color: var(--ob-text);
+    box-shadow: 0 0 0 1px var(--ob-text);
+}
+
+.oa-range-trigger svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: var(--ob-body);
+}
+
+.oa-range-label.is-placeholder {
+    color: var(--ob-muted);
+}
+
+.oa-range-pop {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 6px);
+    left: 0;
+    width: 340px;
+    max-width: calc(100vw - 32px);
+    padding: 16px;
+    border: 1px solid var(--ob-border);
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 8px 24px rgba(23, 23, 23, 0.12);
+}
+
+.oa-range--right .oa-range-pop {
+    left: auto;
+    right: 0;
+}
+
+.oa-range-pop[hidden] {
+    display: none;
+}
+
+.oa-range-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.oa-range-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-weight: 500;
+}
+
+.oa-range-fields input {
+    width: 100%;
+    height: 40px;
+    padding: 0 10px;
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ob-text);
+    font: inherit;
+    font-weight: 400;
+}
+
+.oa-range-fields input:focus-visible {
+    outline: none;
+    border-color: var(--ob-text);
+    box-shadow: 0 0 0 1px var(--ob-text);
+}
+
+.oa-range-actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.oa-range-actions .oa-btn {
+    height: 40px;
+}
+
+/* ---------- KPI cards ---------- */
+
+.oa-kpis {
+    margin-bottom: 16px;
+    display: grid;
+    grid-template-columns: repeat(var(--oa-kpi-count, 5), minmax(0, 1fr));
+    gap: 16px;
+}
+
+.oa-kpi {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    border: 1px solid var(--ob-border);
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.oa-kpi-icon {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--ob-soft);
+    color: var(--ob-body);
+}
+
+.oa-kpi-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.oa-kpi-label {
+    min-height: 40px;
+    color: var(--ob-body);
+}
+
+.oa-kpi-value {
+    font-size: 28px;
+    font-weight: 500;
+    line-height: 36px;
+    letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+}
+
+.oa-kpi-value.is-positive {
+    color: #15803d;
+}
+
+.oa-kpi-value.is-negative {
+    color: #b91c1c;
+}
+
+.oa-kpi-sub {
+    margin-top: -6px;
+    color: var(--ob-body);
+}
+
+.oa-kpi.is-dark {
+    border-color: #171717;
+    background: #171717;
+    color: #ffffff;
+}
+
+.oa-kpi.is-dark .oa-kpi-icon {
+    background: var(--ob-accent);
+    color: #171717;
+}
+
+.oa-kpi.is-dark .oa-kpi-label,
+.oa-kpi.is-dark .oa-kpi-sub {
+    color: #d4d4d4;
+}
+
+.oa-kpi.is-dark .oa-kpi-value {
+    color: var(--ob-accent);
+}
+
+/* ---------- Note ---------- */
+
+.oa-note {
+    margin-bottom: 16px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    border-radius: 10px;
+    background: var(--ob-soft);
+    color: var(--ob-body);
+}
+
+.oa-note svg {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    flex: none;
+    color: var(--ob-muted);
+}
+
+.oa-note strong {
+    font-weight: 500;
+    color: var(--ob-text);
+}
+
+/* ---------- Layout grids ---------- */
+
+.oa-grid {
+    margin-bottom: 16px;
+    display: grid;
+    gap: 16px;
+    align-items: start;
+}
+
+.oa-grid--revenue {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+}
+
+.oa-grid--reports {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+}
+
+.oa-stack {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+}
+
+/* ---------- Card headings ---------- */
+
+.oa-card-head {
+    margin-bottom: 20px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.oa-card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    line-height: 26px;
+}
+
+.oa-card-title svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
+}
+
+.oa-card-sub {
+    margin-top: 2px;
+    color: var(--ob-body);
+}
+
+.oa-pill {
+    padding: 6px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--ob-border);
+    border-radius: 999px;
+    color: var(--ob-body);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.oa-pill svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ---------- Charts ---------- */
+
+.oa-chart {
+    position: relative;
+    height: 320px;
+}
+
+.oa-chart canvas {
+    max-width: 100%;
+}
+
+/* ---------- Tables ---------- */
+
+.oa-table-wrap {
+    overflow-x: auto;
+}
+
+.oa-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.oa-table th {
+    padding: 10px 0 12px;
+    border-bottom: 1px solid var(--ob-border);
+    color: var(--ob-body);
+    font-weight: 400;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.oa-table td {
+    padding: 14px 0;
+    vertical-align: middle;
+}
+
+.oa-table tbody tr + tr td {
+    border-top: 1px solid var(--ob-divider);
+}
+
+.oa-table .is-num,
+.oa-table th.is-num {
+    padding-left: 12px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.oa-table .is-dim {
+    color: var(--ob-faint);
+}
+
+.oa-table a.oa-count {
+    color: var(--ob-text);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.oa-share {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.oa-share-bar {
+    width: 64px;
+    height: 6px;
+    flex: none;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--ob-soft);
+}
+
+.oa-share-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--ob-accent);
+}
+
+.oa-share-value {
+    min-width: 48px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.oa-foot-note {
+    margin-top: 14px;
+    color: var(--ob-body);
+}
+
+/* Label / value rows (Financial Summary) */
+.oa-rows > div {
+    padding: 14px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.oa-rows > div + div {
+    border-top: 1px solid var(--ob-divider);
+}
+
+.oa-rows strong {
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Empty states ---------- */
+
+.oa-empty {
+    min-height: 140px;
+    padding: 24px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--ob-body);
+}
+
+.oa-empty--tall {
+    min-height: 240px;
+}
+
+/* ---------- Dark call-to-action band ---------- */
+
+.oa-band {
+    padding: 22px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 24px;
+    border-radius: 12px;
+    background: #171717;
+    color: #ffffff;
+}
+
+.oa-band h2 {
+    margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+}
+
+.oa-band h2 svg {
+    width: 18px;
+    height: 18px;
+}
+
+.oa-band p {
+    max-width: 560px;
+    color: #d4d4d4;
+}
+
+.oa-band-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+/* ---------- Badges ---------- */
+
+.oa-badge {
+    padding: 3px 12px;
+    display: inline-block;
+    border-radius: 999px;
+    background: #52525b;
+    color: #ffffff;
+    font-size: 13px;
+    line-height: 20px;
+    white-space: nowrap;
+}
+
+.oa-badge.tone-green { background: #15803d; }
+.oa-badge.tone-blue { background: #1d4ed8; }
+.oa-badge.tone-violet { background: #6d28d9; }
+.oa-badge.tone-orange { background: #c2410c; }
+.oa-badge.tone-amber { background: #b45309; }
+.oa-badge.tone-red { background: #b91c1c; }
+.oa-badge.tone-teal { background: #0f766e; }
+.oa-badge.tone-indigo { background: #4338ca; }
+.oa-badge.tone-slate { background: #475569; }
+.oa-badge.tone-neutral { background: #52525b; }
+
+/* ---------- Booking report ---------- */
+
+.oa-back {
+    margin-bottom: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ob-text);
+    text-decoration: none;
+}
+
+.oa-back svg {
+    width: 16px;
+    height: 16px;
+}
+
+.oa-back:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.oa-list-card {
+    overflow: hidden;
+}
+
+.oa-list-card .oa-table-wrap {
+    overflow-x: auto;
+}
+
+.oa-list-card .oa-table {
+    min-width: 860px;
+}
+
+.oa-list-card .oa-table th {
+    padding: 0 12px;
+    height: 48px;
+    background: #ffffff;
+}
+
+.oa-list-card .oa-table td {
+    padding: 16px 12px;
+    vertical-align: top;
+}
+
+.oa-list-card .oa-table th:first-child,
+.oa-list-card .oa-table td:first-child {
+    padding-left: 24px;
+}
+
+.oa-list-card .oa-table th:last-child,
+.oa-list-card .oa-table td:last-child {
+    padding-right: 24px;
+}
+
+.oa-sub {
+    margin-top: 4px;
+    display: block;
+    color: var(--ob-body);
+}
+
+.oa-code {
+    color: var(--ob-text);
+    text-decoration: underline;
+    text-decoration-color: var(--ob-faint);
+    text-underline-offset: 4px;
+}
+
+.oa-code:hover {
+    text-decoration-color: var(--ob-text);
+}
+
+/* ---------- Business Activity ---------- */
+
+.oa-toolbar {
+    margin-bottom: 16px;
+    padding: 16px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.oa-search {
+    position: relative;
+    flex: 1 1 260px;
+    min-width: 200px;
+}
+
+.oa-search svg {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    width: 16px;
+    height: 16px;
+    margin-top: -8px;
+    color: var(--ob-muted);
+    pointer-events: none;
+}
+
+.oa-search input {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px 0 40px;
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ob-text);
+    font: inherit;
+}
+
+.oa-search input::placeholder {
+    color: var(--ob-muted);
+}
+
+.oa-search input:focus-visible {
+    outline: none;
+    border-color: var(--ob-text);
+    box-shadow: 0 0 0 1px var(--ob-text);
+}
+
+.oa-toolbar .custom-select {
+    flex: none;
+    width: 200px;
+}
+
+.oa-activity-head {
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid var(--ob-border);
+}
+
+.oa-activity-head .oa-card-title {
+    margin: 0;
+}
+
+.oa-activity-count {
+    color: var(--ob-body);
+}
+
+.oa-activity-table {
+    min-width: 900px;
+    table-layout: fixed;
+}
+
+.oa-activity-table td {
+    padding-top: 18px;
+    padding-bottom: 18px;
+}
+
+.oa-change + .oa-change {
+    margin-top: 6px;
+}
+
+.oa-change-label {
+    color: var(--ob-body);
+}
+
+.oa-change-old {
+    color: var(--ob-body);
+}
+
+.oa-change-arrow {
+    margin: 0 6px;
+    color: var(--ob-muted);
+}
+
+.oa-change-value {
+    color: var(--ob-text);
+}
+
+.oa-activity-empty {
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--ob-body);
+}
+
+.oa-activity-empty strong {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 500;
+    color: var(--ob-text);
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1280px) {
+    .oa-kpi {
+        padding: 16px;
+    }
+
+    .oa-kpi-value {
+        font-size: 24px;
+    }
+}
+
+@media (max-width: 1100px) {
+    .oa-grid--revenue,
+    .oa-grid--reports {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .oa-kpis {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .oa-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .oa-filter-card,
+    .oa-card-body {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .oa-select,
+    .oa-field,
+    .oa-toolbar .custom-select {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .oa-range,
+    .oa-range-trigger {
+        width: 100%;
+    }
+
+    .oa-range-trigger {
+        justify-content: space-between;
+    }
+
+    .oa-range-pop,
+    .oa-range--right .oa-range-pop {
+        left: 0;
+        right: auto;
+        width: 100%;
+    }
+
+    .oa-card-head {
+        flex-wrap: wrap;
+    }
+
+    .oa-band {
+        padding: 18px 16px;
+    }
+
+    .oa-search {
+        flex-basis: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .oa-kpis {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Six figures in one row (Revenue): slightly tighter cards so peso amounts stay on one line. */
+.oa-kpis--six .oa-kpi {
+    padding: 18px;
+    gap: 12px;
+}
+
+.oa-kpis--six .oa-kpi-value {
+    font-size: 24px;
+    line-height: 32px;
+    white-space: nowrap;
+}
+
+.oa-grid--revenue {
+    align-items: stretch;
+}
+
+@media (max-width: 1100px) {
+    .oa-kpis--six .oa-kpi-value {
+        white-space: normal;
+    }
+}
+
+/* Business Activity toolbar: one row at laptop widths. */
+.oa-toolbar .custom-select {
+    width: 176px;
+}
+
+.oa-toolbar .oa-search {
+    flex: 1 1 180px;
+    min-width: 180px;
+}
+
+.oa-toolbar .custom-select {
+    width: 164px;
+}
+
+@media (max-width: 1380px) {
+    .oa-kpis--six .oa-kpi-value {
+        font-size: 22px;
+    }
+}
+
+/* Dropdown menus show every option (no inner scroll) in regular weight, like the approved design. */
+.oa-page .custom-select-menu {
+    min-width: 232px;
+    max-height: none;
+    overflow: visible;
+}
+
+.oa-page .custom-select-option {
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.oa-page .custom-select-trigger {
+    font-weight: 400;
+}
+
+/* The last dropdown sits near the right edge: open its menu leftwards so it never extends past the page. */
+.oa-toolbar .custom-select:has(select[name="user_id"]) .custom-select-menu {
+    left: auto;
+    right: 0;
+}
+
+/* Badge colours also used by the Monitor risk list. */
+.oa-badge.tone-black { background: #171717; }
+.oa-badge.tone-yellow { background: #facc15; color: #171717; }

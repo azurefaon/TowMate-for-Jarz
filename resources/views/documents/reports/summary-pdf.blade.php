@@ -230,11 +230,11 @@
                     </td>
                     <td>
                         <span class="kpi-value">{{ $peso }}{{ number_format($summary['totalRevenue'], 2) }}</span>
-                        <span class="kpi-label">Total Revenue</span>
+                        <span class="kpi-label">Completed revenue, by completion date</span>
                     </td>
                     <td>
                         <span class="kpi-value">{{ $summary['completedCount'] }}</span>
-                        <span class="kpi-label">Completed</span>
+                        <span class="kpi-label">Completed (created in period)</span>
                     </td>
                     <td>
                         <span class="kpi-value">{{ $summary['pendingCount'] }}</span>
@@ -336,7 +336,7 @@
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td>Total Revenue</td>
+                        <td>Completed revenue, by completion date</td>
                         <td class="num">{{ $peso }}{{ number_format($summary['financial']['totalRevenue'], 2) }}</td>
                     </tr>
                 </tfoot>

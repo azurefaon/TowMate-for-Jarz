@@ -2,15 +2,21 @@
 
 namespace App\Services;
 
+use App\Exceptions\HomeUnitConflictException;
+use App\Exceptions\TeamAssignmentConflictException;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Personnel;
 use App\Models\Unit;
 use App\Models\UnitCrewLoan;
 use App\Models\User;
+use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Throwable;
 
 class UnitTeamAssignmentService
 {
@@ -26,8 +32,12 @@ class UnitTeamAssignmentService
 
     public function assignTeamLeader(Unit $targetUnit, int $teamLeaderId, User $actor): Unit
     {
-        return DB::transaction(function () use ($targetUnit, $teamLeaderId, $actor) {
-            $target = Unit::lockForUpdate()->findOrFail($targetUnit->id);
+        return $this->dispatchTransaction(function () use ($targetUnit, $teamLeaderId, $actor) {
+            // Both units (target, and the one the leader is on now) are locked
+            // up front in id order; see dispatchTransaction().
+            $seenSourceId = Unit::where('team_leader_id', $teamLeaderId)->value('id');
+            $units = $this->lockUnits([$targetUnit->id, $seenSourceId]);
+            $target = $units->get((int) $targetUnit->id);
 
             if ($target->team_leader_id) {
                 throw new RuntimeException('This unit already has a Team Leader assigned. Remove/return the current one first.');
@@ -52,7 +62,12 @@ class UnitTeamAssignmentService
                 throw new RuntimeException('This Team Leader currently has an active job and cannot be reassigned.');
             }
 
-            $sourceUnit = Unit::lockForUpdate()->where('team_leader_id', $teamLeader->id)->first();
+            // Moved to another unit while this request waited for its locks.
+            $sourceId = Unit::where('team_leader_id', $teamLeader->id)->value('id');
+            if ((int) $sourceId !== (int) $seenSourceId) {
+                throw new TeamAssignmentConflictException();
+            }
+            $sourceUnit = $sourceId ? $units->get((int) $sourceId) : null;
 
             if ($sourceUnit) {
                 $this->assertUnitTeamIsMovable($sourceUnit, 'borrow the Team Leader from');
@@ -114,30 +129,58 @@ class UnitTeamAssignmentService
      * the old unit releases the leader, the new unit receives them, and any
      * open borrow loan for the leader is closed (the new Regular Unit
      * supersedes the old home it would have returned to).
+     *
+     * Refused while the leader is on a truck other than their Regular Unit,
+     * unless that truck is the new Regular Unit: the edit must never take a
+     * leader off a truck a dispatcher put them on.
+     *
+     * Locks units before the leader (see Unit::lockInIdOrder). Throws
+     * HomeUnitConflictException when the leader moved to another unit while
+     * this call waited for its locks.
      */
     public function setTeamLeaderRegularUnit(User $teamLeader, ?int $unitId, User $actor): User
     {
         return DB::transaction(function () use ($teamLeader, $unitId, $actor) {
+            // Owner home-unit writes lock units (by id) before the person, the
+            // same order as the Home Team batch save. Read which units are
+            // involved, lock them, lock the leader, then confirm nothing moved
+            // outside the locked units in between.
+            $seenHomeId = User::whereKey($teamLeader->id)->value('home_unit_id');
+            $seenCurrentId = Unit::where('team_leader_id', $teamLeader->id)->value('id');
+            $units = Unit::lockInIdOrder([$unitId, $seenCurrentId, $seenHomeId]);
+
             $leader = User::lockForUpdate()->findOrFail($teamLeader->id);
 
             if ((int) $leader->role_id !== 3) {
                 throw new RuntimeException('Selected person is not a Team Leader.');
             }
 
-            $oldHomeUnit = $leader->home_unit_id ? Unit::find($leader->home_unit_id) : null;
+            // A leader leaves a unit only by that unit being cleared, and the
+            // units in $units are locked, so this read stays true.
+            $currentId = Unit::where('team_leader_id', $leader->id)->value('id');
+            if (($leader->home_unit_id && ! $units->has((int) $leader->home_unit_id)) || ($currentId && ! $units->has((int) $currentId))) {
+                throw new HomeUnitConflictException();
+            }
+
+            $oldHomeUnit = $leader->home_unit_id ? $units->get((int) $leader->home_unit_id) : null;
 
             $target = null;
             if ($unitId) {
-                $target = Unit::lockForUpdate()->whereNull('archived_at')->find($unitId);
+                $target = $units->get($unitId);
 
-                if (! $target) {
+                if (! $target || $target->archived_at) {
                     throw new RuntimeException('Selected unit is invalid or archived.');
                 }
             }
 
-            $source = Unit::lockForUpdate()->where('team_leader_id', $leader->id)->first();
+            $source = $currentId ? $units->get((int) $currentId) : null;
             $needsMove = $source && (! $target || (int) $source->id !== (int) $target->id);
             $needsPlacement = $target && (! $source || (int) $source->id !== (int) $target->id);
+
+            // Already done, e.g. by a save that finished while this one waited.
+            if (! $needsMove && ! $needsPlacement && (int) $leader->home_unit_id === (int) $target?->id) {
+                return $leader;
+            }
 
             if ($needsMove || $needsPlacement) {
                 if ($this->isBusy($leader)) {
@@ -147,6 +190,15 @@ class UnitTeamAssignmentService
 
             if ($needsMove) {
                 $this->assertUnitTeamIsMovable($source, 'move the Team Leader from');
+
+                // A leader on a truck other than their home unit was put there by
+                // a dispatcher (borrowed or assigned). A home-unit edit must not
+                // pull them off it; only making that truck their home is safe.
+                // Checked under the row locks, after the existing job and
+                // reservation checks so their messages still come first.
+                if ((int) $source->id !== (int) $leader->home_unit_id) {
+                    throw new RuntimeException($this->leaderElsewhereMessage($leader, $source));
+                }
             }
 
             if ($needsPlacement) {
@@ -293,7 +345,8 @@ class UnitTeamAssignmentService
      */
     public function assignUnassignedPerson(Unit $targetUnit, string $toSlot, int $personnelId, User $actor): Unit
     {
-        return DB::transaction(function () use ($targetUnit, $toSlot, $personnelId, $actor) {
+        return $this->dispatchTransaction(function () use ($targetUnit, $toSlot, $personnelId, $actor) {
+            // One unit, then the personnel record: already the shared order.
             $target = Unit::lockForUpdate()->findOrFail($targetUnit->id);
 
             $toColumn = Unit::SLOT_COLUMNS[$toSlot] ?? null;
@@ -345,22 +398,31 @@ class UnitTeamAssignmentService
 
     public function returnTeamLeader(Unit $currentUnit, User $actor): Unit
     {
-        return DB::transaction(function () use ($currentUnit, $actor) {
-            $current = Unit::lockForUpdate()->findOrFail($currentUnit->id);
-
-            $loan = UnitCrewLoan::where('to_unit_id', $current->id)
+        return $this->dispatchTransaction(function () use ($currentUnit, $actor) {
+            $openLoan = fn () => UnitCrewLoan::where('to_unit_id', $currentUnit->id)
                 ->where('to_slot', 'team_leader')
                 ->whereNull('returned_at')
                 ->latest('borrowed_at')
                 ->first();
 
+            // Lock the unit the leader is on and the home unit they return to,
+            // in id order, then re-read the loan: it can only be returned or
+            // closed by someone holding the current unit's lock.
+            $seenLoan = $openLoan();
+            $units = $this->lockUnits([$currentUnit->id, $seenLoan?->from_unit_id]);
+            $current = $units->get((int) $currentUnit->id);
+            $loan = $openLoan();
+
             if (! $loan) {
                 throw new RuntimeException('This Team Leader is not a borrowed assignment.');
+            }
+            if ((int) $loan->id !== (int) $seenLoan?->id) {
+                throw new TeamAssignmentConflictException();
             }
 
             $this->assertUnitTeamIsMovable($current, 'return the Team Leader from');
 
-            $homeUnit = Unit::lockForUpdate()->findOrFail($loan->from_unit_id);
+            $homeUnit = $units->get((int) $loan->from_unit_id);
 
             $this->assertUnitTeamIsMovable($homeUnit, 'return the Team Leader to');
 
@@ -392,13 +454,14 @@ class UnitTeamAssignmentService
 
     public function assignSlotPerson(Unit $targetUnit, string $toSlot, Unit $sourceUnitRef, string $fromSlot, User $actor): Unit
     {
-        return DB::transaction(function () use ($targetUnit, $toSlot, $sourceUnitRef, $fromSlot, $actor) {
-            $target = Unit::lockForUpdate()->findOrFail($targetUnit->id);
-            $source = Unit::lockForUpdate()->findOrFail($sourceUnitRef->id);
+        if ((int) $sourceUnitRef->id === (int) $targetUnit->id) {
+            throw new RuntimeException('Cannot assign crew from the same unit.');
+        }
 
-            if ($source->id === $target->id) {
-                throw new RuntimeException('Cannot assign crew from the same unit.');
-            }
+        return $this->dispatchTransaction(function () use ($targetUnit, $toSlot, $sourceUnitRef, $fromSlot, $actor) {
+            $units = $this->lockUnits([$targetUnit->id, $sourceUnitRef->id]);
+            $target = $units->get((int) $targetUnit->id);
+            $source = $units->get((int) $sourceUnitRef->id);
 
             $slotType = fn (string $slot) => str_starts_with($slot, 'driver_') ? 'driver' : 'crew_member';
             if ($slotType($fromSlot) !== $slotType($toSlot)) {
@@ -485,7 +548,11 @@ class UnitTeamAssignmentService
 
     public function returnSlotPerson(UnitCrewLoan $loan, User $actor): Unit
     {
-        return DB::transaction(function () use ($loan, $actor) {
+        return $this->dispatchTransaction(function () use ($loan, $actor) {
+            // Units first (a loan's units never change), then the loan row,
+            // re-read under the lock so a concurrent return is seen.
+            $seen = UnitCrewLoan::findOrFail($loan->id);
+            $units = $this->lockUnits([$seen->to_unit_id, $seen->from_unit_id]);
             $loan = UnitCrewLoan::lockForUpdate()->findOrFail($loan->id);
 
             if ($loan->returned_at) {
@@ -495,8 +562,8 @@ class UnitTeamAssignmentService
                 throw new RuntimeException('Use returnTeamLeader() for Team Leader loans.');
             }
 
-            $toUnit = Unit::lockForUpdate()->findOrFail($loan->to_unit_id);
-            $fromUnit = Unit::lockForUpdate()->findOrFail($loan->from_unit_id);
+            $toUnit = $units->get((int) $loan->to_unit_id);
+            $fromUnit = $units->get((int) $loan->from_unit_id);
 
             $this->assertUnitTeamIsMovable($toUnit, 'return this person from');
             $this->assertUnitTeamIsMovable($fromUnit, 'return this person to');
@@ -526,7 +593,7 @@ class UnitTeamAssignmentService
 
     public function removeTeamLeader(Unit $unit, User $actor): Unit
     {
-        return DB::transaction(function () use ($unit, $actor) {
+        return $this->dispatchTransaction(function () use ($unit, $actor) {
             $unit = Unit::lockForUpdate()->findOrFail($unit->id);
 
             if (! $unit->team_leader_id) {
@@ -571,7 +638,7 @@ class UnitTeamAssignmentService
             throw new RuntimeException('Invalid slot.');
         }
 
-        return DB::transaction(function () use ($unit, $slot, $actor) {
+        return $this->dispatchTransaction(function () use ($unit, $slot, $actor) {
             $unit = Unit::lockForUpdate()->findOrFail($unit->id);
 
             $this->assertUnitTeamIsMovable($unit, 'remove personnel from');
@@ -609,13 +676,14 @@ class UnitTeamAssignmentService
 
     public function transferTeam(Unit $sourceUnit, Unit $targetUnit, User $actor): Unit
     {
-        return DB::transaction(function () use ($sourceUnit, $targetUnit, $actor) {
-            $source = Unit::lockForUpdate()->findOrFail($sourceUnit->id);
-            $target = Unit::lockForUpdate()->findOrFail($targetUnit->id);
+        if ((int) $sourceUnit->id === (int) $targetUnit->id) {
+            throw new RuntimeException('Source and destination unit must be different.');
+        }
 
-            if ($source->id === $target->id) {
-                throw new RuntimeException('Source and destination unit must be different.');
-            }
+        return $this->dispatchTransaction(function () use ($sourceUnit, $targetUnit, $actor) {
+            $units = $this->lockUnits([$sourceUnit->id, $targetUnit->id]);
+            $source = $units->get((int) $sourceUnit->id);
+            $target = $units->get((int) $targetUnit->id);
 
             $this->assertUnitTeamIsMovable($source, 'transfer the team from');
             $this->assertUnitTeamIsMovable($target, 'transfer the team to');
@@ -699,7 +767,7 @@ class UnitTeamAssignmentService
             throw new RuntimeException('Invalid duty status.');
         }
 
-        DB::transaction(function () use ($teamLeader, $status, $actor) {
+        $this->dispatchTransaction(function () use ($teamLeader, $status, $actor) {
             $teamLeader = User::lockForUpdate()->findOrFail($teamLeader->id);
 
             if ($this->isBusy($teamLeader)) {
@@ -753,6 +821,51 @@ class UnitTeamAssignmentService
                     $unit->update(['team_leader_id' => null] + $unitUpdates);
                 });
         });
+    }
+
+    /**
+     * Runs one dispatcher team change in a transaction.
+     *
+     * Lock order, shared with owner home-unit writes (PersonnelService):
+     * units (ascending id, all up front via lockUnits) -> user accounts ->
+     * personnel records -> borrow records. Foreign-key checks on the unit
+     * and loan writes take their share locks on users and personnel after
+     * the unit locks, which keeps them in that order.
+     *
+     * A deadlock, serialization failure or lock timeout becomes a
+     * TeamAssignmentConflictException (409) instead of a raw database
+     * error, and audit entries the rolled-back work queued in memory are
+     * dropped.
+     */
+    protected function dispatchTransaction(callable $work): mixed
+    {
+        $checkpoint = AuditObserver::checkpoint();
+
+        try {
+            return DB::transaction($work);
+        } catch (Throwable $e) {
+            AuditObserver::restore($checkpoint);
+
+            if (! $e instanceof HomeUnitConflictException && HomeUnitConflictException::causedBy($e)) {
+                throw new TeamAssignmentConflictException();
+            }
+
+            throw $e;
+        }
+    }
+
+    /** Locks these units in ascending id order; 404s like findOrFail if one is gone. */
+    protected function lockUnits(array $ids): Collection
+    {
+        $units = Unit::lockInIdOrder($ids);
+
+        foreach (array_filter($ids) as $id) {
+            if (! $units->has((int) $id)) {
+                throw (new ModelNotFoundException())->setModel(Unit::class, [$id]);
+            }
+        }
+
+        return $units;
     }
 
     protected function seedOwner(Unit $unit, string $slot): ?int
@@ -821,6 +934,24 @@ class UnitTeamAssignmentService
         if ($state['reservation']) {
             throw new RuntimeException("Cannot {$actionDescription} {$unit->name} — it is reserved for booking {$state['reservation']->booking_code}. Team changes are unavailable while a unit is reserved.");
         }
+    }
+
+    protected function leaderElsewhereMessage(User $leader, Unit $current): string
+    {
+        $name = $leader->full_name ?: $leader->name;
+        $loan = UnitCrewLoan::with('fromUnit')
+            ->where('person_user_id', $leader->id)
+            ->where('to_slot', 'team_leader')
+            ->where('to_unit_id', $current->id)
+            ->whereNull('returned_at')
+            ->latest('borrowed_at')
+            ->first();
+        $how = $loan
+            ? "is on {$current->name}, borrowed from " . ($loan->fromUnit->name ?? 'another unit')
+            : "is currently leading {$current->name}";
+
+        return "{$name} {$how}. Changing their home unit here would take them off {$current->name}. "
+            . "Ask a dispatcher to return them in Units & Leaders first, or set their home unit to {$current->name}.";
     }
 
     protected function isBusy(User $teamLeader): bool

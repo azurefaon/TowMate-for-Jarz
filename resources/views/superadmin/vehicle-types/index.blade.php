@@ -3,383 +3,460 @@
 @section('title', 'Vehicle Types')
 
 @push('styles')
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="{{ asset('admin/css/vehicle-types.css') }}?v={{ filemtime(public_path('admin/css/vehicle-types.css')) }}">
+    {{-- Shared fleet page styles (header, table, menus, modals, form fields). --}}
+    <link rel="stylesheet" href="{{ asset('superadmin/css/truck-types.css') }}?v={{ filemtime(public_path('superadmin/css/truck-types.css')) }}">
+    <link rel="stylesheet" href="{{ asset('superadmin/css/vehicle-types.css') }}?v={{ filemtime(public_path('superadmin/css/vehicle-types.css')) }}">
 @endpush
 
+@php
+    $formFields = ['name', 'category', 'weight_kg', 'required_truck_type_id', 'description'];
+    $formErrorCount = collect($formFields)->filter(fn ($field) => $errors->has($field))->count();
+    $reopenModal = $formErrorCount > 0 ? old('_modal', 'add') : null;
+    $editVehicle = $reopenModal === 'edit' ? \App\Models\VehicleType::withCount('bookings')->find((int) old('_edit_id')) : null;
+    $formAction = $editVehicle ? route('superadmin.vehicle-types.update', $editVehicle->id) : route('superadmin.vehicle-types.store');
+
+    $truckLabel = fn ($type) => $type->name . ($type->class ? ' · ' . ucfirst($type->class) . ' class' : '');
+    $oldTruckId = (int) old('required_truck_type_id');
+    $extraTruck = $oldTruckId && ! $truckTypes->contains('id', $oldTruckId) ? \App\Models\TruckType::find($oldTruckId) : null;
+    $weightLabel = fn ($kg) => $kg !== null ? number_format((float) $kg) . ' kg' : 'Not set';
+    $weightValue = fn ($kg) => $kg !== null ? rtrim(rtrim(number_format((float) $kg, 2, '.', ''), '0'), '.') : '';
+@endphp
+
 @section('content')
-    <div class="vc-page" data-base-url="{{ url('/superadmin/vehicle-types') }}" data-categories-url="{{ url('/superadmin/vehicle-categories') }}">
-        <div class="page-top">
+    <div class="tt-page vt-page" id="vehicleTypesPage"
+        data-index-url="{{ route('superadmin.vehicle-types.index') }}"
+        data-store-url="{{ route('superadmin.vehicle-types.store') }}"
+        data-update-url="{{ route('superadmin.vehicle-types.update', '__ID__') }}"
+        data-toggle-url="{{ route('superadmin.vehicle-types.toggle', '__ID__') }}"
+        data-destroy-url="{{ route('superadmin.vehicle-types.destroy', '__ID__') }}"
+        data-reorder-url="{{ route('superadmin.vehicle-types.reorder') }}"
+        data-category-store-url="{{ route('superadmin.vehicle-categories.store') }}"
+        data-category-update-url="{{ route('superadmin.vehicle-categories.update', '__ID__') }}"
+        @if ($reopenModal) data-reopen="{{ $reopenModal }}" @endif>
+
+        <header class="tt-header">
             <div>
                 <h1>Vehicle Types</h1>
-                <p>Manage the vehicle types customers can select when booking.</p>
+                <p>Vehicles customers choose when booking, grouped by the truck type each one needs.</p>
             </div>
-        </div>
+            <div class="vt-header-actions">
+                <button type="button" class="tt-btn vt-btn-lg" data-open-categories aria-haspopup="dialog">Manage categories</button>
+                <button type="button" class="tt-btn tt-btn--primary" data-open-add aria-haspopup="dialog">
+                    <i data-lucide="plus" aria-hidden="true"></i>
+                    Add vehicle type
+                </button>
+            </div>
+        </header>
 
         @if (session('success'))
-            <div class="type-feedback type-feedback--success" id="vcSuccessAlert">{{ session('success') }}</div>
-        @endif
-        @if (session('error'))
-            <div class="type-feedback type-feedback--error" id="vcErrorAlert">{{ session('error') }}</div>
-        @endif
-
-        @include('superadmin.fleet._tabs')
-
-        <form method="GET" id="vcFilterForm" class="vc-toolbar">
-            <div class="search-box">
-                <i data-lucide="search"></i>
-                <input type="text" name="search" id="vcSearch" value="{{ request('search') }}" placeholder="Search vehicle types...">
+            <div class="tt-flash tt-flash--success" role="status">
+                <i data-lucide="circle-check" aria-hidden="true"></i>
+                <span>{{ session('success') }}</span>
             </div>
+        @endif
 
-            <select name="category" id="vcCategoryFilter" data-custom>
-                <option value="">All Categories</option>
-                @foreach ($vehicleCategories as $cat)
-                    <option value="{{ $cat->slug }}" {{ request('category') === $cat->slug ? 'selected' : '' }}>{{ $cat->name }}</option>
-                @endforeach
-            </select>
+        @if (session('error'))
+            <div class="tt-flash tt-flash--error" role="alert">
+                <i data-lucide="circle-alert" aria-hidden="true"></i>
+                <span>{{ session('error') }}</span>
+            </div>
+        @endif
 
-            <select name="status" id="vcStatusFilter" data-custom>
-                <option value="">All Statuses</option>
-                <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
-                <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
-            </select>
+        <form class="tt-filters" id="vehicleFilters" method="GET" action="{{ route('superadmin.vehicle-types.index') }}" role="search">
+            <label class="tt-search">
+                <span class="tt-sr">Search vehicle types</span>
+                <i data-lucide="search" aria-hidden="true"></i>
+                <input type="search" name="search" value="{{ $filters['search'] }}" placeholder="Search vehicle type" autocomplete="off">
+            </label>
 
-            @if (request()->hasAny(['search', 'category', 'status']))
-                <a href="{{ route('superadmin.vehicle-types.index') }}" class="vc-filter-reset">Reset</a>
-            @endif
+            <label class="tt-select vt-select">
+                <span class="tt-sr">Category</span>
+                <select name="category">
+                    <option value="">All categories</option>
+                    @foreach ($vehicleCategories as $category)
+                        <option value="{{ $category->slug }}" @selected($filters['category'] === $category->slug)>{{ $category->name }}</option>
+                    @endforeach
+                </select>
+                <i data-lucide="chevron-down" aria-hidden="true"></i>
+            </label>
+
+            <label class="tt-select vt-select">
+                <span class="tt-sr">Status</span>
+                <select name="status">
+                    <option value="" @selected($filters['status'] === '')>All statuses</option>
+                    <option value="active" @selected($filters['status'] === 'active')>Active</option>
+                    <option value="inactive" @selected($filters['status'] === 'inactive')>Inactive</option>
+                </select>
+                <i data-lucide="chevron-down" aria-hidden="true"></i>
+            </label>
+
+            <noscript><button type="submit" class="tt-btn">Apply</button></noscript>
         </form>
 
-        <p class="vc-order-hint" id="vcOrderBar">
-            <span>Drag vehicles to reorder them within their category.</span>
-            <span class="vc-form-hint" id="vcOrderFeedback"></span>
-        </p>
-
-        <div class="table-card">
-            @if ($hasResults)
-                <div class="vc-groups" id="vcGroups">
-                    @foreach ($mainGroups as $group)
-                        @php($vehicleTotal = collect($group['categories'])->sum(fn ($catGroup) => $catGroup['vehicles']->count()))
-                        <details class="vc-group-trucktype" data-truck-type-id="{{ $group['truckType']->id }}" data-accordion-group="vc-main-trucktype" {{ $group['open'] ? 'open' : '' }}>
-                            <summary>
-                                <span>{{ $group['truckType']->name }}</span>
-                                <div class="vc-header-actions">
-                                    @if ($group['truckType']->id)
-                                        <button type="button" class="vc-mini-btn js-vc-add-category-btn" data-truck-type-name="{{ $group['truckType']->name }}">
-                                            <i data-lucide="plus"></i>
-                                            Add Category
-                                        </button>
-
-                                        <div class="vc-order-mini-toggle">
-                                            <button type="button" class="vc-mini-btn js-vc-edit-order-btn">
-                                                <i data-lucide="arrow-up-down"></i>
-                                                Edit Order
-                                            </button>
-                                            <div class="vc-order-mini-actions js-vc-order-actions">
-                                                <button type="button" class="vc-btn-cancel vc-btn-cancel--sm js-vc-order-cancel">Cancel</button>
-                                                <button type="button" class="vc-btn-save vc-btn-save--sm js-vc-order-save">Save Order</button>
-                                            </div>
-                                        </div>
-                                    @endif
-                                    <span class="vc-count">{{ $vehicleTotal }} vehicle{{ $vehicleTotal === 1 ? '' : 's' }}</span>
-                                </div>
-                            </summary>
-                            @if (empty($group['categories']))
-                                <div class="vc-group-empty">
-                                    <span>No categories yet for this truck type.</span>
-                                </div>
-                            @else
-                            <div class="vc-group-categories">
-                                @foreach ($group['categories'] as $catGroup)
-                                    <details class="vc-group-category" data-accordion-group="vc-main-category-{{ $group['truckType']->id }}" {{ $catGroup['open'] ? 'open' : '' }}>
-                                        <summary data-slug="{{ $catGroup['category']->slug }}">
-                                            <span>{{ $catGroup['category']->name }}</span>
-                                            <div class="vc-header-actions">
-                                                @if ($group['truckType']->id && $catGroup['category']->slug)
-                                                    <button type="button" class="vc-mini-btn js-vc-add-vehicle-btn"
-                                                        data-category-slug="{{ $catGroup['category']->slug }}"
-                                                        data-truck-type-id="{{ $group['truckType']->id }}">
-                                                        <i data-lucide="plus"></i>
-                                                        Add Vehicle Type
-                                                    </button>
-                                                @endif
-                                                <span class="vc-count">{{ $catGroup['vehicles']->count() }}</span>
-                                            </div>
-                                        </summary>
-                                        <div class="vc-vehicle-list"
-                                            data-truck-type-id="{{ $group['truckType']->id }}"
-                                            data-category="{{ $catGroup['category']->slug }}">
-                                            @foreach ($catGroup['vehicles'] as $type)
-                                                <div class="vc-vehicle-row" data-id="{{ $type->id }}" data-status="{{ $type->status }}">
-                                                    @if ($type->status === 'active')
-                                                        <span class="vc-drag-handle" aria-hidden="true"></span>
-                                                    @endif
-                                                    <div class="vc-vehicle-main">
-                                                        <span class="cell-main">{{ $type->name }}</span>
-                                                        @if ($type->description)
-                                                            <span class="cell-sub">{{ $type->description }}</span>
-                                                        @endif
-                                                    </div>
-
-                                                    <div class="vc-vehicle-meta">
-                                                        @if ($type->status === 'active' && isset($positionByVehicleId[$type->id]))
-                                                            <span class="cell-sub">{{ $positionByVehicleId[$type->id] }} of {{ $activeCount }}</span>
-                                                        @else
-                                                            <span class="not-assigned">Not shown to customers</span>
-                                                        @endif
-                                                        <span class="status-text status-{{ $type->status }}">{{ ucfirst($type->status) }}</span>
-                                                    </div>
-
-                                                    <div class="u-menu">
-                                                        <button type="button" class="u-menu-trigger" aria-haspopup="menu"
-                                                            aria-expanded="false" aria-label="Actions for {{ $type->name }}">
-                                                            <i data-lucide="more-vertical"></i>
-                                                        </button>
-
-                                                        <div class="u-menu-dropdown" role="menu">
-                                                            <button type="button" class="u-menu-item js-vc-edit" role="menuitem"
-                                                                data-id="{{ $type->id }}"
-                                                                data-name="{{ $type->name }}"
-                                                                data-category="{{ $type->category }}"
-                                                                data-weight="{{ $type->weight_kg }}"
-                                                                data-description="{{ $type->description }}"
-                                                                data-required-truck-type-id="{{ $type->required_truck_type_id }}">
-                                                                <i data-lucide="pencil"></i>
-                                                                <span>Edit Vehicle Type</span>
-                                                            </button>
-
-                                                            <form method="POST" class="u-menu-form"
-                                                                action="{{ route('superadmin.vehicle-types.toggle', $type->id) }}">
-                                                                @csrf
-                                                                @method('PATCH')
-                                                                @if ($type->status === 'active')
-                                                                    <button type="submit" class="u-menu-item u-menu-item--danger" role="menuitem">
-                                                                        <i data-lucide="ban"></i>
-                                                                        <span>Disable</span>
-                                                                    </button>
-                                                                @else
-                                                                    <button type="submit" class="u-menu-item u-menu-item--positive" role="menuitem">
-                                                                        <i data-lucide="check"></i>
-                                                                        <span>Enable</span>
-                                                                    </button>
-                                                                @endif
-                                                            </form>
-
-                                                            @php($vcBlockReasons = $type->bookings_count > 0 ? ['referenced by bookings'] : [])
-                                                            @php($vcCanDelete = empty($vcBlockReasons))
-                                                            <div class="u-menu-divider"></div>
-                                                            <button type="button" class="u-menu-item u-menu-item--danger js-vc-delete" role="menuitem"
-                                                                data-id="{{ $type->id }}"
-                                                                data-name="{{ $type->name }}"
-                                                                @disabled(! $vcCanDelete)
-                                                                @unless ($vcCanDelete) title="Cannot delete: {{ implode(' and ', $vcBlockReasons) }}" @endunless>
-                                                                <i data-lucide="trash-2"></i>
-                                                                <span>Delete</span>
-                                                            </button>
-                                                            @unless ($vcCanDelete)
-                                                                <div class="u-menu-hint">Cannot delete: {{ implode(' and ', $vcBlockReasons) }}</div>
-                                                            @endunless
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    </details>
-                                @endforeach
-                            </div>
-                            @endif
-                        </details>
-                    @endforeach
+        <div id="vehicleResults" class="vt-results" aria-live="polite">
+            @if ($shownCount === 0 && ($hasFilters || $totalCount > 0))
+                <div class="tt-card tt-state">
+                    <span class="tt-state-icon"><i data-lucide="search-x" aria-hidden="true"></i></span>
+                    <p class="tt-state-title">No vehicle types match these filters</p>
+                    <p class="tt-state-text">Try a different name, category, or status.</p>
+                    <a href="{{ route('superadmin.vehicle-types.index') }}" class="tt-btn" data-clear-filters>Clear filters</a>
                 </div>
             @else
-                <div class="empty-row">
-                    @if (request()->hasAny(['search', 'category', 'status']))
-                        <i data-lucide="search-x" class="empty-state-icon"></i>
-                        <span class="empty-row-title">No vehicle types found</span>
-                        <span class="empty-row-hint">Try adjusting your search or filters.</span>
-                    @else
-                        <i data-lucide="package-open" class="empty-state-icon"></i>
-                        <span class="empty-row-title">No vehicle types yet</span>
-                        <span class="empty-row-hint">Add a vehicle type to make it available for customer booking.</span>
-                    @endif
-                </div>
+                <p class="vt-summary">
+                    Showing {{ number_format($shownCount) }} of {{ number_format($totalCount) }} {{ $totalCount === 1 ? 'vehicle type' : 'vehicle types' }}.
+                    Order is set within each category of a truck type.
+                </p>
+
+                @if ($totalCount === 0)
+                    <div class="tt-card tt-state vt-first-run">
+                        <span class="tt-state-icon"><i data-lucide="car-front" aria-hidden="true"></i></span>
+                        <p class="tt-state-title">No vehicle types yet</p>
+                        <p class="tt-state-text">Add the vehicles customers can choose when they book a tow.</p>
+                        <button type="button" class="tt-btn tt-btn--primary" data-open-add>
+                            <i data-lucide="plus" aria-hidden="true"></i>
+                            Add vehicle type
+                        </button>
+                    </div>
+                @endif
+
+                @foreach ($mainGroups as $group)
+                    @php
+                        $truck = $group['truckType'];
+                        $groupId = 'vtGroup' . ($truck->id ?? 0);
+                        $meta = collect([
+                            $truck ? ($truck->class ? ucfirst($truck->class) . ' class' : 'Class not set') : null,
+                            $group['count'] . ' ' . ($group['count'] === 1 ? 'vehicle type' : 'vehicle types'),
+                        ])->filter()->join(' · ');
+                    @endphp
+                    <section class="tt-card vt-card" id="{{ $groupId }}" aria-labelledby="{{ $groupId }}Title" data-group
+                        data-truck-type-id="{{ $truck->id ?? '' }}">
+                        <header class="vt-card-head">
+                            <h2 id="{{ $groupId }}Title">
+                                {{ $truck->name ?? 'No truck type' }}
+                                <span class="vt-card-meta">{{ $meta }}@if ($truck && $truck->status !== 'active') · <span class="vt-warn">Truck type inactive</span>@endif</span>
+                            </h2>
+
+                            @if ($group['reorderable'])
+                                <div class="vt-order-tools">
+                                    <button type="button" class="tt-btn tt-btn--sm" data-edit-order
+                                        @if ($hasFilters) aria-disabled="true" aria-describedby="{{ $groupId }}OrderWhy" @endif>
+                                        <i data-lucide="arrow-up-down" aria-hidden="true"></i>
+                                        Edit order
+                                    </button>
+                                    @if ($hasFilters)
+                                        <span class="tt-sr" id="{{ $groupId }}OrderWhy">Clear search and filters to edit the order, so every vehicle in each category is included.</span>
+                                    @endif
+                                    <button type="button" class="tt-btn tt-btn--sm" data-order-cancel hidden>Cancel</button>
+                                    <button type="button" class="tt-btn tt-btn--sm tt-btn--primary" data-order-save hidden>Save order</button>
+                                </div>
+                            @endif
+                        </header>
+
+                        <p class="vt-order-feedback" data-order-feedback role="status" hidden></p>
+
+                        @if ($group['categories']->isEmpty())
+                            <p class="vt-empty-group">No vehicle types use this truck type yet.</p>
+                        @else
+                            <table class="tt-table vt-table">
+                                <caption class="tt-sr">Vehicle types that need {{ $truck->name ?? 'no truck type' }}</caption>
+                                <colgroup>
+                                    <col class="vt-col-order">
+                                    <col class="vt-col-name">
+                                    <col class="vt-col-weight">
+                                    <col class="vt-col-status">
+                                    <col class="vt-col-actions">
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Order</th>
+                                        <th scope="col">Vehicle type</th>
+                                        <th scope="col">Weight</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col"><span class="tt-sr">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                @foreach ($group['categories'] as $categoryGroup)
+                                    <tbody data-category-group data-category="{{ $categoryGroup['slug'] }}">
+                                        <tr class="vt-category-row">
+                                            <th scope="rowgroup" colspan="5">
+                                                {{ $categoryGroup['name'] }}
+                                                <span class="vt-card-meta">{{ $categoryGroup['vehicles']->count() }} {{ $categoryGroup['vehicles']->count() === 1 ? 'vehicle type' : 'vehicle types' }}</span>
+                                            </th>
+                                        </tr>
+                                        @foreach ($categoryGroup['vehicles'] as $vehicle)
+                                            @php
+                                                $isActive = $vehicle->status === 'active';
+                                                $vehicleTruck = $vehicle->requiredTruckType;
+                                            @endphp
+                                            <tr class="vt-row" data-vehicle-id="{{ $vehicle->id }}" data-status="{{ $vehicle->status }}">
+                                                <td class="vt-order">
+                                                    @if ($isActive)
+                                                        <span data-rank>{{ $vehicle->group_rank }}</span>
+                                                    @else
+                                                        <span class="tt-muted">Hidden</span>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    <span class="tt-main" data-vehicle-name>{{ $vehicle->name }}</span>
+                                                    @if ($vehicle->description)
+                                                        <span class="tt-sub">{{ $vehicle->description }}</span>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    <span @class(['tt-muted' => $vehicle->weight_kg === null])>{{ $weightLabel($vehicle->weight_kg) }}</span>
+                                                </td>
+                                                <td>
+                                                    <span class="tt-badge {{ $isActive ? 'is-active' : 'is-inactive' }}">{{ $isActive ? 'Active' : 'Inactive' }}</span>
+                                                </td>
+                                                <td class="vt-actions">
+                                                    <button type="button" class="tt-btn tt-btn--sm" data-edit aria-haspopup="dialog"
+                                                        data-id="{{ $vehicle->id }}"
+                                                        data-name="{{ $vehicle->name }}"
+                                                        data-category="{{ $vehicle->category }}"
+                                                        data-category-name="{{ $categoryGroup['name'] }}"
+                                                        data-weight="{{ $weightValue($vehicle->weight_kg) }}"
+                                                        data-description="{{ $vehicle->description }}"
+                                                        data-truck-id="{{ $vehicle->required_truck_type_id }}"
+                                                        data-truck-label="{{ $vehicleTruck ? $truckLabel($vehicleTruck) . ($vehicleTruck->status !== 'active' ? ' (inactive)' : '') : '' }}"
+                                                        data-truck-name="{{ $vehicleTruck->name ?? '' }}"
+                                                        data-status="{{ $vehicle->status }}"
+                                                        data-rank="{{ $vehicle->group_rank }}"
+                                                        data-bookings="{{ $vehicle->bookings_count }}"
+                                                        aria-label="Edit {{ $vehicle->name }}">Edit</button>
+                                                    @if ($isActive && $group['reorderable'] && $categoryGroup['slug'] !== null)
+                                                        <span class="vt-move" data-move-controls hidden>
+                                                            <button type="button" class="tt-icon-btn" data-move="up" aria-label="Move {{ $vehicle->name }} up">
+                                                                <i data-lucide="arrow-up" aria-hidden="true"></i>
+                                                            </button>
+                                                            <button type="button" class="tt-icon-btn" data-move="down" aria-label="Move {{ $vehicle->name }} down">
+                                                                <i data-lucide="arrow-down" aria-hidden="true"></i>
+                                                            </button>
+                                                        </span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                @endforeach
+                            </table>
+                        @endif
+                    </section>
+                @endforeach
+
+                <p class="vt-footnote">Inactive vehicle types are hidden from customers and can't be reordered. Enable, disable and delete are inside Edit.</p>
             @endif
         </div>
+    </div>
 
-    <div class="vc-modal" id="addModal">
-        <div class="vc-modal-card">
-            <div class="vc-modal-header">
+    {{-- Add / edit vehicle type --}}
+    <div class="tt-modal" id="vehicleModal" hidden>
+        <div class="tt-modal-backdrop" data-close-modal></div>
+        <div class="tt-dialog vt-dialog--form" role="dialog" aria-modal="true" aria-labelledby="vtModalTitle" aria-describedby="vtModalDesc">
+            <header class="tt-dialog-head">
                 <div>
-                    <h2>Add Vehicle Type</h2>
-                    <p>Create a vehicle option customers can select when booking.</p>
+                    <h2 id="vtModalTitle">{{ $editVehicle ? 'Edit vehicle type' : 'Add vehicle type' }}</h2>
+                    <p id="vtModalDesc">{{ $editVehicle ? $editVehicle->name : 'New vehicle types are shown to customers last in their category.' }}</p>
                 </div>
-                <button type="button" class="vc-modal-close" data-close-modal="addModal" aria-label="Close">
-                    <i data-lucide="x"></i>
+                <button type="button" class="tt-icon-btn tt-dialog-close" data-close-modal aria-label="Close">
+                    <i data-lucide="x" aria-hidden="true"></i>
                 </button>
+            </header>
+
+            <div class="tt-dialog-body">
+                <form method="POST" action="{{ $formAction }}" id="vehicleForm" novalidate>
+                    @csrf
+                    <input type="hidden" name="_method" value="PUT" @disabled(! $editVehicle)>
+                    <input type="hidden" name="_modal" value="{{ $editVehicle ? 'edit' : 'add' }}">
+                    <input type="hidden" name="_edit_id" value="{{ $editVehicle?->id }}">
+
+                    <div class="tt-form-alert" role="alert" data-form-alert @if ($formErrorCount === 0) hidden @endif>
+                        <i data-lucide="circle-alert" aria-hidden="true"></i>
+                        <span>
+                            @if ($formErrorCount === 1)
+                                Check the highlighted field. Everything else you entered is kept.
+                            @else
+                                Check the {{ $formErrorCount }} highlighted fields. Everything else you entered is kept.
+                            @endif
+                        </span>
+                    </div>
+
+                    <section class="tt-section" aria-labelledby="vtSectionVehicle">
+                        <h3 id="vtSectionVehicle">Vehicle</h3>
+
+                        <div class="tt-field @error('name') has-error @enderror">
+                            <label for="vtName">Name <span class="tt-req" aria-hidden="true">*</span></label>
+                            <input type="text" id="vtName" name="name" maxlength="100" required value="{{ old('name') }}" placeholder="e.g. Sedan"
+                                @error('name') aria-invalid="true" aria-describedby="vtNameError" @enderror>
+                            @error('name')
+                                <p class="tt-error" id="vtNameError"><i data-lucide="circle-alert" aria-hidden="true"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div class="tt-grid vt-field-gap">
+                            <div class="tt-field @error('category') has-error @enderror">
+                                <label for="vtCategory">Category <span class="tt-req" aria-hidden="true">*</span></label>
+                                <div class="tt-select vt-field-select">
+                                    <select id="vtCategory" name="category" required
+                                        @error('category') aria-invalid="true" aria-describedby="vtCategoryError" @enderror>
+                                        <option value="">Choose a category</option>
+                                        @foreach ($vehicleCategories as $category)
+                                            <option value="{{ $category->slug }}" @selected(old('category') === $category->slug)>{{ $category->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <i data-lucide="chevron-down" aria-hidden="true"></i>
+                                </div>
+                                @error('category')
+                                    <p class="tt-error" id="vtCategoryError"><i data-lucide="circle-alert" aria-hidden="true"></i>{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div class="tt-field @error('weight_kg') has-error @enderror">
+                                <label for="vtWeight">Weight (kg) <span class="tt-optional">(optional)</span></label>
+                                <input type="text" id="vtWeight" name="weight_kg" inputmode="decimal" value="{{ old('weight_kg') }}" placeholder="e.g. 1,300"
+                                    @error('weight_kg') aria-invalid="true" aria-describedby="vtWeightError" @enderror>
+                                @error('weight_kg')
+                                    <p class="tt-error" id="vtWeightError"><i data-lucide="circle-alert" aria-hidden="true"></i>{{ $message }}</p>
+                                @enderror
+                            </div>
+                        </div>
+
+                        <div class="tt-field @error('description') has-error @enderror">
+                            <label for="vtDescription">Description <span class="tt-optional">(optional)</span></label>
+                            <input type="text" id="vtDescription" name="description" maxlength="500" value="{{ old('description') }}" placeholder="e.g. Includes crossovers"
+                                aria-describedby="vtDescriptionHelp @error('description') vtDescriptionError @enderror"
+                                @error('description') aria-invalid="true" @enderror>
+                            <p class="vt-hint" id="vtDescriptionHelp">Customers see this under the name when booking.</p>
+                            @error('description')
+                                <p class="tt-error" id="vtDescriptionError"><i data-lucide="circle-alert" aria-hidden="true"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </section>
+
+                    <section class="tt-section" aria-labelledby="vtSectionBooking">
+                        <h3 id="vtSectionBooking">Booking</h3>
+                        <div class="tt-field @error('required_truck_type_id') has-error @enderror">
+                            <label for="vtTruck">Required truck type <span class="tt-req" aria-hidden="true">*</span></label>
+                            <p class="tt-help" id="vtTruckHelp">Bookings for this vehicle use this truck type for pricing and truck matching.</p>
+                            <div class="tt-select vt-field-select">
+                                <select id="vtTruck" name="required_truck_type_id" required
+                                    aria-describedby="vtTruckHelp @error('required_truck_type_id') vtTruckError @enderror"
+                                    @error('required_truck_type_id') aria-invalid="true" @enderror>
+                                    <option value="">Choose a truck type</option>
+                                    @foreach ($truckTypes as $type)
+                                        <option value="{{ $type->id }}" @selected($oldTruckId === $type->id)>{{ $truckLabel($type) }}</option>
+                                    @endforeach
+                                    @if ($extraTruck)
+                                        <option value="{{ $extraTruck->id }}" selected data-extra>{{ $truckLabel($extraTruck) }} (inactive)</option>
+                                    @endif
+                                </select>
+                                <i data-lucide="chevron-down" aria-hidden="true"></i>
+                            </div>
+                            @error('required_truck_type_id')
+                                <p class="tt-error" id="vtTruckError"><i data-lucide="circle-alert" aria-hidden="true"></i>{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </section>
+                </form>
+
+                {{-- Edit only: status and delete stay apart from the details form. --}}
+                <section class="tt-section vt-manage" aria-labelledby="vtSectionStatus" data-edit-only @if (! $editVehicle) hidden @endif>
+                    <h3 id="vtSectionStatus">Status</h3>
+                    <div class="vt-manage-row">
+                        <div>
+                            <span class="tt-badge" data-status-badge></span>
+                            <p class="vt-manage-text" data-status-text></p>
+                        </div>
+                        <button type="button" class="tt-btn tt-btn--sm" data-status-action></button>
+                    </div>
+                    <div class="vt-manage-row">
+                        <div>
+                            <p class="vt-manage-title">Delete vehicle type</p>
+                            <p class="vt-manage-text" id="vtDeleteText" data-delete-text>Not possible once bookings use it.</p>
+                        </div>
+                        <button type="button" class="tt-btn tt-btn--sm vt-btn-danger-outline" data-delete-action aria-describedby="vtDeleteText">Delete</button>
+                    </div>
+                </section>
             </div>
 
-            <form method="POST" action="{{ route('superadmin.vehicle-types.store') }}" class="vc-modal-form">
+            <footer class="tt-dialog-foot">
+                <button type="button" class="tt-btn" data-close-modal>Cancel</button>
+                <button type="submit" form="vehicleForm" class="tt-btn tt-btn--primary" data-submit-label>{{ $editVehicle ? 'Save' : 'Add' }}</button>
+            </footer>
+        </div>
+    </div>
+
+    {{-- Manage categories --}}
+    <div class="tt-modal" id="categoriesModal" hidden>
+        <div class="tt-modal-backdrop" data-close-modal></div>
+        <div class="tt-dialog vt-dialog--categories" role="dialog" aria-modal="true" aria-labelledby="vtCategoriesTitle" aria-describedby="vtCategoriesDesc">
+            <header class="tt-dialog-head">
+                <div>
+                    <h2 id="vtCategoriesTitle">Vehicle categories</h2>
+                    <p id="vtCategoriesDesc">Categories are shared by all truck types.</p>
+                </div>
+                <button type="button" class="tt-icon-btn tt-dialog-close" data-close-modal aria-label="Close">
+                    <i data-lucide="x" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div class="tt-dialog-body vt-categories-body">
+                <ul class="vt-category-list" data-category-list>
+                    @foreach ($vehicleCategories as $category)
+                        <li class="vt-category-item" data-category-id="{{ $category->id }}">
+                            <div class="vt-category-view">
+                                <span class="vt-category-name" data-category-name>{{ $category->name }}</span>
+                                <span class="vt-card-meta">{{ $category->vehicle_types_count }} {{ $category->vehicle_types_count === 1 ? 'vehicle type' : 'vehicle types' }}</span>
+                                <button type="button" class="tt-btn tt-btn--sm" data-category-edit aria-label="Rename {{ $category->name }}">Edit</button>
+                            </div>
+                            <form class="vt-category-form" data-category-rename hidden novalidate>
+                                <label class="tt-sr" for="vtCatRename{{ $category->id }}">New name for {{ $category->name }}</label>
+                                <input type="text" id="vtCatRename{{ $category->id }}" name="name" maxlength="100" value="{{ $category->name }}" required
+                                    aria-describedby="vtCatRename{{ $category->id }}Error">
+                                <button type="button" class="tt-btn tt-btn--sm" data-category-cancel>Cancel</button>
+                                <button type="submit" class="tt-btn tt-btn--sm tt-btn--primary">Save</button>
+                                <p class="tt-error" id="vtCatRename{{ $category->id }}Error" data-category-error hidden></p>
+                            </form>
+                        </li>
+                    @endforeach
+                </ul>
+
+                <form class="tt-field vt-new-category" data-category-add novalidate>
+                    <label for="vtNewCategory">New category</label>
+                    <div class="vt-category-form">
+                        <input type="text" id="vtNewCategory" name="name" maxlength="100" placeholder="e.g. Off-road" required aria-describedby="vtNewCategoryError">
+                        <button type="submit" class="tt-btn tt-btn--sm">Add</button>
+                    </div>
+                    <p class="tt-error" id="vtNewCategoryError" data-category-error hidden></p>
+                </form>
+                <p class="vt-hint">Categories can be renamed but not removed here, so existing vehicle types and bookings keep theirs.</p>
+            </div>
+            <footer class="tt-dialog-foot">
+                <button type="button" class="tt-btn tt-btn--primary" data-categories-done>Done</button>
+            </footer>
+        </div>
+    </div>
+
+    {{-- Confirm enable / disable / delete --}}
+    <div class="tt-modal" id="vehicleConfirm" hidden>
+        <div class="tt-modal-backdrop" data-close-modal></div>
+        <div class="tt-dialog tt-dialog--confirm" role="alertdialog" aria-modal="true" aria-labelledby="vtConfirmTitle" aria-describedby="vtConfirmText">
+            <form method="POST" id="vehicleConfirmForm">
                 @csrf
-                <div class="vc-form-group">
-                    <label for="addVcName">Vehicle name<span class="vc-required" aria-hidden="true">*</span></label>
-                    <input type="text" name="name" id="addVcName" required placeholder="Sedan, Motorcycle, Van...">
-                </div>
-
-                <div class="vc-form-row">
-                    <div class="vc-form-group">
-                        <label for="addVcCategory">Category<span class="vc-required" aria-hidden="true">*</span></label>
-                        <select name="category" id="addVcCategory" required>
-                            <option value="">Select category</option>
-                            @foreach ($vehicleCategories as $cat)
-                                <option value="{{ $cat->slug }}">{{ $cat->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="vc-form-group">
-                        <label for="addVcWeight">Weight (kg) <span>(optional)</span></label>
-                        <input type="number" name="weight_kg" id="addVcWeight" min="0" step="1" placeholder="e.g. 4500">
+                <input type="hidden" name="_method" value="PATCH">
+                <div class="tt-dialog-head">
+                    <div>
+                        <h2 id="vtConfirmTitle"></h2>
+                        <p id="vtConfirmText"></p>
                     </div>
                 </div>
-
-                <div class="vc-form-group">
-                    <label for="addVcDescription">Description <span>(optional)</span></label>
-                    <textarea name="description" id="addVcDescription" placeholder="Short note about this vehicle type"></textarea>
-                </div>
-
-                <div class="vc-form-group">
-                    <label for="addVcRequiredTruckType">Required Truck Type<span class="vc-required" aria-hidden="true">*</span></label>
-                    <span class="vc-form-hint">The one Truck Type every booking with this Vehicle Type must use for pricing and unit eligibility.</span>
-                    <select name="required_truck_type_id" id="addVcRequiredTruckType" required>
-                        <option value="">Select required truck type</option>
-                        @foreach ($truckTypes as $truck)
-                            <option value="{{ $truck->id }}">{{ $truck->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="vc-modal-footer">
-                    <button type="button" class="vc-btn-cancel" data-close-modal="addModal">Cancel</button>
-                    <button type="submit" class="vc-btn-save">
-                        <i data-lucide="plus"></i>
-                        Add Vehicle Type
-                    </button>
-                </div>
+                <footer class="tt-dialog-foot">
+                    <button type="button" class="tt-btn" data-close-modal>Cancel</button>
+                    <button type="submit" class="tt-btn tt-btn--primary" data-confirm-submit></button>
+                </footer>
             </form>
         </div>
-    </div>
-
-    <div class="vc-modal" id="editModal">
-        <div class="vc-modal-card">
-            <div class="vc-modal-header">
-                <div>
-                    <h2>Edit Vehicle Type</h2>
-                    <p>Update vehicle details and required truck type.</p>
-                </div>
-                <button type="button" class="vc-modal-close" data-close-modal="editModal" aria-label="Close">
-                    <i data-lucide="x"></i>
-                </button>
-            </div>
-
-            <form method="POST" id="editVcForm" class="vc-modal-form">
-                @csrf
-                @method('PUT')
-                <div class="vc-form-group">
-                    <label for="editVcName">Vehicle name<span class="vc-required" aria-hidden="true">*</span></label>
-                    <input type="text" name="name" id="editVcName" required>
-                </div>
-
-                <div class="vc-form-row">
-                    <div class="vc-form-group">
-                        <label for="editVcCategory">Category<span class="vc-required" aria-hidden="true">*</span></label>
-                        <select name="category" id="editVcCategory" required>
-                            @foreach ($vehicleCategories as $cat)
-                                <option value="{{ $cat->slug }}">{{ $cat->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="vc-form-group">
-                        <label for="editVcWeight">Weight (kg) <span>(optional)</span></label>
-                        <input type="number" name="weight_kg" id="editVcWeight" min="0" step="1">
-                    </div>
-                </div>
-
-                <div class="vc-form-group">
-                    <label for="editVcDescription">Description <span>(optional)</span></label>
-                    <textarea name="description" id="editVcDescription"></textarea>
-                </div>
-
-                <div class="vc-form-group">
-                    <label for="editVcRequiredTruckType">Required Truck Type<span class="vc-required" aria-hidden="true">*</span></label>
-                    <span class="vc-form-hint">The one Truck Type every booking with this Vehicle Type must use for pricing and unit eligibility.</span>
-                    <select name="required_truck_type_id" id="editVcRequiredTruckType" required>
-                        <option value="">Select required truck type</option>
-                        @foreach ($truckTypes as $truck)
-                            <option value="{{ $truck->id }}">{{ $truck->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="vc-modal-footer">
-                    <button type="button" class="vc-btn-cancel" data-close-modal="editModal">Cancel</button>
-                    <button type="submit" class="vc-btn-save">Save Changes</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="vc-modal vc-confirm-modal" id="deleteModal">
-        <div class="vc-modal-card">
-            <p class="vc-confirm-title">Delete Vehicle Type</p>
-            <p class="vc-confirm-text" id="deleteVcText"></p>
-
-            <form method="POST" id="deleteVcForm" class="vc-modal-form">
-                @csrf
-                @method('DELETE')
-                <div class="vc-confirm-actions">
-                    <button type="button" class="vc-btn-cancel" data-close-modal="deleteModal">Cancel</button>
-                    <button type="submit" class="vc-btn-save vc-btn-save--danger">Delete</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="vc-modal vc-modal--sm" id="addCategoryModal">
-        <div class="vc-modal-card">
-            <div class="vc-modal-header">
-                <div>
-                    <h2 id="addCategoryModalTitle">Add Category</h2>
-                </div>
-                <button type="button" class="vc-modal-close" data-close-modal="addCategoryModal" aria-label="Close">
-                    <i data-lucide="x"></i>
-                </button>
-            </div>
-
-            <div class="vc-form-group">
-                <label for="addCategoryName">Category name<span class="vc-required" aria-hidden="true">*</span></label>
-                <input type="text" id="addCategoryName" placeholder="e.g. Off-Road">
-            </div>
-            <span class="vc-form-hint" id="addCategoryFeedback"></span>
-
-            <div class="vc-modal-footer">
-                <button type="button" class="vc-btn-cancel" data-close-modal="addCategoryModal">Close</button>
-                <button type="button" class="vc-btn-save" id="addCategorySaveBtn">Save</button>
-            </div>
-        </div>
-    </div>
     </div>
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('admin/js/vehicle-types.js') }}?v={{ filemtime(public_path('admin/js/vehicle-types.js')) }}" defer></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            ['vcSuccessAlert', 'vcErrorAlert'].forEach((id) => {
-                const alertEl = document.getElementById(id);
-                if (!alertEl) return;
-                setTimeout(() => {
-                    alertEl.classList.add('fade-out');
-                    setTimeout(() => alertEl.remove(), 300);
-                }, 3500);
-            });
-        });
-    </script>
+    <script src="{{ asset('superadmin/js/vehicle-types.js') }}?v={{ filemtime(public_path('superadmin/js/vehicle-types.js')) }}" defer></script>
 @endpush

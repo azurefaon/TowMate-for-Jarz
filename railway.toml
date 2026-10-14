@@ -2,9 +2,12 @@
 builder = "nixpacks"
 
 [deploy]
-# Runs before the new version goes live.
-# Ensures the DB schema is up to date and the Super Admin account exists.
-releaseCommand = "php artisan migrate --force && php artisan db:seed --class=SuperAdminSeeder --force && php artisan db:seed --class=TruckTypeSeeder --force"
+# Runs before the new version goes live: schema migrations only.
+# Never seed here. Seeders write rows, and a release runs on every deploy, so
+# anything seeded here could overwrite what the owner manages in the app
+# (truck type rates and status, the Owner account). A NEW environment is set up
+# once, by hand, with `php artisan towmate:provision` (see docs/DEPLOYMENT.md).
+releaseCommand = "php artisan migrate --force"
 
 # PHP built-in server + queue worker (background) for async email dispatch.
 startCommand = "php artisan storage:link; php artisan queue:work --sleep=3 --tries=3 --timeout=120 & php -d upload_max_filesize=110M -d post_max_size=115M -S 0.0.0.0:$PORT -t public server.php"

@@ -105,7 +105,9 @@
                         $tlOffDuty = $tl && $row['team_leader_duty'] === 'unavailable';
                         $tlOffline = $tl && $row['presence'] === 'offline';
                         $driverOffDuty = $hasDriver && $row['driver_duty'] === 'unavailable';
-                        $tlQualifier = ($tlOffDuty ? ' · Off duty' : '') . ($tlOffline ? ' · Offline' : '');
+                        $tlInactive = $reasons->contains('team_leader_inactive');
+                        $driverInactive = $reasons->contains('driver_inactive');
+                        $tlQualifier = ($tlInactive ? ' · Account inactive' : '') . ($tlOffDuty ? ' · Off duty' : '') . ($tlOffline ? ' · Offline' : '');
 
                         $jobBooking = $row['reservation'] ?? $row['active_booking'];
                         $jobStatus = $jobBooking ? str($jobBooking->status)->replace('_', ' ')->title() : null;
@@ -134,7 +136,7 @@
                             @endif
                             <div class="ul-secondary">
                                 @if ($hasDriver)
-                                    Driver: {{ $driverDisplayName }}@if ($driverOffDuty) · Off duty @endif
+                                    Driver: {{ $driverDisplayName }}@if ($driverInactive) · Inactive @elseif ($driverOffDuty) · Off duty @endif
                                 @else
                                     <span class="ul-missing">No driver</span>
                                 @endif

@@ -161,11 +161,6 @@ Route::prefix('admin-dashboard')
         Route::get('/units/locations', [DispatchController::class, 'unitLocations'])->name('units.locations');
 
         Route::get('/drivers', [DriversController::class, 'index'])->name('drivers');
-        Route::post('/drivers/{teamLeader}/assign-unit', [DriversController::class, 'assignUnit'])->name('drivers.assign-unit');
-        Route::post('/drivers/{teamLeader}/remove-unit', [DriversController::class, 'removeUnit'])->name('drivers.remove-unit');
-        Route::post('/drivers/{teamLeader}/update-status', [DriversController::class, 'updateStatus'])->name('drivers.update-status');
-
-        Route::patch('/drivers/{teamLeader}/override', [DriversController::class, 'override'])->name('team-leaders.override');
 
         Route::get('/drivers/eligible-people', [DriversController::class, 'eligiblePeople'])->name('drivers.eligible-people');
         Route::post('/drivers/units/{unit}/assign-team-leader', [DriversController::class, 'assignTeamLeader'])->name('drivers.units.assign-team-leader');
@@ -180,7 +175,6 @@ Route::prefix('admin-dashboard')
 
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
         Route::post('/available-units', [AvailableUnitsController::class, 'store'])->name('available-units.store');
-        Route::patch('/available-units/{unit}/toggle', [AvailableUnitsController::class, 'toggle'])->name('available-units.toggle');
         Route::post('/units/{unit}/maintenance', [AvailableUnitsController::class, 'markMaintenance'])->name('units.maintenance');
 
         Route::resource('zones', \App\Http\Controllers\Admin\ZoneController::class);
@@ -241,6 +235,8 @@ Route::prefix('superadmin')
         Route::get('/reports/bookings', [ReportsController::class, 'bookings'])->name('reports.bookings');
         Route::get('/reports/activity', [ReportsController::class, 'activity'])->name('reports.activity');
         Route::get('/reports/activity/export', [ReportsController::class, 'exportActivityPdf'])->name('reports.activity.export');
+        Route::get('/customers', [\App\Http\Controllers\SuperAdmin\CustomerController::class, 'index'])->name('customers.index');
+        Route::get('/customers/{customer}', [\App\Http\Controllers\SuperAdmin\CustomerController::class, 'show'])->whereNumber('customer')->name('customers.show');
         Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
         Route::get('/monitoring/live', [MonitoringController::class, 'live'])->name('monitoring.live');
 
@@ -289,6 +285,7 @@ Route::prefix('superadmin')
         Route::patch('/personnel-records/{record}/home-unit', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'updateRecordHomeUnit'])->name('personnel-records.home-unit');
         Route::patch('/personnel-records/{record}/toggle', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'toggleRecordStatus'])->name('personnel-records.toggle');
         Route::get('/home-assignments', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'homeAssignments'])->name('home-assignments.index');
+        Route::put('/home-assignments/{unit}', [\App\Http\Controllers\SuperAdmin\PersonnelController::class, 'saveHomeTeam'])->whereNumber('unit')->name('home-assignments.update');
 
         Route::get('/bookings', [SuperAdminBookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{id}', [SuperAdminBookingController::class, 'show'])->name('bookings.show');

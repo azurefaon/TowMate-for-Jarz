@@ -3,7 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Unit;
+use App\Services\UnitAvailabilityService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -68,56 +73,73 @@ class AvailableUnitsController extends Controller
             ->with('success', 'Unit added successfully.');
     }
 
-    public function toggle(Unit $unit): RedirectResponse
-    {
-        if ($unit->status === 'on_job') {
-            return redirect()
-                ->route('admin.available-units')
-                ->with('error', 'This unit is currently on a job and cannot be switched off yet.');
-        }
-
-        $nextStatus = $unit->status === 'available' ? 'maintenance' : 'available';
-
-        $unit->update([
-            'status' => $nextStatus,
-            'issue_note' => $nextStatus === 'available' ? null : $unit->issue_note,
-        ]);
-
-        return redirect()
-            ->route('admin.available-units')
-            ->with('success', $nextStatus === 'available'
-                ? 'Unit marked as available.'
-                : 'Unit marked as not available.');
-    }
-
-    public function markMaintenance(Request $request, Unit $unit)
+    /**
+     * Dispatcher: take a truck out of service. Same protection as the Owner
+     * toggle: the unit is locked, and an active job or a reservation (the
+     * canonical UnitAvailabilityService rules, checked under the lock) refuses
+     * the change. Nothing about the blocking booking is changed or released
+     * here; the dispatcher resolves or reassigns it first.
+     */
+    public function markMaintenance(Request $request, Unit $unit, UnitAvailabilityService $availability)
     {
         $validated = $request->validate([
             'reason' => 'required|string|max:500',
             'booking_id' => 'nullable|string',
         ]);
 
-        if ($unit->status === 'on_job') {
-            return response()->json([
-                'success' => false,
-                'message' => 'This unit is currently on a job and cannot be marked for maintenance yet.',
-            ], 422);
-        }
+        $refuse = fn (string $message) => response()->json(['success' => false, 'message' => $message], 422);
 
-        $unit->update([
-            'status' => 'maintenance',
-            'issue_note' => $validated['reason'],
-        ]);
+        $outcome = DB::transaction(function () use ($unit, $validated, $availability, $refuse) {
+            $locked = Unit::whereKey($unit->id)->lockForUpdate()->firstOrFail();
 
-        \Illuminate\Support\Facades\Log::warning('Unit marked for maintenance from dispatch', [
-            'unit_id' => $unit->id,
-            'unit_name' => $unit->name,
-            'reason' => $validated['reason'],
-            'booking_id' => $validated['booking_id'] ?? null,
-            'dispatcher_id' => auth()->id(),
-        ]);
+            if ($locked->archived_at) {
+                return $refuse("{$locked->name} is archived, so its maintenance status cannot be changed.");
+            }
 
-        return response()->json([
+            if ($locked->status === 'on_job') {
+                return $refuse("{$locked->name} is currently on a job and cannot be marked for maintenance yet. Resolve or reassign the booking first.");
+            }
+
+            if ($hold = $availability->bookingHoldingUnit($locked)) {
+                $code = $hold['booking']->job_code ?? $hold['booking']->booking_code;
+                $why = $hold['type'] === 'job' ? "is on booking {$code}" : "is reserved by booking {$code}";
+
+                return $refuse("{$locked->name} {$why}, so it cannot be marked for maintenance. Resolve or reassign that booking first, then try again.");
+            }
+
+            // Keep earlier notes; add the new reason beneath them with who and when.
+            $reason = trim($validated['reason']);
+            $previous = trim((string) $locked->issue_note);
+            $entry = '[' . now()->format('Y-m-d H:i') . ' ' . (Auth::user()->name ?? 'Dispatcher') . '] ' . $reason;
+            $note = $previous === '' ? $entry : (str_contains($previous, $reason) ? $previous : $previous . "\n" . $entry);
+
+            $before = ['status' => $locked->status, 'issue_note' => $locked->issue_note];
+
+            $locked->update(['status' => 'maintenance', 'issue_note' => $note]);
+
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'unit_marked_maintenance',
+                'entity_type' => 'Unit',
+                'entity_id' => $locked->id,
+                'reference' => $locked->name,
+                'description' => "{$locked->name} marked for maintenance by dispatcher: {$reason}",
+                'old_value' => $before,
+                'new_value' => ['status' => 'maintenance', 'issue_note' => $note],
+            ]);
+
+            Log::warning('Unit marked for maintenance from dispatch', [
+                'unit_id' => $locked->id,
+                'unit_name' => $locked->name,
+                'reason' => $reason,
+                'booking_id' => $validated['booking_id'] ?? null,
+                'dispatcher_id' => Auth::id(),
+            ]);
+
+            return null;
+        });
+
+        return $outcome ?? response()->json([
             'success' => true,
             'message' => 'Unit marked for maintenance successfully.',
         ]);

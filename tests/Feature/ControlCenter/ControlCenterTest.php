@@ -9,11 +9,12 @@ use function Pest\Laravel\getJson;
 
 function seedControlCenterRoles(): void
 {
-    DB::table('roles')->insert([
-        ['id' => 1, 'name' => 'Super Admin'],
-        ['id' => 2, 'name' => 'Dispatcher'],
-        ['id' => 5, 'name' => 'Customer'],
-    ]);
+    foreach ([1 => 'Super Admin', 2 => 'Dispatcher', 5 => 'Customer'] as $id => $name) {
+        // Migrations already seed these roles; only create what is missing.
+        if (! DB::table('roles')->where('id', $id)->exists()) {
+            DB::table('roles')->insert(['id' => $id, 'name' => $name]);
+        }
+    }
 }
 
 it('shows the shared control center for a super admin with governance access', function () {
@@ -28,7 +29,7 @@ it('shows the shared control center for a super admin with governance access', f
     get(route('control-center.index'))
         ->assertOk()
         ->assertSeeText('System Control Center')
-        ->assertSeeText('Manage Users')
+        ->assertSeeText('Risk Watchlist')
         ->assertSeeText('Control Center');
 });
 

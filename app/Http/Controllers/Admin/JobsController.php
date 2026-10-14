@@ -10,8 +10,10 @@ use App\Models\Booking;
 use App\Services\Push\BookingStatusPush;
 use App\Models\Unit;
 use App\Models\User;
+use App\Observers\AuditObserver;
 use App\Services\CustomerNotificationService;
 use App\Services\DocumentGenerationService;
+use App\Services\ScheduledCapacityService;
 use App\Services\TeamLeaderAvailabilityService;
 use App\Services\UnitAvailabilityService;
 use Illuminate\Http\Request;
@@ -574,7 +576,7 @@ class JobsController extends Controller
 
         $actor = $request->user();
 
-        $result = DB::transaction(function () use ($booking, $reason, $actor) {
+        $result = AuditObserver::transaction(function () use ($booking, $reason, $actor) {
             // The status read before the lock may be stale (TL progress, a
             // concurrent cancel, payment submission) - re-check after locking.
             $locked = Booking::whereKey($booking->id)->lockForUpdate()->first();
@@ -620,6 +622,9 @@ class JobsController extends Controller
                 'assigned_unit_id' => null,
                 'driver_name' => null,
             ]);
+
+            // Gives back the capacity slot this booking holds (if any), once, in this transaction.
+            app(ScheduledCapacityService::class)->release($locked);
 
             $unitReleased = false;
             if ($previousUnit && ! $unitStillNeeded) {

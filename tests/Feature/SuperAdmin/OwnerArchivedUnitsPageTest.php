@@ -517,9 +517,9 @@ it('does not render the shared fleet tabs as a fourth Archived Units tab', funct
     $response->assertDontSee('class="fleet-tabs"', false);
 });
 
-it('keeps Fleet Management highlighted in the sidebar while on Archived Units', function () {
+it('keeps Trucks highlighted under Fleet Management in the sidebar while on Archived Units', function () {
     $response = $this->actingAs(auOwner())->get(route('superadmin.units.archived'));
 
     $response->assertOk();
-    expect(preg_match('/title="Fleet Management"\s*class="active"/', $response->getContent()))->toBe(1);
+    expect(preg_match('/href="' . preg_quote(route('superadmin.unit-truck.index'), '/') . '"\s*class="sidebar-sublink active"\s*aria-current="page">Trucks<\/a>/', $response->getContent()))->toBe(1);
 });

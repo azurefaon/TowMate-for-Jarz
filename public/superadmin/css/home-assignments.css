@@ -1,0 +1,249 @@
+/* ---------------------------------------------------------------
+   Owner Home Assignments (Fleet Revision 2). Builds on truck-types.css,
+   which holds the shared fleet header, table, modal and field styles.
+   --------------------------------------------------------------- */
+
+.ha-page .tt-header p {
+    max-width: 760px;
+}
+
+.ha-select {
+    flex-basis: 300px;
+}
+
+.ha-table td,
+.ha-table th[scope="row"] {
+    white-space: normal;
+}
+
+.ha-table th[scope="row"] {
+    height: 84px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--tt-divider);
+    color: var(--tt-text);
+    font-weight: 400;
+    text-align: left;
+    vertical-align: top;
+}
+
+.ha-table tbody tr:last-child th[scope="row"] {
+    border-bottom: 0;
+}
+
+.ha-col-unit {
+    width: 22%;
+}
+
+.ha-person {
+    display: block;
+}
+
+.ha-person + .ha-person {
+    margin-top: 6px;
+}
+
+.ha-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    margin-left: 8px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #525252;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 500;
+    vertical-align: 1px;
+}
+
+.ha-missing {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--tt-red);
+}
+
+.ha-person + .ha-missing {
+    margin-top: 6px;
+}
+
+/* ---------- Edit home team ---------- */
+
+.ha-dialog {
+    max-width: 640px;
+    margin-top: 0;
+}
+
+/* Centered dialog that scrolls inside itself when the team list is long. */
+.ha-modal {
+    align-items: center;
+}
+
+.ha-dialog {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 96px);
+}
+
+.ha-dialog .tt-dialog-body {
+    overflow-y: auto;
+    padding-bottom: 8px;
+}
+
+.ha-filter {
+    display: block;
+    margin-bottom: 16px;
+}
+
+.ha-group {
+    border: 0;
+    margin: 0;
+    padding: 0 0 16px;
+}
+
+.ha-group + .ha-group {
+    padding-top: 16px;
+    border-top: 1px solid var(--tt-divider);
+}
+
+.ha-group legend {
+    margin-bottom: 4px;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 24px;
+}
+
+.ha-group .tt-help {
+    margin: 0 0 10px !important;
+}
+
+.ha-options {
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--tt-border);
+    border-radius: 10px;
+    list-style: none;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.ha-options li + li {
+    border-top: 1px solid var(--tt-divider);
+}
+
+.ha-options li[hidden] {
+    display: none;
+}
+
+.ha-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.ha-option:hover {
+    background: var(--tt-tint);
+}
+
+.ha-option input {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    margin: 0;
+    accent-color: var(--tt-text);
+}
+
+.ha-option-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.ha-option-meta {
+    color: var(--tt-body);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.ha-option.is-changed .ha-option-meta {
+    color: var(--tt-text);
+    font-weight: 500;
+}
+
+.ha-options-empty {
+    padding: 12px;
+    color: var(--tt-muted);
+}
+
+.ha-group .tt-error[hidden] {
+    display: none;
+}
+
+.ha-result {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    background: #fef2f2;
+    color: var(--tt-red);
+}
+
+.ha-result[hidden] {
+    display: none;
+}
+
+.ha-result ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+}
+
+.ha-result .is-saved {
+    color: var(--tt-green);
+}
+
+.ha-foot {
+    align-items: center;
+}
+
+.ha-pending {
+    margin: 0 auto 0 0 !important;
+    color: var(--tt-body);
+}
+
+@media (max-width: 1360px) {
+    .ha-col-unit {
+        width: 20%;
+    }
+}
+
+/* The shared .tt-flash display rule would otherwise override [hidden]. */
+.ha-page .tt-flash[hidden] {
+    display: none;
+}
+
+/* A floated legend keeps the section divider from running through it. */
+.ha-group legend {
+    float: left;
+    width: 100%;
+    padding: 0;
+}
+
+.ha-group legend + * {
+    clear: both;
+}
+
+.ha-col-unit .tt-sub {
+    white-space: nowrap;
+}
+
+/* Team leaders on another truck today can't be changed here. */
+.ha-option:has(input:disabled) {
+    cursor: not-allowed;
+    background: var(--tt-tint);
+}
+
+.ha-option:has(input:disabled) .ha-option-name {
+    color: var(--tt-body);
+}

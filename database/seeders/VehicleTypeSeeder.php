@@ -2,14 +2,22 @@
 
 namespace Database\Seeders;
 
+use Database\Seeders\Concerns\ProtectsLiveData;
 use Illuminate\Database\Seeder;
 use App\Models\TruckType;
 use App\Models\VehicleType;
 
 class VehicleTypeSeeder extends Seeder
 {
+    use ProtectsLiveData;
+
     public function run(): void
     {
+        // A brand-new install may load the starting catalogue; an existing one is never touched.
+        if (VehicleType::query()->exists() && $this->refuseOutsideLocal('Manage vehicle types on the Vehicle Types page.')) {
+            return;
+        }
+
         $light  = TruckType::where('name', 'Light Duty')->first();
         $medium = TruckType::where('name', 'Medium Duty')->first();
         $heavy  = TruckType::where('name', 'Heavy Duty')->first();

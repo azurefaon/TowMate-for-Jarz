@@ -28,17 +28,33 @@ return new class extends Migration
             }
         }
 
-        $email = strtolower((string) env('SUPERADMIN_EMAIL', 'superadmin@gmail.com'));
-        $name  = (string) env('SUPERADMIN_NAME', 'System SuperAdmin');
+        // Never prints or logs a password. On a live system (anything but
+        // local/testing) the Owner is only created from an explicit
+        // SUPERADMIN_PASSWORD, and an existing Owner is never touched; see
+        // docs/DEPLOYMENT.md and `php artisan towmate:provision`.
+        $email = strtolower(trim((string) env('SUPERADMIN_EMAIL')));
+        $email = $email !== '' ? $email : 'superadmin@gmail.com';
+        $name  = trim((string) env('SUPERADMIN_NAME')) !== '' ? (string) env('SUPERADMIN_NAME') : 'System SuperAdmin';
         $now   = now();
 
         $envPassword = env('SUPERADMIN_PASSWORD');
-        $generated = blank($envPassword);
-        $password = $generated ? Str::random(20) : (string) $envPassword;
 
-        if ($generated) {
-            fwrite(STDOUT, "\n[TowMate] SUPERADMIN_PASSWORD was not set. Generated a one-time password for {$email}: {$password}\n");
-            fwrite(STDOUT, "[TowMate] Log in immediately and change this password, or set SUPERADMIN_PASSWORD before migrating.\n\n");
+        if (blank($envPassword)) {
+            if (! app()->environment('local', 'testing')) {
+                fwrite(STDOUT, "\n[TowMate] No Owner account was created because SUPERADMIN_PASSWORD is not set. Set it and run: php artisan towmate:provision\n\n");
+
+                return;
+            }
+
+            // Local/testing: a random password that is never shown, so the
+            // account exists for development and tests.
+            $envPassword = Str::random(20);
+        }
+
+        $password = (string) $envPassword;
+
+        if (Schema::hasColumn('users', 'role_id') && DB::table('users')->where('role_id', 1)->exists()) {
+            return;
         }
 
         $values = [

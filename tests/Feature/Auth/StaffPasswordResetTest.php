@@ -113,10 +113,8 @@ it('F: resend invalidates the previous OTP and the new one works', function () {
 
     $secondOtp = null;
     test()->withSession(['staff_pw_reset_email' => $user->email])->post(route('password.otp.resend'));
-    Mail::assertQueued(StaffPasswordResetOtpMail::class, function ($mail) use (&$secondOtp) {
-        $secondOtp = $mail->otp;
-        return true;
-    });
+    // assertQueued's callback matches the first queued mail; take the latest one.
+    $secondOtp = Mail::queued(StaffPasswordResetOtpMail::class)->last()->otp;
 
     expect($firstOtp)->not->toBe($secondOtp);
 

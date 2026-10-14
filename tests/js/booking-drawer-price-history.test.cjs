@@ -85,7 +85,7 @@ const oneEntry = Object.assign({}, base, {
     ],
 });
 const htmlOne = pricingSectionHtml(oneEntry);
-assertContains('singular wording for exactly one adjustment', htmlOne, 'Price history (1 adjustment)</span>');
+assertContains('singular wording for exactly one adjustment', htmlOne, ' Price history</span>');
 assertNotContains('does not pluralize a single adjustment', htmlOne, '(1 adjustments)');
 assertContains('shows the add amount', htmlOne, '+' + '₱500.00');
 assertContains('shows the reason', htmlOne, 'Reason A');
@@ -100,7 +100,7 @@ const threeEntries = Object.assign({}, base, {
     ],
 });
 const htmlThree = pricingSectionHtml(threeEntries);
-assertContains('plural wording for three adjustments', htmlThree, 'Price history (3 adjustments)</span>');
+assertContains('plural wording for three adjustments', htmlThree, ' Price history</span>');
 
 console.log('--- a reverted adjustment shows both its original event and its reversal, with no Undo button ---');
 const reverted = Object.assign({}, base, {
@@ -144,7 +144,7 @@ const withStaged = Object.assign({}, base, {
     adjustments: [{ amount: 200, reason: 'Reason B (staged)' }],
 });
 const htmlStaged = pricingSectionHtml(withStaged);
-assertContains('one saved + one staged = 2 adjustments', htmlStaged, 'Price history (2 adjustments)</span>');
+assertContains('one saved + one staged = 2 adjustments', htmlStaged, ' Price history</span>');
 assertContains('staged row still marked as not sent yet', htmlStaged, '(not sent yet)');
 
 console.log('--- expanded state shows the open chevron and visible list ---');

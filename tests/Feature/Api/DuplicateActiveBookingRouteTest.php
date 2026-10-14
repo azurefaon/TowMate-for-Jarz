@@ -200,3 +200,46 @@ it('rejects a request where pickup and drop-off are the same location', function
     expect($response->json('message'))->toBe('Pickup and drop-off locations must be different.');
     expect(Booking::count())->toBe(0);
 });
+
+// Ported from the retired guest web booking tests (landing.book): API-level equivalents.
+
+it('keeps a Book Now request as Book Now when a ready unit exists', function () {
+    [$user, $customer] = dabrCustomer();
+    $truckType = dabrTruckType();
+    $vehicleType = dabrVehicleType($truckType->id);
+    dabrReadyUnit($truckType);
+    Sanctum::actingAs($user, ['*']);
+
+    test()->postJson('/api/v1/bookings', dabrNewRequestPayload($truckType, $vehicleType, ['service_type' => 'book_now']))
+        ->assertCreated();
+
+    $booking = Booking::where('customer_id', $customer->id)->latest('id')->first();
+    expect($booking->service_type)->toBe('book_now')
+        ->and($booking->status)->toBe('requested');
+});
+
+it('refuses a Book Now request when no ready unit exists and creates nothing', function () {
+    [$user, $customer] = dabrCustomer();
+    $truckType = dabrTruckType();
+    $vehicleType = dabrVehicleType($truckType->id);
+    Sanctum::actingAs($user, ['*']);
+
+    $response = test()->postJson('/api/v1/bookings', dabrNewRequestPayload($truckType, $vehicleType, ['service_type' => 'book_now']));
+
+    $response->assertStatus(422);
+    expect($response->json('message'))->toContain('not currently available for Book Now');
+    expect(Booking::where('customer_id', $customer->id)->count())->toBe(0);
+});
+
+it('stores the customer pickup notes on the booking', function () {
+    [$user, $customer] = dabrCustomer();
+    $truckType = dabrTruckType();
+    $vehicleType = dabrVehicleType($truckType->id);
+    dabrReadyUnit($truckType);
+    Sanctum::actingAs($user, ['*']);
+
+    test()->postJson('/api/v1/bookings', dabrNewRequestPayload($truckType, $vehicleType, ['notes' => 'Gate 2, blue car near the guard house.']))
+        ->assertCreated();
+
+    expect(Booking::where('customer_id', $customer->id)->latest('id')->first()->notes)->toBe('Gate 2, blue car near the guard house.');
+});

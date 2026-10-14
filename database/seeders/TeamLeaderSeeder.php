@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use Database\Seeders\Concerns\ProtectsLiveData;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -10,11 +11,17 @@ use Illuminate\Support\Facades\Schema;
 
 class TeamLeaderSeeder extends Seeder
 {
+    use ProtectsLiveData;
+
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
+        if ($this->refuseOutsideLocal('Create team leader accounts from the System Admin or Owner screens.')) {
+            return;
+        }
+
         if (! Schema::hasTable('users')) {
             return;
         }

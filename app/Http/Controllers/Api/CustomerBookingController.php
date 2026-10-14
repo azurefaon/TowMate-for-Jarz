@@ -12,8 +12,10 @@ use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\VehicleCategory;
 use App\Models\VehicleType;
+use App\Observers\AuditObserver;
 use App\Services\BookingService;
 use App\Services\QuotationService;
+use App\Services\ScheduledCapacityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -760,7 +762,7 @@ class CustomerBookingController extends Controller
             'reason' => 'nullable|string|max:500',
         ]);
 
-        $result = DB::transaction(function () use ($code, $customer, $validated) {
+        $result = AuditObserver::transaction(function () use ($code, $customer, $validated) {
             $booking = Booking::where('booking_code', $code)
                 ->where('customer_id', $customer->id)
                 ->lockForUpdate()
@@ -803,6 +805,9 @@ class CustomerBookingController extends Controller
                     'response_note' => 'Booking cancelled by customer.',
                 ]);
             }
+
+            // Gives back the slot this booking holds (if any), once, in this same transaction.
+            app(ScheduledCapacityService::class)->release($booking);
 
             if ($booking->group_code) {
                 $anchor = Booking::where('group_code', $booking->group_code)
@@ -856,9 +861,10 @@ class CustomerBookingController extends Controller
         $codes  = $validated['booking_codes'];
         $reason = $validated['reason'] ?? null;
 
-        $result = DB::transaction(function () use ($groupCode, $codes, $reason, $customer) {
+        $result = AuditObserver::transaction(function () use ($groupCode, $codes, $reason, $customer) {
             $selected = Booking::where('customer_id', $customer->id)
                 ->whereIn('booking_code', $codes)
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
 
@@ -900,13 +906,6 @@ class CustomerBookingController extends Controller
 
             $cancelledIds = $selected->pluck('id');
 
-            $capacityReleases = [];
-            foreach ($selected as $booking) {
-                if ($booking->service_type === 'schedule' && $booking->price_locked_at !== null && $booking->scheduled_date !== null) {
-                    $date = $booking->scheduled_date->toDateString();
-                    $capacityReleases[$date] = ($capacityReleases[$date] ?? 0) + 1;
-                }
-            }
 
             foreach ($selected as $booking) {
                 $booking->update([
@@ -935,11 +934,11 @@ class CustomerBookingController extends Controller
                 }
             }
 
-            foreach ($capacityReleases as $date => $count) {
-                DB::statement(
-                    'UPDATE booking_capacity SET slots_used = GREATEST(slots_used - ?, 0), updated_at = NOW() WHERE booking_date = ?',
-                    [$count, $date]
-                );
+            // Each cancelled vehicle gives back the slot it holds on the date recorded for it, once.
+            $capacity = app(ScheduledCapacityService::class);
+            $capacity->lockDates($selected->map(fn ($b) => $b->capacity_reserved_date?->toDateString()));
+            foreach ($selected as $booking) {
+                $capacity->release($booking);
             }
 
             $anchor = Booking::where('group_code', $groupCode)

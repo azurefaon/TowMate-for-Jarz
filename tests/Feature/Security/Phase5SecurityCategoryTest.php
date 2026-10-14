@@ -18,7 +18,7 @@ it('unrelated actions are not miscategorized as security', function () {
     expect(\App\Services\AuditLogService::categoryForAction('failed_login'))->toBe('login_failed');
 });
 
-it('the Owner activity log screen accepts a security category filter and returns matching rows', function () {
+it('security events are categorised "security" but belong to the System Admin audit log, not Owner Business Activity', function () {
     $role = Role::find(1) ?: tap(new Role(['name' => 'Super Admin']), function ($r) {
         $r->id = 1;
         $r->save();
@@ -36,8 +36,11 @@ it('the Owner activity log screen accepts a security category filter and returns
     expect($log->category)->toBe('security');
     expect(AuditLog::where('category', 'security')->whereKey($log->id)->exists())->toBeTrue();
 
+    // Owner Business Activity only lists business actions (AuditLogService::BUSINESS_ACTIONS); the screen
+    // still accepts the filter value and renders, but security rows are not part of that view.
     $response = test()->actingAs($owner)->get(route('superadmin.reports.activity', ['category' => 'security']));
 
     $response->assertOk();
-    $response->assertSee('OTP invalidated after too many failed verification attempts.', false);
+    $response->assertDontSee('OTP invalidated after too many failed verification attempts.', false);
+    $response->assertSee('No business activity found.');
 });

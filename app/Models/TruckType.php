@@ -36,6 +36,15 @@ class TruckType extends Model
         return $this->belongsToMany(\App\Models\VehicleType::class, 'vehicle_type_truck_type');
     }
 
+    /**
+     * Vehicle types whose bookings use this truck type (required_truck_type_id,
+     * the link BookingService::resolveRequiredTruckType() reads).
+     */
+    public function requiredByVehicleTypes()
+    {
+        return $this->hasMany(\App\Models\VehicleType::class, 'required_truck_type_id');
+    }
+
     public function isCompatibleWithWeight(?float $weightKg): bool
     {
         if ($weightKg === null || $this->class === null) {

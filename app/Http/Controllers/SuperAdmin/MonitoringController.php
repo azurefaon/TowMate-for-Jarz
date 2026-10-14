@@ -6,123 +6,136 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Customer;
-use App\Models\Unit;
 use App\Models\User;
 use App\Services\TeamLeaderAvailabilityService;
 use App\Services\UnitAvailabilityService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
+/**
+ * Owner → Operations Monitor. Every job and truck figure comes from the same
+ * services the dispatcher uses (TeamLeaderAvailabilityService for busy leaders,
+ * UnitAvailabilityService for active jobs and truck states), so the Monitor
+ * cannot disagree with Units & Leaders or Dispatch.
+ */
 class MonitoringController extends Controller
 {
-    protected TeamLeaderAvailabilityService $teamLeaderAvailability;
-    protected UnitAvailabilityService $unitAvailability;
+    protected const STATUS_FILTERS = ['requested', 'accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'completed', 'rejected', 'cancelled'];
 
-    public function __construct(TeamLeaderAvailabilityService $teamLeaderAvailability, UnitAvailabilityService $unitAvailability)
-    {
-        $this->teamLeaderAvailability = $teamLeaderAvailability;
-        $this->unitAvailability = $unitAvailability;
+    protected const PERIODS = ['today' => 'created today', 'week' => 'created this week', 'all' => 'all time'];
+
+    protected const IN_PROGRESS_STATUSES = ['on_the_way', 'arrived_pickup', 'in_progress', 'loading_vehicle', 'on_job', 'arrived_dropoff'];
+
+    public function __construct(
+        protected TeamLeaderAvailabilityService $teamLeaderAvailability,
+        protected UnitAvailabilityService $unitAvailability,
+    ) {
     }
-
-    protected array $activeStatuses = ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'];
 
     public function index(Request $request)
     {
-        return view('superadmin.monitoring.index', $this->buildPayload($request));
+        $payload = $this->buildPayload($request);
+        $html = view('superadmin.monitoring._sections', $payload)->render();
+
+        return view('superadmin.monitoring.index', $payload + [
+            'sectionsHtml' => $html,
+            'sectionsHash' => md5($html),
+            'generatedLabel' => now()->format('g:i:s A'),
+        ]);
     }
 
+    /**
+     * Polled every 15 seconds. The sections are re-rendered on the server, but the
+     * browser sends the hash of what it already shows, so an unchanged board costs a
+     * few hundred bytes instead of the whole page.
+     */
     public function live(Request $request): JsonResponse
     {
-        return response()->json($this->buildPayload($request));
+        $payload = $this->buildPayload($request);
+        $html = view('superadmin.monitoring._sections', $payload)->render();
+        $hash = md5($html);
+        $unchanged = $request->query('view_hash') === $hash;
+
+        return response()->json(array_filter([
+            'monitoringStats' => $payload['monitoringStats'],
+            'hash' => $hash,
+            'unchanged' => $unchanged,
+            'generated_label' => now()->format('g:i:s A'),
+            'html' => $unchanged ? null : $html,
+        ], fn ($value) => $value !== null));
     }
 
     protected function buildPayload(Request $request): array
     {
+        $status = (string) $request->input('status', '');
+        $period = (string) $request->input('period', 'today');
+
         $filters = [
-            'status' => (string) $request->input('status', ''),
+            'status' => in_array($status, self::STATUS_FILTERS, true) ? $status : '',
             'search' => trim((string) $request->input('search', '')),
-            'period' => (string) $request->input('period', 'today'),
+            'period' => array_key_exists($period, self::PERIODS) ? $period : 'today',
         ];
 
-        $recentBookingsQuery = Booking::query()
-            ->with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
-            ->latest('updated_at');
+        // ---- Jobs -----------------------------------------------------------------------
+        // Unfiltered, the table lists the current active jobs (canonical definition). With a
+        // search or status chosen, it lists matching bookings instead, by date created.
+        $filtered = $filters['status'] !== '' || $filters['search'] !== '';
+        $with = ['customer', 'truckType', 'unit', 'assignedTeamLeader'];
 
-        if ($filters['status'] !== '') {
-            $recentBookingsQuery->where('status', $filters['status']);
+        if ($filtered) {
+            $listQuery = Booking::query()->with($with)->latest('updated_at');
+
+            if ($filters['status'] !== '') {
+                $listQuery->where('status', $filters['status']);
+            }
+            if ($filters['search'] !== '') {
+                $this->applySearch($listQuery, $filters['search']);
+            }
+            if ($filters['period'] === 'today') {
+                $listQuery->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()]);
+            } elseif ($filters['period'] === 'week') {
+                $listQuery->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
+            }
+        } else {
+            $listQuery = $this->unitAvailability->activeJobsQuery()->with($with)->latest('updated_at');
         }
 
-        if ($filters['search'] !== '') {
-            $search = $filters['search'];
+        $activeBookings = $listQuery->take(8)->get();
+        $listCaption = $filtered
+            ? 'Bookings matching your filters (' . self::PERIODS[$filters['period']] . '), newest activity first.'
+            : 'Current active jobs, newest activity first. Search or choose a status to browse bookings by date created.';
 
-            $recentBookingsQuery->where(function ($query) use ($search) {
-                $query->where('booking_code', 'like', "%{$search}%")
-                    ->orWhere('pickup_address', 'like', "%{$search}%")
-                    ->orWhere('dropoff_address', 'like', "%{$search}%")
-                    ->orWhereHas('customer', function ($customerQuery) use ($search) {
-                        $customerQuery->where('full_name', 'like', "%{$search}%")
-                            ->orWhere('phone', 'like', "%{$search}%");
-                    });
-            });
-        }
+        $activeJobsCount = $this->unitAvailability->activeJobsQuery()->count();
 
-        if ($filters['period'] === 'today') {
-            $recentBookingsQuery->whereDate('created_at', today());
-        } elseif ($filters['period'] === 'week') {
-            $recentBookingsQuery->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
-        }
-
-        $activeBookings = Booking::query()
-            ->with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
-            ->whereIn('status', $this->activeStatuses)
-            ->latest('updated_at')
-            ->take(8)
-            ->get();
-
-        $recentBookings = $recentBookingsQuery
-            ->take(10)
-            ->get();
-
+        // ---- Team leaders: busy = every qualifying active job, not just the ones listed -----
         $teamLeaders = User::query()
             ->visibleToOperations()
             ->where('role_id', 3)
             ->with(['unit', 'unit.driver'])
             ->get();
 
-        $busyTeamLeaderIds = $activeBookings
-            ->map(function (Booking $booking) {
-                return $booking->assigned_team_leader_id ?: optional($booking->unit)->team_leader_id;
-            })
-            ->filter()
-            ->unique()
-            ->values();
-
+        $busyTeamLeaderIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
         $teamLeaderSummary = $this->teamLeaderAvailability->summarize($teamLeaders, $busyTeamLeaderIds);
+        $activeBookingByLeaderId = $this->teamLeaderAvailability->activeBookingsByLeaderId();
+
+        $todayRange = [now()->startOfDay(), now()->endOfDay()];
 
         $leaderReturnCounts = Booking::query()
             ->selectRaw('returned_by_team_leader_id, COUNT(*) as total')
             ->whereNotNull('returned_by_team_leader_id')
-            ->whereDate('returned_at', today())
+            ->whereBetween('returned_at', $todayRange)
             ->groupBy('returned_by_team_leader_id')
             ->pluck('total', 'returned_by_team_leader_id');
 
         $leaderCompletedCounts = Booking::query()
             ->selectRaw('assigned_team_leader_id, COUNT(*) as total')
             ->whereNotNull('assigned_team_leader_id')
-            ->whereDate('completed_at', today())
+            ->where('status', 'completed')
+            ->whereBetween('completed_at', $todayRange)
             ->groupBy('assigned_team_leader_id')
             ->pluck('total', 'assigned_team_leader_id');
-
-        $activeBookingByLeaderId = Booking::query()
-            ->with('unit')
-            ->whereIn('status', $this->activeStatuses)
-            ->latest('updated_at')
-            ->get()
-            ->mapWithKeys(function (Booking $booking) {
-                $leaderId = (int) ($booking->assigned_team_leader_id ?: optional($booking->unit)->team_leader_id);
-
-                return $leaderId > 0 ? [$leaderId => $booking] : [];
-            });
 
         $teamLeaderStatuses = $teamLeaderSummary['leaders']
             ->map(function (array $leader) use ($leaderReturnCounts, $leaderCompletedCounts, $activeBookingByLeaderId) {
@@ -141,40 +154,40 @@ class MonitoringController extends Controller
             ->take(8)
             ->values();
 
+        // ---- Dispatchers: counts per user, and each user's latest action in one small query --
         $dispatcherActionCounts = AuditLog::query()
             ->selectRaw('user_id, COUNT(*) as total')
-            ->whereDate('created_at', today())
+            ->whereBetween('created_at', $todayRange)
             ->whereNotNull('user_id')
             ->groupBy('user_id')
             ->pluck('total', 'user_id');
 
-        $dispatcherLastAction = AuditLog::query()
-            ->with('user')
-            ->whereNotNull('user_id')
-            ->latest('created_at')
-            ->get()
-            ->groupBy('user_id');
-
         $dispatcherQuoteCounts = Booking::query()
             ->selectRaw('created_by_admin_id, COUNT(*) as total')
             ->whereNotNull('created_by_admin_id')
-            ->whereDate('quoted_at', today())
+            ->whereBetween('quoted_at', $todayRange)
             ->groupBy('created_by_admin_id')
             ->pluck('total', 'created_by_admin_id');
 
         $dispatcherCreatedCounts = Booking::query()
             ->selectRaw('created_by_admin_id, COUNT(*) as total')
             ->whereNotNull('created_by_admin_id')
-            ->whereDate('created_at', today())
+            ->whereBetween('created_at', $todayRange)
             ->groupBy('created_by_admin_id')
             ->pluck('total', 'created_by_admin_id');
 
-        $dispatchers = User::query()
-            ->visibleToOperations()
-            ->where('role_id', 2)
-            ->get()
+        $dispatcherUsers = User::query()->visibleToOperations()->where('role_id', 2)->get();
+
+        $lastActionIds = AuditLog::query()
+            ->selectRaw('MAX(id) as last_id')
+            ->whereIn('user_id', $dispatcherUsers->pluck('id'))
+            ->groupBy('user_id')
+            ->pluck('last_id');
+        $dispatcherLastAction = AuditLog::query()->whereIn('id', $lastActionIds)->get()->keyBy('user_id');
+
+        $dispatchers = $dispatcherUsers
             ->map(function (User $dispatcher) use ($dispatcherActionCounts, $dispatcherLastAction, $dispatcherQuoteCounts, $dispatcherCreatedCounts) {
-                $lastAction = optional($dispatcherLastAction->get($dispatcher->id))->first();
+                $lastAction = $dispatcherLastAction->get($dispatcher->id);
                 $actionsToday = (int) ($dispatcherActionCounts[$dispatcher->id] ?? 0);
 
                 return [
@@ -191,23 +204,18 @@ class MonitoringController extends Controller
             ->take(8)
             ->values();
 
-        $recentActivities = AuditLog::query()
-            ->with('user')
-            ->whereHas('user', function ($query) {
-                $query->whereNull('archived_at')->whereIn('role_id', [2, 3]);
-            })
-            ->latest('created_at')
-            ->take(12)
-            ->get();
-
+        // ---- Returned tasks: what a Team Leader return actually writes is status "returned";
+        // older rows kept an accepted/assigned status with returned_at set, so both count.
         $returnedTasksCount = Booking::query()
-            ->whereNotNull('returned_at')
-            ->whereIn('status', ['confirmed', 'accepted', 'assigned'])
+            ->where(function (Builder $query) {
+                $query->where('status', 'returned')
+                    ->orWhere(fn (Builder $legacy) => $legacy->whereNotNull('returned_at')->whereIn('status', ['confirmed', 'accepted', 'assigned']));
+            })
             ->count();
 
         $scheduledTodayCount = Booking::query()
             ->whereNotNull('scheduled_for')
-            ->whereDate('scheduled_for', today())
+            ->whereBetween('scheduled_for', $todayRange)
             ->count();
 
         $dueSoonScheduledCount = Booking::query()
@@ -216,13 +224,27 @@ class MonitoringController extends Controller
             ->whereNotIn('status', ['completed', 'cancelled', 'rejected'])
             ->count();
 
-        $availabilityRows = $this->unitAvailability->evaluateAll();
-        $availableUnitsCount = $availabilityRows->filter(fn($row) => $row['operational_state'] !== 'maintenance' && $row['active_booking'] === null)->count();
-        $onJobUnitsCount = $availabilityRows->filter(fn($row) => $row['active_booking'] !== null)->count();
-        $notAvailableUnitsCount = Unit::query()->where('status', 'maintenance')->count();
+        // ---- Fleet: one category per non-archived truck, in the Units & Leaders order ----------
+        // maintenance > busy (active job) > reserved > available > unavailable (no leader/driver,
+        // off duty, inactive). The five counts therefore add up to the fleet total.
+        $unitRows = $this->unitAvailability->evaluateAll()->map(function (array $row) {
+            $row['category'] = $this->unitCategory($row);
+
+            return $row;
+        });
+        $unitCounts = $unitRows->countBy(fn (array $row) => $row['category'][0]);
+
+        $availableUnitsCount = (int) ($unitCounts['available'] ?? 0);
+        $onJobUnitsCount = (int) ($unitCounts['on_job'] ?? 0);
+        $reservedUnitsCount = (int) ($unitCounts['reserved'] ?? 0);
+        $maintenanceUnitsCount = (int) ($unitCounts['maintenance'] ?? 0);
+        $notAvailableUnitsCount = (int) ($unitCounts['unavailable'] ?? 0);
+
+        $blacklistedCount = Customer::query()->whereRaw('LOWER(risk_level) = ?', ['blacklisted'])->count();
+        $watchlistCount = Customer::query()->whereRaw('LOWER(risk_level) = ?', ['watchlist'])->count();
 
         $flaggedCustomers = Customer::query()
-            ->whereIn('risk_level', ['watchlist', 'blacklisted'])
+            ->whereRaw('LOWER(risk_level) IN (?, ?)', ['watchlist', 'blacklisted'])
             ->latest('updated_at')
             ->take(8)
             ->get()
@@ -244,8 +266,10 @@ class MonitoringController extends Controller
             ->count();
 
         $offlineLeadersWithUnitsCount = collect($teamLeaderSummary['leaders'])
-            ->filter(fn(array $leader) => $leader['presence'] === 'offline' && $leader['unit_name'] !== 'No assigned unit')
+            ->filter(fn (array $leader) => $leader['presence'] === 'offline' && $leader['unit_name'] !== 'No assigned unit')
             ->count();
+
+        $outOfServiceUnits = $maintenanceUnitsCount + $notAvailableUnitsCount;
 
         $attentionAlerts = collect([
             $returnedTasksCount > 0 ? [
@@ -268,15 +292,16 @@ class MonitoringController extends Controller
                 'title' => 'Offline leaders still have units assigned',
                 'message' => $offlineLeadersWithUnitsCount . ' team leader(s) are offline while still linked to a unit.',
             ] : null,
-            $notAvailableUnitsCount > 0 ? [
+            $outOfServiceUnits > 0 ? [
                 'level' => 'info',
-                'title' => 'Units temporarily unavailable',
-                'message' => $notAvailableUnitsCount . ' unit(s) are currently marked not available.',
+                'title' => 'Units not available for dispatch',
+                'message' => $outOfServiceUnits . ' unit(s) are in maintenance or otherwise unavailable (no leader or driver, or off duty).',
             ] : null,
-            $flaggedCustomers->where('risk_level', 'blacklisted')->count() > 0 ? [
+            // BookingService::checkCustomerEligibility refuses new bookings from blacklisted customers.
+            $blacklistedCount > 0 ? [
                 'level' => 'danger',
                 'title' => 'Blacklisted customers on record',
-                'message' => $flaggedCustomers->where('risk_level', 'blacklisted')->count() . ' customer account(s) are restricted from new bookings.',
+                'message' => $blacklistedCount . ' customer account(s) are blacklisted and cannot place new bookings.',
             ] : null,
         ])->filter()->values();
 
@@ -288,89 +313,109 @@ class MonitoringController extends Controller
             ]]);
         }
 
+        $completedTodayCount = Booking::query()->where('status', 'completed')->whereBetween('completed_at', $todayRange)->count();
+
         $bookingPipeline = collect([
             ['label' => 'Requested', 'count' => Booking::query()->where('status', 'requested')->count(), 'tone' => 'neutral'],
             ['label' => 'Quoted', 'count' => Booking::query()->whereIn('status', ['reviewed', 'quotation_sent'])->count(), 'tone' => 'warning'],
             ['label' => 'Assigned', 'count' => Booking::query()->whereIn('status', ['confirmed', 'accepted', 'assigned'])->count(), 'tone' => 'info'],
-            ['label' => 'In Progress', 'count' => Booking::query()->whereIn('status', ['on_the_way', 'in_progress', 'on_job'])->count(), 'tone' => 'active'],
+            ['label' => 'In Progress', 'count' => Booking::query()->whereIn('status', self::IN_PROGRESS_STATUSES)->count(), 'tone' => 'active'],
             ['label' => 'Waiting Verification', 'count' => Booking::query()->where('status', 'waiting_verification')->count(), 'tone' => 'warning'],
-            ['label' => 'Completed Today', 'count' => Booking::query()->where('status', 'completed')->whereDate('updated_at', today())->count(), 'tone' => 'success'],
+            ['label' => 'Completed Today', 'count' => $completedTodayCount, 'tone' => 'success'],
             ['label' => 'Returned', 'count' => $returnedTasksCount, 'tone' => 'danger'],
             ['label' => 'Scheduled', 'count' => $scheduledTodayCount, 'tone' => 'info'],
         ]);
 
-        $bookingsByUnitId = Booking::query()
-            ->with(['customer', 'assignedTeamLeader'])
-            ->whereNotNull('assigned_unit_id')
-            ->where(function ($query) {
-                $query->whereIn('status', $this->activeStatuses)
-                    ->orWhere(function ($scheduleQuery) {
-                        $scheduleQuery->whereNotNull('scheduled_for')
-                            ->where('scheduled_for', '>', now())
-                            ->whereNotIn('status', ['completed', 'cancelled', 'rejected']);
-                    });
-            })
-            ->latest('updated_at')
-            ->get()
-            ->keyBy('assigned_unit_id');
-
-        $unitsMonitor = Unit::query()
-            ->with(['truckType', 'driver', 'teamLeader'])
-            ->latest('updated_at')
+        $unitsMonitor = $unitRows
+            ->sortByDesc(fn (array $row) => $row['unit']->updated_at?->getTimestamp() ?? 0)
             ->take(10)
-            ->get()
-            ->map(function (Unit $unit) use ($bookingsByUnitId) {
-                $booking = $bookingsByUnitId->get($unit->id);
-                $statusLabel = match ($unit->status) {
-                    'available' => 'Available',
-                    'on_job' => 'On Job',
-                    'maintenance' => 'Not Available',
-                    default => str($unit->status)->replace('_', ' ')->title()->toString(),
-                };
+            ->values()
+            ->map(function (array $row) {
+                $unit = $row['unit'];
+                [$key, $label] = $row['category'];
+                $booking = $row['active_booking'] ?? $row['reservation'];
 
                 return [
                     'name' => $unit->name,
                     'plate_number' => $unit->plate_number,
                     'truck_type' => optional($unit->truckType)->name ?? 'N/A',
                     'team_leader' => optional($unit->teamLeader)->full_name ?: (optional($unit->teamLeader)->name ?: 'Unassigned'),
-                    'driver' => optional($unit->driver)->full_name ?: (optional($unit->driver)->name ?: 'No member driver'),
-                    'status' => $unit->status,
-                    'status_label' => $statusLabel,
+                    'status' => $key,
+                    'status_label' => $label,
                     'booking_code' => $booking?->job_code ?? 'No linked booking',
-                    'schedule_label' => $booking?->schedule_window_label ?? ($unit->status === 'available' ? 'Ready for dispatch' : 'Temporarily unavailable'),
                     'updated_at' => $unit->updated_at?->diffForHumans() ?? 'Recently updated',
                 ];
             });
 
         $monitoringStats = [
-            'active_jobs' => Booking::whereIn('status', $this->activeStatuses)->count(),
+            'active_jobs' => $activeJobsCount,
             'pending_requests' => Booking::where('status', 'requested')->count(),
-            'completed_today' => Booking::where('status', 'completed')->whereDate('updated_at', today())->count(),
+            'completed_today' => $completedTodayCount,
             'online_team_leaders' => $teamLeaderSummary['online_count'],
             'busy_team_leaders' => $teamLeaderSummary['busy_count'],
-            'dispatchers' => User::visibleToOperations()->where('role_id', 2)->count(),
+            'dispatchers' => $dispatcherUsers->count(),
             'scheduled_today' => $scheduledTodayCount,
             'returned_tasks' => $returnedTasksCount,
+            'total_units' => $unitRows->count(),
             'available_units' => $availableUnitsCount,
             'units_on_job' => $onJobUnitsCount,
+            'reserved_units' => $reservedUnitsCount,
+            'maintenance_units' => $maintenanceUnitsCount,
             'not_available_units' => $notAvailableUnitsCount,
-            'watchlist_customers' => Customer::query()->where('risk_level', 'watchlist')->count(),
-            'blacklisted_customers' => Customer::query()->where('risk_level', 'blacklisted')->count(),
+            'watchlist_customers' => $watchlistCount,
+            'blacklisted_customers' => $blacklistedCount,
             'total_bookings' => Booking::count(),
         ];
 
         return compact(
             'filters',
+            'filtered',
+            'listCaption',
             'monitoringStats',
             'attentionAlerts',
             'bookingPipeline',
             'activeBookings',
-            'recentBookings',
             'teamLeaderStatuses',
             'dispatchers',
             'unitsMonitor',
             'flaggedCustomers',
-            'recentActivities'
         );
+    }
+
+    /** @return array{0: string, 1: string} [css/state key, label] */
+    protected function unitCategory(array $row): array
+    {
+        if ($row['operational_state'] === 'maintenance') {
+            return ['maintenance', 'Maintenance'];
+        }
+        if ($row['active_booking'] !== null || in_array('busy', $row['reasons'], true)) {
+            return ['on_job', 'Busy'];
+        }
+        if ($row['reservation'] !== null) {
+            return ['reserved', 'Reserved'];
+        }
+
+        return $row['available'] ? ['available', 'Available'] : ['unavailable', 'Unavailable'];
+    }
+
+    /** Same matching as Owner → Bookings: case-insensitive on PostgreSQL, phone digits without the 0 / 63 prefix. */
+    protected function applySearch(Builder $query, string $search): void
+    {
+        $operator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+        $like = '%' . addcslashes($search, '%_\\') . '%';
+        $phoneDigits = preg_replace('/^(63|0)/', '', preg_replace('/\D+/', '', $search));
+
+        $query->where(function (Builder $q) use ($like, $operator, $phoneDigits) {
+            $q->where('booking_code', $operator, $like)
+                ->orWhere('pickup_address', $operator, $like)
+                ->orWhere('dropoff_address', $operator, $like)
+                ->orWhereHas('customer', function (Builder $customer) use ($like, $operator, $phoneDigits) {
+                    $customer->where('full_name', $operator, $like);
+
+                    if (strlen($phoneDigits) >= 3 && DB::getDriverName() === 'pgsql') {
+                        $customer->orWhereRaw("regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') like ?", ['%' . $phoneDigits . '%']);
+                    }
+                });
+        });
     }
 }

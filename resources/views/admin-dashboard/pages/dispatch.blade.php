@@ -3064,7 +3064,7 @@
                             return;
                         }
                         if (confirm(
-                                'Mark this unit for maintenance? It will be set to unavailable and require maintenance review.'
+                                'Mark this unit for maintenance? It will be set to unavailable and require maintenance review. No booking is changed. A truck with an active or reserved booking cannot enter maintenance until that booking is resolved or reassigned first.'
                             )) {
                             fetch('/admin-dashboard/units/' + unitId + '/maintenance', {
                                     method: 'POST',
@@ -3087,7 +3087,10 @@
                                         alert('Unit marked for maintenance successfully');
                                         location.reload();
                                     } else {
-                                        alert(data.message || 'Failed to mark unit for maintenance');
+                                        alert((data.message || 'Failed to mark unit for maintenance') +
+                                            '
+
+The unit was not changed. Resolve or reassign the booking holding this unit first (an unaccepted job can be reassigned; otherwise cancel it or have the Team Leader return it), then try again.');
                                     }
                                 })
                                 .catch(function() {

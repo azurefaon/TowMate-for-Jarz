@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\Personnel;
 use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
@@ -74,6 +75,33 @@ class UnitAvailabilityService
     }
 
     /**
+     * Whether the required people on a unit are eligible to work, using the
+     * app's existing definitions only:
+     *   - accounts (Team Leader, Driver account): User::canUseApi() — the
+     *     same rule that revokes app access (status active, not archived,
+     *     pending deletion or anonymized). Presence (online/offline) and the
+     *     temporary brute-force lockout are deliberately not part of it.
+     *   - personnel records: personnel_status = active — the rule dispatch
+     *     already applies before placing a record on a unit.
+     * A legacy free-text driver name has no status to check and stays as is.
+     */
+    public function accountIsEligible(?User $account): bool
+    {
+        return $account !== null && $account->canUseApi();
+    }
+
+    protected function driverIsEligible(Unit $unit, Collection $driverAccounts, Collection $driverRecords): bool
+    {
+        if (filled($unit->driver_id)) {
+            return $this->accountIsEligible($driverAccounts->get((int) $unit->driver_id));
+        }
+
+        $record = filled($unit->driver_personnel_id) ? $driverRecords->get((int) $unit->driver_personnel_id) : null;
+
+        return $record === null || $record->personnel_status === 'active';
+    }
+
+    /**
      * Evaluate one Unit. Prefer evaluateMany() when evaluating more than a
      * handful of units — this re-runs the batch queries every call.
      */
@@ -112,13 +140,8 @@ class UnitAvailabilityService
         $busyTeamLeaderIds = $this->teamLeaderAvailability->busyTeamLeaderIds();
 
         $activeBookingsByLeaderId = $this->teamLeaderAvailability->activeBookingsByLeaderId();
-        $activeBookingsByUnitId = Booking::query()
+        $activeBookingsByUnitId = $this->activeBookingsQuery()
             ->whereIn('assigned_unit_id', $unitIds)
-            ->whereIn('status', $this->teamLeaderAvailability->busyStatusesList())
-            ->where(function ($q) {
-                $q->where('status', '!=', 'waiting_verification')->orWhereNull('payment_submitted_at');
-            })
-            ->whereNull('returned_at')
             ->get()
             ->keyBy('assigned_unit_id');
 
@@ -127,7 +150,11 @@ class UnitAvailabilityService
             ->get(['id', 'booking_code', 'status', 'selected_unit_id'])
             ->keyBy('selected_unit_id');
 
-        return $units->mapWithKeys(function (Unit $unit) use ($busyTeamLeaderIds, $activeBookingsByLeaderId, $activeBookingsByUnitId, $reservationsByUnitId) {
+        // Driver eligibility inputs, batched like everything else here.
+        $driverAccounts = User::whereIn('id', $units->pluck('driver_id')->filter()->unique()->values())->get()->keyBy('id');
+        $driverRecords = Personnel::whereIn('id', $units->pluck('driver_personnel_id')->filter()->unique()->values())->get()->keyBy('id');
+
+        return $units->mapWithKeys(function (Unit $unit) use ($busyTeamLeaderIds, $activeBookingsByLeaderId, $activeBookingsByUnitId, $reservationsByUnitId, $driverAccounts, $driverRecords) {
             $teamLeader = $unit->relationLoaded('teamLeader') ? $unit->teamLeader : $unit->teamLeader()->first();
             $teamLeaderId = (int) ($unit->team_leader_id ?? 0);
 
@@ -155,11 +182,15 @@ class UnitAvailabilityService
             }
             if ($teamLeaderId <= 0 || ! $this->isValidTeamLeader($teamLeader)) {
                 $reasons[] = 'no_team_leader';
+            } elseif (! $this->accountIsEligible($teamLeader)) {
+                $reasons[] = 'team_leader_inactive';
             } elseif ($teamLeaderDuty === 'unavailable') {
                 $reasons[] = 'team_leader_duty_unavailable';
             }
             if (! $this->hasDriver($unit)) {
                 $reasons[] = 'no_driver';
+            } elseif (! $this->driverIsEligible($unit, $driverAccounts, $driverRecords)) {
+                $reasons[] = 'driver_inactive';
             } elseif ($driverDuty === 'unavailable') {
                 $reasons[] = 'driver_duty_unavailable';
             }
@@ -184,6 +215,91 @@ class UnitAvailabilityService
                 'reasons' => $reasons,
             ]];
         });
+    }
+
+    /** Bookings in the canonical busy lifecycle, same filter evaluateMany() uses. */
+    /**
+     * The canonical "active job" query (busy lifecycle statuses, payment-submitted
+     * waiting_verification excluded, returned bookings excluded) for callers that
+     * list or count active jobs, such as the Owner Operations Monitor.
+     */
+    public function activeJobsQuery()
+    {
+        return $this->activeBookingsQuery();
+    }
+
+    protected function activeBookingsQuery()
+    {
+        return Booking::query()
+            ->whereIn('status', $this->teamLeaderAvailability->busyStatusesList())
+            ->where(function ($q) {
+                $q->where('status', '!=', 'waiting_verification')->orWhereNull('payment_submitted_at');
+            })
+            ->whereNull('returned_at');
+    }
+
+    /**
+     * Whether an active booking is using this Unit: assigned to it directly,
+     * or assigned to its Team Leader with no Unit recorded on the booking.
+     * A Team Leader's job on a different Unit does not hold this one.
+     */
+    public function bookingHoldsUnit(Booking $booking, Unit $unit): bool
+    {
+        if ($booking->assigned_unit_id) {
+            return (int) $booking->assigned_unit_id === (int) $unit->id;
+        }
+
+        return $unit->team_leader_id && (int) $booking->assigned_team_leader_id === (int) $unit->team_leader_id;
+    }
+
+    /**
+     * The booking that must keep this Unit in service right now — an active
+     * job using it, or a booking reserving it (Booking::unitReservations(),
+     * the same definition behind the "reserved" reason). Personnel and duty
+     * are deliberately ignored: they never stop maintenance or archiving.
+     * Queried fresh on every call so actions can check immediately before
+     * they write.
+     *
+     * @return array{type: 'job'|'reservation', booking: Booking}|null
+     */
+    public function bookingHoldingUnit(Unit $unit, array $ignoreBookingIds = []): ?array
+    {
+        $job = $this->activeBookingsQuery()
+            ->when($ignoreBookingIds, fn ($q) => $q->whereNotIn('id', $ignoreBookingIds))
+            ->where(function ($q) use ($unit) {
+                $q->where('assigned_unit_id', $unit->id);
+
+                if ($unit->team_leader_id) {
+                    $q->orWhere(fn ($q) => $q->whereNull('assigned_unit_id')->where('assigned_team_leader_id', $unit->team_leader_id));
+                }
+            })
+            ->latest('updated_at')
+            ->first();
+
+        if ($job) {
+            return ['type' => 'job', 'booking' => $job];
+        }
+
+        $reservation = Booking::unitReservations()
+            ->where('selected_unit_id', $unit->id)
+            ->latest('updated_at')
+            ->first();
+
+        return $reservation ? ['type' => 'reservation', 'booking' => $reservation] : null;
+    }
+
+    /**
+     * An active job (same definition as above) assigned to this Team Leader,
+     * whichever Unit it names. $ignoreBookingIds lets a caller that has just
+     * returned a booking to dispatch leave it out.
+     */
+    public function activeBookingForLeader(int $teamLeaderId, array $ignoreBookingIds = []): ?Booking
+    {
+        return $this->activeBookingsQuery()
+            ->where('assigned_team_leader_id', $teamLeaderId)
+            ->when($ignoreBookingIds, fn ($q) => $q->whereNotIn('id', $ignoreBookingIds))
+            ->latest('updated_at')
+            ->first();
     }
 
     /**

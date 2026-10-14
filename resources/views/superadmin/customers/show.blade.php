@@ -1,207 +1,100 @@
 @extends('layouts.superadmin')
 
-@section('title', $customer->full_name)
+@section('title', $customer->full_name ?: 'Customer')
 
 @push('styles')
-    <style>
-        .customer-profile .back-link {
-            display: inline-block;
-            margin-bottom: 14px;
-            color: #111827;
-            font-weight: 600;
-            text-decoration: underline;
-        }
-
-        .customer-profile-header {
-            background: #fff;
-            border: 1px solid #111827;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 18px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 24px;
-            justify-content: space-between;
-        }
-
-        .customer-profile-header h1 {
-            margin: 0 0 6px;
-            font-size: 1.5rem;
-            color: #111827;
-        }
-
-        .customer-profile-header .meta-row {
-            display: flex;
-            gap: 22px;
-            flex-wrap: wrap;
-            color: #111827;
-            font-size: 0.92rem;
-        }
-
-        .customer-profile-header .meta-row strong {
-            display: block;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: #374151;
-            margin-bottom: 2px;
-        }
-
-        .risk-badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 999px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            border: 1px solid #111827;
-        }
-
-        .risk-badge.clear { background: #fff; color: #111827; }
-        .risk-badge.watchlist { background: #facc15; color: #111827; }
-        .risk-badge.blacklisted { background: #111827; color: #facc15; }
-
-        .risk-note {
-            margin-top: 10px;
-            padding: 12px 14px;
-            border: 1px solid #111827;
-            border-radius: 10px;
-            background: #facc15;
-            color: #111827;
-            font-size: 0.88rem;
-        }
-
-        .customer-bookings h2 {
-            font-size: 1.15rem;
-            color: #111827;
-            margin: 0 0 12px;
-        }
-
-        .customer-bookings-shell {
-            overflow-x: auto;
-            border: 1px solid #111827;
-            border-radius: 12px;
-            background: #fff;
-        }
-
-        table.customer-bookings-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        table.customer-bookings-table thead th {
-            background: #facc15;
-            color: #111827;
-            text-align: left;
-            padding: 12px 14px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            border-bottom: 1px solid #111827;
-        }
-
-        table.customer-bookings-table tbody td {
-            padding: 12px 14px;
-            font-size: 0.9rem;
-            color: #111827;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        table.customer-bookings-table .view-link {
-            font-weight: 700;
-            color: #111827;
-            text-decoration: underline;
-        }
-
-        .customer-bookings-empty {
-            text-align: center;
-            padding: 24px;
-            color: #111827;
-            font-weight: 600;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ asset('superadmin/css/bookings.css') }}?v={{ filemtime(public_path('superadmin/css/bookings.css')) }}">
+    <link rel="stylesheet" href="{{ asset('superadmin/css/customers.css') }}?v={{ filemtime(public_path('superadmin/css/customers.css')) }}">
 @endpush
 
 @section('content')
-    <div class="customer-profile">
+    <div class="ob-page" id="ownerCustomer">
 
-        <a href="{{ route('superadmin.customers.index') }}" class="back-link">&larr; Back to Customers</a>
+        <a href="{{ route('superadmin.customers.index') }}" class="oc-back">
+            <i data-lucide="arrow-left" aria-hidden="true"></i> Back to Customers
+        </a>
 
-        <div class="customer-profile-header">
-            <div>
-                <h1>{{ $customer->full_name }}</h1>
-                <span class="risk-badge {{ strtolower($customer->risk_level ?: 'clear') }}">{{ $customer->risk_status_label }}</span>
+        <section class="ob-card oc-profile" aria-label="Customer information">
+            <div class="oc-title-row">
+                <h1 class="oc-customer-name">{{ $customer->full_name ?: 'Customer' }}</h1>
+                <span class="ob-badge tone-{{ $risk['tone'] }}">{{ $risk['label'] }}</span>
             </div>
 
-            <div class="meta-row">
-                <div>
-                    <strong>Phone</strong>
-                    {{ $customer->phone ?: '—' }}
-                </div>
-                <div>
-                    <strong>Email</strong>
-                    {{ $customer->email ?: '—' }}
-                </div>
-                <div>
-                    <strong>Type</strong>
-                    {{ ucfirst($customer->customer_type ?: 'regular') }}
-                </div>
-                <div>
-                    <strong>Customer Since</strong>
-                    {{ $customer->created_at?->format('M j, Y') }}
-                </div>
-                <div>
-                    <strong>Total Bookings</strong>
-                    {{ $customer->bookings->count() }}
-                </div>
-            </div>
+            <dl class="oc-facts">
+                <div><dt>Phone</dt><dd>{{ $phone ?: '—' }}</dd></div>
+                <div><dt>Email</dt><dd>{{ $customer->email ?: '—' }}</dd></div>
+                <div><dt>Customer type</dt><dd>{{ $type }}</dd></div>
+                <div><dt>Bookings</dt><dd>{{ number_format($bookingCount) }}</dd></div>
+                <div><dt>Joined</dt><dd>{{ $customer->created_at?->format('M j, Y') ?? '—' }}</dd></div>
+            </dl>
 
-            @if ($customer->risk_level && strtolower($customer->risk_level) !== 'clear')
-                <div class="risk-note" style="flex-basis: 100%;">
+            @if ($risk['tone'] !== 'slate')
+                <div class="oc-risk-note">
                     <strong>Risk reason:</strong> {{ $customer->risk_reason ?: 'No reason recorded.' }}
                     @if ($customer->blacklisted_at)
                         <br><strong>Blacklisted on:</strong> {{ $customer->blacklisted_at->format('M j, Y') }}
                     @endif
                 </div>
             @endif
-        </div>
+        </section>
 
-        <div class="customer-bookings">
-            <h2>Booking History</h2>
+        <h2 class="oc-section-title">Booking history</h2>
 
-            <div class="customer-bookings-shell">
-                <table class="customer-bookings-table">
-                    <thead>
-                        <tr>
-                            <th>Booking</th>
-                            <th>Truck</th>
-                            <th>Unit</th>
-                            <th>Date</th>
-                            <th>Total</th>
-                            <th>Status</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($customer->bookings as $booking)
+        <div class="ob-card">
+            @if ($bookings->count() === 0)
+                <div class="ob-state">
+                    <span class="ob-state-icon"><i data-lucide="clipboard-list" aria-hidden="true"></i></span>
+                    <p class="ob-state-title">No bookings yet</p>
+                    <p class="ob-state-text">This customer has not made a booking.</p>
+                </div>
+            @else
+                <div class="ob-table-wrap">
+                    <table class="ob-table oc-table">
+                        <thead>
                             <tr>
-                                <td>{{ $booking->job_code }}</td>
-                                <td>{{ $booking->truckType->name ?? '—' }}</td>
-                                <td>{{ $booking->display_unit_name ?? 'Unassigned' }}</td>
-                                <td>{{ $booking->created_at?->format('M j, Y') }}</td>
-                                <td>₱{{ number_format($booking->final_total ?? 0, 2) }}</td>
-                                <td>{{ ucfirst($booking->status) }}</td>
-                                <td>
-                                    <a href="{{ route('superadmin.bookings.show', $booking->id) }}" class="view-link">View</a>
-                                </td>
+                                <th scope="col">Booking</th>
+                                <th scope="col">Truck</th>
+                                <th scope="col">Unit</th>
+                                <th scope="col">Date</th>
+                                <th scope="col" class="ob-col-amount">Amount</th>
+                                <th scope="col">Status</th>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="customer-bookings-empty">This customer has no bookings yet.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
+                        </thead>
+                        <tbody>
+                            @foreach ($rows as $row)
+                                @php $booking = $row['booking']; @endphp
+                                <tr class="ob-row">
+                                    <td>
+                                        <a class="oc-name" href="{{ route('superadmin.bookings.index', ['search' => $booking->job_code]) }}">{{ $booking->job_code }}</a>
+                                    </td>
+                                    <td>{{ $booking->truckType->name ?? '—' }}</td>
+                                    <td>
+                                        @if ($booking->unit)
+                                            {{ $booking->unit->name }}
+                                        @else
+                                            <span class="ob-sub">Not assigned</span>
+                                        @endif
+                                    </td>
+                                    <td>{{ $booking->created_at?->format('M j, Y') ?? '—' }}</td>
+                                    <td class="ob-amount">
+                                        @if ($row['amount']['amount'] !== null)
+                                            <span class="ob-main">₱{{ number_format($row['amount']['amount'], 2) }}</span>
+                                            @if ($row['amount']['note'])
+                                                <span class="ob-sub">{{ $row['amount']['note'] }}</span>
+                                            @endif
+                                        @else
+                                            <span class="ob-dash" aria-label="No amount yet">—</span>
+                                        @endif
+                                    </td>
+                                    <td><span class="ob-badge tone-{{ $row['status']['tone'] }}">{{ $row['status']['label'] }}</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
 
+                @include('superadmin.customers._pager', ['paginator' => $bookings, 'noun' => 'booking'])
+            @endif
+        </div>
     </div>
 @endsection

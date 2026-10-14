@@ -3,148 +3,161 @@
 @section('title', 'Business Activity')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('superadmin/css/business-activity.css') }}?v={{ filemtime(public_path('superadmin/css/business-activity.css')) }}">
+    <link rel="stylesheet" href="{{ asset('superadmin/css/bookings.css') }}?v={{ filemtime(public_path('superadmin/css/bookings.css')) }}">
+    <link rel="stylesheet" href="{{ asset('superadmin/css/analytics.css') }}?v={{ filemtime(public_path('superadmin/css/analytics.css')) }}">
 @endpush
 
 @section('content')
-    <div class="ba-page">
-        <div class="page-top">
-            <div>
-                <h1>Business Activity</h1>
-                <p>Review important business actions across bookings, fleet, and operations.</p>
-            </div>
-        </div>
+    @php
+        // The range shown is the range applied: the current month by default, or the chosen custom range.
+        $rangeLabel = $rangeStart->format('M j, Y') . ' – ' . $rangeEnd->format('M j, Y');
+        $hasFilters = $search !== '' || $category !== '' || $entityType !== '' || filled($actorId) || $customRange;
 
-        <form method="GET" action="{{ route('superadmin.reports.activity') }}" class="ba-toolbar" id="baFilterForm">
-            <div class="ba-search">
-                <i data-lucide="search"></i>
-                <input type="text" name="search" value="{{ $search }}" placeholder="Search description or reference">
-            </div>
+        // Stored status values are slugs (waiting_verification); show them as words.
+        $pretty = fn ($value) => is_string($value) && preg_match('/^[a-z][a-z_]*$/', $value) ? ucfirst(str_replace('_', ' ', $value)) : $value;
 
-            <select name="category" data-custom>
+        // Badge colour per activity category (the label itself comes from the record).
+        $tones = [
+            'create' => 'green',
+            'update' => 'blue',
+            'archive' => 'neutral',
+            'restore' => 'violet',
+            'delete' => 'red',
+            'dispatch' => 'orange',
+            'assignment_change' => 'blue',
+            'quotation_change' => 'amber',
+            'status_change' => 'neutral',
+            'system' => 'slate',
+        ];
+    @endphp
+
+    <div class="ob-page oa-page" id="ownerActivity">
+
+        <header class="ob-header">
+            <h1>Business Activity</h1>
+            <p>Review important business actions across bookings, fleet, and operations.</p>
+        </header>
+
+        <form method="GET" action="{{ route('superadmin.reports.activity') }}" class="oa-card oa-toolbar" id="baFilterForm" role="search">
+            <label class="oa-search">
+                <span class="ob-sr">Search business activity</span>
+                <i data-lucide="search" aria-hidden="true"></i>
+                <input type="text" name="search" value="{{ $search }}" placeholder="Search description or reference" autocomplete="off">
+            </label>
+
+            <select name="category" data-custom aria-label="Activity type">
                 <option value="">All Activity</option>
                 @foreach ($categories as $value => $label)
                     <option value="{{ $value }}" {{ $category === $value ? 'selected' : '' }}>{{ $label }}</option>
                 @endforeach
             </select>
 
-            <select name="entity_type" data-custom>
+            <select name="entity_type" data-custom aria-label="Record type">
                 <option value="">All Records</option>
                 @foreach ($entityTypes as $type)
                     <option value="{{ $type }}" {{ $entityType === $type ? 'selected' : '' }}>{{ trim(preg_replace('/(?<!^)[A-Z]/', ' $0', $type)) }}</option>
                 @endforeach
             </select>
 
-            <select name="user_id" data-custom>
+            <select name="user_id" data-custom aria-label="User">
                 <option value="">All Users</option>
                 @foreach ($actors as $actor)
                     <option value="{{ $actor->id }}" {{ (string) $actorId === (string) $actor->id ? 'selected' : '' }}>{{ $actor->full_name }}</option>
                 @endforeach
             </select>
 
-            <div class="date-range-picker" data-range-picker id="baDateRangePicker">
-                <input type="date" name="from" data-role="from" value="{{ $fromInput }}">
-                <input type="date" name="to" data-role="to" value="{{ $toInput }}">
-            </div>
+            @include('superadmin.analytics._range', ['label' => $rangeLabel, 'from' => $rangeStart->toDateString(), 'to' => $rangeEnd->toDateString(), 'alignRight' => true])
+
+            @if ($hasFilters)
+                <a href="{{ route('superadmin.reports.activity') }}" class="oa-btn">Reset</a>
+            @endif
         </form>
 
-        <div class="ba-section">
-            <div class="ba-section-head">
-                <h2>Business Activity</h2>
-                <span class="ba-record-count">{{ number_format($logs->total()) }} {{ $logs->total() === 1 ? 'record' : 'records' }}</span>
+        <section class="oa-card oa-list-card" aria-labelledby="baTitle">
+            <div class="oa-activity-head">
+                <h2 class="oa-card-title" id="baTitle"><i data-lucide="list" aria-hidden="true"></i> Business Activity</h2>
+                <span class="oa-activity-count">{{ number_format($logs->total()) }} {{ $logs->total() === 1 ? 'record' : 'records' }}</span>
             </div>
 
-            <div class="ba-table-wrap">
-                <table class="ba-table">
-                    <colgroup>
-                        <col style="width: 16%">
-                        <col style="width: 20%">
-                        <col style="width: 42%">
-                        <col style="width: 22%">
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th>Date &amp; Time</th>
-                            <th>Activity</th>
-                            <th>Details</th>
-                            <th>Performed By</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($logs as $log)
+            @if ($logs->count() === 0)
+                <div class="oa-activity-empty">
+                    <strong>No business activity found.</strong>
+                    Try adjusting the selected filters or date range.
+                </div>
+            @else
+                <div class="oa-table-wrap">
+                    <table class="oa-table oa-activity-table">
+                        <colgroup>
+                            <col style="width: 16%">
+                            <col style="width: 22%">
+                            <col style="width: 40%">
+                            <col style="width: 22%">
+                        </colgroup>
+                        <thead>
                             <tr>
-                                <td>
-                                    <span class="ba-datetime-date">{{ $log->created_at?->format('M j, Y') }}</span>
-                                    <span class="ba-datetime-time">{{ $log->created_at?->format('g:i A') }}</span>
-                                </td>
-                                <td>
-                                    <span class="ba-cell-primary">{{ $log->activity_label }}</span>
-                                    @if ($log->entity_label)
-                                        <span class="ba-cell-secondary">{{ $log->entity_label }}{{ $log->reference ? ' · ' . $log->reference : '' }}</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    <div class="ba-changes">
+                                <th scope="col">Date &amp; Time</th>
+                                <th scope="col">Activity</th>
+                                <th scope="col">Details</th>
+                                <th scope="col">Performed By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($logs as $log)
+                                <tr>
+                                    <td>
+                                        {{ $log->created_at?->format('M j, Y') }}
+                                        <span class="oa-sub">{{ $log->created_at?->format('g:i A') }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="oa-badge tone-{{ $tones[$log->category] ?? 'neutral' }}">{{ $log->activity_label }}</span>
+                                        @if ($log->entity_label)
+                                            <span class="oa-sub">{{ $log->entity_label }}{{ $log->reference ? ' · ' . $log->reference : '' }}</span>
+                                        @endif
+                                    </td>
+                                    <td>
                                         @foreach ($log->activity_changes as $change)
-                                            <div class="ba-change">
+                                            <div class="oa-change">
                                                 @if ($change['label'] === null)
-                                                    <span class="ba-change-value">{{ $change['value'] }}</span>
+                                                    <span class="oa-change-value">{{ $pretty($change['value']) }}</span>
                                                 @elseif (array_key_exists('old', $change))
-                                                    <span class="ba-change-label">{{ $change['label'] }}</span>
-                                                    <div class="ba-change-diff">
-                                                        <span class="ba-change-old">{{ $change['old'] }}</span>
-                                                        <span class="ba-change-arrow">→</span>
-                                                        <span class="ba-change-new">{{ $change['new'] }}</span>
-                                                    </div>
+                                                    <span class="oa-change-label">{{ $change['label'] }}:</span>
+                                                    <span class="oa-change-old">{{ $pretty($change['old']) }}</span><span class="oa-change-arrow">→</span><span class="oa-change-value">{{ $pretty($change['new']) }}</span>
                                                 @else
-                                                    <span class="ba-change-label">{{ $change['label'] }}</span>
-                                                    <span class="ba-change-value">{{ $change['value'] }}</span>
+                                                    <span class="oa-change-label">{{ $change['label'] }}:</span>
+                                                    <span class="oa-change-value">{{ $pretty($change['value']) }}</span>
                                                 @endif
                                             </div>
                                         @endforeach
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="ba-cell-primary">{{ $log->user->full_name ?? 'System' }}</span>
-                                    @if ($log->user?->role?->name)
-                                        <span class="ba-cell-secondary">{{ $log->user->role->name }}</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="4" class="ba-empty-row">
-                                    No business activity found.
-                                    <span class="ba-empty-hint">Try adjusting the selected filters or date range.</span>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+                                    </td>
+                                    <td>
+                                        {{ $log->user->full_name ?? 'System' }}
+                                        @if ($log->user?->role?->name)
+                                            <span class="oa-sub">{{ $log->user->role->name }}</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
 
-            <div class="ba-pagination">
-                {{ $logs->onEachSide(1)->links('vendor.pagination.owner-standard') }}
-            </div>
-        </div>
+                @include('superadmin.customers._pager', ['paginator' => $logs, 'noun' => 'record'])
+            @endif
+        </section>
     </div>
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('superadmin/js/analytics.js') }}?v={{ filemtime(public_path('superadmin/js/analytics.js')) }}" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const form = document.getElementById('baFilterForm');
             if (!form) return;
 
+            // The dropdowns apply immediately; the date range applies from its Apply button.
             form.querySelectorAll('select').forEach(function (select) {
                 select.addEventListener('change', function () {
-                    form.submit();
-                });
-            });
-
-            form.querySelectorAll('input[type="date"]').forEach(function (input) {
-                input.addEventListener('change', function () {
-                    form.submit();
+                    form.requestSubmit();
                 });
             });
 
@@ -153,7 +166,7 @@
             searchInput?.addEventListener('input', function () {
                 clearTimeout(searchTimer);
                 searchTimer = setTimeout(function () {
-                    form.submit();
+                    form.requestSubmit();
                 }, 500);
             });
         });

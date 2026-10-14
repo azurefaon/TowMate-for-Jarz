@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Events\BookingStatusUpdated;
 use App\Exceptions\Booking\ScheduledQuoteCutoffPassedException;
+use App\Exceptions\QuotationAlreadyProcessedException;
 use App\Models\Booking;
 use App\Models\PriceAdjustment;
 use App\Models\Quotation;
 use App\Models\TruckType;
+use App\Observers\AuditObserver;
 use App\Services\CustomerNotificationService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -226,15 +228,39 @@ class QuotationService
 
     public function acceptQuotation(Quotation $quotation, ?string $note = null): Booking
     {
+        $auditCheckpoint = AuditObserver::checkpoint();
         DB::beginTransaction();
 
         try {
+            // Lock order: the bookings (ascending id) first, then the quotation.
+            // Customer cancellation locks a booking and then updates its
+            // quotation, so taking them in the same order here avoids an
+            // accept-versus-cancel deadlock.
+            $bookingIds = collect([$quotation->source_booking_id])
+                ->merge(collect($quotation->extra_vehicles ?? [])->pluck('booking_id'))
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->sort()
+                ->values();
+
+            if ($bookingIds->isNotEmpty()) {
+                Booking::whereIn('id', $bookingIds)->orderBy('id')->lockForUpdate()->get();
+            }
+
+            // The caller checked a copy loaded before this transaction. Lock the
+            // row and re-read it, so two simultaneous accepts (a double tap) can't
+            // both pass the status check and each reserve a capacity slot: the
+            // second waits here, then sees "accepted" and stops.
+            Quotation::whereKey($quotation->id)->lockForUpdate()->first();
+            $quotation->refresh();
+
             if (! $quotation->is_current) {
-                throw new \Exception('This quotation was revised. Please use the latest version.');
+                throw new QuotationAlreadyProcessedException('This quotation was revised. Please use the latest version.');
             }
 
             if ($quotation->status !== 'sent') {
-                throw new \Exception('Quotation already processed.');
+                throw new QuotationAlreadyProcessedException('Quotation already processed.');
             }
 
             $quotation->update([
@@ -246,6 +272,15 @@ class QuotationService
             $groupCode = $quotation->quotation_number;
             $isScheduled = $quotation->service_type === 'schedule';
             $extraVehicles = $quotation->extra_vehicles ?? [];
+            $capacity = app(ScheduledCapacityService::class);
+
+            if ($isScheduled) {
+                // Every date this acceptance counts a slot on, locked in ascending
+                // order so it cannot deadlock with a cancellation or reschedule.
+                $capacity->lockDates(collect([$quotation->scheduled_date?->toDateString()])
+                    ->merge(Booking::whereIn('id', collect($extraVehicles)->pluck('booking_id')->filter()->all())->get()->map(fn ($b) => $b->scheduled_date?->toDateString()))
+                    ->merge(collect($extraVehicles)->filter(fn ($ev) => empty($ev['booking_id']))->pluck('scheduled_date')));
+            }
             $isNormalizedGroup = collect($extraVehicles)->contains(fn ($ev) => ! empty($ev['booking_id']));
 
             $primaryBooking = $quotation->source_booking_id ? Booking::findOrFail($quotation->source_booking_id) : null;
@@ -306,14 +341,7 @@ class QuotationService
             }
 
             if ($isScheduled && $quotation->scheduled_date) {
-                $date = $quotation->scheduled_date->toDateString();
-                DB::statement(
-                    "INSERT INTO booking_capacity (booking_date, slots_used, updated_at)
-                     VALUES (?, 1, NOW())
-                     ON CONFLICT (booking_date) DO UPDATE
-                     SET slots_used = booking_capacity.slots_used + 1, updated_at = NOW()",
-                    [$date]
-                );
+                $capacity->reserve($primaryBooking, $quotation->scheduled_date->toDateString());
             }
 
             foreach ($extraVehicles as $ev) {
@@ -358,13 +386,7 @@ class QuotationService
                     ], $evIsScheduled ? ['selected_unit_id' => null] : []));
 
                     if ($evIsScheduled && $siblingBooking->scheduled_date) {
-                        DB::statement(
-                            "INSERT INTO booking_capacity (booking_date, slots_used, updated_at)
-                             VALUES (?, 1, NOW())
-                             ON CONFLICT (booking_date) DO UPDATE
-                             SET slots_used = booking_capacity.slots_used + 1, updated_at = NOW()",
-                            [$siblingBooking->scheduled_date->toDateString()]
-                        );
+                        $capacity->reserve($siblingBooking, $siblingBooking->scheduled_date->toDateString());
                     }
 
                     continue;
@@ -386,7 +408,7 @@ class QuotationService
                     continue;
                 }
 
-                Booking::create([
+                $newSibling = Booking::create([
                     'quotation_id' => $quotation->id,
                     'group_code' => $groupCode,
                     'customer_id' => $quotation->customer_id,
@@ -407,13 +429,7 @@ class QuotationService
                 ]);
 
                 if ($evScheduled && $evDate) {
-                    DB::statement(
-                        "INSERT INTO booking_capacity (booking_date, slots_used, updated_at)
-                         VALUES (?, 1, NOW())
-                         ON CONFLICT (booking_date) DO UPDATE
-                         SET slots_used = booking_capacity.slots_used + 1, updated_at = NOW()",
-                        [$evDate]
-                    );
+                    $capacity->reserve($newSibling, (string) $evDate);
                 }
             }
 
@@ -427,6 +443,7 @@ class QuotationService
             return $primaryBooking;
         } catch (\Exception $e) {
             DB::rollBack();
+            AuditObserver::restore($auditCheckpoint);
             throw $e;
         }
     }
@@ -437,47 +454,78 @@ class QuotationService
             return;
         }
 
-        $quotation->update([
-            'status' => 'rejected',
-            'responded_at' => now(),
-            'response_note' => $reason,
-        ]);
+        $booking = AuditObserver::transaction(function () use ($quotation, $reason) {
+            // Booking first, then the quotation: the same order cancellation and
+            // acceptance use, so they cannot deadlock.
+            if ($quotation->source_booking_id) {
+                Booking::whereKey($quotation->source_booking_id)->lockForUpdate()->first();
+            }
 
-        if ($quotation->source_booking_id) {
-            $booking = Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])
-                ->find($quotation->source_booking_id);
+            $quotation->update([
+                'status' => 'rejected',
+                'responded_at' => now(),
+                'response_note' => $reason,
+            ]);
+
+            $booking = $quotation->source_booking_id
+                ? Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader'])->find($quotation->source_booking_id)
+                : null;
+
             if ($booking) {
                 $booking->update(['status' => 'cancelled']);
-                BookingStatusUpdated::safeFire($booking);
+                app(ScheduledCapacityService::class)->release($booking);
             }
+
+            return $booking;
+        });
+
+        if ($booking) {
+            BookingStatusUpdated::safeFire($booking);
         }
     }
 
     public function cancelQuotation(Quotation $quotation): void
     {
-        $quotation->update([
-            'status' => 'cancelled',
-            'responded_at' => now(),
-            'response_note' => 'Cancelled by dispatcher.',
-        ]);
+        $changedBooking = AuditObserver::transaction(function () use ($quotation) {
+            // Booking first, then the quotation (see rejectQuotation()).
+            if ($quotation->source_booking_id) {
+                Booking::whereKey($quotation->source_booking_id)->lockForUpdate()->first();
+            }
 
-        if ($quotation->source_booking_id) {
+            $quotation->update([
+                'status' => 'cancelled',
+                'responded_at' => now(),
+                'response_note' => 'Cancelled by dispatcher.',
+            ]);
+
+            if (! $quotation->source_booking_id) {
+                return null;
+            }
+
             $sourceBooking = Booking::find($quotation->source_booking_id);
             $rejectableStatuses = [
                 'requested', 'reviewed', 'quoted', 'quotation_sent',
                 'scheduled', 'scheduled_confirmed',
             ];
-            if ($sourceBooking && in_array($sourceBooking->status, $rejectableStatuses)) {
-                $newStatus = in_array($sourceBooking->status, ['scheduled', 'scheduled_confirmed'])
-                    ? 'rejected'
-                    : 'cancelled';
-                $sourceBooking->update([
-                    'status'           => $newStatus,
-                    'quotation_status' => 'cancelled',
-                    'rejection_reason' => 'Booking cancelled by dispatcher.',
-                ]);
-                BookingStatusUpdated::safeFire($sourceBooking);
+            if (! $sourceBooking || ! in_array($sourceBooking->status, $rejectableStatuses)) {
+                return null;
             }
+
+            $newStatus = in_array($sourceBooking->status, ['scheduled', 'scheduled_confirmed'])
+                ? 'rejected'
+                : 'cancelled';
+            $sourceBooking->update([
+                'status'           => $newStatus,
+                'quotation_status' => 'cancelled',
+                'rejection_reason' => 'Booking cancelled by dispatcher.',
+            ]);
+            app(ScheduledCapacityService::class)->release($sourceBooking);
+
+            return $sourceBooking;
+        });
+
+        if ($changedBooking) {
+            BookingStatusUpdated::safeFire($changedBooking);
         }
 
         if ($quotation->customer && $quotation->customer->email) {

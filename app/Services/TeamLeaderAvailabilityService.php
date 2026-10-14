@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Models\Booking;
 use App\Models\Unit;
+use App\Models\UnitCrewLoan;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class TeamLeaderAvailabilityService
 {
@@ -60,8 +62,8 @@ class TeamLeaderAvailabilityService
 
         $leaderIds = collect([(int) $user->id]);
 
-        $this->releaseBookingsForOfflineLeaderIds($leaderIds);
-        $this->releaseUnitsForOfflineLeaderIds($leaderIds);
+        $returnedToDispatch = $this->releaseBookingsForOfflineLeaderIds($leaderIds);
+        $this->releaseUnitsForOfflineLeaderIds($leaderIds, $returnedToDispatch);
     }
 
     /**
@@ -285,17 +287,32 @@ class TeamLeaderAvailabilityService
         ];
     }
 
-    protected function releaseBookingsForOfflineLeaderIds(Collection $leaderIds): void
+    /**
+     * Returns un-started offers (status "assigned", not yet accepted) to
+     * dispatch so they can be given to someone else. Everything further
+     * along stays with the Team Leader.
+     *
+     * @return array<int,int> ids of the bookings returned to dispatch
+     */
+    protected function releaseBookingsForOfflineLeaderIds(Collection $leaderIds): array
     {
         if ($leaderIds->isEmpty()) {
-            return;
+            return [];
         }
 
-        // Only release bookings that have NOT been started yet.
-        // Jobs already on-the-way, in-progress, or further along must stay
-        // with the team leader so they are not lost from the system.
-        Booking::query()
+        $returned = Booking::query()
             ->whereIn('assigned_team_leader_id', $leaderIds->all())
+            ->where('status', 'assigned')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($returned === []) {
+            return [];
+        }
+
+        Booking::query()
+            ->whereIn('id', $returned)
             ->where('status', 'assigned')
             ->update([
                 'assigned_team_leader_id' => null,
@@ -305,48 +322,88 @@ class TeamLeaderAvailabilityService
                 'customer_verified_at' => null,
                 'customer_verification_status' => null,
             ]);
+
+        return $returned;
     }
 
-    protected function releaseUnitsForOfflineLeaderIds(Collection $leaderIds): void
+    protected function releaseUnitsForOfflineLeaderIds(Collection $leaderIds, array $returnedBookingIds = []): void
     {
         if ($leaderIds->isEmpty()) {
             return;
         }
 
-        // Keep the unit assigned to any TL who still has an active job in progress.
-        // Only release units for TLs with no running job.
-        $activeJobStatuses = ['on_the_way', 'in_progress', 'waiting_verification', 'payment_pending', 'payment_submitted'];
+        // Sign-out releases an ordinary Team Leader from their truck. It must NOT
+        // take a leader off a truck that is committed: an active job, a
+        // reservation, or a borrow. Those are re-checked here, under the truck's
+        // row lock, immediately before the assignment is changed, so a dispatcher
+        // action that commits first is always seen and one that comes later waits.
+        //
+        // Lock order: the Team Leader's unit first (ascending id; a leader leads
+        // at most one), nothing else is locked, and no lock is held from an
+        // earlier statement (presence and booking updates are their own commits),
+        // so this cannot cross the unit-first order the owner and dispatcher
+        // operations use.
+        DB::transaction(function () use ($leaderIds, $returnedBookingIds) {
+            $units = Unit::query()
+                ->whereIn('team_leader_id', $leaderIds->all())
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
 
-        $leadersWithActiveJobs = Booking::query()
-            ->whereIn('assigned_team_leader_id', $leaderIds->all())
-            ->whereIn('status', $activeJobStatuses)
-            ->where(function ($query) {
-                $query->where('status', '!=', 'waiting_verification')
-                    ->orWhereNull('payment_submitted_at');
-            })
-            ->pluck('assigned_team_leader_id')
-            ->map(fn ($id) => (int) $id)
-            ->unique();
+            $availability = app(UnitAvailabilityService::class);
+            $releasable = $units
+                ->reject(fn (Unit $unit) => $this->mustKeepLeader($unit, $availability, $returnedBookingIds))
+                ->pluck('id');
 
-        $safeToRelease = $leaderIds->diff($leadersWithActiveJobs)->values();
+            if ($releasable->isEmpty()) {
+                return;
+            }
 
-        if ($safeToRelease->isEmpty()) {
-            return;
-        }
+            // A truck under maintenance keeps its status, notes and every
+            // operational field and only loses its leader; one conditional UPDATE
+            // so a maintenance toggle committed at the same moment cannot be undone.
+            $keepIfMaintenance = fn (string $column, string $otherwise) => DB::raw("CASE WHEN status = 'maintenance' THEN {$column} ELSE {$otherwise} END");
 
-        Unit::query()
-            ->whereIn('team_leader_id', $safeToRelease->all())
-            ->update([
-                'team_leader_id'    => null,
-                'status'            => 'available',
-                'dispatcher_status' => null,
-                'dispatcher_note'   => null,
-                'zone_confirmed'    => false,
-                'last_updated_by'   => null,
-                'last_updated_at'   => null,
-            ]);
+            Unit::query()
+                ->whereIn('id', $releasable->all())
+                ->update([
+                    'team_leader_id'    => null,
+                    'status'            => $keepIfMaintenance('status', "'available'"),
+                    'dispatcher_status' => $keepIfMaintenance('dispatcher_status', 'NULL'),
+                    'dispatcher_note'   => $keepIfMaintenance('dispatcher_note', 'NULL'),
+                    'zone_confirmed'    => $keepIfMaintenance('zone_confirmed', 'FALSE'),
+                    'last_updated_by'   => $keepIfMaintenance('last_updated_by', 'NULL'),
+                    'last_updated_at'   => $keepIfMaintenance('last_updated_at', 'NULL'),
+                ]);
+        });
     }
 
+    /**
+     * Whether this truck's leader must stay assigned after signing out.
+     *  - an active job: the app-wide definition (UnitAvailabilityService), on
+     *    this truck or assigned to this leader, ignoring offers this sign-out
+     *    just returned to dispatch;
+     *  - a reservation of the truck (the same definition that makes it "reserved");
+     *  - a borrow: an open Team Leader loan to this truck for this leader, which
+     *    must keep matching the truck's actual leader.
+     */
+    protected function mustKeepLeader(Unit $unit, UnitAvailabilityService $availability, array $returnedBookingIds): bool
+    {
+        if ($availability->bookingHoldingUnit($unit, $returnedBookingIds) !== null) {
+            return true;
+        }
+
+        if ($availability->activeBookingForLeader((int) $unit->team_leader_id, $returnedBookingIds) !== null) {
+            return true;
+        }
+
+        return UnitCrewLoan::query()
+            ->where('person_user_id', $unit->team_leader_id)
+            ->where('to_slot', 'team_leader')
+            ->where('to_unit_id', $unit->id)
+            ->whereNull('returned_at')
+            ->exists();
+    }
     protected function workloadLabel(string $workload): string
     {
         return match ($workload) {

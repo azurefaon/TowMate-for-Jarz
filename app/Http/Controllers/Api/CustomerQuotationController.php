@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Events\CustomerInquirySent;
+use App\Exceptions\QuotationAlreadyProcessedException;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\PriceAdjustment;
@@ -135,6 +136,9 @@ class CustomerQuotationController extends Controller
                 'booking_code'   => $booking->booking_code,
                 'booking_status' => $booking->status,
             ]);
+        } catch (QuotationAlreadyProcessedException) {
+            // The same accept arrived twice and this one lost the race.
+            return response()->json(['success' => false, 'message' => 'This quotation has already been processed.'], 422);
         } catch (\Exception $e) {
             Log::error('Mobile quotation accept failed', [
                 'quotation_id'     => $quotation->id,

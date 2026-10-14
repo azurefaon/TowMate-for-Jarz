@@ -19,7 +19,7 @@ test('super admin login screen can be rendered', function () {
     $this->get('/login')
         ->assertOk()
         ->assertSee('Jarz Towing')
-        ->assertSee('Welcome back')
+        ->assertSee('Staff Login')
         ->assertSee('value="superadmin"', false);
 });
 
@@ -119,7 +119,7 @@ test('dispatchers are redirected only to the dispatcher dashboard after login', 
     $response->assertRedirect(route('admin.dashboard', absolute: false));
 });
 
-test('cross role login is rejected with a generic invalid credentials message', function () {
+test('a team leader is refused on the web login with a clear message and no session of any kind', function () {
     ensureAuthRole(2, 'Dispatcher');
     ensureAuthRole(3, 'Team Leader');
 
@@ -128,35 +128,40 @@ test('cross role login is rejected with a generic invalid credentials message', 
         'status' => 'active',
     ]);
 
+    // Whichever role the form posts, the account's real role decides.
+    foreach (['teamleader', 'dispatcher'] as $postedRole) {
+        $this->from('/login')->post('/login', [
+            'role' => $postedRole,
+            'login_method' => 'password',
+            'email' => $teamLeader->email,
+            'password' => 'password',
+        ])
+            ->assertRedirect('/login')
+            ->assertSessionHasErrorsIn('login', ['auth'])
+            ->assertSessionHas('errors', fn ($bag) => str_contains($bag->getBag('login')->first('auth'), 'mobile app'));
+
+        foreach (['web', 'teamleader', 'dispatcher', 'superadmin', 'systemadmin'] as $guard) {
+            $this->assertGuest($guard);
+        }
+    }
+});
+
+test('a team leader with a wrong password gets the generic message, not the mobile-app notice', function () {
+    ensureAuthRole(3, 'Team Leader');
+
+    $teamLeader = User::factory()->create(['role_id' => 3, 'status' => 'active']);
+
     $this->from('/login')->post('/login', [
-        'role' => 'dispatcher',
+        'role' => 'teamleader',
         'login_method' => 'password',
         'email' => $teamLeader->email,
-        'password' => 'password',
+        'password' => 'wrong-password',
     ])
         ->assertRedirect('/login')
         ->assertSessionHasErrorsIn('login', ['auth']);
 
-    $this->assertGuest('dispatcher');
-});
-
-test('team leader can authenticate through the team leader login page', function () {
-    ensureAuthRole(3, 'Team Leader');
-
-    $teamLeader = User::factory()->create([
-        'role_id' => 3,
-        'status' => 'active',
-    ]);
-
-    $response = $this->post('/login', [
-        'role' => 'teamleader',
-        'login_method' => 'password',
-        'email' => $teamLeader->email,
-        'password' => 'password',
-    ]);
-
-    $this->assertAuthenticated('teamleader');
-    $response->assertRedirect(route('teamleader.dashboard', absolute: false));
+    expect(session('errors')->getBag('login')->first('auth'))->toBe('Unable to sign in with the provided credentials.');
+    $this->assertGuest('teamleader');
 });
 
 test('a third consecutive failed login attempt locks the account without hitting the raw rate-limit lockout', function () {
@@ -232,6 +237,7 @@ test('users can logout securely from all sessions', function () {
     $response = $this->post('/logout');
 
     $this->assertGuest('web');
+    // The posted role is ignored; the Team Leader's real role decides. No dispatcher session is created.
     $this->assertGuest('dispatcher');
     $response->assertRedirect(url('/login'));
 });

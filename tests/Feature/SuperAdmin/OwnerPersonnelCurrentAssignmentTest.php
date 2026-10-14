@@ -69,7 +69,7 @@ it('shows a borrowed driver on the current unit while the regular unit stays put
         ->and($kevin->fresh()->home_unit_id)->toBe($home->id);
 
     $this->actingAs(opcOwner())->get(route('superadmin.personnel.index'))
-        ->assertOk()->assertSee('Regular: OPC JARZ 4')->assertSee('Current: OPC JARZ 3');
+        ->assertOk()->assertSeeInOrder(['OPC JARZ 4', 'OPC JARZ 3', 'Borrowed from OPC JARZ 4']);
 });
 
 it('shows the destination unit for an open name-only loan', function () {

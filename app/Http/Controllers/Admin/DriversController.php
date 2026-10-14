@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exceptions\HomeUnitConflictException;
 use App\Http\Controllers\Controller;
 use App\Models\Personnel;
 use App\Models\Unit;
@@ -181,7 +182,7 @@ class DriversController extends Controller
         try {
             $this->teamAssignment->assignTeamLeader($unit, (int) $validated['team_leader_id'], Auth::user());
         } catch (RuntimeException $e) {
-            return $this->fail($request, $e->getMessage());
+            return $this->refused($request, $e);
         }
 
         return $this->ok($request, 'Team Leader assigned.');
@@ -192,7 +193,7 @@ class DriversController extends Controller
         try {
             $this->teamAssignment->returnTeamLeader($unit, Auth::user());
         } catch (RuntimeException $e) {
-            return $this->fail($request, $e->getMessage());
+            return $this->refused($request, $e);
         }
 
         return $this->ok($request, 'Team Leader returned.');
@@ -215,7 +216,7 @@ class DriversController extends Controller
                 $this->teamAssignment->assignSlotPerson($unit, $validated['to_slot'], $sourceUnit, $validated['from_slot'], Auth::user());
             }
         } catch (RuntimeException $e) {
-            return $this->fail($request, $e->getMessage());
+            return $this->refused($request, $e);
         }
 
         return $this->ok($request, 'Assigned.');
@@ -226,7 +227,7 @@ class DriversController extends Controller
         try {
             $this->teamAssignment->returnSlotPerson($loan, Auth::user());
         } catch (RuntimeException $e) {
-            return $this->fail($request, $e->getMessage());
+            return $this->refused($request, $e);
         }
 
         return $this->ok($request, 'Returned.');
@@ -237,7 +238,7 @@ class DriversController extends Controller
         try {
             $this->teamAssignment->removeTeamLeader($unit, Auth::user());
         } catch (RuntimeException $e) {
-            return $this->fail($request, $e->getMessage());
+            return $this->refused($request, $e);
         }
 
         return $this->ok($request, 'Team Leader removed.');
@@ -252,7 +253,7 @@ class DriversController extends Controller
         try {
             $this->teamAssignment->removeSlotPerson($unit, $validated['slot'], Auth::user());
         } catch (RuntimeException $e) {
-            return $this->fail($request, $e->getMessage());
+            return $this->refused($request, $e);
         }
 
         return $this->ok($request, 'Removed.');
@@ -266,7 +267,7 @@ class DriversController extends Controller
             $target = Unit::findOrFail($validated['target_unit_id']);
             $this->teamAssignment->transferTeam($unit, $target, Auth::user());
         } catch (RuntimeException $e) {
-            return $this->fail($request, $e->getMessage());
+            return $this->refused($request, $e);
         }
 
         return $this->ok($request, 'Team transferred.');
@@ -279,7 +280,7 @@ class DriversController extends Controller
         try {
             $this->teamAssignment->setTeamLeaderDuty($teamLeader, $validated['status'], Auth::user());
         } catch (RuntimeException $e) {
-            return $this->fail($request, $e->getMessage());
+            return $this->refused($request, $e);
         }
 
         return $this->ok($request, 'Duty updated.');
@@ -295,295 +296,20 @@ class DriversController extends Controller
         try {
             $this->teamAssignment->setSlotDuty($unit, $validated['slot'], $validated['status'], Auth::user());
         } catch (RuntimeException $e) {
-            return $this->fail($request, $e->getMessage());
+            return $this->refused($request, $e);
         }
 
         return $this->ok($request, 'Duty updated.');
     }
 
     // ------------------------------------------------------------------
-    // Legacy actions — no longer linked from the Units & Leaders UI (see
-    // assignTeamLeader/returnTeamLeader/assignSlot/transferTeam above, which
-    // replace these), but kept in place so the existing routes
-    // (drivers.assign-unit, drivers.remove-unit, drivers.update-status,
-    // team-leaders.override) and any code/tests still pointed at them keep
-    // working rather than 404/500ing outright. Not used by, and safe to
-    // eventually retire once nothing references them anymore.
+    // Retired legacy actions: drivers.assign-unit, drivers.remove-unit,
+    // drivers.update-status and team-leaders.override (routes and methods
+    // removed). They changed unit assignment or status with no locks,
+    // active-job/reservation guard, maintenance protection or borrow records.
+    // Do not reintroduce them; assignments go through the endpoints above
+    // (UnitTeamAssignmentService) and maintenance through the Fleet controllers.
     // ------------------------------------------------------------------
-
-    public function assignUnit(Request $request, User $teamLeader): RedirectResponse|JsonResponse
-    {
-        abort_unless((int) $teamLeader->role_id === 3, 404);
-
-        $validated = $request->validate([
-            'unit_id' => ['required', 'integer', 'exists:units,id'],
-        ]);
-
-        if (! $this->teamLeaderAvailability->isOnline($teamLeader)) {
-            if ($request->expectsJson()) {
-                return response()->json(['errors' => ['unit_id' => 'This team leader is offline. Bring them online before assigning a unit.']], 422);
-            }
-            return redirect()->route('admin.drivers')->withErrors(['unit_id' => 'This team leader is offline.']);
-        }
-
-        $teamLeader->loadMissing('unit');
-        $currentDispatcherStatus = $teamLeader->unit?->dispatcher_status;
-        if (in_array($currentDispatcherStatus, ['unavailable', 'on_tow', 'on_job'], true)) {
-            $label = match ($currentDispatcherStatus) {
-                'unavailable' => 'Not Available',
-                'on_tow'      => 'On Tow',
-                'on_job'      => 'On Job',
-            };
-            if ($request->expectsJson()) {
-                return response()->json(['errors' => ['unit_id' => "Cannot assign a unit while the team leader is set to {$label}."]], 422);
-            }
-            return redirect()->route('admin.drivers')->withErrors(['unit_id' => "Cannot assign a unit while status is {$label}."]);
-        }
-
-        $unit = Unit::query()->with('truckType')->findOrFail($validated['unit_id']);
-
-        if ($unit->status !== 'available') {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'errors' => ['unit_id' => 'Only available units can be assigned from the dispatcher module.'],
-                ], 422);
-            }
-
-            return redirect()
-                ->route('admin.drivers')
-                ->withErrors(['unit_id' => 'Only available units can be assigned from the dispatcher module.']);
-        }
-
-        if ($unit->team_leader_id && (int) $unit->team_leader_id !== (int) $teamLeader->id) {
-            $ownerName = optional($unit->teamLeader)->full_name
-                ?? optional($unit->teamLeader)->name
-                ?? 'another team leader';
-
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'errors' => ['unit_id' => 'This unit is already assigned to ' . $ownerName . '. Release it first before reassigning.'],
-                ], 422);
-            }
-
-            return redirect()
-                ->route('admin.drivers')
-                ->withErrors(['unit_id' => 'This unit is already assigned to ' . $ownerName . '. Release it first before reassigning.']);
-        }
-
-        Unit::query()
-            ->where('team_leader_id', $teamLeader->id)
-            ->whereKeyNot($unit->id)
-            ->update(['team_leader_id' => null]);
-
-        $unit->update(['team_leader_id' => $teamLeader->id]);
-
-        \App\Models\AuditLog::create([
-            'user_id'     => Auth::id(),
-            'action'      => 'unit_assigned',
-            'entity_type' => 'Unit',
-            'entity_id'   => $unit->id,
-            'reference'   => $unit->name,
-            'description' => 'Assigned to ' . ($teamLeader->full_name ?: $teamLeader->name),
-        ]);
-
-        if ($request->expectsJson()) {
-            $summary = $this->teamLeaderAvailability->summarize(collect([$teamLeader]));
-            $leader = $summary['leaders']->first();
-            return response()->json([
-                'message' => 'Unit assigned to ' . ($teamLeader->full_name ?: $teamLeader->name) . ' successfully.',
-                'assigned_unit' => [
-                    'id' => $leader['assigned_unit_id'] ?? null,
-                    'name' => $leader['unit_name'] ?? '',
-                    'plate_number' => $unit->plate_number ?? '',
-                    'driver_name' => $leader['driver_name'] ?? '',
-                ],
-                'status' => [
-                    'label' => strtoupper($leader['unit_status_label'] ?? ''),
-                    'class' => 'status-' . ($leader['unit_status'] ?? 'standby'),
-                    'subtext' => $leader['status_summary'] ?? '',
-                ],
-                'team_leader_id' => $teamLeader->id,
-            ], 200);
-        }
-
-        return redirect()
-            ->route('admin.drivers')
-            ->with('success', 'Unit assigned to ' . ($teamLeader->full_name ?: $teamLeader->name) . ' successfully.');
-    }
-
-    public function updateStatus(Request $request, User $teamLeader): RedirectResponse
-    {
-        abort_unless((int) $teamLeader->role_id === 3, 404);
-
-        if ($this->teamLeaderAvailability->busyTeamLeaderIds()->contains((int) $teamLeader->id)) {
-            return back()->withErrors('Cannot override status while this team leader has an active job.');
-        }
-
-        $validated = $request->validate([
-            'operational_status' => ['required', 'in:available,busy,unavailable'],
-            'unit_status'        => ['nullable', 'in:available,on_job,maintenance'],
-            'status_reason'      => ['nullable', 'string', 'max:120'],
-        ]);
-
-        $this->teamLeaderAvailability->setOperationalOverride(
-            $teamLeader,
-            $validated['operational_status'],
-            $validated['status_reason'] ?? null
-        );
-
-        if ($teamLeader->unit && filled($validated['unit_status'] ?? null)) {
-            $teamLeader->unit->update(['status' => $validated['unit_status']]);
-        }
-
-        \App\Models\AuditLog::create([
-            'user_id'     => Auth::id(),
-            'action'      => 'team_leader_status_override',
-            'entity_type' => 'User',
-            'entity_id'   => $teamLeader->id,
-            'reference'   => $teamLeader->full_name ?: $teamLeader->name,
-            'description' => 'Operational status set to ' . $validated['operational_status']
-                . (filled($validated['status_reason'] ?? null) ? ' — ' . $validated['status_reason'] : ''),
-        ]);
-
-        return redirect()
-            ->route('admin.drivers')
-            ->with('success', 'Operational status updated for ' . ($teamLeader->full_name ?: $teamLeader->name) . '.');
-    }
-
-    public function removeUnit(Request $request, User $teamLeader): RedirectResponse|JsonResponse
-    {
-        abort_unless((int) $teamLeader->role_id === 3, 404);
-
-        $unit = Unit::where('team_leader_id', $teamLeader->id)->first();
-
-        if (! $unit) {
-            if ($request->expectsJson()) {
-                return response()->json(['errors' => 'No unit assigned to this team leader.'], 422);
-            }
-            return back()->withErrors('No unit assigned to this team leader.');
-        }
-
-        if (in_array($unit->dispatcher_status, ['on_tow', 'on_job'], true)) {
-            if ($request->expectsJson()) {
-                return response()->json(['errors' => 'Cannot remove unit while it is ' . $unit->dispatcher_status . '.'], 422);
-            }
-            return back()->withErrors('Cannot remove unit while it is active.');
-        }
-
-        $unit->update([
-            'team_leader_id'    => null,
-            'status'            => 'available',
-            'dispatcher_status' => null,
-            'dispatcher_note'   => null,
-            'zone_confirmed'    => false,
-            'last_updated_by'   => Auth::user()->name,
-            'last_updated_at'   => now(),
-        ]);
-
-        \App\Models\AuditLog::create([
-            'user_id'     => Auth::id(),
-            'action'      => 'unit_removed',
-            'entity_type' => 'Unit',
-            'entity_id'   => $unit->id,
-            'reference'   => $unit->name,
-            'description' => 'Removed from ' . ($teamLeader->full_name ?: $teamLeader->name),
-        ]);
-
-        if ($request->expectsJson()) {
-            return response()->json([
-                'message'        => 'Unit removed from ' . ($teamLeader->full_name ?: $teamLeader->name) . '.',
-                'unit_released'  => true,
-                'team_leader_id' => $teamLeader->id,
-            ], 200);
-        }
-
-        return back()->with('success', 'Unit removed from ' . ($teamLeader->full_name ?: $teamLeader->name) . '.');
-    }
-
-    public function override(Request $request, int $teamLeaderId): RedirectResponse|JsonResponse
-    {
-        if ($this->teamLeaderAvailability->busyTeamLeaderIds()->contains($teamLeaderId)) {
-            if ($request->expectsJson()) {
-                return response()->json(['errors' => 'Cannot override status while this team leader has an active job.'], 422);
-            }
-
-            return back()->withErrors('Cannot override status while this team leader has an active job.');
-        }
-
-        $validated = $request->validate([
-            'zone_id'         => ['nullable', 'exists:zones,id'],
-            'unit_status'     => ['nullable', 'in:available,unavailable,on_tow,on_job'],
-            'zone_confirmed'  => ['boolean'],
-            'dispatcher_note' => ['nullable', 'string', 'max:120'],
-        ]);
-
-        $unit = Unit::where('team_leader_id', $teamLeaderId)->first();
-
-        $unitStatus = $validated['unit_status'] ?? null;
-
-        if (! $unit) {
-            if ($request->expectsJson()) {
-                return response()->json(['errors' => 'No unit found for this team leader.'], 422);
-            }
-
-            return back()->withErrors('No unit found for this team leader.');
-        }
-
-        $unit->update([
-            'zone_id'           => $validated['zone_id']       ?? $unit->zone_id,
-            'dispatcher_status' => $unitStatus                 ?? $unit->dispatcher_status,
-            'zone_confirmed'    => $validated['zone_confirmed'] ?? false,
-            'dispatcher_note'   => $validated['dispatcher_note'] ?? null,
-            'last_updated_by'   => Auth::user()->name,
-            'last_updated_at'   => now(),
-        ]);
-
-        \App\Models\AuditLog::create([
-            'user_id'     => Auth::id(),
-            'action'      => 'unit_status_override',
-            'entity_type' => 'Unit',
-            'entity_id'   => $unit->id,
-            'reference'   => $unit->name,
-            'description' => 'Status set to ' . ($unitStatus ?? $unit->dispatcher_status)
-                . (filled($validated['dispatcher_note'] ?? null) ? ' — ' . $validated['dispatcher_note'] : ''),
-        ]);
-
-        if ($request->expectsJson()) {
-            $teamLeader = User::findOrFail($teamLeaderId);
-            $summary    = $this->teamLeaderAvailability->summarize(collect([$teamLeader]));
-            $leader     = $summary['leaders']->first();
-            $unitStatus = $leader['unit_status'] ?? 'standby';
-
-            return response()->json([
-                'status' => [
-                    'label'   => strtoupper($leader['unit_status_label'] ?? ''),
-                    'class'   => 'status-' . $unitStatus,
-                    'subtext' => $leader['status_summary'] ?? '',
-                ],
-                'assigned_unit' => [
-                    'id'           => $leader['assigned_unit_id'] ?? null,
-                    'name'         => $leader['unit_name'] ?? '',
-                    'plate_number' => $leader['plate_number'] ?? '',
-                    'driver_name'  => $leader['driver_name'] ?? '',
-                ],
-                'unit_released'  => false,
-                'new_tab'        => $this->effStatusToTab($unitStatus),
-                'team_leader_id' => $teamLeaderId,
-            ], 200);
-        }
-
-        return back()->with('success', 'Team leader status updated.');
-    }
-
-    private function effStatusToTab(string $unitStatus): string
-    {
-        return match ($unitStatus) {
-            'on_job', 'on_tow'           => 'on_job',
-            'not_avail', 'unavailable'   => 'not_avail',
-            'offline'                    => 'offline',
-            default                      => 'available',
-        };
-    }
 
     protected function ok(Request $request, string $message): JsonResponse|RedirectResponse
     {
@@ -601,5 +327,24 @@ class DriversController extends Controller
         }
 
         return back()->withErrors(['team' => $message]);
+    }
+
+    /**
+     * A team change the service refused (422) or that collided with another
+     * change (409, TeamAssignmentConflictException). QueryException is a
+     * RuntimeException too: database errors are rethrown, never shown to the
+     * dispatcher as a message.
+     */
+    protected function refused(Request $request, RuntimeException $e): JsonResponse|RedirectResponse
+    {
+        if ($e instanceof \PDOException) {
+            throw $e;
+        }
+
+        if ($e instanceof HomeUnitConflictException && $request->expectsJson()) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $e->status);
+        }
+
+        return $this->fail($request, $e->getMessage());
     }
 }

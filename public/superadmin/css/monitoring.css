@@ -428,3 +428,18 @@
         border-left: 1px solid #e5e5e5;
     }
 }
+
+.monitor-availability--reserved {
+    color: #1d4ed8;
+}
+
+.monitor-availability--unavailable {
+    color: #b91c1c;
+}
+
+.monitor-basis-note {
+    margin: 0 0 12px;
+    color: #525252;
+    font-size: 13px;
+    line-height: 20px;
+}

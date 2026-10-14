@@ -172,6 +172,23 @@ class Unit extends Model
         return ! $this->{$idColumn};
     }
 
+    /**
+     * Locks these units (FOR UPDATE) in ascending id order, in one statement,
+     * and returns them keyed by id. Owner home-unit writes lock units this way
+     * before any person row, so they always take locks in the same order.
+     * Call inside a transaction.
+     */
+    public static function lockInIdOrder(iterable $ids): \Illuminate\Support\Collection
+    {
+        $ids = collect($ids)->filter()->map(fn ($id) => (int) $id)->unique()->sort()->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return static::whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+    }
+
     public static function unitIdsHoldingPersonnel(int $personnelId, ?int $exceptUnitId = null)
     {
         return static::query()

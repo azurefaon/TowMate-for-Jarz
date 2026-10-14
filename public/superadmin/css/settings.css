@@ -1,0 +1,506 @@
+/*
+ * Owner → Business Settings. Restyles the existing settings markup in the approved
+ * Owner design language (Inter, white cards, 8px controls, yellow primary, solid
+ * badges). It only changes appearance: every field, button, dialog and script is
+ * unchanged. Scoped to .owner-settings so the shared system-settings.css (also used
+ * by System Admin) is left alone.
+ */
+
+.owner-settings.settings-page {
+    max-width: none;
+    padding-bottom: 32px;
+    font-family: "JARZ Inter", "Inter", "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--ob-text);
+}
+
+.owner-settings * {
+    font-family: inherit;
+}
+
+.owner-settings .ob-header {
+    margin-bottom: 20px;
+}
+
+/* ---------- Tabs ---------- */
+
+.owner-settings .settings-tabs {
+    margin-bottom: 20px;
+    gap: 28px;
+    border-bottom: 1px solid var(--ob-border);
+}
+
+.owner-settings .settings-tab {
+    padding: 12px 2px;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--ob-body);
+}
+
+.owner-settings .settings-tab:hover {
+    color: var(--ob-text);
+    border-bottom-color: var(--ob-faint);
+}
+
+.owner-settings .settings-tab.active {
+    color: var(--ob-text);
+    font-weight: 500;
+    border-bottom-color: var(--ob-accent);
+}
+
+.owner-settings .settings-tab:focus-visible,
+.owner-settings .mc-subnav-btn:focus-visible {
+    outline: 2px solid var(--ob-text);
+    outline-offset: 2px;
+}
+
+/* ---------- Section cards ---------- */
+
+.owner-settings .settings-section {
+    margin-bottom: 16px;
+    padding: 24px;
+    border: 1px solid var(--ob-border);
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.owner-settings .settings-divider {
+    display: none;
+}
+
+.owner-settings .settings-section-head {
+    margin-bottom: 20px;
+}
+
+.owner-settings .settings-section-head h3,
+.owner-settings .mc-section-intro h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 26px;
+}
+
+.owner-settings .settings-section-head p,
+.owner-settings .mc-section-intro p,
+.owner-settings #user-limits .settings-section-head p,
+.owner-settings #mobile-app .settings-section-head p {
+    margin: 2px 0 0;
+    color: var(--ob-body);
+    font-size: 14px;
+}
+
+.owner-settings .mc-section-intro {
+    margin-bottom: 16px;
+}
+
+.owner-settings .mc-subheading {
+    margin: 20px 0 12px;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+/* Sub-navigation (Customer App Content) */
+
+.owner-settings .mc-subnav {
+    margin-bottom: 16px;
+    gap: 8px;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.owner-settings .mc-subnav-btn {
+    padding: 8px 14px;
+    margin-bottom: 0;
+    border: 1px solid var(--ob-border);
+    border-radius: 999px;
+    background: #ffffff;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--ob-body);
+}
+
+.owner-settings .mc-subnav-btn:hover {
+    border-color: var(--ob-faint);
+    color: var(--ob-text);
+}
+
+.owner-settings .mc-subnav-btn.active {
+    border-color: var(--ob-text);
+    background: var(--ob-text);
+    color: #ffffff;
+    font-weight: 500;
+}
+
+/* ---------- Fields ---------- */
+
+.owner-settings .settings-grid {
+    gap: 16px 24px;
+}
+
+.owner-settings .settings-field {
+    gap: 8px;
+    min-width: 0;
+}
+
+.owner-settings .settings-field label,
+.owner-settings .app-upload-label,
+.owner-settings .qr-left label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ob-text);
+}
+
+.owner-settings .settings-field input,
+.owner-settings .settings-field select,
+.owner-settings .settings-field textarea,
+.owner-settings .qr-url-row input,
+.owner-settings .app-release-notes {
+    height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ob-text);
+    font-size: 14px;
+}
+
+.owner-settings .settings-field textarea,
+.owner-settings .app-release-notes {
+    height: auto;
+    min-height: 110px;
+    padding: 12px 14px;
+}
+
+.owner-settings .settings-field input::placeholder,
+.owner-settings .settings-field textarea::placeholder,
+.owner-settings .app-release-notes::placeholder {
+    color: var(--ob-muted);
+}
+
+.owner-settings .settings-field input:hover,
+.owner-settings .settings-field textarea:hover {
+    border-color: var(--ob-faint);
+}
+
+.owner-settings .settings-field input:focus-visible,
+.owner-settings .settings-field select:focus-visible,
+.owner-settings .settings-field textarea:focus-visible,
+.owner-settings .app-release-notes:focus-visible,
+.owner-settings .qr-url-row input:focus-visible {
+    outline: none;
+    border-color: var(--ob-text);
+    box-shadow: 0 0 0 1px var(--ob-text);
+}
+
+.owner-settings .field-help {
+    font-size: 13px;
+    color: var(--ob-body);
+}
+
+.owner-settings .error-text {
+    font-size: 13px;
+    color: #b91c1c;
+}
+
+.owner-settings .char-counter {
+    font-size: 13px;
+    color: var(--ob-muted);
+}
+
+/* ---------- Buttons ---------- */
+
+.owner-settings .settings-actions {
+    margin-top: 20px;
+}
+
+.owner-settings .settings-save {
+    height: 44px;
+    padding: 0 20px;
+    border: 1px solid var(--ob-accent);
+    border-radius: 8px;
+    background: var(--ob-accent);
+    color: var(--ob-text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.owner-settings .settings-save:hover {
+    border-color: #eab308;
+    background: #eab308;
+}
+
+.owner-settings .settings-reset,
+.owner-settings .qr-btn-outline {
+    height: 44px;
+    padding: 0 20px;
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ob-text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.owner-settings .settings-reset:hover,
+.owner-settings .qr-btn-outline:hover {
+    border-color: var(--ob-faint);
+    background: #ffffff;
+}
+
+.owner-settings .qr-btn-dark {
+    border-radius: 8px;
+    background: var(--ob-text);
+    color: #ffffff;
+}
+
+.owner-settings .qr-copy-btn {
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+}
+
+.owner-settings .mc-row-actions .settings-save,
+.owner-settings .mc-service-actions .settings-reset,
+.owner-settings .mc-row-actions .settings-reset {
+    height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+}
+
+.owner-settings .mc-order-btn {
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+/* ---------- Content lists ---------- */
+
+.owner-settings .mc-list {
+    border: 1px solid var(--ob-border);
+    border-radius: 12px;
+}
+
+.owner-settings .mc-row,
+.owner-settings .mc-service-row {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--ob-divider);
+}
+
+.owner-settings .mc-empty {
+    padding: 28px 20px;
+    border: 1px dashed var(--ob-border);
+    border-radius: 12px;
+    background: var(--ob-tint);
+    color: var(--ob-body);
+    text-align: center;
+}
+
+.owner-settings .mc-service-title {
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.owner-settings .mc-service-note,
+.owner-settings .mc-service-desc {
+    color: var(--ob-body);
+}
+
+/* Solid status badges */
+.owner-settings .mc-status {
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: #52525b;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.owner-settings .mc-status.is-active {
+    background: #15803d;
+    color: #ffffff;
+}
+
+.owner-settings .mc-status.is-inactive {
+    background: #52525b;
+    color: #ffffff;
+}
+
+.owner-settings .mc-step-number {
+    border-radius: 999px;
+    background: var(--ob-accent);
+    color: var(--ob-text);
+    font-weight: 500;
+}
+
+/* ---------- Dialogs ---------- */
+
+.owner-settings .mc-modal-overlay {
+    background: rgba(23, 23, 23, 0.55);
+}
+
+.owner-settings .mc-modal {
+    max-width: 560px;
+    padding: 0;
+    border: 1px solid var(--ob-border);
+    border-radius: 12px;
+    box-shadow: 0 16px 48px rgba(23, 23, 23, 0.2);
+}
+
+.owner-settings .mc-modal-header {
+    margin: 0;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--ob-border);
+}
+
+.owner-settings .mc-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.owner-settings .mc-modal-body {
+    padding: 20px 24px;
+}
+
+.owner-settings .mc-modal-actions {
+    margin: 0;
+    padding: 16px 24px;
+    gap: 12px;
+    border-top: 1px solid var(--ob-border);
+}
+
+.owner-settings .mc-modal-close {
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+/* ---------- Mobile App ---------- */
+
+.owner-settings .mobile-app-summary {
+    border: 1px solid var(--ob-border);
+    border-radius: 12px;
+    background: var(--ob-tint);
+}
+
+.owner-settings .mobile-app-summary-item {
+    border-right: 1px solid var(--ob-border);
+}
+
+.owner-settings .mobile-app-summary-label {
+    font-size: 13px;
+    color: var(--ob-body);
+}
+
+.owner-settings .mobile-app-summary-value {
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.owner-settings .app-dropzone {
+    border: 1px dashed var(--ob-faint);
+    border-radius: 12px;
+    background: var(--ob-tint);
+}
+
+.owner-settings .app-dropzone:hover {
+    border-color: var(--ob-text);
+}
+
+.owner-settings .app-notice {
+    border-radius: 10px;
+    background: var(--ob-soft);
+    color: var(--ob-body);
+}
+
+.owner-settings .qr-card {
+    border: 1px solid var(--ob-border);
+    border-radius: 12px;
+    background: var(--ob-tint);
+}
+
+.owner-settings .app-versioning {
+    border-radius: 12px;
+}
+
+.owner-settings .status-toggle-btn.is-active .status-toggle-track {
+    background: #15803d;
+}
+
+/* ---------- Banners ---------- */
+
+.owner-settings .settings-feedback {
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+.owner-settings .settings-feedback--success {
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.owner-settings .settings-feedback--error {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 900px) {
+    .owner-settings .settings-grid,
+    .owner-settings .app-upload-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .owner-settings .mobile-app-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .owner-settings .mobile-app-summary-item:nth-child(2) {
+        border-right: none;
+    }
+
+    .owner-settings .qr-card {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 600px) {
+    .owner-settings .settings-section {
+        padding: 18px 16px;
+    }
+
+    .owner-settings .mc-row,
+    .owner-settings .mc-service-row {
+        flex-wrap: wrap;
+        padding: 16px;
+    }
+
+    .owner-settings .mc-modal-header,
+    .owner-settings .mc-modal-body,
+    .owner-settings .mc-modal-actions {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .owner-settings .mobile-app-summary {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .owner-settings .mobile-app-summary-item {
+        border-right: none;
+        border-bottom: 1px solid var(--ob-border);
+    }
+
+    .owner-settings .mobile-app-summary-item:last-child {
+        border-bottom: none;
+    }
+
+    .owner-settings .settings-actions {
+        flex-wrap: wrap;
+    }
+}

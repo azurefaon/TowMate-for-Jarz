@@ -94,6 +94,7 @@ it('owner can manage truck types and rates', function () {
 
     $response = $this->actingAs($owner)->post(route('superadmin.truck-types.store'), [
         'name' => 'Owner Managed Truck',
+        'class' => 'heavy',
         'base_rate' => 2000,
         'per_km_rate' => 80,
     ]);
@@ -234,7 +235,10 @@ it('owner settings page no longer presents technical system administration contr
     $response = $this->actingAs(ownerUser())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
-    $response->assertDontSee('Upload New APK');
+    // The Android APK upload is a deliberate Owner feature, but only on the Mobile App tab.
+    expect(substr_count($response->getContent(), 'name="apk_file"'))->toBe(1);
+    expect(strpos($response->getContent(), 'name="apk_file"'))->toBeGreaterThan(strpos($response->getContent(), 'id="mobile-app"'));
+    $response->assertDontSee('Upload New IPA');
     $response->assertDontSee('Team Leader Capacity');
     $response->assertDontSee('Customer Inactivity Lock');
 });

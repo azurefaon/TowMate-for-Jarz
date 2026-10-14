@@ -4,179 +4,178 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Services\OwnerBookingPresenter;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
+    public function __construct(private OwnerBookingPresenter $presenter)
+    {
+    }
+
     public function index(Request $request)
     {
-        $filters = [
-            'search' => trim((string) $request->input('search', '')),
-            'status' => (string) $request->input('status', ''),
-            'period' => (string) $request->input('period', 'today'),
-            'from' => (string) $request->input('from', ''),
-            'to' => (string) $request->input('to', ''),
-        ];
+        $filters = $this->resolveFilters($request);
 
-        $customRange = false;
-        $periodStart = null;
-        $periodEnd = null;
-
-        if ($filters['from'] !== '' && $filters['to'] !== '') {
-            try {
-                $start = Carbon::parse($filters['from'])->startOfDay();
-                $end = Carbon::parse($filters['to'])->endOfDay();
-
-                if ($start->lte($end) && $start->diffInDays($end) <= 366) {
-                    $periodStart = $start;
-                    $periodEnd = $end;
-                    $customRange = true;
-                    $filters['period'] = 'custom';
-                }
-            } catch (\Throwable) {
-            }
-        }
-
-        if (! $customRange) {
-            if (! in_array($filters['period'], ['today', 'week', 'month'], true)) {
-                $filters['period'] = 'today';
-            }
-
-            $filters['from'] = '';
-            $filters['to'] = '';
-        }
-
-        $query = Booking::with([
-            'customer',
-            'truckType',
-            'unit',
-            'receipt',
-        ]);
-
-        $statsQuery = Booking::query();
+        $query = Booking::query()->with(['customer', 'truckType']);
 
         if ($filters['search'] !== '') {
-            $search = $filters['search'];
-
-            foreach ([$query, $statsQuery] as $builder) {
-                $builder->where(function ($q) use ($search) {
-                    $q->whereHas('customer', function ($q2) use ($search) {
-                        $q2->where('full_name', 'like', '%' . $search . '%');
-                    })
-                        ->orWhere('booking_code', 'like', '%' . $search . '%')
-                        ->orWhere('pickup_address', 'like', '%' . $search . '%')
-                        ->orWhere('dropoff_address', 'like', '%' . $search . '%');
-                });
-            }
+            $this->applySearch($query, $filters['search']);
         }
-
-        if (! $customRange) {
-            $periodStart = match ($filters['period']) {
-                'week' => now()->subDays(6)->startOfDay(),
-                'month' => now()->subDays(29)->startOfDay(),
-                default => today()->startOfDay(),
-            };
-
-            $periodEnd = now()->endOfDay();
-        }
-
-        $rangeLabel = $customRange
-            ? $periodStart->format('M j, Y') . ' – ' . $periodEnd->format('M j, Y')
-            : match ($filters['period']) {
-                'week' => 'This Week',
-                'month' => 'Last 30 Days',
-                default => 'Today',
-            };
-
-        $query->whereBetween('created_at', [$periodStart, $periodEnd]);
-        $statsQuery->whereBetween('created_at', [$periodStart, $periodEnd]);
 
         if ($filters['status'] !== '') {
-            if ($filters['status'] === 'active') {
-                $query->whereIn('status', ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job']);
-            } elseif ($filters['status'] === 'on_job') {
-                $query->whereIn('status', ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job']);
-            } elseif ($filters['status'] === 'scheduled') {
-                $query->whereIn('status', ['scheduled', 'scheduled_confirmed']);
-            } elseif ($filters['status'] === 'returned') {
-                $query->whereNotNull('returned_at');
-            } elseif ($filters['status'] === 'needs_attention') {
-                $query->whereIn('status', ['requested', 'reviewed']);
-            } else {
-                $query->where('status', $filters['status']);
-            }
+            $query->whereIn('status', OwnerBookingPresenter::STATUS_GROUPS[$filters['status']]['statuses']);
         }
 
-        $stats = [
-            'total' => (clone $statsQuery)->count(),
-            'requested' => (clone $statsQuery)->where('status', 'requested')->count(),
-            'active' => (clone $statsQuery)->whereIn('status', ['accepted', 'assigned', 'on_the_way', 'in_progress', 'waiting_verification', 'on_job'])->count(),
-            'completed' => (clone $statsQuery)->where('status', 'completed')->count(),
+        if ($filters['range']) {
+            $query->whereBetween('created_at', $filters['range']);
+        }
+
+        $bookings = $query->orderByDesc('created_at')->orderByDesc('id')->paginate(10)->withQueryString();
+
+        $rows = $bookings->getCollection()->map(fn (Booking $booking) => [
+            'booking' => $booking,
+            'service' => $this->presenter->serviceSummary($booking),
+            'amount' => $this->presenter->listAmount($booking),
+            'status' => [
+                'label' => $this->presenter->statusLabel($booking->status),
+                'tone' => $this->presenter->statusTone($booking->status),
+            ],
+            'phone' => $this->presenter->formatPhone($booking->customer->phone ?? null),
+        ]);
+
+        $data = [
+            'bookings' => $bookings,
+            'rows' => $rows,
+            'filters' => $filters,
+            'hasFilters' => $filters['search'] !== '' || $filters['status'] !== '' || $filters['date'] !== 'all',
+            'statusGroups' => OwnerBookingPresenter::STATUS_GROUPS,
+            'datePresets' => OwnerBookingPresenter::DATE_PRESETS,
         ];
 
-        $bookings = $query->latest()->paginate(10)->withQueryString();
+        if ($request->ajax()) {
+            return view('superadmin.bookings._results', $data);
+        }
 
-        $rangeFrom = $filters['from'] !== '' ? $filters['from'] : $periodStart->toDateString();
-        $rangeTo = $filters['to'] !== '' ? $filters['to'] : $periodEnd->toDateString();
-
-        return view('superadmin.bookings.index', compact('bookings', 'filters', 'stats', 'rangeLabel', 'rangeFrom', 'rangeTo'));
+        return view('superadmin.bookings.index', $data);
     }
 
     public function show($id)
     {
-        $booking = Booking::with([
-            'customer',
-            'truckType',
-            'unit',
-            'receipt'
-        ])
-            ->where('booking_code', $id)
-            ->when(is_numeric($id), fn ($query) => $query->orWhere('id', $id))
-            ->firstOrFail();
+        // Booking codes are numeric too, so an exact code match always wins; the
+        // padded id is only a fallback for older bookings without a code.
+        $booking = Booking::where('booking_code', $id)->first()
+            ?? (ctype_digit((string) $id) && strlen((string) $id) <= 9
+                ? Booking::whereNull('booking_code')->whereKey((int) $id)->first()
+                : null);
 
-        $paymentMethodLabel = match ($booking->payment_method) {
-            'gcash' => 'GCash',
-            'bank_transfer' => 'Bank Transfer',
-            'cash' => 'Cash',
-            default => null,
-        };
+        abort_if(! $booking, 404);
 
-        return response()->json([
-            'booking_code' => $booking->job_code,
-            'status' => $booking->status,
-            'status_label' => ucfirst(str_replace('_', ' ', $booking->status)),
-            'created_at' => $booking->created_at
-                ? $booking->created_at->timezone(config('app.timezone', 'Asia/Manila'))->format('M j, Y \a\t g:i A')
-                : null,
-            'customer' => [
-                'full_name' => $booking->customer->full_name ?? 'N/A',
-                'phone' => $booking->customer->phone ?? null,
-                'email' => $booking->customer->email ?? null,
-            ],
-            'truck_type' => [
-                'name' => $booking->truckType->name ?? 'N/A',
-            ],
-            'unit' => $booking->unit ? [
-                'name' => $booking->unit->name,
-                'plate_number' => $booking->unit->plate_number,
-            ] : null,
-            'scheduled_for' => $booking->scheduled_for
-                ? $booking->scheduled_for->timezone(config('app.timezone', 'Asia/Manila'))->format('M j, Y \a\t g:i A')
-                : null,
-            'pickup_address' => $booking->pickup_address,
-            'dropoff_address' => $booking->dropoff_address,
-            'distance_km' => $booking->distance_km,
-            'final_total' => $booking->final_total,
-            'additional_fee' => $booking->additional_fee,
-            'payment_method' => $paymentMethodLabel,
-            'payment_status' => $booking->payment_submitted_at ? 'Submitted' : null,
-            'notes' => $booking->notes,
-            'receipt' => $booking->receipt ? [
-                'receipt_code' => $booking->receipt->receipt_code ?? $booking->receipt->receipt_number,
-                'pdf_url' => app(\App\Services\DocumentGenerationService::class)->publicDocumentUrl($booking->receipt->pdf_path),
-            ] : null,
-        ]);
+        return response()->json($this->presenter->details($booking));
     }
 
+    /**
+     * Normalises the query string into the filters actually applied, so the
+     * controls always show what the results reflect (an incomplete or reversed
+     * custom range falls back to All dates rather than a silent default).
+     */
+    private function resolveFilters(Request $request): array
+    {
+        $status = (string) $request->input('status', '');
+        $date = (string) $request->input('date', 'all');
+        $from = null;
+        $to = null;
+        $range = null;
+
+        if (! array_key_exists($status, OwnerBookingPresenter::STATUS_GROUPS)) {
+            $status = '';
+        }
+
+        if (! array_key_exists($date, OwnerBookingPresenter::DATE_PRESETS)) {
+            $date = 'all';
+        }
+
+        if ($date === 'custom') {
+            $from = $this->parseDate($request->input('from'));
+            $to = $this->parseDate($request->input('to'));
+
+            if ($from && $to && $from->lte($to)) {
+                $range = [$from->copy()->startOfDay(), $to->copy()->endOfDay()];
+            } else {
+                $date = 'all';
+                $from = $to = null;
+            }
+        } elseif ($date !== 'all') {
+            $range = [
+                match ($date) {
+                    '7d' => now()->subDays(6)->startOfDay(),
+                    '30d' => now()->subDays(29)->startOfDay(),
+                    default => now()->startOfDay(),
+                },
+                now()->endOfDay(),
+            ];
+        }
+
+        $dateLabel = $date === 'custom'
+            ? ($from->year === $to->year
+                ? $from->format('M j') . ' – ' . $to->format('M j, Y')
+                : $from->format('M j, Y') . ' – ' . $to->format('M j, Y'))
+            : OwnerBookingPresenter::DATE_PRESETS[$date];
+
+        return [
+            'search' => trim((string) $request->input('search', '')),
+            'status' => $status,
+            'statusLabel' => $status !== '' ? OwnerBookingPresenter::STATUS_GROUPS[$status]['label'] : 'All statuses',
+            'date' => $date,
+            'dateLabel' => $dateLabel,
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
+            'range' => $range,
+        ];
+    }
+
+    private function parseDate($value): ?Carbon
+    {
+        if (! is_string($value) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+
+        try {
+            $date = Carbon::createFromFormat('Y-m-d', $value);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $date && $date->format('Y-m-d') === $value ? $date : null;
+    }
+
+    /** Case-insensitive match on booking number, customer, phone, or address. */
+    private function applySearch(Builder $query, string $search): void
+    {
+        $like = '%' . addcslashes($search, '%_\\') . '%';
+        $digits = preg_replace('/\D+/', '', $search);
+
+        // Phones are stored as +639XXXXXXXXX, so match without the 0 / 63 prefix.
+        $phoneDigits = preg_replace('/^(63|0)/', '', $digits);
+
+        $query->where(function (Builder $q) use ($like, $digits, $phoneDigits, $search) {
+            $q->where('booking_code', 'ilike', $like)
+                ->orWhere('pickup_address', 'ilike', $like)
+                ->orWhere('dropoff_address', 'ilike', $like)
+                ->orWhereHas('customer', function (Builder $customer) use ($like, $phoneDigits) {
+                    $customer->where('full_name', 'ilike', $like);
+
+                    if (strlen($phoneDigits) >= 3) {
+                        $customer->orWhereRaw("regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') like ?", ['%' . $phoneDigits . '%']);
+                    }
+                });
+
+            // Bookings without a booking_code are shown by their padded id.
+            if ($digits !== '' && strlen($digits) <= 9 && $digits === preg_replace('/\s+/', '', $search) && (int) $digits > 0) {
+                $q->orWhere(fn (Builder $id) => $id->whereNull('booking_code')->where('id', (int) $digits));
+            }
+        });
+    }
 }

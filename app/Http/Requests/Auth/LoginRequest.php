@@ -77,7 +77,7 @@ class LoginRequest extends FormRequest
         return match ($this->resolvedRoleId ?: $this->requestedRoleId()) {
             1 => 'superadmin.dashboard',
             2 => 'admin.dashboard',
-            3 => 'teamleader.dashboard',
+            3 => 'landing',
             6 => 'system-admin.dashboard',
             default => 'dashboard',
         };
@@ -184,6 +184,14 @@ class LoginRequest extends FormRequest
         }
 
         $this->clearFailedAttempts($user);
+
+        // Team Leaders work in the mobile app only. Refuse after the password has been verified
+        // (so the role is not revealed to someone who does not know it) and before any web session exists.
+        if ((int) $user->role_id === 3) {
+            throw ValidationException::withMessages([
+                'auth' => 'Team Leader accounts sign in through the TowMate mobile app, not the web portal.',
+            ]);
+        }
 
         $this->resolvedRoleId = (int) ($user->role_id ?? 0);
 

@@ -1,0 +1,241 @@
+/*
+ * Owner → Operations Monitor, in the approved Owner design language. Builds on
+ * bookings.css (font, tokens, tables) and analytics.css (cards, KPI cards, badges,
+ * toolbar). Only monitor-specific pieces are defined here.
+ */
+
+.monitor-page .mo-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 24px;
+}
+
+.mo-sync {
+    padding: 6px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--ob-border);
+    border-radius: 999px;
+    background: #ffffff;
+    color: var(--ob-body);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.mo-sync::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #15803d;
+}
+
+.mo-sync.is-failed {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.mo-sync.is-failed::before {
+    background: #b91c1c;
+}
+
+/* Blocks stack with the same gap as the rest of the page. */
+.mo-block {
+    margin-bottom: 16px;
+}
+
+.mo-stack {
+    display: grid;
+    gap: 0;
+}
+
+.mo-kpis {
+    margin-bottom: 0;
+}
+
+.mo-kpis .oa-kpi-label {
+    min-height: 0;
+}
+
+.mo-kpis .oa-kpi {
+    padding: 16px 18px;
+}
+
+/* ---------- Needs Attention ---------- */
+
+.mo-alerts {
+    display: grid;
+}
+
+.mo-alert {
+    padding: 14px 0;
+    display: grid;
+    grid-template-columns: 28px minmax(180px, 280px) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+}
+
+.mo-alert + .mo-alert {
+    border-top: 1px solid var(--ob-divider);
+}
+
+.mo-alert-icon {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--ob-soft);
+    color: var(--ob-body);
+}
+
+.mo-alert-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.mo-alert-title {
+    font-weight: 500;
+}
+
+.mo-alert-text {
+    color: var(--ob-body);
+}
+
+.mo-alert--danger .mo-alert-icon {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.mo-alert--warning .mo-alert-icon {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.mo-alert--info .mo-alert-icon {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.mo-alert--success .mo-alert-icon {
+    background: #f0fdf4;
+    color: #15803d;
+}
+
+/* ---------- Pipeline strip ---------- */
+
+.mo-pipeline {
+    padding: 16px 24px 4px;
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.mo-stage {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    border: 1px solid var(--ob-border);
+    border-radius: 10px;
+    background: var(--ob-tint);
+}
+
+.mo-stage-label {
+    color: var(--ob-body);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.mo-stage-count {
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 26px;
+}
+
+.mo-caption {
+    margin: 12px 24px 8px;
+    color: var(--ob-body);
+    font-size: 13px;
+}
+
+/* ---------- Tables ---------- */
+
+.monitor-page .oa-list-card .mo-table {
+    min-width: 780px;
+}
+
+.mo-route {
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mo-empty {
+    padding: 28px 12px !important;
+    text-align: center;
+    color: var(--ob-body);
+}
+
+.mo-empty--block {
+    padding: 32px 24px !important;
+}
+
+.monitor-page .oa-table .is-num {
+    text-align: right;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1280px) {
+    .mo-pipeline {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1100px) {
+    .mo-kpis {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .mo-alert {
+        grid-template-columns: 28px minmax(0, 1fr);
+    }
+
+    .mo-alert-text {
+        grid-column: 2;
+    }
+}
+
+@media (max-width: 760px) {
+    .mo-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mo-pipeline {
+        padding: 16px 16px 4px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mo-caption {
+        margin-left: 16px;
+        margin-right: 16px;
+    }
+
+    .oa-toolbar {
+        padding: 14px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .mo-kpis {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

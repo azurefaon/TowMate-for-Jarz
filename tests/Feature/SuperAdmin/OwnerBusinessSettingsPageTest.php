@@ -165,7 +165,9 @@ it('does not introduce technical or system-admin controls', function () {
     $response = $this->actingAs(bsOwner())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
-    $response->assertDontSee('Upload New APK');
+    // The Android APK upload is a deliberate Owner feature, but only on the Mobile App tab.
+    expect(substr_count($response->getContent(), 'name="apk_file"'))->toBe(1);
+    $response->assertDontSee('Upload New IPA');
     $response->assertDontSee('Team Leader Capacity');
     $response->assertDontSee('Customer Inactivity Lock');
     $response->assertDontSee('API Key', false);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Events\BookingStatusUpdated;
+use App\Exceptions\Booking\CapacityInconsistentException;
 use App\Exceptions\Booking\ScheduledQuoteCutoffPassedException;
 use App\Http\Controllers\Controller;
 use App\Mail\BookingAcceptedMail;
@@ -16,10 +17,12 @@ use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\VehicleType;
+use App\Observers\AuditObserver;
 use App\Services\BookingService;
 use App\Services\DocumentGenerationService;
 use App\Services\QuotationService;
 use App\Services\ReturnReasonHandler;
+use App\Services\ScheduledCapacityService;
 use App\Services\TeamLeaderAvailabilityService;
 use App\Services\UnitAvailabilityService;
 use Illuminate\Http\Request;
@@ -725,7 +728,7 @@ class DispatchController extends Controller
             ],
         ]);
 
-        return DB::transaction(function () use ($request, $booking, $validated) {
+        return AuditObserver::transaction(function () use ($request, $booking, $validated) {
             
             
             
@@ -745,7 +748,7 @@ class DispatchController extends Controller
                 $validated['assigned_unit_id'] = null;
             }
 
-            if ($validated['action'] === 'accept' && $isOperationalAssignment && blank($validated['assigned_unit_id'])) {
+            if ($validated['action'] === 'accept' && $isOperationalAssignment && blank($validated['assigned_unit_id'] ?? null)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Please choose an available unit before dispatching.',
@@ -1114,6 +1117,9 @@ class DispatchController extends Controller
 
             $booking->update($this->bookingService->filterPayloadForTable('bookings', $updatePayload));
 
+            // Gives back the capacity slot this booking holds (if any), once, in this transaction.
+            app(ScheduledCapacityService::class)->release($booking);
+
             $booking->refresh()->loadMissing(['customer', 'truckType']);
 
             AuditLog::create([
@@ -1219,7 +1225,7 @@ class DispatchController extends Controller
             'reason' => 'nullable|string|max:1000',
         ]);
 
-        return DB::transaction(function () use ($validated, $booking) {
+        return AuditObserver::transaction(function () use ($validated, $booking) {
             $booking = Booking::where('id', $booking->id)->lockForUpdate()->first();
             if (! $booking) {
                 return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
@@ -1242,6 +1248,15 @@ class DispatchController extends Controller
             }
 
             $oldScheduledFor = $booking->scheduled_for;
+
+            // A booking that holds a capacity slot moves it to the new date in this same
+            // transaction (nothing changes if the old date's counter can't give it back).
+            // A booking with no counted slot is rescheduled exactly as before.
+            try {
+                app(ScheduledCapacityService::class)->move($booking, \Carbon\Carbon::parse($validated['new_scheduled_date'])->toDateString());
+            } catch (CapacityInconsistentException $e) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
 
             $booking->update($this->bookingService->filterPayloadForTable('bookings', [
                 'scheduled_date' => $validated['new_scheduled_date'],

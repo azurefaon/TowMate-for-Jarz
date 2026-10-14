@@ -119,6 +119,10 @@ it('does not leak the previous unit or team leader into a new assignment', funct
     $tl1 = tlmUser(3, 'TLM Leader One');
     $unitA = tlmUnit($tl1);
     $unitB = tlmUnit();
+    // Unit A is their home unit, so a home-unit move may take them off it.
+    // (A leader placed on a truck that isn't their home is protected; see the
+    // borrowed team leader tests in OwnerPersonnelPageTest.)
+    $tl1->update(['home_unit_id' => $unitA->id]);
     tlmMove($owner, $tl1, $unitB)->assertRedirect();
 
     // Unit A has no TL any more, so it can't take the job and nothing is stale.
@@ -162,23 +166,33 @@ it('refuses to move a team leader who is on an active job', function () {
         ->and($unitB->fresh()->team_leader_id)->toBeNull();
 });
 
-it('closes an open borrow loan when the regular unit is moved so a later return cannot undo it', function () {
+it('protects a borrowed team leader, and closes the loan when the borrowed truck becomes their home so a later return cannot undo it', function () {
     $owner = tlmUser(1, 'TLM Owner');
     $tl1 = tlmUser(3, 'TLM Leader One');
     $home = tlmUnit();
     $away = tlmUnit($tl1);
     $newHome = tlmUnit();
+    $tl1->update(['home_unit_id' => $home->id]);
     $loan = UnitCrewLoan::create([
         'from_unit_id' => $home->id, 'to_unit_id' => $away->id,
         'from_slot' => 'team_leader', 'to_slot' => 'team_leader',
         'person_name' => 'TLM Leader One', 'person_user_id' => $tl1->id, 'borrowed_at' => now(),
     ]);
 
-    tlmMove($owner, $tl1, $newHome)->assertRedirect();
+    // Moving the home unit elsewhere would pull them off the truck they are borrowed to: refused.
+    tlmMove($owner, $tl1, $newHome)->assertStatus(422);
+
+    expect($loan->fresh()->returned_at)->toBeNull()
+        ->and($away->fresh()->team_leader_id)->toBe($tl1->id)
+        ->and($newHome->fresh()->team_leader_id)->toBeNull()
+        ->and($tl1->fresh()->home_unit_id)->toBe($home->id);
+
+    // Making the borrowed truck their home is allowed and closes the loan.
+    tlmMove($owner, $tl1, $away)->assertRedirect();
 
     expect($loan->fresh()->returned_at)->not->toBeNull()
-        ->and($away->fresh()->team_leader_id)->toBeNull()
-        ->and($newHome->fresh()->team_leader_id)->toBe($tl1->id);
+        ->and($away->fresh()->team_leader_id)->toBe($tl1->id)
+        ->and($tl1->fresh()->home_unit_id)->toBe($away->id);
 });
 
 it('does not treat a unit with an archived or dangling team leader as dispatchable', function () {

@@ -1,0 +1,347 @@
+/* ---------------------------------------------------------------
+   Owner Vehicle Types (Fleet Revision 2). Builds on truck-types.css,
+   which holds the shared fleet header, table, modal and field styles.
+   --------------------------------------------------------------- */
+
+.vt-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.vt-btn-lg {
+    height: 44px;
+    padding: 0 18px;
+}
+
+.vt-select {
+    flex-basis: 220px;
+}
+
+.tt-filters {
+    margin-bottom: 20px;
+}
+
+.vt-summary {
+    margin-bottom: 20px;
+    color: var(--tt-body);
+}
+
+.vt-results.is-loading {
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+}
+
+/* ---------- Truck type cards ---------- */
+
+.vt-card + .vt-card {
+    margin-top: 20px;
+}
+
+.vt-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 72px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--tt-border);
+}
+
+.vt-card-head h2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 26px;
+}
+
+.vt-card-meta {
+    color: var(--tt-body);
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.vt-warn {
+    color: var(--tt-red);
+}
+
+.vt-order-tools {
+    display: flex;
+    gap: 8px;
+}
+
+.vt-order-tools [hidden] {
+    display: none;
+}
+
+.tt-btn[aria-disabled="true"] {
+    color: var(--tt-faint);
+    cursor: not-allowed;
+}
+
+.vt-order-feedback {
+    margin: 0;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--tt-divider);
+    color: var(--tt-body);
+}
+
+.vt-order-feedback.is-error {
+    background: #fef2f2;
+    color: var(--tt-red);
+}
+
+.vt-empty-group {
+    padding: 20px;
+    color: var(--tt-body);
+}
+
+/* ---------- Table ---------- */
+
+.vt-table {
+    table-layout: fixed;
+}
+
+.vt-col-order {
+    width: 120px;
+}
+
+.vt-col-weight {
+    width: 18%;
+}
+
+.vt-col-status {
+    width: 16%;
+}
+
+.vt-col-actions {
+    width: 120px;
+}
+
+.vt-card.is-ordering .vt-col-actions {
+    width: 132px;
+}
+
+.vt-table td {
+    height: auto;
+    padding-top: 18px;
+    padding-bottom: 18px;
+    white-space: normal;
+}
+
+.vt-table tbody tr:last-child td {
+    border-bottom: 1px solid var(--tt-divider);
+}
+
+.vt-table tbody:last-of-type tr:last-child td {
+    border-bottom: 0;
+}
+
+.vt-category-row th {
+    height: 54px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--tt-divider);
+    background: var(--tt-tint);
+    color: var(--tt-text);
+    font-weight: 400;
+}
+
+.vt-category-row .vt-card-meta {
+    margin-left: 10px;
+}
+
+.vt-order {
+    font-variant-numeric: tabular-nums;
+}
+
+.vt-actions {
+    text-align: right;
+    white-space: nowrap !important;
+}
+
+.vt-move {
+    display: inline-flex;
+    gap: 4px;
+}
+
+/* The shared .tt-btn display rule would otherwise override [hidden]. */
+.vt-page .tt-btn[hidden],
+.vt-move[hidden] {
+    display: none;
+}
+
+.vt-move .tt-icon-btn {
+    border: 1px solid var(--tt-border);
+}
+
+.vt-move .tt-icon-btn:disabled {
+    color: var(--tt-faint);
+    cursor: default;
+}
+
+.vt-row.is-moved {
+    background: #fefce8;
+}
+
+.vt-footnote {
+    margin-top: 20px;
+    color: var(--tt-body);
+}
+
+.vt-first-run + .vt-footnote {
+    display: none;
+}
+
+/* ---------- Dialogs ---------- */
+
+.vt-dialog--form {
+    max-width: 660px;
+}
+
+.vt-dialog--categories {
+    max-width: 660px;
+}
+
+.vt-field-gap {
+    margin: 16px 0;
+}
+
+.vt-field-select {
+    flex: none;
+}
+
+.vt-field-select select {
+    padding-left: 12px;
+}
+
+.tt-field.has-error .vt-field-select select,
+.tt-field.has-error .vt-field-select select:focus {
+    border: 2px solid var(--tt-red) !important;
+}
+
+.vt-hint {
+    margin-top: 6px !important;
+    color: var(--tt-muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.vt-manage[hidden] {
+    display: none;
+}
+
+.vt-manage-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.vt-manage-row + .vt-manage-row {
+    margin-top: 16px;
+}
+
+.vt-manage-title {
+    font-weight: 500;
+}
+
+.vt-manage-text {
+    margin-top: 4px !important;
+    color: var(--tt-body);
+}
+
+.vt-btn-danger-outline {
+    border-color: var(--tt-red);
+    color: var(--tt-red);
+}
+
+.vt-btn-danger-outline[aria-disabled="true"] {
+    border-color: var(--tt-border);
+}
+
+/* ---------- Categories ---------- */
+
+.vt-categories-body {
+    padding-bottom: 20px;
+}
+
+.vt-category-list {
+    margin: 0 0 20px;
+    padding: 0;
+    border: 1px solid var(--tt-border);
+    border-radius: 10px;
+    list-style: none;
+}
+
+.vt-category-item {
+    padding: 8px 8px 8px 14px;
+}
+
+.vt-category-item + .vt-category-item {
+    border-top: 1px solid var(--tt-divider);
+}
+
+.vt-category-view {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 36px;
+}
+
+.vt-category-view .tt-btn {
+    margin-left: auto;
+}
+
+.vt-category-view[hidden],
+.vt-category-form[hidden],
+.tt-error[hidden] {
+    display: none;
+}
+
+.vt-category-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.vt-category-form input {
+    flex: 1;
+    min-width: 0;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--tt-border);
+    border-radius: 8px;
+    outline: none;
+}
+
+.vt-category-form input[aria-invalid="true"] {
+    border: 2px solid var(--tt-red) !important;
+}
+
+.vt-category-form .tt-error {
+    flex-basis: 100%;
+    margin-top: 0 !important;
+}
+
+.vt-new-category .vt-category-form .tt-btn {
+    height: 40px;
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 1360px) {
+    .vt-col-order {
+        width: 96px;
+    }
+}
+
+@media (max-width: 720px) {
+    .vt-header-actions,
+    .vt-card-head {
+        flex-wrap: wrap;
+    }
+}

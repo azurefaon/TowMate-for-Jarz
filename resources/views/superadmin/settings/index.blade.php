@@ -3,20 +3,19 @@
 @section('title', 'Business Settings')
 
 @push('styles')
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="{{ asset('superadmin/css/bookings.css') }}?v={{ filemtime(public_path('superadmin/css/bookings.css')) }}">
     <link rel="stylesheet"
         href="{{ asset('admin/css/system-settings.css') }}?v={{ filemtime(public_path('admin/css/system-settings.css')) }}">
+    <link rel="stylesheet" href="{{ asset('superadmin/css/settings.css') }}?v={{ filemtime(public_path('superadmin/css/settings.css')) }}">
 @endpush
 
 @section('content')
-    <div class="settings-page">
+    <div class="settings-page owner-settings ob-page">
 
-        <div class="page-top">
-            <div>
-                <h1>Business Settings</h1>
-                <p>Manage business settings and customer-facing app content.</p>
-            </div>
-        </div>
+        <header class="ob-header">
+            <h1>Business Settings</h1>
+            <p>Manage business settings and customer-facing app content.</p>
+        </header>
 
         @if (session('success'))
             <p class="settings-feedback settings-feedback--success" role="status">{{ session('success') }}</p>
@@ -800,8 +799,8 @@
             <div class="settings-section">
                 <div class="settings-section-head">
                     <h3>Android App</h3>
-                    <p>Upload and manage the Android app version. The APK will be served from the download link on the
-                        sign-in page.</p>
+                    <p>Upload and manage the Android app version. The APK is served from the Android download link on the
+                        public landing and app download pages.</p>
                 </div>
 
                 @if (session('apk_success'))
@@ -897,57 +896,9 @@
             <div class="settings-section">
                 <div class="settings-section-head">
                     <h3>iOS App</h3>
-                    <p>Upload and manage the iOS app version. The IPA will be served from the download link on the sign-in
-                        page.</p>
-                </div>
-
-                <div class="mobile-app-summary">
-                    <div class="mobile-app-summary-item">
-                        <p class="mobile-app-summary-label">Current Version</p>
-                        <p class="mobile-app-summary-value">—</p>
-                    </div>
-                    <div class="mobile-app-summary-item">
-                        <p class="mobile-app-summary-label">File Size</p>
-                        <p class="mobile-app-summary-value">—</p>
-                    </div>
-                    <div class="mobile-app-summary-item">
-                        <p class="mobile-app-summary-label">Last Updated</p>
-                        <p class="mobile-app-summary-value">—</p>
-                    </div>
-                    <div class="mobile-app-summary-item">
-                        <p class="mobile-app-summary-label">Status</p>
-                        <span class="app-status-static">Inactive</span>
-                    </div>
-                </div>
-
-                <div class="app-upload-grid">
-                    <div class="app-upload-field">
-                        <label class="app-upload-label">Upload New IPA</label>
-                        <div class="app-dropzone app-dropzone-disabled">
-                            <i data-lucide="upload" class="app-dropzone-icon"></i>
-                            <span class="app-dropzone-text">Click to upload or drag and drop</span>
-                            <span class="app-dropzone-sub">IPA file (Max 100MB)</span>
-                        </div>
-                    </div>
-
-                    <div class="app-upload-field">
-                        <label class="app-upload-label">Release Notes</label>
-                        <textarea class="app-release-notes" placeholder="What's new in this version?" disabled></textarea>
-                        <span class="char-counter">0/2000</span>
-                    </div>
-                </div>
-
-                <div class="app-notice">
-                    <i data-lucide="info"></i>
-                    <span>iOS distribution isn't set up yet. This section shows the planned layout only.</span>
-                </div>
-
-                <div class="settings-actions app-upload-actions">
-                    <button type="button" class="settings-save app-btn-disabled" disabled>Upload iOS App</button>
+                    <p>iOS distribution isn't available yet, so there is nothing to upload here. The public app download page shows iOS as &ldquo;Coming soon&rdquo;.</p>
                 </div>
             </div>
-
-            <hr class="settings-divider">
 
             <div class="settings-section">
                 <div class="settings-section-head">
@@ -995,7 +946,7 @@
                 <div class="app-versioning-icon"><i data-lucide="lightbulb"></i></div>
                 <div>
                     <h4>About Versioning</h4>
-                    <p>Version Name is entered manually with each APK/IPA upload. Automatic version incrementing isn't enabled yet.</p>
+                    <p>Version Name is entered manually with each APK upload. Automatic version incrementing isn't enabled yet.</p>
                 </div>
             </div>
         </div>

@@ -68,7 +68,9 @@ function rxBooking(string $createdAt, string $status, float $total, ?Unit $unit,
         'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => $total, 'final_total' => $total,
         'status' => $status,
     ]);
-    $booking->forceFill(array_merge(['created_at' => Carbon::parse($createdAt, config('app.timezone'))], $extra))->save();
+    $at = Carbon::parse($createdAt, config('app.timezone'));
+    // The app only ever writes status=completed together with completed_at (see ReportMetricsService::PAYMENT_INVARIANT).
+    $booking->forceFill(array_merge(['created_at' => $at, 'completed_at' => $status === 'completed' ? $at : null], $extra))->save();
 
     return $booking->fresh();
 }
@@ -353,7 +355,7 @@ it('keeps the PDF and CSV exports working', function () {
     $csv = $this->actingAs($owner)->get(route('superadmin.reports.export', ['from' => RX_FROM, 'to' => RX_TO]));
     $csv->assertOk();
     expect($csv->headers->get('content-type'))->toContain('text/csv')
-        ->and($csv->streamedContent())->toContain('"Total Bookings",3');
+        ->and($csv->streamedContent())->toContain('"Total Bookings (created in period)",3');
 });
 
 it('shows an Export Excel button next to each Export PDF button', function () {

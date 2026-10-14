@@ -7,8 +7,7 @@ use Illuminate\Support\Facades\Route;
 uses(Tests\TestCase::class);
 
 it('registers the role dashboard and support routes used across the app', function () {
-    expect(Route::has('teamleader.dashboard'))->toBeTrue()
-        ->and(Route::has('driver.dashboard'))->toBeTrue()
+    expect(Route::has('driver.dashboard'))->toBeTrue()
         ->and(Route::has('admin.drivers'))->toBeTrue()
         ->and(Route::has('admin.pending-bookings-count'))->toBeTrue()
         ->and(Route::has('customer.chat.show'))->toBeTrue();
@@ -43,7 +42,8 @@ it('includes the dispatcher sidebar partial required by the admin layout', funct
         ->and($html)->toContain(route('admin.dispatch'))
         ->and($html)->toContain(route('admin.jobs'))
         ->and($html)->toContain(route('admin.drivers'))
-        ->and($html)->toContain(route('admin.available-units'));
+        ->and($html)->toContain(route('admin.booking-history'))
+        ->and($html)->not->toContain(route('admin.available-units')); // folded into Fleet/Drivers
 });
 
 it('uses the admin jobs controller instead of a plain view route', function () {
