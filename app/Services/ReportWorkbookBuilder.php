@@ -22,8 +22,8 @@ class ReportWorkbookBuilder
 {
     public const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-    /** Hard cap on per-booking detail rows to keep memory bounded. */
-    public const DETAIL_ROW_CAP = 10000;
+    /** Hard cap on per-booking detail rows. Measured peak memory: ~102 MB at 5,000 rows, ~134 MB at 10,000, so 5,000 stays under the 128M PHP limit used in production. */
+    public const DETAIL_ROW_CAP = 5000;
 
     private const FORMAT_PESO = '"₱"#,##0.00';
     private const FORMAT_INT = '#,##0';

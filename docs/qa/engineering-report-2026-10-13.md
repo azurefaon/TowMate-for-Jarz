@@ -62,7 +62,7 @@ Three tests failed only after my changes: 2x BookingHistoryPageTest (the badge p
 - Unknown-vs-known email timing difference (bcrypt only runs for known accounts) is not equalised.
 - Audit wording for risk is unchanged (medium/high are logged as "Watchlist"); the badge shows the specific level. Cosmetic inconsistency.
 - Control Center "flagged customers" still counts only watchlist/blacklisted, not low/medium/high.
-- The Booking Details sheet is capped at 10,000 rows (noted in the workbook).
+- The Booking Details sheet is capped at 5,000 rows (noted in the workbook).
 - XLSX was not opened in Microsoft Excel; it was validated by re-reading with PhpSpreadsheet only.
 - Login lockout recovery (`LoginUnlockController`) is a separate flow and was not changed.
 - Mobile app unchanged: it navigates on `success` and shows server error text; no APK rebuild required.
