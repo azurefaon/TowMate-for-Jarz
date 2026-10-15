@@ -56,3 +56,17 @@
     .dv-summary { display: block; }
 }
 @media print { .dv-summary, .dv-source { display: none !important; } .dv-embed { height: auto; } }
+.dv-hint { margin: 6px 0 0; font-size: 12.5px; line-height: 1.5; color: #525252; }
+.dv-tabs { display: flex; gap: 8px; margin: 0 0 12px; }
+.dv-tab { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; box-sizing: border-box; border: 1px solid #171717; border-radius: 4px; background: #FFFFFF; color: #171717; font-size: 13.5px; font-weight: 600; text-decoration: none; }
+.dv-tab.is-active { background: #171717; color: #FFFFFF; }
+.dv-paper.is-preview { overflow: hidden; user-select: none; }
+.dv-paper.is-preview::after { content: 'PREVIEW'; position: absolute; left: 0; right: 0; top: 40%; text-align: center; transform: rotate(-28deg); font-size: 96px; font-weight: 700; letter-spacing: 0.12em; color: rgba(23, 23, 23, 0.07); pointer-events: none; }
+.dv-print-note { display: none; margin: 16px; font-size: 14px; font-weight: 600; color: #171717; }
+@media print {
+    .dv-paper.is-preview { display: none !important; }
+    .dv-print-note { display: block !important; }
+}
+@media (max-width: 600px) { .dv-tabs, .dv-print-note { display: none; } }
+.dv-only-mobile { display: none; }
+@media (max-width: 600px) { .dv-only-desktop { display: none; } .dv-only-mobile { display: inline; } }

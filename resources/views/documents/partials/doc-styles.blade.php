@@ -47,7 +47,7 @@
     .doc-amount .av { margin-top: 6pt; font-size: 39pt; font-weight: bold; line-height: 1.05; }
     .doc-rows { width: 100%; margin-top: 20pt; }
     .doc-rows th { padding: 0 0 6pt; border-bottom: 1.5pt solid #171717; font-size: 8.25pt; font-weight: bold; letter-spacing: 0.1em; text-align: left; color: #171717; }
-    .doc-rows td { padding: 5.5pt 0; border-bottom: 0.75pt solid #E5E5E5; font-size: 10.1pt; vertical-align: top; }
+    .doc-rows td { padding: 4.5pt 0; border-bottom: 0.75pt solid #E5E5E5; font-size: 10.1pt; vertical-align: top; }
     .doc-rows td.k { width: 142pt; color: #525252; }
     .doc-rows td.v { font-weight: bold; color: #171717; }
     .doc-rows td.muted { font-weight: normal; color: #525252; }

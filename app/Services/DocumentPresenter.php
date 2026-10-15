@@ -232,7 +232,12 @@ class DocumentPresenter
 
         [$statusLabel, $statusBg] = self::BADGES[$state];
         $company = $this->company();
+        // Payment instructions only make sense while the invoice is still to be paid:
+        // never on a transaction already confirmed paid (completed, or a receipt exists).
+        $paid = $booking->status === 'completed'
+            || Receipt::whereIn('booking_id', $this->transactionBookingIds($booking))->exists();
         $showPayment = $state === 'current'
+            && ! $paid
             && (filled($company['bank_account_number']) || filled($company['gcash_number']));
 
         return [
@@ -286,8 +291,30 @@ class DocumentPresenter
             ['label' => 'Payment reference', 'value' => 'Not available', 'mono' => false, 'muted' => true],
         ];
 
+        // Stored cash received below the invoice total: never present that as full payment.
+        $shortfall = $verified && $cash !== null && $cash + 0.005 < $amount;
+
         if ($cash !== null) {
             $rows[] = ['label' => 'Cash received', 'value' => $this->peso($cash), 'mono' => false, 'muted' => false];
+        }
+
+        if ($shortfall) {
+            $rows[] = ['label' => 'Invoice total', 'value' => $this->peso($amount), 'mono' => false, 'muted' => false];
+        }
+
+        if ($verified) {
+            // The system records no separate "amount received": cash stores the amount handed over,
+            // GCash and bank transfers store only the Dispatcher's confirmation. Say which it is.
+            $rows[] = [
+                'label' => 'Amount basis',
+                'value' => match (true) {
+                    $shortfall => 'Stored cash received is below the invoice total; full payment is not recorded.',
+                    $cash !== null => 'Invoice total settled; cash received is shown separately.',
+                    default => 'Invoice total, as confirmed by the Dispatcher; no separate amount is stored.',
+                },
+                'mono' => false,
+                'muted' => $shortfall,
+            ];
         }
 
         $rows[] = [
@@ -317,8 +344,16 @@ class DocumentPresenter
             'issued_at' => $this->stamp($receipt->created_at),
             'customer' => ['name' => $customer->full_name ?? 'Customer', 'phone' => $customer->phone ?? null, 'email' => $customer->email ?? null],
             'verified' => $verified,
-            'amount_label' => $verified ? 'AMOUNT RECEIVED' : 'PAYMENT NOT VERIFIED',
-            'amount' => $this->peso($amount),
+            // A receipt preview needs the related invoice to confirm the amount.
+            'previewable' => $invoice !== null,
+            'amount_label' => match (true) {
+                ! $verified => 'PAYMENT NOT VERIFIED',
+                $shortfall => 'AMOUNT RECEIVED — BELOW INVOICE TOTAL',
+                default => 'AMOUNT RECEIVED',
+            },
+            // Yellow only when the stored, verified payment covers the invoice.
+            'panel_bg' => $verified && ! $shortfall ? '#FACC15' : '#E5E5E5',
+            'amount' => $this->peso($shortfall ? $cash : $amount),
             'method' => $method,
             'verification' => $rows[$verificationIndex]['value'],
             'rows' => $rows,

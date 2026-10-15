@@ -10,6 +10,7 @@
 @endpush
 
 @section('content')
+    @php($shown = $stage['mode'] === 'original' ? 'Original issued PDF' : 'Preview generated from records')
     <div class="dv-page">
         <div class="dv-top">
             <div class="dv-title">
@@ -21,40 +22,48 @@
 
         <div class="dv-grid">
             <div class="dv-stage">
-                @if ($pdfReady)
-                    <p class="dv-source">Issued document — the original receipt PDF exactly as it was issued.</p>
-                    <iframe class="dv-embed" src="{{ $viewUrl }}" title="Original receipt PDF {{ $doc['number'] }}"></iframe>
-                @else
-                    <p class="dv-source is-warning">No issued PDF is on file for this receipt. The preview below is rendered from the payment records and is not the issued document.</p>
-                    <div class="dv-paper">
-                        @include('documents.partials.receipt-sheet', ['doc' => $doc])
-                    </div>
-                @endif
-
-                @include('superadmin.documents._summary', ['facts' => array_values(array_filter([
-                    ['Receipt number', $doc['number']],
-                    ['Issued', $doc['issued_at']],
-                    ['Received from', $doc['customer']['name']],
-                    [$doc['verified'] ? 'Amount received' : 'Payment not verified', $doc['amount']],
-                    ['Payment method', $doc['method'] ?? 'Not available'],
-                    ['Verification', $doc['verification']],
-                    ['Booking', $doc['booking_ref']],
-                    $doc['invoice_number'] ? ['Invoice', $doc['invoice_number']] : null,
-                    ['Document', $pdfReady ? 'Original issued PDF' : 'No issued PDF on file'],
-                ])), 'viewUrl' => $pdfReady ? $viewUrl : null])
+                @include('superadmin.documents._stage', [
+                    'noun' => 'receipt',
+                    'facts' => array_values(array_filter([
+                        ['Receipt number', $doc['number']],
+                        ['Issued', $doc['issued_at']],
+                        ['Received from', $doc['customer']['name']],
+                        [ucfirst(strtolower($doc['amount_label'])), $doc['amount']],
+                        ['Payment method', $doc['method'] ?? 'Not available'],
+                        ['Verification', $doc['verification']],
+                        ['Booking', $doc['booking_ref']],
+                        $doc['invoice_number'] ? ['Invoice', $doc['invoice_number']] : null,
+                        ['Original PDF', $pdfReady ? 'On file' : 'Not on file'],
+                    ])),
+                ])
             </div>
 
             <aside class="dv-aside" aria-label="Receipt details">
                 <div class="dv-block">
-                    <div class="dv-label">PDF</div>
+                    <div class="dv-label">ORIGINAL ISSUED PDF</div>
+                    <p class="dv-hint">The authoritative issued receipt, exactly as it was issued.</p>
                     <div class="dv-actions">
                         @if ($pdfReady)
-                            <a class="dv-btn is-primary" href="{{ $viewUrl }}" target="_blank" rel="noopener noreferrer">View PDF</a>
-                            <a class="dv-btn" href="{{ $viewUrl }}?download=1">Download PDF</a>
+                            <a class="dv-btn is-primary" href="{{ $viewUrl }}" target="_blank" rel="noopener noreferrer">View Original PDF</a>
+                            <a class="dv-btn" href="{{ $viewUrl }}?download=1">Download Original PDF</a>
                         @else
-                            <span class="dv-btn is-disabled" role="note">PDF not available</span>
+                            <span class="dv-btn is-disabled" role="note">Original PDF not available</span>
                         @endif
                     </div>
+                </div>
+
+                <div class="dv-block">
+                    <div class="dv-label">DOCUMENT</div>
+                    <dl class="dv-facts">
+                        <dt>Receipt</dt><dd class="dv-mono">{{ $doc['number'] }}</dd>
+                        <dt>Issued</dt><dd>{{ $doc['issued_at'] }}</dd>
+                        <dt>Showing</dt>
+                        <dd>
+                            <span class="dv-only-desktop">{{ $shown }}</span>
+                            {{-- Phones show a records summary, never the preview or the PDF itself. --}}
+                            <span class="dv-only-mobile">{{ $pdfReady ? 'Summary of stored records; the original issued PDF is on file' : 'Summary of stored records; no original PDF is on file' }}</span>
+                        </dd>
+                    </dl>
                 </div>
 
                 @include('superadmin.documents._email', ['email' => $doc['email']])

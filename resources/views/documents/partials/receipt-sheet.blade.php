@@ -44,7 +44,7 @@
             </tr>
         </table>
 
-        <div class="doc-amount" style="background: {{ $doc['verified'] ? '#FACC15' : '#E5E5E5' }}">
+        <div class="doc-amount" style="background: {{ $doc['panel_bg'] }}">
             <div class="al">{{ $doc['amount_label'] }}</div>
             <div class="av">{{ $doc['amount'] }}</div>
         </div>
