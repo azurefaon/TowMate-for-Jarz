@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Invoice;
 use App\Models\Quotation;
@@ -262,7 +263,122 @@ class OwnerBookingPresenter
             $payload['pricing'] = $this->soloPricing($booking);
         }
 
+        $payload['documents'] = $this->invoiceReceipt($booking);
+
         return $payload;
+    }
+
+    // ------------------------------------------------------------------
+    // Invoice & receipt (read-only)
+    // ------------------------------------------------------------------
+
+    /**
+     * Booking ids of the billing transaction this booking belongs to — the same
+     * definition Void & Replace and the receipt lock use (Invoice::transactionBookingIds).
+     */
+    public function transactionBookingIds(Booking $booking): array
+    {
+        return Invoice::isNormalizedGroupTransaction($booking)
+            ? Invoice::sameTripMembers($booking)->pluck('id')->all()
+            : [$booking->id];
+    }
+
+    /** An invoice of this booking's transaction, or null (never another booking's). */
+    public function invoiceOf(Booking $booking, int $invoiceId): ?Invoice
+    {
+        return Invoice::whereKey($invoiceId)
+            ->whereIn('booking_id', $this->transactionBookingIds($booking))
+            ->first();
+    }
+
+    /** Invoice history, payment and receipt for the Owner's Invoice & Receipt section. */
+    public function invoiceReceipt(Booking $booking): array
+    {
+        $ids = $this->transactionBookingIds($booking);
+        $stamp = fn (?CarbonInterface $at) => $at?->format('M j, Y, g:i A');
+        $history = $this->invoiceHistory($booking);
+        $receipt = $this->receiptOf($booking);
+
+        $payment = $this->paymentLine($booking);
+        $confirmedBy = $booking->status === 'completed'
+            ? AuditLog::with('user')
+                ->where('action', 'payment_confirmed')
+                ->where('entity_type', 'Booking')
+                ->whereIn('entity_id', $ids)
+                ->latest('id')
+                ->first()?->user
+            : null;
+
+        return [
+            'invoices' => $history,
+            'payment' => $payment + [
+                'cash_received' => $booking->payment_method === 'cash' && $booking->cash_received !== null
+                    ? $this->peso((float) $booking->cash_received)
+                    : null,
+                'confirmed_by' => $confirmedBy?->full_name ?: $confirmedBy?->name,
+            ],
+            'receipt' => $receipt ? [
+                'code' => $receipt->receipt_code ?? $receipt->receipt_number,
+                'number' => $receipt->receipt_number,
+                'issued' => $stamp($receipt->created_at),
+                'url' => route('superadmin.bookings.receipt.show', ['id' => $booking->job_code]),
+            ] : null,
+        ];
+    }
+
+    /** The booking's transaction invoices, newest first, with state and viewer links. */
+    public function invoiceHistory(Booking $booking): array
+    {
+        $invoices = Invoice::whereIn('booking_id', $this->transactionBookingIds($booking))->orderByDesc('id')->get();
+        $numbers = $invoices->pluck('invoice_number', 'id');
+        $replaced = $invoices->pluck('previous_invoice_id')->filter()->flip();
+        $stamp = fn (?CarbonInterface $at) => $at?->format('M j, Y, g:i A');
+
+        return $invoices->map(fn (Invoice $invoice) => [
+            'id' => $invoice->id,
+            'number' => $invoice->invoice_number,
+            'state' => match (true) {
+                $invoice->status === 'voided' && $replaced->has($invoice->id) => 'replaced',
+                $invoice->status === 'voided' => 'voided',
+                $invoice->is_current => 'current',
+                default => 'issued',
+            },
+            'amount' => $this->peso((float) $invoice->total),
+            'issued' => $stamp($invoice->created_at),
+            'issued_date' => $invoice->created_at?->format('j M Y'),
+            'voided_at' => $stamp($invoice->voided_at),
+            'void_reason' => $invoice->status === 'voided' ? $invoice->void_reason : null,
+            'replaces' => $invoice->previous_invoice_id ? ($numbers[$invoice->previous_invoice_id] ?? null) : null,
+            'has_pdf' => filled($invoice->pdf_path),
+            'url' => route('superadmin.bookings.invoices.show', ['id' => $booking->job_code, 'invoice' => $invoice->id]),
+        ])->values()->all();
+    }
+
+    /** The transaction's receipt, or null. Follows Invoice::hasIssuedReceipt's definition. */
+    public function receiptOf(Booking $booking): ?Receipt
+    {
+        $ids = $this->transactionBookingIds($booking);
+
+        return Receipt::whereIn('booking_id', $ids)
+            ->orWhereIn('invoice_id', Invoice::whereIn('booking_id', $ids)->pluck('id'))
+            ->orderBy('id')
+            ->first();
+    }
+
+    /**
+     * Booking codes are numeric too, so an exact code match always wins; the
+     * padded id is only a fallback for older bookings without a code.
+     */
+    public function findBooking($id): Booking
+    {
+        $booking = Booking::where('booking_code', $id)->first()
+            ?? (ctype_digit((string) $id) && strlen((string) $id) <= 9
+                ? Booking::whereNull('booking_code')->whereKey((int) $id)->first()
+                : null);
+
+        abort_if(! $booking, 404);
+
+        return $booking;
     }
 
     // ------------------------------------------------------------------

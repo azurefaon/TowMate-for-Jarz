@@ -369,12 +369,52 @@
         ]);
     }
 
-    function receipt(data) {
-        if (!data) return null;
-        return el('div', { class: 'ob-receipt' }, [
-            el('span', { text: `Receipt ${data.code}` }),
-            data.url ? el('a', { class: 'ob-download', href: data.url, target: '_blank', rel: 'noopener noreferrer' }, [icon('download'), 'Download receipt']) : null,
-        ]);
+    const invoiceBadge = {
+        current: ['Current', '#166534'],
+        replaced: ['Replaced', '#6D28D9'],
+        voided: ['Voided', '#B91C1C'],
+        issued: ['Issued', '#525252'],
+    };
+
+    const docBadge = (state) => {
+        const [label, color] = invoiceBadge[state] || invoiceBadge.issued;
+        return el('span', { class: 'ob-badge', style: `background:${color}`, text: label });
+    };
+
+    // Read-only access: the complete invoice, its version history and the receipt
+    // open in dedicated viewers. Void, replace and payment confirmation stay with the Dispatcher.
+    function documentsSection(docs) {
+        const content = [];
+        const invoices = docs.invoices;
+
+        if (!invoices.length) {
+            content.push(el('p', { class: 'ob-doc-empty', text: 'No invoice has been issued for this booking yet.' }));
+        } else {
+            const shown = invoices.find((inv) => inv.state === 'current') || invoices[0];
+            content.push(dl([
+                ['Invoice', el('span', { class: 'ob-doc-id' }, [shown.number, ' ', docBadge(shown.state)]), invoices.length > 1 ? `${invoices.length} versions on record` : null],
+                ['Amount', shown.amount],
+                ['Issued', shown.issued || '—'],
+            ]));
+            content.push(el('div', { class: 'ob-doc-actions' }, [
+                el('a', { class: 'ob-download', href: shown.url }, [icon('file-text'), 'View invoice']),
+                invoices.length > 1 ? el('a', { class: 'ob-link', href: shown.url }, 'Invoice history') : null,
+            ]));
+        }
+
+        const pay = docs.payment;
+        content.push(el('div', { class: 'ob-section-rule', 'aria-hidden': 'true' }), dl([
+            ['Payment', pay.value, pay.note],
+            pay.cash_received ? ['Cash received', pay.cash_received] : null,
+            pay.confirmed_by ? ['Confirmed by', pay.confirmed_by] : null,
+            ['Receipt', docs.receipt ? docs.receipt.number || docs.receipt.code : 'No receipt issued yet', docs.receipt ? docs.receipt.issued : null, docs.receipt ? null : 'is-muted'],
+        ]));
+
+        if (docs.receipt) {
+            content.push(el('div', { class: 'ob-doc-actions' }, el('a', { class: 'ob-download', href: docs.receipt.url }, [icon('receipt'), 'View receipt'])));
+        }
+
+        return section('Invoice & Receipt', content, 'Read-only');
     }
 
     function pricingSection(pricing) {
@@ -387,14 +427,12 @@
             const total = pricing.total;
             return section('Quotation & Payment', [
                 dl([[total.label, total.muted ? total.amount : el('span', { class: 'ob-total-value', text: total.amount }), total.note, total.muted ? 'is-muted' : null], ...lines]),
-                receipt(pricing.receipt),
             ]);
         }
 
         if (pricing.kind === 'legacy') {
             return section('Quotation & Payment', [
                 dl([['Amount', pricing.unavailable, pricing.unavailable_note], ...lines]),
-                receipt(pricing.receipt),
             ]);
         }
 
@@ -415,7 +453,6 @@
             content.push(money, el('div', { class: 'ob-section-rule', 'aria-hidden': 'true' }), dl(lines));
         }
 
-        content.push(receipt(pricing.receipt));
         return section('Group Pricing', content, aside);
     }
 
@@ -490,6 +527,7 @@
         ]);
 
         const grid = el('div', { class: 'ob-grid' }, [left, right]);
+        if (data.documents) grid.append(el('div', { class: 'ob-full' }, documentsSection(data.documents)));
         if (data.vehicles) grid.append(el('div', { class: 'ob-full' }, vehiclesSection(data.vehicles)));
         if (data.related?.length) grid.append(el('div', { class: 'ob-full' }, relatedSection(data.related)));
         if (data.notes) grid.append(el('div', { class: 'ob-full' }, section('Additional Notes', el('p', { class: 'ob-notes', text: data.notes }))));
@@ -609,4 +647,8 @@
             first.focus();
         }
     });
+
+    // Back to Booking from the invoice / receipt viewers reopens the booking details.
+    const requestedBooking = new URLSearchParams(window.location.search).get('booking');
+    if (requestedBooking) openBooking(requestedBooking, null);
 })();

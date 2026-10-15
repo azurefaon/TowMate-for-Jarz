@@ -58,7 +58,7 @@
                     </table>
                 </div>
 
-                @include('superadmin.customers._pager', ['paginator' => $bookings, 'noun' => 'booking'])
+                @include('superadmin.partials._pager', ['paginator' => $bookings, 'noun' => 'booking'])
             @endif
         </div>
     </div>

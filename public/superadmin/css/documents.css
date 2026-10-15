@@ -1,0 +1,58 @@
+/* Owner Invoice / Receipt viewers (read-only) */
+.dv-page { max-width: 1280px; font-family: 'IBM Plex Sans', 'Inter', system-ui, sans-serif; color: #171717; }
+.dv-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.dv-title { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.dv-title h1 { margin: 0; font-size: 26px; font-weight: 700; color: #171717; }
+.dv-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; color: #FFFFFF; font-size: 12.5px; font-weight: 600; }
+.dv-badge.is-ink { background: #171717; }
+.dv-back { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; box-sizing: border-box; border: 1px solid #171717; border-radius: 4px; background: #FFFFFF; color: #171717; font-size: 14px; font-weight: 600; text-decoration: none; }
+.dv-grid { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.dv-stage { flex: 999 1 640px; min-width: 0; box-sizing: border-box; padding: 16px; border-radius: 4px; background: #F5F5F5; overflow-x: auto; }
+.dv-paper { position: relative; width: 595pt; min-height: 842pt; margin: 0 auto; background: #FFFFFF; border: 1px solid #D4D4D4; }
+.dv-paper .doc-footer { position: absolute; }
+.dv-aside { flex: 1 1 280px; max-width: 320px; min-width: 0; box-sizing: border-box; border: 1px solid #E5E5E5; border-radius: 4px; }
+.dv-block { padding: 18px 20px; border-bottom: 1px solid #E5E5E5; }
+.dv-block:last-child { border-bottom: 0; }
+.dv-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #525252; }
+.dv-actions { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.dv-btn { display: flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box; border: 1px solid #171717; border-radius: 4px; background: #FFFFFF; color: #171717; font-size: 14px; font-weight: 600; text-decoration: none; }
+.dv-btn.is-primary { border-color: #FACC15; background: #FACC15; }
+.dv-btn.is-disabled { border-color: #E5E5E5; background: #F5F5F5; color: #737373; cursor: not-allowed; }
+.dv-email-detail { margin-top: 10px; font-size: 13px; line-height: 1.55; color: #171717; }
+.dv-email-to { margin-top: 2px; font-size: 13px; color: #404040; word-break: break-all; }
+.dv-list { margin: 8px 0 0; padding: 0; list-style: none; }
+.dv-item { padding: 10px 0; border-bottom: 1px solid #E5E5E5; }
+.dv-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.dv-item.is-viewing { margin: 0 -8px; padding: 10px 8px; background: #FEF9C3; border-radius: 4px; border-bottom: 0; }
+.dv-item-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dv-item-sub { margin-top: 4px; display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: #404040; }
+.dv-item-sub a { color: #171717; font-weight: 600; }
+.dv-mono { font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', monospace; font-size: 13px; font-weight: 600; }
+.dv-small-badge { padding: 3px 8px; font-size: 12px; }
+.dv-reason { margin-top: 4px; font-size: 12.5px; color: #404040; }
+@media (max-width: 900px) { .dv-aside { max-width: none; flex-basis: 100%; } .dv-stage { padding: 12px; } }
+@media print {
+    .sidebar, .dv-top, .dv-aside { display: none !important; }
+    .dv-stage { padding: 0; background: #FFFFFF; overflow: visible; }
+    .dv-paper { border: 0; width: 100%; }
+}
+/* The A4 sheet scales down to fit narrower content areas instead of clipping. */
+@media (max-width: 1620px) { .dv-paper { zoom: 0.9; } }
+@media (max-width: 1480px) { .dv-paper { zoom: 0.8; } }
+@media (max-width: 1100px) { .dv-paper { zoom: 1; } }
+@media print { .dv-paper { zoom: 1; } }
+.dv-source { margin: 0 0 12px; font-size: 13px; color: #404040; }
+.dv-source.is-warning { padding: 10px 14px; border: 1px solid #171717; border-radius: 4px; background: #FFFFFF; font-weight: 600; color: #171717; }
+.dv-embed { display: block; width: 100%; height: 1120px; border: 1px solid #D4D4D4; background: #FFFFFF; }
+.dv-facts { margin: 12px 0 0; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px 12px; font-size: 13.5px; }
+.dv-facts dt { color: #525252; }
+.dv-facts dd { margin: 0; font-weight: 600; color: #171717; overflow-wrap: anywhere; }
+.dv-summary { display: none; padding: 16px; border: 1px solid #E5E5E5; border-radius: 4px; background: #FFFFFF; }
+.dv-summary .dv-btn { margin-top: 16px; }
+@media (max-width: 600px) {
+    .dv-stage { padding: 0; background: transparent; overflow: visible; }
+    .dv-stage > .dv-paper, .dv-stage > .dv-embed { display: none; }
+    .dv-stage > .dv-source { display: none; }
+    .dv-summary { display: block; }
+}
+@media print { .dv-summary, .dv-source { display: none !important; } .dv-embed { height: auto; } }

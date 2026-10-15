@@ -337,7 +337,6 @@
         $sidebarLinks = [
             'dashboard' => request()->routeIs('superadmin.dashboard'),
             'bookings' => request()->routeIs('superadmin.bookings.*'),
-            'customers' => request()->routeIs('superadmin.customers.*'),
             'monitoring' => request()->routeIs('superadmin.monitoring.*'),
             'settings' => request()->routeIs('superadmin.settings.*'),
         ];
@@ -380,14 +379,6 @@
                             @if (isset($pendingBookings) && $pendingBookings > 0)
                                 <span class="sidebar-count">{{ $pendingBookings }}<span class="sidebar-sr"> pending</span></span>
                             @endif
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('superadmin.customers.index') }}"
-                            class="sidebar-link {{ $sidebarLinks['customers'] ? 'active' : '' }}"
-                            @if ($sidebarLinks['customers']) aria-current="page" @endif>
-                            <span class="sidebar-icon"><i data-lucide="users" aria-hidden="true"></i></span>
-                            <span class="sidebar-label">Customers</span>
                         </a>
                     </li>
                     <li>

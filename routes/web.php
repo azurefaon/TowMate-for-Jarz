@@ -34,6 +34,7 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\PublicTrackController;
 
 use App\Http\Controllers\SuperAdmin\BookingController as SuperAdminBookingController;
+use App\Http\Controllers\SuperAdmin\BookingDocumentController as SuperAdminBookingDocumentController;
 use App\Http\Controllers\SuperAdmin\CustomerAppContentController;
 use App\Http\Controllers\SuperAdmin\MonitoringController;
 use App\Http\Controllers\SuperAdmin\ReportsController;
@@ -235,8 +236,6 @@ Route::prefix('superadmin')
         Route::get('/reports/bookings', [ReportsController::class, 'bookings'])->name('reports.bookings');
         Route::get('/reports/activity', [ReportsController::class, 'activity'])->name('reports.activity');
         Route::get('/reports/activity/export', [ReportsController::class, 'exportActivityPdf'])->name('reports.activity.export');
-        Route::get('/customers', [\App\Http\Controllers\SuperAdmin\CustomerController::class, 'index'])->name('customers.index');
-        Route::get('/customers/{customer}', [\App\Http\Controllers\SuperAdmin\CustomerController::class, 'show'])->whereNumber('customer')->name('customers.show');
         Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
         Route::get('/monitoring/live', [MonitoringController::class, 'live'])->name('monitoring.live');
 
@@ -289,6 +288,10 @@ Route::prefix('superadmin')
 
         Route::get('/bookings', [SuperAdminBookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{id}', [SuperAdminBookingController::class, 'show'])->name('bookings.show');
+        Route::get('/bookings/{id}/invoices/{invoice}', [SuperAdminBookingDocumentController::class, 'invoice'])->whereNumber('invoice')->name('bookings.invoices.show');
+        Route::get('/bookings/{id}/invoices/{invoice}/pdf', [SuperAdminBookingDocumentController::class, 'invoicePdf'])->whereNumber('invoice')->name('bookings.invoices.pdf');
+        Route::get('/bookings/{id}/receipt', [SuperAdminBookingDocumentController::class, 'receipt'])->name('bookings.receipt.show');
+        Route::get('/bookings/{id}/receipt/pdf', [SuperAdminBookingDocumentController::class, 'receiptPdf'])->name('bookings.receipt.pdf');
 
 Route::get('/settings', [SystemSettingsController::class, 'index'])->name('settings.index');
         Route::post('/settings/update', [SystemSettingsController::class, 'update'])->name('settings.update');

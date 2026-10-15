@@ -8,6 +8,7 @@ use App\Services\OwnerBookingPresenter;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class BookingController extends Controller
 {
@@ -64,17 +65,9 @@ class BookingController extends Controller
 
     public function show($id)
     {
-        // Booking codes are numeric too, so an exact code match always wins; the
-        // padded id is only a fallback for older bookings without a code.
-        $booking = Booking::where('booking_code', $id)->first()
-            ?? (ctype_digit((string) $id) && strlen((string) $id) <= 9
-                ? Booking::whereNull('booking_code')->whereKey((int) $id)->first()
-                : null);
-
-        abort_if(! $booking, 404);
-
-        return response()->json($this->presenter->details($booking));
+        return response()->json($this->presenter->details($this->presenter->findBooking($id)));
     }
+
 
     /**
      * Normalises the query string into the filters actually applied, so the

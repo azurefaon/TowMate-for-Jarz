@@ -59,25 +59,15 @@ class DocumentGenerationService
             ]
         );
 
-        $groupTotal = ! empty($groupVehicles)
-            ? array_sum(array_column($groupVehicles, 'final_total')) + $groupAdjustment
-            : null;
-
         $html = view('documents.receipt', [
-            'booking' => $booking,
-            'receipt' => $receipt,
-            'settings' => $this->documentSettings(),
-            'generatedAt' => now(),
-            'groupVehicles' => $groupVehicles,
-            'groupAdjustment' => $groupAdjustment,
-            'groupTotal' => $groupTotal,
+            'doc' => app(DocumentPresenter::class)->receipt($receipt),
         ])->render();
 
         $path = sprintf('documents/receipts/booking-%d-receipt.pdf', $booking->id);
         $legacyHtmlPath = sprintf('documents/receipts/booking-%d-receipt.html', $booking->id);
 
         Storage::disk('public')->delete($legacyHtmlPath);
-        Storage::disk('local')->put($path, $this->renderPdf($html));
+        Storage::disk('local')->put($path, $this->renderPdf($html, 'Page {PAGE_NUM} of {PAGE_COUNT}'));
 
         $receipt->update([
             'pdf_path' => $path,
@@ -88,24 +78,12 @@ class DocumentGenerationService
 
     public function generateInvoice(Invoice $invoice, array $groupVehicles = [], float $groupAdjustment = 0.0): Invoice
     {
-        $booking = $invoice->booking()->with(['customer', 'truckType'])->first();
-
-        $groupTotal = ! empty($groupVehicles)
-            ? array_sum(array_column($groupVehicles, 'final_total')) + $groupAdjustment
-            : null;
-
         $html = view('documents.invoice', [
-            'booking' => $booking,
-            'invoice' => $invoice,
-            'settings' => $this->documentSettings(),
-            'generatedAt' => now(),
-            'groupVehicles' => $groupVehicles,
-            'groupAdjustment' => $groupAdjustment,
-            'groupTotal' => $groupTotal,
+            'doc' => app(DocumentPresenter::class)->invoice($invoice, ! empty($groupVehicles) ? $groupVehicles : null),
         ])->render();
 
         $path = sprintf('documents/invoices/invoice-%d.pdf', $invoice->id);
-        Storage::disk('local')->put($path, $this->renderPdf($html));
+        Storage::disk('local')->put($path, $this->renderPdf($html, 'Page {PAGE_NUM} of {PAGE_COUNT}'));
 
         $invoice->update(['pdf_path' => $path]);
 
@@ -163,6 +141,7 @@ class DocumentGenerationService
             'payment_terms' => SystemSetting::getValue('payment_terms', 'Pay upon service confirmation'),
             'quote_prefix' => SystemSetting::getValue('quote_prefix', 'Q'),
             'logo_url' => $this->assetUrl(SystemSetting::getValue('company_logo'), 'customer/image/TowingLogo.png'),
+            'document_logo_url' => $this->assetUrl(SystemSetting::getValue('company_logo'), 'dispatcher/images/jarz-logo.png'),
             'secondary_logo_url' => $this->assetUrl(SystemSetting::getValue('secondary_logo'), 'customer/image/accridetedlogo.png'),
             'signature_url' => $this->assetUrl(SystemSetting::getValue('signature_image')),
         ];
@@ -230,7 +209,7 @@ class DocumentGenerationService
             return is_file($publicStoragePath) ? $publicStoragePath : null;
         }
 
-        if (Str::startsWith($path, ['customer/', 'home_page/', 'admin/', 'superadmin/'])) {
+        if (Str::startsWith($path, ['customer/', 'home_page/', 'admin/', 'superadmin/', 'dispatcher/'])) {
             $publicAssetPath = public_path($path);
 
             return is_file($publicAssetPath) ? $publicAssetPath : null;

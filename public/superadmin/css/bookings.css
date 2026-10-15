@@ -971,3 +971,63 @@ a.ob-page-btn:hover {
         min-width: 260px;
     }
 }
+
+/* Invoice & Receipt (read-only) */
+.ob-doc-links {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.ob-link {
+    height: 40px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--ob-border);
+    border-radius: 8px;
+    color: var(--ob-text);
+    text-decoration: none;
+}
+
+.ob-doc-empty {
+    margin: 0;
+    color: var(--ob-muted);
+}
+
+.ob-invoices tr.is-voided td {
+    color: var(--ob-muted);
+}
+
+.ob-invoices tr.is-voided td:first-child {
+    text-decoration: line-through;
+}
+
+.ob-invoices small {
+    display: block;
+}
+
+.ob-invoices .is-amount {
+    padding-right: 24px;
+}
+
+.ob-invoices td:last-child,
+.ob-invoices th:last-child {
+    text-align: right;
+    padding-right: 0;
+}
+
+.ob-doc-actions {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ob-doc-id {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}

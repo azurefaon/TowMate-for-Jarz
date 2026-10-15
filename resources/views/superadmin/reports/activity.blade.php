@@ -141,7 +141,7 @@
                     </table>
                 </div>
 
-                @include('superadmin.customers._pager', ['paginator' => $logs, 'noun' => 'record'])
+                @include('superadmin.partials._pager', ['paginator' => $logs, 'noun' => 'record'])
             @endif
         </section>
     </div>

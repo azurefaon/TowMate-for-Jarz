@@ -85,7 +85,6 @@ it('renders the Revision 2 navigation structure and wording', function () {
         '>Dashboard<',
         '>Operations<',
         '>Bookings<',
-        '>Customers<',
         '>Operations Monitor<',
         '>Management<',
         '>Fleet Management<',
@@ -131,7 +130,6 @@ it('links every sidebar destination to its existing route', function () {
     foreach ([
         'superadmin.dashboard',
         'superadmin.bookings.index',
-        'superadmin.customers.index',
         'superadmin.monitoring.index',
         'superadmin.truck-types.index',
         'superadmin.unit-truck.index',
@@ -167,7 +165,6 @@ it('highlights top-level rows on their own pages', function (string $route) {
     expect(substr_count($html, 'aria-current="page"'))->toBe(1);
 })->with([
     'bookings' => 'superadmin.bookings.index',
-    'customers' => 'superadmin.customers.index',
     'operations monitor' => 'superadmin.monitoring.index',
     'business settings' => 'superadmin.settings.index',
 ]);
@@ -249,4 +246,17 @@ it('limits the collapsed rail to desktop so the mobile drawer keeps its full lay
 
     expect($css)->toContain('@media (min-width: 1025px)');
     expect($css)->not->toMatch('/^\.sidebar\.collapsed \{/m');
+});
+
+it('no longer offers an Owner Customers module, leaving a single Bookings entry', function () {
+    $response = $this->actingAs(sbNavOwner())->get(route('superadmin.dashboard'));
+    $html = $response->getContent();
+
+    $response->assertOk();
+    $response->assertDontSee('>Customers<', false);
+    $response->assertDontSee('/superadmin/customers', false);
+    expect(substr_count($html, '>Bookings<'))->toBe(1);
+    expect(\Illuminate\Support\Facades\Route::has('superadmin.customers.index'))->toBeFalse();
+    expect(\Illuminate\Support\Facades\Route::has('superadmin.customers.show'))->toBeFalse();
+    $this->actingAs(sbNavOwner())->get('/superadmin/customers')->assertNotFound();
 });
