@@ -77,7 +77,6 @@ class DocumentPresenter
             // Only a signature the Owner uploaded; otherwise a blank signature line.
             'signature_image' => $settings['signature_url'],
             'signatory' => $signatory !== '' ? $signatory : null,
-            'signatory_role' => 'Franchisee',
         ];
     }
 

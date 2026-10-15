@@ -62,7 +62,6 @@
     .doc-signature-blank { height: 30pt; }
     .doc-signature-line { margin-top: 3pt; padding-top: 3pt; border-top: 0.75pt solid #171717; }
     .doc-signature-name { font-size: 9.4pt; font-weight: bold; color: #171717; }
-    .doc-signature-role { font-size: 8.5pt; color: #525252; }
     .doc-accreditation { max-width: 40pt; max-height: 34pt; }
     .doc-breakdown-note { margin-top: 12pt; font-size: 9pt; color: #525252; }
 </style>

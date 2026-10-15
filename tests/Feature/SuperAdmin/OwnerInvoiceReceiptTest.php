@@ -70,7 +70,7 @@ function irInvoice(Booking $booking, array $overrides = []): Invoice
     ], $overrides));
 }
 
-function irPaidBooking(): array
+function irPaidBooking(string $receiptNumber = 'R-IR-0001'): array
 {
     $booking = irBooking([
         'status' => 'completed', 'completed_at' => now(), 'payment_method' => 'cash',
@@ -79,7 +79,7 @@ function irPaidBooking(): array
     $invoice = irInvoice($booking);
     $dispatcher = irUser(2, 'Dispatcher');
     AuditLog::create(['user_id' => $dispatcher->id, 'action' => 'payment_confirmed', 'entity_type' => 'Booking', 'entity_id' => $booking->id, 'reference' => $booking->job_code, 'description' => 'Job completed']);
-    $receipt = Receipt::create(['booking_id' => $booking->id, 'invoice_id' => $invoice->id, 'generated_by' => $dispatcher->id, 'receipt_number' => 'R-IR-0001', 'pdf_path' => 'documents/receipts/r-ir.pdf']);
+    $receipt = Receipt::create(['booking_id' => $booking->id, 'invoice_id' => $invoice->id, 'generated_by' => $dispatcher->id, 'receipt_number' => $receiptNumber, 'pdf_path' => 'documents/receipts/r-ir.pdf']);
 
     return [$booking, $invoice, $receipt, $dispatcher];
 }
@@ -255,12 +255,6 @@ it('404s for another booking\'s invoice or receipt, a missing PDF and unknown id
         ->and(collect(irDocs($this, $mine)['invoices'])->pluck('number')->all())->toBe([$noPdf->invoice_number]);
 });
 
-it('disables the PDF buttons when the file is missing', function () {
-    $booking = irBooking();
-    $invoice = irInvoice($booking);
-
-    $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $invoice))->assertOk()->assertSee('PDF not available', false);
-});
 
 // ---------------------------------------------------------------- receipt viewer
 
@@ -344,72 +338,10 @@ it('adds no Invoice, Receipt or Customers module to the Owner sidebar', function
 
 // ---------------------------------------------------------------- historical integrity
 
-const IR_PREVIEW_LABEL = 'Preview generated from records — not the original issued PDF.';
 
-it('shows a historical invoice as a labelled modern preview with prominent original-PDF actions', function () {
-    Storage::fake('local');
-    $booking = irBooking();
-    $old = irInvoice($booking, ['pdf_path' => 'documents/invoices/legacy.pdf']);
-    // A legacy-template PDF: old wording that the preview must never repeat.
-    Storage::disk('local')->put('documents/invoices/legacy.pdf', '%PDF-legacy Status Awaiting payment PLEASE MAKE PAYMENT TO');
-    $new = $old->voidAndReplace('Typo', ['total' => 2500, 'additional_fee' => 148], 1);
 
-    $page = $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $old))->assertOk();
 
-    $page->assertSee(IR_PREVIEW_LABEL, false)
-        ->assertSee('class="dv-paper is-preview"', false)->assertSee('class="doc-sheet doc-invoice"', false)
-        ->assertSee('View Original PDF', false)->assertSee('Download Original PDF', false)
-        ->assertSee(irInvoiceUrl($booking, $old, 'pdf'), false)
-        ->assertSee('Original issued PDF', false)->assertSee('1 of 2', false)
-        ->assertSee('Replaced by ' . $new->invoice_number, false)
-        ->assertDontSee('Awaiting payment', false)->assertDontSee('PLEASE MAKE PAYMENT TO', false)
-        ->assertDontSee('<iframe class="dv-embed"', false);
-    // The preview itself offers no download or PDF link.
-    $html = $page->getContent();
-    $start = strpos($html, '<div class="dv-paper is-preview"');
-    $end = strpos($html, '<p class="dv-print-note"', $start);
-    $preview = substr($html, $start, $end - $start);
-    expect($start)->not->toBeFalse()->and($end)->toBeGreaterThan($start)
-        ->and($preview)->not->toContain('download')->not->toContain('.pdf')->not->toContain('href=');
-});
 
-it('lets the Owner switch to the original issued PDF, untouched, on screen', function () {
-    Storage::fake('local');
-    $booking = irBooking();
-    $old = irInvoice($booking, ['pdf_path' => 'documents/invoices/original.pdf']);
-    Storage::disk('local')->put('documents/invoices/original.pdf', '%PDF-original-issued');
-
-    $page = $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $old) . '?source=original')->assertOk();
-
-    $page->assertSee('<iframe class="dv-embed"', false)->assertSee('exactly as it was issued', false)
-        ->assertSee('This is the authoritative invoice', false)->assertDontSee(IR_PREVIEW_LABEL, false);
-    expect($page->getContent())->not->toContain('class="doc-sheet');
-    // Viewing, on either tab, never writes to the stored PDF.
-    $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $old))->assertOk();
-    expect(Storage::disk('local')->get('documents/invoices/original.pdf'))->toBe('%PDF-original-issued');
-});
-
-it('shows only the original PDF with an explanation when the records cannot support an accurate preview', function () {
-    Storage::fake('local');
-    $booking = irBooking();
-    $invoice = irInvoice($booking, ['total' => 3000, 'pdf_path' => 'documents/invoices/odd.pdf']);
-    Storage::disk('local')->put('documents/invoices/odd.pdf', '%PDF-odd');
-
-    $page = $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $invoice))->assertOk();
-
-    $page->assertSee('<iframe class="dv-embed"', false)->assertSee('A modern preview is not shown', false)
-        ->assertSee('do not reconcile', false)->assertDontSee(IR_PREVIEW_LABEL, false);
-    expect($page->getContent())->not->toContain('class="doc-sheet');
-});
-
-it('labels the rendered preview as not the issued document when no original PDF is on file', function () {
-    $booking = irBooking();
-    $invoice = irInvoice($booking);
-
-    $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $invoice))->assertOk()
-        ->assertSee(IR_PREVIEW_LABEL, false)->assertSee('No original PDF is on file', false)
-        ->assertSee('class="doc-sheet', false)->assertDontSee('<iframe class="dv-embed"', false);
-});
 
 it('hides payment instructions on an invoice whose payment is already confirmed', function () {
     SystemSetting::setValue('bank_account_number', '0011223344');
@@ -423,113 +355,16 @@ it('hides payment instructions on an invoice whose payment is already confirmed'
         ->assertDontSee('PAYMENT INSTRUCTIONS', false)->assertDontSee('Awaiting payment', false);
 });
 
-it('renders the receipt preview as a distinct payment receipt, not a second invoice', function () {
-    Storage::fake('local');
-    [$booking, $invoice, $receipt] = irPaidBooking();
-    Storage::disk('local')->put('documents/receipts/r-ir.pdf', '%PDF-legacy PLEASE MAKE PAYMENT TO');
-    $owner = irOwner();
 
-    $receiptPage = $this->actingAs($owner)->get(route('superadmin.bookings.receipt.show', $booking->job_code))->assertOk();
-    $receiptPage->assertSee(IR_PREVIEW_LABEL, false)->assertSee('class="doc-sheet doc-receipt"', false)
-        ->assertSee('AMOUNT RECEIVED', false)->assertSee('class="doc-amount" style="background: #FACC15"', false)
-        ->assertSee('PAYMENT DETAILS', false)->assertSee('R-IR-0001', false)->assertSee($invoice->invoice_number, false)
-        ->assertSee('View Original PDF', false)->assertSee('Download Original PDF', false)
-        ->assertDontSee('PLEASE MAKE PAYMENT TO', false)->assertDontSee('PAYMENT INSTRUCTIONS', false)
-        ->assertDontSee('DESCRIPTION', false)->assertDontSee('Subtotal', false)->assertDontSee('Distance charge', false)
-        ->assertDontSee('<iframe class="dv-embed"', false);
 
-    $invoicePage = $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice))->assertOk();
-    $invoicePage->assertSee('class="doc-sheet doc-invoice"', false)->assertSee('DESCRIPTION', false)->assertSee('TOTAL', false)
-        ->assertDontSee('AMOUNT RECEIVED', false)->assertDontSee('PAYMENT DETAILS', false);
-});
-
-it('shows the receipt PDF only, with an explanation, when there is no related invoice to confirm the amount', function () {
-    Storage::fake('local');
-    [$booking, $invoice] = irPaidBooking();
-    Receipt::where('booking_id', $booking->id)->update(['invoice_id' => null]);
-    $invoice->delete();
-    Storage::disk('local')->put('documents/receipts/r-ir.pdf', '%PDF-receipt');
-
-    $this->actingAs(irOwner())->get(route('superadmin.bookings.receipt.show', $booking->job_code))->assertOk()
-        ->assertSee('<iframe class="dv-embed"', false)->assertSee('A modern preview is not shown', false)
-        ->assertDontSee('AMOUNT RECEIVED', false);
-});
-
-it('shows the receipt preview alone when no original receipt PDF is on file', function () {
-    [$booking] = irPaidBooking();
-
-    $this->actingAs(irOwner())->get(route('superadmin.bookings.receipt.show', $booking->job_code))->assertOk()
-        ->assertSee(IR_PREVIEW_LABEL, false)->assertSee('No original PDF is on file', false)
-        ->assertSee('Original PDF not available', false)->assertDontSee('<iframe class="dv-embed"', false);
-});
 
 // ---------------------------------------------------------------- financial accuracy
 
-it('presents no VAT, subtotal or adjustment when the stored values do not reconcile', function () {
-    $booking = irBooking();
-    $invoice = irInvoice($booking, ['total' => 3000]);
 
-    $page = $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $invoice))->assertOk();
 
-    $page->assertSee('₱3,000.00', false)->assertSee('An itemised VAT and adjustment breakdown is not recorded', false)
-        ->assertDontSee('Subtotal', false)->assertDontSee('>VAT<', false)->assertDontSee('Adjustment', false)
-        ->assertDontSee('Distance charge', false);
-});
-
-it('never invents VAT when the booking holds no stored VAT', function () {
-    $booking = irBooking(['vat_amount' => null, 'vat_exclusive_total' => null]);
-    $invoice = irInvoice($booking);
-
-    $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $invoice))->assertOk()
-        ->assertDontSee('>VAT<', false)->assertSee('An itemised VAT and adjustment breakdown is not recorded', false);
-});
-
-it('shows a group breakdown only when vehicle totals plus the stored fee and discount equal the invoice total', function () {
-    $customer = Customer::create(['full_name' => 'Group Customer', 'phone' => '0917' . fake()->unique()->numerify('#######')]);
-    $code = 'GRP-' . fake()->unique()->numerify('######');
-    $make = fn (float $total) => irBooking(['customer_id' => $customer->id, 'group_code' => $code, 'pickup_address' => 'G pick', 'dropoff_address' => 'G drop', 'final_total' => $total]);
-    $a = $make(4000);
-    $b = $make(5000);
-    $quotation = Quotation::create([
-        'quotation_number' => 'Q-' . uniqid(), 'source_booking_id' => $a->id, 'customer_id' => $customer->id, 'truck_type_id' => $a->truck_type_id,
-        'pickup_address' => 'G pick', 'dropoff_address' => 'G drop', 'distance_km' => 10, 'estimated_price' => 9200, 'status' => 'accepted',
-        'extra_vehicles' => [['booking_id' => $a->id, 'final_total' => 4000], ['booking_id' => $b->id, 'final_total' => 5000]],
-    ]);
-    $a->update(['quotation_id' => $quotation->id]);
-    $b->update(['quotation_id' => $quotation->id]);
-    $mismatch = irInvoice($a, ['additional_fee' => 500, 'discount' => 300, 'total' => 9999, 'quotation_id' => $quotation->id]);
-
-    $this->actingAs(irOwner())->get(irInvoiceUrl($a, $mismatch))->assertOk()
-        ->assertSee('₱9,999.00', false)->assertSee('An itemised VAT and adjustment breakdown is not recorded', false)
-        ->assertDontSee('Vehicle 1', false);
-});
 
 // ---------------------------------------------------------------- document content
 
-it('keeps payment instructions, the signatory block and the accreditation logo on generated documents', function () {
-    SystemSetting::setValue('bank_name', 'BDO');
-    SystemSetting::setValue('bank_account_name', 'Juan Dela Cruz');
-    SystemSetting::setValue('bank_account_number', '0011223344');
-    SystemSetting::setValue('gcash_number', '09171234567');
-    SystemSetting::setValue('gcash_name', 'Juan Dela Cruz Franchisee');
-    SystemSetting::setValue('signature_image', '');
-    $booking = irBooking();
-    $current = irInvoice($booking);
-    $presenter = app(\App\Services\DocumentPresenter::class);
-
-    $html = view('documents.invoice', ['doc' => $presenter->invoice($current)])->render();
-
-    expect($html)->toContain('PAYMENT INSTRUCTIONS')->toContain('0011223344')->toContain('09171234567')
-        ->toContain('Juan Dela Cruz')->toContain('Franchisee')->toContain('alt="Accreditation"')
-        ->toContain('doc-signature-blank')->not->toContain('alt="Signature"');
-
-    $voided = irInvoice(irBooking(), ['status' => 'voided', 'is_current' => false, 'voided_at' => now()]);
-    expect(view('documents.invoice', ['doc' => $presenter->invoice($voided)])->render())->not->toContain('PAYMENT INSTRUCTIONS');
-
-    [, , $receipt] = irPaidBooking();
-    $receiptHtml = view('documents.receipt', ['doc' => $presenter->receipt($receipt)])->render();
-    expect($receiptHtml)->toContain('Franchisee')->toContain('Pick-up')->toContain('Drop-off')->not->toContain('PAYMENT INSTRUCTIONS');
-});
 
 // ---------------------------------------------------------------- email wording
 
@@ -584,36 +419,7 @@ it('states plainly that GCash and bank confirmations record no separate received
         ->assertDontSee('Cash received', false);
 });
 
-it('offers View and Download Original PDF exactly once, with an accurate phone source label', function () {
-    Storage::fake('local');
-    [$booking, $invoice] = irPaidBooking();
-    $invoice->update(['pdf_path' => 'documents/invoices/o.pdf']);
-    Storage::disk('local')->put('documents/invoices/o.pdf', '%PDF-o');
-    Storage::disk('local')->put('documents/receipts/r-ir.pdf', '%PDF-r');
-    $owner = irOwner();
 
-    foreach ([irInvoiceUrl($booking, $invoice), route('superadmin.bookings.receipt.show', $booking->job_code)] as $url) {
-        $html = $this->actingAs($owner)->get($url)->assertOk()->getContent();
-
-        expect(substr_count($html, '>View Original PDF<'))->toBe(1)
-            ->and(substr_count($html, '>Download Original PDF<'))->toBe(1)
-            ->and($html)->toContain('<span class="dv-only-desktop">Preview generated from records</span>')
-            ->and($html)->toContain('<span class="dv-only-mobile">Summary of stored records; the original issued PDF is on file</span>');
-        // The phone summary no longer carries its own PDF button.
-        $summary = substr($html, strpos($html, '<div class="dv-summary">'));
-        $summary = substr($summary, 0, strpos($summary, '</div>'));
-        expect($summary)->not->toContain('<a ')->not->toContain('View Original PDF');
-    }
-});
-
-it('describes the phone source honestly when no original PDF is on file', function () {
-    $booking = irBooking();
-    $invoice = irInvoice($booking);
-
-    $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $invoice))->assertOk()
-        ->assertSee('<span class="dv-only-mobile">Summary of stored records; no original PDF is on file</span>', false)
-        ->assertSee('Original PDF not available', false)->assertDontSee('>View Original PDF<', false);
-});
 
 it('shows no amount basis and a grey panel for a payment that is not verified', function () {
     [$booking] = irPaidBooking();
@@ -621,4 +427,558 @@ it('shows no amount basis and a grey panel for a payment that is not verified', 
 
     irReceiptPage($this, $booking)->assertSee('PAYMENT NOT VERIFIED', false)->assertSee('class="doc-amount" style="background: #E5E5E5"', false)
         ->assertDontSee('Amount basis', false)->assertDontSee('AMOUNT RECEIVED', false);
+});
+
+// ---------------------------------------------------------------- modern documents only
+
+/** Every phrase of the old PDF-versus-preview interface that must never reach the Owner viewers. */
+const IR_FORBIDDEN = [
+    'Original issued PDF', 'Original Issued PDF', 'View Original PDF', 'Download Original PDF', 'Original PDF',
+    'Authoritative', 'authoritative', 'exactly as it was issued', 'Preview generated from records',
+    'not the original issued PDF', 'Modern preview', 'class="dv-tab', 'dv-embed', '<iframe', '<object', 'source=original',
+    'PREVIEW', 'Franchisee', 'Awaiting payment', 'PLEASE MAKE PAYMENT TO',
+];
+
+function irAssertNoLegacyUi(string $html): void
+{
+    foreach (IR_FORBIDDEN as $phrase) {
+        expect($html)->not->toContain($phrase);
+    }
+}
+
+/** A booking set covering every document state, including stored (legacy-style) PDFs. */
+function irEveryState(): array
+{
+    Storage::fake('local');
+    $pdf = fn (string $path) => Storage::disk('local')->put($path, '%PDF-legacy Awaiting payment PLEASE MAKE PAYMENT TO Franchisee');
+
+    $current = irBooking(); $currentInv = irInvoice($current, ['pdf_path' => 'documents/invoices/c.pdf']); $pdf('documents/invoices/c.pdf');
+
+    $replaced = irBooking(); $old = irInvoice($replaced, ['pdf_path' => 'documents/invoices/old.pdf']); $pdf('documents/invoices/old.pdf');
+    $new = $old->voidAndReplace('Typo', ['total' => 2500, 'additional_fee' => 148], 1);
+
+    $voided = irBooking();
+    $voidedInv = irInvoice($voided, ['status' => 'voided', 'is_current' => false, 'voided_at' => now(), 'void_reason' => 'Duplicate', 'pdf_path' => 'documents/invoices/v.pdf']); $pdf('documents/invoices/v.pdf');
+
+    $unreliable = irBooking(); $unreliableInv = irInvoice($unreliable, ['total' => 3000, 'pdf_path' => 'documents/invoices/u.pdf']); $pdf('documents/invoices/u.pdf');
+
+    $noPdf = irBooking(); $noPdfInv = irInvoice($noPdf);
+
+    [$paid, $paidInv] = irPaidBooking(); $pdf('documents/receipts/r-ir.pdf');
+
+    return [
+        [$current, $currentInv], [$replaced, $old], [$replaced, $new], [$voided, $voidedInv],
+        [$unreliable, $unreliableInv], [$noPdf, $noPdfInv], [$paid, $paidInv],
+    ];
+}
+
+it('opens the modern invoice directly, with no document tabs, embedded PDF or legacy PDF wording in any state', function () {
+    $owner = irOwner();
+
+    foreach (irEveryState() as [$booking, $invoice]) {
+        $html = $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice))->assertOk()->getContent();
+        irAssertNoLegacyUi($html);
+        expect($html)->toContain('Owner · Read-only');
+    }
+});
+
+it('opens the modern receipt directly, with no document tabs, embedded PDF or legacy PDF wording', function () {
+    [$booking] = irPaidBooking();
+    Storage::fake('local');
+    Storage::disk('local')->put('documents/receipts/r-ir.pdf', '%PDF-legacy PLEASE MAKE PAYMENT TO Franchisee');
+
+    $html = $this->actingAs(irOwner())->get(route('superadmin.bookings.receipt.show', $booking->job_code))->assertOk()->getContent();
+
+    irAssertNoLegacyUi($html);
+    expect($html)->toContain('class="doc-sheet doc-receipt"')->toContain('AMOUNT RECEIVED')->toContain('PAYMENT DETAILS')
+        ->not->toContain('DESCRIPTION')->not->toContain('Subtotal');
+});
+
+it('renders a bookmarked ?source=original URL as the same modern document', function () {
+    Storage::fake('local');
+    [$booking, $invoice] = irPaidBooking();
+    Storage::disk('local')->put('documents/receipts/r-ir.pdf', '%PDF-r');
+    $owner = irOwner();
+
+    $plain = $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice))->assertOk()->getContent();
+    $legacy = $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice) . '?source=original')->assertOk()->getContent();
+    irAssertNoLegacyUi($legacy);
+    expect($legacy)->toContain('class="doc-sheet doc-invoice"')->and(strip_tags($legacy))->toBe(strip_tags($plain));
+
+    $receiptUrl = route('superadmin.bookings.receipt.show', $booking->job_code);
+    $this->actingAs($owner)->get($receiptUrl . '?source=original')->assertOk()->assertSee('class="doc-sheet doc-receipt"', false)->assertDontSee('<iframe', false);
+});
+
+it('shows a short reference-only note instead of any preview or original-document messaging', function () {
+    $booking = irBooking();
+    $invoice = irInvoice($booking);
+
+    $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $invoice))->assertOk()
+        ->assertSee("For reference only. Shown from the booking's stored records.", false)
+        ->assertSee('This view is for reference only and is not printed.', false);
+});
+
+it('keeps invoice history, status badges, related links and email status on the modern viewer', function () {
+    $booking = irBooking();
+    $old = irInvoice($booking);
+    $new = $old->voidAndReplace('Typo', ['total' => 2500, 'additional_fee' => 148], 1);
+    $owner = irOwner();
+
+    $page = $this->actingAs($owner)->get(irInvoiceUrl($booking, $old))->assertOk();
+    $page->assertSee('INVOICE HISTORY', false)->assertSee($new->invoice_number, false)->assertSee(irInvoiceUrl($booking, $new), false)
+        ->assertSee('Replaced', false)->assertSee('Reason: Typo', false)->assertSee('Version 1 of 2', false)
+        ->assertSee('EMAIL DELIVERY', false)->assertSee('Email Not Available', false);
+
+    [$paid, $paidInvoice] = irPaidBooking();
+    $this->actingAs($owner)->get(irInvoiceUrl($paid, $paidInvoice))->assertOk()
+        ->assertSee(route('superadmin.bookings.receipt.show', $paid->job_code), false)->assertSee('View receipt', false);
+    $this->actingAs($owner)->get(route('superadmin.bookings.receipt.show', $paid->job_code))->assertOk()
+        ->assertSee(irInvoiceUrl($paid, $paidInvoice), false)->assertSee('View invoice', false);
+});
+
+it('shows a simple unavailable state, with stored facts only, when the invoice records do not reconcile', function () {
+    $booking = irBooking();
+    $invoice = irInvoice($booking, ['total' => 3000, 'pdf_path' => 'documents/invoices/u.pdf']);
+
+    $page = $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $invoice))->assertOk();
+    $html = $page->getContent();
+
+    $page->assertSee('Invoice details unavailable', false)->assertSee('do not reconcile into an itemised breakdown', false)
+        ->assertSee($invoice->invoice_number, false)->assertSee('₱3,000.00', false);
+    irAssertNoLegacyUi($html);
+    expect($html)->not->toContain('class="doc-sheet')->not->toContain('Subtotal')->not->toContain('>VAT<')->not->toContain('Distance charge');
+});
+
+it('shows a simple unavailable state when a receipt has no related invoice to confirm the amount', function () {
+    [$booking, $invoice] = irPaidBooking();
+    Receipt::where('booking_id', $booking->id)->update(['invoice_id' => null]);
+    $invoice->delete();
+
+    $page = $this->actingAs(irOwner())->get(route('superadmin.bookings.receipt.show', $booking->job_code))->assertOk();
+    $page->assertSee('Receipt details unavailable', false)->assertSee('cannot be confirmed', false)->assertSee('R-IR-0001', false);
+    irAssertNoLegacyUi($page->getContent());
+    expect($page->getContent())->not->toContain('AMOUNT RECEIVED')->not->toContain('class="doc-sheet');
+});
+
+it('lists charges in the phone summary only when they reconcile with the stored total', function () {
+    $booking = irBooking();
+    $invoice = irInvoice($booking);
+
+    $html = $this->actingAs(irOwner())->get(irInvoiceUrl($booking, $invoice))->assertOk()->getContent();
+    $summary = substr($html, strpos($html, '<div class="dv-summary'));
+    $summary = substr($summary, 0, strpos($summary, '</dl>'));
+
+    expect($summary)->toContain('Towing service')->toContain('Distance charge')->toContain('VAT')->toContain('₱2,352.00')
+        ->not->toContain('<a ')->not->toContain('PDF');
+});
+
+it('drops the Franchisee role from the signatory block but keeps the name and an uploaded signature', function () {
+    SystemSetting::setValue('gcash_name', 'Donald Cavalida');
+    SystemSetting::setValue('bank_account_name', 'donald cavalida');
+    SystemSetting::setValue('signature_image', '');
+    $presenter = app(\App\Services\DocumentPresenter::class);
+    $booking = irBooking();
+    $invoice = irInvoice($booking);
+    [, , $receipt] = irPaidBooking();
+
+    foreach ([view('documents.invoice', ['doc' => $presenter->invoice($invoice)])->render(), view('documents.receipt', ['doc' => $presenter->receipt($receipt)])->render()] as $html) {
+        expect($html)->toContain('<div class="doc-signature-name">Donald Cavalida</div>')
+            ->not->toContain('Franchisee')->not->toContain('doc-signature-role');
+    }
+
+    // The name rule is unchanged: GCash account name first, bank account name as the fallback, a stray "Franchisee" stripped.
+    SystemSetting::setValue('gcash_name', 'Donald Cavalida Franchisee');
+    expect($presenter->company()['signatory'])->toBe('Donald Cavalida');
+    SystemSetting::setValue('gcash_name', '');
+    expect($presenter->company()['signatory'])->toBe('donald cavalida');
+
+    // No name at all: the signature line stands alone, with no empty text element.
+    SystemSetting::setValue('bank_account_name', '');
+    $html = view('documents.invoice', ['doc' => $presenter->invoice($invoice)])->render();
+    expect($html)->toContain('<div class="doc-signature-line"></div>')->not->toContain('<div class="doc-signature-name">')->not->toContain('Franchisee');
+});
+
+it('keeps issued PDFs private, byte-for-byte unchanged and reachable only through the authenticated routes', function () {
+    Storage::fake('local');
+    $booking = irBooking();
+    $invoice = irInvoice($booking, ['pdf_path' => 'documents/invoices/keep.pdf']);
+    Storage::disk('local')->put('documents/invoices/keep.pdf', '%PDF-issued-bytes');
+    $owner = irOwner();
+
+    $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice))->assertOk();
+    $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice) . '?source=original')->assertOk();
+    $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice, 'pdf'))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+
+    expect(Storage::disk('local')->get('documents/invoices/keep.pdf'))->toBe('%PDF-issued-bytes')
+        ->and($invoice->fresh()->pdf_path)->toBe('documents/invoices/keep.pdf');
+    auth()->logout();
+    $this->flushSession();
+    $this->get(irInvoiceUrl($booking, $invoice, 'pdf'))->assertRedirect();
+});
+
+it('still generates distinct modern invoice and receipt PDFs without the Franchisee label', function () {
+    Storage::fake('local');
+    SystemSetting::setValue('gcash_name', 'Donald Cavalida');
+    $service = app(\App\Services\DocumentGenerationService::class);
+    [$booking, $invoice, , $dispatcher] = irPaidBooking();
+    $booking->update(['created_by_admin_id' => $dispatcher->id]);
+
+    $invoicePdf = Storage::disk('local')->get($service->generateInvoice($invoice)->pdf_path);
+    $receiptPdf = Storage::disk('local')->get($service->generateReceipt($booking->fresh())->pdf_path);
+
+    foreach ([$invoicePdf, $receiptPdf] as $pdf) {
+        expect($pdf)->toStartWith('%PDF')->and(preg_match_all('/\/Type\s*\/Page\b/', $pdf))->toBe(1);
+    }
+    expect($invoicePdf)->not->toBe($receiptPdf);
+
+    $presenter = app(\App\Services\DocumentPresenter::class);
+    $invoiceHtml = view('documents.invoice', ['doc' => $presenter->invoice($invoice->fresh())])->render();
+    $receiptHtml = view('documents.receipt', ['doc' => $presenter->receipt($booking->fresh()->receipt)])->render();
+    expect($invoiceHtml)->toContain('DESCRIPTION')->not->toContain('AMOUNT RECEIVED')->not->toContain('Franchisee')
+        ->and($receiptHtml)->toContain('AMOUNT RECEIVED')->not->toContain('DESCRIPTION')->not->toContain('Franchisee');
+});
+
+// ---------------------------------------------------------------- official modern PDFs: identification, actions, security
+
+/** A minimal stored PDF whose embedded Title is as dompdf writes it (UTF-16BE with a byte-order mark). */
+function irPdfTitled(?string $title, string $body = 'official-or-legacy'): string
+{
+    $info = $title === null ? '' : '/Title (' . "\xFE\xFF" . mb_convert_encoding($title, 'UTF-16BE', 'UTF-8') . ') ';
+
+    return "%PDF-1.7\n1 0 obj\n<< {$info}/Producer (dompdf) >>\nendobj\n% {$body}\n%%EOF";
+}
+
+/** Stores a PDF for an invoice and returns its (unchanged) bytes. */
+function irStoreInvoicePdf(Invoice $invoice, ?string $title): string
+{
+    $path = 'documents/invoices/invoice-' . $invoice->id . '.pdf'; // the invoice's own canonical path
+    $bytes = irPdfTitled($title);
+    Storage::disk('local')->put($path, $bytes);
+    $invoice->update(['pdf_path' => $path]);
+
+    return $bytes;
+}
+
+/** Stores a PDF for a receipt at the receipt's own canonical path and returns its bytes. */
+function irStoreReceiptPdf(Receipt $receipt, ?string $title): string
+{
+    $path = 'documents/receipts/booking-' . $receipt->booking_id . '-receipt.pdf';
+    $bytes = irPdfTitled($title);
+    Storage::disk('local')->put($path, $bytes);
+    $receipt->update(['pdf_path' => $path]);
+
+    return $bytes;
+}
+
+it('identifies an official modern PDF from the file itself, not from its name, date or presence', function () {
+    Storage::fake('local');
+    $files = app(\App\Services\StoredDocuments::class);
+    $booking = irBooking();
+    $invoice = irInvoice($booking);
+
+    // Modern: Title names exactly this invoice.
+    irStoreInvoicePdf($invoice, 'Invoice ' . $invoice->invoice_number);
+    expect($files->isOfficialModern($invoice->fresh()->pdf_path, 'invoice', $invoice->invoice_number, $invoice->id))->toBeTrue();
+
+    // Legacy template titles are never official modern.
+    foreach (['Service Invoice', 'Service Receipt'] as $legacy) {
+        irStoreInvoicePdf($invoice, $legacy);
+        expect($files->isOfficialModern($invoice->fresh()->pdf_path, 'invoice', $invoice->invoice_number, $invoice->id))->toBeFalse();
+    }
+
+    // A modern-looking Title for a different invoice, the wrong kind, no Title, and non-PDF bytes are all refused.
+    irStoreInvoicePdf($invoice, 'Invoice IV-9999999');
+    expect($files->isOfficialModern($invoice->fresh()->pdf_path, 'invoice', $invoice->invoice_number, $invoice->id))->toBeFalse();
+    irStoreInvoicePdf($invoice, 'Payment Receipt ' . $invoice->invoice_number);
+    expect($files->isOfficialModern($invoice->fresh()->pdf_path, 'invoice', $invoice->invoice_number, $invoice->id))->toBeFalse();
+    irStoreInvoicePdf($invoice, null);
+    expect($files->isOfficialModern($invoice->fresh()->pdf_path, 'invoice', $invoice->invoice_number, $invoice->id))->toBeFalse();
+    Storage::disk('local')->put($invoice->pdf_path, 'Invoice ' . $invoice->invoice_number . ' (not a pdf)');
+    expect($files->isOfficialModern($invoice->pdf_path, 'invoice', $invoice->invoice_number, $invoice->id))->toBeFalse();
+
+    // Missing file, empty path and empty number.
+    expect($files->isOfficialModern('documents/invoices/missing.pdf', 'invoice', $invoice->invoice_number, $invoice->id))->toBeFalse()
+        ->and($files->isOfficialModern(null, 'invoice', $invoice->invoice_number, $invoice->id))->toBeFalse()
+        ->and($files->isOfficialModern($invoice->pdf_path, 'invoice', null, $invoice->id))->toBeFalse();
+
+    // The filename and age play no part: a legacy-titled file at the modern path stays unofficial.
+    Storage::disk('local')->put('documents/invoices/invoice-' . $invoice->id . '.pdf', irPdfTitled('Service Invoice'));
+    expect($files->isOfficialModern('documents/invoices/invoice-' . $invoice->id . '.pdf', 'invoice', $invoice->invoice_number, $invoice->id))->toBeFalse();
+});
+
+it('recognises the PDFs the real generator writes, so the rule cannot drift from the templates', function () {
+    Storage::fake('local');
+    $service = app(\App\Services\DocumentGenerationService::class);
+    $files = app(\App\Services\StoredDocuments::class);
+    [$booking, $invoice, $receipt, $dispatcher] = irPaidBooking();
+    $booking->update(['created_by_admin_id' => $dispatcher->id]);
+
+    $generatedInvoice = $service->generateInvoice($invoice);
+    $generatedReceipt = $service->generateReceipt($booking->fresh());
+
+    expect($files->isOfficialModern($generatedInvoice->pdf_path, 'invoice', $generatedInvoice->invoice_number, $generatedInvoice->id))->toBeTrue()
+        ->and($files->isOfficialModern($generatedReceipt->pdf_path, 'receipt', $generatedReceipt->receipt_number, $generatedReceipt->booking_id))->toBeTrue()
+        ->and($files->isOfficialModern($generatedInvoice->pdf_path, 'receipt', $generatedReceipt->receipt_number, $generatedReceipt->booking_id))->toBeFalse()
+        ->and($files->title($generatedInvoice->pdf_path))->toBe('Invoice ' . $generatedInvoice->invoice_number)
+        ->and($files->title($generatedReceipt->pdf_path))->toBe('Payment Receipt ' . $generatedReceipt->receipt_number);
+});
+
+it('offers View, Download and Print PDF only for a stored official modern invoice PDF', function () {
+    Storage::fake('local');
+    $owner = irOwner();
+
+    $modernBooking = irBooking();
+    $modern = irInvoice($modernBooking);
+    irStoreInvoicePdf($modern, 'Invoice ' . $modern->invoice_number);
+
+    $legacyBooking = irBooking();
+    $legacy = irInvoice($legacyBooking);
+    irStoreInvoicePdf($legacy, 'Service Invoice');
+
+    $noneBooking = irBooking();
+    $none = irInvoice($noneBooking);
+
+    $modernPage = $this->actingAs($owner)->get(irInvoiceUrl($modernBooking, $modern))->assertOk();
+    $pdfUrl = irInvoiceUrl($modernBooking, $modern, 'pdf');
+    $modernPage->assertSee('>View PDF<', false)->assertSee('>Download PDF<', false)->assertSee('>Print PDF<', false)
+        ->assertSee('href="' . $pdfUrl . '"', false)->assertSee('href="' . $pdfUrl . '?download=1"', false)
+        ->assertSee('data-print-pdf="' . $pdfUrl . '"', false)->assertSee('superadmin/js/documents.js', false)
+        ->assertDontSee('For reference only. Shown from', false)->assertSee('To print this document, use Print PDF.', false);
+    irAssertNoLegacyUi($modernPage->getContent());
+    // The private storage path is never exposed.
+    expect($modernPage->getContent())->not->toContain('documents/invoices/')->not->toContain('storage/app');
+
+    foreach ([[$legacyBooking, $legacy], [$noneBooking, $none]] as [$booking, $invoice]) {
+        $page = $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice))->assertOk();
+        $page->assertDontSee('>View PDF<', false)->assertDontSee('>Download PDF<', false)->assertDontSee('>Print PDF<', false)
+            ->assertDontSee('data-print-pdf', false)->assertDontSee('documents.js', false)
+            ->assertSee("For reference only. Shown from the booking's stored records.", false)
+            ->assertSee('class="doc-sheet doc-invoice"', false);
+        irAssertNoLegacyUi($page->getContent());
+    }
+});
+
+it('offers View, Download and Print PDF only for a stored official modern receipt PDF', function () {
+    Storage::fake('local');
+    $owner = irOwner();
+    [$booking, , $receipt] = irPaidBooking();
+
+    // Legacy receipt PDF: reference view only, no PDF actions.
+    irStoreReceiptPdf($receipt, 'Service Receipt');
+    $url = route('superadmin.bookings.receipt.show', $booking->job_code);
+    $this->actingAs($owner)->get($url)->assertOk()->assertDontSee('>Print PDF<', false)->assertDontSee('>Download PDF<', false)
+        ->assertSee('class="doc-sheet doc-receipt"', false)->assertSee('AMOUNT RECEIVED', false);
+
+    // Modern receipt PDF for this receipt number: actions appear and point at the authenticated route.
+    irStoreReceiptPdf($receipt, 'Payment Receipt ' . $receipt->receipt_number);
+    $pdfUrl = route('superadmin.bookings.receipt.pdf', $booking->job_code);
+    $page = $this->actingAs($owner)->get($url)->assertOk();
+    $page->assertSee('>View PDF<', false)->assertSee('>Download PDF<', false)->assertSee('>Print PDF<', false)
+        ->assertSee('data-print-pdf="' . $pdfUrl . '"', false)->assertDontSee('PLEASE MAKE PAYMENT TO', false)
+        ->assertDontSee('PAYMENT INSTRUCTIONS', false)->assertDontSee('DESCRIPTION', false);
+    irAssertNoLegacyUi($page->getContent());
+
+    // A modern Title naming a different receipt is not official.
+    irStoreReceiptPdf($receipt, 'Payment Receipt R-OTHER-0001');
+    $this->actingAs($owner)->get($url)->assertOk()->assertDontSee('>Print PDF<', false);
+});
+
+it('serves the official PDF inline, as a download and for printing, only through authorised booking routes', function () {
+    Storage::fake('local');
+    $booking = irBooking();
+    $invoice = irInvoice($booking);
+    $bytes = irStoreInvoicePdf($invoice, 'Invoice ' . $invoice->invoice_number);
+    $other = irBooking();
+    $otherInvoice = irInvoice($other);
+    irStoreInvoicePdf($otherInvoice, 'Invoice ' . $otherInvoice->invoice_number);
+    $owner = irOwner();
+    $url = irInvoiceUrl($booking, $invoice, 'pdf');
+
+    $inline = $this->actingAs($owner)->get($url)->assertOk()->assertHeader('Content-Type', 'application/pdf');
+    expect($inline->headers->get('Content-Disposition'))->toContain('inline')->and($inline->headers->get('Cache-Control'))->toContain('no-store');
+    expect($this->actingAs($owner)->get($url . '?download=1')->assertOk()->headers->get('Content-Disposition'))->toContain('attachment');
+
+    // Cross-booking access is refused; so are other roles and anonymous visitors.
+    $this->actingAs($owner)->get(irInvoiceUrl($booking, $otherInvoice, 'pdf'))->assertNotFound();
+    foreach ([[2, 'Dispatcher'], [6, 'System Admin'], [5, 'Customer']] as [$roleId, $name]) {
+        $this->actingAs(irUser($roleId, $name))->get($url)->assertForbidden();
+    }
+    auth()->logout();
+    $this->flushSession();
+    $this->get($url)->assertRedirect();
+
+    // Reading never alters the stored file, and no permanent public URL exists for it.
+    expect(Storage::disk('local')->get($invoice->pdf_path))->toBe($bytes);
+    expect(Storage::disk('public')->exists($invoice->pdf_path))->toBeFalse();
+});
+
+it('keeps a legacy-titled PDF retrievable through the authorised audit route without offering it in the Owner UI', function () {
+    Storage::fake('local');
+    $booking = irBooking();
+    $invoice = irInvoice($booking);
+    $bytes = irStoreInvoicePdf($invoice, 'Service Invoice');
+    $owner = irOwner();
+
+    $page = $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice))->assertOk();
+    irAssertNoLegacyUi($page->getContent());
+    expect($page->getContent())->not->toContain('data-print-pdf')->not->toContain('>View PDF<');
+
+    // Record retention: the backend route still serves it, byte for byte, to the authorised Owner.
+    $served = $this->actingAs($owner)->get(irInvoiceUrl($booking, $invoice, 'pdf'))->assertOk();
+    expect($served->streamedContent())->toBe($bytes)->and(Storage::disk('local')->get($invoice->pdf_path))->toBe($bytes);
+});
+
+it('keeps an unverified payment and short cash safe on a receipt that has an official PDF', function () {
+    Storage::fake('local');
+    [$booking, , $receipt] = irPaidBooking();
+    irStoreReceiptPdf($receipt, 'Payment Receipt ' . $receipt->receipt_number);
+    $url = route('superadmin.bookings.receipt.show', $booking->job_code);
+    $owner = irOwner();
+
+    $booking->update(['cash_received' => 2000]);
+    $this->actingAs($owner)->get($url)->assertOk()->assertSee('AMOUNT RECEIVED — BELOW INVOICE TOTAL', false)
+        ->assertSee('class="doc-amount" style="background: #E5E5E5"', false)->assertSee('>Print PDF<', false);
+
+    $booking->update(['cash_received' => 2500, 'status' => 'waiting_verification', 'completed_at' => null]);
+    $this->actingAs($owner)->get($url)->assertOk()->assertSee('PAYMENT NOT VERIFIED', false)->assertDontSee('AMOUNT RECEIVED', false);
+});
+
+// ---------------------------------------------------------------- a matching Title alone is never enough
+
+it('never treats a matching Title in an unrelated file as an official modern PDF', function () {
+    Storage::fake('local');
+    Storage::fake('public');
+    $files = app(\App\Services\StoredDocuments::class);
+    $owner = irOwner();
+
+    $bookingA = irBooking(); $a = irInvoice($bookingA);
+    $bookingB = irBooking(); $b = irInvoice($bookingB);
+    $titleA = irPdfTitled('Invoice ' . $a->invoice_number);
+    $aOwn = $files->canonicalPath('invoice', $a->id);
+    $bOwn = $files->canonicalPath('invoice', $b->id);
+
+    $cases = [
+        'arbitrary private path with the right Title' => fn () => [Storage::disk('local')->put('documents/invoices/anything.pdf', $titleA), 'documents/invoices/anything.pdf'],
+        "another record's own file, Title forged to this invoice" => fn () => [Storage::disk('local')->put($bOwn, $titleA), $bOwn],
+        'traversal-style path' => fn () => [Storage::disk('local')->put($aOwn, $titleA), '../invoices/invoice-' . $a->id . '.pdf'],
+        'legacy public-disk path' => fn () => [Storage::disk('public')->put('documents/invoices/invoice-' . $a->id . '.pdf', $titleA), 'storage/documents/invoices/invoice-' . $a->id . '.pdf'],
+        'right path but only on the public disk' => function () use ($aOwn, $titleA) {
+            Storage::disk('local')->delete($aOwn);
+
+            return [Storage::disk('public')->put($aOwn, $titleA), $aOwn];
+        },
+    ];
+
+    foreach ($cases as $name => $arrange) {
+        [, $path] = $arrange();
+        $a->update(['pdf_path' => $path]);
+
+        expect($files->isOfficialModern($path, 'invoice', $a->invoice_number, $a->id))->toBeFalse("unrelated file accepted: {$name}");
+        $this->actingAs($owner)->get(irInvoiceUrl($bookingA, $a))->assertOk()
+            ->assertDontSee('>Print PDF<', false)->assertDontSee('>Download PDF<', false)->assertDontSee('data-print-pdf', false);
+    }
+
+    // The same Title in the invoice's own canonical private file is accepted.
+    Storage::disk('local')->put($aOwn, $titleA);
+    $a->update(['pdf_path' => $aOwn]);
+    expect($files->isOfficialModern($aOwn, 'invoice', $a->invoice_number, $a->id))->toBeTrue();
+    $this->actingAs($owner)->get(irInvoiceUrl($bookingA, $a))->assertOk()->assertSee('>Print PDF<', false);
+});
+
+it('binds a receipt PDF to its own booking: another booking\'s file with the right Title is refused', function () {
+    Storage::fake('local');
+    $files = app(\App\Services\StoredDocuments::class);
+    [$bookingA, , $receiptA] = irPaidBooking();
+    [$bookingB, , $receiptB] = irPaidBooking('R-IR-0002');
+    $titleA = irPdfTitled('Payment Receipt ' . $receiptA->receipt_number);
+
+    // Receipt A pointing at booking B's canonical receipt file, which carries A's Title.
+    $bPath = $files->canonicalPath('receipt', $bookingB->id);
+    Storage::disk('local')->put($bPath, $titleA);
+    $receiptA->update(['pdf_path' => $bPath]);
+
+    expect($files->isOfficialModern($bPath, 'receipt', $receiptA->receipt_number, $receiptA->booking_id))->toBeFalse();
+    $this->actingAs(irOwner())->get(route('superadmin.bookings.receipt.show', $bookingA->job_code))->assertOk()->assertDontSee('>Print PDF<', false);
+
+    // Its own canonical file is accepted.
+    irStoreReceiptPdf($receiptA, 'Payment Receipt ' . $receiptA->receipt_number);
+    expect($files->isOfficialModern($receiptA->fresh()->pdf_path, 'receipt', $receiptA->receipt_number, $receiptA->booking_id))->toBeTrue();
+});
+
+it('keeps PDF actions behind the booking-scoped Owner lookup: another booking\'s invoice id never yields a PDF', function () {
+    Storage::fake('local');
+    $bookingA = irBooking(); $a = irInvoice($bookingA);
+    $bookingB = irBooking(); $b = irInvoice($bookingB);
+    irStoreInvoicePdf($b, 'Invoice ' . $b->invoice_number);
+    $owner = irOwner();
+
+    // B's invoice requested under A's booking: viewer, inline, download and print all 404.
+    foreach (['', '/pdf', '/pdf?download=1'] as $suffix) {
+        $this->actingAs($owner)->get(route('superadmin.bookings.invoices.show', ['id' => $bookingA->job_code, 'invoice' => $b->id]) . $suffix)->assertNotFound();
+    }
+    // Only the Owner role reaches the routes at all.
+    foreach ([[2, 'Dispatcher'], [6, 'System Admin'], [5, 'Customer']] as [$roleId, $name]) {
+        $this->actingAs(irUser($roleId, $name))->get(irInvoiceUrl($bookingB, $b))->assertForbidden();
+    }
+});
+
+// ---------------------------------------------------------------- Owner reads never generate, replace, modify or email
+
+it('never regenerates, replaces, modifies or emails anything when the Owner views, downloads or prints', function () {
+    Storage::fake('local');
+    \Illuminate\Support\Facades\Mail::fake();
+    $owner = irOwner(); // created first: user creation is itself audited, so the reads below are what is measured
+    [$booking, $invoice, $receipt] = irPaidBooking();
+    $invoiceBytes = irStoreInvoicePdf($invoice, 'Invoice ' . $invoice->invoice_number);
+    $receiptBytes = irStoreReceiptPdf($receipt, 'Payment Receipt ' . $receipt->receipt_number);
+    $invoice->update(['email_sent' => true]);
+    $receipt->update(['email_sent' => true]);
+
+    $snapshot = fn () => [
+        'invoice' => $invoice->fresh()->toArray(), 'receipt' => $receipt->fresh()->toArray(), 'booking' => $booking->fresh()->toArray(),
+        'files' => collect(Storage::disk('local')->allFiles())->mapWithKeys(fn ($f) => [$f => md5(Storage::disk('local')->get($f))])->all(),
+        'counts' => [Invoice::count(), Receipt::count(), Booking::count(), AuditLog::count()],
+    ];
+    // Model-creation audits are written when the first request ends; flush those from the fixtures
+    // above so the snapshot measures only what the Owner's reads do.
+    $this->actingAs($owner)->get(route('superadmin.dashboard'))->assertOk();
+    $before = $snapshot();
+
+    // Any attempt to generate a document would blow up the request.
+    $this->partialMock(\App\Services\DocumentGenerationService::class, function ($mock) {
+        $mock->shouldNotReceive('generateInvoice');
+        $mock->shouldNotReceive('generateReceipt');
+        $mock->shouldNotReceive('generateQuotation');
+    });
+
+    $receiptUrl = route('superadmin.bookings.receipt.show', $booking->job_code);
+    $receiptPdf = route('superadmin.bookings.receipt.pdf', $booking->job_code);
+    foreach ([
+        irInvoiceUrl($booking, $invoice), irInvoiceUrl($booking, $invoice) . '?source=original',
+        irInvoiceUrl($booking, $invoice, 'pdf'), irInvoiceUrl($booking, $invoice, 'pdf') . '?download=1',
+        $receiptUrl, $receiptUrl . '?source=original', $receiptPdf, $receiptPdf . '?download=1',
+    ] as $url) {
+        $this->actingAs($owner)->get($url)->assertOk();
+    }
+
+    $after = $snapshot();
+    foreach ($before as $part => $value) {
+        expect($after[$part])->toEqual($value, "the '{$part}' snapshot changed after Owner reads: " . '');
+    }
+    expect(Storage::disk('local')->get($invoice->pdf_path))->toBe($invoiceBytes)
+        ->and(Storage::disk('local')->get($receipt->pdf_path))->toBe($receiptBytes);
+    \Illuminate\Support\Facades\Mail::assertNothingSent();
+    \Illuminate\Support\Facades\Mail::assertNothingQueued();
+});
+
+it('keeps the Owner viewer code free of any document generation, mail or write call', function () {
+    foreach ([
+        'app/Http/Controllers/SuperAdmin/BookingDocumentController.php', 'app/Services/DocumentPresenter.php',
+        'app/Services/StoredDocuments.php', 'app/Services/OwnerBookingPresenter.php', 'public/superadmin/js/documents.js',
+    ] as $file) {
+        $source = file_get_contents(base_path($file));
+        foreach (['generateInvoice', 'generateReceipt', 'generateQuotation', 'Mail::', '->send(', 'Storage::disk(\'local\')->put', '->delete(', 'unlink('] as $needle) {
+            expect($source)->not->toContain($needle);
+        }
+    }
 });

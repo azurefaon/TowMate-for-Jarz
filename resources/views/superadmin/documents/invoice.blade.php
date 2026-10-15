@@ -12,7 +12,28 @@
 @section('content')
     @php
         $badges = ['current' => ['Current', '#166534'], 'replaced' => ['Replaced', '#6D28D9'], 'voided' => ['Voided', '#B91C1C'], 'issued' => ['Issued', '#525252']];
-        $shown = $stage['mode'] === 'original' ? 'Original issued PDF' : 'Preview generated from records';
+        $available = (bool) $doc['reliable'];
+
+        // Phone / unavailable reading view: stored figures only. Charges are listed only when they reconcile.
+        $facts = [
+            ['Status', $doc['status_label'] . ' · Version ' . $doc['version'] . ' of ' . $doc['versions']],
+            ['Invoice number', $doc['number']],
+            ['Issued', $doc['issued_at']],
+            ['Billed to', $doc['customer']['name']],
+            ['Booking', $doc['booking_ref']],
+        ];
+        if ($available) {
+            foreach ($doc['lines'] as $line) {
+                $facts[] = [$line['title'], $line['amount']];
+            }
+            foreach ($doc['rows'] as $row) {
+                $facts[] = [$row['label'], $row['value']];
+            }
+        }
+        $facts[] = ['Total', $doc['total']];
+        if ($doc['note']) {
+            $facts[] = ['Note', $doc['note']];
+        }
     @endphp
     <div class="dv-page">
         <div class="dv-top">
@@ -20,6 +41,9 @@
                 <h1>Invoice</h1>
                 <span class="dv-badge" style="background: {{ $doc['status_bg'] }}">{{ $doc['status_label'] }}</span>
                 <span class="dv-badge is-ink">Owner · Read-only</span>
+                @if ($doc['versions'] > 1)
+                    <span class="dv-version">Version {{ $doc['version'] }} of {{ $doc['versions'] }}</span>
+                @endif
             </div>
             <a class="dv-back" href="{{ route('superadmin.bookings.index', ['booking' => $booking->job_code]) }}">← Back to Booking</a>
         </div>
@@ -28,50 +52,17 @@
             <div class="dv-stage">
                 @include('superadmin.documents._stage', [
                     'noun' => 'invoice',
-                    'facts' => array_values(array_filter([
-                        ['Status', $doc['status_label'] . ' · Version ' . $doc['version'] . ' of ' . $doc['versions']],
-                        ['Invoice number', $doc['number']],
-                        ['Issued', $doc['issued_at']],
-                        ['Billed to', $doc['customer']['name']],
-                        ['Booking', $doc['booking_ref']],
-                        ['Total (stored)', $doc['total']],
-                        ['Original PDF', $pdfReady ? 'On file' : 'Not on file'],
-                        $doc['note'] ? ['Note', $doc['note']] : null,
-                    ])),
+                    'available' => $available,
+                    'official' => (bool) $officialPdfUrl,
+                    'unavailable' => 'The stored records for this invoice do not reconcile into an itemised breakdown, so its charges are not shown. The stored total is listed below.',
+                    'facts' => $facts,
                 ])
             </div>
 
             <aside class="dv-aside" aria-label="Invoice details">
-                <div class="dv-block">
-                    <div class="dv-label">ORIGINAL ISSUED PDF</div>
-                    <p class="dv-hint">The authoritative issued invoice, exactly as it was issued.</p>
-                    <div class="dv-actions">
-                        @if ($pdfReady)
-                            <a class="dv-btn is-primary" href="{{ $viewUrl }}" target="_blank" rel="noopener noreferrer">View Original PDF</a>
-                            <a class="dv-btn" href="{{ $viewUrl }}?download=1">Download Original PDF</a>
-                        @else
-                            <span class="dv-btn is-disabled" role="note">Original PDF not available</span>
-                        @endif
-                    </div>
-                </div>
-
-                <div class="dv-block">
-                    <div class="dv-label">DOCUMENT</div>
-                    <dl class="dv-facts">
-                        <dt>Version</dt><dd>{{ $doc['version'] }} of {{ $doc['versions'] }}</dd>
-                        <dt>Issued</dt><dd>{{ $doc['issued_at'] }}</dd>
-                        <dt>Total</dt><dd>{{ $doc['total'] }}</dd>
-                        @if ($doc['replaces'])<dt>Replaces</dt><dd class="dv-mono">{{ $doc['replaces'] }}</dd>@endif
-                        @if ($doc['replaced_by'])<dt>Replaced by</dt><dd class="dv-mono">{{ $doc['replaced_by'] }}</dd>@endif
-                        @if ($doc['void_reason'])<dt>Reason</dt><dd>{{ $doc['void_reason'] }}</dd>@endif
-                        <dt>Showing</dt>
-                        <dd>
-                            <span class="dv-only-desktop">{{ $shown }}</span>
-                            {{-- Phones show a records summary, never the preview or the PDF itself. --}}
-                            <span class="dv-only-mobile">{{ $pdfReady ? 'Summary of stored records; the original issued PDF is on file' : 'Summary of stored records; no original PDF is on file' }}</span>
-                        </dd>
-                    </dl>
-                </div>
+                @if ($officialPdfUrl)
+                    @include('superadmin.documents._pdf_actions', ['pdfUrl' => $officialPdfUrl])
+                @endif
 
                 @include('superadmin.documents._email', ['email' => $doc['email']])
 
@@ -108,4 +99,9 @@
             </aside>
         </div>
     </div>
+@if ($officialPdfUrl)
+    @push('scripts')
+        <script src="{{ asset('superadmin/js/documents.js') }}?v={{ filemtime(public_path('superadmin/js/documents.js')) }}" defer></script>
+    @endpush
+@endif
 @endsection

@@ -1,26 +1,21 @@
-{{-- Main panel of the Owner viewers. The original issued PDF is the authoritative document; the preview is generated from stored records, labelled as such, and has no download. --}}
-@if ($stage['switchable'])
-    <nav class="dv-tabs" aria-label="Document view">
-        <a href="{{ $stage['previewUrl'] }}" class="dv-tab {{ $stage['mode'] === 'preview' ? 'is-active' : '' }}" @if ($stage['mode'] === 'preview') aria-current="page" @endif>Modern preview</a>
-        <a href="{{ $stage['originalUrl'] }}" class="dv-tab {{ $stage['mode'] === 'original' ? 'is-active' : '' }}" @if ($stage['mode'] === 'original') aria-current="page" @endif>Original issued PDF</a>
-    </nav>
-@endif
-
-@if ($stage['mode'] === 'original')
-    <p class="dv-source">Original issued PDF — shown exactly as it was issued. This is the authoritative {{ $noun }}.</p>
-    @if ($stage['explanation'])
-        <p class="dv-source is-warning">{{ $stage['explanation'] }}</p>
-    @endif
-    <iframe class="dv-embed" src="{{ $viewUrl }}" title="Original {{ $noun }} PDF {{ $doc['number'] }}"></iframe>
-@else
-    <p class="dv-source is-warning">Preview generated from records — not the original issued PDF.</p>
-    @unless ($pdfReady)
-        <p class="dv-source">No original PDF is on file for this {{ $noun }}, so only this preview is available.</p>
-    @endunless
-    <div class="dv-paper is-preview" data-preview="{{ $noun }}">
+{{-- Main panel of the Owner viewers: the modern document, or a simple unavailable state when the stored records cannot support it. --}}
+@if ($available)
+    <div class="dv-paper">
         @include('documents.partials.' . $noun . '-sheet', ['doc' => $doc])
     </div>
-    <p class="dv-print-note">The preview is not an issued document and is not printed. Open the original issued PDF instead.</p>
+@else
+    <div class="dv-unavailable" role="note">
+        <h2>{{ ucfirst($noun) }} details unavailable</h2>
+        <p>{{ $unavailable }}</p>
+    </div>
 @endif
 
-@include('superadmin.documents._summary', ['facts' => $facts])
+@include('superadmin.documents._summary', ['facts' => $facts, 'always' => ! $available])
+
+{{-- With an official PDF the PDF actions carry the official copy; without one this view is reference only. --}}
+@if ($official)
+    <p class="dv-print-note">To print this document, use Print PDF.</p>
+@else
+    <p class="dv-note">For reference only. Shown from the booking's stored records.</p>
+    <p class="dv-print-note">This view is for reference only and is not printed.</p>
+@endif

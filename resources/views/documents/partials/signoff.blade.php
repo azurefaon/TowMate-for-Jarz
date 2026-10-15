@@ -1,4 +1,4 @@
-{{-- Payment instructions (current invoices) and the authorised-signatory block carried over from the previous templates. --}}
+{{-- Payment instructions (unpaid current invoices) and the signatory block. --}}
 <table class="doc-signoff">
     <tr>
         <td class="doc-signoff-pay">
@@ -23,10 +23,8 @@
             @else
                 <div class="doc-signature-blank"></div>
             @endif
-            <div class="doc-signature-line">
-                @if (filled($c['signatory']))<div class="doc-signature-name">{{ $c['signatory'] }}</div>@endif
-                <div class="doc-signature-role">{{ $c['signatory_role'] }}</div>
-            </div>
+            {{-- Signatory name only (no role line); with no name the signature line stands alone. --}}
+            <div class="doc-signature-line">@if (filled($c['signatory']))<div class="doc-signature-name">{{ $c['signatory'] }}</div>@endif</div>
         </td>
     </tr>
 </table>

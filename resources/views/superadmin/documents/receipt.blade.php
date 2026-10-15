@@ -10,7 +10,26 @@
 @endpush
 
 @section('content')
-    @php($shown = $stage['mode'] === 'original' ? 'Original issued PDF' : 'Preview generated from records')
+    @php
+        $available = (bool) $doc['previewable'];
+
+        // Phone / unavailable reading view: stored figures only. The amount is shown only when the related invoice confirms it.
+        $facts = [
+            ['Receipt number', $doc['number']],
+            ['Issued', $doc['issued_at']],
+            ['Received from', $doc['customer']['name']],
+        ];
+        if ($available) {
+            $facts[] = [ucfirst(strtolower($doc['amount_label'])), $doc['amount']];
+            foreach ($doc['rows'] as $row) {
+                $facts[] = [$row['label'], $row['value']];
+            }
+        } else {
+            $facts[] = ['Payment method', $doc['method'] ?? 'Not available'];
+            $facts[] = ['Verification', $doc['verification']];
+            $facts[] = ['Booking', $doc['booking_ref']];
+        }
+    @endphp
     <div class="dv-page">
         <div class="dv-top">
             <div class="dv-title">
@@ -24,47 +43,17 @@
             <div class="dv-stage">
                 @include('superadmin.documents._stage', [
                     'noun' => 'receipt',
-                    'facts' => array_values(array_filter([
-                        ['Receipt number', $doc['number']],
-                        ['Issued', $doc['issued_at']],
-                        ['Received from', $doc['customer']['name']],
-                        [ucfirst(strtolower($doc['amount_label'])), $doc['amount']],
-                        ['Payment method', $doc['method'] ?? 'Not available'],
-                        ['Verification', $doc['verification']],
-                        ['Booking', $doc['booking_ref']],
-                        $doc['invoice_number'] ? ['Invoice', $doc['invoice_number']] : null,
-                        ['Original PDF', $pdfReady ? 'On file' : 'Not on file'],
-                    ])),
+                    'available' => $available,
+                    'official' => (bool) $officialPdfUrl,
+                    'unavailable' => 'The related invoice could not be found, so the amount cannot be confirmed. The stored receipt details are listed below.',
+                    'facts' => $facts,
                 ])
             </div>
 
             <aside class="dv-aside" aria-label="Receipt details">
-                <div class="dv-block">
-                    <div class="dv-label">ORIGINAL ISSUED PDF</div>
-                    <p class="dv-hint">The authoritative issued receipt, exactly as it was issued.</p>
-                    <div class="dv-actions">
-                        @if ($pdfReady)
-                            <a class="dv-btn is-primary" href="{{ $viewUrl }}" target="_blank" rel="noopener noreferrer">View Original PDF</a>
-                            <a class="dv-btn" href="{{ $viewUrl }}?download=1">Download Original PDF</a>
-                        @else
-                            <span class="dv-btn is-disabled" role="note">Original PDF not available</span>
-                        @endif
-                    </div>
-                </div>
-
-                <div class="dv-block">
-                    <div class="dv-label">DOCUMENT</div>
-                    <dl class="dv-facts">
-                        <dt>Receipt</dt><dd class="dv-mono">{{ $doc['number'] }}</dd>
-                        <dt>Issued</dt><dd>{{ $doc['issued_at'] }}</dd>
-                        <dt>Showing</dt>
-                        <dd>
-                            <span class="dv-only-desktop">{{ $shown }}</span>
-                            {{-- Phones show a records summary, never the preview or the PDF itself. --}}
-                            <span class="dv-only-mobile">{{ $pdfReady ? 'Summary of stored records; the original issued PDF is on file' : 'Summary of stored records; no original PDF is on file' }}</span>
-                        </dd>
-                    </dl>
-                </div>
+                @if ($officialPdfUrl)
+                    @include('superadmin.documents._pdf_actions', ['pdfUrl' => $officialPdfUrl])
+                @endif
 
                 @include('superadmin.documents._email', ['email' => $doc['email']])
 
@@ -86,4 +75,9 @@
             </aside>
         </div>
     </div>
+@if ($officialPdfUrl)
+    @push('scripts')
+        <script src="{{ asset('superadmin/js/documents.js') }}?v={{ filemtime(public_path('superadmin/js/documents.js')) }}" defer></script>
+    @endpush
+@endif
 @endsection
