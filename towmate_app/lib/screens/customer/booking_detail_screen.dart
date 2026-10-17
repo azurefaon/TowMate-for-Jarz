@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -31,6 +33,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   bool _cancelling = false;
   bool _cancellingGroup = false;
   bool _loadingReceipt = false;
+  bool _followingUp = false;
+  int _followUpSecondsLeft = 0;
+  Timer? _followUpTimer;
 
   static final _dateTime = DateFormat('MMM d, yyyy  h:mm a');
 
@@ -38,6 +43,52 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   void initState() {
     super.initState();
     _fetch();
+  }
+
+  @override
+  void dispose() {
+    _followUpTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Counts the server's wait down locally so the button unlocks on time.
+  /// The server still decides: tapping early is refused there, not here.
+  void _startFollowUpCountdown(int seconds) {
+    _followUpTimer?.cancel();
+    _followUpSecondsLeft = seconds;
+    if (seconds <= 0) return;
+    _followUpTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return t.cancel();
+      setState(() => _followUpSecondsLeft = _followUpSecondsLeft - 1);
+      if (_followUpSecondsLeft <= 0) t.cancel();
+    });
+  }
+
+  String _followUpWait(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _followUp(BookingModel b) async {
+    setState(() => _followingUp = true);
+    final result = await ApiService.followUpBooking(b.bookingCode);
+    if (!mounted) return;
+    setState(() => _followingUp = false);
+    final wait = (result['follow_up_in_seconds'] as int?) ?? 0;
+    if (wait > 0) _startFollowUpCountdown(wait);
+    final message = (result['message'] as String?) ?? '';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message.isNotEmpty
+              ? message
+              : (result['success'] == true
+                  ? 'The dispatcher has been notified.'
+                  : 'Could not send a follow-up. Please try again.'),
+        ),
+      ),
+    );
   }
 
   Future<void> _fetch() async {
@@ -49,6 +100,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     if (!mounted) return;
     setState(() {
       _booking = result;
+      if (result != null) _startFollowUpCountdown(result.canFollowUp ? 0 : result.followUpInSeconds);
       _loading = false;
       _fetchError = result == null;
     });
@@ -414,6 +466,37 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   if (b.arrivalPhotoUrl != null && b.dropoffPhotoUrl != null) const SizedBox(width: 12),
                   if (b.dropoffPhotoUrl != null) _photoTile('Drop-off', b.dropoffPhotoUrl!),
                 ],
+              ),
+            ),
+          ],
+
+          if (!widget.asGroupOverview && b.isWaitingForDispatcher) ...[
+            const SizedBox(height: 28),
+            Text(
+              'Your request is still active. A dispatcher will review it shortly.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 13, color: context.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 52,
+              child: OutlinedButton(
+                onPressed: (_followingUp || _followUpSecondsLeft > 0)
+                    ? null
+                    : () => _followUp(b),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: context.textPrimary,
+                  side: BorderSide(color: context.divider),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _followingUp
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(
+                        _followUpSecondsLeft > 0
+                            ? 'Follow Up available in ${_followUpWait(_followUpSecondsLeft)}'
+                            : 'Follow Up',
+                        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
               ),
             ),
           ],

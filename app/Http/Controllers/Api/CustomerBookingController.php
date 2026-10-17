@@ -175,6 +175,8 @@ class CustomerBookingController extends Controller
             return response()->json(['data' => null]);
         }
 
+        $this->quotationService->expireOldQuotations($customer->id);
+
         $bookings = Booking::where('customer_id', $customer->id)
             ->whereNotIn('status', self::INACTIVE_STATUSES)
             ->with(['truckType', 'vehicleType'])
@@ -231,6 +233,7 @@ class CustomerBookingController extends Controller
             'scheduled_time'      => $booking->scheduled_time,
             'scheduled_for'       => $booking->scheduled_for?->toIso8601String(),
             'scheduling_bucket'   => $booking->scheduling_bucket,
+            ...$this->followUpFields($booking),
         ]]);
     }
 
@@ -358,7 +361,7 @@ class CustomerBookingController extends Controller
             'service_type'                     => 'nullable|in:book_now,schedule',
             'notes'                            => 'nullable|string|max:1000',
             'scheduled_date'                   => 'required_if:service_type,schedule|nullable|date|after_or_equal:today',
-            'scheduled_time'                   => 'required_if:service_type,schedule|nullable|string|max:10',
+            'scheduled_time'                   => 'required_if:service_type,schedule|nullable|date_format:H:i',
             'extra_vehicles'                   => 'nullable|string',
         ]);
 
@@ -411,6 +414,20 @@ class CustomerBookingController extends Controller
         $readyTruckTypeIds = $this->bookingService->dispatchAvailability()['ready_truck_type_ids'] ?? [];
         $requestServiceType = $validated['service_type'] ?? 'book_now';
         $validated['service_type'] = $requestServiceType;
+
+        // A scheduled booking needs a complete date AND time that are still ahead of us.
+        // (A date of "today" with a time that has already passed is not a valid schedule.)
+        if ($requestServiceType === 'schedule') {
+            $scheduledFor = $this->bookingService->combineScheduledDateTime($validated['scheduled_date'] ?? null, $validated['scheduled_time'] ?? null);
+
+            if (! $scheduledFor || $scheduledFor->lte(now())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please choose a pickup date and time that is still ahead.',
+                    'errors' => ['scheduled_time' => ['Please choose a pickup date and time that is still ahead.']],
+                ], 422);
+            }
+        }
 
         $allExtraVehicles = null;
         $extraFilesByIndex = [];
@@ -1020,6 +1037,8 @@ class CustomerBookingController extends Controller
             return response()->json(['success' => false, 'message' => 'Customer not found.'], 404);
         }
 
+        $this->quotationService->expireOldQuotations($customer->id);
+
         $booking = Booking::where('booking_code', $code)
             ->where('customer_id', $customer->id)
             ->with(['truckType', 'vehicleType', 'assignedTeamLeader', 'unit.driver', 'unit.teamLeader'])
@@ -1119,8 +1138,75 @@ class CustomerBookingController extends Controller
                 'group_totals'      => $groupTotals,
                 'group_vehicles'    => $groupVehicles,
                 'quotation_number'  => $quotation?->quotation_number,
+                ...$this->followUpFields($booking),
             ],
         ]);
+    }
+
+    /** What the app needs to show the Follow Up action; the server alone decides when it is allowed. */
+    private function followUpFields(Booking $booking): array
+    {
+        $state = $this->bookingService->followUpState($booking);
+
+        return [
+            'is_waiting_for_dispatcher' => $state['waiting'],
+            'can_follow_up'             => $state['can_follow_up'],
+            'follow_up_in_seconds'      => $state['seconds_until'],
+        ];
+    }
+
+    /**
+     * The customer nudges the Dispatcher about a Book Now request nobody has picked up.
+     * Allowed 5 minutes after the request was made, then at most once every 15 minutes.
+     * Both limits are enforced here on the server: the booking row is locked so a double
+     * tap cannot send two, and the last follow-up is read back from the Dispatcher
+     * notifications, so the app cannot shorten the wait.
+     */
+    public function followUp(Request $request, string $code): JsonResponse
+    {
+        $customer = Customer::where('user_id', $request->user()->id)->first();
+
+        $booking = $customer
+            ? Booking::where('booking_code', $code)->where('customer_id', $customer->id)->first()
+            : null;
+
+        if (! $booking) {
+            return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
+        }
+
+        return DB::transaction(function () use ($booking) {
+            $locked = Booking::whereKey($booking->id)->lockForUpdate()->first();
+            $state = $this->bookingService->followUpState($locked);
+
+            if (! $state['waiting']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A follow-up is only available while your Book Now request is waiting for the dispatcher.',
+                ], 422);
+            }
+
+            if (! $state['can_follow_up']) {
+                $minutes = (int) ceil($state['seconds_until'] / 60);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "You can follow up again in {$minutes} " . ($minutes === 1 ? 'minute' : 'minutes') . '.',
+                    'follow_up_in_seconds' => $state['seconds_until'],
+                ], 429)->header('Retry-After', (string) $state['seconds_until']);
+            }
+
+            \App\Models\DispatcherNotification::create([
+                'type' => \App\Models\DispatcherNotification::TYPE_FOLLOW_UP,
+                'booking_id' => $locked->id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'The dispatcher has been notified. Your request is still active.',
+                'can_follow_up' => false,
+                'follow_up_in_seconds' => BookingService::FOLLOW_UP_COOLDOWN_MINUTES * 60,
+            ]);
+        });
     }
 
     /**

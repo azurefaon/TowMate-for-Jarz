@@ -23,6 +23,31 @@ jobs:
 
     name: PHP ${{ matrix.php }}
 
+    # Isolated, throwaway PostgreSQL for the test run only. The name must match the
+    # allow-listed database in tests/TestCase.php; never point this at Railway.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: towmate_jarz_testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: towmate_jarz_testing
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -31,17 +56,23 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, pgsql, pdo_pgsql
           coverage: none
 
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
       - name: Copy environment file
-        run: cp .env.example .env
+        run: cp .env.testing.example .env
 
       - name: Generate app key
         run: php artisan key:generate
 
       - name: Execute tests
-        run: php artisan test
+        run: |
+          php artisan test 2>&1 | tee test-output.txt
+          status=${PIPESTATUS[0]}
+          sed -i 's/\x1b\[[0-9;]*m//g' test-output.txt
+          grep -E "^\s+FAILED" test-output.txt | cut -c1-200 | head -40 | sed -z 's/\n/%0A/g' | xargs -0 -I{} echo "::error title=Failed tests::{}"
+          awk '/FAILED/{f=1} f' test-output.txt | head -c 6000 | sed -z 's/\n/%0A/g' | xargs -0 -I{} echo "::error title=First failure details::{}"
+          exit $status

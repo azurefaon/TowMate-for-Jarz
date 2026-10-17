@@ -27,6 +27,7 @@ class CustomerQuotationController extends Controller
     {
         $customer = Customer::where('user_id', $request->user()->id)->first();
         if (!$customer) return response()->json(['data' => null]);
+        $this->quotationService->expireOldQuotations($customer->id);
 
         $quotation = Quotation::where('customer_id', $customer->id)
             ->whereIn('status', ['sent', 'price_review_requested'])
@@ -136,6 +137,9 @@ class CustomerQuotationController extends Controller
                 'booking_code'   => $booking->booking_code,
                 'booking_status' => $booking->status,
             ]);
+        } catch (\App\Exceptions\QuotationNotAcceptableException $e) {
+            // Expired, or its scheduled date/time can no longer be confirmed: say why.
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (QuotationAlreadyProcessedException) {
             // The same accept arrived twice and this one lost the race.
             return response()->json(['success' => false, 'message' => 'This quotation has already been processed.'], 422);

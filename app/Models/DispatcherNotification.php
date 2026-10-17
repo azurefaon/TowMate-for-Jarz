@@ -10,6 +10,7 @@ class DispatcherNotification extends Model
     public const TYPE_NEW_BOOK_NOW = 'new_book_now';
     public const TYPE_NEW_SCHEDULED = 'new_scheduled';
     public const TYPE_VERIFICATION_REQUIRED = 'verification_required';
+    public const TYPE_FOLLOW_UP = 'follow_up';
 
     protected $fillable = [
         'type',
@@ -47,6 +48,7 @@ class DispatcherNotification extends Model
             self::TYPE_NEW_BOOK_NOW => 'New booking request',
             self::TYPE_NEW_SCHEDULED => 'New scheduled booking',
             self::TYPE_VERIFICATION_REQUIRED => 'Verification required',
+            self::TYPE_FOLLOW_UP => 'Customer is waiting',
             default => 'Booking update',
         };
     }
@@ -75,6 +77,10 @@ class DispatcherNotification extends Model
                 "{$booking->booking_code} · {$customerName}",
                 'Waiting for verification',
             ],
+            self::TYPE_FOLLOW_UP => [
+                "{$booking->booking_code} · {$customerName}",
+                'Followed up · still waiting for a response',
+            ],
             default => ["{$booking->booking_code} · {$customerName}"],
         };
     }
@@ -90,7 +96,7 @@ class DispatcherNotification extends Model
     public function getTargetUrlAttribute(): string
     {
         return match ($this->type) {
-            self::TYPE_NEW_BOOK_NOW => route('admin.dispatch', ['type' => 'book-now', 'booking' => $this->booking?->booking_code]),
+            self::TYPE_NEW_BOOK_NOW, self::TYPE_FOLLOW_UP => route('admin.dispatch', ['type' => 'book-now', 'booking' => $this->booking?->booking_code]),
             self::TYPE_NEW_SCHEDULED => route('admin.dispatch', ['type' => 'scheduled', 'booking' => $this->booking?->booking_code]),
             self::TYPE_VERIFICATION_REQUIRED => route('admin.jobs'),
             default => route('admin.dashboard'),

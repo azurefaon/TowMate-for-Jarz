@@ -234,6 +234,9 @@ class BookingModel {
     this.quotationNumber,
     this.groupTotals,
     this.groupVehicles,
+    this.isWaitingForDispatcher = false,
+    this.canFollowUp = false,
+    this.followUpInSeconds = 0,
   });
 
   final int id;
@@ -273,6 +276,11 @@ class BookingModel {
   final double? vatAmount;
   final DateTime? scheduledFor;
   final String? schedulingBucket;
+
+  /// Book Now request nobody has picked up yet, and when the customer may nudge the Dispatcher.
+  final bool isWaitingForDispatcher;
+  final bool canFollowUp;
+  final int followUpInSeconds;
   final String? vehicleTypeName;
   final bool pricingIsProvisional;
   final List<BookingGroupSibling>? groupSiblings;
@@ -419,6 +427,9 @@ class BookingModel {
       groupTotals: j['group_totals'] != null
           ? GroupTotals.fromJson(j['group_totals'] as Map<String, dynamic>)
           : null,
+      isWaitingForDispatcher: j['is_waiting_for_dispatcher'] == true,
+      canFollowUp: j['can_follow_up'] == true,
+      followUpInSeconds: _i(j['follow_up_in_seconds']) ?? 0,
       groupVehicles: (j['group_vehicles'] as List?)
           ?.map((e) => GroupVehicleBreakdown.fromJson(e as Map<String, dynamic>))
           .toList(),

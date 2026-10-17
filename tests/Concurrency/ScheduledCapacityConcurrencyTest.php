@@ -46,55 +46,6 @@ function csExpiredBookings(int $count): array
     return array_map(fn () => ccScheduledBooking($customer, ['scheduled_expires_at' => now()->subHour()]), range(1, $count));
 }
 
-function csCancelledCount(array $results): int
-{
-    return array_sum(array_map(fn ($result) => preg_match('/Cancelled (\d+) expired/', $result['output'], $m) ? (int) $m[1] : 0, $results));
-}
-
-/* ---------- Concurrent expiration ---------- */
-
-it('cancels each expired booking once and releases nothing when two expiration commands run together', function () {
-    [$first, $second] = csExpiredBookings(2);
-    csCapacity('2030-03-10', 1);
-
-    $holder = csHold('bookings', $first->id);
-    $one = ccStartArtisan('bookings:expire-scheduled');
-    $two = ccStartArtisan('bookings:expire-scheduled');
-    expect(ccAwaitWaiting(2))->toBeTrue('both commands should be queued behind the lock');
-    $holder->commit();
-
-    $results = [ccResult($one), ccResult($two)];
-
-    expect(array_column($results, 'exit'))->toBe([0, 0]);
-    expect(csCancelledCount($results))->toBe(2); // not 4: no booking is cancelled by both
-    expect(Booking::whereIn('id', [$first->id, $second->id])->pluck('status')->unique()->all())->toBe(['cancelled']);
-    expect(ccSlots('2030-03-10'))->toBe(1); // another booking's slot, untouched
-    expect(AuditLog::where('action', 'like', '%cancel%')->count())->toBe(0);
-});
-
-it('never cancels a booking that was accepted while the expiration command waited', function () {
-    [$user, $customer] = ccCustomer();
-    $booking = ccScheduledBooking($customer, ['scheduled_expires_at' => now()->subHour()]); // past its window, quotation flag not set
-    $quotation = ccSentQuotation($booking);
-
-    $holder = csHold('bookings', $booking->id);
-    $accept = ccStart($user, 'POST', url("/api/v1/quotations/{$quotation->id}/accept"));
-    expect(ccAwaitWaiting(1))->toBeTrue();
-    $expire = ccStartArtisan('bookings:expire-scheduled');
-    expect(ccAwaitWaiting(2))->toBeTrue();
-    $holder->commit();
-
-    $acceptResult = ccResult($accept);
-    $expireResult = ccResult($expire);
-
-    ccNoServerError($acceptResult);
-    expect($acceptResult['status'])->toBe(200, json_encode($acceptResult));
-    expect($expireResult['output'])->toBe('No expired scheduled bookings found.');
-    expect($booking->fresh()->status)->toBe('scheduled_confirmed');
-    expect(ccSlots('2030-03-10'))->toBe(1);
-    ccAssertTeamIntegrity();
-});
-
 /* ---------- Concurrent acceptance ---------- */
 
 it('reserves one slot when the same acceptance arrives twice at once', function () {
@@ -173,9 +124,48 @@ it('does not deadlock when a customer cancels while the quotation is being accep
     ccAssertTeamIntegrity();
 });
 
-/* ---------- Expiration versus cancellation ---------- */
 
-it('lets either the customer cancellation or the expiration win, never both, and releases nothing', function () {
+/* ---------- The retired expiration command ---------- */
+
+it('leaves every booking untouched when the retired expiration command runs twice at once', function () {
+    [$first, $second] = csExpiredBookings(2);
+    csCapacity('2030-03-10', 1);
+
+    $one = ccStartArtisan('bookings:expire-scheduled');
+    $two = ccStartArtisan('bookings:expire-scheduled');
+    $results = [ccResult($one), ccResult($two)];
+
+    expect(array_column($results, 'exit'))->toBe([0, 0]);
+    expect(Booking::whereIn('id', [$first->id, $second->id])->pluck('status')->unique()->all())->toBe(['scheduled']);
+    expect(ccSlots('2030-03-10'))->toBe(1);
+    expect(AuditLog::where('action', 'like', '%cancel%')->count())->toBe(0);
+});
+
+it('accepts a booking whose old 7-day window passed while the retired command ran alongside', function () {
+    [$user, $customer] = ccCustomer();
+    $booking = ccScheduledBooking($customer, ['scheduled_expires_at' => now()->subHour()]);
+    $quotation = ccSentQuotation($booking);
+
+    $holder = csHold('bookings', $booking->id);
+    $accept = ccStart($user, 'POST', url("/api/v1/quotations/{$quotation->id}/accept"));
+    expect(ccAwaitWaiting(1))->toBeTrue();
+    $expire = ccStartArtisan('bookings:expire-scheduled');
+    $holder->commit();
+
+    $acceptResult = ccResult($accept);
+    $expireResult = ccResult($expire);
+
+    ccNoServerError($acceptResult);
+    expect($acceptResult['status'])->toBe(200, json_encode($acceptResult));
+    expect($expireResult['exit'])->toBe(0);
+    expect($booking->fresh()->status)->toBe('scheduled_confirmed');
+    expect(ccSlots('2030-03-10'))->toBe(1);
+    ccAssertTeamIntegrity();
+});
+
+/* ---------- Cancellation alongside the retired command ---------- */
+
+it('lets the customer cancellation win and releases nothing while the retired command runs', function () {
     [$user, $customer] = ccCustomer();
     $booking = ccScheduledBooking($customer, ['scheduled_expires_at' => now()->subHour()]);
     csCapacity('2030-03-10', 1);
@@ -184,18 +174,14 @@ it('lets either the customer cancellation or the expiration win, never both, and
     $cancel = ccStart($user, 'POST', url("/api/v1/bookings/{$booking->booking_code}/cancel"), ['reason' => 'No longer needed']);
     expect(ccAwaitWaiting(1))->toBeTrue();
     $expire = ccStartArtisan('bookings:expire-scheduled');
-    expect(ccAwaitWaiting(2))->toBeTrue();
     $holder->commit();
 
     $cancelResult = ccResult($cancel);
     $expireResult = ccResult($expire);
 
     ccNoServerError($cancelResult);
+    expect($cancelResult['status'])->toBe(200);
     expect($expireResult['exit'])->toBe(0);
     expect($booking->fresh()->status)->toBe('cancelled');
     expect(ccSlots('2030-03-10'))->toBe(1);
-
-    $cancelledByCustomer = $cancelResult['status'] === 200;
-    $cancelledByExpiry = str_contains($expireResult['output'], 'Cancelled 1');
-    expect($cancelledByCustomer xor $cancelledByExpiry)->toBeTrue(json_encode([$cancelResult['status'], $expireResult['output']]));
 });
