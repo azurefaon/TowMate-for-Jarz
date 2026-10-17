@@ -69,4 +69,10 @@ jobs:
         run: php artisan key:generate
 
       - name: Execute tests
-        run: php artisan test
+        run: |
+          php artisan test 2>&1 | tee test-output.txt
+          status=${PIPESTATUS[0]}
+          sed -i 's/\x1b\[[0-9;]*m//g' test-output.txt
+          grep -E "^\s+FAILED" test-output.txt | cut -c1-200 | head -40 | sed -z 's/\n/%0A/g' | xargs -0 -I{} echo "::error title=Failed tests::{}"
+          awk '/FAILED/{f=1} f' test-output.txt | head -c 6000 | sed -z 's/\n/%0A/g' | xargs -0 -I{} echo "::error title=First failure details::{}"
+          exit $status
