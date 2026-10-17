@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\BookingStatusUpdated;
 use App\Exceptions\Booking\ScheduledQuoteCutoffPassedException;
 use App\Exceptions\QuotationAlreadyProcessedException;
+use App\Exceptions\QuotationNotAcceptableException;
 use App\Models\Booking;
 use App\Models\PriceAdjustment;
 use App\Models\Quotation;
@@ -263,6 +264,14 @@ class QuotationService
                 throw new QuotationAlreadyProcessedException('Quotation already processed.');
             }
 
+            // The callers also check these, but this is the check that cannot be skipped:
+            // an expired quotation can still read "sent" until the expiry job has run.
+            if ($quotation->isExpired()) {
+                throw new QuotationNotAcceptableException('This quotation has expired. Your booking is still active, and the dispatcher will send an updated quotation.');
+            }
+
+            $this->assertScheduleStillValid($quotation);
+
             $quotation->update([
                 'status' => 'accepted',
                 'responded_at' => now(),
@@ -445,6 +454,43 @@ class QuotationService
             DB::rollBack();
             AuditObserver::restore($auditCheckpoint);
             throw $e;
+        }
+    }
+
+    /**
+     * A scheduled quotation can only be accepted while its complete date AND time
+     * are still in the future. An incomplete or outdated schedule is never
+     * confirmed: the dispatcher reschedules the booking and sends a fresh quotation.
+     */
+    private function assertScheduleStillValid(Quotation $quotation): void
+    {
+        if ($quotation->service_type !== 'schedule') {
+            return;
+        }
+
+        $slots = collect([[$quotation->scheduled_date?->toDateString(), $quotation->scheduled_time]])
+            ->merge(collect($quotation->extra_vehicles ?? [])
+                ->filter(fn ($ev) => empty($ev['booking_id']) && ! empty($ev['scheduled_date']))
+                ->map(fn ($ev) => [$ev['scheduled_date'], $ev['scheduled_time'] ?? null]));
+
+        foreach ($slots as [$date, $time]) {
+            if (blank($date) || blank($time)) {
+                throw new QuotationNotAcceptableException('This booking has no complete scheduled date and time, so it cannot be confirmed yet. The dispatcher will contact you.');
+            }
+
+            try {
+                $when = $this->bookingService()->combineScheduledDateTime($date, $time);
+            } catch (\Throwable) {
+                $when = null;
+            }
+
+            if (! $when) {
+                throw new QuotationNotAcceptableException('This booking has no complete scheduled date and time, so it cannot be confirmed yet. The dispatcher will contact you.');
+            }
+
+            if ($when->lte(now())) {
+                throw new QuotationNotAcceptableException('The scheduled date and time for this booking has already passed, so it cannot be confirmed. The dispatcher will contact you to set a new schedule.');
+            }
         }
     }
 
@@ -750,9 +796,16 @@ class QuotationService
             ->get();
     }
 
-    public function expireOldQuotations(): int
+    /**
+     * Expires every current quotation whose time is up. The scheduler runs this where it is
+     * enabled; the customer and Dispatcher screens also call it for what they are about to
+     * show (optionally limited to one customer), so a lapsed quotation never lingers as
+     * "sent" just because no scheduler is running.
+     */
+    public function expireOldQuotations(?int $customerId = null): int
     {
         $quotations = Quotation::whereIn('status', ['sent', 'negotiating'])
+            ->when($customerId, fn ($q) => $q->where('customer_id', $customerId))
             ->current()
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now())
@@ -761,25 +814,69 @@ class QuotationService
 
         $count = 0;
 
-        foreach ($quotations as $quotation) {
-            $quotation->update([
-                'status' => 'expired',
-            ]);
+        foreach ($quotations as $candidate) {
+            // An expired quotation closes the QUOTATION only. The customer's booking stays
+            // active and goes back to the dispatcher, who can send a new quotation; the
+            // expired one is kept as history. Nothing here touches booking_capacity: an
+            // unaccepted quotation never reserved a slot.
+            $outcome = AuditObserver::transaction(function () use ($candidate) {
+                $bookingIds = collect([$candidate->source_booking_id])
+                    ->merge(collect($candidate->extra_vehicles ?? [])->pluck('booking_id'))
+                    ->filter()->map(fn ($id) => (int) $id)->unique()->sort()->values();
 
-            $booking = $quotation->sourceBooking;
-            if ($booking && !in_array($booking->status, ['completed', 'cancelled', 'rejected', 'confirmed', 'scheduled_confirmed'], true)) {
-                $booking->update(['status' => 'not_responding']);
+                // Same lock order as acceptance (bookings first, then the quotation), and the
+                // quotation is re-checked under the lock: a customer who accepted a moment
+                // ago must never have their accepted quotation overwritten as expired.
+                if ($bookingIds->isNotEmpty()) {
+                    Booking::whereIn('id', $bookingIds)->orderBy('id')->lockForUpdate()->get();
+                }
+
+                $quotation = Quotation::whereKey($candidate->id)->lockForUpdate()->first();
+
+                if (! $quotation
+                    || ! $quotation->is_current
+                    || ! in_array($quotation->status, ['sent', 'negotiating'], true)
+                    || ! $quotation->expires_at
+                    || $quotation->expires_at->isFuture()) {
+                    return null;
+                }
+
+                $quotation->update(['status' => 'expired']);
+
+                $changed = collect();
+
+                foreach (Booking::whereIn('id', $bookingIds)->orderBy('id')->get() as $booking) {
+                    if (in_array($booking->status, ['quoted', 'quotation_sent'], true)) {
+                        $booking->update([
+                            'status' => $booking->service_type === 'schedule' ? 'scheduled' : 'requested',
+                            'quotation_status' => 'expired',
+                        ]);
+                        $changed->push($booking);
+                    } elseif (in_array($booking->status, ['requested', 'reviewed', 'scheduled'], true)) {
+                        $booking->update(['quotation_status' => 'expired']);
+                    }
+                }
+
+                return [$quotation, $changed];
+            });
+
+            if ($outcome === null) {
+                continue;
+            }
+
+            [$quotation, $changed] = $outcome;
+
+            foreach ($changed as $booking) {
                 BookingStatusUpdated::safeFire($booking->fresh(['customer', 'truckType']));
             }
 
             if ($quotation->customer && $quotation->customer->user_id) {
-                $bookingCode = $booking?->booking_code;
                 CustomerNotificationService::send(
                     userId: $quotation->customer->user_id,
                     type: 'quotation_expired',
                     title: 'Your quotation has expired',
-                    body: 'You did not respond in time, so this quotation request has closed.',
-                    bookingCode: $bookingCode,
+                    body: 'Your booking is still active. The dispatcher will send you an updated quotation.',
+                    bookingCode: $quotation->sourceBooking?->booking_code,
                 );
             }
 

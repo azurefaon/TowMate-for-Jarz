@@ -76,6 +76,7 @@ class DispatchController extends Controller
 
     public function index()
     {
+        $this->quotationService->expireOldQuotations();
 
         $queueBase = Booking::with(['customer', 'truckType', 'unit.teamLeader', 'returnedByTeamLeader'])
             ->whereIn('status', ['accepted', 'assigned', 'returned'])
@@ -410,6 +411,8 @@ class DispatchController extends Controller
     
     protected function buildFloatingQuotationsData(): array
     {
+        $this->quotationService->expireOldQuotations();
+
         $allQuotations = Quotation::with(['customer', 'truckType', 'sourceBooking'])
             ->whereIn('status', ['draft', 'pending', 'sent', 'negotiating'])
             ->current()
@@ -1231,10 +1234,12 @@ class DispatchController extends Controller
                 return response()->json(['success' => false, 'message' => 'Booking not found.'], 404);
             }
 
-            if ($booking->status !== 'scheduled_confirmed') {
+            // Confirmed bookings, and unconfirmed ones the customer has not yet agreed to
+            // (including an outdated schedule that could never be confirmed as it stands).
+            if (! in_array($booking->status, ['scheduled_confirmed', 'scheduled'], true)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Only a confirmed Scheduled booking can be rescheduled.',
+                    'message' => 'Only a Scheduled booking that has not started yet can be rescheduled.',
                 ], 422);
             }
 
@@ -1247,23 +1252,62 @@ class DispatchController extends Controller
                 ], 422);
             }
 
+            // An unconfirmed group shares one schedule and one quotation, so its unconfirmed
+            // vehicles move together. A confirmed booking still moves on its own, as before.
+            $targets = collect([$booking]);
+            if ($booking->status === 'scheduled' && $booking->group_code) {
+                $siblingIds = $this->bookingService->groupSiblingBookings($booking)
+                    ->where('status', 'scheduled')->pluck('id')->push($booking->id)->unique()->sort()->values();
+                $targets = Booking::whereIn('id', $siblingIds)->orderBy('id')->lockForUpdate()->get();
+            }
+
+            if ($booking->status === 'scheduled') {
+                $awaitingCustomer = Quotation::whereIn('source_booking_id', $targets->pluck('id'))
+                    ->current()
+                    ->whereIn('status', ['sent', 'negotiating', 'price_review_requested'])
+                    ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                    ->exists();
+
+                if ($awaitingCustomer) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This booking has a quotation waiting for the customer. Cancel that quotation or let it expire first, then reschedule.',
+                    ], 422);
+                }
+            }
+
             $oldScheduledFor = $booking->scheduled_for;
 
             // A booking that holds a capacity slot moves it to the new date in this same
             // transaction (nothing changes if the old date's counter can't give it back).
-            // A booking with no counted slot is rescheduled exactly as before.
+            // A booking with no counted slot (every unconfirmed one) is rescheduled exactly as before.
             try {
-                app(ScheduledCapacityService::class)->move($booking, \Carbon\Carbon::parse($validated['new_scheduled_date'])->toDateString());
+                foreach ($targets as $target) {
+                    app(ScheduledCapacityService::class)->move($target, \Carbon\Carbon::parse($validated['new_scheduled_date'])->toDateString());
+                }
             } catch (CapacityInconsistentException $e) {
                 return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
             }
 
-            $booking->update($this->bookingService->filterPayloadForTable('bookings', [
-                'scheduled_date' => $validated['new_scheduled_date'],
-                'scheduled_time' => $validated['new_scheduled_time'],
-                'scheduled_for' => $newScheduledFor,
-                'selected_unit_id' => null,
-            ]));
+            foreach ($targets as $target) {
+                $target->update($this->bookingService->filterPayloadForTable('bookings', [
+                    'scheduled_date' => $validated['new_scheduled_date'],
+                    'scheduled_time' => $validated['new_scheduled_time'],
+                    'scheduled_for' => $newScheduledFor,
+                    'selected_unit_id' => null,
+                ]));
+            }
+
+            // A quotation still being prepared must carry the new schedule too. Quotations that
+            // were sent, expired or closed are history and are never edited.
+            Quotation::whereIn('source_booking_id', $targets->pluck('id'))
+                ->current()
+                ->whereIn('status', ['pending', 'draft'])
+                ->get()
+                ->each(fn (Quotation $q) => $q->update([
+                    'scheduled_date' => $validated['new_scheduled_date'],
+                    'scheduled_time' => $validated['new_scheduled_time'],
+                ]));
 
             AuditLog::create([
                 'user_id'     => auth()->id(),

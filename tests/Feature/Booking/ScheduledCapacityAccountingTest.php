@@ -28,99 +28,58 @@ function scExpired(array $attrs = []): Booking
     return ccScheduledBooking($customer, array_merge(['scheduled_expires_at' => now()->subHour()], $attrs));
 }
 
-/* ---------- Scheduled expiration ---------- */
+/* ---------- A passed 7-day window never cancels a scheduled booking ---------- */
 
-it('cancels an expired unaccepted scheduled booking without touching capacity', function () {
+it('no longer cancels an unaccepted scheduled booking just because its 7-day window passed', function () {
     scCapacity('2030-03-10', 1); // held by some other, accepted booking
     $booking = scExpired();
 
-    $this->artisan('bookings:expire-scheduled')->expectsOutput('Cancelled 1 expired scheduled booking(s).')->assertExitCode(0);
+    $this->artisan('bookings:expire-scheduled')->expectsOutput('Scheduled bookings are no longer cancelled automatically. Nothing to do.')->assertExitCode(0);
 
-    expect($booking->fresh()->status)->toBe('cancelled');
+    expect($booking->fresh()->status)->toBe('scheduled');
     expect(ccSlots('2030-03-10'))->toBe(1);
 });
 
-it('does not create a capacity row or push a counter below zero', function () {
-    $bare = scExpired(['scheduled_date' => '2030-03-11']);
-    $zero = scExpired(['scheduled_date' => '2030-03-12']);
-    scCapacity('2030-03-12', 0);
+it('is not on the scheduler any more', function () {
+    $scheduled = collect(app(\Illuminate\Console\Scheduling\Schedule::class)->events())->map(fn ($event) => $event->command)->implode("\n");
 
-    $this->artisan('bookings:expire-scheduled')->assertExitCode(0);
-
-    expect($bare->fresh()->status)->toBe('cancelled')->and($zero->fresh()->status)->toBe('cancelled');
-    expect(ccSlots('2030-03-11'))->toBeNull();
-    expect(ccSlots('2030-03-12'))->toBe(0);
+    expect($scheduled)->not->toContain('bookings:expire-scheduled');
 });
 
-it('is idempotent: a repeated run finds nothing and changes nothing', function () {
-    scCapacity('2030-03-10', 2);
-    $booking = scExpired();
-
-    $this->artisan('bookings:expire-scheduled')->assertExitCode(0);
-    $after = Booking::find($booking->id)->only(['status', 'updated_at']);
-
-    $this->artisan('bookings:expire-scheduled')->expectsOutput('No expired scheduled bookings found.')->assertExitCode(0);
-
-    expect(Booking::find($booking->id)->only(['status', 'updated_at']))->toEqual($after);
-    expect(ccSlots('2030-03-10'))->toBe(2);
-});
-
-it('leaves bookings that are accepted, quoted, not yet expired or not scheduled alone', function () {
+it('leaves every kind of scheduled booking, expired window or not, exactly as it was', function () {
     [, $customer] = ccCustomer('Mixed Customer');
-    $untouched = [
+    $bookings = [
         'accepted' => ccScheduledBooking($customer, ['status' => 'scheduled_confirmed', 'price_locked_at' => now(), 'scheduled_expires_at' => now()->subDay()]),
         'quoted' => ccScheduledBooking($customer, ['quotation_generated' => true, 'scheduled_expires_at' => now()->subDay()]),
+        'window passed, never quoted' => ccScheduledBooking($customer, ['scheduled_expires_at' => now()->subDays(30)]),
         'not expired yet' => ccScheduledBooking($customer, ['scheduled_expires_at' => now()->addHour()]),
         'no expiry set' => ccScheduledBooking($customer, ['scheduled_expires_at' => null]),
         'book now' => ccScheduledBooking($customer, ['status' => 'requested', 'service_type' => 'book_now', 'scheduled_expires_at' => now()->subDay()]),
     ];
     scCapacity('2030-03-10', 1);
+    $before = collect($bookings)->map(fn ($b) => $b->fresh()->only(['status', 'updated_at']))->all();
 
-    $this->artisan('bookings:expire-scheduled')->expectsOutput('No expired scheduled bookings found.');
+    $this->artisan('bookings:expire-scheduled')->assertExitCode(0);
 
-    foreach ($untouched as $label => $booking) {
-        expect($booking->fresh()->status)->toBe($booking->status, $label);
+    foreach ($bookings as $label => $booking) {
+        expect($booking->fresh()->only(['status', 'updated_at']))->toEqual($before[$label], $label);
     }
     expect(ccSlots('2030-03-10'))->toBe(1);
 });
 
-it('sends no notifications, events or audit rows, exactly as before', function () {
+it('sends no notifications, events or audit rows when it runs', function () {
     scExpired();
     \App\Observers\AuditObserver::flush(); // write out the rows the setup itself queued
     $audits = AuditLog::count();
     $notifications = DispatcherNotification::count();
-    Event::fake(); // from here on, record everything the command itself fires
+    Event::fake();
 
     $this->artisan('bookings:expire-scheduled')->assertExitCode(0);
 
-    // The console itself dispatches its own start/finish events; the command must fire no booking or model events.
     foreach ([\App\Events\BookingStatusUpdated::class, \App\Events\BookingCancelled::class, 'eloquent.updating: ' . Booking::class, 'eloquent.updated: ' . Booking::class, 'eloquent.saved: ' . Booking::class] as $event) {
         Event::assertNotDispatched($event);
     }
     expect(AuditLog::count())->toBe($audits)->and(DispatcherNotification::count())->toBe($notifications);
-});
-
-it('rolls a failing booking back on its own, keeps going, and reports the failure', function () {
-    $good = scExpired();
-    $bad = scExpired();
-    scCapacity('2030-03-10', 1);
-
-    DB::unprepared(<<<SQL
-        CREATE OR REPLACE FUNCTION sc_fail() RETURNS trigger AS \$\$
-        BEGIN
-            IF NEW.id = {$bad->id} AND NEW.status = 'cancelled' THEN RAISE EXCEPTION 'simulated failure'; END IF;
-            RETURN NEW;
-        END \$\$ LANGUAGE plpgsql;
-        CREATE TRIGGER sc_fail BEFORE UPDATE ON bookings FOR EACH ROW EXECUTE FUNCTION sc_fail();
-    SQL);
-
-    $this->artisan('bookings:expire-scheduled')
-        ->expectsOutput("Could not cancel booking {$bad->id}; it was left unchanged.")
-        ->assertExitCode(1);
-
-    expect($good->fresh()->status)->toBe('cancelled');
-    expect($bad->fresh()->status)->toBe('scheduled');
-    expect(ccSlots('2030-03-10'))->toBe(1);
 });
 
 /* ---------- Acceptance reserves one slot per vehicle ---------- */

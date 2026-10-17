@@ -15,6 +15,5 @@ Schedule::command('quotations:expire')->everyFiveMinutes();
 // their 1-hour expiry — the 5-day scheduled-booking reminder still works
 // fine at this cadence since follow_up_sent_at prevents duplicate sends.
 Schedule::command('quotations:followup')->everyFiveMinutes();
-Schedule::command('bookings:expire-scheduled')->hourly();
 Schedule::command('towmate:purge-deleted-users')->daily();
 Schedule::command('towmate:lock-inactive-customers')->daily();

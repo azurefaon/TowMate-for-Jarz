@@ -185,6 +185,17 @@ class LandingBookingRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
+            // A scheduled booking needs a complete date AND time that are still ahead.
+            if ($this->input('service_type') === 'schedule' && ! $validator->errors()->hasAny(['scheduled_date', 'scheduled_time'])) {
+                $date = $this->input('scheduled_date');
+                $time = $this->input('scheduled_time');
+                $when = filled($date) && filled($time) ? \Carbon\Carbon::parse($date . ' ' . $time) : null;
+
+                if (! $when || $when->lte(now())) {
+                    $validator->errors()->add('scheduled_time', 'Please choose a pickup date and time that is still ahead.');
+                }
+            }
+
             $pickupLat = $this->input('pickup_lat');
             $pickupLng = $this->input('pickup_lng');
             $dropLat = $this->input('drop_lat');

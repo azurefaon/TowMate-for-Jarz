@@ -141,6 +141,53 @@ class BookingService
     }
 
     // ──────────────────────────────────────────────────────────────
+    // Customer follow-up on a Book Now request nobody has picked up yet
+    // ──────────────────────────────────────────────────────────────
+
+    /** A customer may follow up once the request has waited this long... */
+    public const FOLLOW_UP_AFTER_MINUTES = 5;
+
+    /** ...and then again only after this long since their last follow-up. Enforced on the server. */
+    public const FOLLOW_UP_COOLDOWN_MINUTES = 15;
+
+    /** Statuses in which a Book Now request is still waiting for the Dispatcher. */
+    public const FOLLOW_UP_STATUSES = ['requested', 'reviewed'];
+
+    /**
+     * Whether the customer can nudge the Dispatcher about this booking right now.
+     * The last follow-up is read from the Dispatcher notifications themselves, so
+     * the cooldown survives restarts and cannot be reset from the app.
+     *
+     * @return array{waiting: bool, can_follow_up: bool, seconds_until: int}
+     */
+    public function followUpState(Booking $booking): array
+    {
+        $waiting = ($booking->service_type ?? 'book_now') !== 'schedule'
+            && in_array($booking->status, self::FOLLOW_UP_STATUSES, true)
+            && $booking->created_at !== null;
+
+        if (! $waiting) {
+            return ['waiting' => false, 'can_follow_up' => false, 'seconds_until' => 0];
+        }
+
+        $availableAt = $booking->created_at->copy()->addMinutes(self::FOLLOW_UP_AFTER_MINUTES);
+
+        $last = \App\Models\DispatcherNotification::where('booking_id', $booking->id)
+            ->where('type', \App\Models\DispatcherNotification::TYPE_FOLLOW_UP)
+            ->latest('id')
+            ->first();
+
+        if ($last?->created_at) {
+            $cooldownEnds = $last->created_at->copy()->addMinutes(self::FOLLOW_UP_COOLDOWN_MINUTES);
+            $availableAt = $cooldownEnds->gt($availableAt) ? $cooldownEnds : $availableAt;
+        }
+
+        $seconds = max(0, (int) ceil(now()->floatDiffInSeconds($availableAt, false)));
+
+        return ['waiting' => true, 'can_follow_up' => $seconds === 0, 'seconds_until' => $seconds];
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // Customer eligibility guards (throw domain exceptions)
     // ──────────────────────────────────────────────────────────────
 

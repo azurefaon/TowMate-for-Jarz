@@ -1171,6 +1171,29 @@ class ApiService {
     }
   }
 
+  /// Nudges the Dispatcher about a Book Now request that is still waiting.
+  /// The server enforces the 5-minute wait and the 15-minute cooldown;
+  /// `follow_up_in_seconds` says how long until the next one is allowed.
+  static Future<Map<String, dynamic>> followUpBooking(String code) async {
+    try {
+      final token = await getToken();
+      final response = await apiClient
+          .post(
+            Uri.parse('$baseUrl/v1/bookings/$code/follow-up'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': response.statusCode == 200 && body['success'] == true,
+        'message': ApiMessages.forResponse(response.statusCode, body, fallback: ''),
+        'follow_up_in_seconds': (body['follow_up_in_seconds'] as num?)?.toInt() ?? 0,
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
   static Future<Map<String, dynamic>> cancelBooking(String code) async {
     try {
       final token = await getToken();

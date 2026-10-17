@@ -252,6 +252,8 @@ class BookingController extends Controller
         if ($validated['action'] === 'accept') {
             try {
                 $booking = $this->quotationService->acceptQuotation($quotation);
+            } catch (\App\Exceptions\QuotationNotAcceptableException $e) {
+                return redirect()->to($redirectUrl)->with('error', $e->getMessage());
             } catch (\Exception $e) {
                 return redirect()->to($redirectUrl)
                     ->with('error', 'Dispatch is still reviewing the latest adjustment for this booking.');

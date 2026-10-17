@@ -329,6 +329,12 @@
         }
         return "new";
     }
+    // A booking the dispatcher can (still) put a new quotation on: never quoted, or its last
+    // quotation expired. An expired quotation never closes the booking; it stays as history.
+    function isQuotable(s) {
+        var eff = effectiveStatus(s);
+        return eff === "new" || eff === "expired";
+    }
 
     var STATUS_BADGE_MAP = {
         draft: { label: "Draft", cls: "rb-badge-gray" },
@@ -409,7 +415,8 @@
         return (pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(2)) + "%";
     }
     function baseSubtotal(s) {
-        if (effectiveStatus(s) === "new") return s.baseRate;
+        // Never quoted, or last quotation expired: price a new quotation from the base rate.
+        if (effectiveStatus(s) === "new" || effectiveStatus(s) === "expired") return s.baseRate;
         if (s.vatExclusiveTotal > 0) return s.vatExclusiveTotal;
         return (
             (s.currentPrice - (s.additionalFee || 0)) /
@@ -948,7 +955,7 @@
     function pricingSectionHtml(s) {
         var grouped = s.groupVehicles && s.groupVehicles.length > 1;
         var eff = effectiveStatus(s);
-        var editable = eff === "new" || eff === "draft";
+        var editable = eff === "new" || eff === "expired" || eff === "draft";
         var breakdown;
         var fixedTotal;
         var accepted;
@@ -1628,7 +1635,9 @@
         var eff = effectiveStatus(s);
         var main = "";
         var draftNote = "";
-        if (eff === "new") {
+        if (isQuotable(s)) {
+            // Never quoted, or the last quotation expired: either way the booking is still
+            // active and the dispatcher prices and sends a (new) quotation. An expired one stays as history.
             main =
                 '<button type="button" class="rb-btn rb-btn-primary" id="rbSaveDraftBtn">' +
                 icon("save") +
@@ -1687,8 +1696,12 @@
                 (s.selectedUnitId ? "" : " disabled") +
                 ">Dispatch Now</button>" +
                 '<button type="button" class="rb-btn rb-btn-secondary" id="rbRescheduleBtn">Reschedule</button>';
-        } else if (eff === "expired") {
-            main = ""; // no Extend / Resend — expired quotes are done, only Reject remains
+        }
+        // An unconfirmed Scheduled booking can be moved to a new date/time (for example when its
+        // schedule has passed) so a fresh quotation can be sent for it.
+        if (s.isScheduled && ["new", "draft", "expired"].indexOf(eff) !== -1) {
+            main +=
+                '<button type="button" class="rb-btn rb-btn-secondary" id="rbRescheduleBtn">Reschedule</button>';
         }
         if (
             s.groupVehicles &&
@@ -2696,7 +2709,7 @@
     function submitSaveDraft() {
         var s = state;
 
-        if (effectiveStatus(s) === "new" && !(parseFloat(s.distanceKm) > 0)) {
+        if (isQuotable(s) && !(parseFloat(s.distanceKm) > 0)) {
             rbAlert(
                 "Distance isn't available for this booking yet. It's calculated automatically from the customer's pickup and drop-off locations — dispatchers can't enter it manually. Try again once it syncs, or contact support if this persists.",
                 { title: "Distance not available" },

@@ -70,6 +70,7 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::post('bookings/check-duplicate-route', [CustomerBookingController::class, 'checkDuplicateRoute']);
         Route::get('bookings/{code}/detail', [CustomerBookingController::class, 'detail']);
         Route::get('bookings/{code}/receipt', [CustomerBookingController::class, 'receipt']);
+        Route::post('bookings/{code}/follow-up', [CustomerBookingController::class, 'followUp']);
         Route::get('bookings/{code}/tracking', [CustomerBookingController::class, 'tracking'])->middleware('throttle:customer-booking-tracking');
         Route::post('bookings/{code}/cancel', [CustomerBookingController::class, 'cancelBooking'])->middleware('throttle:customer-booking-cancel');
         Route::post('bookings/group/{groupCode}/cancel', [CustomerBookingController::class, 'cancelGroupBookings'])->middleware('throttle:customer-booking-cancel');
