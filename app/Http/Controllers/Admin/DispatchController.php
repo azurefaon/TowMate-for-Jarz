@@ -115,6 +115,7 @@ class DispatchController extends Controller
                     ->orWhere('service_type', 'book_now');
             })
             ->oldest('created_at')
+            ->orderBy('id')
             ->get()
             ->map(fn($b) => tap($b, function ($b) {
                 $b->queue_bucket = 'book-now';
@@ -150,6 +151,7 @@ class DispatchController extends Controller
             ->whereIn('status', ['scheduled_confirmed', 'scheduled'])
             ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", ['scheduled_confirmed'])
             ->oldest('created_at')
+            ->orderBy('id')
             ->get()
             ->map(fn($b) => tap($b, fn($b) => $b->queue_bucket = 'scheduled'));
 
