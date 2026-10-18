@@ -74,5 +74,5 @@ jobs:
           status=${PIPESTATUS[0]}
           sed -i 's/\x1b\[[0-9;]*m//g' test-output.txt
           grep -E "^\s+FAILED" test-output.txt | cut -c1-200 | head -40 | sed -z 's/\n/%0A/g' | xargs -0 -I{} echo "::error title=Failed tests::{}"
-          awk '/FAILED/{f=1} f' test-output.txt | head -c 6000 | sed -z 's/\n/%0A/g' | xargs -0 -I{} echo "::error title=First failure details::{}"
+          awk '/^ +FAILED/{n=0} {n++} n<=9' test-output.txt | awk '/FAILED/{f=1} f' | cut -c1-220 | head -c 9000 | sed -z 's/\n/%0A/g' | xargs -0 -I{} echo "::error title=Failure details::{}"
           exit $status
