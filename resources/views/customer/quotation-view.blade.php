@@ -184,6 +184,12 @@
             cursor: pointer;
             text-decoration: none;
             letter-spacing: .02em;
+            font-family: inherit;
+        }
+
+        .qv-accept-btn:disabled {
+            opacity: .7;
+            cursor: default;
         }
 
         .qv-accept-btn:hover {
@@ -584,7 +590,10 @@
             <div class="qv-card" style="text-align:center;">
                 <p style="font-size:0.88rem;margin-bottom:16px;color:#18181b;">Review the details above and confirm
                     your booking.</p>
-                <a href="{{ $signedAcceptUrl }}" class="qv-accept-btn">Accept and Continue</a>
+                <form method="POST" action="{{ $signedAcceptUrl }}" onsubmit="var b=this.querySelector('button');if(b.disabled){return false;}b.disabled=true;">
+                    @csrf
+                    <button type="submit" class="qv-accept-btn">Accept and Continue</button>
+                </form>
                 <p class="qv-terms">By accepting, you agree to the quoted price and service terms.</p>
             </div>
         @elseif ($isAccepted)

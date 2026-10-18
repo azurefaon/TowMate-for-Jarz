@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoTransportFactory;
@@ -177,6 +178,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // The project-wide password rule, identical to the one the customer, staff-reset and
+        // forced-change flows already enforce. Only new passwords are checked; existing ones stay valid.
+        Password::defaults(fn () => Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised());
+
         Mail::extend('brevo', function (array $config) {
             return (new BrevoTransportFactory)->create(
                 new Dsn('brevo+api', 'default', $config['key'] ?? '')

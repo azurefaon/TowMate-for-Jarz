@@ -90,13 +90,23 @@ Route::get('/quotation/{quotation}', [QuotationController::class, 'show'])
     ->middleware(['signed', 'throttle:30,1'])
     ->name('quotation.show');
 
-Route::get('/quotation/{quotation}/accept', [QuotationController::class, 'accept'])
+// Opening these links (email scanners and link previews do) never changes anything: the GET
+// only sends the customer to the quotation page. Accepting or rejecting is a signed POST.
+Route::get('/quotation/{quotation}/accept', [QuotationController::class, 'preview'])
     ->middleware(['signed', 'throttle:10,1'])
     ->name('quotation.accept');
 
-Route::get('/quotation/{quotation}/reject', [QuotationController::class, 'reject'])
+Route::post('/quotation/{quotation}/accept', [QuotationController::class, 'accept'])
+    ->middleware(['signed', 'throttle:10,1'])
+    ->name('quotation.accept.submit');
+
+Route::get('/quotation/{quotation}/reject', [QuotationController::class, 'preview'])
     ->middleware(['signed', 'throttle:10,1'])
     ->name('quotation.reject');
+
+Route::post('/quotation/{quotation}/reject', [QuotationController::class, 'reject'])
+    ->middleware(['signed', 'throttle:10,1'])
+    ->name('quotation.reject.submit');
 
 Route::post('/quotation/{quotation}/negotiate', [QuotationController::class, 'negotiate'])
     ->middleware(['signed', 'throttle:10,1'])

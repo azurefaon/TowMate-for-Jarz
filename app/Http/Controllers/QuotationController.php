@@ -60,6 +60,23 @@ class QuotationController extends Controller
         ]);
     }
 
+    /**
+     * GET on an accept/reject link: show the quotation, change nothing. Mail scanners and
+     * link previewers open links automatically, so a GET must never accept or reject.
+     */
+    public function preview(Request $request, Quotation $quotation)
+    {
+        if (! $request->hasValidSignature()) {
+            abort(403, 'Invalid or expired link');
+        }
+
+        return redirect()->to(URL::temporarySignedRoute(
+            'quotation.show',
+            now()->addMinutes(30),
+            ['quotation' => $quotation->id]
+        ));
+    }
+
     public function accept(Request $request, Quotation $quotation)
     {
         if (!$request->hasValidSignature()) {
