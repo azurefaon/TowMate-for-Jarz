@@ -116,7 +116,7 @@ class _TlForcePasswordScreenState extends State<TlForcePasswordScreen> {
                 _Field(
                   controller: _newCtrl,
                   label: 'New Password',
-                  hint: '12+ characters, upper/lower/number/symbol',
+                  hint: 'At least 12 characters',
                   obscure: true,
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Required';
