@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/app_prefs.dart';
 import '../../core/theme.dart';
+import '../../core/validators.dart';
 import '../../services/api_service.dart';
 import '../../services/team_leader_service.dart';
 import '../../services/tl_presence_controller.dart';
@@ -283,8 +284,9 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
                         setS(() => error = 'All fields are required.');
                         return;
                       }
-                      if (nw.length < 8) {
-                        setS(() => error = 'New password must be at least 8 characters.');
+                      final policyError = Validators.password(nw);
+                      if (policyError != null) {
+                        setS(() => error = 'New password: $policyError.');
                         return;
                       }
                       if (nw != conf) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'core/api_config.dart';
 import 'core/app_prefs.dart';
 import 'core/route_observer.dart';
 import 'core/theme.dart';
@@ -38,6 +39,8 @@ final themeModeNotifier = AppPrefs.themeModeNotifier;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // A release built without the production config would point at a local HTTP server; stop it here.
+  assertSecureApiForRelease(isRelease: kReleaseMode, baseUrl: ApiService.baseUrl);
   FlutterError.onError = (details) {
     if (kDebugMode) FlutterError.dumpErrorToConsole(details);
   };

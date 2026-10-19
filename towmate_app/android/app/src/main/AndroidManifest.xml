@@ -5,9 +5,12 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <!-- Picking photos uses the system photo picker (image_picker), which needs no storage permission. -->
+    <!-- The app has no biometric sign-in; androidx.biometric only adds these two as a library default. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" tools:node="remove"/>
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" tools:node="remove"/>
     <application
+        android:allowBackup="false"
         android:label="TowMate"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

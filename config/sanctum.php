@@ -47,7 +47,9 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Mobile app tokens last 60 days from login, then the app asks the user to sign in again (a 401 sends it to the
+    // login screen). Set SANCTUM_EXPIRATION (minutes) to change it; 0 or empty turns expiry off.
+    'expiration' => (int) env('SANCTUM_EXPIRATION', 60 * 24 * 60) ?: null,
 
     /*
     |--------------------------------------------------------------------------
