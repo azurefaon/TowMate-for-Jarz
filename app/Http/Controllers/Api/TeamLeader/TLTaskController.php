@@ -435,17 +435,11 @@ class TLTaskController extends Controller
                 return ['already' => $locked];
             }
 
-            // arrived_dropoff stays invoice-free (see updateStatus()) so it
-            // remains a plain, reversible operational status — the invoice
-            // is issued here instead, right as payment is actually being
-            // submitted. currentInvoice()->exists() already guards against
-            // creating a second one for a booking that already has one.
-            if (! $locked->currentInvoice()->exists()) {
-                try {
-                    $this->issueInvoice($locked, $request->user()->id);
-                } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
-                    // Another concurrent request already issued it.
-                }
+            // Payment can only be submitted at the drop-off, the same rule the
+            // group path enforces. Without this a job that was only accepted
+            // or on the way could be sent for payment verification.
+            if ($locked->status !== 'arrived_dropoff') {
+                return ['error' => ['message' => 'Task is not yet ready for completion.', 'status' => 422]];
             }
 
             if ($validated['payment_method'] === 'cash' && (float) $validated['cash_received'] < (float) $locked->final_total) {
@@ -454,6 +448,22 @@ class TLTaskController extends Controller
 
             if (blank($locked->payment_proof_path)) {
                 return ['error' => ['message' => 'Payment proof must be uploaded before completing this task.', 'status' => 422]];
+            }
+
+            // arrived_dropoff stays invoice-free (see updateStatus()) so it
+            // remains a plain, reversible operational status — the invoice
+            // is issued here instead, right as payment is actually being
+            // submitted. It comes after every check above on purpose: a
+            // refused attempt returns normally, which commits this
+            // transaction, so an invoice issued earlier would be left behind.
+            // currentInvoice()->exists() already guards against creating a
+            // second one for a booking that already has one.
+            if (! $locked->currentInvoice()->exists()) {
+                try {
+                    $this->issueInvoice($locked, $request->user()->id);
+                } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                    // Another concurrent request already issued it.
+                }
             }
 
             $updates = [
