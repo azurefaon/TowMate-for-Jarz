@@ -3,7 +3,6 @@
     No Booking:: queries, no real statuses, no real endpoints. All data below is
     hardcoded for visual review of the "Awaiting Payment Verification" /
     "Return for Correction" concept before any backend work is scoped.
-    See plan: C:\Users\caval\.claude\plans\lets-brainstorm-and-clean-snappy-crystal.md
 --}}
 @extends('admin-dashboard.layouts.app')
 
