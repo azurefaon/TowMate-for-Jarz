@@ -504,3 +504,102 @@
         flex-wrap: wrap;
     }
 }
+
+/* ---------- Announcements: row header, status states, actions ---------- */
+
+.owner-settings .mc-announcement-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.owner-settings .mc-announcement-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-bottom: 14px;
+}
+
+.owner-settings .mc-announcement-state {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    min-width: 0;
+}
+
+.owner-settings .mc-announcement-when {
+    color: var(--ob-body);
+    font-size: 13px;
+}
+
+.owner-settings .mc-announcement-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.owner-settings .mc-announcement-actions .settings-save,
+.owner-settings .mc-announcement-actions .settings-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+}
+
+.owner-settings .mc-announcement-actions i,
+.owner-settings .mc-announcement-actions svg {
+    width: 15px;
+    height: 15px;
+}
+
+.owner-settings .mc-btn-danger {
+    border-color: #fecaca;
+    color: #b91c1c;
+}
+
+.owner-settings .mc-btn-danger:hover {
+    border-color: #b91c1c;
+    background: #fef2f2;
+}
+
+.owner-settings .mc-btn-danger-solid,
+.owner-settings .mc-btn-danger-solid:hover {
+    border-color: #b91c1c;
+    background: #b91c1c;
+    color: #ffffff;
+}
+
+.owner-settings .mc-delete-name {
+    margin: 8px 0 0;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.owner-settings .mc-status.is-scheduled {
+    background: #1d4ed8;
+    color: #ffffff;
+}
+
+.owner-settings .mc-status.is-expired {
+    background: #b45309;
+    color: #ffffff;
+}
+
+@media (max-width: 600px) {
+    .owner-settings .mc-announcement-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .owner-settings .mc-announcement-actions .settings-save,
+    .owner-settings .mc-announcement-actions .settings-reset {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}

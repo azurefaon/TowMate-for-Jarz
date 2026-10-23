@@ -23,6 +23,30 @@ class MobileAnnouncement extends Model
     ];
 
     /**
+     * Owner-facing display state. Mirrors the window rules in current(): the
+     * enabled flag (is_active) is separate from whether customers can see it
+     * right now. Both use the app timezone via now().
+     *
+     * @return 'active'|'scheduled'|'expired'|'inactive'
+     */
+    public function displayStatus(): string
+    {
+        if (! $this->is_active) {
+            return 'inactive';
+        }
+
+        if ($this->end_at && $this->end_at->lt(now())) {
+            return 'expired';
+        }
+
+        if ($this->start_at && $this->start_at->gt(now())) {
+            return 'scheduled';
+        }
+
+        return 'active';
+    }
+
+    /**
      * The single announcement customers should currently see, or null.
      * Most-recently-updated wins if more than one row qualifies.
      */
