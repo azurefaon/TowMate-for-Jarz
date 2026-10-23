@@ -77,6 +77,7 @@ class TmBottomNav extends StatelessWidget {
                         icon: Icons.notifications_outlined,
                         selectedIcon: Icons.notifications,
                         label: 'Alerts',
+                        semanticLabel: 'Alerts & Notifications',
                         selected: _selected == '/notifications',
                         onTap: () => _go(context, '/notifications'),
                         badgeCount: unreadCount,
@@ -116,6 +117,7 @@ class _NavItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.badgeCount = 0,
+    this.semanticLabel,
   });
 
   final IconData icon;
@@ -124,6 +126,7 @@ class _NavItem extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final int badgeCount;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +135,9 @@ class _NavItem extends StatelessWidget {
       child: Semantics(
         button: true,
         selected: selected,
-        label: badgeCount > 0 ? '$label, $badgeCount unread' : label,
+        label: badgeCount > 0
+            ? '${semanticLabel ?? label}, $badgeCount unread'
+            : (semanticLabel ?? label),
         child: InkWell(
           onTap: onTap,
           child: SizedBox.expand(

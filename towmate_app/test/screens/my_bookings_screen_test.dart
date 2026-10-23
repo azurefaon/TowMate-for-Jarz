@@ -7,6 +7,9 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/core/route_observer.dart';
+import 'package:towmate_app/core/status_style.dart';
+import 'package:towmate_app/core/theme.dart';
+import 'package:towmate_app/widgets/status_badge.dart';
 import 'package:towmate_app/screens/customer/my_bookings_screen.dart';
 import 'package:towmate_app/widgets/skeleton_box.dart';
 import 'package:towmate_app/widgets/tm_bottom_nav.dart';
@@ -83,6 +86,8 @@ Future<void> _pumpScreen(
   WidgetTester tester,
   http.Client client, {
   void Function(String route, Object? args)? onNavigate,
+  ThemeData? theme,
+  ThemeMode? themeMode,
 }) async {
   SharedPreferences.setMockInitialValues({
     'auth_token': 'test-token',
@@ -93,6 +98,8 @@ Future<void> _pumpScreen(
     () async {
       await tester.pumpWidget(
         MaterialApp(
+          theme: theme,
+          themeMode: themeMode,
           onGenerateRoute: (settings) {
             if (settings.name == '/' || settings.name == null) {
               return MaterialPageRoute(builder: (_) => const MyBookingsScreen());
@@ -194,6 +201,189 @@ void main() {
       expect(find.text('TM-00004'), findsOneWidget);
       expect(find.text('TM-00005'), findsOneWidget);
       expect(find.text('TM-00006'), findsOneWidget);
+    });
+
+    testWidgets('History cards show who closed the booking and the recorded reason', (tester) async {
+      final originalSize = tester.view.physicalSize;
+      final originalRatio = tester.view.devicePixelRatio;
+      tester.view.physicalSize = const Size(400, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.physicalSize = originalSize;
+        tester.view.devicePixelRatio = originalRatio;
+      });
+
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          {
+            ..._booking(code: 'TM-00004', status: 'cancelled'),
+            'closed_by': 'dispatcher',
+            'rejection_reason': 'No tow unit available in your area.',
+          },
+          {
+            ..._booking(code: 'TM-00005', status: 'rejected'),
+            'closed_by': 'dispatcher',
+            'rejection_reason': 'Pickup is outside our coverage.',
+          },
+          {
+            ..._booking(code: 'TM-00006', status: 'cancelled'),
+            'closed_by': 'customer',
+            'rejection_reason': null,
+          },
+          {..._booking(code: 'TM-00007', status: 'cancelled'), 'closed_by': 'unknown'},
+          _booking(code: 'TM-00008', status: 'completed'),
+        ]),
+      );
+
+      await tester.tap(find.text('History'));
+      await _settle(tester);
+
+      expect(find.text('Cancelled by Dispatcher'), findsOneWidget);
+      expect(find.text('Reason: No tow unit available in your area.'), findsOneWidget);
+      expect(find.text('Rejected by Dispatcher'), findsOneWidget);
+      expect(find.text('Reason: Pickup is outside our coverage.'), findsOneWidget);
+      expect(find.text('Cancelled by you'), findsOneWidget);
+      expect(find.text('Reason not provided.'), findsNWidgets(2));
+      expect(find.text('Booking Cancelled'), findsOneWidget);
+    });
+
+    testWidgets('cards use a solid, status-coloured border and no gradient', (tester) async {
+      final originalSize = tester.view.physicalSize;
+      final originalRatio = tester.view.devicePixelRatio;
+      tester.view.physicalSize = const Size(400, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.physicalSize = originalSize;
+        tester.view.devicePixelRatio = originalRatio;
+      });
+
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00003', status: 'completed'),
+          _booking(code: 'TM-00004', status: 'cancelled'),
+          _booking(code: 'TM-00005', status: 'rejected'),
+        ]),
+      );
+      await tester.tap(find.text('History'));
+      await _settle(tester);
+
+      Border borderOf(String code) {
+        final card = find
+            .ancestor(of: find.text(code), matching: find.byType(Container))
+            .evaluate()
+            .map((e) => e.widget as Container)
+            .firstWhere((c) => c.decoration is BoxDecoration && (c.decoration as BoxDecoration).border != null);
+        final decoration = card.decoration as BoxDecoration;
+        expect(decoration.gradient, isNull);
+        return decoration.border! as Border;
+      }
+
+      expect(borderOf('TM-00003').top.color, StatusStyle.green.borderFor(Brightness.light));
+      expect(borderOf('TM-00004').top.color, StatusStyle.red.borderFor(Brightness.light));
+      expect(borderOf('TM-00005').top.color, StatusStyle.red.borderFor(Brightness.light));
+      expect(borderOf('TM-00004').top.width, 1.5);
+      expect(find.text('STATUS'), findsNothing);
+    });
+
+    testWidgets('history cards with closure details do not overflow at 320px and 1.5x text', (tester) async {
+      tester.view.physicalSize = const Size(320, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          {
+            ..._booking(code: 'TM-00004', status: 'cancelled'),
+            'closed_by': 'dispatcher',
+            'rejection_reason': 'No tow unit is available in your area at this time, please try again later.',
+          },
+        ]),
+      );
+      await tester.tap(find.text('History'));
+      await _settle(tester);
+
+      expect(find.text('Cancelled by Dispatcher'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    group('booking card header alignment', () {
+      const statuses = {
+        'requested': 'Requested',
+        'arrived_dropoff': 'Arrived at destination',
+        'scheduled_confirmed': 'Scheduled — Confirmed',
+        'completed': 'Completed',
+        'cancelled': 'Cancelled',
+      };
+
+      for (final width in [390.0, 320.0]) {
+        for (final dark in [false, true]) {
+          testWidgets('badge is right-aligned inside the card at ${width.toInt()}px ${dark ? 'dark' : 'light'}', (tester) async {
+            tester.view.physicalSize = Size(width, 3200);
+            tester.view.devicePixelRatio = 1.0;
+            addTearDown(tester.view.reset);
+
+            final codes = {
+              for (final (i, s) in statuses.keys.indexed) s: 'TM-0010$i',
+            };
+            await _pumpScreen(
+              tester,
+              _clientFor(bookings: [
+                for (final s in statuses.keys) _booking(code: codes[s]!, status: s),
+              ]),
+              theme: dark ? AppTheme.dark : AppTheme.light,
+              themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+            );
+
+            for (final tab in ['Active', 'History']) {
+              await tester.tap(find.text(tab));
+              await _settle(tester);
+              for (final entry in statuses.entries) {
+                final inTab = tab == 'History' ? ['completed', 'cancelled'] : ['requested', 'arrived_dropoff', 'scheduled_confirmed'];
+                if (!inTab.contains(entry.key)) continue;
+
+                final title = find.text(codes[entry.key]!);
+                expect(title, findsOneWidget, reason: '${entry.key} in $tab');
+                final card = find
+                    .ancestor(of: title, matching: find.byType(Container))
+                    .evaluate()
+                    .map((e) => e.widget as Container)
+                    .firstWhere((c) => c.decoration is BoxDecoration && (c.decoration as BoxDecoration).border != null);
+                final cardRect = tester.getRect(find.byWidget(card));
+                final badge = find.descendant(
+                  of: find.byWidget(card),
+                  matching: find.byWidgetPredicate((w) => w is StatusBadge && w.label == entry.value),
+                );
+                expect(badge, findsOneWidget, reason: '${entry.value} badge');
+
+                final titleRect = tester.getRect(title);
+                final badgeRect = tester.getRect(badge);
+                const inset = 16 + 1.5;
+
+                expect(titleRect.left, closeTo(cardRect.left + inset, 0.6), reason: 'title left');
+                expect(badgeRect.right, closeTo(cardRect.right - inset, 0.6), reason: '${entry.value} badge right');
+                expect(badgeRect.left, greaterThanOrEqualTo(cardRect.left + inset - 0.6));
+                final sameLine = (badgeRect.top - titleRect.top).abs() < 6;
+                if (sameLine) {
+                  expect(titleRect.right + 8, lessThanOrEqualTo(badgeRect.left), reason: 'no overlap');
+                } else {
+                  expect(badgeRect.top, greaterThanOrEqualTo(titleRect.bottom - 0.5), reason: 'wrapped below title');
+                }
+                // Tests render with the wide Ahem font, so only the short labels are guaranteed to share the line at 390px.
+                if (width >= 390 && entry.value.length <= 9) expect(sameLine, isTrue, reason: '${entry.value} fits beside the code at 390px');
+              }
+            }
+            expect(tester.takeException(), isNull);
+          });
+        }
+      }
     });
 
     testWidgets('tapping a booking card navigates to booking detail with the correct booking code', (tester) async {

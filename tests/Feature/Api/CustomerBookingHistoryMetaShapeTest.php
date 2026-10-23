@@ -154,6 +154,7 @@ it('keeps the existing booking item field names unchanged', function () {
         'distance_km', 'computed_total', 'final_total', 'truck_type_name',
         'vehicle_type_name', 'created_at', 'group_code', 'group_booking_code',
         'quotation_number', 'service_type', 'scheduled_date', 'scheduled_time',
+        'closed_by', 'rejection_reason',
     ]);
     expect($row['booking_code'])->toBe($booking->booking_code);
 });

@@ -20,6 +20,11 @@ class StatusStyle {
   Color backgroundFor(Brightness b) => b == Brightness.dark ? darkBackground : background;
   Color foregroundFor(Brightness b) => b == Brightness.dark ? darkForeground : foreground;
 
+  /// Solid outline colour for status-bordered cards. Amber is darkened in
+  /// light mode so the outline keeps 3:1 against a white card.
+  Color borderFor(Brightness b) =>
+      identical(this, amber) && b == Brightness.light ? const Color(0xFF9A6A00) : backgroundFor(b);
+
   static const _white = Color(0xFFFFFFFF);
   static const _ink = Color(0xFF171717);
 

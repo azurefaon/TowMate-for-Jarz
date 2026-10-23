@@ -217,7 +217,7 @@ void main() {
       expect(upcomingDecoration.color, isNot(Colors.transparent));
       expect(upcomingDecoration.border, isNotNull);
       final upcomingNumber = tester.widget<Text>(find.text('2'));
-      expect(upcomingNumber.style?.color, const Color(0xFF6B6B6B));
+      expect(upcomingNumber.style?.color, TmColors.lightTextSecondary);
 
       await tester.pumpWidget(const SizedBox());
     });

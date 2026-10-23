@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -6,12 +7,28 @@ import '../../core/theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/quotation_model.dart';
 import '../../services/api_service.dart';
+import '../../core/status_style.dart';
+import '../../widgets/closure_note.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/tm_bottom_nav.dart';
 
-Color _secondaryTextColor(BuildContext context) =>
-    context.isDark ? TmColors.grey500 : const Color(0xFF6B6B6B);
+Color _secondaryTextColor(BuildContext context) => context.textSecondary;
+
+const double _cardBorderWidth = 1.5;
+
+Color _statusBorder(BuildContext context, String status) =>
+    StatusStyle.of(status).borderFor(Theme.of(context).brightness);
+
+/// One status for a grouped card: the shared status when every vehicle agrees,
+/// otherwise the first vehicle that is still in progress.
+String _groupStatus(List<BookingModel> vehicles) {
+  final statuses = vehicles.map((v) => v.status).toSet();
+  if (statuses.length == 1) return statuses.first;
+  return vehicles
+      .firstWhere((v) => !v.isHistorical, orElse: () => vehicles.first)
+      .status;
+}
 
 String _serviceTypeLabel(String? serviceType) =>
     serviceType == 'schedule' ? 'Scheduled' : 'Book Now';
@@ -410,7 +427,7 @@ class _QuotationBanner extends StatelessWidget {
                     reviewing
                         ? 'We are reviewing your requested price change.'
                         : 'Review the quotation for your towing request.',
-                    style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12.5, height: 1.4),
+                    style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 13.5, height: 1.4),
                   ),
                 ],
               ),
@@ -438,12 +455,14 @@ class _BookingCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: context.divider),
+            border: Border.all(color: _statusBorder(context, booking.status), width: _cardBorderWidth),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _BookingCardHeader(booking: booking),
+              const SizedBox(height: 3),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -493,7 +512,7 @@ class _GroupBookingCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: context.divider),
+            border: Border.all(color: _statusBorder(context, _groupStatus(vehicles)), width: _cardBorderWidth),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
@@ -522,7 +541,7 @@ class _GroupBookingCard extends StatelessWidget {
                 '$totalVehicles vehicle${totalVehicles > 1 ? 's' : ''} in this request',
                 style: GoogleFonts.inter(
                   color: _secondaryTextColor(context),
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                 ),
@@ -531,7 +550,7 @@ class _GroupBookingCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   'Quotation: ${primary.quotationNumber}',
-                  style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12),
+                  style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 13),
                 ),
               ],
               const SizedBox(height: 10),
@@ -543,10 +562,10 @@ class _GroupBookingCard extends StatelessWidget {
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text('Scheduled: ', style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12.5)),
+                    Text('Scheduled: ', style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 13.5)),
                     Text(
                       scheduled,
-                      style: GoogleFonts.inter(color: context.textPrimary, fontSize: 12.5, fontWeight: FontWeight.w500),
+                      style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13.5, fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
@@ -565,7 +584,7 @@ class _GroupBookingCard extends StatelessWidget {
                       child: Text(
                         allCancelled ? 'Original Estimated Total' : 'Group Total',
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12.5, fontWeight: FontWeight.w500),
+                        style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 13.5, fontWeight: FontWeight.w500),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -575,6 +594,10 @@ class _GroupBookingCard extends StatelessWidget {
                     ),
                   ],
                 ),
+              ],
+              if (vehicles.every((v) => v.isClosedWithoutService)) ...[
+                const SizedBox(height: 10),
+                ClosureNote(booking: primary),
               ],
               const SizedBox(height: 12),
               _ViewDetailsButton(onTap: onTap),
@@ -612,7 +635,7 @@ class _GroupVehicleRow extends StatelessWidget {
                 ),
                 if (timeLabel.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(timeLabel, style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 11.5)),
+                  Text(timeLabel, style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12.5)),
                 ],
               ],
             ),
@@ -644,7 +667,7 @@ class _ViewDetailsButton extends StatelessWidget {
         ),
         child: Text(
           'View Booking Details',
-          style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600),
+          style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -665,31 +688,15 @@ class _BookingCardBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                b.groupBookingCode ?? b.bookingCode,
-                style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15, fontWeight: FontWeight.w500, letterSpacing: -0.2),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: StatusBadge(status: b.status, label: b.humanStatus, compact: true),
-            ),
-          ],
-        ),
-        const SizedBox(height: 3),
         Text(
           '${b.displayVehicleName}  ·  ${_serviceTypeLabel(b.serviceType)}',
-          style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12),
+          style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 13),
         ),
         if (b.quotationNumber != null && b.quotationNumber!.isNotEmpty) ...[
           const SizedBox(height: 3),
           Text(
             'Quotation: ${b.quotationNumber}',
-            style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12),
+            style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 13),
           ),
         ],
         const SizedBox(height: 10),
@@ -701,10 +708,10 @@ class _BookingCardBody extends StatelessWidget {
           Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text('Scheduled: ', style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12.5)),
+              Text('Scheduled: ', style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 13.5)),
               Text(
                 scheduled,
-                style: GoogleFonts.inter(color: context.textPrimary, fontSize: 12.5, fontWeight: FontWeight.w500),
+                style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13.5, fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -728,6 +735,10 @@ class _BookingCardBody extends StatelessWidget {
                 ),
             ],
           ),
+        ],
+        if (b.isClosedWithoutService) ...[
+          const SizedBox(height: 10),
+          ClosureNote(booking: b),
         ],
       ],
     );
@@ -755,12 +766,12 @@ class _AddressRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 56,
-          child: Text(label, style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 12)),
+          child: Text(label, style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 13)),
         ),
         Expanded(
           child: Text(
             address,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 12.5, height: 1.4),
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13.5, height: 1.4),
           ),
         ),
       ],
@@ -876,5 +887,77 @@ class _BookingListSkeleton extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Booking number top-left, status badge top-right. When both cannot share a
+/// line (narrow screens, long labels) the badge drops to its own right-aligned
+/// line instead of clipping or overlapping.
+class _BookingCardHeader extends StatelessWidget {
+  const _BookingCardHeader({required this.booking});
+  final BookingModel booking;
+
+  static const double _gap = 10;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = booking.groupBookingCode ?? booking.bookingCode;
+    final titleStyle = GoogleFonts.inter(
+      color: context.textPrimary,
+      fontSize: 15,
+      fontWeight: FontWeight.w500,
+      letterSpacing: -0.2,
+    );
+    final badge = StatusBadge(status: booking.status, label: booking.humanStatus, compact: true);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scaler = MediaQuery.textScalerOf(context);
+        final titleWidth = (TextPainter(
+          text: TextSpan(text: title, style: titleStyle),
+          textDirection: ui.TextDirection.ltr,
+          textScaler: scaler,
+          maxLines: 1,
+        )..layout())
+            .width;
+        final badgeWidth = _badgeWidth(context, scaler);
+        final sharesLine = titleWidth + _gap + badgeWidth <= constraints.maxWidth;
+
+        if (sharesLine) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: Text(title, style: titleStyle)),
+              const SizedBox(width: _gap),
+              badge,
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Align(alignment: Alignment.centerLeft, child: Text(title, style: titleStyle)),
+            const SizedBox(height: 6),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+              child: badge,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  double _badgeWidth(BuildContext context, TextScaler scaler) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: booking.humanStatus,
+        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+      ),
+      textDirection: ui.TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    return painter.width + 20;
   }
 }

@@ -367,8 +367,7 @@ BoxDecoration _cardDecoration(BuildContext context) => BoxDecoration(
             ],
     );
 
-Color _mutedText(BuildContext context) =>
-    context.isDark ? const Color(0xFFA3A3A3) : const Color(0xFF6B6B6B);
+Color _mutedText(BuildContext context) => context.textSecondary;
 
 class _CardLabel extends StatelessWidget {
   const _CardLabel(this.text);
@@ -487,13 +486,6 @@ class _CurrentBookingCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: const BoxDecoration(color: TmColors.yellow, shape: BoxShape.circle),
-                child: const Icon(Icons.add, size: 18, color: TmColors.black),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Text.rich(
                   TextSpan(

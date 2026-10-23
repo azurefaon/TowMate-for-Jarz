@@ -155,7 +155,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           label,
           style: GoogleFonts.inter(
             color: context.textSecondary,
-            fontSize: 12,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
             letterSpacing: 0.2,
           ),
         ),
@@ -315,7 +316,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               'Email',
                               style: GoogleFonts.inter(
                                 color: context.textSecondary,
-                                fontSize: 12,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
                                 letterSpacing: 0.2,
                               ),
                             ),
@@ -349,8 +351,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               child: Text(
                                 _error!,
                                 style: GoogleFonts.inter(
-                                  color: TmColors.error,
-                                  fontSize: 13,
+                                  color: context.isDark ? const Color(0xFFFF8A80) : TmColors.destructive,
+                                  fontSize: 14,
                                 ),
                               ),
                             ),

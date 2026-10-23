@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:towmate_app/core/session_coordinator.dart';
 import 'package:towmate_app/services/api_service.dart';
 import 'package:towmate_app/services/push_notification_service.dart';
 
@@ -14,7 +15,7 @@ class FakeGateway implements PushGateway {
   FakeGateway({this.failInit = false, this.permissionGranted = true, this.token = 'fcm-token-1234567890abcd'});
 
   final bool failInit;
-  final bool permissionGranted;
+  bool permissionGranted;
   String? token;
   int permissionRequests = 0;
   PushMessage? initialMessage;
@@ -33,6 +34,9 @@ class FakeGateway implements PushGateway {
     permissionRequests++;
     return permissionGranted;
   }
+
+  @override
+  Future<bool> isPermissionGranted() async => permissionGranted;
 
   @override
   Future<String?> getToken() async => token;
@@ -94,6 +98,8 @@ void main() {
   var customerSession = true;
   var navigatorReady = true;
   var registerResult = true;
+  var removed = 0;
+  var removeResult = true;
 
   PushNotificationService build({FakeGateway? g, DateTime Function()? now}) {
     gateway = g ?? gateway;
@@ -104,6 +110,10 @@ void main() {
       registerToken: (t) async {
         registered.add(t);
         return registerResult;
+      },
+      removeToken: () async {
+        removed++;
+        return removeResult;
       },
       openBooking: (code) {
         if (!navigatorReady) return false;
@@ -123,6 +133,8 @@ void main() {
     customerSession = true;
     navigatorReady = true;
     registerResult = true;
+    removed = 0;
+    removeResult = true;
   });
 
   group('BookingPush.tryParse', () {
@@ -357,6 +369,219 @@ void main() {
       expect(registered, ['fcm-token-1234567890abcd', 'fcm-token-1234567890abcd']);
       await service.dispose();
     });
+  });
+
+  group('Push Notifications preference', () {
+    test('is on by default and reflects the system permission', () async {
+      final granted = build();
+      await granted.initialize();
+      expect(await granted.isPreferenceEnabled(), isTrue);
+      expect(await granted.isEffectivelyOn(), isTrue);
+      await granted.dispose();
+
+      final denied = build(g: FakeGateway(permissionGranted: false));
+      await denied.initialize();
+      expect(await denied.isPreferenceEnabled(), isTrue);
+      expect(await denied.isEffectivelyOn(), isFalse);
+      await denied.dispose();
+    });
+
+    test('turning off removes the token, persists, and stops registration and display', () async {
+      final service = build();
+      await service.initialize();
+      await service.startForCustomer();
+      expect(registered, hasLength(1));
+
+      expect(await service.setEnabled(false), PushToggleResult.off);
+      expect(removed, 1);
+      expect(await service.isEffectivelyOn(), isFalse);
+
+      gateway.refresh.add('fcm-token-refreshed-0000000');
+      gateway.message.add(const PushMessage(title: 'T', body: 'B', data: _validData));
+      await _flush();
+      await service.startForCustomer();
+
+      expect(registered, hasLength(1));
+      expect(presenter.shown, isEmpty);
+      await service.dispose();
+
+      final restarted = build();
+      await restarted.initialize();
+      expect(await restarted.isPreferenceEnabled(), isFalse);
+      await restarted.dispose();
+    });
+
+    test('a failed server removal keeps the preference on and reports it', () async {
+      final service = build();
+      await service.initialize();
+      removeResult = false;
+
+      expect(await service.setEnabled(false), PushToggleResult.serverUnreachable);
+      expect(await service.isPreferenceEnabled(), isTrue);
+      await service.dispose();
+    });
+
+    test('turning back on asks permission, registers once, and persists', () async {
+      final service = build();
+      await service.initialize();
+      await service.setEnabled(false);
+      registered.clear();
+
+      expect(await service.setEnabled(true), PushToggleResult.on);
+      expect(await service.setEnabled(true), PushToggleResult.on);
+
+      expect(registered, ['fcm-token-1234567890abcd']);
+      expect(await service.isEffectivelyOn(), isTrue);
+      await service.dispose();
+    });
+
+    test('stays off when the system permission is refused', () async {
+      final service = build(g: FakeGateway(permissionGranted: false));
+      await service.initialize();
+      await service.setEnabled(false);
+      registered.clear();
+
+      expect(await service.setEnabled(true), PushToggleResult.permissionDenied);
+      expect(registered, isEmpty);
+      expect(await service.isPreferenceEnabled(), isFalse);
+      await service.dispose();
+    });
+
+    test('permission revoked externally shows Off without touching the stored preference', () async {
+      final service = build();
+      await service.initialize();
+      expect(await service.isEffectivelyOn(), isTrue);
+
+      gateway.permissionGranted = false;
+
+      expect(await service.isEffectivelyOn(), isFalse);
+      expect(await service.isPreferenceEnabled(), isTrue);
+      await service.dispose();
+    });
+
+    test('granting permission in system settings registers on return without prompting', () async {
+      gateway = FakeGateway(permissionGranted: false);
+      final service = build(g: gateway);
+      await service.initialize();
+      await service.reconcileRegistration();
+      expect(registered, isEmpty);
+
+      gateway.permissionGranted = true;
+      await service.reconcileRegistration();
+      await service.reconcileRegistration();
+
+      expect(registered, ['fcm-token-1234567890abcd']);
+      expect(gateway.permissionRequests, 0);
+      await service.dispose();
+    });
+
+    test('a registration failure when enabling is reported and the preference stays off', () async {
+      final service = build();
+      await service.initialize();
+      await service.setEnabled(false);
+      registerResult = false;
+
+      expect(await service.setEnabled(true), PushToggleResult.serverUnreachable);
+      expect(await service.isPreferenceEnabled(), isFalse);
+      await service.dispose();
+    });
+
+    test('preference and registration are per account', () async {
+      SharedPreferences.setMockInitialValues({'user_id': 1});
+      final service = build();
+      await service.initialize();
+      await service.startForCustomer();
+      expect(registered, hasLength(1));
+      await service.setEnabled(false);
+      expect(await service.isPreferenceEnabled(), isFalse);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('user_id', 2);
+
+      expect(await service.isPreferenceEnabled(), isTrue);
+      await service.startForCustomer();
+      expect(registered, hasLength(2));
+
+      await prefs.setInt('user_id', 1);
+      expect(await service.isPreferenceEnabled(), isFalse);
+      await service.dispose();
+    });
+
+    test('the same device token is registered again for a different account', () async {
+      SharedPreferences.setMockInitialValues({'user_id': 1});
+      final service = build();
+      await service.initialize();
+      await service.startForCustomer();
+      await service.startForCustomer();
+      expect(registered, hasLength(1));
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('user_id', 2);
+      await service.startForCustomer();
+
+      expect(registered, hasLength(2));
+      await service.dispose();
+    });
+
+    test('is unavailable, not silently on, when push never initialised', () async {
+      gateway = FakeGateway(failInit: true);
+      final service = build(g: gateway);
+      await service.initialize();
+
+      expect(await service.isEffectivelyOn(), isFalse);
+      expect(await service.setEnabled(true), PushToggleResult.unavailable);
+    });
+  });
+
+  group('removeDeviceToken outcome', () {
+    const fcm = 'fcm-token-1234567890abcd';
+
+    Future<(bool, String?)> run(MockClient client, {bool withToken = true}) async {
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'session-token',
+        'user_role': 'Customer',
+        if (withToken) 'registered_push_token': fcm,
+      });
+      final ok = await http.runWithClient(ApiService.removeDeviceToken, () => client);
+      return (ok, (await SharedPreferences.getInstance()).getString('registered_push_token'));
+    }
+
+    test('success reports true and forgets the local token', () async {
+      final (ok, local) = await run(MockClient((_) async => http.Response('{"success":true}', 200)));
+      expect(ok, isTrue);
+      expect(local, isNull);
+    });
+
+    test('nothing registered is a no-op success without a request', () async {
+      var calls = 0;
+      final (ok, _) = await run(MockClient((_) async {
+        calls++;
+        return http.Response('{}', 200);
+      }), withToken: false);
+      expect(ok, isTrue);
+      expect(calls, 0);
+    });
+
+    for (final failure in <String, MockClient>{
+      'no network': MockClient((_) async => throw http.ClientException('offline')),
+      'timeout': MockClient((_) async => throw TimeoutException('slow')),
+      'unexpected exception': MockClient((_) async => throw StateError('boom')),
+      'HTTP 500': MockClient((_) async => http.Response('{"message":"boom"}', 500)),
+    }.entries) {
+      test('${failure.key} reports false, keeps the local token and never throws', () async {
+        final (ok, local) = await run(failure.value);
+        expect(ok, isFalse);
+        expect(local, fcm);
+      });
+
+    test('HTTP 401 reports false; the expired session is cleared instead of claiming revocation', () async {
+      SessionCoordinator.reset();
+      final (ok, local) = await run(MockClient((_) async => http.Response('{"message":"Unauthenticated."}', 401)));
+      expect(ok, isFalse);
+      expect(local, isNull);
+      expect(await ApiService.isLoggedIn(), isFalse);
+    });
+    }
   });
 
   group('30: token registration never invalidates the session', () {

@@ -104,25 +104,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         elevation: 0,
         centerTitle: true,
         title: Text(
-          'Notifications',
+          'Alerts & Notifications',
           style: GoogleFonts.inter(
             color: context.textPrimary,
-            fontSize: 16,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
             letterSpacing: -0.3,
           ),
         ),
         actions: [
-          if (hasUnread)
-            TextButton(
-              onPressed: _markAllRead,
-              child: Text(
-                'Mark all read',
-                style: GoogleFonts.inter(
-                  color: TmColors.yellow,
-                  fontSize: 13,
-                ),
+          TextButton(
+            onPressed: hasUnread ? _markAllRead : null,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              foregroundColor: context.textPrimary,
+              disabledForegroundColor: context.textTertiary,
+            ),
+            child: Text(
+              'Mark All Read',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
             ),
+          ),
         ],
       ),
       bottomNavigationBar: const TmBottomNav(currentRoute: '/notifications'),
@@ -230,7 +235,7 @@ class _SectionHeader extends StatelessWidget {
         label,
         style: GoogleFonts.inter(
           color: context.textTertiary,
-          fontSize: 11.5,
+          fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
         ),
@@ -263,8 +268,8 @@ class _NotifCard extends StatelessWidget {
                     n['title'] as String? ?? '',
                     style: GoogleFonts.inter(
                       color: context.textPrimary,
-                      fontSize: 13,
-                      letterSpacing: -0.1,
+                      fontSize: 15,
+                      fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
                     ),
                   ),
                 ),
@@ -285,9 +290,10 @@ class _NotifCard extends StatelessWidget {
               n['body'] as String? ?? '',
               style: GoogleFonts.inter(
                 color: context.textSecondary,
-                fontSize: 12,
+                fontSize: 14,
+                height: 1.35,
               ),
-              maxLines: 2,
+              maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
@@ -295,7 +301,7 @@ class _NotifCard extends StatelessWidget {
               _timeAgo(n['created_at'] as String?),
               style: GoogleFonts.inter(
                 color: context.textTertiary,
-                fontSize: 11,
+                fontSize: 12,
               ),
             ),
           ],

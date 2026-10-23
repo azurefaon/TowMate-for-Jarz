@@ -220,6 +220,8 @@ class BookingModel {
     this.dropoffPhotoUrl,
     this.completedAt,
     this.cancelledAt,
+    this.closedBy,
+    this.rejectionReason,
     this.priceHistory = const [],
     this.truckTypeClass,
     this.distanceFee,
@@ -270,6 +272,8 @@ class BookingModel {
   final String? dropoffPhotoUrl;
   final DateTime? completedAt;
   final DateTime? cancelledAt;
+  final String? closedBy;
+  final String? rejectionReason;
   final List<QuotationSentPrice> priceHistory;
   final String? truckTypeClass;
   final double? distanceFee;
@@ -326,6 +330,29 @@ class BookingModel {
   bool get isCancellableByCustomer => cancellableStatuses.contains(status);
 
   bool get isHistorical => _kHistoryStatuses.contains(status);
+
+  bool get isClosedWithoutService => status == 'cancelled' || status == 'rejected';
+
+  /// Who closed the booking. Only a server-confirmed actor is named; an
+  /// unknown actor gets a neutral "Booking Cancelled" / "Booking Rejected".
+  String? get closureHeadline {
+    if (!isClosedWithoutService) return null;
+    final verb = status == 'rejected' ? 'Rejected' : 'Cancelled';
+    switch (closedBy) {
+      case 'customer':
+        return 'Cancelled by you';
+      case 'dispatcher':
+        return '$verb by Dispatcher';
+      default:
+        return 'Booking $verb';
+    }
+  }
+
+  String? get closureReasonLine {
+    if (!isClosedWithoutService) return null;
+    final reason = rejectionReason;
+    return (reason == null || reason.isEmpty) ? 'Reason not provided.' : 'Reason: $reason';
+  }
 
   bool get isGrouped => groupCode != null && groupCode!.isNotEmpty;
 
@@ -405,6 +432,8 @@ class BookingModel {
       dropoffPhotoUrl: j['dropoff_photo_url'] as String?,
       completedAt: j['completed_at'] != null ? DateTime.tryParse(j['completed_at'] as String) : null,
       cancelledAt: j['cancelled_at'] != null ? DateTime.tryParse(j['cancelled_at'] as String) : null,
+      closedBy: j['closed_by'] as String?,
+      rejectionReason: (j['rejection_reason'] as String?)?.trim(),
       priceHistory: (j['price_history'] as List?)
               ?.map((e) => QuotationSentPrice.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??

@@ -1636,6 +1636,31 @@ class ApiService {
     } catch (_) {}
   }
 
+  /// Removes this device's token from the server and reports whether it is
+  /// really gone (true also when there was no token to remove). The local copy
+  /// is only forgotten after the server confirms, so a failure can be retried.
+  static Future<bool> removeDeviceToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final fcmToken = prefs.getString(_pushTokenPrefKey);
+      if (fcmToken == null) return true;
+      final token = await getToken();
+      if (token == null) return false;
+      final res = await apiClient
+          .send(
+            http.Request('DELETE', Uri.parse('$baseUrl/v1/device-tokens'))
+              ..headers.addAll({..._headers, 'Authorization': 'Bearer $token'})
+              ..body = jsonEncode({'token': fcmToken}),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return false;
+      await prefs.remove(_pushTokenPrefKey);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<Map<String, dynamic>> logout(String csrfToken) async {
     await unregisterDeviceToken();
     try {

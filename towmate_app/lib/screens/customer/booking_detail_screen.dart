@@ -11,6 +11,7 @@ import '../../models/quotation_model.dart' show QuotationSentPrice;
 import '../../models/tracking_model.dart';
 import '../../services/api_service.dart';
 import '../../widgets/booking_cancel_dialog.dart';
+import '../../widgets/closure_note.dart';
 import '../../widgets/group_cancel_sheet.dart';
 import '../../widgets/live_tracking_widgets.dart';
 import '../../widgets/quotation_price_cards.dart';
@@ -294,6 +295,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           widget.asGroupOverview ? _GroupStatusCard(booking: b) : _BookingStatusCard(booking: b),
+          if (!widget.asGroupOverview && b.isClosedWithoutService) ...[
+            const SizedBox(height: 12),
+            ClosureNote(booking: b),
+          ],
           if (!widget.asGroupOverview && isTrackableStatus(b.status))
             LiveTrackingScope(
               key: ValueKey('detail-tracking-scope-${b.bookingCode}'),
@@ -832,58 +837,46 @@ class _BookingStatusCard extends StatelessWidget {
     final bucket = booking.schedulingBucket;
     final isBucketed = bucket != null && booking.status == 'scheduled_confirmed';
 
-    // The banner itself is a neutral card; the status is a SOLID badge and the
-    // icon disc uses the same solid status colour (no tinted/translucent fills).
+    // Neutral card with a solid status-coloured outline and a SOLID badge.
     final Brightness brightness = Theme.of(context).brightness;
     final String badgeStatus;
-    final IconData icon;
     final String label;
 
     if (isBucketed) {
       switch (bucket) {
         case 'overdue':
           badgeStatus = 'overdue';
-          icon = Icons.error_outline_rounded;
           label = 'Overdue';
           break;
         case 'ready':
           badgeStatus = 'ready';
-          icon = Icons.local_shipping_outlined;
           label = 'Ready';
           break;
         case 'upcoming':
           badgeStatus = 'scheduled_confirmed';
-          icon = Icons.schedule_rounded;
           label = 'Upcoming';
           break;
         default:
           badgeStatus = 'scheduled_confirmed';
-          icon = Icons.check_circle_rounded;
           label = 'Confirmed';
       }
     } else {
       badgeStatus = booking.status;
-      icon = Icons.info_outline_rounded;
       label = booking.humanStatus;
     }
 
     final style = StatusStyle.of(badgeStatus);
     final bannerBg = context.surface;
-    final iconBg = style.backgroundFor(brightness);
-    final iconColor = style.foregroundFor(brightness);
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: bannerBg, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: bannerBg,
+        border: Border.all(color: style.borderFor(brightness), width: 1.5),
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-            child: Icon(icon, size: 17, color: iconColor),
-          ),
-          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -897,13 +890,13 @@ class _BookingStatusCard extends StatelessWidget {
                   booking.displayVehicleName.isNotEmpty
                       ? '${booking.bookingCode} · ${booking.displayVehicleName}'
                       : booking.bookingCode,
-                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 11.5, fontWeight: FontWeight.w500),
+                  style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 if (isBucketed && booking.scheduledFor != null) ...[
                   const SizedBox(height: 1),
                   Text(
                     _scheduledFmt.format(booking.scheduledFor!.toLocal()),
-                    style: GoogleFonts.inter(color: secondaryTextColor(context), fontSize: 11.5),
+                    style: GoogleFonts.inter(color: secondaryTextColor(context), fontSize: 13),
                   ),
                 ],
               ],
@@ -1035,14 +1028,14 @@ class _DetailRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(color: secondaryTextColor(context), fontSize: 13, letterSpacing: 0.1),
+            style: GoogleFonts.inter(color: secondaryTextColor(context), fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.1),
           ),
           const SizedBox(width: 12),
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: GoogleFonts.inter(color: context.textPrimary, fontSize: 13, letterSpacing: 0.1, height: 1.4),
+              style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.1, height: 1.4),
             ),
           ),
         ],

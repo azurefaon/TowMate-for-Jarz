@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:towmate_app/core/app_prefs.dart';
 import 'package:towmate_app/core/route_observer.dart';
 import 'package:towmate_app/core/theme.dart';
 import 'package:towmate_app/screens/customer/edit_profile_screen.dart';
@@ -138,7 +139,7 @@ void main() {
       expect(find.text('Faon Delacruz'), findsWidgets);
       expect(find.text('ACCOUNT SETTINGS'), findsOneWidget);
       expect(find.text('APPEARANCE'), findsOneWidget);
-      expect(find.text('Log out'), findsOneWidget);
+      expect(find.text('Logout'), findsOneWidget);
       expect(find.byType(SkeletonBox), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -173,18 +174,70 @@ void main() {
       expect(find.text('••••••••'), findsNothing);
     });
 
-    testWidgets('Dark Mode switch is present and toggling it does not throw', (tester) async {
+    testWidgets('Dark Mode uses sun and moon icon buttons that switch and persist the theme', (tester) async {
+      AppPrefs.themeModeNotifier.value = ThemeMode.light;
       await _pumpProfile(tester);
 
       expect(find.text('Dark Mode'), findsOneWidget);
-      final switchFinder = find.byType(Switch);
-      expect(switchFinder, findsOneWidget);
+      expect(find.byIcon(Icons.light_mode_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.dark_mode_rounded), findsOneWidget);
 
-      await tester.ensureVisible(switchFinder);
+      expect(find.bySemanticsLabel('Light mode'), findsOneWidget);
+      expect(find.bySemanticsLabel('Dark mode'), findsOneWidget);
+      expect(tester.getSize(find.ancestor(of: find.byIcon(Icons.dark_mode_rounded), matching: find.byType(InkWell)).first).height, greaterThanOrEqualTo(48));
+
+      await tester.ensureVisible(find.byIcon(Icons.dark_mode_rounded));
       await _settle(tester);
-      await tester.tap(switchFinder);
+      await tester.tap(find.byIcon(Icons.dark_mode_rounded));
+      await _settle(tester);
+      expect(AppPrefs.themeModeNotifier.value, ThemeMode.dark);
+      expect(await AppPrefs.getDarkMode(), isTrue);
+
+      await tester.tap(find.byIcon(Icons.light_mode_rounded));
+      await _settle(tester);
+      expect(AppPrefs.themeModeNotifier.value, ThemeMode.light);
+      expect(await AppPrefs.getDarkMode(), isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Push Notifications row shows Off when push is unavailable and Logout has no icon', (tester) async {
+      await _pumpProfile(tester);
+
+      await tester.ensureVisible(find.text('Push Notifications'));
+      await _settle(tester);
+      expect(find.text('Push Notifications'), findsOneWidget);
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+      expect(find.byIcon(Icons.logout_rounded), findsNothing);
+      expect(find.text('Log out'), findsNothing);
+    });
+
+
+    testWidgets('profile lays out without overflow on a 320px phone at 1.5x text scale', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      await _pumpProfile(tester);
+
+      await tester.ensureVisible(find.text('Logout'));
+      expect(find.text('Logout'), findsOneWidget);
+      expect(find.text('Push Notifications'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('returning to the app re-checks the push state without errors', (tester) async {
+      await _pumpProfile(tester);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await _settle(tester);
 
+      expect(find.text('Push Notifications'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -298,12 +351,92 @@ void main() {
       );
     });
 
+    testWidgets('confirming Logout revokes this device\'s push token before clearing the session', (tester) async {
+      final calls = <String>[];
+      final client = MockClient((request) async {
+        final path = request.url.path;
+        calls.add('${request.method} $path');
+        if (path.endsWith('/v1/profile')) return _json(_profileFixture);
+        if (request.method == 'DELETE' && path.endsWith('/v1/device-tokens')) {
+          expect(jsonDecode(request.body)['token'], 'fcm-token-1234567890abcd');
+          expect(request.headers['Authorization'], 'Bearer test-token');
+          return _json({'success': true});
+        }
+        return _json({}, status: 404);
+      });
+
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'test-token',
+        'registered_push_token': 'fcm-token-1234567890abcd',
+      });
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(MaterialApp(
+            onGenerateRoute: (settings) => MaterialPageRoute(
+              builder: (_) => settings.name == '/login' ? const Scaffold(body: Text('Login')) : const ProfileScreen(),
+            ),
+          ));
+          await _settle(tester);
+
+          await tester.ensureVisible(find.text('Logout'));
+          await tester.tap(find.text('Logout'));
+          await _settle(tester);
+          await tester.tap(find.text('Log out'));
+          await _settle(tester);
+        },
+        () => client,
+      );
+
+      expect(calls, contains('DELETE /api/v1/device-tokens'));
+      expect(find.text('Login'), findsOneWidget);
+      expect((await SharedPreferences.getInstance()).getString('registered_push_token'), isNull);
+    });
+
+    for (final failure in <String, Future<http.Response> Function()>{
+      'a server error': () async => _json({'message': 'boom'}, status: 500),
+      'no network': () async => throw http.ClientException('offline'),
+    }.entries) {
+      testWidgets('Logout still completes locally when token revocation fails with ${failure.key}', (tester) async {
+        final client = MockClient((request) async {
+          if (request.url.path.endsWith('/v1/profile')) return _json(_profileFixture);
+          if (request.method == 'DELETE') return failure.value();
+          return _json({}, status: 404);
+        });
+
+        SharedPreferences.setMockInitialValues({
+          'auth_token': 'test-token',
+          'registered_push_token': 'fcm-token-1234567890abcd',
+        });
+        await http.runWithClient(
+          () async {
+            await tester.pumpWidget(MaterialApp(
+              onGenerateRoute: (settings) => MaterialPageRoute(
+                builder: (_) => settings.name == '/login' ? const Scaffold(body: Text('Login')) : const ProfileScreen(),
+              ),
+            ));
+            await _settle(tester);
+
+            await tester.ensureVisible(find.text('Logout'));
+            await tester.tap(find.text('Logout'));
+            await _settle(tester);
+            await tester.tap(find.text('Log out'));
+            await _settle(tester);
+          },
+          () => client,
+        );
+
+        expect(find.text('Login'), findsOneWidget);
+        expect((await SharedPreferences.getInstance()).getString('auth_token'), isNull);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('tapping Logout shows the confirmation dialog', (tester) async {
       await _pumpProfile(tester);
 
-      await tester.ensureVisible(find.text('Log out'));
+      await tester.ensureVisible(find.text('Logout'));
       await _settle(tester);
-      await tester.tap(find.text('Log out'));
+      await tester.tap(find.text('Logout'));
       await _settle(tester);
 
       expect(find.text('Log out?'), findsOneWidget);
