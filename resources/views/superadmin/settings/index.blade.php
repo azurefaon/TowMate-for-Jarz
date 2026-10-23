@@ -142,47 +142,97 @@
                 @else
                     <div class="mc-list">
                         @foreach ($mobileAnnouncements as $announcement)
-                            <div class="mc-row">
-                                <form method="POST"
-                                    action="{{ route('superadmin.settings.customer-content.announcements.update', $announcement) }}"
-                                    class="mc-row-form">
-                                    @csrf
-                                    @method('PATCH')
-                                    <div class="settings-grid">
-                                        <div class="settings-field">
-                                            <label>Title</label>
-                                            <input type="text" name="title" value="{{ $announcement->title }}"
-                                                maxlength="150" required>
+                            @php
+                                $annStatus = $announcement->displayStatus();
+                                $annStatusLabel = ucfirst($annStatus);
+                                $annWhen = match ($annStatus) {
+                                    'scheduled' => 'Starts ' . $announcement->start_at->format('M j, Y g:i A'),
+                                    'expired' => 'Ended ' . $announcement->end_at->format('M j, Y g:i A'),
+                                    default => null,
+                                };
+                            @endphp
+                            <div class="mc-row mc-announcement-row">
+                                <div class="mc-announcement-main">
+                                    <div class="mc-announcement-head">
+                                        <div class="mc-announcement-state">
+                                            <span class="mc-status is-{{ $annStatus }}">{{ $annStatusLabel }}</span>
+                                            @if ($annWhen)
+                                                <span class="mc-announcement-when">{{ $annWhen }}</span>
+                                            @endif
                                         </div>
-                                        <div class="settings-field">
-                                            <label>Start (optional)</label>
-                                            <input type="datetime-local" name="start_at"
-                                                value="{{ optional($announcement->start_at)->format('Y-m-d\TH:i') }}">
-                                        </div>
-                                        <div class="settings-field">
-                                            <label>End (optional)</label>
-                                            <input type="datetime-local" name="end_at"
-                                                value="{{ optional($announcement->end_at)->format('Y-m-d\TH:i') }}">
-                                        </div>
-                                        <div class="settings-field" style="grid-column: 1 / -1;">
-                                            <label>Message</label>
-                                            <textarea name="message" maxlength="2000" required>{{ $announcement->message }}</textarea>
+                                        <div class="mc-announcement-actions">
+                                            <button type="submit" form="announcement-edit-{{ $announcement->id }}"
+                                                class="settings-save"><i data-lucide="pencil"></i> Edit</button>
+                                            <button type="submit" form="announcement-toggle-{{ $announcement->id }}"
+                                                class="settings-reset"><i
+                                                    data-lucide="{{ $announcement->is_active ? 'eye-off' : 'eye' }}"></i>
+                                                {{ $announcement->is_active ? 'Deactivate' : 'Activate' }}</button>
+                                            <button type="button" class="settings-reset mc-btn-danger"
+                                                data-modal-target="delete-announcement-modal-{{ $announcement->id }}"><i
+                                                    data-lucide="trash-2"></i> Delete</button>
                                         </div>
                                     </div>
-                                    <div class="mc-row-actions">
-                                        <span
-                                            class="mc-status {{ $announcement->is_active ? 'is-active' : 'is-inactive' }}">{{ $announcement->is_active ? 'Active' : 'Inactive' }}</span>
-                                        <button type="submit" class="settings-save">Edit</button>
+
+                                    <form method="POST" id="announcement-edit-{{ $announcement->id }}"
+                                        action="{{ route('superadmin.settings.customer-content.announcements.update', $announcement) }}"
+                                        class="mc-row-form">
+                                        @csrf
+                                        @method('PATCH')
+                                        <div class="settings-grid">
+                                            <div class="settings-field">
+                                                <label>Title</label>
+                                                <input type="text" name="title" value="{{ $announcement->title }}"
+                                                    maxlength="150" required>
+                                            </div>
+                                            <div class="settings-field">
+                                                <label>Start (optional)</label>
+                                                <input type="datetime-local" name="start_at"
+                                                    value="{{ optional($announcement->start_at)->format('Y-m-d\TH:i') }}">
+                                            </div>
+                                            <div class="settings-field">
+                                                <label>End (optional)</label>
+                                                <input type="datetime-local" name="end_at"
+                                                    value="{{ optional($announcement->end_at)->format('Y-m-d\TH:i') }}">
+                                            </div>
+                                            <div class="settings-field" style="grid-column: 1 / -1;">
+                                                <label>Message</label>
+                                                <textarea name="message" maxlength="2000" required>{{ $announcement->message }}</textarea>
+                                            </div>
+                                        </div>
+                                    </form>
+
+                                    <form method="POST" id="announcement-toggle-{{ $announcement->id }}"
+                                        action="{{ route('superadmin.settings.customer-content.announcements.toggle', $announcement) }}"
+                                        class="mc-toggle-form" hidden>
+                                        @csrf
+                                        @method('PATCH')
+                                    </form>
+                                </div>
+
+                                <div class="mc-modal-overlay" id="delete-announcement-modal-{{ $announcement->id }}">
+                                    <div class="mc-modal">
+                                        <div class="mc-modal-header">
+                                            <h3>Delete Announcement</h3>
+                                            <button type="button" class="mc-modal-close" data-modal-close
+                                                aria-label="Close"><i data-lucide="x"></i></button>
+                                        </div>
+                                        <form method="POST"
+                                            action="{{ route('superadmin.settings.customer-content.announcements.destroy', $announcement) }}">
+                                            @csrf
+                                            @method('DELETE')
+                                            <div class="mc-modal-body">
+                                                <p>Delete this announcement? This action cannot be undone.</p>
+                                                <p class="mc-delete-name">{{ $announcement->title }}</p>
+                                            </div>
+                                            <div class="mc-modal-actions">
+                                                <button type="button" class="settings-reset"
+                                                    data-modal-close>Cancel</button>
+                                                <button type="submit" class="settings-save mc-btn-danger-solid">Delete
+                                                    Announcement</button>
+                                            </div>
+                                        </form>
                                     </div>
-                                </form>
-                                <form method="POST"
-                                    action="{{ route('superadmin.settings.customer-content.announcements.toggle', $announcement) }}"
-                                    class="mc-toggle-form">
-                                    @csrf
-                                    @method('PATCH')
-                                    <button type="submit"
-                                        class="settings-reset">{{ $announcement->is_active ? 'Deactivate' : 'Activate' }}</button>
-                                </form>
+                                </div>
                             </div>
                         @endforeach
                     </div>

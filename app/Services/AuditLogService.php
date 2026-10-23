@@ -87,6 +87,7 @@ class AuditLogService
         'create_customer', 'update_customer', 'delete_customer',
         'mobile_service_created', 'mobile_service_reordered', 'mobile_service_status_changed',
         'mobile_announcement_created', 'mobile_announcement_updated', 'mobile_announcement_status_changed',
+        'mobile_announcement_deleted',
         'mobile_coverage_area_created', 'mobile_coverage_area_reordered', 'mobile_coverage_area_status_changed',
         'mobile_how_it_works_step_created', 'mobile_how_it_works_step_reordered', 'mobile_how_it_works_step_status_changed',
         'mobile_about_updated', 'mobile_support_updated',

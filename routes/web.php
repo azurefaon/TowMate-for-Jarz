@@ -314,6 +314,7 @@ Route::get('/settings', [SystemSettingsController::class, 'index'])->name('setti
             Route::post('/announcements', [CustomerAppContentController::class, 'announcementStore'])->name('announcements.store');
             Route::patch('/announcements/{announcement}', [CustomerAppContentController::class, 'announcementUpdate'])->name('announcements.update');
             Route::patch('/announcements/{announcement}/toggle', [CustomerAppContentController::class, 'announcementToggle'])->name('announcements.toggle');
+            Route::delete('/announcements/{announcement}', [CustomerAppContentController::class, 'announcementDestroy'])->name('announcements.destroy');
 
             Route::post('/services', [CustomerAppContentController::class, 'serviceStore'])->name('services.store');
             Route::patch('/services/{service}', [CustomerAppContentController::class, 'serviceUpdate'])->name('services.update');

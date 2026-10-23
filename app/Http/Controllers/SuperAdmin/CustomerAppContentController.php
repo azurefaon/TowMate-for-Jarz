@@ -125,6 +125,24 @@ class CustomerAppContentController extends Controller
         return back()->with('success', 'Announcement status updated.');
     }
 
+    public function announcementDestroy(MobileAnnouncement $announcement): RedirectResponse
+    {
+        $title = $announcement->title;
+        $id = $announcement->id;
+
+        $announcement->delete();
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'mobile_announcement_deleted',
+            'entity_type' => 'MobileAnnouncement',
+            'entity_id' => $id,
+            'reference' => $title,
+        ]);
+
+        return back()->with('success', 'Announcement deleted.');
+    }
+
     private function validateAnnouncement(Request $request): array
     {
         return $request->validate([
