@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -460,6 +461,8 @@ class _BookingCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _BookingCardHeader(booking: booking),
+              const SizedBox(height: 3),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -685,22 +688,6 @@ class _BookingCardBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                b.groupBookingCode ?? b.bookingCode,
-                style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15, fontWeight: FontWeight.w500, letterSpacing: -0.2),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: StatusBadge(status: b.status, label: b.humanStatus, compact: true),
-            ),
-          ],
-        ),
-        const SizedBox(height: 3),
         Text(
           '${b.displayVehicleName}  ·  ${_serviceTypeLabel(b.serviceType)}',
           style: GoogleFonts.inter(color: _secondaryTextColor(context), fontSize: 13),
@@ -900,5 +887,77 @@ class _BookingListSkeleton extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Booking number top-left, status badge top-right. When both cannot share a
+/// line (narrow screens, long labels) the badge drops to its own right-aligned
+/// line instead of clipping or overlapping.
+class _BookingCardHeader extends StatelessWidget {
+  const _BookingCardHeader({required this.booking});
+  final BookingModel booking;
+
+  static const double _gap = 10;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = booking.groupBookingCode ?? booking.bookingCode;
+    final titleStyle = GoogleFonts.inter(
+      color: context.textPrimary,
+      fontSize: 15,
+      fontWeight: FontWeight.w500,
+      letterSpacing: -0.2,
+    );
+    final badge = StatusBadge(status: booking.status, label: booking.humanStatus, compact: true);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scaler = MediaQuery.textScalerOf(context);
+        final titleWidth = (TextPainter(
+          text: TextSpan(text: title, style: titleStyle),
+          textDirection: ui.TextDirection.ltr,
+          textScaler: scaler,
+          maxLines: 1,
+        )..layout())
+            .width;
+        final badgeWidth = _badgeWidth(context, scaler);
+        final sharesLine = titleWidth + _gap + badgeWidth <= constraints.maxWidth;
+
+        if (sharesLine) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: Text(title, style: titleStyle)),
+              const SizedBox(width: _gap),
+              badge,
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Align(alignment: Alignment.centerLeft, child: Text(title, style: titleStyle)),
+            const SizedBox(height: 6),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+              child: badge,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  double _badgeWidth(BuildContext context, TextScaler scaler) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: booking.humanStatus,
+        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+      ),
+      textDirection: ui.TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    return painter.width + 20;
   }
 }

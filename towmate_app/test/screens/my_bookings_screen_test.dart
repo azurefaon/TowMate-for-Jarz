@@ -8,6 +8,8 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/core/route_observer.dart';
 import 'package:towmate_app/core/status_style.dart';
+import 'package:towmate_app/core/theme.dart';
+import 'package:towmate_app/widgets/status_badge.dart';
 import 'package:towmate_app/screens/customer/my_bookings_screen.dart';
 import 'package:towmate_app/widgets/skeleton_box.dart';
 import 'package:towmate_app/widgets/tm_bottom_nav.dart';
@@ -84,6 +86,8 @@ Future<void> _pumpScreen(
   WidgetTester tester,
   http.Client client, {
   void Function(String route, Object? args)? onNavigate,
+  ThemeData? theme,
+  ThemeMode? themeMode,
 }) async {
   SharedPreferences.setMockInitialValues({
     'auth_token': 'test-token',
@@ -94,6 +98,8 @@ Future<void> _pumpScreen(
     () async {
       await tester.pumpWidget(
         MaterialApp(
+          theme: theme,
+          themeMode: themeMode,
           onGenerateRoute: (settings) {
             if (settings.name == '/' || settings.name == null) {
               return MaterialPageRoute(builder: (_) => const MyBookingsScreen());
@@ -306,6 +312,78 @@ void main() {
 
       expect(find.text('Cancelled by Dispatcher'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    group('booking card header alignment', () {
+      const statuses = {
+        'requested': 'Requested',
+        'arrived_dropoff': 'Arrived at destination',
+        'scheduled_confirmed': 'Scheduled — Confirmed',
+        'completed': 'Completed',
+        'cancelled': 'Cancelled',
+      };
+
+      for (final width in [390.0, 320.0]) {
+        for (final dark in [false, true]) {
+          testWidgets('badge is right-aligned inside the card at ${width.toInt()}px ${dark ? 'dark' : 'light'}', (tester) async {
+            tester.view.physicalSize = Size(width, 3200);
+            tester.view.devicePixelRatio = 1.0;
+            addTearDown(tester.view.reset);
+
+            final codes = {
+              for (final (i, s) in statuses.keys.indexed) s: 'TM-0010$i',
+            };
+            await _pumpScreen(
+              tester,
+              _clientFor(bookings: [
+                for (final s in statuses.keys) _booking(code: codes[s]!, status: s),
+              ]),
+              theme: dark ? AppTheme.dark : AppTheme.light,
+              themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+            );
+
+            for (final tab in ['Active', 'History']) {
+              await tester.tap(find.text(tab));
+              await _settle(tester);
+              for (final entry in statuses.entries) {
+                final inTab = tab == 'History' ? ['completed', 'cancelled'] : ['requested', 'arrived_dropoff', 'scheduled_confirmed'];
+                if (!inTab.contains(entry.key)) continue;
+
+                final title = find.text(codes[entry.key]!);
+                expect(title, findsOneWidget, reason: '${entry.key} in $tab');
+                final card = find
+                    .ancestor(of: title, matching: find.byType(Container))
+                    .evaluate()
+                    .map((e) => e.widget as Container)
+                    .firstWhere((c) => c.decoration is BoxDecoration && (c.decoration as BoxDecoration).border != null);
+                final cardRect = tester.getRect(find.byWidget(card));
+                final badge = find.descendant(
+                  of: find.byWidget(card),
+                  matching: find.byWidgetPredicate((w) => w is StatusBadge && w.label == entry.value),
+                );
+                expect(badge, findsOneWidget, reason: '${entry.value} badge');
+
+                final titleRect = tester.getRect(title);
+                final badgeRect = tester.getRect(badge);
+                const inset = 16 + 1.5;
+
+                expect(titleRect.left, closeTo(cardRect.left + inset, 0.6), reason: 'title left');
+                expect(badgeRect.right, closeTo(cardRect.right - inset, 0.6), reason: '${entry.value} badge right');
+                expect(badgeRect.left, greaterThanOrEqualTo(cardRect.left + inset - 0.6));
+                final sameLine = (badgeRect.top - titleRect.top).abs() < 6;
+                if (sameLine) {
+                  expect(titleRect.right + 8, lessThanOrEqualTo(badgeRect.left), reason: 'no overlap');
+                } else {
+                  expect(badgeRect.top, greaterThanOrEqualTo(titleRect.bottom - 0.5), reason: 'wrapped below title');
+                }
+                // Tests render with the wide Ahem font, so only the short labels are guaranteed to share the line at 390px.
+                if (width >= 390 && entry.value.length <= 9) expect(sameLine, isTrue, reason: '${entry.value} fits beside the code at 390px');
+              }
+            }
+            expect(tester.takeException(), isNull);
+          });
+        }
+      }
     });
 
     testWidgets('tapping a booking card navigates to booking detail with the correct booking code', (tester) async {
