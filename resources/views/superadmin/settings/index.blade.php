@@ -115,15 +115,18 @@
             </div>
         </div>
 
+        @php $showLegacyCustomerContent = false; @endphp
         <div class="settings-content" id="customer-content">
 
             <div class="mc-subnav">
                 <button class="mc-subnav-btn active" data-mc-section="mc-announcements">Announcements</button>
                 <button class="mc-subnav-btn" data-mc-section="mc-services">Services</button>
+                @if ($showLegacyCustomerContent)
                 <button class="mc-subnav-btn" data-mc-section="mc-about-support">About &amp; Support</button>
                 <button class="mc-subnav-btn" data-mc-section="mc-how-it-works">How It Works</button>
                 <button class="mc-subnav-btn" data-mc-section="mc-coverage-areas">Coverage Areas</button>
                 <button class="mc-subnav-btn" data-mc-section="mc-app-images">App Images</button>
+                @endif
             </div>
 
             <div class="mc-section active" id="mc-announcements">
@@ -416,6 +419,9 @@
                 </div>
             </div>
 
+            {{-- About & Support, How It Works, Coverage Areas and App Images are hidden from the
+                 Owner UI. Routes, API keys and data are intentionally left untouched. --}}
+            @if ($showLegacyCustomerContent)
             <div class="mc-section" id="mc-about-support">
                 <div class="mc-section-intro">
                     <h3>About</h3>
@@ -792,6 +798,7 @@
                     </div>
                 </form>
             </div>
+            @endif
 
         </div>
 
@@ -1112,7 +1119,11 @@
         const requestedSub = urlParams.get("sub");
 
         if (requestedTab && activateTab(requestedTab) && requestedTab === "customer-content" && requestedSub) {
-            activateSubSection(requestedSub);
+            // Unknown or hidden subsections (old bookmarks) fall back to Announcements.
+            if (!activateSubSection(requestedSub)) {
+                activateSubSection("mc-announcements");
+                syncTabStateToUrl();
+            }
         }
 
         function openMcModal(modal) {
