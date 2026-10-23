@@ -123,10 +123,18 @@ void _closureGroup() {
       expect(closed('cancelled', by: 'customer').closureHeadline, 'Cancelled by you');
     });
 
-    test('missing reason falls back to a neutral line and unknown actor has no headline', () {
-      final b = closed('cancelled');
-      expect(b.closureHeadline, isNull);
+    test('missing reason falls back to a neutral line', () {
+      final b = closed('cancelled', by: 'unknown');
+      expect(b.closureHeadline, 'Booking Cancelled');
       expect(b.closureReasonLine, 'Reason not provided.');
+    });
+
+    test('an unknown actor keeps the recorded reason and the real status wording', () {
+      final c = closed('cancelled', by: 'unknown', reason: 'Booking cancelled by dispatcher.');
+      expect(c.closureHeadline, 'Booking Cancelled');
+      expect(c.closureReasonLine, 'Reason: Booking cancelled by dispatcher.');
+      expect(closed('rejected', by: 'unknown').closureHeadline, 'Booking Rejected');
+      expect(closed('rejected').closureHeadline, 'Booking Rejected');
     });
 
     test('bookings that were not cancelled or rejected have no closure details', () {

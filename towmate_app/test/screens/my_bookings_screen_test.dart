@@ -225,7 +225,7 @@ void main() {
             'closed_by': 'customer',
             'rejection_reason': null,
           },
-          _booking(code: 'TM-00007', status: 'cancelled'),
+          {..._booking(code: 'TM-00007', status: 'cancelled'), 'closed_by': 'unknown'},
           _booking(code: 'TM-00008', status: 'completed'),
         ]),
       );
@@ -239,6 +239,7 @@ void main() {
       expect(find.text('Reason: Pickup is outside our coverage.'), findsOneWidget);
       expect(find.text('Cancelled by you'), findsOneWidget);
       expect(find.text('Reason not provided.'), findsNWidgets(2));
+      expect(find.text('Booking Cancelled'), findsOneWidget);
     });
 
     testWidgets('cards use a solid, status-coloured border and no gradient', (tester) async {
@@ -278,6 +279,33 @@ void main() {
       expect(borderOf('TM-00005').top.color, StatusStyle.red.borderFor(Brightness.light));
       expect(borderOf('TM-00004').top.width, 1.5);
       expect(find.text('STATUS'), findsNothing);
+    });
+
+    testWidgets('history cards with closure details do not overflow at 320px and 1.5x text', (tester) async {
+      tester.view.physicalSize = const Size(320, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          {
+            ..._booking(code: 'TM-00004', status: 'cancelled'),
+            'closed_by': 'dispatcher',
+            'rejection_reason': 'No tow unit is available in your area at this time, please try again later.',
+          },
+        ]),
+      );
+      await tester.tap(find.text('History'));
+      await _settle(tester);
+
+      expect(find.text('Cancelled by Dispatcher'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('tapping a booking card navigates to booking detail with the correct booking code', (tester) async {

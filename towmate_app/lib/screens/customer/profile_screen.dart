@@ -1057,17 +1057,31 @@ class _PushNotificationsRow extends StatefulWidget {
   State<_PushNotificationsRow> createState() => _PushNotificationsRowState();
 }
 
-class _PushNotificationsRowState extends State<_PushNotificationsRow> {
+class _PushNotificationsRowState extends State<_PushNotificationsRow>
+    with WidgetsBindingObserver {
   bool _on = false;
   bool _busy = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refresh();
   }
 
-  Future<void> _refresh() async {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh(reconcile: true);
+  }
+
+  Future<void> _refresh({bool reconcile = false}) async {
+    if (reconcile) await PushNotificationService.instance.reconcileRegistration();
     final on = await PushNotificationService.instance.isEffectivelyOn();
     if (!mounted) return;
     setState(() {

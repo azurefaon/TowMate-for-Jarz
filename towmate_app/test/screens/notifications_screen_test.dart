@@ -439,6 +439,22 @@ void main() {
       expect(find.text('Your tow is on the way'), findsOneWidget);
     });
 
+    testWidgets('lays out without overflow on a 320px phone at 1.5x text scale', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      await _pumpNotifications(tester);
+
+      expect(find.text('Mark All Read'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('renders correctly in dark mode', (tester) async {
       await _pumpNotifications(tester, theme: AppTheme.dark, themeMode: ThemeMode.dark);
 

@@ -212,6 +212,35 @@ void main() {
     });
 
 
+    testWidgets('profile lays out without overflow on a 320px phone at 1.5x text scale', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      await _pumpProfile(tester);
+
+      await tester.ensureVisible(find.text('Logout'));
+      expect(find.text('Logout'), findsOneWidget);
+      expect(find.text('Push Notifications'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('returning to the app re-checks the push state without errors', (tester) async {
+      await _pumpProfile(tester);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await _settle(tester);
+
+      expect(find.text('Push Notifications'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('main profile displays the profile photo, full name, and email', (tester) async {
       await _pumpProfile(tester);
 

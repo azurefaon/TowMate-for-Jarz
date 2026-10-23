@@ -333,17 +333,18 @@ class BookingModel {
 
   bool get isClosedWithoutService => status == 'cancelled' || status == 'rejected';
 
-  /// Who closed the booking, e.g. "Cancelled by Dispatcher". Null when the
-  /// booking was not closed or the server did not record who closed it.
+  /// Who closed the booking. Only a server-confirmed actor is named; an
+  /// unknown actor gets a neutral "Booking Cancelled" / "Booking Rejected".
   String? get closureHeadline {
     if (!isClosedWithoutService) return null;
+    final verb = status == 'rejected' ? 'Rejected' : 'Cancelled';
     switch (closedBy) {
       case 'customer':
         return 'Cancelled by you';
       case 'dispatcher':
-        return '${status == 'rejected' ? 'Rejected' : 'Cancelled'} by Dispatcher';
+        return '$verb by Dispatcher';
       default:
-        return null;
+        return 'Booking $verb';
     }
   }
 

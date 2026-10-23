@@ -49,59 +49,102 @@ function cbcdBooking(Customer $customer, array $overrides = []): Booking
     ], $overrides));
 }
 
-it('exposes the dispatcher reason and actor on cancelled and rejected history rows', function () {
-    [$user, $customer] = cbcdCustomer();
-    $cancelled = cbcdBooking($customer, ['status' => 'cancelled', 'rejection_reason' => 'No unit available.']);
-    $rejected = cbcdBooking($customer, ['status' => 'rejected', 'rejection_reason' => 'Outside coverage.']);
+function cbcdAudit(User $actor, Booking $booking, string $action): void
+{
+    AuditLog::create([
+        'user_id' => $actor->id,
+        'action' => $action,
+        'entity_type' => 'Booking',
+        'entity_id' => $booking->id,
+        'description' => $action,
+    ]);
+}
 
+function cbcdHistoryRow(User $user, Booking $booking): array
+{
     Sanctum::actingAs($user, ['*']);
-    $rows = collect(test()->getJson('/api/v1/bookings/history')->assertOk()->json('data'))->keyBy('booking_code');
 
-    expect($rows[$cancelled->booking_code]['closed_by'])->toBe('dispatcher');
-    expect($rows[$cancelled->booking_code]['rejection_reason'])->toBe('No unit available.');
-    expect($rows[$rejected->booking_code]['closed_by'])->toBe('dispatcher');
-    expect($rows[$rejected->booking_code]['rejection_reason'])->toBe('Outside coverage.');
-});
+    return collect(test()->getJson('/api/v1/bookings/history')->assertOk()->json('data'))
+        ->keyBy('booking_code')[$booking->booking_code];
+}
 
 it('attributes an audited customer cancellation to the customer', function () {
     [$user, $customer] = cbcdCustomer();
     $booking = cbcdBooking($customer, ['rejection_reason' => 'Changed my mind']);
-    AuditLog::create([
-        'user_id' => $user->id,
-        'action' => 'booking_cancelled_by_customer',
-        'entity_type' => 'Booking',
-        'entity_id' => $booking->id,
-        'description' => 'Cancelled by customer — Changed my mind',
-    ]);
+    cbcdAudit($user, $booking, 'booking_cancelled_by_customer');
 
-    Sanctum::actingAs($user, ['*']);
-    $row = test()->getJson('/api/v1/bookings/history')->assertOk()->json('data.0');
+    $row = cbcdHistoryRow($user, $booking);
     expect($row['closed_by'])->toBe('customer');
+    expect($row['rejection_reason'])->toBe('Changed my mind');
 
     $detail = test()->getJson("/api/v1/bookings/{$booking->booking_code}/detail")->assertOk()->json('data');
     expect($detail['closed_by'])->toBe('customer');
-    expect($detail['rejection_reason'])->toBe('Changed my mind');
 });
 
-it('reports no actor and no reason when none was recorded, and nothing for other statuses', function () {
+it('attributes audited staff cancellations and rejections to the dispatcher', function (string $action, string $status) {
     [$user, $customer] = cbcdCustomer();
-    $silent = cbcdBooking($customer, ['status' => 'cancelled', 'rejection_reason' => null]);
-    $done = cbcdBooking($customer, ['status' => 'completed', 'rejection_reason' => 'stale text']);
+    $staff = User::factory()->create();
+    $booking = cbcdBooking($customer, ['status' => $status, 'rejection_reason' => 'No unit available.']);
+    cbcdAudit($staff, $booking, $action);
 
-    Sanctum::actingAs($user, ['*']);
-    $rows = collect(test()->getJson('/api/v1/bookings/history')->assertOk()->json('data'))->keyBy('booking_code');
+    expect(cbcdHistoryRow($user, $booking)['closed_by'])->toBe('dispatcher');
+    $detail = test()->getJson("/api/v1/bookings/{$booking->booking_code}/detail")->assertOk()->json('data');
+    expect($detail['closed_by'])->toBe('dispatcher');
+    expect($detail['rejection_reason'])->toBe('No unit available.');
+})->with([
+    ['booking_cancelled_by_dispatcher', 'cancelled'],
+    ['scheduled_booking_cancelled_by_dispatcher', 'rejected'],
+    ['booking_rejected', 'rejected'],
+]);
 
-    expect($rows[$silent->booking_code]['closed_by'])->toBeNull();
-    expect($rows[$silent->booking_code]['rejection_reason'])->toBeNull();
-    expect($rows[$done->booking_code]['closed_by'])->toBeNull();
-    expect($rows[$done->booking_code]['rejection_reason'])->toBeNull();
+it('does not call a reason alone a dispatcher action', function (string $status) {
+    [$user, $customer] = cbcdCustomer();
+    $booking = cbcdBooking($customer, ['status' => $status, 'rejection_reason' => 'Booking cancelled by dispatcher.']);
+
+    $row = cbcdHistoryRow($user, $booking);
+    expect($row['closed_by'])->toBe('unknown');
+    expect($row['rejection_reason'])->toBe('Booking cancelled by dispatcher.');
+})->with(['cancelled', 'rejected']);
+
+it('reports unknown actor and no reason when nothing was recorded', function () {
+    [$user, $customer] = cbcdCustomer();
+    $booking = cbcdBooking($customer, ['rejection_reason' => '   ']);
+
+    $row = cbcdHistoryRow($user, $booking);
+    expect($row['closed_by'])->toBe('unknown');
+    expect($row['rejection_reason'])->toBeNull();
 });
 
-it('does not leak another customer\'s cancellation reason through the detail endpoint', function () {
+it('ignores unrelated audit events and reports nothing for other statuses', function () {
+    [$user, $customer] = cbcdCustomer();
+    $staff = User::factory()->create();
+    $cancelled = cbcdBooking($customer);
+    cbcdAudit($staff, $cancelled, 'booking_assigned');
+    $done = cbcdBooking($customer, ['status' => 'completed', 'rejection_reason' => 'stale text']);
+    cbcdAudit($staff, $done, 'booking_rejected');
+
+    expect(cbcdHistoryRow($user, $cancelled)['closed_by'])->toBe('unknown');
+    $row = cbcdHistoryRow($user, $done);
+    expect($row['closed_by'])->toBeNull();
+    expect($row['rejection_reason'])->toBeNull();
+});
+
+it('uses the latest audited actor when several exist', function () {
+    [$user, $customer] = cbcdCustomer();
+    $staff = User::factory()->create();
+    $booking = cbcdBooking($customer);
+    cbcdAudit($user, $booking, 'booking_cancelled_by_customer');
+    cbcdAudit($staff, $booking, 'booking_cancelled_by_dispatcher');
+
+    expect(cbcdHistoryRow($user, $booking)['closed_by'])->toBe('dispatcher');
+});
+
+it('does not expose another customer\'s closure details', function () {
     [$owner, $ownerCustomer] = cbcdCustomer();
     [$other, ] = cbcdCustomer();
     $booking = cbcdBooking($ownerCustomer, ['rejection_reason' => 'Private reason']);
 
     Sanctum::actingAs($other, ['*']);
     test()->getJson("/api/v1/bookings/{$booking->booking_code}/detail")->assertNotFound();
+    expect(test()->getJson('/api/v1/bookings/history')->assertOk()->json('data'))->toBe([]);
 });

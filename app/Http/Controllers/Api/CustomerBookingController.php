@@ -283,9 +283,9 @@ class CustomerBookingController extends Controller
                 ->unique('source_booking_id')
                 ->keyBy('source_booking_id');
 
-        $customerClosedIds = $this->customerClosedBookingIds($bookings->getCollection());
+        $closureActors = $this->closureActorsFor($bookings->getCollection());
 
-        $bookings = $bookings->through(function ($b) use ($anchorsByGroupCode, $quotationNumbersByAnchorId, $customerClosedIds) {
+        $bookings = $bookings->through(function ($b) use ($anchorsByGroupCode, $quotationNumbersByAnchorId, $closureActors) {
             $anchorId = $b->group_code ? ($anchorsByGroupCode->get($b->group_code)?->id ?? $b->id) : $b->id;
 
             return [
@@ -306,7 +306,7 @@ class CustomerBookingController extends Controller
                 'service_type'      => $b->service_type,
                 'scheduled_date'    => $b->scheduled_date?->toDateString(),
                 'scheduled_time'    => $b->scheduled_time,
-                ...$this->closureFields($b, isset($customerClosedIds[$b->id])),
+                ...$this->closureFields($b, $closureActors[$b->id] ?? null),
             ];
         });
 
@@ -1134,7 +1134,7 @@ class CustomerBookingController extends Controller
                 'created_at'        => $booking->created_at?->toDateTimeString(),
                 'completed_at'      => $booking->completed_at?->toDateTimeString(),
                 'cancelled_at'      => $cancelledAt?->toIso8601String(),
-                ...$this->closureFields($booking, $cancelledAt !== null),
+                ...$this->closureFields($booking, $this->closureActorsFor(collect([$booking]))[$booking->id] ?? null),
                 'price_history'     => $priceHistory,
                 'group_code'        => $booking->group_code,
                 'group_booking_code' => $anchor->booking_code,
@@ -1147,28 +1147,36 @@ class CustomerBookingController extends Controller
         ]);
     }
 
-    /** What the app needs to show the Follow Up action; the server alone decides when it is allowed. */
+    private const CUSTOMER_CLOSE_ACTIONS = ['booking_cancelled_by_customer'];
+
+    private const DISPATCHER_CLOSE_ACTIONS = [
+        'booking_cancelled_by_dispatcher',
+        'scheduled_booking_cancelled_by_dispatcher',
+        'booking_rejected',
+    ];
+
     /**
-     * Who closed a cancelled/rejected booking and the reason on record.
-     * `closed_by` is "customer" when the customer's own cancel is audited,
-     * "dispatcher" when staff recorded a reason, otherwise null (unknown).
+     * The recorded reason and who closed a cancelled/rejected booking.
+     * `closed_by` is "customer" or "dispatcher" only when an audit event of
+     * that actor exists for the booking; otherwise "unknown". A reason alone
+     * never identifies the actor.
      */
-    private function closureFields(Booking $booking, bool $cancelledByCustomer): array
+    private function closureFields(Booking $booking, ?string $actor): array
     {
         if (! in_array($booking->status, ['cancelled', 'rejected'], true)) {
             return ['closed_by' => null, 'rejection_reason' => null];
         }
 
         $reason = trim((string) $booking->rejection_reason);
-        $reason = $reason === '' ? null : $reason;
 
         return [
-            'closed_by' => $cancelledByCustomer ? 'customer' : ($reason !== null ? 'dispatcher' : null),
-            'rejection_reason' => $reason,
+            'closed_by' => $actor ?? 'unknown',
+            'rejection_reason' => $reason === '' ? null : $reason,
         ];
     }
 
-    private function customerClosedBookingIds(\Illuminate\Support\Collection $bookings): array
+    /** @return array<int, string> booking id => "customer"|"dispatcher" (latest audited actor) */
+    private function closureActorsFor(\Illuminate\Support\Collection $bookings): array
     {
         $ids = $bookings->whereIn('status', ['cancelled', 'rejected'])->pluck('id');
 
@@ -1176,14 +1184,22 @@ class CustomerBookingController extends Controller
             return [];
         }
 
-        return AuditLog::where('entity_type', 'Booking')
-            ->where('action', 'booking_cancelled_by_customer')
+        $actors = [];
+        AuditLog::where('entity_type', 'Booking')
             ->whereIn('entity_id', $ids)
-            ->pluck('entity_id')
-            ->flip()
-            ->all();
+            ->whereIn('action', [...self::CUSTOMER_CLOSE_ACTIONS, ...self::DISPATCHER_CLOSE_ACTIONS])
+            ->orderBy('id')
+            ->get(['entity_id', 'action'])
+            ->each(function ($log) use (&$actors) {
+                $actors[$log->entity_id] = in_array($log->action, self::CUSTOMER_CLOSE_ACTIONS, true)
+                    ? 'customer'
+                    : 'dispatcher';
+            });
+
+        return $actors;
     }
 
+    /** What the app needs to show the Follow Up action; the server alone decides when it is allowed. */
     private function followUpFields(Booking $booking): array
     {
         $state = $this->bookingService->followUpState($booking);

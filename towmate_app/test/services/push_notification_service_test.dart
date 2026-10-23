@@ -14,7 +14,7 @@ class FakeGateway implements PushGateway {
   FakeGateway({this.failInit = false, this.permissionGranted = true, this.token = 'fcm-token-1234567890abcd'});
 
   final bool failInit;
-  final bool permissionGranted;
+  bool permissionGranted;
   String? token;
   int permissionRequests = 0;
   PushMessage? initialMessage;
@@ -443,6 +443,82 @@ void main() {
       expect(await service.setEnabled(true), PushToggleResult.permissionDenied);
       expect(registered, isEmpty);
       expect(await service.isPreferenceEnabled(), isFalse);
+      await service.dispose();
+    });
+
+    test('permission revoked externally shows Off without touching the stored preference', () async {
+      final service = build();
+      await service.initialize();
+      expect(await service.isEffectivelyOn(), isTrue);
+
+      gateway.permissionGranted = false;
+
+      expect(await service.isEffectivelyOn(), isFalse);
+      expect(await service.isPreferenceEnabled(), isTrue);
+      await service.dispose();
+    });
+
+    test('granting permission in system settings registers on return without prompting', () async {
+      gateway = FakeGateway(permissionGranted: false);
+      final service = build(g: gateway);
+      await service.initialize();
+      await service.reconcileRegistration();
+      expect(registered, isEmpty);
+
+      gateway.permissionGranted = true;
+      await service.reconcileRegistration();
+      await service.reconcileRegistration();
+
+      expect(registered, ['fcm-token-1234567890abcd']);
+      expect(gateway.permissionRequests, 0);
+      await service.dispose();
+    });
+
+    test('a registration failure when enabling is reported and the preference stays off', () async {
+      final service = build();
+      await service.initialize();
+      await service.setEnabled(false);
+      registerResult = false;
+
+      expect(await service.setEnabled(true), PushToggleResult.serverUnreachable);
+      expect(await service.isPreferenceEnabled(), isFalse);
+      await service.dispose();
+    });
+
+    test('preference and registration are per account', () async {
+      SharedPreferences.setMockInitialValues({'user_id': 1});
+      final service = build();
+      await service.initialize();
+      await service.startForCustomer();
+      expect(registered, hasLength(1));
+      await service.setEnabled(false);
+      expect(await service.isPreferenceEnabled(), isFalse);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('user_id', 2);
+
+      expect(await service.isPreferenceEnabled(), isTrue);
+      await service.startForCustomer();
+      expect(registered, hasLength(2));
+
+      await prefs.setInt('user_id', 1);
+      expect(await service.isPreferenceEnabled(), isFalse);
+      await service.dispose();
+    });
+
+    test('the same device token is registered again for a different account', () async {
+      SharedPreferences.setMockInitialValues({'user_id': 1});
+      final service = build();
+      await service.initialize();
+      await service.startForCustomer();
+      await service.startForCustomer();
+      expect(registered, hasLength(1));
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('user_id', 2);
+      await service.startForCustomer();
+
+      expect(registered, hasLength(2));
       await service.dispose();
     });
 

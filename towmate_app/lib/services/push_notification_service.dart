@@ -182,7 +182,7 @@ class PushNotificationService {
   static final PushNotificationService instance = PushNotificationService();
 
   static const _permissionAskedKey = 'push_permission_requested_v1';
-  static const _enabledKey = 'push_notifications_enabled_v1';
+  static const _enabledKey = 'push_notifications_enabled_v2';
   static const _pendingTtl = Duration(minutes: 2);
 
   final PushGateway _gateway;
@@ -195,7 +195,7 @@ class PushNotificationService {
 
   bool _initialized = false;
   Future<void>? _initFuture;
-  String? _lastRegisteredToken;
+  String? _lastRegistered;
   String? _pendingBookingCode;
   DateTime? _pendingAt;
   final _subscriptions = <StreamSubscription<dynamic>>[];
@@ -214,10 +214,36 @@ class PushNotificationService {
     return true;
   }
 
+  /// Preference and registration state belong to the signed-in account, so a
+  /// different account on the same device never inherits them.
+  static String _scope(SharedPreferences prefs) {
+    final id = prefs.getInt('user_id');
+    return id == null ? 'anon' : 'u$id';
+  }
+
+  static String _enabledKeyFor(SharedPreferences prefs) => '$_enabledKey.${_scope(prefs)}';
+
+  static String _scoped(SharedPreferences prefs, String token) => '${_scope(prefs)}|$token';
+
+  /// Re-checks the system permission (e.g. after returning from Android
+  /// Settings) and registers this device when the preference is on and
+  /// notifications are now permitted. Never prompts.
+  Future<void> reconcileRegistration() async {
+    try {
+      await _initFuture;
+      if (!_initialized || !await isPreferenceEnabled()) return;
+      if (!await _gateway.isPermissionGranted() || !await _isCustomerSession()) return;
+      final token = await _gateway.getToken();
+      if (token != null && token.isNotEmpty) await _register(token);
+    } catch (e) {
+      _log('reconcile skipped: ${e.runtimeType}');
+    }
+  }
+
   /// The user's Push Notifications choice on this device (on by default).
   Future<bool> isPreferenceEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_enabledKey) ?? true;
+    return prefs.getBool(_enabledKeyFor(prefs)) ?? true;
   }
 
   /// What the Profile switch should show: on only when the preference is on
@@ -241,22 +267,22 @@ class PushNotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!enable) {
       if (!await _removeToken()) return PushToggleResult.serverUnreachable;
-      _lastRegisteredToken = null;
-      await prefs.setBool(_enabledKey, false);
+      _lastRegistered = null;
+      await prefs.setBool(_enabledKeyFor(prefs), false);
       return PushToggleResult.off;
     }
     try {
       await _initFuture;
       if (!_initialized) return PushToggleResult.unavailable;
       if (!await _gateway.requestPermission()) {
-        await prefs.setBool(_enabledKey, false);
+        await prefs.setBool(_enabledKeyFor(prefs), false);
         return PushToggleResult.permissionDenied;
       }
       final token = await _gateway.getToken();
       if (token == null || token.isEmpty || !await _registerForced(token)) {
         return PushToggleResult.serverUnreachable;
       }
-      await prefs.setBool(_enabledKey, true);
+      await prefs.setBool(_enabledKeyFor(prefs), true);
       return PushToggleResult.on;
     } catch (e) {
       _log('enable failed: ${e.runtimeType}');
@@ -265,9 +291,10 @@ class PushNotificationService {
   }
 
   Future<bool> _registerForced(String token) async {
-    if (token == _lastRegisteredToken) return true;
+    final scoped = _scoped(await SharedPreferences.getInstance(), token);
+    if (scoped == _lastRegistered) return true;
     final ok = await _registerToken(token);
-    if (ok) _lastRegisteredToken = token;
+    if (ok) _lastRegistered = scoped;
     return ok;
   }
 
@@ -344,8 +371,9 @@ class PushNotificationService {
   }
 
   Future<void> _register(String token) async {
-    if (token == _lastRegisteredToken) return;
-    if (await _registerToken(token)) _lastRegisteredToken = token;
+    final scoped = _scoped(await SharedPreferences.getInstance(), token);
+    if (scoped == _lastRegistered) return;
+    if (await _registerToken(token)) _lastRegistered = scoped;
   }
 
   Future<void> _onTokenRefresh(String token) async {
