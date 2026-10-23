@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:towmate_app/core/session_coordinator.dart';
 import 'package:towmate_app/services/api_service.dart';
 import 'package:towmate_app/services/push_notification_service.dart';
 
@@ -530,6 +531,57 @@ void main() {
       expect(await service.isEffectivelyOn(), isFalse);
       expect(await service.setEnabled(true), PushToggleResult.unavailable);
     });
+  });
+
+  group('removeDeviceToken outcome', () {
+    const fcm = 'fcm-token-1234567890abcd';
+
+    Future<(bool, String?)> run(MockClient client, {bool withToken = true}) async {
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'session-token',
+        'user_role': 'Customer',
+        if (withToken) 'registered_push_token': fcm,
+      });
+      final ok = await http.runWithClient(ApiService.removeDeviceToken, () => client);
+      return (ok, (await SharedPreferences.getInstance()).getString('registered_push_token'));
+    }
+
+    test('success reports true and forgets the local token', () async {
+      final (ok, local) = await run(MockClient((_) async => http.Response('{"success":true}', 200)));
+      expect(ok, isTrue);
+      expect(local, isNull);
+    });
+
+    test('nothing registered is a no-op success without a request', () async {
+      var calls = 0;
+      final (ok, _) = await run(MockClient((_) async {
+        calls++;
+        return http.Response('{}', 200);
+      }), withToken: false);
+      expect(ok, isTrue);
+      expect(calls, 0);
+    });
+
+    for (final failure in <String, MockClient>{
+      'no network': MockClient((_) async => throw http.ClientException('offline')),
+      'timeout': MockClient((_) async => throw TimeoutException('slow')),
+      'unexpected exception': MockClient((_) async => throw StateError('boom')),
+      'HTTP 500': MockClient((_) async => http.Response('{"message":"boom"}', 500)),
+    }.entries) {
+      test('${failure.key} reports false, keeps the local token and never throws', () async {
+        final (ok, local) = await run(failure.value);
+        expect(ok, isFalse);
+        expect(local, fcm);
+      });
+
+    test('HTTP 401 reports false; the expired session is cleared instead of claiming revocation', () async {
+      SessionCoordinator.reset();
+      final (ok, local) = await run(MockClient((_) async => http.Response('{"message":"Unauthenticated."}', 401)));
+      expect(ok, isFalse);
+      expect(local, isNull);
+      expect(await ApiService.isLoggedIn(), isFalse);
+    });
+    }
   });
 
   group('30: token registration never invalidates the session', () {

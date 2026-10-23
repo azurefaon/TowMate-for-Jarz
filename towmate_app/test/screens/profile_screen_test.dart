@@ -392,6 +392,45 @@ void main() {
       expect((await SharedPreferences.getInstance()).getString('registered_push_token'), isNull);
     });
 
+    for (final failure in <String, Future<http.Response> Function()>{
+      'a server error': () async => _json({'message': 'boom'}, status: 500),
+      'no network': () async => throw http.ClientException('offline'),
+    }.entries) {
+      testWidgets('Logout still completes locally when token revocation fails with ${failure.key}', (tester) async {
+        final client = MockClient((request) async {
+          if (request.url.path.endsWith('/v1/profile')) return _json(_profileFixture);
+          if (request.method == 'DELETE') return failure.value();
+          return _json({}, status: 404);
+        });
+
+        SharedPreferences.setMockInitialValues({
+          'auth_token': 'test-token',
+          'registered_push_token': 'fcm-token-1234567890abcd',
+        });
+        await http.runWithClient(
+          () async {
+            await tester.pumpWidget(MaterialApp(
+              onGenerateRoute: (settings) => MaterialPageRoute(
+                builder: (_) => settings.name == '/login' ? const Scaffold(body: Text('Login')) : const ProfileScreen(),
+              ),
+            ));
+            await _settle(tester);
+
+            await tester.ensureVisible(find.text('Logout'));
+            await tester.tap(find.text('Logout'));
+            await _settle(tester);
+            await tester.tap(find.text('Log out'));
+            await _settle(tester);
+          },
+          () => client,
+        );
+
+        expect(find.text('Login'), findsOneWidget);
+        expect((await SharedPreferences.getInstance()).getString('auth_token'), isNull);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('tapping Logout shows the confirmation dialog', (tester) async {
       await _pumpProfile(tester);
 
