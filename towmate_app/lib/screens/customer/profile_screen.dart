@@ -121,6 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
       ),
     );
     if (confirmed != true) return;
+    await ApiService.removeDeviceToken();
     await ApiService.clearSession();
     AppPrefs.useGuestTheme();
     if (!mounted) return;

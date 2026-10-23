@@ -351,6 +351,47 @@ void main() {
       );
     });
 
+    testWidgets('confirming Logout revokes this device\'s push token before clearing the session', (tester) async {
+      final calls = <String>[];
+      final client = MockClient((request) async {
+        final path = request.url.path;
+        calls.add('${request.method} $path');
+        if (path.endsWith('/v1/profile')) return _json(_profileFixture);
+        if (request.method == 'DELETE' && path.endsWith('/v1/device-tokens')) {
+          expect(jsonDecode(request.body)['token'], 'fcm-token-1234567890abcd');
+          expect(request.headers['Authorization'], 'Bearer test-token');
+          return _json({'success': true});
+        }
+        return _json({}, status: 404);
+      });
+
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'test-token',
+        'registered_push_token': 'fcm-token-1234567890abcd',
+      });
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(MaterialApp(
+            onGenerateRoute: (settings) => MaterialPageRoute(
+              builder: (_) => settings.name == '/login' ? const Scaffold(body: Text('Login')) : const ProfileScreen(),
+            ),
+          ));
+          await _settle(tester);
+
+          await tester.ensureVisible(find.text('Logout'));
+          await tester.tap(find.text('Logout'));
+          await _settle(tester);
+          await tester.tap(find.text('Log out'));
+          await _settle(tester);
+        },
+        () => client,
+      );
+
+      expect(calls, contains('DELETE /api/v1/device-tokens'));
+      expect(find.text('Login'), findsOneWidget);
+      expect((await SharedPreferences.getInstance()).getString('registered_push_token'), isNull);
+    });
+
     testWidgets('tapping Logout shows the confirmation dialog', (tester) async {
       await _pumpProfile(tester);
 
