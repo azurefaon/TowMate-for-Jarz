@@ -67,20 +67,38 @@ it('renders the customer app content primary tab', function () {
     $response->assertSee('id="customer-content"', false);
 });
 
-it('keeps all five customer app content sections reachable', function () {
+it('shows only the Announcements and Services customer app content sections', function () {
     $response = $this->actingAs(bsOwner())->get(route('superadmin.settings.index'));
 
     $response->assertOk();
     $response->assertSee('id="mc-announcements"', false);
     $response->assertSee('id="mc-services"', false);
-    $response->assertSee('id="mc-about-support"', false);
-    $response->assertSee('id="mc-how-it-works"', false);
-    $response->assertSee('id="mc-coverage-areas"', false);
     $response->assertSee('data-mc-section="mc-announcements"', false);
     $response->assertSee('data-mc-section="mc-services"', false);
-    $response->assertSee('data-mc-section="mc-about-support"', false);
-    $response->assertSee('data-mc-section="mc-how-it-works"', false);
-    $response->assertSee('data-mc-section="mc-coverage-areas"', false);
+});
+
+it('hides the legacy customer app content sections from the owner UI', function () {
+    $response = $this->actingAs(bsOwner())->get(route('superadmin.settings.index'));
+
+    $response->assertOk();
+    foreach (['mc-about-support', 'mc-how-it-works', 'mc-coverage-areas', 'mc-app-images'] as $id) {
+        $response->assertDontSee('id="'.$id.'"', false);
+        $response->assertDontSee('data-mc-section="'.$id.'"', false);
+    }
+    $response->assertDontSee('name="mobile_hero_image"', false);
+    $response->assertDontSee('name="mobile_about_text"', false);
+});
+
+it('still renders the page for old bookmarked URLs pointing at hidden subsections', function () {
+    $owner = bsOwner();
+
+    foreach (['mc-about-support', 'mc-how-it-works', 'mc-coverage-areas', 'mc-app-images'] as $id) {
+        $this->actingAs($owner)
+            ->get(route('superadmin.settings.index', ['tab' => 'customer-content', 'sub' => $id]))
+            ->assertOk()
+            ->assertSee('id="mc-announcements"', false)
+            ->assertSee('Unknown or hidden subsections', false);
+    }
 });
 
 it('does not render payment details fields', function () {
@@ -119,10 +137,11 @@ it('keeps customer app content forms wired to their exact existing routes and me
     $response->assertOk();
     $response->assertSee('action="' . route('superadmin.settings.customer-content.announcements.store') . '"', false);
     $response->assertSee('action="' . route('superadmin.settings.customer-content.services.store') . '"', false);
-    $response->assertSee('action="' . route('superadmin.settings.customer-content.about.update') . '"', false);
-    $response->assertSee('action="' . route('superadmin.settings.customer-content.support.update') . '"', false);
-    $response->assertSee('action="' . route('superadmin.settings.customer-content.how-it-works.store') . '"', false);
-    $response->assertSee('action="' . route('superadmin.settings.customer-content.coverage-areas.store') . '"', false);
+    $response->assertDontSee('action="' . route('superadmin.settings.customer-content.about.update') . '"', false);
+    $response->assertDontSee('action="' . route('superadmin.settings.customer-content.support.update') . '"', false);
+    $response->assertDontSee('action="' . route('superadmin.settings.customer-content.how-it-works.store') . '"', false);
+    $response->assertDontSee('action="' . route('superadmin.settings.customer-content.coverage-areas.store') . '"', false);
+    $response->assertDontSee('action="' . route('superadmin.settings.customer-content.images.update') . '"', false);
 });
 
 it('renders a compact empty state for each customer app content section when no records exist', function () {
@@ -131,8 +150,8 @@ it('renders a compact empty state for each customer app content section when no 
     $response->assertOk();
     $response->assertSee('No announcements yet.');
     $response->assertSee('No services yet.');
-    $response->assertSee('No steps yet.');
-    $response->assertSee('No coverage areas yet.');
+    $response->assertDontSee('No steps yet.');
+    $response->assertDontSee('No coverage areas yet.');
 });
 
 it('renders existing announcements, services, steps, and coverage areas when records exist', function () {
@@ -146,8 +165,8 @@ it('renders existing announcements, services, steps, and coverage areas when rec
     $response->assertOk();
     $response->assertSee('BS Announcement');
     $response->assertSee('BS Service');
-    $response->assertSee('BS Step');
-    $response->assertSee('BS Area');
+    $response->assertDontSee('BS Step');
+    $response->assertDontSee('BS Area');
     $response->assertSee('Active');
 });
 
