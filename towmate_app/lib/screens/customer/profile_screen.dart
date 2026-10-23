@@ -6,6 +6,7 @@ import '../../core/route_observer.dart';
 import '../../core/theme.dart';
 import '../../core/validators.dart';
 import '../../services/api_service.dart';
+import '../../services/push_notification_service.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/tm_bottom_nav.dart';
 
@@ -628,7 +629,8 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                               'ACCOUNT SETTINGS',
                               style: GoogleFonts.inter(
                                 color: context.textSecondary,
-                                fontSize: 11,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
                                 letterSpacing: 0.8,
                               ),
                             ),
@@ -669,90 +671,34 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                               'APPEARANCE',
                               style: GoogleFonts.inter(
                                 color: context.textSecondary,
-                                fontSize: 11,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
                                 letterSpacing: 0.8,
                               ),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          ValueListenableBuilder<ThemeMode>(
-                            valueListenable: AppPrefs.themeModeNotifier,
-                            builder: (ctx, mode, _) {
-                              final dark = mode == ThemeMode.dark;
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: ctx.divider,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    SizedBox(
-                                      width: 88,
-                                      child: Text(
-                                        'Dark Mode',
-                                        style: GoogleFonts.inter(
-                                          color: ctx.textSecondary,
-                                          fontSize: 13,
-                                          letterSpacing: 0.1,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        dark ? 'On' : 'Off',
-                                        style: GoogleFonts.inter(
-                                          color: ctx.textPrimary,
-                                          fontSize: 14,
-                                          letterSpacing: 0.1,
-                                        ),
-                                      ),
-                                    ),
-                                    Switch(
-                                      value: dark,
-                                      onChanged: (val) async {
-                                        AppPrefs.themeModeNotifier.value = val
-                                            ? ThemeMode.dark
-                                            : ThemeMode.light;
-                                        await AppPrefs.setDarkMode(val);
-                                      },
-                                      activeThumbColor: TmColors.yellow,
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
+                          const _ThemeModeRow(),
+                          const _PushNotificationsRow(),
 
                           const SizedBox(height: 40),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
                             child: InkWell(
                               onTap: _logout,
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.logout_rounded,
-                                    color: TmColors.error,
-                                    size: 20,
+                              child: Container(
+                                constraints: const BoxConstraints(minHeight: 48),
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Logout',
+                                  style: GoogleFonts.inter(
+                                    color: context.isDark
+                                        ? const Color(0xFFFF8A80)
+                                        : TmColors.destructive,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'Log out',
-                                    style: GoogleFonts.inter(
-                                      color: TmColors.error,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
@@ -793,12 +739,12 @@ class _SettingsRow extends StatelessWidget {
         child: Row(
           children: [
             SizedBox(
-              width: 88,
+              width: 104,
               child: Text(
                 label,
                 style: GoogleFonts.inter(
                   color: context.textSecondary,
-                  fontSize: 13,
+                  fontSize: 14,
                   letterSpacing: 0.1,
                 ),
               ),
@@ -811,7 +757,8 @@ class _SettingsRow extends StatelessWidget {
                     value,
                     style: GoogleFonts.inter(
                       color: context.textPrimary,
-                      fontSize: 14,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
                       letterSpacing: 0.1,
                     ),
                   ),
@@ -821,7 +768,7 @@ class _SettingsRow extends StatelessWidget {
                       subtitle!,
                       style: GoogleFonts.inter(
                         color: context.textSecondary,
-                        fontSize: 11.5,
+                        fontSize: 12.5,
                         letterSpacing: 0.1,
                       ),
                     ),
@@ -904,7 +851,7 @@ class _ProfileSkeleton extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(
-                  width: 88,
+                  width: 104,
                   child: SkeletonBox(width: 66, height: 13),
                 ),
                 const Expanded(child: SkeletonBox(width: 28, height: 14)),
@@ -949,7 +896,7 @@ class _SettingsRowSkeleton extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const SizedBox(width: 88, child: SkeletonBox(width: 56, height: 13)),
+          const SizedBox(width: 104, child: SkeletonBox(width: 56, height: 13)),
           const Expanded(child: SkeletonBox(width: 100, height: 14)),
         ],
       ),
@@ -995,6 +942,205 @@ class _PwFieldState extends State<_PwField> {
             size: 18,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Light / dark appearance control. Reads and writes the same notifier and
+/// stored preference the app already uses for the theme.
+class _ThemeModeRow extends StatelessWidget {
+  const _ThemeModeRow();
+
+  Future<void> _select(bool dark) async {
+    AppPrefs.themeModeNotifier.value = dark ? ThemeMode.dark : ThemeMode.light;
+    await AppPrefs.setDarkMode(dark);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppPrefs.themeModeNotifier,
+      builder: (ctx, mode, _) {
+        final dark = mode == ThemeMode.dark;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: ctx.divider, width: 0.5)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Dark Mode',
+                  style: GoogleFonts.inter(
+                    color: ctx.textSecondary,
+                    fontSize: 14,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+              _ThemeModeButton(
+                icon: Icons.light_mode_rounded,
+                label: 'Light mode',
+                selected: !dark,
+                onTap: () => _select(false),
+              ),
+              const SizedBox(width: 8),
+              _ThemeModeButton(
+                icon: Icons.dark_mode_rounded,
+                label: 'Dark mode',
+                selected: dark,
+                onTap: () => _select(true),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ThemeModeButton extends StatelessWidget {
+  const _ThemeModeButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      excludeSemantics: true,
+      child: Material(
+        color: selected ? TmColors.yellow : Colors.transparent,
+        shape: CircleBorder(
+          side: BorderSide(
+            color: selected ? TmColors.yellow : context.divider,
+            width: 1.5,
+          ),
+        ),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Icon(
+              icon,
+              size: 24,
+              color: selected ? TmColors.black : context.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Booking push preference. Shows On only when the preference is on and the
+/// system permits notifications; turning it off removes this device's token
+/// from the server.
+class _PushNotificationsRow extends StatefulWidget {
+  const _PushNotificationsRow();
+
+  @override
+  State<_PushNotificationsRow> createState() => _PushNotificationsRowState();
+}
+
+class _PushNotificationsRowState extends State<_PushNotificationsRow> {
+  bool _on = false;
+  bool _busy = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final on = await PushNotificationService.instance.isEffectivelyOn();
+    if (!mounted) return;
+    setState(() {
+      _on = on;
+      _busy = false;
+    });
+  }
+
+  Future<void> _toggle(bool value) async {
+    setState(() => _busy = true);
+    final result = await PushNotificationService.instance.setEnabled(value);
+    if (!mounted) return;
+    setState(() {
+      _on = switch (result) {
+        PushToggleResult.on => true,
+        PushToggleResult.off || PushToggleResult.permissionDenied => false,
+        _ => _on,
+      };
+      _busy = false;
+    });
+    final message = switch (result) {
+      PushToggleResult.permissionDenied =>
+        'Notifications are blocked for TowMate. Allow them in your phone settings to turn this on.',
+      PushToggleResult.serverUnreachable =>
+        'Could not update your preference. Check your connection and try again.',
+      PushToggleResult.unavailable => 'Push notifications are not available on this device.',
+      _ => null,
+    };
+    if (message != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.divider, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Push Notifications',
+              style: GoogleFonts.inter(
+                color: context.textSecondary,
+                fontSize: 14,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ),
+          Text(
+            _on ? 'On' : 'Off',
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Semantics(
+            label: 'Push Notifications',
+            child: Switch(
+              value: _on,
+              onChanged: _busy ? null : _toggle,
+              activeThumbColor: TmColors.black,
+              activeTrackColor: TmColors.yellow,
+            ),
+          ),
+        ],
       ),
     );
   }

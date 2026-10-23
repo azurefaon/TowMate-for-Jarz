@@ -11,6 +11,8 @@ BookingModel _booking(String status) => BookingModel.fromJson({
     });
 
 void main() {
+  _closureGroup();
+
   group('BookingModel.humanStatus', () {
     const realStatuses = {
       'requested': 'Requested',
@@ -91,5 +93,46 @@ void main() {
         expect(_booking(status).isHistorical, isFalse);
       });
     }
+  });
+}
+
+void _closureGroup() {
+  group('BookingModel closure details', () {
+    BookingModel closed(String status, {String? by, String? reason}) => BookingModel.fromJson({
+          'id': 1,
+          'booking_code': 'TM-00001',
+          'status': status,
+          'pickup_address': 'A',
+          'dropoff_address': 'B',
+          'closed_by': by,
+          'rejection_reason': reason,
+        });
+
+    test('dispatcher cancellation shows the actor and the recorded reason', () {
+      final b = closed('cancelled', by: 'dispatcher', reason: ' No unit available ');
+      expect(b.closureHeadline, 'Cancelled by Dispatcher');
+      expect(b.closureReasonLine, 'Reason: No unit available');
+    });
+
+    test('dispatcher rejection is labelled as a rejection', () {
+      final b = closed('rejected', by: 'dispatcher', reason: 'Out of coverage');
+      expect(b.closureHeadline, 'Rejected by Dispatcher');
+    });
+
+    test('customer cancellation is attributed to the customer', () {
+      expect(closed('cancelled', by: 'customer').closureHeadline, 'Cancelled by you');
+    });
+
+    test('missing reason falls back to a neutral line and unknown actor has no headline', () {
+      final b = closed('cancelled');
+      expect(b.closureHeadline, isNull);
+      expect(b.closureReasonLine, 'Reason not provided.');
+    });
+
+    test('bookings that were not cancelled or rejected have no closure details', () {
+      final b = closed('completed', by: 'dispatcher', reason: 'x');
+      expect(b.closureHeadline, isNull);
+      expect(b.closureReasonLine, isNull);
+    });
   });
 }

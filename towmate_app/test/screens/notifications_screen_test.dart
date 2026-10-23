@@ -161,7 +161,7 @@ void main() {
         () => _buildClient(slow: true),
       );
 
-      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('Alerts & Notifications'), findsOneWidget);
       expect(find.byIcon(Icons.arrow_back_rounded), findsNothing);
       expect(find.byType(TmBottomNav), findsOneWidget);
 
@@ -193,20 +193,23 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('unread notification shows a dot and Mark all read action', (tester) async {
+    testWidgets('unread notification shows a dot and an enabled Mark All Read action', (tester) async {
       await _pumpNotifications(tester);
 
-      expect(find.text('Mark all read'), findsOneWidget);
+      expect(find.text('Mark All Read'), findsOneWidget);
+      final button = tester.widget<TextButton>(find.widgetWithText(TextButton, 'Mark All Read'));
+      expect(button.onPressed, isNotNull);
     });
 
-    testWidgets('tapping Mark all read clears the unread action', (tester) async {
+    testWidgets('tapping Mark All Read leaves the action visible but disabled', (tester) async {
       await _pumpNotifications(tester);
 
-      expect(find.text('Mark all read'), findsOneWidget);
-      await tester.tap(find.text('Mark all read'));
+      await tester.tap(find.text('Mark All Read'));
       await _settle(tester);
 
-      expect(find.text('Mark all read'), findsNothing);
+      expect(find.text('Mark All Read'), findsOneWidget);
+      final button = tester.widget<TextButton>(find.widgetWithText(TextButton, 'Mark All Read'));
+      expect(button.onPressed, isNull);
     });
 
     testWidgets('tapping a notification with a booking code navigates to booking detail', (tester) async {
@@ -441,6 +444,32 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Your tow is on the way'), findsOneWidget);
+    });
+
+    testWidgets('title, description and Mark All Read use high-contrast text in both themes', (tester) async {
+      double contrast(Color a, Color b) {
+        final la = a.computeLuminance();
+        final lb = b.computeLuminance();
+        return ((la > lb ? la : lb) + 0.05) / ((la > lb ? lb : la) + 0.05);
+      }
+
+      for (final dark in [false, true]) {
+        await _pumpNotifications(
+          tester,
+          theme: dark ? AppTheme.dark : AppTheme.light,
+          themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+        );
+        final bg = dark ? TmColors.dark900 : TmColors.white;
+
+        final title = tester.widget<Text>(find.text('Your tow is on the way'));
+        final body = tester.widget<Text>(find.text('The driver is heading to your pickup location.'));
+        expect(contrast(title.style!.color!, bg), greaterThanOrEqualTo(7.0), reason: 'title dark=$dark');
+        expect(contrast(body.style!.color!, bg), greaterThanOrEqualTo(7.0), reason: 'body dark=$dark');
+
+        final action = tester.widget<TextButton>(find.widgetWithText(TextButton, 'Mark All Read'));
+        final actionColor = action.style!.foregroundColor!.resolve(<WidgetState>{})!;
+        expect(contrast(actionColor, dark ? TmColors.dark700 : TmColors.grey100), greaterThanOrEqualTo(7.0));
+      }
     });
   });
 }

@@ -43,6 +43,7 @@ class PushMessage {
 abstract class PushGateway {
   Future<void> initialize();
   Future<bool> requestPermission();
+  Future<bool> isPermissionGranted();
   Future<String?> getToken();
   Stream<String> get onTokenRefresh;
   Stream<PushMessage> get onMessage;
@@ -80,6 +81,13 @@ class FirebasePushGateway implements PushGateway {
   @override
   Future<bool> requestPermission() async {
     final settings = await _fm.requestPermission();
+    return settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
+  }
+
+  @override
+  Future<bool> isPermissionGranted() async {
+    final settings = await _fm.getNotificationSettings();
     return settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
   }
@@ -160,24 +168,28 @@ class PushNotificationService {
     SystemNotificationPresenter? presenter,
     Future<bool> Function()? isCustomerSession,
     Future<bool> Function(String token)? registerToken,
+    Future<bool> Function()? removeToken,
     bool Function(String bookingCode)? openBooking,
     DateTime Function()? now,
   })  : _gateway = gateway ?? FirebasePushGateway(),
         _presenter = presenter ?? LocalNotificationPresenter(),
         _isCustomerSession = isCustomerSession ?? _defaultIsCustomerSession,
         _registerToken = registerToken ?? ApiService.registerDeviceToken,
+        _removeToken = removeToken ?? ApiService.removeDeviceToken,
         _openBooking = openBooking ?? _defaultOpenBooking,
         _now = now ?? DateTime.now;
 
   static final PushNotificationService instance = PushNotificationService();
 
   static const _permissionAskedKey = 'push_permission_requested_v1';
+  static const _enabledKey = 'push_notifications_enabled_v1';
   static const _pendingTtl = Duration(minutes: 2);
 
   final PushGateway _gateway;
   final SystemNotificationPresenter _presenter;
   final Future<bool> Function() _isCustomerSession;
   final Future<bool> Function(String token) _registerToken;
+  final Future<bool> Function() _removeToken;
   final bool Function(String bookingCode) _openBooking;
   final DateTime Function() _now;
 
@@ -200,6 +212,63 @@ class PushNotificationService {
     if (navigator == null) return false;
     navigator.pushNamed('/booking-detail', arguments: bookingCode);
     return true;
+  }
+
+  /// The user's Push Notifications choice on this device (on by default).
+  Future<bool> isPreferenceEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_enabledKey) ?? true;
+  }
+
+  /// What the Profile switch should show: on only when the preference is on
+  /// AND the system currently allows notifications.
+  Future<bool> isEffectivelyOn() async {
+    try {
+      if (!await isPreferenceEnabled()) return false;
+      await _initFuture;
+      if (!_initialized) return false;
+      return await _gateway.isPermissionGranted();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Turns booking pushes on or off and returns the state that is now in
+  /// effect. Off removes this device's token from the server, so the server
+  /// stops sending to it; in-app notifications are unaffected. On asks for
+  /// the system permission and stays off if it is refused.
+  Future<PushToggleResult> setEnabled(bool enable) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!enable) {
+      if (!await _removeToken()) return PushToggleResult.serverUnreachable;
+      _lastRegisteredToken = null;
+      await prefs.setBool(_enabledKey, false);
+      return PushToggleResult.off;
+    }
+    try {
+      await _initFuture;
+      if (!_initialized) return PushToggleResult.unavailable;
+      if (!await _gateway.requestPermission()) {
+        await prefs.setBool(_enabledKey, false);
+        return PushToggleResult.permissionDenied;
+      }
+      final token = await _gateway.getToken();
+      if (token == null || token.isEmpty || !await _registerForced(token)) {
+        return PushToggleResult.serverUnreachable;
+      }
+      await prefs.setBool(_enabledKey, true);
+      return PushToggleResult.on;
+    } catch (e) {
+      _log('enable failed: ${e.runtimeType}');
+      return PushToggleResult.unavailable;
+    }
+  }
+
+  Future<bool> _registerForced(String token) async {
+    if (token == _lastRegisteredToken) return true;
+    final ok = await _registerToken(token);
+    if (ok) _lastRegisteredToken = token;
+    return ok;
   }
 
   /// Safe to call from main(); never throws.
@@ -233,6 +302,7 @@ class PushNotificationService {
       await _initFuture;
       if (!_initialized) return;
       await consumePendingNavigation();
+      if (!await isPreferenceEnabled()) return;
       await _requestPermissionOnce();
       final token = await _gateway.getToken();
       if (token != null && token.isNotEmpty) await _register(token);
@@ -280,12 +350,13 @@ class PushNotificationService {
 
   Future<void> _onTokenRefresh(String token) async {
     try {
-      if (await _isCustomerSession()) await _register(token);
+      if (await isPreferenceEnabled() && await _isCustomerSession()) await _register(token);
     } catch (_) {}
   }
 
   Future<void> _onForegroundMessage(PushMessage message) async {
     try {
+      if (!await isPreferenceEnabled()) return;
       final push = BookingPush.tryParse(message.data);
       final title = message.title;
       final body = message.body;
@@ -320,3 +391,5 @@ class PushNotificationService {
     if (kDebugMode) debugPrint('[push] $message');
   }
 }
+
+enum PushToggleResult { on, off, permissionDenied, serverUnreachable, unavailable }

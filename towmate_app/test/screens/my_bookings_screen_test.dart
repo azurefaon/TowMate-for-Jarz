@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/core/route_observer.dart';
+import 'package:towmate_app/core/status_style.dart';
 import 'package:towmate_app/screens/customer/my_bookings_screen.dart';
 import 'package:towmate_app/widgets/skeleton_box.dart';
 import 'package:towmate_app/widgets/tm_bottom_nav.dart';
@@ -194,6 +195,89 @@ void main() {
       expect(find.text('TM-00004'), findsOneWidget);
       expect(find.text('TM-00005'), findsOneWidget);
       expect(find.text('TM-00006'), findsOneWidget);
+    });
+
+    testWidgets('History cards show who closed the booking and the recorded reason', (tester) async {
+      final originalSize = tester.view.physicalSize;
+      final originalRatio = tester.view.devicePixelRatio;
+      tester.view.physicalSize = const Size(400, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.physicalSize = originalSize;
+        tester.view.devicePixelRatio = originalRatio;
+      });
+
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          {
+            ..._booking(code: 'TM-00004', status: 'cancelled'),
+            'closed_by': 'dispatcher',
+            'rejection_reason': 'No tow unit available in your area.',
+          },
+          {
+            ..._booking(code: 'TM-00005', status: 'rejected'),
+            'closed_by': 'dispatcher',
+            'rejection_reason': 'Pickup is outside our coverage.',
+          },
+          {
+            ..._booking(code: 'TM-00006', status: 'cancelled'),
+            'closed_by': 'customer',
+            'rejection_reason': null,
+          },
+          _booking(code: 'TM-00007', status: 'cancelled'),
+          _booking(code: 'TM-00008', status: 'completed'),
+        ]),
+      );
+
+      await tester.tap(find.text('History'));
+      await _settle(tester);
+
+      expect(find.text('Cancelled by Dispatcher'), findsOneWidget);
+      expect(find.text('Reason: No tow unit available in your area.'), findsOneWidget);
+      expect(find.text('Rejected by Dispatcher'), findsOneWidget);
+      expect(find.text('Reason: Pickup is outside our coverage.'), findsOneWidget);
+      expect(find.text('Cancelled by you'), findsOneWidget);
+      expect(find.text('Reason not provided.'), findsNWidgets(2));
+    });
+
+    testWidgets('cards use a solid, status-coloured border and no gradient', (tester) async {
+      final originalSize = tester.view.physicalSize;
+      final originalRatio = tester.view.devicePixelRatio;
+      tester.view.physicalSize = const Size(400, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.physicalSize = originalSize;
+        tester.view.devicePixelRatio = originalRatio;
+      });
+
+      await _pumpScreen(
+        tester,
+        _clientFor(bookings: [
+          _booking(code: 'TM-00003', status: 'completed'),
+          _booking(code: 'TM-00004', status: 'cancelled'),
+          _booking(code: 'TM-00005', status: 'rejected'),
+        ]),
+      );
+      await tester.tap(find.text('History'));
+      await _settle(tester);
+
+      Border borderOf(String code) {
+        final card = find
+            .ancestor(of: find.text(code), matching: find.byType(Container))
+            .evaluate()
+            .map((e) => e.widget as Container)
+            .firstWhere((c) => c.decoration is BoxDecoration && (c.decoration as BoxDecoration).border != null);
+        final decoration = card.decoration as BoxDecoration;
+        expect(decoration.gradient, isNull);
+        return decoration.border! as Border;
+      }
+
+      expect(borderOf('TM-00003').top.color, StatusStyle.green.borderFor(Brightness.light));
+      expect(borderOf('TM-00004').top.color, StatusStyle.red.borderFor(Brightness.light));
+      expect(borderOf('TM-00005').top.color, StatusStyle.red.borderFor(Brightness.light));
+      expect(borderOf('TM-00004').top.width, 1.5);
+      expect(find.text('STATUS'), findsNothing);
     });
 
     testWidgets('tapping a booking card navigates to booking detail with the correct booking code', (tester) async {

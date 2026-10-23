@@ -17,6 +17,11 @@ abstract final class TmColors {
   static const Color dark700  = Color(0xFF2A2A2A);
   static const Color dark600  = Color(0xFF333333);
   static const Color darkText = Color(0xFFF0F0F0);
+
+  static const Color lightTextSecondary = Color(0xFF404040);
+  static const Color lightTextTertiary  = Color(0xFF525252);
+  static const Color darkTextSecondary  = Color(0xFFD4D4D4);
+  static const Color darkTextTertiary   = Color(0xFFB8B8B8);
 }
 
 abstract final class AppTheme {
@@ -46,6 +51,6 @@ extension TmContext on BuildContext {
   Color get divider => isDark ? TmColors.dark600  : TmColors.grey300;
 
   Color get textPrimary   => isDark ? TmColors.darkText : TmColors.black;
-  Color get textSecondary => isDark ? TmColors.grey500  : TmColors.grey500;
-  Color get textTertiary  => isDark ? TmColors.grey500  : TmColors.grey700;
+  Color get textSecondary => isDark ? TmColors.darkTextSecondary : TmColors.lightTextSecondary;
+  Color get textTertiary  => isDark ? TmColors.darkTextTertiary : TmColors.lightTextTertiary;
 }

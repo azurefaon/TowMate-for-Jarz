@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:towmate_app/core/app_prefs.dart';
 import 'package:towmate_app/core/route_observer.dart';
 import 'package:towmate_app/core/theme.dart';
 import 'package:towmate_app/screens/customer/edit_profile_screen.dart';
@@ -138,7 +139,7 @@ void main() {
       expect(find.text('Faon Delacruz'), findsWidgets);
       expect(find.text('ACCOUNT SETTINGS'), findsOneWidget);
       expect(find.text('APPEARANCE'), findsOneWidget);
-      expect(find.text('Log out'), findsOneWidget);
+      expect(find.text('Logout'), findsOneWidget);
       expect(find.byType(SkeletonBox), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -173,20 +174,43 @@ void main() {
       expect(find.text('••••••••'), findsNothing);
     });
 
-    testWidgets('Dark Mode switch is present and toggling it does not throw', (tester) async {
+    testWidgets('Dark Mode uses sun and moon icon buttons that switch and persist the theme', (tester) async {
+      AppPrefs.themeModeNotifier.value = ThemeMode.light;
       await _pumpProfile(tester);
 
       expect(find.text('Dark Mode'), findsOneWidget);
-      final switchFinder = find.byType(Switch);
-      expect(switchFinder, findsOneWidget);
+      expect(find.byIcon(Icons.light_mode_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.dark_mode_rounded), findsOneWidget);
 
-      await tester.ensureVisible(switchFinder);
-      await _settle(tester);
-      await tester.tap(switchFinder);
-      await _settle(tester);
+      expect(find.bySemanticsLabel('Light mode'), findsOneWidget);
+      expect(find.bySemanticsLabel('Dark mode'), findsOneWidget);
+      expect(tester.getSize(find.ancestor(of: find.byIcon(Icons.dark_mode_rounded), matching: find.byType(InkWell)).first).height, greaterThanOrEqualTo(48));
 
+      await tester.ensureVisible(find.byIcon(Icons.dark_mode_rounded));
+      await _settle(tester);
+      await tester.tap(find.byIcon(Icons.dark_mode_rounded));
+      await _settle(tester);
+      expect(AppPrefs.themeModeNotifier.value, ThemeMode.dark);
+      expect(await AppPrefs.getDarkMode(), isTrue);
+
+      await tester.tap(find.byIcon(Icons.light_mode_rounded));
+      await _settle(tester);
+      expect(AppPrefs.themeModeNotifier.value, ThemeMode.light);
+      expect(await AppPrefs.getDarkMode(), isFalse);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('Push Notifications row shows Off when push is unavailable and Logout has no icon', (tester) async {
+      await _pumpProfile(tester);
+
+      await tester.ensureVisible(find.text('Push Notifications'));
+      await _settle(tester);
+      expect(find.text('Push Notifications'), findsOneWidget);
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+      expect(find.byIcon(Icons.logout_rounded), findsNothing);
+      expect(find.text('Log out'), findsNothing);
+    });
+
 
     testWidgets('main profile displays the profile photo, full name, and email', (tester) async {
       await _pumpProfile(tester);
@@ -301,9 +325,9 @@ void main() {
     testWidgets('tapping Logout shows the confirmation dialog', (tester) async {
       await _pumpProfile(tester);
 
-      await tester.ensureVisible(find.text('Log out'));
+      await tester.ensureVisible(find.text('Logout'));
       await _settle(tester);
-      await tester.tap(find.text('Log out'));
+      await tester.tap(find.text('Logout'));
       await _settle(tester);
 
       expect(find.text('Log out?'), findsOneWidget);

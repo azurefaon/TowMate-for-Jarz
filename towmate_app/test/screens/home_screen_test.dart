@@ -212,6 +212,9 @@ void main() {
       expect(find.text('No active booking'), findsOneWidget);
       expect(find.text('Once you request a tow, your driver and live status show up here.'), findsOneWidget);
       expect(find.textContaining('Need a tow?', findRichText: true), findsOneWidget);
+      final helperRow = find.ancestor(of: find.textContaining('Need a tow?', findRichText: true), matching: find.byType(Row)).first;
+      expect(find.descendant(of: helperRow, matching: find.byIcon(Icons.add)), findsNothing);
+      expect(find.textContaining('+ Need', findRichText: true), findsNothing);
       expect(find.text('Track'), findsNothing);
     });
 

@@ -35,6 +35,9 @@ class FakeGateway implements PushGateway {
   }
 
   @override
+  Future<bool> isPermissionGranted() async => permissionGranted;
+
+  @override
   Future<String?> getToken() async => token;
 
   @override
@@ -94,6 +97,8 @@ void main() {
   var customerSession = true;
   var navigatorReady = true;
   var registerResult = true;
+  var removed = 0;
+  var removeResult = true;
 
   PushNotificationService build({FakeGateway? g, DateTime Function()? now}) {
     gateway = g ?? gateway;
@@ -104,6 +109,10 @@ void main() {
       registerToken: (t) async {
         registered.add(t);
         return registerResult;
+      },
+      removeToken: () async {
+        removed++;
+        return removeResult;
       },
       openBooking: (code) {
         if (!navigatorReady) return false;
@@ -123,6 +132,8 @@ void main() {
     customerSession = true;
     navigatorReady = true;
     registerResult = true;
+    removed = 0;
+    removeResult = true;
   });
 
   group('BookingPush.tryParse', () {
@@ -356,6 +367,92 @@ void main() {
 
       expect(registered, ['fcm-token-1234567890abcd', 'fcm-token-1234567890abcd']);
       await service.dispose();
+    });
+  });
+
+  group('Push Notifications preference', () {
+    test('is on by default and reflects the system permission', () async {
+      final granted = build();
+      await granted.initialize();
+      expect(await granted.isPreferenceEnabled(), isTrue);
+      expect(await granted.isEffectivelyOn(), isTrue);
+      await granted.dispose();
+
+      final denied = build(g: FakeGateway(permissionGranted: false));
+      await denied.initialize();
+      expect(await denied.isPreferenceEnabled(), isTrue);
+      expect(await denied.isEffectivelyOn(), isFalse);
+      await denied.dispose();
+    });
+
+    test('turning off removes the token, persists, and stops registration and display', () async {
+      final service = build();
+      await service.initialize();
+      await service.startForCustomer();
+      expect(registered, hasLength(1));
+
+      expect(await service.setEnabled(false), PushToggleResult.off);
+      expect(removed, 1);
+      expect(await service.isEffectivelyOn(), isFalse);
+
+      gateway.refresh.add('fcm-token-refreshed-0000000');
+      gateway.message.add(const PushMessage(title: 'T', body: 'B', data: _validData));
+      await _flush();
+      await service.startForCustomer();
+
+      expect(registered, hasLength(1));
+      expect(presenter.shown, isEmpty);
+      await service.dispose();
+
+      final restarted = build();
+      await restarted.initialize();
+      expect(await restarted.isPreferenceEnabled(), isFalse);
+      await restarted.dispose();
+    });
+
+    test('a failed server removal keeps the preference on and reports it', () async {
+      final service = build();
+      await service.initialize();
+      removeResult = false;
+
+      expect(await service.setEnabled(false), PushToggleResult.serverUnreachable);
+      expect(await service.isPreferenceEnabled(), isTrue);
+      await service.dispose();
+    });
+
+    test('turning back on asks permission, registers once, and persists', () async {
+      final service = build();
+      await service.initialize();
+      await service.setEnabled(false);
+      registered.clear();
+
+      expect(await service.setEnabled(true), PushToggleResult.on);
+      expect(await service.setEnabled(true), PushToggleResult.on);
+
+      expect(registered, ['fcm-token-1234567890abcd']);
+      expect(await service.isEffectivelyOn(), isTrue);
+      await service.dispose();
+    });
+
+    test('stays off when the system permission is refused', () async {
+      final service = build(g: FakeGateway(permissionGranted: false));
+      await service.initialize();
+      await service.setEnabled(false);
+      registered.clear();
+
+      expect(await service.setEnabled(true), PushToggleResult.permissionDenied);
+      expect(registered, isEmpty);
+      expect(await service.isPreferenceEnabled(), isFalse);
+      await service.dispose();
+    });
+
+    test('is unavailable, not silently on, when push never initialised', () async {
+      gateway = FakeGateway(failInit: true);
+      final service = build(g: gateway);
+      await service.initialize();
+
+      expect(await service.isEffectivelyOn(), isFalse);
+      expect(await service.setEnabled(true), PushToggleResult.unavailable);
     });
   });
 

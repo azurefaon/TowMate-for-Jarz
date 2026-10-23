@@ -283,7 +283,9 @@ class CustomerBookingController extends Controller
                 ->unique('source_booking_id')
                 ->keyBy('source_booking_id');
 
-        $bookings = $bookings->through(function ($b) use ($anchorsByGroupCode, $quotationNumbersByAnchorId) {
+        $customerClosedIds = $this->customerClosedBookingIds($bookings->getCollection());
+
+        $bookings = $bookings->through(function ($b) use ($anchorsByGroupCode, $quotationNumbersByAnchorId, $customerClosedIds) {
             $anchorId = $b->group_code ? ($anchorsByGroupCode->get($b->group_code)?->id ?? $b->id) : $b->id;
 
             return [
@@ -304,6 +306,7 @@ class CustomerBookingController extends Controller
                 'service_type'      => $b->service_type,
                 'scheduled_date'    => $b->scheduled_date?->toDateString(),
                 'scheduled_time'    => $b->scheduled_time,
+                ...$this->closureFields($b, isset($customerClosedIds[$b->id])),
             ];
         });
 
@@ -1131,6 +1134,7 @@ class CustomerBookingController extends Controller
                 'created_at'        => $booking->created_at?->toDateTimeString(),
                 'completed_at'      => $booking->completed_at?->toDateTimeString(),
                 'cancelled_at'      => $cancelledAt?->toIso8601String(),
+                ...$this->closureFields($booking, $cancelledAt !== null),
                 'price_history'     => $priceHistory,
                 'group_code'        => $booking->group_code,
                 'group_booking_code' => $anchor->booking_code,
@@ -1144,6 +1148,42 @@ class CustomerBookingController extends Controller
     }
 
     /** What the app needs to show the Follow Up action; the server alone decides when it is allowed. */
+    /**
+     * Who closed a cancelled/rejected booking and the reason on record.
+     * `closed_by` is "customer" when the customer's own cancel is audited,
+     * "dispatcher" when staff recorded a reason, otherwise null (unknown).
+     */
+    private function closureFields(Booking $booking, bool $cancelledByCustomer): array
+    {
+        if (! in_array($booking->status, ['cancelled', 'rejected'], true)) {
+            return ['closed_by' => null, 'rejection_reason' => null];
+        }
+
+        $reason = trim((string) $booking->rejection_reason);
+        $reason = $reason === '' ? null : $reason;
+
+        return [
+            'closed_by' => $cancelledByCustomer ? 'customer' : ($reason !== null ? 'dispatcher' : null),
+            'rejection_reason' => $reason,
+        ];
+    }
+
+    private function customerClosedBookingIds(\Illuminate\Support\Collection $bookings): array
+    {
+        $ids = $bookings->whereIn('status', ['cancelled', 'rejected'])->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        return AuditLog::where('entity_type', 'Booking')
+            ->where('action', 'booking_cancelled_by_customer')
+            ->whereIn('entity_id', $ids)
+            ->pluck('entity_id')
+            ->flip()
+            ->all();
+    }
+
     private function followUpFields(Booking $booking): array
     {
         $state = $this->bookingService->followUpState($booking);

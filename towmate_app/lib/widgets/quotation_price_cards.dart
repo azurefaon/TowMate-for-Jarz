@@ -14,8 +14,7 @@ String vatPercentLabel(double rate) {
       : '${pct.toStringAsFixed(2)}%';
 }
 
-Color secondaryTextColor(BuildContext context) =>
-    context.isDark ? TmColors.grey500 : const Color(0xFF6B6B6B);
+Color secondaryTextColor(BuildContext context) => context.textSecondary;
 
 TextStyle sectionEyebrowStyle(BuildContext context) => GoogleFonts.inter(
       color: secondaryTextColor(context),
@@ -334,8 +333,8 @@ class PriceLine extends StatelessWidget {
               label,
               style: GoogleFonts.inter(
                 color: secondaryTextColor(context),
-                fontSize: 13,
-                fontWeight: highlight ? FontWeight.w600 : FontWeight.w400,
+                fontSize: 14,
+                fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
                 letterSpacing: 0.1,
               ),
             ),
@@ -345,8 +344,8 @@ class PriceLine extends StatelessWidget {
             amount,
             style: GoogleFonts.inter(
               color: context.textPrimary,
-              fontSize: 13,
-              fontWeight: highlight ? FontWeight.w600 : FontWeight.w500,
+              fontSize: 14,
+              fontWeight: highlight ? FontWeight.w700 : FontWeight.w600,
               letterSpacing: 0.1,
             ),
           ),
