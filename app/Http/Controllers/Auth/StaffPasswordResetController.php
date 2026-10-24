@@ -27,14 +27,26 @@ class StaffPasswordResetController extends Controller
     private const REQUEST_RATE_LIMIT = 3;
     private const REQUEST_RATE_DECAY_MINUTES = 15;
 
+    // Web accounts that can sign in on the staff portal and therefore reset here:
+    // Owner (1), Admin/Dispatcher (2) and System Admin (6). Team Leaders (3) use the
+    // mobile app's reset and Customers (5) the customer app's.
+    private const ELIGIBLE_ROLE_IDS = [1, 2, 6];
+
     // Shown for every syntactically valid email, registered or not.
-    private const GENERIC_MESSAGE = "If an account uses this email, we'll send password reset instructions. Please check your inbox.";
+    private const GENERIC_MESSAGE = 'If an account is associated with this email, a verification code will be sent.';
     private const INVALID_CODE_MESSAGE = 'Invalid or expired verification code. Request a new code if needed.';
 
 
     public function create(): View
     {
-        return view('auth.staff-forgot-password');
+        // Set when a sign-in lock is shown (LoginRequest) or a legacy recovery link is opened. It lives
+        // in the session for a few minutes and is consumed here, so the email never appears in a URL.
+        $prefill = session()->pull('recovery_prefill');
+        $email = is_array($prefill) && now()->isBefore($prefill['until'] ?? now()) ? (string) ($prefill['email'] ?? '') : '';
+
+        return view('auth.staff-forgot-password', [
+            'prefillEmail' => filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : '',
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -59,6 +71,7 @@ class StaffPasswordResetController extends Controller
         session([
             'staff_pw_reset_email' => $email,
             'staff_pw_reset_last_sent_at' => now(),
+            'staff_pw_reset_code_expires_at' => now()->addMinutes(self::OTP_TTL_MINUTES),
         ]);
 
         return redirect()->route('password.otp.show')->with('status', $genericMessage);
@@ -87,33 +100,47 @@ class StaffPasswordResetController extends Controller
 
         $this->issueOtpIfEligible($email);
 
-        session(['staff_pw_reset_last_sent_at' => now()]);
+        session([
+            'staff_pw_reset_last_sent_at' => now(),
+            'staff_pw_reset_code_expires_at' => now()->addMinutes(self::OTP_TTL_MINUTES),
+        ]);
 
         return back()->with('status', $genericMessage)->with('otp_resent', true);
     }
 
-    private function issueOtpIfEligible(string $email): void
+    /**
+     * The single definition of "may reset a password here": active, not archived, anonymized or
+     * pending deletion, and holding a web-staff role. Used when issuing a code and again when the
+     * password is saved, so an account disabled mid-flow cannot finish a reset.
+     */
+    private function eligibleUsers(string $email)
     {
-        $user = User::where('email', $email)
+        return User::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
             ->where('status', 'active')
             ->whereNull('archived_at')
             ->whereNull('anonymized_at')
             ->whereNull('pending_delete_at')
-            ->whereHas('role', function ($query) {
-                $query->whereNotIn('id', [1, 4, 5]); // exclude Owner, Driver, Customer
-            })
-            ->first();
+            ->whereIn('role_id', self::ELIGIBLE_ROLE_IDS);
+    }
+
+    private function issueOtpIfEligible(string $email): void
+    {
+        $user = $this->eligibleUsers($email)->first();
+
+        // The bcrypt hash is the one expensive step, so it runs for every request. Unknown and
+        // ineligible emails then cost about the same CPU as real ones, without any artificial sleep.
+        $otp = (string) random_int(100000, 999999);
+        $otpHash = Hash::make($otp);
 
         if (! $user) {
             return;
         }
 
-        $otp = (string) random_int(100000, 999999);
-
         StaffPasswordResetOtp::updateOrCreate(
             ['email' => $email],
             [
-                'otp_hash' => Hash::make($otp),
+                'otp_hash' => $otpHash,
                 'expires_at' => now()->addMinutes(self::OTP_TTL_MINUTES),
                 'verified_at' => null,
                 'failed_attempts' => 0,
@@ -143,6 +170,7 @@ class StaffPasswordResetController extends Controller
         return view('auth.staff-verify-otp', [
             'maskedEmail' => $this->maskEmail($email),
             'resendWaitSeconds' => $this->resendWaitSeconds(),
+            'codeSecondsLeft' => $this->codeSecondsLeft(),
         ]);
     }
 
@@ -223,8 +251,18 @@ class StaffPasswordResetController extends Controller
 
         $email = session('staff_pw_reset_verified_email');
 
+        // Password::defaults() (AppServiceProvider) is the project-wide policy: 12+ characters,
+        // upper and lower case, a number, a symbol, and not found in a known data breach.
         $validated = $request->validate([
-            'password' => ['required', 'confirmed', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ], [
+            'password.required' => 'Enter a new password.',
+            'password.confirmed' => 'The passwords do not match.',
+            'password.min' => 'Use at least 12 characters.',
+            'password.password.mixed' => 'Include both uppercase and lowercase letters.',
+            'password.password.numbers' => 'Include at least one number.',
+            'password.password.symbols' => 'Include at least one special character.',
+            'password.password.uncompromised' => 'This password has appeared in a known data breach. Choose a different one.',
         ]);
 
         $newHash = Hash::make($validated['password']);
@@ -241,7 +279,7 @@ class StaffPasswordResetController extends Controller
                 return null;
             }
 
-            $user = User::where('email', $email)->lockForUpdate()->first();
+            $user = $this->eligibleUsers($email)->lockForUpdate()->first();
 
             if (! $user) {
                 return null;
@@ -263,6 +301,10 @@ class StaffPasswordResetController extends Controller
                 'password' => $newHash,
                 'remember_token' => Str::random(60),
                 'must_change_password' => false,
+                // The lock is lifted only here, once the password has really been changed.
+                'failed_login_attempts' => 0,
+                'last_failed_login_at' => null,
+                'locked_until' => null,
             ])->save();
 
             return $user;
@@ -289,6 +331,15 @@ class StaffPasswordResetController extends Controller
         }
 
         $this->clearResetSession();
+
+        // The sign-in throttle for this email and address would otherwise still count the failed attempts.
+        RateLimiter::clear(Str::transliterate('staff-login|' . Str::lower((string) $user->email) . '|' . $request->ip()));
+
+        // Lets the next successful sign-in be audited as the first one after recovery.
+        session([
+            'login_recovered_email' => $user->email,
+            'login_recovered_until' => now()->addMinutes(30),
+        ]);
 
         AuditLog::create([
             'user_id' => $user->id,
@@ -321,7 +372,25 @@ class StaffPasswordResetController extends Controller
             'staff_pw_reset_verified_email',
             'staff_pw_reset_verified_until',
             'staff_pw_reset_last_sent_at',
+            'staff_pw_reset_code_expires_at',
         ]);
+    }
+
+    /**
+     * Seconds the current code stays valid, for the page countdown only; verify() still enforces the
+     * real expiry. It is read only from the session value recorded when this browser requested a code
+     * (the same instant the stored code expires). Reading the stored record instead would let someone
+     * tell a real account from an unknown one, for example after hitting the request rate limit.
+     */
+    private function codeSecondsLeft(): int
+    {
+        $expiresAt = session('staff_pw_reset_code_expires_at');
+
+        if (! $expiresAt) {
+            return 0;
+        }
+
+        return max(0, (int) floor(now()->diffInSeconds(\Illuminate\Support\Carbon::parse($expiresAt), false)));
     }
 
     private function resendWaitSeconds(): int

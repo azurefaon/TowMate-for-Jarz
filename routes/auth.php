@@ -5,11 +5,11 @@ use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
-use App\Http\Controllers\Auth\LoginUnlockController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\StaffPasswordResetController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -60,26 +60,20 @@ Route::middleware('guest')->group(function () {
     Route::get('reset-password/success', [StaffPasswordResetController::class, 'success'])
         ->name('password.reset.success');
 
-    Route::get('login/recover', [LoginUnlockController::class, 'create'])
-        ->name('login.recover');
+    // Retired unlock-only recovery. Every legacy entry point now lands on the password reset flow,
+    // the only path that clears a sign-in lock, and only after a successful password change.
+    Route::get('login/recover', function (Request $request) {
+        $email = trim((string) $request->query('email', ''));
 
-    Route::post('login/recover', [LoginUnlockController::class, 'store'])
-        ->middleware('throttle:6,1')
-        ->name('login.recover.send');
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            session(['recovery_prefill' => ['email' => $email, 'until' => now()->addMinutes(10)]]);
+        }
 
-    Route::get('login/recover/verify', [LoginUnlockController::class, 'showVerify'])
-        ->name('login.recover.verify');
+        return redirect()->route('password.request');
+    })->name('login.recover');
 
-    Route::post('login/recover/verify', [LoginUnlockController::class, 'verify'])
-        ->middleware('throttle:10,1')
-        ->name('login.recover.verify.submit');
-
-    Route::post('login/recover/resend', [LoginUnlockController::class, 'resend'])
-        ->middleware('throttle:6,1')
-        ->name('login.recover.resend');
-
-    Route::get('login/recover/success', [LoginUnlockController::class, 'success'])
-        ->name('login.recover.success');
+    Route::match(['get', 'post'], 'login/recover/{path?}', fn () => redirect()->route('password.request'))
+        ->where('path', '.*');
 });
 
 Route::middleware('auth')->group(function () {

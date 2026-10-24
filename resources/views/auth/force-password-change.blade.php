@@ -9,7 +9,7 @@
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <link rel="stylesheet" href="{{ asset('admin/css/login.css') }}">
-    <link rel="icon" href="{{ asset('admin/images/logo.png') }}">
+    <link rel="icon" href="{{ asset('dispatcher/images/jarz-logo.png') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <title>TowMate | Change Password</title>
     <style>

@@ -40,7 +40,7 @@ it('A: a valid registered email gets the generic response and an OTP is generate
     $response = test()->post(route('password.email'), ['email' => $user->email]);
 
     $response->assertRedirect(route('password.otp.show'));
-    $response->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
+    $response->assertSessionHas('status', "If an account is associated with this email, a verification code will be sent.");
 
     expect(StaffPasswordResetOtp::where('email', $user->email)->exists())->toBeTrue();
     Mail::assertQueued(StaffPasswordResetOtpMail::class);
@@ -53,7 +53,7 @@ it('B: an unknown email gets the identical generic response and no OTP is create
     $response = test()->post(route('password.email'), ['email' => 'nobody-' . uniqid() . '@example.com']);
 
     $response->assertRedirect(route('password.otp.show'));
-    $response->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
+    $response->assertSessionHas('status', "If an account is associated with this email, a verification code will be sent.");
 
     expect(StaffPasswordResetOtp::count())->toBe(0);
     Mail::assertNothingQueued();
@@ -270,7 +270,7 @@ it('O and P: a successful reset makes the new password work and invalidates the 
 });
 
 // R ────────────────────────────────────────────────────────────────────
-it('R: an archived account stays archived after a password reset', function () {
+it('R: an archived account cannot complete a password reset and stays archived', function () {
     $user = pwResetDispatcher([
         'email' => 'staff-r@example.com',
         'status' => 'inactive',
@@ -282,9 +282,10 @@ it('R: an archived account stays archived after a password reset', function () {
     $session->post(route('password.store'), [
         'password' => 'ResetButStillArchived123!',
         'password_confirmation' => 'ResetButStillArchived123!',
-    ])->assertRedirect(route('password.reset.success'));
+    ])->assertRedirect(route('password.request'));
 
     $fresh = $user->fresh();
+    expect(Hash::check('ResetButStillArchived123!', $fresh->password))->toBeFalse();
     expect($fresh->archived_at)->not->toBeNull();
     expect($fresh->status)->toBe('inactive');
 });
