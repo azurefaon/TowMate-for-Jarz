@@ -255,6 +255,8 @@ class LoginRequest extends FormRequest
     {
         session()->flash('login_locked', true);
         session()->flash('login_locked_email', $user->email);
+        // Carries the email to the recovery page without putting it in a URL; consumed there.
+        session()->put('recovery_prefill', ['email' => $user->email, 'until' => now()->addMinutes(10)]);
 
         throw ValidationException::withMessages([
             'auth' => 'Too many unsuccessful sign-in attempts. Your sign-in access is temporarily locked. Verify your email to recover access.',

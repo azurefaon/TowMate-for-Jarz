@@ -1,29 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
+@extends('auth.recovery-layout')
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ asset('admin/css/auth-recovery.css') }}">
-    <link rel="icon" href="{{ asset('admin/images/logo.png') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <title>Password Updated</title>
-</head>
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('admin/css/staff-reset-password.css') }}">
+@endpush
 
-<body class="recovery-page">
-    <div class="recovery-wrap">
-        <div class="recovery-wordmark">Tow<span>Mate</span></div>
+@section('title', 'Password Updated')
+@section('subtitle', 'Password Updated')
 
-        <div class="recovery-card" style="text-align:center;">
-            <div class="recovery-success-icon">&#10003;</div>
-            <div class="recovery-header">
-                <h1>Password updated</h1>
-                <p>Your password has been changed successfully.<br>You can now sign in.</p>
-            </div>
-
-            <a href="{{ route('login') }}" class="recovery-btn" style="display:block;box-sizing:border-box;text-decoration:none;line-height:1.4;">Back to Login</a>
-        </div>
+@section('content')
+    <div class="pw-success-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+            <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                stroke-linejoin="round" />
+        </svg>
     </div>
-</body>
 
-</html>
+    <p class="jarz-fp-copy pw-success-copy">Your password has been changed. For your security, sign in again with your
+        new password.</p>
+
+    <a href="{{ route('login') }}" class="primary-btn">Return to Login</a>
+@endsection

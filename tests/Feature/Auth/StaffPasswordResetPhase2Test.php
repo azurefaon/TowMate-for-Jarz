@@ -30,7 +30,7 @@ it('20a: an inactive staff account gets the identical generic response and no OT
     $response = test()->post(route('password.email'), ['email' => $user->email]);
 
     $response->assertRedirect(route('password.otp.show'));
-    $response->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
+    $response->assertSessionHas('status', "If an account is associated with this email, a verification code will be sent.");
     expect(StaffPasswordResetOtp::where('email', $user->email)->exists())->toBeFalse();
     Mail::assertNothingQueued();
 });
@@ -40,7 +40,7 @@ it('20b: an archived staff account gets the identical generic response and no OT
     Mail::fake();
 
     test()->post(route('password.email'), ['email' => $user->email])
-        ->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
+        ->assertSessionHas('status', "If an account is associated with this email, a verification code will be sent.");
 
     expect(StaffPasswordResetOtp::where('email', $user->email)->exists())->toBeFalse();
     Mail::assertNothingQueued();
@@ -51,7 +51,7 @@ it('20c: a pending-deletion staff account gets the identical generic response an
     Mail::fake();
 
     test()->post(route('password.email'), ['email' => $user->email])
-        ->assertSessionHas('status', "If an account uses this email, we'll send password reset instructions. Please check your inbox.");
+        ->assertSessionHas('status', "If an account is associated with this email, a verification code will be sent.");
 
     expect(StaffPasswordResetOtp::where('email', $user->email)->exists())->toBeFalse();
     Mail::assertNothingQueued();

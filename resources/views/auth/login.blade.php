@@ -29,11 +29,11 @@
             <div class="jarz-login-card">
                 @if ($isLocked)
                     <div class="lock-block">
-                        <h2>Sign-in temporarily locked</h2>
+                        <h2>Sign-in locked</h2>
                         <p class="lock-message">Too many unsuccessful sign-in attempts. Your sign-in access is
                             temporarily locked. Verify your email to recover access.</p>
-                        <a href="{{ route('login.recover', ['email' => $lockedEmail]) }}"
-                            class="primary-btn lock-recover-btn">Recover access</a>
+                        <a href="{{ route('password.request') }}"
+                            class="primary-btn lock-recover-btn">Recover your account</a>
                         <a href="{{ route('login') }}" class="lock-back-link">&larr; Back to sign in</a>
                     </div>
                 @else

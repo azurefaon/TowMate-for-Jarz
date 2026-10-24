@@ -367,6 +367,13 @@ body {
 .lock-recover-btn {
     margin-bottom: 16px;
     text-decoration: none;
+    background: #171717;
+    border-color: #171717;
+    color: #ffffff;
+}
+
+.lock-recover-btn:hover {
+    background: #000000;
 }
 
 .lock-back-link {

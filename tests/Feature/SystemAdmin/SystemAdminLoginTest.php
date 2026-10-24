@@ -1,8 +1,10 @@
 <?php
 
+use App\Mail\StaffPasswordResetOtpMail;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 function loginPinRole(int $id, string $name): Role
 {
@@ -135,32 +137,38 @@ it('applies the 3-attempt temporary lock to a system admin account', function ()
     $this->assertGuest('systemadmin');
 });
 
-it('lets a locked system admin recover via OTP without bypassing the password', function () {
+it('lets a locked system admin recover only by resetting the password', function () {
     $admin = loginSystemAdmin();
     $admin->forceFill(['failed_login_attempts' => 3, 'locked_until' => now()->addMinutes(15)])->save();
 
-    \Illuminate\Support\Facades\Mail::fake();
-    $this->post(route('login.recover.send'), ['email' => $admin->email]);
+    Mail::fake();
+    $this->post(route('password.email'), ['email' => $admin->email]);
 
     $otp = null;
-    \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\LoginUnlockOtpMail::class, function ($mail) use (&$otp) {
+    Mail::assertQueued(StaffPasswordResetOtpMail::class, function ($mail) use (&$otp) {
         $otp = $mail->otp;
         return true;
     });
 
-    $this->withSession(['login_recover_email' => $admin->email])
-        ->post(route('login.recover.verify.submit'), ['otp' => $otp])
-        ->assertRedirect(route('login.recover.success'));
+    $this->post(route('password.otp.verify'), ['otp' => $otp])->assertRedirect(route('password.reset'));
 
-    $admin->refresh();
-    expect($admin->locked_until)->toBeNull();
+    // The code alone does not unlock the account or sign anyone in.
+    expect($admin->fresh()->locked_until)->not->toBeNull();
     $this->assertGuest('systemadmin');
     $this->assertGuest('web');
+
+    $this->post(route('password.store'), [
+        'password' => 'Brand-New-SysAdmin-Pass-2026!',
+        'password_confirmation' => 'Brand-New-SysAdmin-Pass-2026!',
+    ])->assertRedirect(route('password.reset.success'));
+
+    expect($admin->fresh()->locked_until)->toBeNull();
+    $this->assertGuest('systemadmin');
 
     $this->post('/login', [
         'role' => 'systemadmin',
         'email' => $admin->email,
-        'password' => 'CorrectPass123!',
+        'password' => 'Brand-New-SysAdmin-Pass-2026!',
     ])->assertRedirect(route('system-admin.dashboard', absolute: false));
 
     $this->assertAuthenticated('systemadmin');

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 
+const STAFF_RECOVERY_CONFIRMATION = "If an account is associated with this email, a verification code will be sent.";
 const RECOVERY_CONFIRMATION = "If an account uses this email, we'll send password reset instructions. Please check your inbox.";
 
 function hardeningStaff(string $email, array $attrs = []): User
@@ -91,8 +92,8 @@ it('staff: registered and unregistered emails get identical confirmation text an
     $known = test()->post(route('password.email'), ['email' => 'real@example.com']);
     $unknown = test()->post(route('password.email'), ['email' => 'ghost@example.com']);
 
-    $known->assertRedirect(route('password.otp.show'))->assertSessionHas('status', RECOVERY_CONFIRMATION);
-    $unknown->assertRedirect(route('password.otp.show'))->assertSessionHas('status', RECOVERY_CONFIRMATION);
+    $known->assertRedirect(route('password.otp.show'))->assertSessionHas('status', STAFF_RECOVERY_CONFIRMATION);
+    $unknown->assertRedirect(route('password.otp.show'))->assertSessionHas('status', STAFF_RECOVERY_CONFIRMATION);
     expect($unknown->getStatusCode())->toBe($known->getStatusCode());
 
     Mail::assertQueued(StaffPasswordResetOtpMail::class, 1);
