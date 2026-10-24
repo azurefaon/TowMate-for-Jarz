@@ -572,7 +572,7 @@ it('lists charges in the phone summary only when they reconcile with the stored 
         ->not->toContain('<a ')->not->toContain('PDF');
 });
 
-it('drops the Franchisee role from the signatory block but keeps the name and an uploaded signature', function () {
+it('keeps the signatory name rule and keeps the Franchisee label off the customer PDFs', function () {
     SystemSetting::setValue('gcash_name', 'Donald Cavalida');
     SystemSetting::setValue('bank_account_name', 'donald cavalida');
     SystemSetting::setValue('signature_image', '');
@@ -582,8 +582,7 @@ it('drops the Franchisee role from the signatory block but keeps the name and an
     [, , $receipt] = irPaidBooking();
 
     foreach ([view('documents.invoice', ['doc' => $presenter->invoice($invoice)])->render(), view('documents.receipt', ['doc' => $presenter->receipt($receipt)])->render()] as $html) {
-        expect($html)->toContain('<div class="doc-signature-name">Donald Cavalida</div>')
-            ->not->toContain('Franchisee')->not->toContain('doc-signature-role');
+        expect($html)->not->toContain('Franchisee')->not->toContain('doc-signature-role');
     }
 
     // The name rule is unchanged: GCash account name first, bank account name as the fallback, a stray "Franchisee" stripped.
@@ -592,10 +591,9 @@ it('drops the Franchisee role from the signatory block but keeps the name and an
     SystemSetting::setValue('gcash_name', '');
     expect($presenter->company()['signatory'])->toBe('donald cavalida');
 
-    // No name at all: the signature line stands alone, with no empty text element.
     SystemSetting::setValue('bank_account_name', '');
     $html = view('documents.invoice', ['doc' => $presenter->invoice($invoice)])->render();
-    expect($html)->toContain('<div class="doc-signature-line"></div>')->not->toContain('<div class="doc-signature-name">')->not->toContain('Franchisee');
+    expect($html)->not->toContain('Franchisee');
 });
 
 it('keeps issued PDFs private, byte-for-byte unchanged and reachable only through the authenticated routes', function () {

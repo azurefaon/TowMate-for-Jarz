@@ -98,113 +98,86 @@ it('sends the quotation email to the customer and updates status/expiry exactly 
     });
 });
 
-it('renders every required field in the quotation email', function () {
+it('renders the quotation number, total and attachment name in the quotation email, and the full breakdown in its PDF', function () {
     $customer = qseCustomer();
     $truckType = qseTruckType();
-    $booking = qseBooking($customer, $truckType, [
-        'dispatcher_note' => 'Tight access requires a smaller flatbed',
-    ]);
+    $booking = qseBooking($customer, $truckType);
     $quotation = qseQuotation($booking, 200, 4478.40);
 
     $html = (new QuotationSentMail($quotation))->render();
+    $doc = app(\App\Services\DocumentPresenter::class)->quotation($quotation);
+    $pdfHtml = view('documents.quotation', ['doc' => $doc])->render();
 
     expect($html)->toContain($quotation->quotation_number)
-        ->and($html)->toContain('Quezon City, Metro Manila')
-        ->and($html)->toContain('Makati City, Metro Manila')
-        ->and($html)->toContain($truckType->name)
-        ->and($html)->toContain('15.00')
-        ->and($html)->toContain('2,500.00')
-        ->and($html)->toContain('VAT (12%)')
-        ->and($html)->toContain('Additional fees')
-        ->and($html)->toContain('Tight access requires a smaller flatbed')
-        ->and($html)->toContain('4,478.40')
-        ->and($html)->toContain($quotation->expires_at->format('M d, Y'))
+        ->and($html)->toContain('₱4,478.40')
+        ->and($html)->toContain('Quotation ' . $quotation->quotation_number . '.pdf')
         ->and($html)->toContain('Open the TowMate app to review and accept this quotation.')
-        ->and($html)->not->toContain('support@towmate.com')
+        ->and($html)->toContain($quotation->expires_at->format('M d, Y'))
         ->and($html)->not->toContain('@towmate.com');
+
+    expect($pdfHtml)->toContain('Quezon City, Metro Manila')
+        ->and($pdfHtml)->toContain('Makati City, Metro Manila')
+        ->and($pdfHtml)->toContain($truckType->name)
+        ->and($pdfHtml)->toContain('15.00 km')
+        ->and($pdfHtml)->toContain('₱2,500.00')
+        ->and($pdfHtml)->toContain('₱1,320.00')
+        ->and($pdfHtml)->toContain('VAT (12%)')
+        ->and($pdfHtml)->toContain('₱458.40')
+        ->and($pdfHtml)->toContain('Additional fee')
+        ->and($pdfHtml)->toContain('₱4,478.40');
 });
 
-it('shows a negative adjustment as a discount instead of hiding it from the total', function () {
+it('shows a negative adjustment in the quotation PDF only when it reconciles with the stored total', function () {
     $customer = qseCustomer();
     $truckType = qseTruckType();
-    $booking = qseBooking($customer, $truckType, [
-        'dispatcher_note' => 'Loyalty discount applied',
-    ]);
-    $quotation = qseQuotation($booking, -300, 3520);
+    $booking = qseBooking($customer, $truckType);
+    $presenter = app(\App\Services\DocumentPresenter::class);
 
-    $html = (new QuotationSentMail($quotation))->render();
+    $reconciling = $presenter->quotation(qseQuotation($booking, -300, 3978.40));
+    expect($reconciling['reliable'])->toBeTrue()
+        ->and(collect($reconciling['summary'])->pluck('label')->all())->toContain('Adjustment')
+        ->and(collect($reconciling['summary'])->pluck('value')->all())->toContain('−₱300.00');
 
-    expect($html)->toContain('Discount')
-        ->and($html)->toContain('300.00')
-        ->and($html)->toContain('Loyalty discount applied')
-        ->and($html)->not->toContain('Additional fees');
+    $stale = $presenter->quotation(qseQuotation($booking, -300, 3520));
+    expect($stale['reliable'])->toBeFalse()
+        ->and($stale['summary'])->toBe([])
+        ->and($stale['total'])->toBe('₱3,520.00');
 });
 
 it('omits the adjustment row entirely when there is no additional fee or discount', function () {
     $customer = qseCustomer();
     $truckType = qseTruckType();
     $booking = qseBooking($customer, $truckType);
-    $quotation = qseQuotation($booking, 0, 3820);
+    $doc = app(\App\Services\DocumentPresenter::class)->quotation(qseQuotation($booking, 0, 4278.40));
 
-    $html = (new QuotationSentMail($quotation))->render();
-
-    expect($html)->not->toContain('Additional fees')
-        ->and($html)->not->toContain('Discount');
+    expect(collect($doc['summary'])->pluck('label')->all())->toBe(['Subtotal', 'VAT (12%)']);
 });
 
-it('uses a fluid mobile-safe width for the email card', function () {
+it('uses a fluid, mobile-safe card for the email', function () {
     $customer = qseCustomer();
     $truckType = qseTruckType();
     $booking = qseBooking($customer, $truckType);
-    $quotation = qseQuotation($booking, 0, 3820);
+    $quotation = qseQuotation($booking, 0, 4278.40);
 
     $html = (new QuotationSentMail($quotation))->render();
 
     expect($html)->toContain('name="viewport"')
-        ->and($html)->toContain('max-width:480px');
+        ->and($html)->toContain('max-width:600px')
+        ->and($html)->not->toContain('max-width:480px;');
 });
 
-it('embeds the two top logos as inline CID attachments instead of base64 data URIs', function () {
+it('attaches exactly one PDF and embeds no images', function () {
     $customer = qseCustomer();
     $truckType = qseTruckType();
     $booking = qseBooking($customer, $truckType);
-    $quotation = qseQuotation($booking, 0, 3820);
+    $quotation = qseQuotation($booking, 0, 4278.40);
 
     $mailer = Mail::mailer('array');
     $mailer->to($customer->email)->send(new QuotationSentMail($quotation));
 
-    $sent = $mailer->getSymfonyTransport()->messages()->last();
-    $email = $sent->getOriginalMessage();
+    $email = $mailer->getSymfonyTransport()->messages()->last()->getOriginalMessage();
 
-    expect($email->getHtmlBody())
-        ->not->toContain('data:image/png;base64,')
-        ->toContain('cid:');
-
-    $inlineImages = collect($email->getAttachments())
-        ->filter(fn ($part) => $part->getMediaType() === 'image');
-
-    expect($inlineImages)->toHaveCount(2);
-});
-
-it('renders without failing when a top logo source file is temporarily missing', function () {
-    $customer = qseCustomer();
-    $truckType = qseTruckType();
-    $booking = qseBooking($customer, $truckType);
-    $quotation = qseQuotation($booking, 0, 3820);
-
-    $logoPath = public_path('customer/image/TowingLogo-email.png');
-    $movedPath = $logoPath . '.test-backup';
-
-    expect(file_exists($logoPath))->toBeTrue();
-
-    rename($logoPath, $movedPath);
-
-    try {
-        $html = (new QuotationSentMail($quotation))->render();
-    } finally {
-        rename($movedPath, $logoPath);
-    }
-
-    expect($html)->toContain('MMDA Accredited')
-        ->and($html)->not->toContain('alt="Jarz Towing"');
+    expect($email->getHtmlBody())->not->toContain('data:image/png;base64,')->not->toContain('cid:')
+        ->and($email->getAttachments())->toHaveCount(1)
+        ->and($email->getAttachments()[0]->getMediaType() . '/' . $email->getAttachments()[0]->getMediaSubtype())->toBe('application/pdf');
 });

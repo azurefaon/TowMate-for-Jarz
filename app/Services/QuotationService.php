@@ -17,6 +17,14 @@ use Illuminate\Support\Facades\DB;
 
 class QuotationService
 {
+    /** Quotation ids whose email could not be delivered during this request. */
+    private array $emailFailed = [];
+
+    public function emailFailed(Quotation $quotation): bool
+    {
+        return isset($this->emailFailed[$quotation->id]);
+    }
+
     private function bookingService(): BookingService
     {
         return app(BookingService::class);
@@ -204,12 +212,28 @@ class QuotationService
             try {
                 \Illuminate\Support\Facades\Mail::to($quotation->customer->email)
                     ->send(new \App\Mail\QuotationSentMail($quotation));
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
+                $this->emailFailed[$quotation->id] = true;
+
                 \Illuminate\Support\Facades\Log::error('Failed to send quotation email', [
                     'quotation_id' => $quotation->id,
                     'customer_email' => $quotation->customer->email,
                     'error' => $e->getMessage(),
                 ]);
+
+                // The quotation stays available to the customer in the app; the failed email is recorded, never hidden.
+                try {
+                    \App\Models\AuditLog::create([
+                        'user_id'     => auth()->id(),
+                        'action'      => 'quotation_email_failed',
+                        'entity_type' => 'Quotation',
+                        'entity_id'   => $quotation->id,
+                        'reference'   => $quotation->quotation_number,
+                        'description' => 'Quotation ' . $quotation->quotation_number . ' was sent in the app, but its email to the customer could not be delivered (' . class_basename($e) . ').',
+                    ]);
+                } catch (\Throwable $auditError) {
+                    \Illuminate\Support\Facades\Log::warning('Could not record the failed quotation email', ['quotation_id' => $quotation->id]);
+                }
             }
         }
 

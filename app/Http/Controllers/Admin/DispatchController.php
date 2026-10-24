@@ -1030,7 +1030,10 @@ class DispatchController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Quotation sent to the customer with the updated pricing breakdown.',
+                    'message' => $this->quotationService->emailFailed($quotation)
+                        ? 'Quotation is available to the customer in the app, but the email could not be delivered.'
+                        : 'Quotation sent to the customer with the updated pricing breakdown.',
+                    'email_failed' => $this->quotationService->emailFailed($quotation),
                     'quotation_number' => $quotationNumber,
                     'quoted_price' => number_format((float) $booking->final_total, 2),
                     'status' => $booking->status,
@@ -1216,7 +1219,9 @@ class DispatchController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Booking rejected and the customer was notified by email.',
+                'message' => $this->quotationService->emailFailed($quotation)
+                    ? 'Booking rejected, but the email to the customer could not be delivered.'
+                    : 'Booking rejected and the customer was notified by email.',
             ]);
         });
     }
@@ -1828,9 +1833,14 @@ class DispatchController extends Controller
             }
         }
 
+        $emailFailed = $this->quotationService->emailFailed($quotation);
+
         return response()->json([
             'success' => true,
-            'message' => 'Quotation sent to customer successfully.',
+            'message' => $emailFailed
+                ? 'Quotation is available to the customer in the app, but the email could not be delivered.'
+                : 'Quotation sent to customer successfully.',
+            'email_failed' => $emailFailed,
             'quotation_number' => $quotation->quotation_number,
             'quotation_id' => $quotation->id,
         ]);

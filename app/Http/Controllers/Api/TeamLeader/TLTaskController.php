@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\TeamLeader;
 
 use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
-use App\Mail\InvoiceMail;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Services\Push\BookingStatusPush;
@@ -713,7 +712,7 @@ class TLTaskController extends Controller
 
         $invoiceToEmail = Invoice::find($outcome['invoice_id']);
         if ($invoiceToEmail) {
-            $this->emailInvoice($invoiceToEmail, $outcome['group_vehicles'], $outcome['group_adjustment']);
+            $this->generateInvoicePdf($invoiceToEmail, $outcome['group_vehicles'], $outcome['group_adjustment']);
         }
 
         $completed = $bookings->firstWhere('id', $booking->id) ?? $bookings->first();
@@ -968,12 +967,16 @@ class TLTaskController extends Controller
             'created_by' => $createdBy,
         ]);
 
-        $this->emailInvoice($invoice);
+        $this->generateInvoicePdf($invoice);
 
         return $invoice;
     }
 
-    private function emailInvoice(Invoice $invoice, array $groupVehicles = [], float $groupAdjustment = 0.0): void
+    /**
+     * The invoice is created when payment is submitted, but it is only emailed to the customer
+     * together with the receipt once the dispatcher confirms payment (FinalPaymentDocumentsService).
+     */
+    private function generateInvoicePdf(Invoice $invoice, array $groupVehicles = [], float $groupAdjustment = 0.0): void
     {
         $invoiceId = $invoice->id;
         app()->terminating(function () use ($invoiceId, $groupVehicles, $groupAdjustment) {
@@ -986,19 +989,12 @@ class TLTaskController extends Controller
             }
 
             try {
-                $invoice = Invoice::with('booking.customer')->find($invoiceId);
-                if (! $invoice || $invoice->email_sent) {
+                $invoice = Invoice::find($invoiceId);
+                if (! $invoice) {
                     return;
                 }
 
                 app(DocumentGenerationService::class)->generateInvoice($invoice, $groupVehicles, $groupAdjustment);
-
-                if (filled($invoice->booking->customer?->email)) {
-                    Mail::to($invoice->booking->customer->email)->send(
-                        new InvoiceMail($invoice->fresh(), $groupVehicles, $groupAdjustment)
-                    );
-                    $invoice->update(['email_sent' => true]);
-                }
             } catch (\Throwable $e) {
                 Log::error('Background invoice generation failed', [
                     'invoice_id' => $invoiceId,

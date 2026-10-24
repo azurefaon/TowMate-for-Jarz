@@ -19,13 +19,7 @@ class DocumentGenerationService
     {
         $booking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader']);
 
-        $html = view('documents.quotation', [
-            'booking' => $booking,
-            'quotation' => $quotation,
-            'settings' => $this->documentSettings(),
-            'isFinal' => $isFinal,
-            'generatedAt' => now(),
-        ])->render();
+        $html = $this->quotationHtml($booking, $quotation);
 
         $path = sprintf(
             'documents/quotations/booking-%d-%s.pdf',
@@ -40,22 +34,46 @@ class DocumentGenerationService
         );
 
         Storage::disk('public')->delete($legacyHtmlPath);
-        Storage::disk('local')->put($path, $this->renderPdf($html));
+        $this->storePdf($path, $this->renderPdf($html, 'page', true));
 
         return $path;
     }
 
-    public function generateReceipt(Booking $booking, array $groupVehicles = [], float $groupAdjustment = 0.0): Receipt
+    /** The quotation PDF exactly as the customer receives it, rendered from the stored quotation. */
+    public function renderQuotationPdf(Quotation $quotation): string
+    {
+        $quotation->loadMissing(['customer', 'truckType', 'sourceBooking']);
+
+        return $this->renderPdf($this->quotationHtml($quotation->sourceBooking, $quotation), 'page', true);
+    }
+
+    private function quotationHtml(?Booking $booking, ?Quotation $quotation): string
+    {
+        $presenter = app(DocumentPresenter::class);
+
+        if ($quotation === null && $booking?->quotation_id) {
+            $quotation = Quotation::find($booking->quotation_id);
+        }
+
+        if ($quotation !== null) {
+            $doc = $presenter->quotation($quotation, $booking);
+        } else {
+            $doc = $presenter->quotationForBooking($booking);
+        }
+
+        return view('documents.quotation', ['doc' => $doc])->render();
+    }
+
+    public function generateReceipt(Booking $booking, array $groupVehicles = [], float $groupAdjustment = 0.0, ?Invoice $invoice = null): Receipt
     {
         $booking->loadMissing(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt']);
 
         $receipt = Receipt::updateOrCreate(
             ['booking_id' => $booking->id],
             [
-                'invoice_id' => $booking->currentInvoice()->value('id'),
+                'invoice_id' => $invoice?->id ?? $booking->currentInvoice()->value('id'),
                 'generated_by' => $booking->assigned_team_leader_id ?? $booking->created_by_admin_id,
                 'receipt_number' => $booking->receipt->receipt_number ?? sprintf('R-%s-%04d', now()->format('Ymd'), $booking->id),
-                'email_sent' => false,
             ]
         );
 
@@ -67,7 +85,7 @@ class DocumentGenerationService
         $legacyHtmlPath = sprintf('documents/receipts/booking-%d-receipt.html', $booking->id);
 
         Storage::disk('public')->delete($legacyHtmlPath);
-        Storage::disk('local')->put($path, $this->renderPdf($html, 'Page {PAGE_NUM} of {PAGE_COUNT}'));
+        $this->storePdf($path, $this->renderPdf($html, 'page', true));
 
         $receipt->update([
             'pdf_path' => $path,
@@ -83,11 +101,37 @@ class DocumentGenerationService
         ])->render();
 
         $path = sprintf('documents/invoices/invoice-%d.pdf', $invoice->id);
-        Storage::disk('local')->put($path, $this->renderPdf($html, 'Page {PAGE_NUM} of {PAGE_COUNT}'));
+        $this->storePdf($path, $this->renderPdf($html, 'page', true));
 
         $invoice->update(['pdf_path' => $path]);
 
         return $invoice->fresh();
+    }
+
+    /**
+     * Writes a PDF only when it is complete, and replaces an existing file in one step, so a failed or
+     * partial render can never overwrite a valid stored document.
+     */
+    private function storePdf(string $path, string $bytes): void
+    {
+        if (! str_starts_with($bytes, '%PDF') || ! str_contains(substr($bytes, -2048), '%%EOF')) {
+            throw new \RuntimeException('The generated PDF is incomplete and was not stored: ' . $path);
+        }
+
+        $disk = Storage::disk('local');
+        $temporary = $path . '.tmp';
+
+        try {
+            if (! $disk->put($temporary, $bytes)) {
+                throw new \RuntimeException('The PDF could not be written: ' . $path);
+            }
+
+            $disk->move($temporary, $path);
+        } finally {
+            if ($disk->exists($temporary)) {
+                $disk->delete($temporary);
+            }
+        }
     }
 
     public function renderReportPdf(string $view, array $data): string
@@ -172,7 +216,7 @@ class DocumentGenerationService
         return null;
     }
 
-    protected function renderPdf(string $html, ?string $footerText = null): string
+    protected function renderPdf(string $html, ?string $footerText = null, bool $rightAlignedPageNumber = false): string
     {
         if (! extension_loaded('gd')) {
             $html = preg_replace('/<img\b[^>]*>/i', '', $html) ?? $html;
@@ -189,7 +233,15 @@ class DocumentGenerationService
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->render();
 
-        if ($footerText !== null) {
+        if ($footerText !== null && $rightAlignedPageNumber) {
+            $canvas = $dompdf->getCanvas();
+            $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
+            $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) use ($font) {
+                $text = 'Page ' . $pageNumber . ' of ' . $pageCount;
+                $width = $fontMetrics->getTextWidth($text, $font, 9);
+                $canvas->text($canvas->get_width() - 42 - $width, $canvas->get_height() - 42, $text, $font, 9, [0.25, 0.25, 0.25]);
+            });
+        } elseif ($footerText !== null) {
             $canvas = $dompdf->getCanvas();
             $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
             $width = $canvas->get_width();

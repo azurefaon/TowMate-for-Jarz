@@ -1,20 +1,16 @@
 <?php
 
 use App\Mail\BookingAcceptedMail;
-use App\Mail\BookingReceiptMail;
 use App\Mail\BookingRejectedMail;
 use App\Mail\BookingRequestReceivedMail;
 use App\Mail\FinalQuotationConfirmedMail;
-use App\Mail\InvoiceMail;
 use App\Mail\PriceReviewCompletedMail;
 use App\Mail\QuotationCancelledMail;
 use App\Mail\QuotationFollowUpMail;
 use App\Mail\QuotationUpdatedMail;
 use App\Models\Booking;
 use App\Models\Customer;
-use App\Models\Invoice;
 use App\Models\Quotation;
-use App\Models\Receipt;
 use App\Models\Role;
 use App\Models\TruckType;
 use App\Models\User;
@@ -193,52 +189,5 @@ it('renders the final quotation confirmed email with the fluid mobile-safe width
 
     expect($html)->toContain('max-width:480px')
         ->and($html)->toContain($customer->full_name)
-        ->and($html)->not->toContain('{{--');
-});
-
-it('renders the invoice email with the fluid mobile-safe width and real invoice data', function () {
-    $customer = cetCustomer();
-    $truckType = cetTruckType();
-    $booking = cetBooking($customer, $truckType, [
-        'status' => 'completed',
-    ]);
-    $invoice = Invoice::create([
-        'booking_id' => $booking->id,
-        'invoice_number' => 'INV-CET-' . uniqid(),
-        'subtotal' => 2610,
-        'additional_fee' => 0,
-        'discount' => 0,
-        'total' => 2610,
-    ]);
-
-    $html = (new InvoiceMail($invoice))->render();
-
-    expect($html)->toContain('max-width:480px')
-        ->and($html)->toContain($customer->full_name)
-        ->and($html)->toContain($invoice->invoice_number)
-        ->and($html)->not->toContain('{{--');
-});
-
-it('renders the booking receipt email with the fluid mobile-safe width and real receipt data', function () {
-    $customer = cetCustomer();
-    $truckType = cetTruckType();
-    $booking = cetBooking($customer, $truckType, [
-        'status' => 'completed',
-        'payment_method' => 'gcash',
-    ]);
-    cetRole(2, 'Dispatcher');
-    $dispatcher = User::factory()->create(['role_id' => 2]);
-    Receipt::create([
-        'booking_id' => $booking->id,
-        'receipt_number' => 'RCT-CET-' . uniqid(),
-        'generated_by' => $dispatcher->id,
-    ]);
-    $booking->refresh();
-
-    $html = (new BookingReceiptMail($booking))->render();
-
-    expect($html)->toContain('max-width:480px')
-        ->and($html)->toContain($customer->full_name)
-        ->and($html)->toContain('GCash')
         ->and($html)->not->toContain('{{--');
 });

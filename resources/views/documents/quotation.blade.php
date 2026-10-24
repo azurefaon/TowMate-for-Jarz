@@ -1,460 +1,100 @@
+@php($doc = $doc ?? app(\App\Services\DocumentPresenter::class)->quotation($quotation, $booking ?? null))
+@php($c = $doc['company'])
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $isFinal ? 'Final Quotation' : 'Tow Service Quotation' }}</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: 'DejaVu Sans', Arial, Helvetica, sans-serif;
-            background: #e5e7eb;
-            color: #111111;
-        }
-
-        .sheet {
-            max-width: 920px;
-            min-height: 1180px;
-            margin: 8px auto;
-            background: #efefef;
-            border: 1px solid #cfcfcf;
-            padding: 28px 34px 22px;
-            box-sizing: border-box;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .brand-table td {
-            vertical-align: top;
-        }
-
-        .brand-logo-cell {
-            width: 110px;
-        }
-
-        .brand-logo-left {
-            text-align: left;
-        }
-
-        .brand-logo-right {
-            text-align: right;
-        }
-
-        .brand-logo {
-            width: 88px;
-            height: 88px;
-            object-fit: contain;
-        }
-
-        .brand-title {
-            text-align: center;
-            padding-top: 8px;
-        }
-
-        .brand-title .top {
-            margin: 0;
-            font-size: 32px;
-            font-weight: 900;
-            letter-spacing: 1px;
-            color: #000000;
-        }
-
-        .brand-title .bottom {
-            margin: 10px 0 0;
-            font-size: 30px;
-            font-weight: 900;
-            letter-spacing: 1px;
-            color: #f4bc09;
-        }
-
-        .banner-table {
-            margin-top: 24px;
-        }
-
-        .banner-title {
-            background: #f4bc09;
-            color: #ffffff;
-            font-size: 18px;
-            font-weight: 700;
-            padding: 7px 10px;
-            text-transform: uppercase;
-        }
-
-        .banner-meta {
-            width: 300px;
-            background: #000000;
-            color: #ffffff;
-            font-size: 13px;
-            padding: 8px 12px;
-            text-align: right;
-        }
-
-        .banner-status {
-            display: block;
-            margin-top: 4px;
-            font-weight: 700;
-            letter-spacing: 0.6px;
-        }
-
-        .meta-table {
-            margin-top: 16px;
-            table-layout: fixed;
-            border-bottom: 1px solid #8ca0ba;
-        }
-
-        .meta-table td {
-            width: 33.33%;
-            text-align: center;
-            padding: 10px 8px 14px;
-            vertical-align: top;
-        }
-
-        .meta-label {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 13px;
-            font-weight: 700;
-            color: #57708d;
-            text-transform: uppercase;
-        }
-
-        .customer-details {
-            margin-top: 20px;
-            min-height: 100px;
-            line-height: 1.7;
-            font-size: 15px;
-        }
-
-        .customer-details strong {
-            display: inline-block;
-            min-width: 140px;
-        }
-
-        .item-table {
-            margin-top: 14px;
-        }
-
-        .item-table thead th {
-            background: #000000;
-            color: #ffffff;
-            text-transform: uppercase;
-            font-size: 13px;
-            padding: 7px 10px;
-            text-align: center;
-        }
-
-        .item-table tbody td {
-            padding: 12px 10px;
-            font-size: 14px;
-            text-align: center;
-            border-bottom: 1px solid #1f2937;
-        }
-
-        .spacer-row td {
-            padding: 22px 10px;
-            border-bottom: 1px solid #1f2937;
-        }
-
-        .total-wrap {
-            width: 270px;
-            margin-left: auto;
-            margin-top: 8px;
-            border-top: 1px solid #c9c9c9;
-        }
-
-        .total-wrap td {
-            padding: 8px 0;
-            font-size: 14px;
-        }
-
-        .total-label {
-            color: #57708d;
-            text-transform: uppercase;
-            text-align: center;
-        }
-
-        .total-amount {
-            text-align: right;
-            font-weight: 700;
-        }
-
-        .payment-signature {
-            margin-top: 26px;
-        }
-
-        .payment-cell {
-            width: 63%;
-            vertical-align: bottom;
-            font-size: 13px;
-            line-height: 1.9;
-            color: #555555;
-        }
-
-        .payment-cell strong {
-            color: #4b4b4b;
-        }
-
-        .signature-cell {
-            width: 37%;
-            vertical-align: bottom;
-            text-align: center;
-            color: #525252;
-            font-size: 13px;
-        }
-
-        .signature-img {
-            max-width: 185px;
-            max-height: 86px;
-            object-fit: contain;
-            display: block;
-            margin: 0 auto 6px;
-        }
-
-        .signature-placeholder {
-            height: 86px;
-        }
-
-        .signature-name {
-            font-weight: 700;
-            line-height: 1.2;
-        }
-
-        .signature-role {
-            font-weight: 700;
-            line-height: 1.2;
-        }
-
-        .footer-table {
-            table-layout: fixed;
-            margin-top: 14px;
-            border-top: 3px solid #f4d10d;
-        }
-
-        .footer-table td {
-            width: 33.33%;
-            padding-top: 10px;
-            text-align: center;
-            font-size: 13px;
-            font-weight: 700;
-            color: #4b4b4b;
-        }
-    </style>
+    <title>Quotation {{ $doc['number'] }}</title>
+    @include('documents.partials.doc-pdf-styles')
 </head>
 
 <body>
-    @php
-        $companyName = trim((string) ($settings['company_name'] ?? 'JARZ TOWING SERVICES'));
-        $companyWords = preg_split('/\s+/', $companyName) ?: [];
-        $companyBottom = count($companyWords) > 1 ? array_pop($companyWords) : '';
-        $companyTop = $companyBottom !== '' ? trim(implode(' ', $companyWords)) : $companyName;
-        $signatoryName = trim(
-            (string) preg_replace('/\bfranchisee\b/i', '', $settings['gcash_name'] ?? $settings['bank_account_name']),
-        );
-        $peso = '₱';
-    @endphp
+    @include('documents.partials.pdf-frame', ['c' => $c])
+    @include('documents.partials.pdf-head', ['c' => $c, 'title' => 'QUOTATION', 'withLogo' => true])
 
-    <div class="sheet">
-        <table class="brand-table">
-            <tr>
-                <td class="brand-logo-cell brand-logo-left">
-                    <img src="{{ $settings['logo_url'] }}" alt="Company logo" class="brand-logo">
-                </td>
-                <td>
-                    <div class="brand-title">
-                        <p class="top">{{ $companyTop }}</p>
-                        @if ($companyBottom !== '')
-                            <p class="bottom">{{ $companyBottom }}</p>
-                        @endif
-                    </div>
-                </td>
-                <td class="brand-logo-cell brand-logo-right">
-                    <img src="{{ $settings['secondary_logo_url'] ?? $settings['logo_url'] }}" alt="Accreditation logo"
-                        class="brand-logo">
-                </td>
-            </tr>
-        </table>
-
-        <table class="banner-table">
-            <tr>
-                <td class="banner-title">Tow Service Quotation</td>
-                <td class="banner-meta">
-                    DATE: {{ $generatedAt->format('Y') }}
-                    @if ($isFinal)
-                        <span class="banner-status">FINAL / CONFIRMED</span>
+    <table class="pdf-meta">
+        <tr>
+            <td style="padding-right: 30pt">
+                <div class="pdf-label">PREPARED FOR</div>
+                <div class="pdf-name">{{ $doc['customer']['name'] }}</div>
+                <div class="pdf-contact">
+                    @if (filled($doc['customer']['phone'])){{ $doc['customer']['phone'] }}<br>@endif
+                    @if (filled($doc['customer']['email'])){{ $doc['customer']['email'] }}@endif
+                </div>
+            </td>
+            <td style="width: 232pt">
+                <table class="pdf-kv">
+                    <tr><td class="k">Quotation number</td><td class="v">{{ $doc['number'] }}</td></tr>
+                    <tr><td class="k">Quotation date</td><td class="v">{{ $doc['date'] }}</td></tr>
+                    @if ($doc['valid_until'])
+                        <tr><td class="k">Valid until</td><td class="v">{{ $doc['valid_until'] }}</td></tr>
                     @endif
-                </td>
-            </tr>
-        </table>
+                    @if ($doc['booking_ref'])
+                        <tr><td class="k">Booking reference</td><td class="v">{{ $doc['booking_ref'] }}</td></tr>
+                    @endif
+                </table>
+            </td>
+        </tr>
+    </table>
 
-        <table class="meta-table">
+    <div class="pdf-section">SERVICE</div>
+    <table class="pdf-rows">
+        @if (filled($doc['vehicle']))
+            <tr><td class="k">Vehicle</td><td class="v b">{{ $doc['vehicle'] }}</td></tr>
+        @endif
+        <tr><td class="k">Pick-up</td><td class="v">{{ $doc['pickup'] ?: '—' }}</td></tr>
+        <tr><td class="k">Drop-off</td><td class="v">{{ $doc['dropoff'] ?: '—' }}</td></tr>
+    </table>
+
+    <div style="page-break-inside: avoid">
+    <table class="pdf-lines" style="margin-top: 18pt">
+        <thead>
             <tr>
-                <td>
-                    <span class="meta-label">Billed To</span>
-                    <span>{{ $booking->customer->full_name ?? 'Customer' }}</span>
-                </td>
-                <td>
-                    <span class="meta-label">Pick-up Location</span>
-                    <span>{{ $booking->pickup_address ?: '.' }}</span>
-                </td>
-                <td>
-                    <span class="meta-label">Drop-off Location</span>
-                    <span>{{ $booking->dropoff_address ?: '.' }}</span>
-                </td>
+                <th class="l">CHARGES</th>
+                <th style="width: 110pt">AMOUNT</th>
             </tr>
-        </table>
-
-        <div class="customer-details">
-            <div><strong>Name:</strong> {{ $booking->customer->full_name ?? 'Customer' }}</div>
-            <div><strong>Email:</strong> {{ $booking->customer->email ?? 'N/A' }}</div>
-            <div><strong>Contact Number:</strong> {{ $booking->customer->phone ?? 'N/A' }}</div>
-        </div>
-
-        @php
-            $quotation = $quotation ?? null;
-            $bookingService = app(\App\Services\BookingService::class);
-            $extraLineItems = $quotation ? collect($quotation->extra_vehicles ?? []) : collect();
-            $isMultiBookingGroup = $extraLineItems->contains(fn($item) => isset($item['booking_id']));
-            $primaryLineItem = [
-                'truck_type_name' => $booking->truckType->name ?? 'Towing Service',
-                'final_total' => (float) ($booking->final_total ?? 0),
-            ];
-            $lineItems = $isMultiBookingGroup ? $extraLineItems : $extraLineItems->prepend($primaryLineItem);
-            $subtotal = $lineItems->sum(fn($item) => (float) ($item['final_total'] ?? $item['estimated_price'] ?? 0));
-            $serviceDiscount = (float) ($quotation->discount ?? 0);
-            $groupAdjustment = $isMultiBookingGroup ? (float) ($quotation->additional_fee ?? 0) : 0.0;
-            $grandTotal = $quotation ? max($subtotal - $serviceDiscount + $groupAdjustment, 0) : (float) ($booking->final_total ?? 0);
-
-            $pctLabel = fn($rate) => rtrim(rtrim(number_format($rate * 100, 2), '0'), '.') . '%';
-            $vatRateForDisplay = $bookingService->resolveVatRate(
-                $quotation && $quotation->vat_rate !== null
-                    ? (float) $quotation->vat_rate
-                    : ($booking->vat_rate !== null ? (float) $booking->vat_rate : null),
-            );
-
-            $deriveLineVat = function ($item, int $idx) use ($bookingService, $booking, $isMultiBookingGroup) {
-                $isPrimarySolo = ! $isMultiBookingGroup && $idx === 0;
-                $itemTotal = (float) ($item['final_total'] ?? $item['estimated_price'] ?? 0);
-
-                if ($isPrimarySolo) {
-                    $baseRate = $booking->base_rate !== null ? (float) $booking->base_rate : null;
-                    $distanceFee = $booking->truckType ? $booking->distance_fee_amount : null;
-                    $vatRateSnapshot = $booking->vat_rate !== null ? (float) $booking->vat_rate : null;
-                    $vatAmountSnapshot = $booking->vat_amount !== null ? (float) $booking->vat_amount : null;
-                } else {
-                    $baseRate = isset($item['base_rate']) ? (float) $item['base_rate'] : null;
-                    $distanceFee = isset($item['distance_fee']) ? (float) $item['distance_fee'] : null;
-                    $vatRateSnapshot = isset($item['vat_rate']) && $item['vat_rate'] !== null ? (float) $item['vat_rate'] : null;
-                    $vatAmountSnapshot = isset($item['vat_amount']) ? (float) $item['vat_amount'] : null;
-                }
-
-                $hasRateBreakdown = $baseRate !== null && $distanceFee !== null;
-                $vatExclusiveFromRates = $hasRateBreakdown ? round($baseRate + $distanceFee, 2) : null;
-                $vatRate = $bookingService->resolveVatRate($vatRateSnapshot, $vatAmountSnapshot, $vatExclusiveFromRates);
-
-                if ($hasRateBreakdown) {
-                    $itemSubtotal = $vatExclusiveFromRates;
-                    $vatAmount = $vatAmountSnapshot !== null ? round($vatAmountSnapshot, 2) : round($itemSubtotal * $vatRate, 2);
-                } else {
-                    $itemSubtotal = round($itemTotal / (1 + $vatRate), 2);
-                    $vatAmount = round($itemTotal - $itemSubtotal, 2);
-                }
-
-                return ['subtotal' => $itemSubtotal, 'vat_amount' => $vatAmount];
-            };
-
-            $lineVatBreakdowns = $lineItems->values()->map(fn($item, $idx) => $deriveLineVat($item, $idx));
-            $combinedTaxableSubtotal = round($lineVatBreakdowns->sum('subtotal'), 2);
-            $combinedVatAmount = round($lineVatBreakdowns->sum('vat_amount'), 2);
-        @endphp
-
-        <table class="item-table">
-            <thead>
+        </thead>
+        <tbody>
+            @foreach ($doc['charges'] as $charge)
                 <tr>
-                    <th>Type of Vehicle</th>
-                    <th>Unit</th>
-                    <th>Amount</th>
+                    <td class="l" style="font-size: 10.5pt; word-wrap: break-word">{{ $charge['label'] }}</td>
+                    <td style="font-weight: bold">{{ $charge['amount'] }}</td>
                 </tr>
-            </thead>
-            <tbody>
-                @foreach ($lineItems as $item)
+            @endforeach
+        </tbody>
+    </table>
+
+    @if ($doc['breakdown_note'])
+        <div class="pdf-note">{{ $doc['breakdown_note'] }}</div>
+    @endif
+
+    <table class="pdf-totals">
+        <tr>
+            <td></td>
+            <td style="width: 232pt">
+                @if (count($doc['summary']))
+                    <table class="pdf-sum">
+                        @foreach ($doc['summary'] as $row)
+                            <tr><td>{{ $row['label'] }}</td><td class="n">{{ $row['value'] }}</td></tr>
+                        @endforeach
+                    </table>
+                @endif
+                <table class="pdf-total">
                     <tr>
-                        <td>{{ $item['truck_type_name'] ?? ($booking->truckType->name ?? 'Towing Service') }}</td>
-                        <td>1</td>
-                        <td>{{ $peso }}{{ number_format((float) ($item['final_total'] ?? $item['estimated_price'] ?? 0), 2) }}</td>
+                        <td class="tl">ESTIMATED TOTAL<br>INCL. VAT</td>
+                        <td class="ta">{{ $doc['total'] }}</td>
                     </tr>
-                @endforeach
-                <tr class="spacer-row">
-                    <td colspan="3"></td>
-                </tr>
-            </tbody>
-        </table>
+                </table>
+            </td>
+        </tr>
+    </table>
 
-        <table class="total-wrap">
-            <tr>
-                <td class="total-label">Taxable Subtotal</td>
-                <td class="total-amount">{{ $peso }}{{ number_format($combinedTaxableSubtotal, 2) }}</td>
-            </tr>
-            <tr>
-                <td class="total-label">VAT ({{ $pctLabel($vatRateForDisplay) }})</td>
-                <td class="total-amount">{{ $peso }}{{ number_format($combinedVatAmount, 2) }}</td>
-            </tr>
-            <tr>
-                <td class="total-label">Service Total (incl. VAT)</td>
-                <td class="total-amount">{{ $peso }}{{ number_format($subtotal, 2) }}</td>
-            </tr>
-            @if ($serviceDiscount > 0)
-                <tr>
-                    <td class="total-label">Service Discount</td>
-                    <td class="total-amount">-{{ $peso }}{{ number_format($serviceDiscount, 2) }}</td>
-                </tr>
-            @endif
-            @if ($groupAdjustment != 0)
-                <tr>
-                    <td class="total-label">{{ $groupAdjustment < 0 ? 'Discount' : 'Additional Fee' }}</td>
-                    <td class="total-amount">{{ $groupAdjustment < 0 ? '-' : '' }}{{ $peso }}{{ number_format(abs($groupAdjustment), 2) }}</td>
-                </tr>
-            @endif
-            <tr>
-                <td class="total-label">Final Quoted Total</td>
-                <td class="total-amount">{{ $peso }}{{ number_format($grandTotal, 2) }}</td>
-            </tr>
-        </table>
-
-        <table class="payment-signature">
-            <tr>
-                <td class="payment-cell">
-                    <strong>PLEASE MAKE PAYMENT TO:</strong><br>
-                    {{ $settings['bank_account_name'] }}<br>
-                    {{ $settings['bank_name'] }} Acc. #: <strong>{{ $settings['bank_account_number'] }}</strong><br>
-                    GCASH: <strong>{{ $settings['gcash_number'] }}</strong><br>
-                    <span>{{ $settings['payment_terms'] }}</span>
-                </td>
-                <td class="signature-cell">
-                    @if (!empty($settings['signature_url']))
-                        <img src="{{ $settings['signature_url'] }}" alt="Uploaded signature image"
-                            class="signature-img">
-                    @else
-                        <div class="signature-placeholder"></div>
-                    @endif
-                    <div class="signature-name">
-                        {{ $signatoryName ?: $settings['bank_account_name'] ?? 'Authorized Signatory' }}</div>
-                    <div class="signature-role">Franchisee</div>
-                </td>
-            </tr>
-        </table>
-
-        <table class="footer-table">
-            <tr>
-                <td>{{ $settings['company_phone'] }}</td>
-                <td>{{ $settings['company_address'] }}</td>
-                <td>{{ $settings['company_email'] }}</td>
-            </tr>
-        </table>
     </div>
+
+    @if ($doc['terms'])
+        <div class="pdf-terms"><strong>Terms:</strong> {{ $doc['terms'] }}</div>
+    @endif
 </body>
 
 </html>
