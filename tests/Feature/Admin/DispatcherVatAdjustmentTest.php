@@ -292,10 +292,7 @@ it('renders the quotation PDF view with the same final total as the booking', fu
     $booking->loadMissing(['customer', 'truckType']);
 
     $html = view('documents.quotation', [
-        'booking' => $booking,
-        'settings' => app(\App\Services\DocumentGenerationService::class)->documentSettings(),
-        'isFinal' => false,
-        'generatedAt' => now(),
+        'doc' => app(\App\Services\DocumentPresenter::class)->quotationForBooking($booking),
     ])->render();
 
     expect($html)->toContain('4,778.40');

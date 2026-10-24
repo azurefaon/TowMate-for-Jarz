@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Events\BookingStatusUpdated;
 use App\Http\Controllers\Controller;
-use App\Mail\BookingReceiptMail;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Services\Push\BookingStatusPush;
@@ -13,6 +12,7 @@ use App\Models\User;
 use App\Observers\AuditObserver;
 use App\Services\CustomerNotificationService;
 use App\Services\DocumentGenerationService;
+use App\Services\FinalPaymentDocumentsService;
 use App\Services\ScheduledCapacityService;
 use App\Services\TeamLeaderAvailabilityService;
 use App\Services\UnitAvailabilityService;
@@ -217,6 +217,8 @@ class JobsController extends Controller
         }
 
         if (isset($outcome['already'])) {
+            $this->queueFinalPaymentDocuments($outcome['already']->id, $isGroup, $outcome['already']->quotation_id);
+
             return response()->json([
                 'success' => true,
                 'message' => 'This job was already confirmed.',
@@ -249,8 +251,20 @@ class JobsController extends Controller
         // transition; the `already` path returned above, so this fires once.
         app(BookingStatusPush::class)->notify($booking);
 
-        $bookingId = $booking->id;
-        $quotationId = $booking->quotation_id;
+        $this->queueFinalPaymentDocuments($booking->id, $isGroup, $booking->quotation_id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment confirmed. Job completed. The customer receipt will be processed separately.',
+        ]);
+    }
+
+    /**
+     * After the response: the final quotation PDF, then the one email carrying the invoice
+     * and receipt PDFs. Idempotent per booking, so it is also the retry for a failed send.
+     */
+    private function queueFinalPaymentDocuments(int $bookingId, bool $isGroup, ?int $quotationId): void
+    {
         app()->terminating(function () use ($bookingId, $isGroup, $quotationId) {
             while (ob_get_level() > 0) {
                 ob_end_flush();
@@ -263,16 +277,12 @@ class JobsController extends Controller
             try {
                 $b = Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt'])
                     ->find($bookingId);
-                if (! $b) {
-                    return;
-                }
-                if ($b->receipt && $b->receipt->email_sent) {
+                if (! $b || app(FinalPaymentDocumentsService::class)->alreadySent($b)) {
                     return;
                 }
 
-                $documentService = app(DocumentGenerationService::class);
-                $finalQuotePath  = $documentService->generateQuotation($b, true);
-                $b->update(['final_quote_path' => $finalQuotePath]);
+                $groupVehicles = [];
+                $groupAdjustment = 0.0;
 
                 if ($isGroup && $quotationId) {
                     $quotation = \App\Models\Quotation::find($quotationId);
@@ -290,33 +300,29 @@ class JobsController extends Controller
                             ];
                         })->values()->all();
                     $groupAdjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
-                    $receipt = $documentService->generateReceipt($b, $groupVehicles, $groupAdjustment);
-                } else {
-                    $receipt = $documentService->generateReceipt($b);
                 }
 
-                if (filled($b->customer?->email)) {
-                    Mail::to($b->customer->email)->send(
-                        new BookingReceiptMail(
-                            $b->fresh(['customer', 'truckType', 'receipt']),
-                            $groupVehicles ?? [],
-                            $groupAdjustment ?? 0.0
-                        )
-                    );
-                    $receipt->update(['email_sent' => true]);
+                // The customer documents come first; the internal final quotation PDF must not hold them up.
+                try {
+                    app(FinalPaymentDocumentsService::class)->send($bookingId, $groupVehicles, $groupAdjustment);
+                } finally {
+                    try {
+                        $finalQuotePath = app(DocumentGenerationService::class)->generateQuotation($b, true);
+                        $b->update(['final_quote_path' => $finalQuotePath]);
+                    } catch (\Throwable $quoteError) {
+                        \Illuminate\Support\Facades\Log::error('Final quotation PDF failed', [
+                            'booking_id' => $bookingId,
+                            'error'      => $quoteError->getMessage(),
+                        ]);
+                    }
                 }
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Background receipt generation failed', [
+                \Illuminate\Support\Facades\Log::error('Background payment documents failed', [
                     'booking_id' => $bookingId,
                     'error'      => $e->getMessage(),
                 ]);
             }
         });
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Payment confirmed. Job completed. The customer receipt will be processed separately.',
-        ]);
     }
 
     /**

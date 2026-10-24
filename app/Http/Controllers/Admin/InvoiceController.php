@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Mail\InvoiceMail;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Invoice;
@@ -157,14 +156,10 @@ class InvoiceController extends Controller
         $newInvoice->load('booking.customer');
 
         try {
+            // The replacement is emailed with the receipt once payment is confirmed, never on its own.
             app(DocumentGenerationService::class)->generateInvoice($newInvoice);
-
-            if (filled($newInvoice->booking->customer?->email)) {
-                Mail::to($newInvoice->booking->customer->email)->send(new InvoiceMail($newInvoice->fresh()));
-                $newInvoice->update(['email_sent' => true]);
-            }
         } catch (\Throwable $e) {
-            Log::error('Failed to generate/send replacement invoice', [
+            Log::error('Failed to generate replacement invoice', [
                 'invoice_id' => $newInvoice->id,
                 'error' => $e->getMessage(),
             ]);
@@ -353,14 +348,10 @@ class InvoiceController extends Controller
         $newInvoice->load('booking.customer');
 
         try {
+            // The replacement is emailed with the receipt once payment is confirmed, never on its own.
             app(DocumentGenerationService::class)->generateInvoice($newInvoice);
-
-            if (filled($newInvoice->booking->customer?->email)) {
-                Mail::to($newInvoice->booking->customer->email)->send(new InvoiceMail($newInvoice->fresh()));
-                $newInvoice->update(['email_sent' => true]);
-            }
         } catch (\Throwable $e) {
-            Log::error('Failed to generate/send replacement invoice', [
+            Log::error('Failed to generate replacement invoice', [
                 'invoice_id' => $newInvoice->id,
                 'error' => $e->getMessage(),
             ]);

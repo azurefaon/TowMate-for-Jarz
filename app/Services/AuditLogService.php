@@ -76,7 +76,7 @@ class AuditLogService
         'payment_confirmed', 'payment_submitted', 'service_fee_applied', 'invoice_voided',
         'create_quotation', 'update_quotation', 'delete_quotation',
         'quotation_draft_updated', 'quotation_drafted', 'quotation_price_updated',
-        'quotation_price_review_adjusted', 'quotation_price_review_kept', 'quotation_sent',
+        'quotation_price_review_adjusted', 'quotation_price_review_kept', 'quotation_sent', 'quotation_email_failed',
         'create_unit', 'unit_created', 'update_unit', 'unit_archived', 'unit_restored',
         'unit_permanently_deleted', 'unit_status_override', 'unit_assigned', 'unit_removed',
         'crew_borrowed', 'crew_returned', 'crew_removed',

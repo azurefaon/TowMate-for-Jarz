@@ -3,9 +3,11 @@
 namespace App\Mail;
 
 use App\Models\Quotation;
-use App\Services\BookingService;
+use App\Services\DocumentGenerationService;
+use App\Services\DocumentPresenter;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -14,43 +16,16 @@ class QuotationSentMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public array $priceBreakdown;
+    public array $doc;
+
+    public string $attachmentName;
 
     public function __construct(public Quotation $quotation)
     {
-        $sourceBooking = $quotation->sourceBooking;
-        $totalAmount   = (float) ($quotation->estimated_price ?? 0);
-        $basePrice     = (float) ($quotation->truckType->base_rate ?? 0);
-        $distanceKm    = (float) ($quotation->distance_km ?? 0);
-        $additionalFee = (float) ($quotation->additional_fee ?? 0);
+        $quotation->loadMissing(['customer', 'truckType', 'sourceBooking']);
 
-        $distanceFee = app(BookingService::class)->distanceFeeFor($distanceKm, (float) ($quotation->truckType->per_km_rate ?? 0));
-
-        $vatRate = app(BookingService::class)->resolveVatRate(
-            $quotation->vat_rate !== null ? (float) $quotation->vat_rate : null,
-            $sourceBooking?->vat_amount !== null ? (float) $sourceBooking->vat_amount : null,
-            $sourceBooking?->vat_exclusive_total !== null ? (float) $sourceBooking->vat_exclusive_total : null,
-        );
-        $vatAmount = (float) ($sourceBooking?->vat_amount ?? 0);
-        if ($vatAmount <= 0 && $totalAmount > 0) {
-            $vatAmount = round(($totalAmount - $additionalFee) / (1 + $vatRate) * $vatRate, 2);
-        }
-
-        $additionalFeeNote = $sourceBooking?->dispatcher_note
-            ?? collect($quotation->price_change_log ?? [])->last()['reason']
-            ?? null;
-
-        $this->priceBreakdown = [
-            'base_price'         => $basePrice,
-            'distance_km'        => $distanceKm,
-            'distance_fee'       => $distanceFee,
-            'vat_amount'         => $vatAmount,
-            'vat_rate_label'     => rtrim(rtrim(number_format($vatRate * 100, 2), '0'), '.') . '%',
-            'additional_fee'     => $additionalFee,
-            'additional_fee_note' => $additionalFeeNote,
-            'has_excess'         => false,
-            'total_amount'       => $totalAmount,
-        ];
+        $this->doc = app(DocumentPresenter::class)->quotation($quotation, $quotation->sourceBooking);
+        $this->attachmentName = DocumentFilename::for('Quotation', $quotation->quotation_number);
     }
 
     public function envelope(): Envelope
@@ -64,11 +39,23 @@ class QuotationSentMail extends Mailable
     {
         return new Content(
             view: 'emails.quotation-sent',
+            with: [
+                'doc' => $this->doc,
+                'attachmentName' => $this->attachmentName,
+                'expiresAt' => $this->quotation->expires_at?->format('M d, Y g:i A'),
+            ],
         );
     }
 
     public function attachments(): array
     {
-        return [];
+        $quotation = $this->quotation;
+
+        return [
+            Attachment::fromData(
+                fn () => app(DocumentGenerationService::class)->renderQuotationPdf($quotation),
+                $this->attachmentName
+            )->withMime('application/pdf'),
+        ];
     }
 }

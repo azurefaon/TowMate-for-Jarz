@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Invoice;
+use App\Models\Quotation;
 use App\Models\Receipt;
 use Carbon\CarbonInterface;
 
@@ -263,6 +264,15 @@ class DocumentPresenter
             'total_bg' => $state === 'current' || $state === 'issued' ? '#171717' : '#525252',
             'total_fg' => $state === 'current' ? '#FACC15' : '#FFFFFF',
             'show_payment' => $showPayment,
+            'pdf_status' => match ($state) {
+                'replaced' => 'Replaced',
+                'voided' => 'Voided',
+                'current' => $paid ? 'Paid' : 'Unpaid',
+                default => 'Issued',
+            },
+            'is_group' => $isGroup,
+            'vehicle' => $booking->vehicleType->name ?? ($booking->truckType->name ?? null),
+            'route_text' => $this->routeText($booking),
             'email' => $this->emailStatus((bool) $invoice->email_sent, $customer->email ?? null),
         ];
     }
@@ -358,8 +368,187 @@ class DocumentPresenter
             'rows' => $rows,
             'booking_ref' => $booking->job_code,
             'invoice_number' => $invoice?->invoice_number,
+            'pdf_rows' => $this->receiptPdfRows($booking, $invoice, $method, $verified, $shortfall, $cash, $amount),
             'email' => $this->emailStatus((bool) $receipt->email_sent, $customer->email ?? null),
         ];
+    }
+
+    /**
+     * The customer-facing receipt rows: stored facts only. A group receipt gives a
+     * concise service summary and leaves the per-vehicle lines to the invoice.
+     */
+    private function receiptPdfRows(Booking $booking, ?Invoice $invoice, ?string $method, bool $verified, bool $shortfall, ?float $cash, float $amount): array
+    {
+        $vehicle = $booking->vehicleType->name ?? ($booking->truckType->name ?? null);
+
+        if (Invoice::isNormalizedGroupTransaction($booking)) {
+            $count = count($this->groupVehicles($booking));
+            $service = 'Towing service — ' . $count . ' ' . ($count === 1 ? 'vehicle' : 'vehicles');
+        } else {
+            $service = 'Towing service' . ($vehicle ? ' — ' . $vehicle : '');
+        }
+
+        $rows = [['label' => 'Payment method', 'value' => $method ?? 'Not available', 'bold' => true]];
+
+        if ($cash !== null) {
+            $rows[] = ['label' => 'Cash received', 'value' => $this->peso($cash), 'bold' => true];
+        }
+
+        if ($shortfall) {
+            $rows[] = ['label' => 'Invoice total', 'value' => $this->peso($amount), 'bold' => true];
+        }
+
+        $rows[] = [
+            'label' => $verified ? 'Payment confirmed' : 'Payment status',
+            'value' => $verified ? ($this->stamp($booking->completed_at) ?? 'Confirmed') : 'Not verified',
+            'bold' => true,
+        ];
+
+        if ($invoice !== null) {
+            $rows[] = ['label' => 'Invoice', 'value' => $invoice->invoice_number, 'bold' => true];
+        }
+
+        $rows[] = ['label' => 'Service', 'value' => $service, 'bold' => false];
+
+        return $rows;
+    }
+
+    /**
+     * Quotation document. Amounts come from the stored quotation (and its source
+     * booking snapshot); an itemised breakdown is shown only when it reconciles
+     * with the stored estimated total, otherwise the stored total stands alone.
+     */
+    public function quotation(Quotation $quotation, ?Booking $booking = null): array
+    {
+        $quotation->loadMissing(['customer', 'truckType', 'sourceBooking']);
+        $booking ??= $quotation->sourceBooking;
+        $customer = $quotation->customer ?? $booking?->customer;
+        $bookingService = app(BookingService::class);
+
+        $total = (float) $quotation->estimated_price;
+        $fee = (float) ($quotation->additional_fee ?? 0);
+        $discount = (float) ($quotation->discount ?? 0);
+        $truckType = $quotation->truckType;
+        $vehicle = $booking?->vehicleType->name ?? ($truckType->name ?? null);
+        $km = (float) ($quotation->distance_km ?? 0);
+
+        $charges = [];
+        $summary = [];
+        $reliable = false;
+        $extras = collect($quotation->extra_vehicles ?? []);
+
+        if ($extras->isNotEmpty()) {
+            $isMulti = $extras->contains(fn ($ev) => isset($ev['booking_id']));
+            $items = $isMulti
+                ? $extras
+                : $extras->prepend(['truck_type_name' => $vehicle ?? 'Towing service', 'final_total' => (float) ($booking?->final_total ?? 0)]);
+            $sum = round((float) $items->sum(fn ($i) => (float) ($i['final_total'] ?? $i['estimated_price'] ?? 0)), 2);
+            $reliable = $items->isNotEmpty() && abs($sum - $discount + $fee - $total) < 0.01;
+
+            if ($reliable) {
+                foreach ($items->values() as $i => $item) {
+                    $charges[] = [
+                        'label' => 'Vehicle ' . ($i + 1) . ' — ' . ($item['truck_type_name'] ?? 'Towing service'),
+                        'amount' => $this->peso((float) ($item['final_total'] ?? $item['estimated_price'] ?? 0)),
+                    ];
+                }
+
+                $summary[] = ['label' => 'Subtotal', 'value' => $this->peso($sum)];
+
+                if ($discount >= 0.01) {
+                    $summary[] = ['label' => 'Discount', 'value' => $this->peso(-$discount)];
+                }
+
+                if (abs($fee) >= 0.01) {
+                    $summary[] = ['label' => $fee < 0 ? 'Adjustment' : 'Additional fee', 'value' => $this->peso($fee)];
+                }
+            }
+        } else {
+            $base = (float) ($booking?->base_rate ?? $truckType->base_rate ?? 0);
+            $perKm = (float) ($booking?->per_km_rate ?? $truckType->per_km_rate ?? 0);
+            $distanceFee = $bookingService->distanceFeeFor($km, $perKm);
+            $subtotal = round($base + $distanceFee, 2);
+            $vatRate = $bookingService->resolveVatRate(
+                $quotation->vat_rate !== null ? (float) $quotation->vat_rate : null,
+                $booking?->vat_amount !== null ? (float) $booking->vat_amount : null,
+                $booking?->vat_exclusive_total !== null ? (float) $booking->vat_exclusive_total : null,
+            );
+            $vat = $booking?->vat_amount !== null
+                ? round((float) $booking->vat_amount, 2)
+                : round(($subtotal - $discount) * $vatRate, 2);
+            $reliable = $base > 0 && abs($subtotal - $discount + $vat + $fee - $total) < 0.01;
+
+            if ($reliable) {
+                $charges[] = ['label' => 'Base rate', 'amount' => $this->peso($base)];
+                $charges[] = [
+                    'label' => 'Distance fee' . ($km > 0 ? ' · ' . number_format($km, 2) . ' km' : ''),
+                    'amount' => $this->peso($distanceFee),
+                ];
+                $summary[] = ['label' => 'Subtotal', 'value' => $this->peso($subtotal)];
+
+                if ($discount >= 0.01) {
+                    $summary[] = ['label' => 'Discount', 'value' => $this->peso(-$discount)];
+                }
+
+                $summary[] = ['label' => 'VAT (' . rtrim(rtrim(number_format($vatRate * 100, 2), '0'), '.') . '%)', 'value' => $this->peso($vat)];
+
+                if (abs($fee) >= 0.01) {
+                    $summary[] = ['label' => $fee < 0 ? 'Adjustment' : 'Additional fee', 'value' => $this->peso($fee)];
+                }
+            }
+        }
+
+        if (! $reliable) {
+            $charges = [['label' => 'Towing service' . ($vehicle ? ' — ' . $vehicle : ''), 'amount' => $this->peso($total)]];
+            $summary = [];
+        }
+
+        return [
+            'company' => $this->company(),
+            'number' => $quotation->quotation_number,
+            'date' => $this->date($quotation->sent_at ?? $quotation->created_at),
+            'valid_until' => $quotation->expires_at?->format('j M Y, g:i A'),
+            'booking_ref' => $booking?->job_code,
+            'customer' => ['name' => $customer->full_name ?? 'Customer', 'phone' => $customer->phone ?? null, 'email' => $customer->email ?? null],
+            'vehicle' => $vehicle,
+            'pickup' => $quotation->pickup_address ?: ($booking?->pickup_address),
+            'dropoff' => $quotation->dropoff_address ?: ($booking?->dropoff_address),
+            'charges' => $charges,
+            'summary' => $summary,
+            'reliable' => $reliable,
+            'breakdown_note' => $reliable ? null : 'An itemised breakdown is not recorded for this quotation. The total shown is the stored quotation total.',
+            'total' => $this->peso($total),
+            'terms' => filled($this->company()['payment_terms']) ? $this->company()['payment_terms'] : null,
+        ];
+    }
+
+    /** Quotation document for a booking that has no Quotation record (legacy booking-level flow). */
+    public function quotationForBooking(Booking $booking): array
+    {
+        $booking->loadMissing(['customer', 'truckType']);
+
+        $quotation = (new Quotation())->forceFill([
+            'quotation_number' => $booking->quotation_number,
+            'pickup_address' => $booking->pickup_address,
+            'dropoff_address' => $booking->dropoff_address,
+            'distance_km' => $booking->distance_km,
+            'estimated_price' => $booking->final_total ?? 0,
+            'additional_fee' => $booking->additional_fee,
+            'discount' => $booking->discount_amount,
+            'vat_rate' => $booking->vat_rate,
+            'expires_at' => $booking->quotation_expires_at,
+            'created_at' => $booking->created_at,
+        ]);
+        $quotation->setRelation('customer', $booking->customer);
+        $quotation->setRelation('truckType', $booking->truckType);
+        $quotation->setRelation('sourceBooking', $booking);
+
+        return $this->quotation($quotation, $booking);
+    }
+
+    private function routeText(Booking $booking): string
+    {
+        return ($booking->pickup_address ?: '—') . ' → ' . ($booking->dropoff_address ?: '—');
     }
 
     /** Same transaction definition Void & Replace and the receipt lock use. */

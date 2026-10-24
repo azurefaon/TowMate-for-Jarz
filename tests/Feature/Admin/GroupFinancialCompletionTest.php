@@ -244,7 +244,7 @@ it('confirms group payment once, marks both bookings completed, frees both units
     expect($receipts)->toHaveCount(1);
     expect($receipts->first()->booking_id)->toBe($ctx['quotation']->source_booking_id);
 
-    Mail::assertSent(\App\Mail\BookingReceiptMail::class, 1);
+    Mail::assertSent(\App\Mail\FinalPaymentDocumentsMail::class, 1);
 
     $unitAFresh = Unit::find($ctx['unitA']->id);
     $unitBFresh = Unit::find($ctx['unitB']->id);
@@ -856,7 +856,7 @@ it('confirms the consolidated group payment once, completes both vehicles, and s
     expect($receipts->first()->booking_id)->toBe($ctx['quotation']->source_booking_id);
     expect($receipts->first()->invoice_id)->toBe($currentInvoices->first()->id);
 
-    Mail::assertSent(\App\Mail\BookingReceiptMail::class, 1);
+    Mail::assertSent(\App\Mail\FinalPaymentDocumentsMail::class, 1);
 
     $retry = test()->actingAs($ctx['dispatcher'])->postJson(
         route('admin.jobs.confirm-payment', $ctx['bookingA'])
@@ -865,7 +865,7 @@ it('confirms the consolidated group payment once, completes both vehicles, and s
 
     expect(Invoice::where('quotation_id', $ctx['quotation']->id)->count())->toBe(1);
     expect(Receipt::whereIn('booking_id', [$ctx['bookingA']->id, $ctx['bookingB']->id])->count())->toBe(1);
-    Mail::assertSent(\App\Mail\BookingReceiptMail::class, 1);
+    Mail::assertSent(\App\Mail\FinalPaymentDocumentsMail::class, 1);
 
     $retryB = test()->actingAs($ctx['dispatcher'])->postJson(
         route('admin.jobs.confirm-payment', $ctx['bookingB'])
@@ -923,7 +923,7 @@ it('keeps Vehicle 2 current-task and availability correct at every step while Ve
         ->assertJsonPath('data.group_ready_for_payment', false);
 });
 
-it('emails exactly one consolidated group invoice with each vehicle price and the adjustment applied once', function () {
+it('creates the consolidated group invoice and its PDF at submission without emailing the customer', function () {
     Mail::fake();
     $ctx = gfcSetupGroup('GFC-GROUP-018');
 
@@ -940,20 +940,16 @@ it('emails exactly one consolidated group invoice with each vehicle price and th
         'cash_received' => '9816.16',
     ])->assertOk();
 
-    Mail::assertSent(\App\Mail\InvoiceMail::class, 1);
-    Mail::assertSent(\App\Mail\InvoiceMail::class, function ($mail) {
-        return (float) $mail->invoice->total === 9816.16
-            && count($mail->groupVehicles) === 2
-            && (float) $mail->groupVehicles[0]['final_total'] === 4658.08
-            && (float) $mail->groupVehicles[1]['final_total'] === 4658.08
-            && (float) $mail->groupAdjustment === 500.0;
-    });
+    // The invoice and its PDF exist, but the customer is only emailed after payment is confirmed.
+    Mail::assertNothingSent();
 
     $invoice = Invoice::where('quotation_id', $ctx['quotation']->id)->where('is_current', true)->first();
-    expect($invoice->email_sent)->toBeTrue();
+    expect($invoice->email_sent)->toBeFalse()
+        ->and((float) $invoice->total)->toBe(9816.16)
+        ->and($invoice->pdf_path)->not->toBeNull();
 });
 
-it('does not send a duplicate group invoice email when the group payment submission is retried', function () {
+it('still sends no invoice email when the group payment submission is retried', function () {
     Mail::fake();
     $ctx = gfcSetupGroup('GFC-GROUP-019');
 
@@ -970,7 +966,7 @@ it('does not send a duplicate group invoice email when the group payment submiss
         'cash_received' => '9816.16',
     ])->assertOk();
 
-    Mail::assertSent(\App\Mail\InvoiceMail::class, 1);
+    Mail::assertNothingSent();
 
     $retrySignature = \Illuminate\Http\UploadedFile::fake()->image('sig2.png');
     test()->post('/api/v1/team-leader/task/' . $ctx['bookingA']->booking_code . '/complete', [
@@ -979,10 +975,10 @@ it('does not send a duplicate group invoice email when the group payment submiss
         'cash_received' => '9816.16',
     ])->assertOk();
 
-    Mail::assertSent(\App\Mail\InvoiceMail::class, 1);
+    Mail::assertNothingSent();
 });
 
-it('does not alter the invoice email or PDF for a solo booking', function () {
+it('creates the solo invoice and its PDF at submission without emailing the customer', function () {
     Mail::fake();
     $dispatcher = gauDispatcher();
     $customer = gauCustomer();
@@ -1039,12 +1035,9 @@ it('does not alter the invoice email or PDF for a solo booking', function () {
         'cash_received' => '4658.08',
     ])->assertOk()->assertJsonPath('success', true);
 
-    Mail::assertSent(\App\Mail\InvoiceMail::class, 1);
-    Mail::assertSent(\App\Mail\InvoiceMail::class, function ($mail) {
-        return empty($mail->groupVehicles)
-            && (float) $mail->groupAdjustment === 0.0
-            && (float) $mail->invoice->total === 4658.08;
-    });
+    Mail::assertNothingSent();
+    $invoice = Invoice::where('booking_id', $booking->id)->where('is_current', true)->first();
+    expect((float) $invoice->total)->toBe(4658.08)->and($invoice->email_sent)->toBeFalse()->and($invoice->pdf_path)->not->toBeNull();
 });
 
 it('renders the consolidated group invoice PDF template with each vehicle listed and the adjustment applied once', function () {
@@ -1073,13 +1066,7 @@ it('renders the consolidated group invoice PDF template with each vehicle listed
     $groupAdjustment = (float) $ctx['quotation']->additional_fee;
 
     $html = view('documents.invoice', [
-        'booking' => $invoice->booking,
-        'invoice' => $invoice,
-        'settings' => app(App\Services\DocumentGenerationService::class)->documentSettings(),
-        'generatedAt' => now(),
-        'groupVehicles' => $groupVehicles,
-        'groupAdjustment' => $groupAdjustment,
-        'groupTotal' => 9816.16,
+        'doc' => app(App\Services\DocumentPresenter::class)->invoice($invoice, $groupVehicles),
     ])->render();
 
     expect($html)->toContain('Vehicle 1')
@@ -1088,7 +1075,7 @@ it('renders the consolidated group invoice PDF template with each vehicle listed
         ->and($html)->toContain('9,816.16');
 });
 
-it('renders the consolidated group receipt email with each vehicle, the adjustment once, and the group total', function () {
+it('gives the group receipt a concise service summary and the group total, leaving per-vehicle lines to the invoice', function () {
     $ctx = gfcSetupGroup('GFC-GROUP-021');
 
     Sanctum::actingAs($ctx['leaderA'], ['*']);
@@ -1110,18 +1097,16 @@ it('renders the consolidated group receipt email with each vehicle, the adjustme
     ])->values()->all();
     $groupAdjustment = (float) $ctx['quotation']->additional_fee;
 
-    $mail = new \App\Mail\BookingReceiptMail(
-        $ctx['bookingA']->fresh(['customer', 'truckType', 'receipt', 'unit.teamLeader', 'unit.driver']),
-        $groupVehicles,
-        $groupAdjustment
-    );
-    $html = $mail->render();
+    test()->actingAs($ctx['dispatcher'])->postJson(route('admin.jobs.confirm-payment', $ctx['bookingA']))->assertOk();
 
-    expect($html)->toContain('Vehicle 1')
-        ->and($html)->toContain('Vehicle 2')
-        ->and(substr_count($html, '4,658.08'))->toBe(2)
+    $receipt = Receipt::where('booking_id', $ctx['bookingA']->id)->firstOrFail();
+    $doc = app(App\Services\DocumentPresenter::class)->receipt($receipt);
+    $html = view('documents.receipt', ['doc' => $doc])->render();
+
+    expect($doc['amount'])->toBe('₱9,816.16')
+        ->and(collect($doc['pdf_rows'])->firstWhere('label', 'Service')['value'])->toBe('Towing service — 2 vehicles')
         ->and($html)->toContain('9,816.16')
-        ->and($html)->toContain('Cash');
+        ->and($html)->not->toContain('Vehicle 1');
 });
 
 it('sends exactly one grouped receipt email through the real dispatcher confirmation flow', function () {
@@ -1145,9 +1130,11 @@ it('sends exactly one grouped receipt email through the real dispatcher confirma
         route('admin.jobs.confirm-payment', $ctx['bookingA'])
     )->assertOk();
 
-    Mail::assertSent(\App\Mail\BookingReceiptMail::class, 1);
-    Mail::assertSent(\App\Mail\BookingReceiptMail::class, function ($mail) {
-        return count($mail->groupVehicles) === 2 && (float) $mail->groupAdjustment === 500.0;
+    Mail::assertSent(\App\Mail\FinalPaymentDocumentsMail::class, 1);
+    Mail::assertSent(\App\Mail\FinalPaymentDocumentsMail::class, function ($mail) {
+        return (float) $mail->invoice->total === 9816.16
+            && $mail->receipt->invoice_id === $mail->invoice->id
+            && count($mail->attachments()) === 2;
     });
 });
 
@@ -1252,4 +1239,95 @@ it('still allows the legacy sequential-claim flow to see the next unclaimed sibl
     Sanctum::actingAs($leader, ['*']);
     $current = test()->getJson('/api/v1/team-leader/task');
     $current->assertOk()->assertJsonPath('data.has_claimable_sibling', true);
+});
+
+function gfcSubmitGroupPayment(array $ctx): void
+{
+    Sanctum::actingAs($ctx['leaderA'], ['*']);
+    gfcProgressToArrivedDropoff($ctx['bookingA']);
+    Sanctum::actingAs($ctx['leaderB'], ['*']);
+    gfcProgressToArrivedDropoff($ctx['bookingB']);
+
+    Sanctum::actingAs($ctx['leaderA'], ['*']);
+    test()->post('/api/v1/team-leader/task/' . $ctx['bookingA']->booking_code . '/complete', [
+        'signature' => \Illuminate\Http\UploadedFile::fake()->image('sig.png'),
+        'payment_method' => 'cash',
+        'cash_received' => '9816.16',
+    ])->assertOk();
+}
+
+function gfcConfirm(array $ctx, string $member): void
+{
+    test()->actingAs($ctx['dispatcher'])->postJson(route('admin.jobs.confirm-payment', $ctx['booking' . $member]))->assertOk();
+}
+
+function gfcGroupIds(array $ctx): array
+{
+    return [$ctx['bookingA']->id, $ctx['bookingB']->id];
+}
+
+it('issues one receipt and one final email when member B is re-confirmed after member A', function () {
+    Mail::fake();
+    $ctx = gfcSetupGroup('GFC-GROUP-P1A');
+    gfcSubmitGroupPayment($ctx);
+
+    gfcConfirm($ctx, 'A');
+    $completedAt = $ctx['bookingA']->fresh()->completed_at;
+    $audits = \App\Models\AuditLog::where('action', 'payment_confirmed')->count();
+    $invoiceCount = Invoice::whereIn('booking_id', gfcGroupIds($ctx))->count();
+
+    gfcConfirm($ctx, 'B');
+    gfcConfirm($ctx, 'A');
+    gfcConfirm($ctx, 'B');
+
+    expect(Receipt::whereIn('booking_id', gfcGroupIds($ctx))->count())->toBe(1)
+        ->and(Receipt::whereIn('booking_id', gfcGroupIds($ctx))->first()->booking_id)->toBe($ctx['bookingA']->id)
+        ->and(Receipt::whereIn('booking_id', gfcGroupIds($ctx))->first()->email_sent)->toBeTrue()
+        ->and(Invoice::whereIn('booking_id', gfcGroupIds($ctx))->count())->toBe($invoiceCount)
+        ->and($ctx['bookingA']->fresh()->completed_at->equalTo($completedAt))->toBeTrue()
+        ->and(\App\Models\AuditLog::where('action', 'payment_confirmed')->count())->toBe($audits);
+
+    Mail::assertSent(\App\Mail\FinalPaymentDocumentsMail::class, 1);
+});
+
+it('issues one receipt and one final email when member A is re-confirmed after member B', function () {
+    Mail::fake();
+    $ctx = gfcSetupGroup('GFC-GROUP-P1B');
+    gfcSubmitGroupPayment($ctx);
+
+    gfcConfirm($ctx, 'B');
+    gfcConfirm($ctx, 'A');
+    gfcConfirm($ctx, 'B');
+
+    $receipts = Receipt::whereIn('booking_id', gfcGroupIds($ctx))->get();
+
+    expect($receipts)->toHaveCount(1)
+        ->and($receipts->first()->booking_id)->toBe($ctx['bookingB']->id)
+        ->and($receipts->first()->email_sent)->toBeTrue()
+        ->and(Invoice::where('quotation_id', $ctx['quotation']->id)->where('is_current', true)->count())->toBe(1);
+
+    Mail::assertSent(\App\Mail\FinalPaymentDocumentsMail::class, 1);
+    Mail::assertSent(\App\Mail\FinalPaymentDocumentsMail::class, fn ($mail) => $mail->receipt->id === $receipts->first()->id
+        && (float) $mail->invoice->total === 9816.16
+        && count($mail->attachments()) === 2);
+});
+
+it('still sends the final-payment email when the final quotation PDF cannot be generated', function () {
+    Mail::fake();
+    $ctx = gfcSetupGroup('GFC-GROUP-P2Q');
+    gfcSubmitGroupPayment($ctx);
+
+    app()->bind(App\Services\DocumentGenerationService::class, fn () => new class extends App\Services\DocumentGenerationService {
+        public function generateQuotation(Booking $booking, bool $isFinal = false, ?\App\Models\Quotation $quotation = null): string
+        {
+            throw new \RuntimeException('final quotation render failed');
+        }
+    });
+
+    gfcConfirm($ctx, 'A');
+
+    expect(Receipt::whereIn('booking_id', gfcGroupIds($ctx))->count())->toBe(1)
+        ->and(Receipt::whereIn('booking_id', gfcGroupIds($ctx))->first()->email_sent)->toBeTrue();
+
+    Mail::assertSent(\App\Mail\FinalPaymentDocumentsMail::class, 1);
 });
