@@ -3469,6 +3469,28 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 // ── Customer Booking Slide-out Panel ─────────────────────────────────────────
+// The panel shows text that comes from the page (a customer chooses their own name), so none of it may be
+// parsed as HTML.
+//  - data-customer / data-phone arrive from Blade as HTML-ENCODED text (the template encodes them twice), so
+//    getAttribute() returns e.g. "O&#039;Brien" or "&lt;b&gt;". cbpDecode() turns that back into plain text
+//    without ever parsing markup (a textarea's content is never interpreted as HTML) and the result is placed
+//    with textContent. This is why a hostile name appears literally instead of running.
+//  - values from the siblings JSON are raw strings, so they are escaped before they go into the list HTML.
+function cbpDecode(value) {
+    var holder = document.createElement('textarea');
+    holder.innerHTML = String(value === null || value === undefined ? '' : value);
+    return holder.value;
+}
+
+function cbpEscape(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function openCustomerBookingPanel(cardEl) {
     if (!cardEl) return;
 
@@ -3483,9 +3505,16 @@ function openCustomerBookingPanel(cardEl) {
     const queue     = cardEl.getAttribute('data-queue') || 'book-now';
 
     document.getElementById('cbpGroupCode').textContent = groupCode || ref;
-    document.getElementById('cbpCustomerInfo').innerHTML =
-        '<div style="font-size:0.88rem; font-weight:600; color:#0f172a;">' + customer + '</div>' +
-        '<div style="font-size:0.82rem; color:#64748b;">' + phone + '</div>';
+    var infoEl = document.getElementById('cbpCustomerInfo');
+    infoEl.innerHTML = '';
+    var nameEl = document.createElement('div');
+    nameEl.style.cssText = 'font-size:0.88rem; font-weight:600; color:#0f172a;';
+    nameEl.textContent = cbpDecode(customer);
+    var phoneEl = document.createElement('div');
+    phoneEl.style.cssText = 'font-size:0.82rem; color:#64748b;';
+    phoneEl.textContent = cbpDecode(phone);
+    infoEl.appendChild(nameEl);
+    infoEl.appendChild(phoneEl);
 
     const allBookings = [
         { booking_code: ref, truck_type: truck, status: status,
@@ -3523,11 +3552,11 @@ function openCustomerBookingPanel(cardEl) {
             : '';
         return '<div style="border:1px solid #e2e8f0; padding:12px 14px;">' +
             '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">' +
-                '<span style="font-family:monospace; font-weight:700; font-size:0.88rem; color:#0f172a;">' + b.booking_code + '</span>' +
+                '<span style="font-family:monospace; font-weight:700; font-size:0.88rem; color:#0f172a;">' + cbpEscape(b.booking_code) + '</span>' +
                 '<span style="font-size:0.65rem; font-weight:700; padding:2px 7px; background:' + modeBg + '; color:' + modeFg + ';">' + modeLabel + '</span>' +
-                '<span style="margin-left:auto; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:999px; background:' + sc.bg + '; color:' + sc.c + ';">' + sc.t + '</span>' +
+                '<span style="margin-left:auto; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:999px; background:' + sc.bg + '; color:' + sc.c + ';">' + cbpEscape(sc.t) + '</span>' +
             '</div>' +
-            '<div style="font-size:0.82rem; color:#374151;">' + (b.truck_type || '—') + '</div>' +
+            '<div style="font-size:0.82rem; color:#374151;">' + cbpEscape(b.truck_type || '—') + '</div>' +
             schedLine +
             '<div style="margin-top:6px; font-size:0.88rem; font-weight:700; color:#0f172a;">' + priceStr + '</div>' +
         '</div>';

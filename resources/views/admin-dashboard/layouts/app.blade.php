@@ -253,6 +253,17 @@
         };
 
         window.dispatcherNotifications = {
+            // Titles and bodies can carry customer-typed text (a name, an inquiry message), so they are
+            // escaped before they go into the list's HTML, and only normal links are accepted.
+            escape(value) {
+                return String(value === null || value === undefined ? '' : value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            },
+
             add(payload = {}) {
                 const list = document.getElementById('dispatcherNotifList');
 
@@ -263,7 +274,7 @@
                 list.querySelector('.notif-empty')?.remove();
 
                 const item = document.createElement('a');
-                item.href = payload.url || '#';
+                item.href = /^(\/|https?:\/\/)/i.test(String(payload.url || '')) ? payload.url : '#';
                 item.className = 'notif-item';
                 item.dataset.unread = 'true';
                 item.innerHTML = `
@@ -271,10 +282,10 @@
                     <span class="sr-only">Unread.</span>
                     <span class="notif-body">
                         <span class="notif-top">
-                            <strong>${payload.title || 'Booking update'}</strong>
-                            <span class="notif-time">${payload.time || 'Just now'}</span>
+                            <strong>${this.escape(payload.title || 'Booking update')}</strong>
+                            <span class="notif-time">${this.escape(payload.time || 'Just now')}</span>
                         </span>
-                        <span class="notif-line">${payload.body || ''}</span>
+                        <span class="notif-line">${this.escape(payload.body || '')}</span>
                     </span>
                 `;
 
