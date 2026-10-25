@@ -30,7 +30,16 @@ function androidDispatcher(): User
 
 function fakeApkFile(string $name = 'app-release.apk', int $kilobytes = 50): UploadedFile
 {
-    return UploadedFile::fake()->createWithContent($name, "PK\x03\x04" . str_repeat('A', $kilobytes * 1024));
+    $path = tempnam(sys_get_temp_dir(), 'apk');
+    $zip = new ZipArchive();
+    $zip->open($path, ZipArchive::OVERWRITE);
+    $zip->addFromString('AndroidManifest.xml', '<manifest/>');
+    $zip->addFromString('classes.dex', str_repeat('A', $kilobytes * 1024));
+    $zip->close();
+    $content = file_get_contents($path);
+    @unlink($path);
+
+    return UploadedFile::fake()->createWithContent($name, $content);
 }
 
 beforeEach(function () {
@@ -240,4 +249,33 @@ it('keeps the public login page working and shows iOS as coming soon on the land
     $landing->assertOk();
     $landing->assertSee('iOS');
     $landing->assertSee('Coming soon');
+});
+
+it('rejects a zip that is not an apk (no AndroidManifest.xml)', function () {
+    $path = tempnam(sys_get_temp_dir(), 'zip');
+    $zip = new ZipArchive();
+    $zip->open($path, ZipArchive::OVERWRITE);
+    $zip->addFromString('readme.txt', 'hello');
+    $zip->close();
+    $content = file_get_contents($path);
+    @unlink($path);
+
+    $this->actingAs(androidOwner())
+        ->post(route('superadmin.settings.upload-apk'), [
+            'apk_file' => UploadedFile::fake()->createWithContent('plain.apk', $content),
+        ])
+        ->assertSessionHasErrors(['apk_file']);
+
+    expect(SystemSetting::getValue('android_apk_filename'))->toBeNull();
+});
+
+it('records the SHA-256 of an accepted apk for the owner to verify', function () {
+    $file = fakeApkFile();
+    $expected = hash_file('sha256', $file->getRealPath());
+
+    $this->actingAs(androidOwner())
+        ->post(route('superadmin.settings.upload-apk'), ['apk_file' => $file])
+        ->assertSessionHas('apk_success');
+
+    expect(SystemSetting::getValue('android_apk_sha256'))->toBe($expected);
 });
