@@ -1740,15 +1740,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 title = "Ready to assign";
                 body = "The Team Leader is free and has reserved this task. Assigning it makes it a normal assignment they accept from their task screen.";
             }
+            var blocker = o.can_promote ? "" : '<div class="trk-det-why trk-queue-note">' + escapeHtml(o.promote_blocker || "Available after the Team Leader accepts.") + "</div>";
             promote = '<button type="button" class="trk-det-btn" id="trackingOfferPromote" data-offer-id="' + escapeHtml(o.id) + '"' +
-                (o.can_promote && !queueBusy ? "" : " disabled") + ">Assign Next Task</button>" +
-                (o.can_promote ? "" : '<div class="trk-det-why">' + escapeHtml(o.promote_blocker || "Available after the Team Leader accepts.") + "</div>");
+                (o.can_promote && !queueBusy ? "" : " disabled") + ">Assign Next Task</button>";
             return '<div class="trk-queue-confirm is-offer is-' + escapeHtml(o.state) + '">' +
                 '<div class="trk-queue-title">' + escapeHtml(title) + "</div>" +
-                '<div class="trk-det-why">' + escapeHtml(body) + "</div>" +
-                '<div class="trk-det-why">Behind <strong>' + escapeHtml(o.current_booking_code || "") + "</strong></div>" +
-                promote + queueNoteHtml() +
-                '<button type="button" class="trk-det-btn trk-det-btn--ghost" id="trackingOfferCancel" data-offer-id="' + escapeHtml(o.id) + '"' + (queueBusy ? " disabled" : "") + ">Cancel offer</button></div>";
+                '<div class="trk-det-why trk-queue-note">' + escapeHtml(body) + "</div>" +
+                '<div class="trk-det-why trk-queue-note">Behind <strong>' + escapeHtml(o.current_booking_code || "") + "</strong></div>" +
+                blocker + queueNoteHtml() +
+                '<div class="trk-queue-actions">' +
+                '<button type="button" class="trk-det-btn trk-det-btn--ghost" id="trackingOfferCancel" data-offer-id="' + escapeHtml(o.id) + '"' + (queueBusy ? " disabled" : "") + ">Cancel offer</button>" +
+                promote + "</div></div>";
         }
 
         function queueRequest(url, body) {

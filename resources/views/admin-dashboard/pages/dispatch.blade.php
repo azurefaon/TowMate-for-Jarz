@@ -1565,7 +1565,8 @@
         .urc-badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; border-radius: 99px; padding: 3px 10px; white-space: nowrap; border: 0; color: #fff; background: #374151; }
         .urc-badge--available, .urc-badge--offer-ready { background: #15803D; color: #fff; }
         .urc-badge--busy { background: #B91C1C; color: #fff; }
-        .urc-badge--finishing, .urc-badge--offer { background: #B45309; color: #fff; }
+        .urc-badge--finishing { background: #B45309; color: #fff; }
+        .urc-badge--offer { background: #111827; color: #fff; }
         .urc-badge--stale, .urc-badge--nogps, .urc-badge--unavail { background: #374151; color: #fff; }
         .is-assign .urc-gps--live { color: #111; }
         .is-assign .urc-gps--recent { color: #4B5563; }
@@ -1587,8 +1588,8 @@
         .trk-det-why { margin-top: 8px; font-size: 12px; line-height: 1.45; color: #374151; background: #F6F7F9; border-radius: 8px; padding: 8px 10px; }
         .trk-det-why.is-warn { background: #FEF3C7; color: #7A5200; }
         .trk-empty { border: 1px dashed #CFD4DC; border-radius: 12px; padding: 14px; font-size: 12.5px; color: #5B6472; text-align: center; }
-        .rb-queue-banner { margin-top: 10px; border: 1px solid #FACC15; background: #FFFBEB; border-radius: 10px; padding: 10px 12px; }
-        .rb-queue-banner.is-ready { border-color: #A5D6A7; background: #F1F8F2; }
+        .rb-queue-banner { margin-top: 10px; border: 1px solid #D1D5DB; background: #F9FAFB; border-radius: 10px; padding: 10px 12px; }
+        .rb-queue-banner.is-ready { border-color: #86EFAC; background: #fff; }
         .rb-queue-banner-title { font-weight: 700; font-size: 13px; }
         .rb-queue-banner-body { font-size: 12.5px; color: #374151; margin-top: 4px; line-height: 1.45; }
         .rb-queue-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
@@ -1605,16 +1606,20 @@
         .trk-det-btn--ghost:active:not(:disabled) { background: #111827; border-color: #111827; color: #fff; }
         .trk-det-btn:focus-visible, .trk-filter button:focus-visible { outline: 2px solid #111827; outline-offset: 2px; }
         .trk-filter button:hover:not(.is-active) { background: #374151; color: #fff; }
-        .trk-queue-confirm { border: 1px solid #FACC15; background: #FFFBEB; border-radius: 10px; padding: 10px; }
-        .trk-queue-confirm.is-ready { border-color: #A5D6A7; background: #F1F8F2; }
-        .trk-queue-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+        .trk-queue-confirm { border: 1px solid #D1D5DB; background: #F9FAFB; border-radius: 10px; padding: 12px; }
+        .trk-queue-confirm.is-ready { border-color: #86EFAC; background: #fff; }
+        .trk-queue-title { font-weight: 700; font-size: 13px; line-height: 1.3; color: #111827; margin-bottom: 8px; }
+        /* Status panel text: one size, one rhythm, no nested boxes */
+        .rtn-map-modal-card.is-assign .trk-queue-confirm .trk-det-why { margin: 0 0 6px; padding: 0; background: transparent; border-radius: 0; font-size: 12px; line-height: 1.5; color: #1F2937; }
+        .rtn-map-modal-card.is-assign .trk-queue-confirm .trk-det-why.is-warn { padding: 8px 10px; border-radius: 8px; background: #F3F4F6; color: #7C2D12; }
+        .rtn-map-modal-card.is-assign .trk-queue-confirm .trk-queue-note + .trk-queue-note { color: #374151; }
         .trk-queue-facts { margin: 0 0 8px; display: grid; gap: 4px; font-size: 12px; }
         .trk-queue-facts div { display: flex; gap: 8px; }
         .trk-queue-facts dt { color: #374151; min-width: 82px; }
         .trk-queue-facts dd { margin: 0; font-weight: 600; }
         .trk-queue-list { margin: 0 0 8px; padding-left: 18px; font-size: 12px; line-height: 1.5; color: #374151; }
-        .trk-queue-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .trk-queue-actions .trk-det-btn--ghost { margin-top: 0; }
+        .trk-queue-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .trk-queue-actions .trk-det-btn { width: auto; min-width: 128px; margin-top: 0; }
         @media (max-width: 900px) {
             .rtn-map-modal-card.is-assign .rtn-map-modal-body { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(160px, 1fr) minmax(0, 1.2fr); overflow-y: auto; }
             .rtn-map-modal-card.is-assign .trk-side { grid-column: 1; grid-row: 4; }
