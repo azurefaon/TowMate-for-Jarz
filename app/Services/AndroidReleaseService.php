@@ -35,11 +35,11 @@ class AndroidReleaseService
     /** A real APK is a ZIP that carries the compiled manifest; an arbitrary ZIP/file is refused. */
     public static function hasAndroidManifest(string $path): bool
     {
-        if (! class_exists(ZipArchive::class)) {
+        if (! class_exists(\ZipArchive::class)) {
             return true; // cannot inspect without the zip extension; the signature check above still applies
         }
 
-        $zip = new ZipArchive();
+        $zip = new \ZipArchive();
 
         if ($zip->open($path) !== true) {
             return false;
