@@ -1145,6 +1145,10 @@ document.addEventListener("DOMContentLoaded", function () {
         var requestSeq = 0;
         var lastFocus = null;
         var confirming = false;
+        // Next-task queue UI: which unit the confirmation is open for, and an in-flight request.
+        var queueConfirmId = null;
+        var queueBusy = false;
+        var queueNote = null;
 
         function isAssign() {
             return !!(ctx && ctx.mode === "assign");
@@ -1537,6 +1541,12 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         function assignBadge(u) {
+            if (u.offer) {
+                if (u.offer.state === "ready") return ["offer-ready", "Ready to assign"];
+                if (u.offer.state === "reserved") return ["offer", "Task reserved"];
+                return ["offer", "Offer sent"];
+            }
+            if (u.phase === "finishing" && u.queue_eligible) return ["finishing", "Finishing · can queue next"];
             if (u.phase === "finishing") return ["finishing", "At drop-off · finishing"];
             if (u.phase === "busy") return ["busy", "Busy"];
             if (!u.selectable && u.compatible) return ["unavail", "Not available"];
@@ -1608,7 +1618,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         '<span class="urc-badge urc-badge--' + badge[0] + '">' + escapeHtml(badge[1]) + "</span></div>" +
                         '<div class="urc-tl">' + escapeHtml(u.team_leader_name || "") +
                         ' <span class="trk-chip trk-chip--sq">' + escapeHtml(u.truck_type_name || "") + "</span>" +
-                        (u.selectable ? "" : " <span>· Not selectable</span>") + "</div>" +
+                        (u.selectable ? "" : (u.queue_eligible || u.offer ? " <span>· Queue only</span>" : " <span>· Not selectable</span>")) + "</div>" +
                         '<div class="urc-row"><span class="urc-gps ' + gps.cls + '">' + escapeHtml(gps.text) + "</span>" +
                         '<span class="urc-distance">' + distanceText(distanceKmFor(u), false) + "</span></div></div>";
                 }).join("");
@@ -1647,6 +1657,17 @@ document.addEventListener("DOMContentLoaded", function () {
                     (u.warning
                         ? '<div class="trk-det-why is-warn">' + escapeHtml(u.warning) + "</div>"
                         : '<div class="trk-det-why">Selecting returns you to Assign Unit. Nothing is dispatched until you press Proceed to Dispatch.</div>');
+            } else if (u.offer) {
+                action = offerBlock(u);
+            } else if (u.queue_eligible && queueConfirmId !== null && Number(queueConfirmId) === Number(u.unit_id)) {
+                action = queueConfirmBlock(u);
+            } else if (u.queue_eligible) {
+                action = '<button type="button" class="trk-det-btn" id="trackingSelectBtn" disabled>Assign Now</button>' +
+                    '<div class="trk-det-why">' + escapeHtml(u.reason || "") + "</div>" +
+                    '<button type="button" class="trk-det-btn trk-det-btn--secondary" id="trackingQueueBtn">Queue Next Task</button>' +
+                    '<div class="trk-det-why">Offer this booking as ' + escapeHtml(u.team_leader_name || "the Team Leader") + '’s next task after ' +
+                    escapeHtml(u.queue_current_booking || "the current job") + ". The current job is not interrupted.</div>" +
+                    queueNoteHtml();
             } else {
                 action = '<button type="button" class="trk-det-btn" id="trackingSelectBtn" disabled>Select Unit</button>' +
                     '<div class="trk-det-why">' + escapeHtml(u.reason || "This unit can’t be selected right now.") + "</div>";
@@ -1666,7 +1687,133 @@ document.addEventListener("DOMContentLoaded", function () {
                 '<div class="trk-det-act">' + action + "</div></div>";
         }
 
+        // ── Next-task queue ─────────────────────────────────────────────────────────
+        function queueNoteHtml() {
+            return queueNote ? '<div class="trk-det-why is-warn" role="alert">' + escapeHtml(queueNote) + "</div>" : "";
+        }
+
+        function queueConfirmBlock(u) {
+            return '<div class="trk-queue-confirm" role="group" aria-label="Confirm next-task offer">' +
+                '<div class="trk-queue-title">Offer as next task?</div>' +
+                '<dl class="trk-queue-facts">' +
+                "<div><dt>Booking</dt><dd>" + escapeHtml(ctx.bookingCode || "") + "</dd></div>" +
+                "<div><dt>Team Leader</dt><dd>" + escapeHtml(u.team_leader_name || "") + "</dd></div>" +
+                "<div><dt>Unit</dt><dd>" + escapeHtml(u.label || u.unit_name || "") + "</dd></div>" +
+                "<div><dt>Current job</dt><dd>" + escapeHtml(u.queue_current_booking || "") + " · " + escapeHtml(u.job_status_label || "") + "</dd></div>" +
+                "<div><dt>Eligibility</dt><dd>Exact tow class match · finishing at drop-off</dd></div></dl>" +
+                '<ul class="trk-queue-list">' +
+                "<li>This Team Leader is still finishing another task.</li>" +
+                "<li>The current task will not be interrupted.</li>" +
+                "<li>The Team Leader must accept; accepting only reserves the task.</li>" +
+                "<li>The task is not active immediately and nothing is dispatched now.</li>" +
+                "<li>You will assign it with <strong>Assign Next Task</strong> after the current job is released.</li></ul>" +
+                queueNoteHtml() +
+                '<div class="trk-queue-actions">' +
+                '<button type="button" class="trk-det-btn" id="trackingQueueConfirm"' + (queueBusy ? " disabled" : "") + ">" + (queueBusy ? "Sending…" : "Send offer") + "</button>" +
+                '<button type="button" class="trk-det-btn trk-det-btn--ghost" id="trackingQueueBack"' + (queueBusy ? " disabled" : "") + ">Back</button></div></div>";
+        }
+
+        function offerCountdown(offer) {
+            if (!offer || !offer.expires_at) return "";
+            var ms = new Date(offer.expires_at).getTime() - Date.now();
+            if (isNaN(ms)) return "";
+            if (ms <= 0) return "Expiring now";
+            var mins = Math.ceil(ms / 60000);
+            return "Expires in about " + mins + " min";
+        }
+
+        function offerBlock(u) {
+            var o = u.offer;
+            var title, body, promote = "";
+            if (o.state === "awaiting_tl") {
+                title = "Offer sent — waiting for the Team Leader";
+                body = offerCountdown(o) + ". If they do not answer, the offer expires and the booking can be assigned again.";
+            } else if (o.state === "reserved") {
+                title = "Accepted — task reserved";
+                body = "The Team Leader accepted. It can be assigned once the current job is released (payment submitted).";
+            } else {
+                title = "Ready to assign";
+                body = "The Team Leader is free and has reserved this task. Assigning it makes it a normal assignment they accept from their task screen.";
+            }
+            promote = '<button type="button" class="trk-det-btn" id="trackingOfferPromote" data-offer-id="' + escapeHtml(o.id) + '"' +
+                (o.can_promote && !queueBusy ? "" : " disabled") + ">Assign Next Task</button>" +
+                (o.can_promote ? "" : '<div class="trk-det-why">' + escapeHtml(o.promote_blocker || "Available after the Team Leader accepts.") + "</div>");
+            return '<div class="trk-queue-confirm is-offer is-' + escapeHtml(o.state) + '">' +
+                '<div class="trk-queue-title">' + escapeHtml(title) + "</div>" +
+                '<div class="trk-det-why">' + escapeHtml(body) + "</div>" +
+                '<div class="trk-det-why">Behind <strong>' + escapeHtml(o.current_booking_code || "") + "</strong></div>" +
+                promote + queueNoteHtml() +
+                '<button type="button" class="trk-det-btn trk-det-btn--ghost" id="trackingOfferCancel" data-offer-id="' + escapeHtml(o.id) + '"' + (queueBusy ? " disabled" : "") + ">Cancel offer</button></div>";
+        }
+
+        function queueRequest(url, body) {
+            var tokenNode = document.querySelector('meta[name="csrf-token"]');
+            var headers = { "X-Requested-With": "XMLHttpRequest", Accept: "application/json", "Content-Type": "application/json" };
+            if (tokenNode) headers["X-CSRF-TOKEN"] = tokenNode.getAttribute("content") || "";
+            queueBusy = true;
+            queueNote = null;
+            renderAssignDetail();
+            return fetch(url, { method: "POST", headers: headers, credentials: "same-origin", body: JSON.stringify(body || {}) })
+                .then(function (r) {
+                    return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, data: data || {} }; });
+                })
+                .catch(function () { return { ok: false, data: { message: "The request could not be sent. Check your connection and try again." } }; })
+                .then(function (res) {
+                    queueBusy = false;
+                    return res;
+                });
+        }
+
+        // Show the server's answer straight away; the next poll then reconciles everything.
+        function afterQueueChange(res, cancelledUnitId) {
+            if (!isAssign()) return;
+            if (!res.ok) {
+                queueNote = res.data.message || "That could not be done.";
+            } else {
+                queueConfirmId = null;
+                var offer = res.data.offer || null;
+                var unitId = offer && offer.status !== "cancelled" ? offer.unit_id : (cancelledUnitId || (offer && offer.unit_id));
+                var active = !!(offer && offer.status !== "cancelled");
+                lastUnits.forEach(function (u) {
+                    if (Number(u.unit_id) === Number(unitId)) u.offer = active ? offer : null;
+                    // A queued booking is not assigned directly, whichever unit is picked.
+                    if (active && !u.offer) {
+                        u.selectable = false;
+                        u.reason = "This booking is queued for another job. Cancel the offer to assign it directly.";
+                    }
+                });
+            }
+            renderAssignRoster();
+            refreshAssignMarkers();
+            poll();
+        }
+
+        function sendQueueOffer() {
+            if (!isAssign() || queueBusy || queueConfirmId === null) return;
+            queueRequest("/admin-dashboard/booking/" + encodeURIComponent(ctx.bookingCode || "") + "/queue-offer", { unit_id: Number(queueConfirmId) }).then(afterQueueChange);
+        }
+
+        function cancelQueueOffer(offerId) {
+            if (!isAssign() || queueBusy) return;
+            queueRequest("/admin-dashboard/queue-offers/" + encodeURIComponent(offerId) + "/cancel").then(function (res) { afterQueueChange(res); });
+        }
+
+        function promoteQueueOffer(offerId) {
+            if (!isAssign() || queueBusy) return;
+            var done = ctx.onPromoted;
+            queueRequest("/admin-dashboard/queue-offers/" + encodeURIComponent(offerId) + "/promote").then(function (res) {
+                if (res.ok && isAssign()) {
+                    api.close();
+                    if (typeof done === "function") done(res.data);
+                    return;
+                }
+                afterQueueChange(res);
+            });
+        }
+
         function inspectUnit(id, pan) {
+            queueConfirmId = null;
+            queueNote = null;
             inspectedId = Number(id);
             renderAssignRoster();
             refreshAssignMarkers();
@@ -1754,6 +1901,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 activeSortLng = null;
                 activeZoneFilter = null;
                 confirming = false;
+                queueConfirmId = null;
+                queueBusy = false;
+                queueNote = null;
                 lastUnits = [];
                 clearMarkers();
                 requestSeq++;
@@ -1828,6 +1978,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 ctx = null;
                 inspectedId = null;
                 confirming = false;
+                queueConfirmId = null;
+                queueBusy = false;
+                queueNote = null;
                 if (pickupMarker) { pickupMarker.setMap(null); pickupMarker = null; }
                 clearMarkers();
                 lastUnits = [];
@@ -1860,6 +2013,27 @@ document.addEventListener("DOMContentLoaded", function () {
                     renderAssignRoster();
                     return;
                 }
+                var queueBtn = e.target.closest("#trackingQueueBtn");
+                if (queueBtn && isAssign() && inspectedId !== null) {
+                    queueConfirmId = inspectedId;
+                    queueNote = null;
+                    renderAssignDetail();
+                    // The panel scrolls on smaller screens: keep the decision buttons in view.
+                    var sendBtn = document.getElementById("trackingQueueConfirm");
+                    if (sendBtn && sendBtn.scrollIntoView) sendBtn.scrollIntoView({ block: "nearest" });
+                    return;
+                }
+                if (e.target.closest("#trackingQueueBack") && isAssign()) {
+                    queueConfirmId = null;
+                    queueNote = null;
+                    renderAssignDetail();
+                    return;
+                }
+                if (e.target.closest("#trackingQueueConfirm")) { sendQueueOffer(); return; }
+                var cancelBtn = e.target.closest("#trackingOfferCancel");
+                if (cancelBtn) { cancelQueueOffer(cancelBtn.getAttribute("data-offer-id")); return; }
+                var promoteBtn = e.target.closest("#trackingOfferPromote");
+                if (promoteBtn && !promoteBtn.disabled) { promoteQueueOffer(promoteBtn.getAttribute("data-offer-id")); return; }
                 var selectBtn = e.target.closest("#trackingSelectBtn");
                 if (selectBtn && !selectBtn.disabled) {
                     confirmSelection();

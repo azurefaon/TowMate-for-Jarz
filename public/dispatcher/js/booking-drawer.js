@@ -1496,6 +1496,7 @@
             '<div class="rb-section"><div class="rb-section-head"><h4>Available units</h4>' +
             liveMapButtonHtml('id="rbLiveMapBtn"') +
             "</div>" +
+            '<div id="rbQueueBanner" hidden></div>' +
             '<div class="rb-search-wrap"><span class="rb-search-ic">' +
             icon("search", 15) +
             '</span><input type="text" id="rbUnitSearch" placeholder="Search unit or team leader"></div>' +
@@ -2136,6 +2137,7 @@
         byId("rbLiveMapBtn", function (el) {
             el.onclick = openLiveMapForSingle;
         });
+        loadQueueBanner();
         document.querySelectorAll("[data-group-livemap]").forEach(function (el) {
             el.onclick = function () {
                 openLiveMapForVehicle(el.dataset.groupLivemap);
@@ -2237,6 +2239,83 @@
 
     var liveMapOwnerState = null;
 
+    // ------------------------------------------------------------------
+    // Next-task queue banner: shows an offer this booking already holds.
+    // ------------------------------------------------------------------
+    function queueRoute(name, value) {
+        var tpl = (window.RB_ROUTES && window.RB_ROUTES[name]) || "";
+        return tpl.replace(":booking", encodeURIComponent(value)).replace(":offer", encodeURIComponent(value));
+    }
+
+    function renderQueueBanner(offer) {
+        var el = document.getElementById("rbQueueBanner");
+        if (!el) return;
+        var dispatchBtn = document.getElementById("rbDispatchBtn");
+        if (!offer) {
+            el.hidden = true;
+            el.innerHTML = "";
+            return;
+        }
+        var title, body;
+        if (offer.state === "awaiting_tl") {
+            title = "Queued next task — waiting for " + esc(offer.team_leader_name || "the Team Leader");
+            body = "Offered behind " + esc(offer.current_booking_code || "the current job") + ". Unit " + esc(offer.unit_name || "") + " is reserved while the offer is open.";
+        } else if (offer.state === "reserved") {
+            title = "Queued next task — accepted";
+            body = esc(offer.team_leader_name || "The Team Leader") + " reserved this task. Assign it after " + esc(offer.current_booking_code || "the current job") + " is released.";
+        } else {
+            title = "Queued next task — ready to assign";
+            body = esc(offer.team_leader_name || "The Team Leader") + " is free and has reserved this task.";
+        }
+        el.hidden = false;
+        el.className = "rb-queue-banner is-" + esc(offer.state);
+        el.innerHTML =
+            '<div class="rb-queue-banner-title">' + title + "</div>" +
+            '<div class="rb-queue-banner-body">' + body +
+            (offer.can_promote ? "" : (offer.promote_blocker ? " " + esc(offer.promote_blocker) : "")) + "</div>" +
+            '<div class="rb-queue-banner-actions">' +
+            '<button type="button" class="rb-btn rb-btn-primary rb-btn-sm" id="rbQueuePromoteBtn"' + (offer.can_promote ? "" : " disabled") + ">Assign Next Task</button>" +
+            '<button type="button" class="rb-btn rb-btn-secondary rb-btn-sm" id="rbQueueCancelBtn">Cancel offer</button></div>' +
+            '<div class="rb-queue-banner-error" id="rbQueueError" hidden></div>';
+        if (dispatchBtn) dispatchBtn.disabled = true; // a queued booking is not assigned directly
+        var fail = function (res) {
+            var err = document.getElementById("rbQueueError");
+            if (err) {
+                err.textContent = (res && res.data && res.data.message) || "That could not be done.";
+                err.hidden = false;
+            }
+        };
+        var promote = document.getElementById("rbQueuePromoteBtn");
+        if (promote) promote.onclick = function () {
+            promote.disabled = true;
+            apiCall(queueRoute("queuePromote", offer.id), "POST", {}).then(function (res) {
+                if (!res.ok) { promote.disabled = false; fail(res); loadQueueBanner(); return; }
+                window.location.href = window.RB_ROUTES.jobsIndex + "?booking=" + encodeURIComponent(offer.booking_code);
+            }).catch(function () { promote.disabled = false; fail(); });
+        };
+        var cancel = document.getElementById("rbQueueCancelBtn");
+        if (cancel) cancel.onclick = function () {
+            cancel.disabled = true;
+            apiCall(queueRoute("queueCancel", offer.id), "POST", {}).then(function (res) {
+                if (!res.ok) { cancel.disabled = false; fail(res); return; }
+                renderQueueBanner(null);
+                if (dispatchBtn) dispatchBtn.disabled = !(state && state.selectedUnitId);
+            }).catch(function () { cancel.disabled = false; fail(); });
+        };
+    }
+
+    function loadQueueBanner() {
+        var s = state;
+        if (!s || !document.getElementById("rbQueueBanner") || !window.RB_ROUTES || !window.RB_ROUTES.queueOffer) return;
+        fetch(queueRoute("queueOffer", s.bookingCode), { headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (state !== s || !data) return;
+                renderQueueBanner(data.offer || null);
+            })
+            .catch(function () {});
+    }
+
     function closeLiveMapIfOwned() {
         if (liveMapOwnerState && window.dispatchLiveMap && window.dispatchLiveMap.isOpen()) {
             window.dispatchLiveMap.close();
@@ -2259,6 +2338,9 @@
             pickup: { lat: s.pickupLat, lng: s.pickupLng, address: s.pickup },
             truckClassLabel: s.truckType,
             selectedUnitId: s.selectedUnitId,
+            onPromoted: function () {
+                window.location.href = window.RB_ROUTES.jobsIndex + "?booking=" + encodeURIComponent(s.bookingCode);
+            },
             onSelect: function (unitId, unit) {
                 if (state !== s) return; // the drawer moved on while the map was open
                 ensureUnitListed(unit);
@@ -2276,6 +2358,7 @@
             },
             onClose: function () {
                 liveMapOwnerState = null;
+                loadQueueBanner(); // an offer made from the map shows up here
             },
         });
     }

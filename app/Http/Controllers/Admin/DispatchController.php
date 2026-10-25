@@ -20,6 +20,7 @@ use App\Models\VehicleType;
 use App\Observers\AuditObserver;
 use App\Services\BookingService;
 use App\Services\DocumentGenerationService;
+use App\Services\NextTaskQueueService;
 use App\Services\QuotationService;
 use App\Services\ReturnReasonHandler;
 use App\Services\ScheduledCapacityService;
@@ -767,6 +768,13 @@ class DispatchController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'This booking can no longer be revised from the dispatcher queue.',
+                ], 422);
+            }
+
+            if ($validated['action'] === 'accept' && app(NextTaskQueueService::class)->hasActiveOffer($booking)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This booking is queued for a Team Leader finishing another job. Cancel the queued offer before assigning it directly.',
                 ], 422);
             }
 
@@ -2729,11 +2737,15 @@ class DispatchController extends Controller
             ->orderBy('name')
             ->get();
 
+        $queue = app(NextTaskQueueService::class);
+        $queue->sweep();
+        $bookingOffer = $queue->activeOfferForBooking($booking);
+
         $evaluations = $this->unitAvailability->evaluateMany($units);
         $activeByLeader = $this->teamLeaderAvailability->activeBookingsByLeaderId();
         $bookingClass = $booking->truckType?->name ?? 'the requested tow class';
 
-        $data = $units->map(function (Unit $unit) use ($booking, $evaluations, $activeByLeader, $bookingClass) {
+        $data = $units->map(function (Unit $unit) use ($booking, $evaluations, $activeByLeader, $bookingClass, $queue, $bookingOffer) {
             $secsAgo = $unit->location_updated_at ? (int) $unit->location_updated_at->diffInSeconds(now()) : null;
             $hasGps = $unit->current_lat !== null && $unit->current_lng !== null;
             $gpsState = ! $hasGps || $secsAgo === null ? 'none' : ($secsAgo < 60 ? 'live' : ($secsAgo < 300 ? 'recent' : 'stale'));
@@ -2742,6 +2754,11 @@ class DispatchController extends Controller
             $evaluation = $evaluations->get($unit->id) ?? ['reasons' => []];
 
             $verdict = $this->assignmentVerdict($unit, $booking, $evaluation, $bookingClass);
+            $queueVerdict = $queue->evaluate($booking, $unit, $evaluation, $activeByLeader);
+            if ($bookingOffer) {
+                $verdict['selectable'] = false;
+                $verdict['reason'] = 'This booking is queued for another job. Cancel the offer to assign it directly.';
+            }
 
             $warning = null;
             if ($verdict['selectable']) {
@@ -2779,6 +2796,10 @@ class DispatchController extends Controller
                 'selectable'          => $verdict['selectable'],
                 'reason'              => $verdict['reason'],
                 'warning'             => $warning,
+                'queue_eligible'      => $queueVerdict['eligible'],
+                'queue_reason'        => $queueVerdict['reason'],
+                'queue_current_booking' => $queueVerdict['current'],
+                'offer'               => $bookingOffer && (int) $bookingOffer->unit_id === (int) $unit->id ? $queue->present($bookingOffer) : null,
             ];
         })->values();
 
@@ -2865,6 +2886,7 @@ class DispatchController extends Controller
 
         return match ($reason) {
             'reserved'                     => 'Reserved for another booking.',
+            'queue_reserved'               => 'Reserved for a queued next task.',
             'maintenance'                  => 'Unit is under maintenance.',
             'archived'                     => 'Unit is archived.',
             'no_team_leader'               => 'No Team Leader is assigned to this unit.',
