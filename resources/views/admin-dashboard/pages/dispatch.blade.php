@@ -1520,10 +1520,10 @@
         .rtn-busy-name { font-weight: 700; color: #111111; }
         .rtn-busy-sub { color: #9ca3af; font-weight: 500; }
 
-        .rtn-map-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: #6b7280; font-weight: 600; }
+        .rtn-map-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #374151; font-weight: 600; }
         .rtn-zone-chips { display: flex; gap: 6px; }
         .rtn-map { width: 100%; height: 220px; border-radius: 12px; background: #F6F7F9; }
-        .rtn-roster-title { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #9ca3af; margin-top: 4px; }
+        .rtn-roster-title { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #111827; margin-top: 4px; }
         .rtn-roster { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 160px; }
 
         .rtn-map-modal-overlay { position: fixed; inset: 0; z-index: 10060; background: rgba(15, 23, 42, .65); display: flex; align-items: center; justify-content: center; padding: 24px; }
@@ -1557,31 +1557,33 @@
         .trk-chip--sq { border-radius: 6px; padding: 2px 7px; }
         .urc-assign { border: 1px solid #e5e7eb; border-radius: 11px; margin-bottom: 8px; padding: 9px 10px; background: #fff; }
         .urc-assign:hover { background: #fff; border-color: #9ca3af; }
-        .urc-assign.is-inspected { border-color: #111; box-shadow: inset 3px 0 0 #FACC15; }
+        .urc-assign.is-inspected { border-color: #111827; background: #FFFBEB; }
         .urc-assign.is-off .urc-name { color: #374151; }
         .urc-assign .urc-name { font-weight: 700; }
         .urc-assign .urc-tl { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-        .urc-badge { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; border-radius: 99px; padding: 2px 8px; white-space: nowrap; border: 1px solid transparent; }
-        .urc-badge--available { background: #E8F5E9; color: #1B5E20; border-color: #A5D6A7; }
-        .urc-badge--busy { background: #171717; color: #fff; }
-        .urc-badge--finishing { background: #FEF3C7; color: #7A5200; border-color: #FACC15; }
-        .urc-badge--stale, .urc-badge--nogps, .urc-badge--unavail { background: #F3F4F6; color: #374151; border: 1px dashed #6B7280; }
+        /* Status pills: solid fill, white text. Green = ready, red = busy/blocked, amber = in progress or reserved, gray = informational. */
+        .urc-badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; border-radius: 99px; padding: 3px 10px; white-space: nowrap; border: 0; color: #fff; background: #374151; }
+        .urc-badge--available, .urc-badge--offer-ready { background: #15803D; color: #fff; }
+        .urc-badge--busy { background: #B91C1C; color: #fff; }
+        .urc-badge--finishing, .urc-badge--offer { background: #B45309; color: #fff; }
+        .urc-badge--stale, .urc-badge--nogps, .urc-badge--unavail { background: #374151; color: #fff; }
         .is-assign .urc-gps--live { color: #111; }
         .is-assign .urc-gps--recent { color: #4B5563; }
         .is-assign .urc-gps--old { color: #92400E; font-weight: 600; }
-        .is-assign .urc-gps--none { color: #6B7280; }
+        .is-assign .urc-gps--none { color: #374151; }
         .trk-det { border: 1px solid #111; border-radius: 12px; padding: 12px; background: #fff; }
         .trk-det-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
         .trk-det-av { width: 34px; height: 34px; border-radius: 50%; background: #171717; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: none; }
         .trk-det-name { font-weight: 700; font-size: 14px; line-height: 1.2; }
-        .trk-det-sub { font-size: 11.5px; color: #5B6472; }
+        .trk-det-sub { font-size: 12px; font-weight: 600; color: #374151; }
         .trk-det-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 12px; }
-        .trk-det-grid small { display: block; color: #5B6472; font-size: 10.5px; letter-spacing: .03em; text-transform: uppercase; }
-        .trk-det-ok { color: #1B5E20; font-weight: 600; }
-        .trk-det-no { color: #B91C1C; font-weight: 600; }
+        .trk-det-grid small { display: block; color: #111827; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 2px; }
+        .trk-det-ok, .trk-det-no { display: inline-block; color: #fff; font-weight: 700; font-size: 11.5px; line-height: 1.35; border-radius: 99px; padding: 3px 10px; }
+        .trk-det-ok { background: #15803D; }
+        .trk-det-no { background: #B91C1C; }
         .trk-det-act { margin-top: 10px; border-top: 1px solid #E3E6EB; padding-top: 10px; }
         .trk-det-btn { width: 100%; border: 1px solid transparent; border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; background: #FACC15; color: #111; cursor: pointer; font-family: inherit; }
-        .trk-det-btn:disabled { background: #F1F2F4; color: #6B7280; border-color: #E3E6EB; cursor: not-allowed; }
+        .trk-det-btn:disabled { background: #F1F2F4; color: #4B5563; border-color: #E3E6EB; cursor: not-allowed; }
         .trk-det-why { margin-top: 8px; font-size: 12px; line-height: 1.45; color: #374151; background: #F6F7F9; border-radius: 8px; padding: 8px 10px; }
         .trk-det-why.is-warn { background: #FEF3C7; color: #7A5200; }
         .trk-empty { border: 1px dashed #CFD4DC; border-radius: 12px; padding: 14px; font-size: 12.5px; color: #5B6472; text-align: center; }
@@ -1591,8 +1593,6 @@
         .rb-queue-banner-body { font-size: 12.5px; color: #374151; margin-top: 4px; line-height: 1.45; }
         .rb-queue-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
         .rb-queue-banner-error { margin-top: 8px; font-size: 12px; color: #B91C1C; }
-        .urc-badge--offer { background: #EEF2FF; color: #3730A3; border-color: #A5B4FC; }
-        .urc-badge--offer-ready { background: #E8F5E9; color: #1B5E20; border-color: #A5D6A7; }
         .trk-det-btn--secondary { margin-top: 8px; background: #fff; color: #111; border-color: #111; }
         .trk-det-btn--secondary:hover { background: #FEF3C7; }
         .trk-det-btn--ghost { margin-top: 8px; background: #fff; color: #374151; border-color: #CFD4DC; font-weight: 600; }
@@ -1649,13 +1649,13 @@
         .rb-drawer img { max-width: 100%; }
         .rb-drawer .rb-photo-box, .rb-drawer .rb-photo-fallback-text { color: #374151; }
         /* Assign Unit live map: details, statuses and descriptions */
-        .rtn-map-modal-card.is-assign .trk-det-sub, .rtn-map-modal-card.is-assign .trk-det-grid small,
+        .rtn-map-modal-card.is-assign .trk-det-sub,
         .rtn-map-modal-card.is-assign .trk-empty, .rtn-map-modal-card.is-assign .trk-side small,
         .rtn-map-modal-card.is-assign .urc-distance { color: #374151; }
         .rtn-map-modal-card.is-assign .trk-det-why { color: #1F2937; background: #F3F4F6; }
         .rtn-map-modal-card.is-assign .urc-assign .urc-tl, .rtn-map-modal-card.is-assign .urc-assign .urc-tl span { color: #374151; }
         .rtn-map-modal-card.is-assign .urc-assign.is-off .urc-name { color: #111827; }
-        .rtn-map-modal-card.is-assign .urc-badge--stale, .rtn-map-modal-card.is-assign .urc-badge--nogps, .rtn-map-modal-card.is-assign .urc-badge--unavail { color: #1F2937; }
+        .rtn-map-modal-card.is-assign .trk-det-grid small { color: #111827; }
         .rtn-map-modal-card.is-assign .urc-gps--old { color: #7C2D12; }
         .rtn-map-modal-card.is-assign .urc-gps--recent, .rtn-map-modal-card.is-assign .urc-gps--none { color: #374151; }
 
