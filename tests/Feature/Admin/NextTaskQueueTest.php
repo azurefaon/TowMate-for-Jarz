@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Laravel\Sanctum\Sanctum;
 
-beforeEach(fn () => config(['towmate.next_task_queue_enabled' => true]));
+beforeEach(fn () => config(['towmate.next_task_queue_enabled' => true, 'towmate.next_task_queue_team_leaders' => '*']));
 
 function ntqRole(int $id, string $name): void
 {
@@ -167,6 +167,21 @@ it('refuses a Team Leader who is genuinely offline, but not one who merely has s
     ntqOffer($this, $dispatcher, ntqBooking($truck), $offline->fresh())->assertStatus(422)
         ->assertJsonPath('message', fn ($m) => str_contains($m, 'appears offline'));
     ntqOffer($this, $dispatcher, ntqBooking($truck), $stale)->assertCreated();
+});
+
+it('only offers to Team Leaders on the pilot list', function () {
+    $dispatcher = ntqDispatcher();
+    $truck = ntqTruck();
+    [$piloted] = ntqFinishing($truck, 'Piloted');
+    [$other] = ntqFinishing($truck, 'Other');
+
+    config(['towmate.next_task_queue_team_leaders' => '']);
+    ntqOffer($this, $dispatcher, ntqBooking($truck), $piloted)->assertStatus(422)
+        ->assertJsonPath('message', fn ($m) => str_contains($m, 'not enabled'));
+
+    config(['towmate.next_task_queue_team_leaders' => $piloted->team_leader_id . ', 999999']);
+    ntqOffer($this, $dispatcher, ntqBooking($truck), $other)->assertStatus(422);
+    ntqOffer($this, $dispatcher, ntqBooking($truck), $piloted)->assertCreated();
 });
 
 it('honours the configured expiry', function () {

@@ -50,6 +50,9 @@ return [
     */
     'next_task_queue_enabled' => (bool) env('NEXT_TASK_QUEUE_ENABLED', false),
 
+    // Which Team Leaders may receive offers once the queue is on: "*", user ids "12,15", or blank (nobody).
+    'next_task_queue_team_leaders' => env('NEXT_TASK_QUEUE_TEAM_LEADERS', ''),
+
     'queue_offer_ttl_minutes' => (int) env('QUEUE_OFFER_TTL_MINUTES', 10),
 
     'demo_team_leader_emails' => array_values(array_unique(array_filter(

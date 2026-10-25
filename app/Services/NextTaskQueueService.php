@@ -43,6 +43,22 @@ class NextTaskQueueService
         return (bool) config('towmate.next_task_queue_enabled', false);
     }
 
+    /**
+     * Pilot guard. Older Team Leader apps cannot show offers and the server does not see app
+     * versions, so which Team Leaders may receive offers is controlled explicitly:
+     * "*" = everyone, a comma-separated list of user ids = only those, blank = nobody.
+     */
+    public function teamLeaderAllowed(?int $teamLeaderId): bool
+    {
+        $setting = trim((string) config('towmate.next_task_queue_team_leaders', ''));
+        if ($setting === '*') {
+            return true;
+        }
+        $ids = array_filter(array_map('intval', explode(',', $setting)));
+
+        return $teamLeaderId !== null && in_array($teamLeaderId, $ids, true);
+    }
+
     public function ttlMinutes(): int
     {
         return max(1, (int) config('towmate.queue_offer_ttl_minutes', 10));
@@ -158,6 +174,10 @@ class NextTaskQueueService
         }
         if ($current->group_code) {
             return $refuse('The job being finished is part of a group booking; it cannot be queued behind yet.');
+        }
+
+        if (! $this->teamLeaderAllowed($unit->team_leader_id ? (int) $unit->team_leader_id : null)) {
+            return $refuse('This Team Leader is not enabled for next-task offers yet.');
         }
 
         // Stale GPS is fine (finishing Team Leaders stop sending it), but an offer to someone whose
