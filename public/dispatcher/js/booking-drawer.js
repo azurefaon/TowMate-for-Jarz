@@ -720,7 +720,7 @@
             ["Zone", esc(s.dispatchZone)],
         ];
         if (!isGrouped(s)) {
-            rows.push(["Truck class requested", esc(s.truckType)]);
+            rows.push(["Truck type", esc(s.truckType)]);
         }
         var cells = rows
             .map(function (r) {
@@ -742,8 +742,9 @@
               (s.customerRiskReason ? ' <span class="rb-inline-note">' + esc(s.customerRiskReason) + "</span>" : "")
             : '<span class="rb-inline-note">No risk flag</span>';
         return (
-            '<div class="rb-section" id="rbRiskSection"><h4>Customer risk (current)</h4>' +
+            '<div class="rb-section rb-risk" id="rbRiskSection"><h4>Customer risk (current)</h4>' +
             '<div id="rbRiskStatus">' + status + "</div>" +
+            '<details class="rb-risk-manage" id="rbRiskManage"' + (flagged ? " open" : "") + "><summary>Manage risk</summary>" +
             '<div class="rb-inline-note" style="margin:6px 0 8px">Applies to the customer, not only this booking. Informational: it does not change this booking.</div>' +
             '<select id="rbRiskLevel" aria-label="Risk level" style="width:100%;margin-bottom:6px"><option value="">Select risk level</option>' +
             '<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="blacklist">Blacklist</option></select>' +
@@ -752,7 +753,7 @@
             '<div style="display:flex;gap:8px;margin-top:6px">' +
             '<button type="button" class="rb-btn rb-btn-primary" id="rbRiskSave">' + (flagged ? "Update risk" : "Mark risk") + "</button>" +
             (flagged ? '<button type="button" class="rb-btn rb-btn-secondary" id="rbRiskClear">Clear risk</button>' : "") +
-            "</div></div>"
+            "</div></details></div>"
         );
     }
 
@@ -1653,7 +1654,7 @@
         } else if (eff === "draft") {
             var hasStagedChanges = hasStagedDraftChanges(s);
             draftNote =
-                '<div style="font-size:11px;color:#8A93A3;margin-bottom:8px;"></div>';
+                '<div style="font-size:11px;color:#4B5563;margin-bottom:8px;"></div>';
             main =
                 '<button type="button" class="rb-btn rb-btn-secondary" id="rbSaveDraftBtn"' +
                 (hasStagedChanges ? "" : " disabled") +
@@ -2566,7 +2567,7 @@
                 icon("mapPin", 24) +
                 "<span>No " +
                 esc(s.truckType || "matching") +
-                " units ready right now \u2014 pick manually once one comes online.</span></div>";
+                " units ready right now \u2014 open View Live Map to see why, or refresh the page.</span></div>";
             return;
         }
 
@@ -3443,7 +3444,7 @@
                 "</label>" +
                 '<textarea id="rbReschedReason" rows="2" style="width:100%;border:1px solid #CFD4DC;border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;" placeholder="Why is this being rescheduled?"></textarea>' +
                 '<div id="rbReschedError" style="display:none;color:#D8402C;font-size:12px;margin-top:6px;"></div>' +
-                '<div style="font-size:11.5px;color:#8A93A3;margin-top:10px;">Availability will be checked again once this booking reaches its new Ready window.</div>' +
+                '<div style="font-size:11.5px;color:#4B5563;margin-top:10px;">Availability will be checked again once this booking reaches its new Ready window.</div>' +
                 "</div>" +
                 '<div class="rb-view-all-modal-foot"><button type="button" class="rb-btn rb-btn-secondary" id="rbModalCancel">Cancel</button><button type="button" class="rb-btn rb-btn-primary" id="rbModalOk">Save new schedule</button></div>';
             rbModalBackdrop.classList.add("is-open");
