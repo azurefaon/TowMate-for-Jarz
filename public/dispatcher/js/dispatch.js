@@ -1546,7 +1546,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (u.offer.state === "reserved") return ["offer", "Task reserved"];
                 return ["offer", "Offer sent"];
             }
-            if (u.phase === "finishing" && u.queue_eligible) return ["finishing", "Finishing · can queue next"];
+            if (u.phase === "finishing" && u.queue_eligible) return ["finishing", "Finishing job · can queue"];
             if (u.phase === "finishing") return ["finishing", "At drop-off · finishing"];
             if (u.phase === "busy") return ["busy", "Busy"];
             if (!u.selectable && u.compatible) return ["unavail", "Not available"];
@@ -1669,8 +1669,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 action = '<button type="button" class="trk-det-btn" id="trackingSelectBtn" disabled>Assign Now</button>' +
                     '<div class="trk-det-why">' + escapeHtml(u.reason || "") + "</div>" +
                     '<button type="button" class="trk-det-btn trk-det-btn--secondary" id="trackingQueueBtn">Queue Next Task</button>' +
-                    '<div class="trk-det-why">Offer this booking as ' + escapeHtml(u.team_leader_name || "the Team Leader") + '’s next task after ' +
-                    escapeHtml(u.queue_current_booking || "the current job") + ". The current job is not interrupted.</div>" +
+                    '<div class="trk-det-why"><strong>' + escapeHtml(u.team_leader_name || "The Team Leader") + "</strong> is finishing " +
+                    escapeHtml(u.queue_current_booking || "the current job") + ". Queue Next Task sends them an offer for this booking without interrupting that job. " +
+                    "You can assign it once the current job is released.</div>" +
                     queueNoteHtml();
             } else {
                 action = '<button type="button" class="trk-det-btn" id="trackingSelectBtn" disabled>Select Unit</button>' +
@@ -1698,7 +1699,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         function queueConfirmBlock(u) {
             return '<div class="trk-queue-confirm" role="group" aria-label="Confirm next-task offer">' +
-                '<div class="trk-queue-title">Offer as next task?</div>' +
+                '<div class="trk-queue-title">Send next-task offer?</div>' +
                 '<dl class="trk-queue-facts">' +
                 "<div><dt>Booking</dt><dd>" + escapeHtml(ctx.bookingCode || "") + "</dd></div>" +
                 "<div><dt>Team Leader</dt><dd>" + escapeHtml(u.team_leader_name || "") + "</dd></div>" +
@@ -1706,11 +1707,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 "<div><dt>Current job</dt><dd>" + escapeHtml(u.queue_current_booking || "") + " · " + escapeHtml(u.job_status_label || "") + "</dd></div>" +
                 "<div><dt>Eligibility</dt><dd>Exact tow class match · finishing at drop-off</dd></div></dl>" +
                 '<ul class="trk-queue-list">' +
-                "<li>This Team Leader is still finishing another task.</li>" +
-                "<li>The current task will not be interrupted.</li>" +
-                "<li>The Team Leader must accept; accepting only reserves the task.</li>" +
-                "<li>The task is not active immediately and nothing is dispatched now.</li>" +
-                "<li>You will assign it with <strong>Assign Next Task</strong> after the current job is released.</li></ul>" +
+                "<li>This Team Leader is still finishing their current job.</li>" +
+                "<li>The current job is not interrupted.</li>" +
+                "<li>The Team Leader must accept the offer. Accepting only reserves it.</li>" +
+                "<li>Nothing is dispatched now. The booking is not active for them yet.</li>" +
+                "<li>After the current job is released, use <strong>Assign Next Task</strong> to assign it.</li></ul>" +
                 queueNoteHtml() +
                 '<div class="trk-queue-actions">' +
                 '<button type="button" class="trk-det-btn" id="trackingQueueConfirm"' + (queueBusy ? " disabled" : "") + ">" + (queueBusy ? "Sending…" : "Send offer") + "</button>" +
