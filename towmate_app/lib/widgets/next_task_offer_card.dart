@@ -28,6 +28,9 @@ class _NextTaskOfferCardState extends State<NextTaskOfferCard> {
   String? _error;
   late NextTaskOffer _offer;
 
+  /// A reserved offer shrinks to a one-line indicator so it never crowds the current job.
+  bool _expanded = false;
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +97,8 @@ class _NextTaskOfferCardState extends State<NextTaskOfferCard> {
     final left = _offer.secondsLeft();
     final reserved = _offer.isReserved;
     final border = reserved ? TmColors.success : TmColors.yellow;
+
+    if (reserved && !_expanded) return _compact(context);
 
     return Semantics(
       container: true,
@@ -202,16 +207,68 @@ class _NextTaskOfferCardState extends State<NextTaskOfferCard> {
                 ],
               )
             else
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  key: const Key('nextTaskRelease'),
-                  onPressed: _busy ? null : () => _answer(false),
-                  style: TextButton.styleFrom(foregroundColor: TmColors.destructive),
-                  child: const Text('Release reservation'),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    key: const Key('nextTaskCollapse'),
+                    onPressed: () => setState(() => _expanded = false),
+                    style: TextButton.styleFrom(foregroundColor: context.textSecondary),
+                    child: const Text('Hide details'),
+                  ),
+                  TextButton(
+                    key: const Key('nextTaskRelease'),
+                    onPressed: _busy ? null : () => _answer(false),
+                    style: TextButton.styleFrom(foregroundColor: TmColors.destructive),
+                    child: const Text('Release reservation'),
+                  ),
+                ],
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// One line: what is reserved, and a tap to see details (where Release lives).
+  Widget _compact(BuildContext context) {
+    final summary = [
+      _offer.bookingCode,
+      if (_offer.towClass != null) _offer.towClass!,
+    ].join(' · ');
+    return Semantics(
+      container: true,
+      button: true,
+      label: 'Next task reserved, $summary. Tap for details.',
+      child: Container(
+        key: const Key('nextTaskReservedIndicator'),
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        decoration: BoxDecoration(
+          color: context.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: TmColors.success, width: 1.5),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _expanded = true),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, size: 18, color: TmColors.success),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Next task reserved · $summary',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.textPrimary),
+                  ),
+                ),
+                Icon(Icons.expand_more, size: 20, color: context.textSecondary),
+              ],
+            ),
+          ),
         ),
       ),
     );

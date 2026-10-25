@@ -1544,14 +1544,14 @@
         .rtn-map-modal-card.is-assign .trk-context { display: flex; grid-column: 1 / -1; grid-row: 1; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 12.5px; color: #374151; }
         .rtn-map-modal-card.is-assign .rtn-map-header { grid-column: 1; grid-row: 2; }
         .rtn-map-modal-card.is-assign .rtn-map--workspace { grid-column: 1; grid-row: 3; min-height: 0; }
-        .rtn-map-modal-card.is-assign .trk-side { display: flex; flex-direction: column; gap: 8px; grid-column: 2; grid-row: 2 / 4; min-height: 0; }
+        .rtn-map-modal-card.is-assign .trk-side { display: flex; flex-direction: column; gap: 8px; grid-column: 2; grid-row: 2 / 4; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
         .rtn-map-modal-card.is-assign .trk-filter { display: flex; border: 1px solid #CFD4DC; border-radius: 9px; overflow: hidden; flex-shrink: 0; }
         .rtn-map-modal-card.is-assign .trk-filter[hidden], .rtn-map-modal-card.is-assign .trk-message[hidden], .rtn-map-modal-card.is-assign .trk-detail[hidden] { display: none; }
         .trk-filter button { flex: 1; border: 0; background: #fff; padding: 7px; font-size: 12px; font-weight: 600; cursor: pointer; color: #374151; font-family: inherit; }
         .trk-filter button.is-active { background: #111; color: #fff; }
-        .rtn-map-modal-card.is-assign .trk-message { display: block; border: 1px solid #B91C1C; color: #B91C1C; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; }
+        .rtn-map-modal-card.is-assign .trk-message { display: block; flex-shrink: 0; border: 1px solid #B91C1C; color: #B91C1C; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; }
         .rtn-map-modal-card.is-assign .trk-detail { display: block; flex-shrink: 0; }
-        .rtn-map-modal-card.is-assign .rtn-roster--workspace { max-height: none; flex: 1 1 0; min-height: 120px; }
+        .rtn-map-modal-card.is-assign .rtn-roster--workspace { max-height: none; flex: 1 0 150px; min-height: 150px; }
         .rtn-map-modal-card.is-assign .rtn-roster-title { margin-top: 0; }
         .trk-chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #CFD4DC; border-radius: 99px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; background: #fff; color: #111; }
         .trk-chip--sq { border-radius: 6px; padding: 2px 7px; }
@@ -1583,7 +1583,7 @@
         .trk-det-no { background: #B91C1C; }
         .trk-det-act { margin-top: 10px; border-top: 1px solid #E3E6EB; padding-top: 10px; }
         .trk-det-btn { width: 100%; border: 1px solid transparent; border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; background: #FACC15; color: #111; cursor: pointer; font-family: inherit; }
-        .trk-det-btn:disabled { background: #F1F2F4; color: #4B5563; border-color: #E3E6EB; cursor: not-allowed; }
+        .trk-det-btn:disabled { background: #E5E7EB; color: #4B5563; border-color: #D1D5DB; cursor: not-allowed; }
         .trk-det-why { margin-top: 8px; font-size: 12px; line-height: 1.45; color: #374151; background: #F6F7F9; border-radius: 8px; padding: 8px 10px; }
         .trk-det-why.is-warn { background: #FEF3C7; color: #7A5200; }
         .trk-empty { border: 1px dashed #CFD4DC; border-radius: 12px; padding: 14px; font-size: 12.5px; color: #5B6472; text-align: center; }
@@ -1593,15 +1593,24 @@
         .rb-queue-banner-body { font-size: 12.5px; color: #374151; margin-top: 4px; line-height: 1.45; }
         .rb-queue-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
         .rb-queue-banner-error { margin-top: 8px; font-size: 12px; color: #B91C1C; }
-        .trk-det-btn--secondary { margin-top: 8px; background: #fff; color: #111; border-color: #111; }
-        .trk-det-btn--secondary:hover { background: #FEF3C7; }
-        .trk-det-btn--ghost { margin-top: 8px; background: #fff; color: #374151; border-color: #CFD4DC; font-weight: 600; }
+        /* Button roles. Primary = yellow, queue action = solid dark, secondary/ghost = outlined. Every hover is a darker shade of its own role. */
+        .trk-det-btn { transition: background-color .12s ease, color .12s ease, border-color .12s ease; }
+        .trk-det-btn:hover:not(:disabled) { background: #EAB308; }
+        .trk-det-btn:active:not(:disabled) { background: #CA8A04; }
+        .trk-det-btn--secondary { margin-top: 8px; background: #111827; color: #fff; border-color: #111827; }
+        .trk-det-btn--secondary:hover:not(:disabled) { background: #000; border-color: #000; }
+        .trk-det-btn--secondary:active:not(:disabled) { background: #000; }
+        .trk-det-btn--ghost { margin-top: 8px; background: #fff; color: #111827; border-color: #6B7280; font-weight: 600; }
+        .trk-det-btn--ghost:hover:not(:disabled) { background: #374151; border-color: #374151; color: #fff; }
+        .trk-det-btn--ghost:active:not(:disabled) { background: #111827; border-color: #111827; color: #fff; }
+        .trk-det-btn:focus-visible, .trk-filter button:focus-visible { outline: 2px solid #111827; outline-offset: 2px; }
+        .trk-filter button:hover:not(.is-active) { background: #374151; color: #fff; }
         .trk-queue-confirm { border: 1px solid #FACC15; background: #FFFBEB; border-radius: 10px; padding: 10px; }
         .trk-queue-confirm.is-ready { border-color: #A5D6A7; background: #F1F8F2; }
         .trk-queue-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
         .trk-queue-facts { margin: 0 0 8px; display: grid; gap: 4px; font-size: 12px; }
         .trk-queue-facts div { display: flex; gap: 8px; }
-        .trk-queue-facts dt { color: #5B6472; min-width: 82px; }
+        .trk-queue-facts dt { color: #374151; min-width: 82px; }
         .trk-queue-facts dd { margin: 0; font-weight: 600; }
         .trk-queue-list { margin: 0 0 8px; padding-left: 18px; font-size: 12px; line-height: 1.5; color: #374151; }
         .trk-queue-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
