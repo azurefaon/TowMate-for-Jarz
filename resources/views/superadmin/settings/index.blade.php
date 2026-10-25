@@ -874,6 +874,12 @@
                         <p class="mobile-app-summary-value">
                             {{ $androidApk['size_mb'] ? $androidApk['size_mb'] . ' MB' : '—' }}</p>
                     </div>
+                    @if (!empty($androidApk['sha256']))
+                        <div class="mobile-app-summary-item">
+                            <p class="mobile-app-summary-label">SHA-256</p>
+                            <p class="mobile-app-summary-sub" style="word-break:break-all;">{{ $androidApk['sha256'] }}</p>
+                        </div>
+                    @endif
                     <div class="mobile-app-summary-item">
                         <p class="mobile-app-summary-label">Last Updated</p>
                         @if ($androidApk['uploaded_at'])

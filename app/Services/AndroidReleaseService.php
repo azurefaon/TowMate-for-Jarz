@@ -32,6 +32,25 @@ class AndroidReleaseService
         return $signature === "PK\x03\x04" || $signature === "PK\x05\x06";
     }
 
+    /** A real APK is a ZIP that carries the compiled manifest; an arbitrary ZIP/file is refused. */
+    public static function hasAndroidManifest(string $path): bool
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            return true; // cannot inspect without the zip extension; the signature check above still applies
+        }
+
+        $zip = new \ZipArchive();
+
+        if ($zip->open($path) !== true) {
+            return false;
+        }
+
+        $found = $zip->locateName('AndroidManifest.xml') !== false;
+        $zip->close();
+
+        return $found;
+    }
+
     public static function storeUpload(UploadedFile $file, ?string $versionName = null, ?string $releaseNotes = null): ?string
     {
         if (strtolower((string) $file->getClientOriginalExtension()) !== 'apk') {
@@ -42,6 +61,11 @@ class AndroidReleaseService
             return 'The uploaded file is not a valid APK package.';
         }
 
+        if (! self::hasAndroidManifest($file->getRealPath())) {
+            return 'The uploaded file is not a valid APK package.';
+        }
+
+        $checksum = hash_file('sha256', $file->getRealPath());
         $storedName = Str::random(40) . '.apk';
         $stored = $file->storeAs('', $storedName, self::DISK);
 
@@ -61,6 +85,7 @@ class AndroidReleaseService
         SystemSetting::setValue('android_apk_version_name', $versionName);
         SystemSetting::setValue('android_apk_release_notes', $releaseNotes);
         SystemSetting::setValue('android_apk_uploaded_at', now()->toIso8601String());
+        SystemSetting::setValue('android_apk_sha256', $checksum);
 
         if ($previousFilename && $previousFilename !== $storedName) {
             Storage::disk(self::DISK)->delete($previousFilename);
@@ -101,6 +126,7 @@ class AndroidReleaseService
                 'release_notes' => SystemSetting::getValue('android_apk_release_notes'),
                 'size_mb' => round(Storage::disk(self::DISK)->size($filename) / 1048576, 1),
                 'uploaded_at' => SystemSetting::getValue('android_apk_uploaded_at'),
+                'sha256' => SystemSetting::getValue('android_apk_sha256'),
             ];
         }
 
@@ -113,6 +139,7 @@ class AndroidReleaseService
                 'release_notes' => null,
                 'size_mb' => round(filesize($legacyPath) / 1048576, 1),
                 'uploaded_at' => date('c', filemtime($legacyPath)),
+                'sha256' => null,
             ];
         }
 
@@ -122,6 +149,7 @@ class AndroidReleaseService
             'release_notes' => null,
             'size_mb' => null,
             'uploaded_at' => null,
+            'sha256' => null,
         ];
     }
 }
