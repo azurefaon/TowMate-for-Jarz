@@ -26,4 +26,17 @@ void main() {
       expect(navigateIndex, greaterThan(startIndex));
     });
   });
+
+  group('customer Live Tracking route', () {
+    test('the /live-tracking route only builds the map while the switch is on', () {
+      final routeIndex = source.indexOf("settings.name == '/live-tracking'");
+      expect(routeIndex, greaterThan(-1));
+      final block = source.substring(
+        routeIndex,
+        source.indexOf("settings.name == '/booking-success'"),
+      );
+      expect(block, contains('CustomerLiveTracking.enabled'));
+      expect(block, contains(': BookingDetailScreen(bookingCode: code)'));
+    });
+  });
 }

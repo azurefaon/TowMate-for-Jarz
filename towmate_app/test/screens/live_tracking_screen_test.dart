@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/screens/customer/live_tracking_screen.dart';
 import 'package:towmate_app/services/live_tracking_controller.dart';
+import 'package:towmate_app/widgets/live_tracking_widgets.dart';
 
 http.Response _json(Object body, {int status = 200}) =>
     http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json'});
@@ -124,7 +125,13 @@ void main() {
     (call) async => null,
   );
 
-  tearDown(() => LiveTrackingRegistry.instance.resetForTest());
+  // Customer Live Tracking ships switched off; these tests cover the shared
+  // tracking code with it switched on.
+  setUp(() => CustomerLiveTracking.enabled = true);
+  tearDown(() {
+    CustomerLiveTracking.enabled = false;
+    LiveTrackingRegistry.instance.resetForTest();
+  });
 
   testWidgets('on_the_way: header, map with truck + pickup + route, bottom card, no bottom navigation', (tester) async {
     final server = _Server();

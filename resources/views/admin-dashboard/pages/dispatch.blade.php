@@ -1653,8 +1653,18 @@
         .rb-risk-manage > summary::after { content: "+"; font-size: 16px; line-height: 1; color: #374151; }
         .rb-risk-manage[open] > summary::after { content: "-"; }
         .rb-risk-manage[open] { padding-bottom: 12px; }
-        .rb-risk-manage select, .rb-risk-manage textarea { border: 1px solid #9CA3AF; border-radius: 8px; padding: 8px 10px; font: inherit; color: #111827; background: #fff; box-sizing: border-box; }
-        .rb-risk-manage .rb-inline-note { margin: 0 0 8px; }
+        .rb-risk-manage .rb-risk-note { margin: 4px 0 12px; font-size: 12px; line-height: 1.45; }
+        .rb-risk-manage .rb-risk-label { display: block; margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #111827; }
+        .rb-risk-manage .rb-risk-input { display: block; width: 100%; margin: 0 0 10px; border: 1px solid #9CA3AF; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13px; color: #111827; background: #fff; box-sizing: border-box; }
+        .rb-risk-manage select.rb-risk-input { height: 38px; }
+        .rb-risk-manage textarea.rb-risk-input { min-height: 72px; padding: 8px 10px; resize: vertical; }
+        .rb-risk-manage .rb-risk-input:focus { outline: 2px solid #111827; outline-offset: 1px; border-color: #111827; }
+        .rb-risk-manage .rb-risk-error { margin: -4px 0 10px; color: #B42318; font-weight: 600; }
+        .rb-risk-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+        .rb-risk-actions .rb-btn { min-width: 128px; justify-content: center; }
+        .rb-risk-actions .rb-btn-primary:hover:not(:disabled) { filter: none; background: #EAB308; }
+        .rb-risk-actions .rb-btn-secondary:hover:not(:disabled) { filter: none; background: #1F2937; border-color: #1F2937; color: #fff; }
+        @media (max-width: 480px) { .rb-risk-actions .rb-btn { flex: 1 1 100%; } }
         /* Layout: consistent section rhythm, contained photos */
         .rb-drawer .rb-two-col > div { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
         .rb-drawer .rb-section > h4 { padding-bottom: 6px; border-bottom: 1px solid #E5E7EB; }

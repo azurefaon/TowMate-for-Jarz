@@ -745,14 +745,16 @@
             '<div class="rb-section rb-risk" id="rbRiskSection"><h4>Customer risk (current)</h4>' +
             '<div id="rbRiskStatus">' + status + "</div>" +
             '<details class="rb-risk-manage" id="rbRiskManage"' + (flagged ? " open" : "") + "><summary>Manage risk</summary>" +
-            '<div class="rb-inline-note" style="margin:6px 0 8px">Applies to the customer, not only this booking. Informational: it does not change this booking.</div>' +
-            '<select id="rbRiskLevel" aria-label="Risk level" style="width:100%;margin-bottom:6px"><option value="">Select risk level</option>' +
+            '<div class="rb-inline-note rb-risk-note">Applies to the customer, not only this booking. Informational: it does not change this booking.</div>' +
+            '<label class="rb-risk-label" for="rbRiskLevel">Risk level</label>' +
+            '<select id="rbRiskLevel" class="rb-risk-input"><option value="">Select risk level</option>' +
             '<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="blacklist">Blacklist</option></select>' +
-            '<textarea id="rbRiskReason" maxlength="500" placeholder="Reason (required)" style="width:100%;min-height:56px"></textarea>' +
-            '<div id="rbRiskError" class="rb-inline-note" style="display:none;color:#D8402C;margin:4px 0"></div>' +
-            '<div style="display:flex;gap:8px;margin-top:6px">' +
-            '<button type="button" class="rb-btn rb-btn-primary" id="rbRiskSave">' + (flagged ? "Update risk" : "Mark risk") + "</button>" +
-            (flagged ? '<button type="button" class="rb-btn rb-btn-secondary" id="rbRiskClear">Clear risk</button>' : "") +
+            '<label class="rb-risk-label" for="rbRiskReason">Reason</label>' +
+            '<textarea id="rbRiskReason" class="rb-risk-input" maxlength="500" placeholder="Required"></textarea>' +
+            '<div id="rbRiskError" class="rb-inline-note rb-risk-error" style="display:none"></div>' +
+            '<div class="rb-risk-actions">' +
+            (flagged ? '<button type="button" class="rb-btn rb-btn-secondary" id="rbRiskClear">Clear risk flag</button>' : "") +
+            '<button type="button" class="rb-btn rb-btn-primary" id="rbRiskSave">' + (flagged ? "Update risk flag" : "Save risk flag") + "</button>" +
             "</div></details></div>"
         );
     }

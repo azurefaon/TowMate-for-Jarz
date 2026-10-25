@@ -8,6 +8,7 @@ import '../../models/task_model.dart';
 import '../../services/team_leader_service.dart';
 import '../../services/tl_presence_controller.dart';
 import '../../services/location_tracker.dart';
+import '../../services/tl_navigation_session.dart';
 import '../../widgets/next_task_offer_card.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/tl_bottom_nav.dart';
@@ -43,7 +44,8 @@ class TlActiveTaskShell extends StatefulWidget {
   State<TlActiveTaskShell> createState() => _TlActiveTaskShellState();
 }
 
-class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
+class _TlActiveTaskShellState extends State<TlActiveTaskShell>
+    with WidgetsBindingObserver {
   TaskModel? _task;
   bool _loading = true;
   bool _loadFailed = false; // last lookup failed: unknown, NOT "no task"
@@ -52,9 +54,18 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
   Timer? _pollTimer;
   NextTaskOffer? _nextOffer;
 
+  // Turn-by-turn navigation runs only after an explicit Navigate tap and only
+  // for the current driving leg. Accepting a task never starts it, and leaving
+  // the leg (arrival, Step 5 payment) closes it and stops voice guidance.
+  bool _navOpen = false;
+  bool _navLegKnown = false;
+  String? _navLeg;
+  String? _navKey; // booking + leg: a different task never inherits an open navigation
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     TlPresenceController.start();
     _fetchTask();
     _pollTimer = Timer.periodic(
@@ -92,6 +103,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
       _task = task;
       _loadFailed = false;
       _loading = false;
+      _syncNavigationLeg(task);
     });
     _syncGps(task);
     _fetchNextOffer(task);
@@ -136,9 +148,42 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
     }
   }
 
+  // Call inside setState. A new leg (or none) closes the Navigate screen, whose
+  // dispose stops guidance; ensureStopped() also ends guidance left over from
+  // a previous app run, which no mounted screen would otherwise stop.
+  void _syncNavigationLeg(TaskModel? task) {
+    final leg = task == null ? null : TlNavigationSession.legFor(task.status);
+    final key = leg == null ? null : '${task!.bookingCode}:$leg';
+    if (_navLegKnown && key == _navKey) return;
+    _navLegKnown = true;
+    _navLeg = leg;
+    _navKey = key;
+    _navOpen = false;
+    _tabIndex = 0;
+    TlNavigationSession.ensureStopped();
+  }
+
+  void _openNavigation() {
+    if (_navLeg == null) return;
+    setState(() {
+      _navOpen = true;
+      _tabIndex = 1;
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_navOpen) {
+      TlNavigationSession.ensureStopped();
+    }
+  }
+
   void onTaskUpdated(TaskModel updated) {
     if (!mounted) return;
-    setState(() => _task = updated);
+    setState(() {
+      _task = updated;
+      _syncNavigationLeg(updated);
+    });
     _syncGps(updated);
     if (updated.isActive && (_pollTimer == null || !_pollTimer!.isActive)) {
       _pollTimer = Timer.periodic(
@@ -150,6 +195,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _gps.stop();
     super.dispose();
@@ -235,8 +281,10 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
 
     final task = _task!;
     final isDone = task.status == 'completed' || task.status == 'returned';
-    // Driving is over once payment verification starts: no Navigate tab.
-    final showNavigate = !isDone && task.status != 'waiting_verification';
+    // Navigate exists only while driving to pickup or drop-off; arrival,
+    // loading and payment verification (Step 5) have no Navigate tab.
+    final showNavigate =
+        !isDone && TlNavigationSession.isNavigationPhase(task.status);
 
     return PopScope(
       canPop: isDone,
@@ -406,12 +454,12 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
       'accepted' => TlEnRouteScreen(
           task: task,
           onUpdate: onTaskUpdated,
-          onNavigateToPickup: () => setState(() => _tabIndex = 1),
+          onNavigateToPickup: _openNavigation,
         ),
       'on_the_way' => TlEnRouteScreen(
           task: task,
           onUpdate: onTaskUpdated,
-          onNavigateToPickup: () => setState(() => _tabIndex = 1),
+          onNavigateToPickup: _openNavigation,
         ),
       'arrived_pickup' => TlArrivedPickupScreen(
         task: task,
@@ -428,7 +476,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
       'on_job' => TlTransportingScreen(
           task: task,
           onUpdate: onTaskUpdated,
-          onNavigateToDropoff: () => setState(() => _tabIndex = 1),
+          onNavigateToDropoff: _openNavigation,
         ),
       'arrived_dropoff' => TlArrivedDropoffScreen(
         task: task,
@@ -445,8 +493,14 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
     };
   }
 
+  // Not built until Navigate is tapped: IndexedStack builds every child, so an
+  // always-present TlNavigateScreen would start voice guidance on accept.
   Widget _navigateTab(TaskModel task) {
-    return TlNavigateScreen(task: task);
+    if (!_navOpen) return const SizedBox.shrink();
+    return TlNavigateScreen(
+      key: ValueKey('nav-${task.bookingCode}-$_navLeg'),
+      task: task,
+    );
   }
 
   Widget _doneView(TaskModel task) {
@@ -470,7 +524,9 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
             final selected = _tabIndex == i;
             return Expanded(
               child: GestureDetector(
-                onTap: () => setState(() => _tabIndex = i),
+                onTap: () => i == 1
+                    ? _openNavigation()
+                    : setState(() => _tabIndex = i),
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),

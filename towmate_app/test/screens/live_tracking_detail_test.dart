@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/screens/customer/booking_detail_screen.dart';
 import 'package:towmate_app/services/live_tracking_controller.dart';
+import 'package:towmate_app/widgets/live_tracking_widgets.dart';
 import 'package:towmate_app/widgets/status_badge.dart';
 
 http.Response _json(Object body, {int status = 200}) =>
@@ -149,7 +150,42 @@ void main() {
     (call) async => null,
   );
 
-  tearDown(() => LiveTrackingRegistry.instance.resetForTest());
+  // Customer Live Tracking ships switched off; these tests cover the shared
+  // tracking code with it switched on.
+  setUp(() => CustomerLiveTracking.enabled = true);
+  tearDown(() {
+    CustomerLiveTracking.enabled = false;
+    LiveTrackingRegistry.instance.resetForTest();
+  });
+
+  group('Booking Details — customer Live Tracking switched off (shipping default)', () {
+    setUp(() => CustomerLiveTracking.enabled = false);
+
+    testWidgets('on_the_way: no tracking card, no Track tow truck and no tracking polling', (tester) async {
+      final log = <String>[];
+      await _pump(tester, details: [_detail()], tracking: {'TM-00225': _tracking('TM-00225')}, trackingLog: log);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const ValueKey('detail-live-tracking-TM-00225')), findsNothing);
+      expect(find.text('Track tow truck'), findsNothing);
+      expect(find.text('ETA TO PICKUP'), findsNothing);
+      expect(log, isEmpty);
+    });
+
+    testWidgets('openLiveTracking is a no-op, so no screen can push the tracking route', (tester) async {
+      final routes = <String>[];
+      await _pump(
+        tester,
+        details: [_detail()],
+        tracking: const {},
+        onNavigate: (r, _) => routes.add(r),
+      );
+
+      openLiveTracking(tester.element(find.byType(BookingDetailScreen)), 'TM-00225');
+      await _settle(tester);
+      expect(routes, isNot(contains(kLiveTrackingRoute)));
+    });
+  });
 
   group('Booking Details — single booking Live Tracking card', () {
     testWidgets('on_the_way: card directly after the status card with ETA, distance and Track tow truck', (tester) async {

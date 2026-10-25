@@ -735,7 +735,7 @@ class _GroupLiveTrackingSectionState extends State<_GroupLiveTrackingSection> {
       for (var i = 0; i < sorted.length; i++)
         if (isTrackableStatus(sorted[i].status)) (i + 1, sorted[i]),
     ];
-    if (trackable.isEmpty) return const SizedBox.shrink();
+    if (!CustomerLiveTracking.enabled || trackable.isEmpty) return const SizedBox.shrink();
     final anyVisible = trackable.any((t) => !_ended.containsKey(t.$2.bookingCode));
 
     return Padding(
