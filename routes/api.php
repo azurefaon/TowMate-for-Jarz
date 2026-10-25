@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\TeamLeader\TLAuthController;
 use App\Http\Controllers\Api\TeamLeader\TLPresenceController;
 use App\Http\Controllers\Api\TeamLeader\TLDemoController;
 use App\Http\Controllers\Api\TeamLeader\TLTaskController;
+use App\Http\Controllers\Api\TeamLeader\TLNextTaskController;
 use App\Http\Controllers\Api\TeamLeader\TLLocationController;
 use App\Http\Controllers\Api\CustomerQuotationController;
 use App\Http\Controllers\Api\DeviceTokenController;
@@ -118,6 +119,9 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
             Route::post('task/{booking}/photo',    [TLTaskController::class, 'uploadPhoto'])->middleware('throttle:tl-upload');
             Route::post('task/{booking}/complete', [TLTaskController::class, 'complete'])->middleware('throttle:tl-task-mutate');
             Route::post('group/{groupCode}/claim-next', [TLTaskController::class, 'claimNext'])->middleware('throttle:tl-task-mutate');
+            Route::get('next-offer',                   [TLNextTaskController::class, 'show']);
+            Route::post('next-offer/{offer}/accept',   [TLNextTaskController::class, 'accept'])->whereNumber('offer')->middleware('throttle:tl-task-mutate');
+            Route::post('next-offer/{offer}/decline',  [TLNextTaskController::class, 'decline'])->whereNumber('offer')->middleware('throttle:tl-task-mutate');
             Route::put('location',                [TLLocationController::class, 'update'])->middleware('throttle:tl-location');
 
             // LOCAL/DEMO ONLY - fails closed (404) outside local/testing; see TlDemoFixture.

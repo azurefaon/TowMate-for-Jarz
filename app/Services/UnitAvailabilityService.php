@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\BookingQueueOffer;
 use App\Models\Personnel;
 use App\Models\TruckType;
 use App\Models\Unit;
@@ -150,11 +151,17 @@ class UnitAvailabilityService
             ->get(['id', 'booking_code', 'status', 'selected_unit_id'])
             ->keyBy('selected_unit_id');
 
+        // A unit holding a next-task queue offer is spoken for, even once its Team Leader is free.
+        $queueOffersByUnitId = BookingQueueOffer::active()
+            ->whereIn('unit_id', $unitIds)
+            ->get()
+            ->keyBy('unit_id');
+
         // Driver eligibility inputs, batched like everything else here.
         $driverAccounts = User::whereIn('id', $units->pluck('driver_id')->filter()->unique()->values())->get()->keyBy('id');
         $driverRecords = Personnel::whereIn('id', $units->pluck('driver_personnel_id')->filter()->unique()->values())->get()->keyBy('id');
 
-        return $units->mapWithKeys(function (Unit $unit) use ($busyTeamLeaderIds, $activeBookingsByLeaderId, $activeBookingsByUnitId, $reservationsByUnitId, $driverAccounts, $driverRecords) {
+        return $units->mapWithKeys(function (Unit $unit) use ($busyTeamLeaderIds, $activeBookingsByLeaderId, $activeBookingsByUnitId, $reservationsByUnitId, $queueOffersByUnitId, $driverAccounts, $driverRecords) {
             $teamLeader = $unit->relationLoaded('teamLeader') ? $unit->teamLeader : $unit->teamLeader()->first();
             $teamLeaderId = (int) ($unit->team_leader_id ?? 0);
 
@@ -200,6 +207,10 @@ class UnitAvailabilityService
             if ($reservation) {
                 $reasons[] = 'reserved';
             }
+            $queueOffer = $queueOffersByUnitId->get($unit->id);
+            if ($queueOffer) {
+                $reasons[] = 'queue_reserved';
+            }
 
             return [$unit->id => [
                 'unit' => $unit,
@@ -211,6 +222,7 @@ class UnitAvailabilityService
                 'workload' => $workload,
                 'active_booking' => $activeBooking,
                 'reservation' => $reservation,
+                'queue_offer' => $queueOffer,
                 'available' => empty($reasons),
                 'reasons' => $reasons,
             ]];

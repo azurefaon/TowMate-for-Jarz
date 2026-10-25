@@ -1585,6 +1585,27 @@
         .trk-det-why { margin-top: 8px; font-size: 12px; line-height: 1.45; color: #374151; background: #F6F7F9; border-radius: 8px; padding: 8px 10px; }
         .trk-det-why.is-warn { background: #FEF3C7; color: #7A5200; }
         .trk-empty { border: 1px dashed #CFD4DC; border-radius: 12px; padding: 14px; font-size: 12.5px; color: #5B6472; text-align: center; }
+        .rb-queue-banner { margin-top: 10px; border: 1px solid #FACC15; background: #FFFBEB; border-radius: 10px; padding: 10px 12px; }
+        .rb-queue-banner.is-ready { border-color: #A5D6A7; background: #F1F8F2; }
+        .rb-queue-banner-title { font-weight: 700; font-size: 13px; }
+        .rb-queue-banner-body { font-size: 12.5px; color: #374151; margin-top: 4px; line-height: 1.45; }
+        .rb-queue-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+        .rb-queue-banner-error { margin-top: 8px; font-size: 12px; color: #B91C1C; }
+        .urc-badge--offer { background: #EEF2FF; color: #3730A3; border-color: #A5B4FC; }
+        .urc-badge--offer-ready { background: #E8F5E9; color: #1B5E20; border-color: #A5D6A7; }
+        .trk-det-btn--secondary { margin-top: 8px; background: #fff; color: #111; border-color: #111; }
+        .trk-det-btn--secondary:hover { background: #FEF3C7; }
+        .trk-det-btn--ghost { margin-top: 8px; background: #fff; color: #374151; border-color: #CFD4DC; font-weight: 600; }
+        .trk-queue-confirm { border: 1px solid #FACC15; background: #FFFBEB; border-radius: 10px; padding: 10px; }
+        .trk-queue-confirm.is-ready { border-color: #A5D6A7; background: #F1F8F2; }
+        .trk-queue-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+        .trk-queue-facts { margin: 0 0 8px; display: grid; gap: 4px; font-size: 12px; }
+        .trk-queue-facts div { display: flex; gap: 8px; }
+        .trk-queue-facts dt { color: #5B6472; min-width: 82px; }
+        .trk-queue-facts dd { margin: 0; font-weight: 600; }
+        .trk-queue-list { margin: 0 0 8px; padding-left: 18px; font-size: 12px; line-height: 1.5; color: #374151; }
+        .trk-queue-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .trk-queue-actions .trk-det-btn--ghost { margin-top: 0; }
         @media (max-width: 900px) {
             .rtn-map-modal-card.is-assign .rtn-map-modal-body { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(160px, 1fr) minmax(0, 1.2fr); overflow-y: auto; }
             .rtn-map-modal-card.is-assign .trk-side { grid-column: 1; grid-row: 4; }
@@ -3073,6 +3094,9 @@
             quoteAdjustPrice: "{{ route('admin.quotations.adjust-price', ':quotation') }}",
             quoteUndoAdjustment: "{{ route('admin.quotations.adjustments.undo', ['quotation' => ':quotation', 'adjustment' => ':adjustment']) }}",
             jobsIndex: "{{ route('admin.jobs') }}",
+            queueOffer:   "{{ route('admin.booking.queue-offer', ':booking') }}",
+            queueCancel:  "{{ route('admin.queue-offers.cancel', ':offer') }}",
+            queuePromote: "{{ route('admin.queue-offers.promote', ':offer') }}",
         };
         window.RB_CSRF = "{{ csrf_token() }}";
         window.RB_VAT_RATE = {{ app(\App\Services\BookingService::class)->vatRate() }};

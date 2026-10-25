@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_error.dart';
 import 'api_service.dart';
+import '../models/next_task_offer.dart';
 import '../models/task_model.dart';
 
 class TeamLeaderService {
@@ -128,6 +129,58 @@ class TeamLeaderService {
       };
     } catch (e) {
       return {..._failure(e), 'data': <Map<String, dynamic>>[]};
+    }
+  }
+
+  /// The next-task offer queued behind the current job, or null. Callers treat a failure as
+  /// "no change": an offer card must never break the active task screen.
+  static Future<NextTaskOffer?> getNextOffer() async {
+    final response = await apiClient
+        .get(Uri.parse('$_base/next-offer'), headers: await _authHeaders())
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw ApiException(
+        ApiError.classifyStatus(response.statusCode),
+        ApiMessages.forResponse(response.statusCode, _decodeOrNull(response.body)),
+      );
+    }
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = body['data'];
+    return data is Map<String, dynamic> ? NextTaskOffer.fromJson(data) : null;
+  }
+
+  /// Reserves the offered task. Does not start it.
+  static Future<Map<String, dynamic>> acceptNextOffer(int offerId) =>
+      _offerAnswer('$_base/next-offer/$offerId/accept');
+
+  static Future<Map<String, dynamic>> declineNextOffer(int offerId) =>
+      _offerAnswer('$_base/next-offer/$offerId/decline');
+
+  static Future<Map<String, dynamic>> _offerAnswer(String url) async {
+    try {
+      final response = await apiClient
+          .post(Uri.parse(url), headers: await _authHeaders())
+          .timeout(const Duration(seconds: 15));
+      final decoded = _decodeOrNull(response.body);
+      final body = decoded is Map<String, dynamic> ? decoded : null;
+      if (response.statusCode == 200 && body?['success'] == true) {
+        final data = body!['data'];
+        return {
+          'success': true,
+          if (data is Map<String, dynamic>) 'offer': NextTaskOffer.fromJson(data),
+          if (body['message'] != null) 'message': body['message'],
+        };
+      }
+      return {
+        'success': false,
+        // 404/409: the offer is gone, expired or already answered; the card should refresh.
+        'stale': response.statusCode == 404 || response.statusCode == 409,
+        'message': body == null
+            ? ApiError.message(ApiError.classifyStatus(response.statusCode))
+            : ApiMessages.forResponse(response.statusCode, body),
+      };
+    } catch (e) {
+      return _failure(e);
     }
   }
 

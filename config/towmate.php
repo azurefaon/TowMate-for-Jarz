@@ -39,6 +39,19 @@ return [
     | them, and only while demo_arrival_enabled is true. Entries are trimmed
     | and lowercased; blanks are ignored; unset/blank = nobody.
     */
+    /*
+    |--------------------------------------------------------------------------
+    | Next-task queue offers
+    |--------------------------------------------------------------------------
+    |
+    | How long a Team Leader has to accept or decline a queued next-task offer
+    | before it expires and the booking is free to be offered or assigned again.
+    |
+    */
+    'next_task_queue_enabled' => (bool) env('NEXT_TASK_QUEUE_ENABLED', false),
+
+    'queue_offer_ttl_minutes' => (int) env('QUEUE_OFFER_TTL_MINUTES', 10),
+
     'demo_team_leader_emails' => array_values(array_unique(array_filter(
         array_map(
             fn (string $email) => strtolower(trim($email)),

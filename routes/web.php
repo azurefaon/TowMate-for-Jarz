@@ -199,6 +199,10 @@ Route::prefix('admin-dashboard')
         });
 
         Route::post('/booking/{booking}/assign', [DispatchController::class, 'assignBooking'])->name('booking.assign');
+        Route::get('/booking/{booking}/queue-offer', [\App\Http\Controllers\Admin\NextTaskQueueController::class, 'show'])->name('booking.queue-offer');
+        Route::post('/booking/{booking}/queue-offer', [\App\Http\Controllers\Admin\NextTaskQueueController::class, 'store'])->middleware('throttle:30,1')->name('booking.queue-offer.store');
+        Route::post('/queue-offers/{offer}/cancel', [\App\Http\Controllers\Admin\NextTaskQueueController::class, 'cancel'])->whereNumber('offer')->middleware('throttle:30,1')->name('queue-offers.cancel');
+        Route::post('/queue-offers/{offer}/promote', [\App\Http\Controllers\Admin\NextTaskQueueController::class, 'promote'])->whereNumber('offer')->middleware('throttle:30,1')->name('queue-offers.promote');
         Route::post('/booking/{booking}/reschedule', [DispatchController::class, 'rescheduleBooking'])->name('booking.reschedule');
         Route::post('/booking/{booking}/save-draft', [DispatchController::class, 'saveQuotationDraft'])->name('booking.save-draft');
         Route::get('/quotations/floating-panel', [DispatchController::class, 'floatingQuotationsPanel'])->name('quotations.floating-panel');

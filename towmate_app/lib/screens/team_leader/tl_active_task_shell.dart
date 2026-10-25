@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../widgets/status_badge.dart';
+import '../../models/next_task_offer.dart';
 import '../../models/task_model.dart';
 import '../../services/team_leader_service.dart';
 import '../../services/tl_presence_controller.dart';
 import '../../services/location_tracker.dart';
+import '../../widgets/next_task_offer_card.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/tl_bottom_nav.dart';
 import '../../widgets/tl_status_timeline.dart';
@@ -48,6 +50,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
   int _tabIndex = 0;
   final LocationTracker _gps = LocationTracker();
   Timer? _pollTimer;
+  NextTaskOffer? _nextOffer;
 
   @override
   void initState() {
@@ -91,6 +94,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
       _loading = false;
     });
     _syncGps(task);
+    _fetchNextOffer(task);
 
     final isGroupAwaitingNext = task != null &&
         task.status == 'completed' &&
@@ -107,6 +111,20 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
         (_) => _fetchTask(),
       );
     }
+  }
+
+  // A queued next task rides on the same foreground poll as the task itself; there is no push.
+  // A failed lookup keeps whatever was shown: it must never disturb the active task.
+  Future<void> _fetchNextOffer(TaskModel? task) async {
+    if (task == null || task.status == 'completed' || task.status == 'returned') {
+      if (_nextOffer != null && mounted) setState(() => _nextOffer = null);
+      return;
+    }
+    try {
+      final offer = await TeamLeaderService.getNextOffer();
+      if (!mounted) return;
+      setState(() => _nextOffer = offer);
+    } catch (_) {}
   }
 
   void _syncGps(TaskModel? task) {
@@ -250,6 +268,16 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell> {
                         )
                       : _taskTab(task),
             ),
+            if (!isDone && _nextOffer != null)
+              SafeArea(
+                top: false,
+                bottom: !showNavigate,
+                child: NextTaskOfferCard(
+                  key: ValueKey('offer-${_nextOffer!.id}'),
+                  offer: _nextOffer!,
+                  onChanged: () => _fetchNextOffer(_task),
+                ),
+              ),
             if (showNavigate) _bottomNav(),
           ],
         ),
