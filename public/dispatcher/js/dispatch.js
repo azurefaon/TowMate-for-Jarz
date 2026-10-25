@@ -1683,7 +1683,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 '<div class="trk-det-grid">' +
                 "<div><small>Towing unit</small>" + escapeHtml(u.unit_name || "") + "</div>" +
                 "<div><small>Plate</small>" + escapeHtml(u.plate_number || "—") + "</div>" +
-                "<div><small>Tow class</small>" + escapeHtml(u.truck_type_name || "—") + "</div>" +
+                "<div><small>Truck type</small>" + escapeHtml(u.truck_type_name || "—") + "</div>" +
                 "<div><small>Current task</small>" + escapeHtml(job) + "</div>" +
                 '<div><small>Last GPS update</small><span class="urc-gps ' + gps.cls + '">' + escapeHtml(gps.text) + "</span></div>" +
                 "<div><small>Distance to pickup</small>" + distanceText(km, true) + "</div>" +
