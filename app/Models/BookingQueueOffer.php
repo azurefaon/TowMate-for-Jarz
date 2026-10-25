@@ -32,14 +32,23 @@ class BookingQueueOffer extends Model
         'cancelled_at' => 'datetime',
     ];
 
+    /**
+     * An offer that still holds its reservation. An offered row whose time has run out does not,
+     * even before the scheduled sweep has marked it expired, so a missed sweep can never keep a
+     * unit or booking blocked.
+     */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->whereIn('status', self::ACTIVE);
+        return $query->where(function (Builder $q) {
+            $q->where('status', self::ACCEPTED)
+                ->orWhere(fn (Builder $o) => $o->where('status', self::OFFERED)->where('expires_at', '>', now()));
+        });
     }
 
     public function isActive(): bool
     {
-        return in_array($this->status, self::ACTIVE, true);
+        return $this->status === self::ACCEPTED
+            || ($this->status === self::OFFERED && $this->expires_at?->isFuture());
     }
 
     public function booking()
