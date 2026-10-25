@@ -286,6 +286,47 @@
         color: #374151;
     }
 
+    .bdm-btn-primary:hover:not(:disabled) {
+        background: #eab308;
+    }
+
+    .bdm-btn-secondary:hover:not(:disabled) {
+        border-color: #1f2937;
+        background: #1f2937;
+        color: #fff;
+    }
+
+    .bdm-risk-label {
+        display: block;
+        margin: 0 0 4px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #111827;
+    }
+
+    .bdm-void-form .bdm-risk-input {
+        display: block;
+        width: 100%;
+        margin: 0 0 10px;
+        padding: 0 9px;
+        border: 1px solid #9ca3af;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        font-family: inherit;
+        color: #111827;
+        background: #fff;
+        box-sizing: border-box;
+    }
+
+    .bdm-void-form select.bdm-risk-input {
+        height: 36px;
+    }
+
+    .bdm-void-form textarea.bdm-risk-input {
+        min-height: 68px;
+        padding: 7px 9px;
+    }
+
     .bdm-footer {
         padding: 14px 24px;
         border-top: 2px solid #000;

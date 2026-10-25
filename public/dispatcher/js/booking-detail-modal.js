@@ -110,12 +110,14 @@
             '<span class="bdm-row-value" id="bdmRiskStatus">' + statusHtml + "</span></div>" +
             '<p class="bdm-risk-note" style="margin:6px 0 10px;font-size:0.78rem;color:#6b7280;white-space:normal;line-height:1.4">Risk status applies to the customer, not only this booking. It is informational and does not change this booking.</p>' +
             '<div class="bdm-void-form" id="bdmRiskForm" style="display:block">' +
-            '<select id="bdmRiskLevel" aria-label="Risk level"><option value="">Select risk level</option>' + options + "</select>" +
-            '<textarea id="bdmRiskReason" maxlength="500" placeholder="Reason (required)"></textarea>' +
+            '<label class="bdm-risk-label" for="bdmRiskLevel">Risk level</label>' +
+            '<select id="bdmRiskLevel" class="bdm-risk-input"><option value="">Select risk level</option>' + options + "</select>" +
+            '<label class="bdm-risk-label" for="bdmRiskReason">Reason</label>' +
+            '<textarea id="bdmRiskReason" class="bdm-risk-input" maxlength="500" placeholder="Required"></textarea>' +
             '<div class="bdm-void-error" id="bdmRiskError" style="display:none"></div>' +
             '<div class="bdm-adj-form-actions">' +
-            '<button type="button" class="bdm-btn-primary" id="bdmRiskSave" data-booking-id="' + esc(booking.booking_code) + '">' + (risk ? "Update risk" : "Mark risk") + "</button>" +
-            (risk ? '<button type="button" class="bdm-btn-secondary" id="bdmRiskClear" data-booking-id="' + esc(booking.booking_code) + '">Clear risk</button>' : "") +
+            (risk ? '<button type="button" class="bdm-btn-secondary" id="bdmRiskClear" data-booking-id="' + esc(booking.booking_code) + '">Clear risk flag</button>' : "") +
+            '<button type="button" class="bdm-btn-primary" id="bdmRiskSave" data-booking-id="' + esc(booking.booking_code) + '">' + (risk ? "Update risk flag" : "Save risk flag") + "</button>" +
             "</div></div>"
         );
     }

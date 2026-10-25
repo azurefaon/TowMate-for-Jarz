@@ -831,6 +831,7 @@
 .jobs-page .jobs-detail-actions {
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 10px;
     padding-top: 14px;
 }
@@ -840,6 +841,8 @@
 }
 
 .jobs-page .jobs-action-btn {
+    min-width: 140px;
+    min-height: 38px;
     padding: 8px 16px;
     border: 1px solid #111111;
     border-radius: 8px;
@@ -848,11 +851,25 @@
     font-family: inherit;
     font-size: 0.82rem;
     font-weight: 600;
+    text-align: center;
     cursor: pointer;
 }
 
-.jobs-page .jobs-action-btn:hover {
-    background: #f1f5f9;
+.jobs-page .jobs-action-btn:hover:not(:disabled) {
+    background: #1f2937;
+    border-color: #1f2937;
+    color: #ffffff;
+}
+
+.jobs-page .jobs-action-btn--danger {
+    border-color: #b42318;
+    color: #b42318;
+}
+
+.jobs-page .jobs-action-btn--danger:hover:not(:disabled) {
+    background: #b42318;
+    border-color: #b42318;
+    color: #ffffff;
 }
 
 .jobs-page .jobs-action-btn:focus-visible {
@@ -864,8 +881,10 @@
     background: #facc15;
 }
 
-.jobs-page .jobs-action-btn--primary:hover {
+.jobs-page .jobs-action-btn--primary:hover:not(:disabled) {
     background: #eab308;
+    border-color: #111111;
+    color: #111111;
 }
 
 .jobs-page .jobs-action-btn:disabled {
@@ -889,6 +908,10 @@
     .jobs-page .jobs-detail-item {
         grid-template-columns: minmax(0, 1fr);
         row-gap: 2px;
+    }
+
+    .jobs-page .jobs-detail-actions .jobs-action-btn {
+        flex: 1 1 100%;
     }
 }
 

@@ -3,7 +3,7 @@
 @section('title', 'Active Jobs')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('dispatcher/css/jobs.css') }}">
+    <link rel="stylesheet" href="{{ asset('dispatcher/css/jobs.css') }}?v={{ filemtime(public_path('dispatcher/css/jobs.css')) }}">
 @endpush
 
 @section('content')
@@ -362,7 +362,7 @@
 
                 <div class="jobs-detail-actions">
                     <button type="button" id="job-detail-reassign-btn" class="jobs-action-btn" style="display:none;">Reassign task</button>
-                    <button type="button" id="job-detail-cancel-btn" class="jobs-action-btn" style="display:none;">Cancel booking</button>
+                    <button type="button" id="job-detail-cancel-btn" class="jobs-action-btn jobs-action-btn--danger" style="display:none;">Cancel booking</button>
                     <button type="button" id="job-detail-confirm-btn" class="jobs-action-btn jobs-action-btn--primary" style="display:none;"><span>Confirm payment</span></button>
                 </div>
             </div>
