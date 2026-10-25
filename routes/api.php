@@ -20,10 +20,6 @@ use App\Http\Controllers\Api\CustomerContentController;
 use App\Http\Controllers\GeoController;
 use App\Http\Controllers\SuperAdmin\VehicleTypeController;
 
-Route::get('/test', function () {
-    return response()->json(['message' => 'API working']);
-});
-
 Route::post('/register',                [AuthController::class, 'register'])->middleware('throttle:customer-register');
 Route::post('/register/send-otp',       [AuthController::class, 'sendRegistrationOtp'])->middleware('throttle:customer-otp-send');
 Route::post('/register/verify-otp',     [AuthController::class, 'verifyRegistrationOtp'])->middleware('throttle:customer-otp-verify');
