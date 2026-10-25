@@ -130,7 +130,7 @@
                                         @endforeach
                                     </td>
                                     <td>
-                                        {{ $log->user->full_name ?? 'System' }}
+                                        {{ $log->user->full_name ?? ($log->actor_label ?: 'System') }}
                                         @if ($log->user?->role?->name)
                                             <span class="oa-sub">{{ $log->user->role->name }}</span>
                                         @endif

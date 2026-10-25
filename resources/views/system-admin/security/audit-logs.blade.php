@@ -59,7 +59,7 @@
                             <td class="sa-muted">{{ $log->created_at->format('M d, Y g:i A') }}</td>
                             <td>{{ $categories[$log->category] ?? ucfirst($log->category ?? 'System') }}</td>
                             <td>{{ $log->activity_label }}</td>
-                            <td>{{ $log->user?->full_name ?: ($log->user?->name ?: 'System') }}</td>
+                            <td>{{ $log->user?->full_name ?: ($log->user?->name ?: ($log->actor_label ?: 'System')) }}</td>
                             <td class="sa-muted">{{ redact_ip_addresses($log->description) ?: (redact_ip_addresses($log->reference) ?: '—') }}</td>
                         </tr>
                     @empty

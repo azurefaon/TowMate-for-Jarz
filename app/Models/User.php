@@ -73,6 +73,14 @@ class User extends Authenticatable
             $user->email = strtolower(trim((string) $user->email));
         });
 
+        // Audit rows must outlive the account (audit_logs.user_id is SET NULL on delete). Before the
+        // row goes, stamp a non-personal label so the history still shows what kind of actor it was.
+        static::deleting(function (User $user) {
+            \App\Models\AuditLog::where('user_id', $user->id)
+                ->whereNull('actor_label')
+                ->update(['actor_label' => 'Deleted account #' . $user->id . ' (role ' . ($user->role_id ?? '?') . ')']);
+        });
+
         // Any path that disables an account (deactivate, archive, queue for
         // deletion, inactivity auto-lock, anonymize-on-purge) drops its
         // Sanctum tokens here, inside the same save/transaction. Reactivating
