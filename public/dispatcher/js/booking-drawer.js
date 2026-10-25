@@ -254,6 +254,8 @@
                 d.status === "scheduled" || d.status === "scheduled_confirmed",
             schedulingBucket: d.schedulingBucket || "",
             scheduledFor: d.scheduledFor || "",
+            pickupLat: d.pickupLat || "",
+            pickupLng: d.pickupLng || "",
 
             priceChangeLog: priceChangeLog,
             groupVehicles: groupVehicles,
@@ -684,6 +686,7 @@
             });
             if (!ok) return;
         }
+        closeLiveMapIfOwned();
         drawerEl.classList.remove("is-open");
         drawerOverlayEl.classList.remove("is-open");
         drawerEl.setAttribute("aria-hidden", "true");
@@ -1444,11 +1447,13 @@
             var vehicle = activeVehicle(s);
             var vIndex = activeVehicleIndex(s);
             return (
-                '<div class="rb-section"><h4>Assignment — Vehicle ' +
+                '<div class="rb-section"><div class="rb-section-head"><h4>Assignment — Vehicle ' +
                 (vIndex + 1) +
                 ": " +
                 esc(vehicleDisplayName(vehicle)) +
-                '</h4><div class="rb-group-vehicle-list"><div class="rb-group-vehicle" data-group-vehicle="' +
+                "</h4>" +
+                liveMapButtonHtml('data-group-livemap="' + vehicle.booking_id + '"') +
+                '</div><div class="rb-group-vehicle-list"><div class="rb-group-vehicle" data-group-vehicle="' +
                 vehicle.booking_id +
                 '">' +
                 '<div class="rb-group-vehicle-head">' +
@@ -1488,7 +1493,9 @@
             if (eff !== "ready" && eff !== "overdue") return "";
         }
         return (
-            '<div class="rb-section"><h4>Available units</h4>' +
+            '<div class="rb-section"><div class="rb-section-head"><h4>Available units</h4>' +
+            liveMapButtonHtml('id="rbLiveMapBtn"') +
+            "</div>" +
             '<div class="rb-search-wrap"><span class="rb-search-ic">' +
             icon("search", 15) +
             '</span><input type="text" id="rbUnitSearch" placeholder="Search unit or team leader"></div>' +
@@ -2126,6 +2133,14 @@
                 submitDispatch();
             };
         });
+        byId("rbLiveMapBtn", function (el) {
+            el.onclick = openLiveMapForSingle;
+        });
+        document.querySelectorAll("[data-group-livemap]").forEach(function (el) {
+            el.onclick = function () {
+                openLiveMapForVehicle(el.dataset.groupLivemap);
+            };
+        });
         document.querySelectorAll("[data-group-search]").forEach(function (el) {
             el.oninput = function () {
                 var vehicle = (s.groupVehicles || []).find(function (item) {
@@ -2183,6 +2198,131 @@
     // ------------------------------------------------------------------
     // Unit list (search + render + select)
     // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Live map (shared with Return: window.dispatchLiveMap in dispatch.js)
+    // ------------------------------------------------------------------
+    function liveMapButtonHtml(attrs) {
+        return (
+            '<button type="button" class="rb-btn rb-btn-secondary rb-btn-sm" ' +
+            attrs +
+            ' aria-haspopup="dialog">' +
+            icon("mapPin", 14) +
+            " View Live Map</button>"
+        );
+    }
+
+    // The map hands back a fresh server record. If the unit was not in the list embedded at
+    // page load (it became available since), add it so its card can show as selected.
+    function ensureUnitListed(unit) {
+        var existing = AVAILABLE_UNITS.filter(function (u) {
+            return String(u.id) === String(unit.unit_id);
+        })[0];
+        if (existing) {
+            // The server just confirmed it is free for this booking; drop a stale reservation tag.
+            existing.reserved_by_booking_code = null;
+            return;
+        }
+        AVAILABLE_UNITS.push({
+            id: unit.unit_id,
+            label: unit.label,
+            truck_type_id: unit.truck_type_id,
+            truck_type: unit.truck_type_name,
+            team_leader_name: unit.team_leader_name,
+            driver_name: unit.driver_name,
+            crew_names: unit.crew_names || [],
+            status_summary: "Available for dispatch",
+            reserved_by_booking_code: null,
+        });
+    }
+
+    var liveMapOwnerState = null;
+
+    function closeLiveMapIfOwned() {
+        if (liveMapOwnerState && window.dispatchLiveMap && window.dispatchLiveMap.isOpen()) {
+            window.dispatchLiveMap.close();
+        }
+        liveMapOwnerState = null;
+    }
+
+    function openLiveMapForSingle() {
+        var s = state;
+        if (!s) return;
+        if (!window.dispatchLiveMap) {
+            rbAlert("The live map is not available on this page.", { title: "Live map unavailable" });
+            return;
+        }
+        liveMapOwnerState = s;
+        window.dispatchLiveMap.open({
+            mode: "assign",
+            bookingCode: s.bookingCode,
+            bookingRef: s.bookingCode,
+            pickup: { lat: s.pickupLat, lng: s.pickupLng, address: s.pickup },
+            truckClassLabel: s.truckType,
+            selectedUnitId: s.selectedUnitId,
+            onSelect: function (unitId, unit) {
+                if (state !== s) return; // the drawer moved on while the map was open
+                ensureUnitListed(unit);
+                s.selectedUnitId = String(unitId);
+                var saveBtn = document.getElementById("rbSaveDraftBtn");
+                if (saveBtn && effectiveStatus(s) === "draft") {
+                    saveBtn.disabled = !hasStagedDraftChanges(s);
+                }
+                var dispatchBtn = document.getElementById("rbDispatchBtn");
+                if (dispatchBtn) dispatchBtn.disabled = !s.selectedUnitId;
+                var searchEl = document.getElementById("rbUnitSearch");
+                renderUnitList(searchEl ? searchEl.value : "");
+                var chosen = document.querySelector("#rbUnitList .rb-is-selected");
+                if (chosen && chosen.scrollIntoView) chosen.scrollIntoView({ block: "nearest" });
+            },
+            onClose: function () {
+                liveMapOwnerState = null;
+            },
+        });
+    }
+
+    function openLiveMapForVehicle(bookingId) {
+        var s = state;
+        if (!s) return;
+        var vehicle = (s.groupVehicles || []).filter(function (v) {
+            return String(v.booking_id) === String(bookingId);
+        })[0];
+        if (!vehicle) return;
+        if (!window.dispatchLiveMap) {
+            rbAlert("The live map is not available on this page.", { title: "Live map unavailable" });
+            return;
+        }
+        var index = s.groupVehicles.indexOf(vehicle);
+        var takenElsewhere = s.groupVehicles
+            .filter(function (other) {
+                return String(other.booking_id) !== String(vehicle.booking_id) && other.selected_unit_id;
+            })
+            .map(function (other) {
+                return String(other.selected_unit_id);
+            });
+        liveMapOwnerState = s;
+        window.dispatchLiveMap.open({
+            mode: "assign",
+            // Eligibility is judged against THIS vehicle's own booking (class, reservation).
+            bookingCode: vehicle.booking_code,
+            bookingRef: s.bookingCode + " · Vehicle " + (index + 1) + " of " + s.groupVehicles.length,
+            vehicleLabel: "Vehicle " + (index + 1) + " of " + s.groupVehicles.length +
+                (vehicle.vehicle_name || vehicle.truck_type_name ? " · " + (vehicle.vehicle_name || vehicle.truck_type_name) : ""),
+            pickup: { lat: s.pickupLat, lng: s.pickupLng, address: s.pickup },
+            truckClassLabel: vehicle.truck_type_name || vehicle.truck_type || "",
+            selectedUnitId: vehicle.selected_unit_id,
+            excludeUnitIds: takenElsewhere,
+            onSelect: function (unitId, unit) {
+                if (state !== s) return;
+                ensureUnitListed(unit);
+                vehicle.selected_unit_id = String(unitId); // only this vehicle; the others are untouched
+                renderGroupUnitLists();
+            },
+            onClose: function () {
+                liveMapOwnerState = null;
+            },
+        });
+    }
+
     function unitsForClass(truckTypeId) {
         var bookingCode = state ? state.bookingCode : null;
         return AVAILABLE_UNITS.filter(function (u) {

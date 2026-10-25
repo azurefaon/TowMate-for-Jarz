@@ -811,6 +811,22 @@ class DispatchController extends Controller
                             'message' => 'Team Leader not available. Please choose another unit.',
                         ], 422);
                     }
+
+                    // The unit pickers only list units the availability service calls ready, but a
+                    // request can name any unit id, so the same rule is enforced here: Team Leader and
+                    // unit availability plus driver readiness. Only reasons caused by this very booking
+                    // (its own reservation or assignment) are ignored.
+                    $availabilityBlockers = $this->blockingAvailabilityReasons(
+                        $selectedUnit,
+                        $booking,
+                        $this->unitAvailability->evaluate($selectedUnit)
+                    );
+                    if ($availabilityBlockers !== []) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'This unit is not available for dispatch right now. Please choose another unit.',
+                        ], 422);
+                    }
                 }
 
                 
@@ -2628,8 +2644,12 @@ class DispatchController extends Controller
         ]);
     }
 
-    public function unitLocations(): \Illuminate\Http\JsonResponse
+    public function unitLocations(Request $request): \Illuminate\Http\JsonResponse
     {
+        if ($request->query('scope') === 'assignment') {
+            return $this->assignmentUnitLocations($request);
+        }
+
         $units = Unit::with(['teamLeader', 'truckType', 'zone'])
             ->whereNotNull('current_lat')
             ->whereNotNull('current_lng')
@@ -2678,6 +2698,184 @@ class DispatchController extends Controller
             ->values();
 
         return response()->json($data);
+    }
+
+    /**
+     * Live map data for choosing a unit for ONE booking (Assign Unit -> View Live Map).
+     *
+     * Same shape as the default response plus a fresh server verdict per unit, so the map
+     * never has to trust the list that was embedded when the page loaded. The verdict reuses
+     * the rules assignBooking() enforces; assignBooking() still re-checks everything on submit.
+     * Unlike the default response it lists every dispatchable unit, including idle ones with
+     * stale or no GPS, so the dispatcher can see why a unit cannot be picked.
+     */
+    protected function assignmentUnitLocations(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $booking = Booking::where('booking_code', (string) $request->query('booking'))->first();
+
+        if (! $booking) {
+            return response()->json(['message' => 'Booking not found.'], 404);
+        }
+
+        $blocked = $this->assignmentBlockedMessage($booking);
+        if ($blocked !== null) {
+            return response()->json(['message' => $blocked], 422);
+        }
+
+        $units = Unit::with(['teamLeader', 'truckType', 'zone', 'driver'])
+            ->whereNull('archived_at')
+            ->whereNotNull('team_leader_id')
+            ->where('status', '!=', 'maintenance')
+            ->orderBy('name')
+            ->get();
+
+        $evaluations = $this->unitAvailability->evaluateMany($units);
+        $activeByLeader = $this->teamLeaderAvailability->activeBookingsByLeaderId();
+        $bookingClass = $booking->truckType?->name ?? 'the requested tow class';
+
+        $data = $units->map(function (Unit $unit) use ($booking, $evaluations, $activeByLeader, $bookingClass) {
+            $secsAgo = $unit->location_updated_at ? (int) $unit->location_updated_at->diffInSeconds(now()) : null;
+            $hasGps = $unit->current_lat !== null && $unit->current_lng !== null;
+            $gpsState = ! $hasGps || $secsAgo === null ? 'none' : ($secsAgo < 60 ? 'live' : ($secsAgo < 300 ? 'recent' : 'stale'));
+            $online = $this->teamLeaderAvailability->isOnline($unit->teamLeader);
+            $active = $activeByLeader->get((int) $unit->team_leader_id);
+            $evaluation = $evaluations->get($unit->id) ?? ['reasons' => []];
+
+            $verdict = $this->assignmentVerdict($unit, $booking, $evaluation, $bookingClass);
+
+            $warning = null;
+            if ($verdict['selectable']) {
+                if ($gpsState === 'none') {
+                    $warning = 'No GPS location yet, so distance cannot be shown. The unit is otherwise available.';
+                } elseif ($gpsState === 'stale' || ! $online) {
+                    $warning = 'Location is outdated or the Team Leader appears offline. Confirm they are reachable before assigning.';
+                }
+            }
+
+            return [
+                'unit_id'             => $unit->id,
+                'unit_name'           => $unit->name ?? 'Unit',
+                'plate_number'        => $unit->plate_number ?? '',
+                'label'               => trim(($unit->name ?? 'Unit') . ' · ' . ($unit->plate_number ?? 'No plate')),
+                'truck_type_id'       => (int) $unit->truck_type_id,
+                'truck_type_name'     => $unit->truckType?->name ?? '',
+                'booking_truck_type_name' => $booking->truckType?->name,
+                'team_leader_name'    => $unit->teamLeader?->full_name ?? $unit->teamLeader?->name ?? 'Unknown',
+                'driver_name'         => $unit->driver->full_name ?? $unit->driver->name ?? $unit->driver_name ?? '',
+                'crew_names'          => collect(Unit::SLOT_COLUMNS)->reject(fn($col) => $col === 'driver_name')
+                    ->map(fn($col) => $unit->{$col})->filter()->values()->all(),
+                'lat'                 => $hasGps ? $unit->current_lat : null,
+                'lng'                 => $hasGps ? $unit->current_lng : null,
+                'status'              => $unit->status,
+                'is_online'           => $online && $gpsState === 'live',
+                'tl_online'           => $online,
+                'updated_seconds_ago' => $secsAgo,
+                'gps_state'           => $gpsState,
+                'job_status'          => $active?->status,
+                'job_status_label'    => $active ? str($active->status)->replace('_', ' ')->title()->toString() : null,
+                'phase'               => $active ? ($active->status === 'arrived_dropoff' ? 'finishing' : 'busy') : 'available',
+                'zone_name'           => $unit->zone?->name,
+                'compatible'          => $verdict['compatible'],
+                'selectable'          => $verdict['selectable'],
+                'reason'              => $verdict['reason'],
+                'warning'             => $warning,
+            ];
+        })->values();
+
+        return response()->json($data);
+    }
+
+    /**
+     * Why this booking cannot be given a unit right now, or null if it can.
+     * Mirrors the gates assignBooking() applies to an operational assignment.
+     */
+    protected function assignmentBlockedMessage(Booking $booking): ?string
+    {
+        if (! $booking->needs_reassignment && ! in_array($booking->status, $this->operationallyAssignedStatuses, true)) {
+            return 'This booking is not ready for unit assignment.';
+        }
+
+        if ($booking->status === 'scheduled_confirmed' && ! in_array($booking->scheduling_bucket, ['ready', 'overdue'], true)) {
+            return 'This booking is not yet ready for dispatch — unit selection opens 1 hour before the scheduled service time.';
+        }
+
+        return null;
+    }
+
+    /**
+     * One server verdict per unit for one booking. The only reasons we do not count against a
+     * unit are the ones caused by THIS booking itself (it is already reserved for, or assigned
+     * to, that unit).
+     *
+     * @return array{compatible: bool, selectable: bool, reason: ?string}
+     */
+    protected function assignmentVerdict(Unit $unit, Booking $booking, array $evaluation, string $bookingClass): array
+    {
+        $compatible = (int) $unit->truck_type_id === (int) $booking->truck_type_id;
+
+        if (! $compatible) {
+            $unitClass = $unit->truckType?->name ?? 'another tow class';
+
+            return [
+                'compatible' => false,
+                'selectable' => false,
+                'reason'     => "Exact tow class required: this booking needs {$bookingClass}; this unit is {$unitClass}.",
+            ];
+        }
+
+        $reasons = $this->blockingAvailabilityReasons($unit, $booking, $evaluation);
+
+        return [
+            'compatible' => true,
+            'selectable' => $reasons === [],
+            'reason'     => $reasons === [] ? null : $this->assignmentReasonText($reasons[0], $evaluation),
+        ];
+    }
+
+    /**
+     * Availability reasons that count against assigning $unit to $booking. Shared by the map
+     * verdict and the assignBooking() guard so the two cannot drift apart. That includes driver
+     * readiness (no driver, inactive or off-duty driver): a request can name any unit id, so the
+     * server must not rely on the picker having hidden it.
+     *
+     * @return array<int,string>
+     */
+    protected function blockingAvailabilityReasons(Unit $unit, Booking $booking, array $evaluation): array
+    {
+        $reasons = collect($evaluation['reasons'] ?? [])->reject(function (string $reason) use ($booking, $evaluation) {
+            return ($reason === 'busy' && ($evaluation['active_booking']?->id ?? null) === $booking->id)
+                || ($reason === 'reserved' && ($evaluation['reservation']?->id ?? null) === $booking->id);
+        })->values()->all();
+
+        $override = $unit->teamLeader ? $this->teamLeaderAvailability->operationalOverride($unit->teamLeader) : null;
+        if (in_array($override['status'] ?? null, ['busy', 'unavailable'], true)) {
+            $reasons[] = 'dispatcher_override';
+        }
+
+        return $reasons;
+    }
+
+    protected function assignmentReasonText(string $reason, array $evaluation): string
+    {
+        if ($reason === 'busy') {
+            return ($evaluation['active_booking']?->status ?? null) === 'arrived_dropoff'
+                ? 'Finishing a task at the drop-off. It can be assigned after the Team Leader submits payment.'
+                : 'Busy on an active job.';
+        }
+
+        return match ($reason) {
+            'reserved'                     => 'Reserved for another booking.',
+            'maintenance'                  => 'Unit is under maintenance.',
+            'archived'                     => 'Unit is archived.',
+            'no_team_leader'               => 'No Team Leader is assigned to this unit.',
+            'team_leader_inactive'         => 'The Team Leader account is inactive.',
+            'team_leader_duty_unavailable' => 'The Team Leader is marked unavailable for duty.',
+            'no_driver'                    => 'No driver is assigned to this unit.',
+            'driver_inactive'              => 'The driver is inactive.',
+            'driver_duty_unavailable'      => 'The driver is marked unavailable for duty.',
+            'dispatcher_override'          => 'Dispatch has marked this Team Leader busy or unavailable.',
+            default                        => 'This unit is not available for dispatch right now.',
+        };
     }
 
     /**

@@ -227,8 +227,12 @@ it('confirms group payment once, marks both bookings completed, frees both units
         'cash_received' => '9816.16',
     ])->assertOk();
 
-    $availabilityBefore = app(App\Services\UnitAvailabilityService::class)->evaluate($ctx['unitA']->fresh());
-    expect($availabilityBefore['available'])->toBeFalse();
+    // Payment is submitted but not yet verified: nothing is completed until the dispatcher confirms.
+    // (Unit availability is not asserted here. Once payment is submitted a Team Leader is no longer
+    // "busy", so a unit with a driver reads as available; this check used to hold only because the
+    // fixture unit had no driver.)
+    expect($ctx['bookingA']->fresh()->status)->toBe('waiting_verification')
+        ->and($ctx['bookingB']->fresh()->status)->toBe('waiting_verification');
 
     $confirm = test()->actingAs($ctx['dispatcher'])->postJson(
         route('admin.jobs.confirm-payment', $ctx['bookingA'])

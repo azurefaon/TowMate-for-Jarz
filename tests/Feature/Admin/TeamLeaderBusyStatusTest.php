@@ -47,6 +47,7 @@ function busyStatusReadyUnit(TruckType $truckType): array
         'truck_type_id' => $truckType->id,
         'team_leader_id' => $teamLeader->id,
         'status' => 'available',
+        'driver_name' => 'Fixture Driver',
     ]);
 
     return [$teamLeader, $unit];

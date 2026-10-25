@@ -55,6 +55,7 @@ function rtdUnit(TruckType $truckType, User $teamLeader): Unit
         'truck_type_id' => $truckType->id,
         'team_leader_id' => $teamLeader->id,
         'status' => 'on_job',
+        'driver_name' => 'Fixture Driver',
     ]);
 }
 
