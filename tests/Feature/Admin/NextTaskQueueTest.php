@@ -13,6 +13,7 @@ use App\Models\TruckType;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\NextTaskQueueService;
+use App\Services\UnitAvailabilityService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -495,6 +496,31 @@ it('answers an expired offer without accepting it and frees the booking', functi
     Sanctum::actingAs($unit->teamLeader);
     $this->postJson("/api/v1/team-leader/next-offer/{$offerId}/accept")->assertStatus(409)->assertJsonPath('reason', 'expired');
     expect(BookingQueueOffer::find($offerId)->status)->toBe('expired')->and(ntqActiveOffers())->toBe(0);
+});
+
+it('treats a lapsed offer as released everywhere even if no sweep has run', function () {
+    $dispatcher = ntqDispatcher();
+    $truck = ntqTruck();
+    [$unit] = ntqFinishing($truck);
+    $booking = ntqBooking($truck);
+    $offerId = ntqOffer($this, $dispatcher, $booking, $unit)->json('offer.id');
+
+    $this->travel(11)->minutes(); // no sweep, no command, nothing has touched the row
+    $service = app(NextTaskQueueService::class);
+    expect(BookingQueueOffer::find($offerId)->status)->toBe('offered')   // still unmarked in the table
+        ->and($service->hasActiveOffer($booking))->toBeFalse()
+        ->and(app(UnitAvailabilityService::class)->evaluate($unit->fresh())['reasons'])->not->toContain('queue_reserved')
+        ->and(BookingQueueOffer::find($offerId)->isActive())->toBeFalse();
+
+    // cannot be promoted, and the Team Leader cannot accept it
+    $this->actingAs($dispatcher)->postJson(route('admin.queue-offers.promote', $offerId))->assertStatus(409);
+    Sanctum::actingAs($unit->teamLeader);
+    $this->getJson('/api/v1/team-leader/next-offer')->assertOk()->assertJsonPath('data', null);
+    $this->postJson("/api/v1/team-leader/next-offer/{$offerId}/accept")->assertStatus(409)->assertJsonPath('reason', 'expired');
+
+    // and a fresh offer is possible straight away
+    User::whereKey($unit->team_leader_id)->update(['last_ping_at' => now()]); // the Team Leader is still reachable
+    ntqOffer($this, $dispatcher, $booking, $unit->fresh())->assertCreated();
 });
 
 it('expires overdue offers from the scheduled command', function () {
