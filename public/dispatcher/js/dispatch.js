@@ -1137,6 +1137,19 @@ document.addEventListener("DOMContentLoaded", function () {
         var activeSortLat = null, activeSortLng = null;
         var activeZoneFilter = null;
 
+        // Assign Unit mode. ctx stays null for Return, which keeps its original behaviour.
+        var ctx = null;
+        var inspectedId = null;
+        var assignFilter = "selectable";
+        var pickupMarker = null;
+        var requestSeq = 0;
+        var lastFocus = null;
+        var confirming = false;
+
+        function isAssign() {
+            return !!(ctx && ctx.mode === "assign");
+        }
+
         function getZoneFilteredUnits() {
             if (!activeZoneFilter) return lastUnits;
             return lastUnits.filter(function (u) { return u.zone_name === activeZoneFilter; });
@@ -1148,6 +1161,11 @@ document.addEventListener("DOMContentLoaded", function () {
         function renderZoneChips(units) {
             var container = document.getElementById("zoneFilterChips");
             if (!container) return;
+            if (isAssign()) {
+                activeZoneFilter = null;
+                container.innerHTML = "";
+                return;
+            }
 
             var zones = Array.from(new Set(
                 units.map(function (u) { return u.zone_name; }).filter(Boolean)
@@ -1210,6 +1228,10 @@ document.addEventListener("DOMContentLoaded", function () {
         function renderRoster(units, sortLat, sortLng) {
             var roster = document.getElementById("trackingRoster");
             if (!roster) return;
+            if (isAssign()) {
+                renderAssignRoster();
+                return;
+            }
 
             var withDist = units.map(function (u) {
                 var dist = (sortLat && sortLng && u.lat && u.lng)
@@ -1275,6 +1297,16 @@ document.addEventListener("DOMContentLoaded", function () {
         // so the header summary doesn't make it look like fewer units are
         // online than really are just because a zone filter is active.
         function updateTrackingMeta(units) {
+            if (isAssign()) {
+                var decorated = assignUnits();
+                var selectableCount = decorated.filter(function (d) { return d.selectable; }).length;
+                var metaEl = document.getElementById("trackingMeta");
+                if (metaEl) {
+                    metaEl.textContent = selectableCount + " selectable · " + decorated.length + " unit" +
+                        (decorated.length !== 1 ? "s" : "") + " · updates about every 10 s";
+                }
+                return;
+            }
             var onlineCount = units.filter(function (u) { return u.is_online; }).length;
             var meta = document.getElementById("trackingMeta");
             if (meta) {
@@ -1289,72 +1321,162 @@ document.addEventListener("DOMContentLoaded", function () {
             renderRoster(getZoneFilteredUnits(), lat, lng);
         };
 
+        function fetchUnits() {
+            var url = isAssign()
+                ? "/admin-dashboard/units/locations?scope=assignment&booking=" + encodeURIComponent(ctx.bookingCode || "")
+                : "/admin-dashboard/units/locations";
+            return fetch(url, {
+                headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+            }).then(function (r) {
+                return r.json().catch(function () { return null; }).then(function (data) {
+                    return { ok: r.ok, data: data };
+                });
+            });
+        }
+
+        function assignMarkerIcon(u, inspected) {
+            var stale = u.gps_state === "stale" || (u.phase === "available" && !u.tl_online);
+            var fill = stale ? "#ffffff" : (u.phase === "available" ? "#ea580c" : "#111111");
+            var stroke = inspected ? "#FACC15" : (u.phase === "finishing" ? "#FACC15" : (stale ? "#6B7280" : "#ffffff"));
+            var weight = inspected ? 5 : (u.phase === "finishing" ? 4 : (stale ? 3 : 2));
+            return {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: inspected ? 12 : 9,
+                fillColor: fill,
+                fillOpacity: (!u.selectable && u.phase === "available") ? 0.55 : 1,
+                strokeColor: stroke,
+                strokeWeight: weight,
+            };
+        }
+
+        function assignMarkerLabel(u) {
+            var stale = u.gps_state === "stale" || (u.phase === "available" && !u.tl_online);
+            return {
+                text: String(u.truck_type_name || "?").charAt(0).toUpperCase(),
+                color: stale ? "#374151" : "#ffffff",
+                fontSize: "10px",
+                fontWeight: "700",
+            };
+        }
+
+        function refreshAssignMarkers() {
+            if (!isAssign()) return;
+            assignUnits().forEach(function (u) {
+                var entry = unitMarkers[u.unit_id];
+                if (!entry) return;
+                entry.marker.setIcon(assignMarkerIcon(u, Number(inspectedId) === Number(u.unit_id)));
+                entry.marker.setLabel(assignMarkerLabel(u));
+                entry.marker.setZIndex(Number(inspectedId) === Number(u.unit_id) ? 500 : undefined);
+            });
+        }
+
+        function clearMarkers() {
+            Object.keys(unitMarkers).forEach(function (id) {
+                unitMarkers[id].marker.setMap(null);
+                unitMarkers[id].infoWindow.close();
+                delete unitMarkers[id];
+            });
+        }
+
+        function applyUnits(units) {
+            lastUnits = units;
+            var assignMode = isAssign();
+            var decorated = assignMode ? assignUnits() : null;
+
+            // Update map markers — the map itself is loaded once (see init
+            // above); each poll tick only moves/creates/removes markers.
+            units.forEach(function (u, index) {
+                if (!u.lat || !u.lng) return;
+                var view = assignMode ? decorated[index] : u;
+                var tooltipText = escapeHtml((u.unit_name || "Unit") + " · " + u.team_leader_name +
+                    (u.job_status_label ? " — " + u.job_status_label : ""));
+                var position = { lat: u.lat, lng: u.lng };
+                if (!liveMap) return;
+
+                if (unitMarkers[u.unit_id]) {
+                    unitMarkers[u.unit_id].marker.setPosition(position);
+                    unitMarkers[u.unit_id].infoWindow.setContent(tooltipText);
+                    unitMarkers[u.unit_id].data = u;
+                    return;
+                }
+
+                var markerOptions = {
+                    position: position,
+                    map: liveMap,
+                    icon: assignMode
+                        ? assignMarkerIcon(view, Number(inspectedId) === Number(u.unit_id))
+                        : {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 7,
+                            fillColor: u.job_status ? "#111111" : "#ea580c",
+                            fillOpacity: 1,
+                            strokeColor: "#ffffff",
+                            strokeWeight: 2,
+                        },
+                };
+                if (assignMode) markerOptions.label = assignMarkerLabel(view);
+                var marker = new google.maps.Marker(markerOptions);
+                var infoWindow = new google.maps.InfoWindow({
+                    content: tooltipText,
+                    disableAutoPan: true,
+                });
+                marker.addListener("mouseover", function () {
+                    infoWindow.open({ anchor: marker, map: liveMap });
+                });
+                marker.addListener("mouseout", function () {
+                    infoWindow.close();
+                });
+                marker.addListener("click", function () {
+                    // Assign Unit: a click only INSPECTS the unit; choosing is the separate Select Unit button.
+                    if (isAssign()) {
+                        inspectUnit(u.unit_id, false);
+                        return;
+                    }
+                    if (typeof window.rtnHandleMarkerClick === "function") {
+                        window.rtnHandleMarkerClick(unitMarkers[u.unit_id].data, marker, liveMap);
+                    }
+                });
+                unitMarkers[u.unit_id] = { marker: marker, infoWindow: infoWindow, data: u };
+            });
+
+            // Remove stale markers
+            var activeIds = units.map(function (u) { return u.unit_id; });
+            Object.keys(unitMarkers).forEach(function (id) {
+                if (!activeIds.includes(Number(id))) {
+                    unitMarkers[id].marker.setMap(null);
+                    unitMarkers[id].infoWindow.close();
+                    delete unitMarkers[id];
+                }
+            });
+
+            applyZoneFilter();
+            if (assignMode) {
+                refreshAssignMarkers();
+                if (!ctx.truckClassLabel) renderContextBar(); // class label arrives with the first rows
+            }
+        }
+
         function poll() {
-            fetch("/admin-dashboard/units/locations", {
-                headers: { "X-Requested-With": "XMLHttpRequest" },
-            })
-            .then(function (r) { return r.json(); })
-            .then(function (units) {
-                lastUnits = units;
-
-                // Update map markers — the map itself is loaded once (see init
-                // above); each poll tick only moves/creates/removes markers.
-                units.forEach(function (u) {
-                    if (!u.lat || !u.lng) return;
-                    var tooltipText = (u.unit_name || "Unit") + " · " + u.team_leader_name +
-                        (u.job_status_label ? " — " + u.job_status_label : "");
-                    var position = { lat: u.lat, lng: u.lng };
-                    if (liveMap) {
-                        if (unitMarkers[u.unit_id]) {
-                            unitMarkers[u.unit_id].marker.setPosition(position);
-                            unitMarkers[u.unit_id].infoWindow.setContent(tooltipText);
-                            unitMarkers[u.unit_id].data = u;
-                        } else {
-                            var marker = new google.maps.Marker({
-                                position: position,
-                                map: liveMap,
-                                icon: {
-                                    path: google.maps.SymbolPath.CIRCLE,
-                                    scale: 7,
-                                    fillColor: u.job_status ? "#111111" : "#ea580c",
-                                    fillOpacity: 1,
-                                    strokeColor: "#ffffff",
-                                    strokeWeight: 2,
-                                },
-                            });
-                            var infoWindow = new google.maps.InfoWindow({
-                                content: tooltipText,
-                                disableAutoPan: true,
-                            });
-                            marker.addListener("mouseover", function () {
-                                infoWindow.open({ anchor: marker, map: liveMap });
-                            });
-                            marker.addListener("mouseout", function () {
-                                infoWindow.close();
-                            });
-                            marker.addListener("click", function () {
-                                if (typeof window.rtnHandleMarkerClick === "function") {
-                                    window.rtnHandleMarkerClick(unitMarkers[u.unit_id].data, marker, liveMap);
-                                }
-                            });
-                            unitMarkers[u.unit_id] = { marker: marker, infoWindow: infoWindow, data: u };
+            var seq = ++requestSeq;
+            fetchUnits()
+                .then(function (res) {
+                    // A newer poll, or a close/reopen, supersedes this response.
+                    if (seq !== requestSeq) return;
+                    if (!res.ok || !Array.isArray(res.data)) {
+                        if (isAssign()) {
+                            showAssignMessage((res.data && res.data.message) ||
+                                "Live availability could not be loaded. Close the map and try again.");
                         }
+                        return;
+                    }
+                    if (isAssign()) showAssignMessage(null);
+                    applyUnits(res.data);
+                })
+                .catch(function () {
+                    if (seq === requestSeq && isAssign()) {
+                        showAssignMessage("Live availability could not be loaded. Close the map and try again.");
                     }
                 });
-
-                // Remove stale markers
-                var activeIds = units.map(function (u) { return u.unit_id; });
-                Object.keys(unitMarkers).forEach(function (id) {
-                    if (!activeIds.includes(Number(id))) {
-                        unitMarkers[id].marker.setMap(null);
-                        unitMarkers[id].infoWindow.close();
-                        delete unitMarkers[id];
-                    }
-                });
-
-                applyZoneFilter();
-            })
-            .catch(function () {});
         }
 
         var pollTimer = null;
@@ -1369,6 +1491,401 @@ document.addEventListener("DOMContentLoaded", function () {
                 pollTimer = null;
             }
         };
+
+        // ── Assign Unit: view model, roster, detail panel ───────────────────────────
+        function decorate(u) {
+            var d = Object.assign({}, u);
+            var excluded = ctx && Array.isArray(ctx.excludeUnitIds) && ctx.excludeUnitIds.map(String).indexOf(String(u.unit_id)) > -1;
+            if (excluded && d.selectable) {
+                d.selectable = false;
+                d.reason = "Already selected for another vehicle in this booking.";
+            }
+            return d;
+        }
+
+        function assignUnits() {
+            return lastUnits.map(decorate);
+        }
+
+        function pickupPoint() {
+            var p = ctx && ctx.pickup;
+            var lat = p ? parseFloat(p.lat) : NaN;
+            var lng = p ? parseFloat(p.lng) : NaN;
+            return (isNaN(lat) || isNaN(lng)) ? null : { lat: lat, lng: lng };
+        }
+
+        function distanceKmFor(u) {
+            var p = pickupPoint();
+            if (!p || !u.lat || !u.lng) return null;
+            return haversineKm(p.lat, p.lng, u.lat, u.lng);
+        }
+
+        function ageText(seconds) {
+            if (seconds < 60) return seconds + "s ago";
+            if (seconds < 3600) return Math.round(seconds / 60) + " min ago";
+            return Math.round(seconds / 3600) + " h ago";
+        }
+
+        // Fresh (under 1 min) is labelled live; anything older says exactly how old it is.
+        function assignGps(u) {
+            if (u.gps_state === "none" || u.updated_seconds_ago === null || u.updated_seconds_ago === undefined) {
+                return { text: "No GPS yet", cls: "urc-gps--none" };
+            }
+            if (u.gps_state === "live") return { text: "Live · " + ageText(u.updated_seconds_ago), cls: "urc-gps--live" };
+            if (u.gps_state === "recent") return { text: "Updated " + ageText(u.updated_seconds_ago), cls: "urc-gps--recent" };
+            return { text: "Last known " + ageText(u.updated_seconds_ago) + " — outdated", cls: "urc-gps--old" };
+        }
+
+        function assignBadge(u) {
+            if (u.phase === "finishing") return ["finishing", "At drop-off · finishing"];
+            if (u.phase === "busy") return ["busy", "Busy"];
+            if (!u.selectable && u.compatible) return ["unavail", "Not available"];
+            if (u.gps_state === "none") return ["nogps", "Available · no GPS"];
+            if (u.gps_state === "stale" || !u.tl_online) return ["stale", "Offline · stale GPS"];
+            return ["available", "Available"];
+        }
+
+        function distanceText(km, long) {
+            if (km === null) return "Distance unavailable";
+            return "≈" + km.toFixed(1) + " km" + (long ? " (straight line)" : " from pickup");
+        }
+
+        function showAssignMessage(message) {
+            var el = document.getElementById("trackingMessage");
+            if (!el) return;
+            if (message) {
+                el.textContent = message;
+                el.hidden = false;
+            } else {
+                el.textContent = "";
+                el.hidden = true;
+            }
+        }
+
+        function renderAssignRoster() {
+            var roster = document.getElementById("trackingRoster");
+            if (!roster) return;
+            var units = assignUnits();
+            var selectableCount = units.filter(function (u) { return u.selectable; }).length;
+
+            var filterEl = document.getElementById("trackingFilter");
+            if (filterEl) {
+                Array.prototype.forEach.call(filterEl.querySelectorAll("[data-assign-filter]"), function (btn) {
+                    var f = btn.getAttribute("data-assign-filter");
+                    btn.textContent = f === "selectable"
+                        ? "Selectable (" + selectableCount + ")"
+                        : "All units (" + units.length + ")";
+                    btn.classList.toggle("is-active", f === assignFilter);
+                    btn.setAttribute("aria-pressed", f === assignFilter ? "true" : "false");
+                });
+            }
+
+            var list = assignFilter === "selectable"
+                ? units.filter(function (u) { return u.selectable; })
+                : units.slice();
+            list.sort(function (a, b) {
+                if (a.selectable !== b.selectable) return a.selectable ? -1 : 1;
+                var da = distanceKmFor(a), db = distanceKmFor(b);
+                if (da === null && db === null) return String(a.unit_name).localeCompare(String(b.unit_name));
+                if (da === null) return 1;
+                if (db === null) return -1;
+                return da - db;
+            });
+
+            if (!list.length) {
+                roster.innerHTML = '<div class="trk-empty">' + (assignFilter === "selectable"
+                    ? "No selectable units right now. Switch to All units to see who is busy, finishing or offline."
+                    : "No units to show.") + "</div>";
+            } else {
+                roster.innerHTML = list.map(function (u) {
+                    var gps = assignGps(u);
+                    var badge = assignBadge(u);
+                    var inspected = Number(inspectedId) === Number(u.unit_id);
+                    return '<div class="unit-roster-card urc-assign' + (inspected ? " is-inspected" : "") + (u.selectable ? "" : " is-off") +
+                        '" data-unit-id="' + escapeHtml(u.unit_id) + '" data-lat="' + (u.lat || "") + '" data-lng="' + (u.lng || "") +
+                        '" role="button" tabindex="0" aria-pressed="' + (inspected ? "true" : "false") + '">' +
+                        '<div class="urc-row"><span class="urc-name">' + escapeHtml(u.label || u.unit_name) + "</span>" +
+                        '<span class="urc-badge urc-badge--' + badge[0] + '">' + escapeHtml(badge[1]) + "</span></div>" +
+                        '<div class="urc-tl">' + escapeHtml(u.team_leader_name || "") +
+                        ' <span class="trk-chip trk-chip--sq">' + escapeHtml(u.truck_type_name || "") + "</span>" +
+                        (u.selectable ? "" : " <span>· Not selectable</span>") + "</div>" +
+                        '<div class="urc-row"><span class="urc-gps ' + gps.cls + '">' + escapeHtml(gps.text) + "</span>" +
+                        '<span class="urc-distance">' + distanceText(distanceKmFor(u), false) + "</span></div></div>";
+                }).join("");
+            }
+            renderAssignDetail(units);
+        }
+
+        function renderAssignDetail(units) {
+            var el = document.getElementById("trackingDetail");
+            if (!el) return;
+            var u = null;
+            if (inspectedId !== null) {
+                (units || assignUnits()).forEach(function (x) {
+                    if (Number(x.unit_id) === Number(inspectedId)) u = x;
+                });
+            }
+            if (!u) {
+                // Only forget the inspected unit once real data has loaded and it is truly gone;
+                // before the first poll returns the list is empty and the preselection must survive.
+                if (inspectedId !== null && (units || assignUnits()).length) inspectedId = null;
+                el.hidden = false;
+                el.innerHTML = '<div class="trk-empty">Select a marker or a unit in the list to see its details.</div>';
+                return;
+            }
+            var gps = assignGps(u);
+            var badge = assignBadge(u);
+            var initials = String(u.team_leader_name || "?").split(/\s+/).map(function (w) { return w.charAt(0); }).slice(0, 2).join("").toUpperCase();
+            var job = u.job_status_label ? u.job_status_label : (u.gps_state === "stale" || !u.tl_online ? "No active job · offline" : "No active job");
+            var km = distanceKmFor(u);
+            var compat = u.compatible
+                ? '<span class="trk-det-ok">✓ Compatible — exact match: ' + escapeHtml(u.truck_type_name) + "</span>"
+                : '<span class="trk-det-no">✕ Not compatible — ' + escapeHtml(neededClassLabel()) + " required</span>";
+            var action;
+            if (u.selectable) {
+                action = '<button type="button" class="trk-det-btn" id="trackingSelectBtn"' + (confirming ? " disabled" : "") + ">Select Unit</button>" +
+                    (u.warning
+                        ? '<div class="trk-det-why is-warn">' + escapeHtml(u.warning) + "</div>"
+                        : '<div class="trk-det-why">Selecting returns you to Assign Unit. Nothing is dispatched until you press Proceed to Dispatch.</div>');
+            } else {
+                action = '<button type="button" class="trk-det-btn" id="trackingSelectBtn" disabled>Select Unit</button>' +
+                    '<div class="trk-det-why">' + escapeHtml(u.reason || "This unit can’t be selected right now.") + "</div>";
+            }
+            el.hidden = false;
+            el.innerHTML = '<div class="trk-det"><div class="trk-det-head"><div class="trk-det-av">' + escapeHtml(initials) + "</div>" +
+                '<div style="flex:1"><div class="trk-det-name">' + escapeHtml(u.team_leader_name || "") + '</div><div class="trk-det-sub">Team Leader</div></div>' +
+                '<span class="urc-badge urc-badge--' + badge[0] + '">' + escapeHtml(badge[1]) + "</span></div>" +
+                '<div class="trk-det-grid">' +
+                "<div><small>Towing unit</small>" + escapeHtml(u.unit_name || "") + "</div>" +
+                "<div><small>Plate</small>" + escapeHtml(u.plate_number || "—") + "</div>" +
+                "<div><small>Tow class</small>" + escapeHtml(u.truck_type_name || "—") + "</div>" +
+                "<div><small>Current task</small>" + escapeHtml(job) + "</div>" +
+                '<div><small>Last GPS update</small><span class="urc-gps ' + gps.cls + '">' + escapeHtml(gps.text) + "</span></div>" +
+                "<div><small>Distance to pickup</small>" + distanceText(km, true) + "</div>" +
+                '<div style="grid-column:1 / 3"><small>Assignment compatibility</small>' + compat + "</div></div>" +
+                '<div class="trk-det-act">' + action + "</div></div>";
+        }
+
+        function inspectUnit(id, pan) {
+            inspectedId = Number(id);
+            renderAssignRoster();
+            refreshAssignMarkers();
+            if (pan && liveMap) {
+                var entry = unitMarkers[inspectedId];
+                if (entry && entry.data && entry.data.lat && entry.data.lng) {
+                    liveMap.panTo({ lat: entry.data.lat, lng: entry.data.lng });
+                }
+            }
+        }
+
+        // Choosing a unit: re-read availability from the server first, so a unit that went busy
+        // since the last refresh is never handed back as selectable. The assign endpoint still
+        // validates everything again when the dispatcher presses Proceed to Dispatch.
+        function confirmSelection() {
+            if (!isAssign() || inspectedId === null || confirming) return;
+            var id = Number(inspectedId);
+            var callback = ctx.onSelect;
+            confirming = true;
+            renderAssignDetail();
+            fetchUnits().then(function (res) {
+                confirming = false;
+                if (!isAssign()) return;
+                if (!res.ok || !Array.isArray(res.data)) {
+                    showAssignMessage((res.data && res.data.message) || "Availability could not be confirmed. Try again.");
+                    renderAssignDetail();
+                    return;
+                }
+                lastUnits = res.data;
+                var fresh = assignUnits().filter(function (u) { return Number(u.unit_id) === id; })[0];
+                if (!fresh || !fresh.selectable) {
+                    showAssignMessage("Availability just changed — this unit can no longer be selected.");
+                    applyUnits(res.data);
+                    return;
+                }
+                showAssignMessage(null);
+                api.close();
+                if (typeof callback === "function") callback(String(fresh.unit_id), fresh);
+            }).catch(function () {
+                confirming = false;
+                showAssignMessage("Availability could not be confirmed. Try again.");
+                renderAssignDetail();
+            });
+        }
+
+        // The class this booking needs: what the drawer passed, else what the server says.
+        function neededClassLabel() {
+            if (ctx && ctx.truckClassLabel) return ctx.truckClassLabel;
+            var fromRows = lastUnits.filter(function (u) { return u.booking_truck_type_name; })[0];
+            return fromRows ? fromRows.booking_truck_type_name : "the requested tow class";
+        }
+
+        function renderContextBar() {
+            var bar = document.getElementById("trackingContextBar");
+            if (!bar) return;
+            if (!isAssign()) {
+                bar.hidden = true;
+                bar.innerHTML = "";
+                return;
+            }
+            var pickupText = (ctx.pickup && ctx.pickup.address) ? ctx.pickup.address : (pickupPoint() ? "Pickup location" : "Pickup location unavailable");
+            bar.innerHTML = '<span class="trk-chip">Pickup: ' + escapeHtml(pickupText) + "</span>" +
+                '<span class="trk-chip trk-chip--sq">Needs ' + escapeHtml(neededClassLabel()) + "</span>" +
+                (ctx.vehicleLabel ? '<span class="trk-chip trk-chip--sq">' + escapeHtml(ctx.vehicleLabel) + "</span>" : "") +
+                "<span>Distances are straight-line, not driving time.</span>";
+            bar.hidden = false;
+        }
+
+        // ── Shared open/close lifecycle (Return and Assign Unit) ────────────────────
+        var api = {
+            isOpen: function () {
+                var m = document.getElementById("rtnMapModal");
+                return !!(m && m.style.display !== "none");
+            },
+            open: function (options) {
+                options = options || {};
+                var modal = document.getElementById("rtnMapModal");
+                if (!modal) return false;
+                if (api.isOpen()) api.close();
+
+                ctx = options.mode === "assign" ? Object.assign({}, options) : null;
+                inspectedId = null;
+                assignFilter = "selectable";
+                activeSortLat = null;
+                activeSortLng = null;
+                activeZoneFilter = null;
+                confirming = false;
+                lastUnits = [];
+                clearMarkers();
+                requestSeq++;
+                lastFocus = document.activeElement;
+
+                var card = modal.querySelector(".rtn-map-modal-card");
+                if (card) card.classList.toggle("is-assign", isAssign());
+                var filterEl = document.getElementById("trackingFilter");
+                if (filterEl) filterEl.hidden = !isAssign();
+                var detailEl = document.getElementById("trackingDetail");
+                if (detailEl) { detailEl.hidden = true; detailEl.innerHTML = ""; }
+                showAssignMessage(null);
+                renderContextBar();
+
+                var codeEl = document.getElementById("rtnMapModalBookingCode");
+                if (codeEl) codeEl.textContent = options.bookingRef || options.bookingCode || "—";
+                var roster = document.getElementById("trackingRoster");
+                if (roster) roster.innerHTML = isAssign() ? '<div class="trk-empty">Loading live availability…</div>' : "";
+
+                modal.style.display = "flex";
+                modal.setAttribute("aria-hidden", "false");
+
+                // Preselect (inspect) the unit already chosen in Assign Unit, if any.
+                if (isAssign() && options.selectedUnitId) inspectedId = Number(options.selectedUnitId);
+
+                window.rtnStartMapPolling();
+
+                var point = isAssign() ? pickupPoint() : null;
+                if (!isAssign()) {
+                    var lat = options.pickup ? options.pickup.lat : NaN;
+                    var lng = options.pickup ? options.pickup.lng : NaN;
+                    point = (!isNaN(lat) && !isNaN(lng)) ? { lat: lat, lng: lng } : null;
+                }
+                setTimeout(function () {
+                    if (!api.isOpen()) return;
+                    window.rtnResizeLiveMap(point);
+                    if (point) {
+                        window.sortRosterByPickup(point.lat, point.lng);
+                        if (isAssign() && liveMap && typeof google !== "undefined" && google.maps && !pickupMarker) {
+                            pickupMarker = new google.maps.Marker({
+                                position: point,
+                                map: liveMap,
+                                title: "Pickup",
+                                zIndex: 1000,
+                                icon: {
+                                    path: google.maps.SymbolPath.CIRCLE,
+                                    scale: 10,
+                                    fillColor: "#16A34A",
+                                    fillOpacity: 1,
+                                    strokeColor: "#ffffff",
+                                    strokeWeight: 3,
+                                },
+                                label: { text: "P", color: "#ffffff", fontSize: "10px", fontWeight: "700" },
+                            });
+                        }
+                    }
+                }, 80);
+
+                var closeBtn = document.getElementById("rtnMapModalCloseBtn");
+                if (closeBtn) closeBtn.focus();
+                return true;
+            },
+            close: function () {
+                var modal = document.getElementById("rtnMapModal");
+                if (!modal || !api.isOpen()) return false;
+                modal.style.display = "none";
+                modal.setAttribute("aria-hidden", "true");
+                window.rtnStopMapPolling();
+                requestSeq++;
+
+                var closing = ctx;
+                ctx = null;
+                inspectedId = null;
+                confirming = false;
+                if (pickupMarker) { pickupMarker.setMap(null); pickupMarker = null; }
+                clearMarkers();
+                lastUnits = [];
+                var card = modal.querySelector(".rtn-map-modal-card");
+                if (card) card.classList.remove("is-assign");
+                var filterEl = document.getElementById("trackingFilter");
+                if (filterEl) filterEl.hidden = true;
+                var detailEl = document.getElementById("trackingDetail");
+                if (detailEl) { detailEl.hidden = true; detailEl.innerHTML = ""; }
+                showAssignMessage(null);
+                renderContextBar();
+
+                if (closing && closing.mode === "assign") {
+                    if (typeof closing.onClose === "function") closing.onClose();
+                    if (lastFocus && document.body.contains(lastFocus) && typeof lastFocus.focus === "function") lastFocus.focus();
+                }
+                lastFocus = null;
+                return true;
+            },
+        };
+        window.dispatchLiveMap = api;
+
+        // One set of listeners, attached once when the page loads.
+        var mapModalEl = document.getElementById("rtnMapModal");
+        if (mapModalEl) {
+            mapModalEl.addEventListener("click", function (e) {
+                var filterBtn = e.target.closest("[data-assign-filter]");
+                if (filterBtn && isAssign()) {
+                    assignFilter = filterBtn.getAttribute("data-assign-filter");
+                    renderAssignRoster();
+                    return;
+                }
+                var selectBtn = e.target.closest("#trackingSelectBtn");
+                if (selectBtn && !selectBtn.disabled) {
+                    confirmSelection();
+                    return;
+                }
+                var card = e.target.closest(".urc-assign");
+                if (card && isAssign()) inspectUnit(card.getAttribute("data-unit-id"), true);
+            });
+            mapModalEl.addEventListener("keydown", function (e) {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                var card = e.target.closest && e.target.closest(".urc-assign");
+                if (card && isAssign()) {
+                    e.preventDefault();
+                    inspectUnit(card.getAttribute("data-unit-id"), true);
+                }
+            });
+        }
+
+        // Escape closes the map first. Capture phase + stopImmediatePropagation keeps the
+        // Booking drawer (and any other Escape handler) underneath from closing as well.
+        document.addEventListener("keydown", function (e) {
+            if (e.key !== "Escape" || !api.isOpen()) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            api.close();
+        }, true);
     }
 
     function startPolling() {

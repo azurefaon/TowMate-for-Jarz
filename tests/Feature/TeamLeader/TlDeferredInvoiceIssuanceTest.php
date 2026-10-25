@@ -56,6 +56,7 @@ function tldiUnit(TruckType $truckType, User $teamLeader, string $status = 'on_j
         'truck_type_id' => $truckType->id,
         'team_leader_id' => $teamLeader->id,
         'status' => $status,
+        'driver_name' => 'Fixture Driver',
     ]);
 }
 

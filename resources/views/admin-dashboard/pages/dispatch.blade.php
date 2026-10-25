@@ -1148,6 +1148,9 @@
         .rb-col-left, .rb-col-right { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
         .rb-section { display: flex; flex-direction: column; gap: 12px; }
         .rb-section h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #111111; }
+        .rb-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+        .rb-section-head h4 { margin: 0; }
+        .rb-btn-sm { padding: 7px 11px; font-size: 12px; }
 
         .rb-grid { display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 32px; row-gap: 14px; font-size: 12.5px; }
         .rb-grid-row { display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 32px; row-gap: 14px; }
@@ -1532,6 +1535,59 @@
 
         @media (max-width: 760px) {
             .rtn-map-modal-card { width: 96vw; height: 88vh; }
+        }
+
+        /* ── Live map in Assign Unit mode (Return keeps the layout above) ───────────── */
+        .trk-side { display: contents; }
+        .trk-context, .trk-filter, .trk-message, .trk-detail { display: none; }
+        .rtn-map-modal-card.is-assign .rtn-map-modal-body { display: grid; grid-template-columns: minmax(0, 1fr) 392px; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px 16px; }
+        .rtn-map-modal-card.is-assign .trk-context { display: flex; grid-column: 1 / -1; grid-row: 1; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 12.5px; color: #374151; }
+        .rtn-map-modal-card.is-assign .rtn-map-header { grid-column: 1; grid-row: 2; }
+        .rtn-map-modal-card.is-assign .rtn-map--workspace { grid-column: 1; grid-row: 3; min-height: 0; }
+        .rtn-map-modal-card.is-assign .trk-side { display: flex; flex-direction: column; gap: 8px; grid-column: 2; grid-row: 2 / 4; min-height: 0; }
+        .rtn-map-modal-card.is-assign .trk-filter { display: flex; border: 1px solid #CFD4DC; border-radius: 9px; overflow: hidden; flex-shrink: 0; }
+        .rtn-map-modal-card.is-assign .trk-filter[hidden], .rtn-map-modal-card.is-assign .trk-message[hidden], .rtn-map-modal-card.is-assign .trk-detail[hidden] { display: none; }
+        .trk-filter button { flex: 1; border: 0; background: #fff; padding: 7px; font-size: 12px; font-weight: 600; cursor: pointer; color: #374151; font-family: inherit; }
+        .trk-filter button.is-active { background: #111; color: #fff; }
+        .rtn-map-modal-card.is-assign .trk-message { display: block; border: 1px solid #B91C1C; color: #B91C1C; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; }
+        .rtn-map-modal-card.is-assign .trk-detail { display: block; flex-shrink: 0; }
+        .rtn-map-modal-card.is-assign .rtn-roster--workspace { max-height: none; flex: 1 1 0; min-height: 120px; }
+        .rtn-map-modal-card.is-assign .rtn-roster-title { margin-top: 0; }
+        .trk-chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #CFD4DC; border-radius: 99px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; background: #fff; color: #111; }
+        .trk-chip--sq { border-radius: 6px; padding: 2px 7px; }
+        .urc-assign { border: 1px solid #e5e7eb; border-radius: 11px; margin-bottom: 8px; padding: 9px 10px; background: #fff; }
+        .urc-assign:hover { background: #fff; border-color: #9ca3af; }
+        .urc-assign.is-inspected { border-color: #111; box-shadow: inset 3px 0 0 #FACC15; }
+        .urc-assign.is-off .urc-name { color: #374151; }
+        .urc-assign .urc-name { font-weight: 700; }
+        .urc-assign .urc-tl { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+        .urc-badge { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; border-radius: 99px; padding: 2px 8px; white-space: nowrap; border: 1px solid transparent; }
+        .urc-badge--available { background: #E8F5E9; color: #1B5E20; border-color: #A5D6A7; }
+        .urc-badge--busy { background: #171717; color: #fff; }
+        .urc-badge--finishing { background: #FEF3C7; color: #7A5200; border-color: #FACC15; }
+        .urc-badge--stale, .urc-badge--nogps, .urc-badge--unavail { background: #F3F4F6; color: #374151; border: 1px dashed #6B7280; }
+        .is-assign .urc-gps--live { color: #111; }
+        .is-assign .urc-gps--recent { color: #4B5563; }
+        .is-assign .urc-gps--old { color: #92400E; font-weight: 600; }
+        .is-assign .urc-gps--none { color: #6B7280; }
+        .trk-det { border: 1px solid #111; border-radius: 12px; padding: 12px; background: #fff; }
+        .trk-det-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .trk-det-av { width: 34px; height: 34px; border-radius: 50%; background: #171717; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: none; }
+        .trk-det-name { font-weight: 700; font-size: 14px; line-height: 1.2; }
+        .trk-det-sub { font-size: 11.5px; color: #5B6472; }
+        .trk-det-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 12px; }
+        .trk-det-grid small { display: block; color: #5B6472; font-size: 10.5px; letter-spacing: .03em; text-transform: uppercase; }
+        .trk-det-ok { color: #1B5E20; font-weight: 600; }
+        .trk-det-no { color: #B91C1C; font-weight: 600; }
+        .trk-det-act { margin-top: 10px; border-top: 1px solid #E3E6EB; padding-top: 10px; }
+        .trk-det-btn { width: 100%; border: 1px solid transparent; border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; background: #FACC15; color: #111; cursor: pointer; font-family: inherit; }
+        .trk-det-btn:disabled { background: #F1F2F4; color: #6B7280; border-color: #E3E6EB; cursor: not-allowed; }
+        .trk-det-why { margin-top: 8px; font-size: 12px; line-height: 1.45; color: #374151; background: #F6F7F9; border-radius: 8px; padding: 8px 10px; }
+        .trk-det-why.is-warn { background: #FEF3C7; color: #7A5200; }
+        .trk-empty { border: 1px dashed #CFD4DC; border-radius: 12px; padding: 14px; font-size: 12.5px; color: #5B6472; text-align: center; }
+        @media (max-width: 900px) {
+            .rtn-map-modal-card.is-assign .rtn-map-modal-body { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(160px, 1fr) minmax(0, 1.2fr); overflow-y: auto; }
+            .rtn-map-modal-card.is-assign .trk-side { grid-column: 1; grid-row: 4; }
         }
 
         @media (max-width: 900px) {
@@ -2391,13 +2447,24 @@
                             <button type="button" class="rtn-modal-close" id="rtnMapModalCloseBtn">&times;</button>
                         </div>
                         <div class="rtn-map-modal-body">
+                            {{-- Assign Unit context (hidden for Return): what the dispatcher is picking for. --}}
+                            <div id="trackingContextBar" class="trk-context" hidden></div>
                             <div class="rtn-map-header">
                                 <span id="trackingMeta">—</span>
                                 <div id="zoneFilterChips" class="rtn-zone-chips"></div>
                             </div>
                             <div id="dispatchLiveMap" class="rtn-map rtn-map--workspace"></div>
-                            <div class="rtn-roster-title">Trackable Units</div>
-                            <div id="trackingRoster" class="rtn-roster rtn-roster--workspace"></div>
+                            {{-- display:contents unless the modal is in Assign Unit mode, so Return's layout is unchanged. --}}
+                            <div id="trackingSide" class="trk-side">
+                                <div id="trackingFilter" class="trk-filter" role="group" aria-label="Unit filter" hidden>
+                                    <button type="button" data-assign-filter="selectable">Selectable</button>
+                                    <button type="button" data-assign-filter="all">All units</button>
+                                </div>
+                                <div id="trackingMessage" class="trk-message" role="alert" hidden></div>
+                                <div id="trackingDetail" class="trk-detail" aria-live="polite" hidden></div>
+                                <div class="rtn-roster-title">Trackable Units</div>
+                                <div id="trackingRoster" class="rtn-roster rtn-roster--workspace"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3749,39 +3816,19 @@
                 rtnCloseMapModal();
             }
 
+            // Return's map is opened and closed through the same shared lifecycle as Assign Unit
+            // (dispatch.js: window.dispatchLiveMap), in its default "return" mode.
             function rtnOpenMapModal() {
-                var modal = document.getElementById('rtnMapModal');
-                if (!modal) return;
-
-                document.getElementById('rtnMapModalBookingCode').textContent = rtn.bookingId || '—';
-                modal.style.display = 'flex';
-                modal.setAttribute('aria-hidden', 'false');
-
-                if (typeof window.rtnStartMapPolling === 'function') {
-                    window.rtnStartMapPolling();
-                }
-
-                setTimeout(function () {
-                    var center = (!isNaN(rtn.pickupLat) && !isNaN(rtn.pickupLng))
-                        ? { lat: rtn.pickupLat, lng: rtn.pickupLng }
-                        : null;
-                    if (typeof window.rtnResizeLiveMap === 'function') {
-                        window.rtnResizeLiveMap(center);
-                    }
-                    if (center && typeof window.sortRosterByPickup === 'function') {
-                        window.sortRosterByPickup(center.lat, center.lng);
-                    }
-                }, 80);
+                if (!window.dispatchLiveMap) return;
+                window.dispatchLiveMap.open({
+                    mode: 'return',
+                    bookingRef: rtn.bookingId || '—',
+                    pickup: { lat: rtn.pickupLat, lng: rtn.pickupLng },
+                });
             }
 
             function rtnCloseMapModal() {
-                var modal = document.getElementById('rtnMapModal');
-                if (!modal) return;
-                modal.style.display = 'none';
-                modal.setAttribute('aria-hidden', 'true');
-                if (typeof window.rtnStopMapPolling === 'function') {
-                    window.rtnStopMapPolling();
-                }
+                if (window.dispatchLiveMap) window.dispatchLiveMap.close();
             }
 
             function rtnConfirmReassign() {

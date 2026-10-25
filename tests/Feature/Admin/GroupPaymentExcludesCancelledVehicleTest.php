@@ -55,6 +55,7 @@ function gpcReadyUnit(TruckType $truckType, string $label): array
         'truck_type_id' => $truckType->id,
         'team_leader_id' => $leader->id,
         'status' => 'available',
+        'driver_name' => 'Fixture Driver',
     ]);
 
     return [$unit, $leader];

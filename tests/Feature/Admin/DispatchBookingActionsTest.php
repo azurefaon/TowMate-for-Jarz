@@ -80,6 +80,7 @@ function makeReadyUnitForBooking(Booking $booking): Unit
         'truck_type_id' => $booking->truck_type_id,
         'team_leader_id' => $teamLeader->id,
         'status' => 'available',
+        'driver_name' => 'Fixture Driver',
     ]);
 }
 
