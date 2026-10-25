@@ -201,7 +201,7 @@
                 @forelse ($logs as $log)
                     <tr>
                         <td>{{ $log->created_at?->format('M j, Y g:i A') }}</td>
-                        <td>{{ $log->user->full_name ?? 'System' }}</td>
+                        <td>{{ $log->user->full_name ?? ($log->actor_label ?: 'System') }}</td>
                         <td><span class="category-badge">{{ ucfirst(str_replace('_', ' ', $log->category ?? 'system')) }}</span></td>
                         <td>{{ $log->entity_type }}{{ $log->reference ? ' — ' . $log->reference : '' }}</td>
                         <td>{{ $log->description }}</td>

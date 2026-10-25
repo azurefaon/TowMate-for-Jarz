@@ -51,6 +51,10 @@ class ProfileController extends Controller
 
     public function destroy(Request $request): RedirectResponse
     {
+        // Staff accounts (Owner 1, Dispatcher 2, Team Leader 4, System Admin 6) are removed through the
+        // archive / Deleted-list flow so their history is handled deliberately, never by self-service.
+        abort_if(in_array((int) $request->user()->role_id, [1, 2, 4, 6], true), 403);
+
         $request->validateWithBag('userDeletion', [
             'password' => ['required', 'current_password'],
         ]);
