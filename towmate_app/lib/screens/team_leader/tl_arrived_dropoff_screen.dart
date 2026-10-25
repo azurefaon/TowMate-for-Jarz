@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
 import '../../widgets/tl_assigned_team_card.dart';
+import '../../widgets/next_task_offer_slot.dart';
 import '../../services/team_leader_service.dart';
 import 'tl_awaiting_confirm_screen.dart';
 
@@ -75,6 +76,8 @@ class _TlArrivedDropoffScreenState extends State<TlArrivedDropoffScreen> {
       MaterialPageRoute(
         builder: (_) => Scaffold(
           backgroundColor: TmColors.grey100,
+          // This route covers the shell, so it carries its own next-task offer card.
+          bottomNavigationBar: const NextTaskOfferSlot(),
           body: TlAwaitingConfirmScreen(
             task: widget.task,
             onUpdate: widget.onUpdate,

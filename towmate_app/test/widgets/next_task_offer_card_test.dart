@@ -128,12 +128,51 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('a reserved offer drops Accept/Decline and says dispatch will assign it', (tester) async {
+    testWidgets('a reserved offer collapses to a one-line indicator with no Accept/Decline', (tester) async {
       await pump(tester, NextTaskOffer.fromJson(_offerJson(status: 'accepted', secondsLeft: null)), () {});
-      expect(find.text('Next task reserved'), findsOneWidget);
+      expect(find.byKey(const Key('nextTaskReservedIndicator')), findsOneWidget);
+      expect(find.textContaining('Next task reserved · BK-NEXT · Light Duty'), findsOneWidget);
+      expect(find.byKey(const Key('nextTaskOfferCard')), findsNothing);
       expect(find.byKey(const Key('nextTaskAccept')), findsNothing);
-      expect(find.textContaining('Dispatch will assign it'), findsOneWidget);
+      expect(find.byKey(const Key('nextTaskRelease')), findsNothing); // secondary: behind the details
       expect(find.byKey(const Key('nextTaskCountdown')), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('tapping the indicator shows details and Release; Hide details collapses it again', (tester) async {
+      await pump(tester, NextTaskOffer.fromJson(_offerJson(status: 'accepted', secondsLeft: null)), () {});
+      await tester.tap(find.byKey(const Key('nextTaskReservedIndicator')));
+      await tester.pump();
+      expect(find.byKey(const Key('nextTaskOfferCard')), findsOneWidget);
+      expect(find.textContaining('Dispatch will assign it'), findsOneWidget);
+      expect(find.byKey(const Key('nextTaskRelease')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('nextTaskCollapse')));
+      await tester.pump();
+      expect(find.byKey(const Key('nextTaskReservedIndicator')), findsOneWidget);
+      expect(find.byKey(const Key('nextTaskOfferCard')), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('releasing from the details calls decline and asks the owner to refresh', (tester) async {
+      var changed = 0;
+      final requests = <String>[];
+      final client = MockClient((r) async {
+        requests.add(r.url.path);
+        return _json({'success': true, 'message': 'Declined.', 'data': null}, 200);
+      });
+      await pump(tester, NextTaskOffer.fromJson(_offerJson(status: 'accepted', secondsLeft: null)), () => changed++);
+      await tester.tap(find.byKey(const Key('nextTaskReservedIndicator')));
+      await tester.pump();
+
+      await tester.runAsync(() => http.runWithClient(() async {
+            await tester.tap(find.byKey(const Key('nextTaskRelease')));
+            await Future<void>.delayed(const Duration(milliseconds: 200));
+          }, () => client));
+      await tester.pump();
+
+      expect(requests.single, endsWith('/next-offer/7/decline'));
+      expect(changed, 1);
       await tester.pumpWidget(const SizedBox());
     });
 
@@ -154,7 +193,9 @@ void main() {
 
       expect(requests.single, endsWith('/next-offer/7/accept'));
       expect(changed, 1);
-      expect(find.text('Next task reserved'), findsOneWidget);
+      // Accepting collapses the big card straight away.
+      expect(find.byKey(const Key('nextTaskReservedIndicator')), findsOneWidget);
+      expect(find.byKey(const Key('nextTaskOfferCard')), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });
 
