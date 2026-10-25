@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_navigation_flutter/google_navigation_flutter.dart';
 import '../../core/theme.dart';
 import '../../models/task_model.dart';
+import '../../services/tl_navigation_session.dart';
 
 enum _NavStatus { initializing, permissionDenied, error, ready }
 
@@ -21,7 +22,6 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
   StreamSubscription<NavInfoEvent>? _navInfoSub;
   _NavStatus _status = _NavStatus.initializing;
   String? _errorMessage;
-  bool _sessionInitialized = false;
   String? _destinationKeyStarted;
   StepInfo? _currentStep;
   int? _remainingMeters;
@@ -50,6 +50,9 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
   @override
   void initState() {
     super.initState();
+    // This screen is only built after an explicit Navigate tap, so owning the
+    // session here is what starts guidance; dispose() releases it.
+    TlNavigationSession.claim(this);
     _initializeNavigation();
   }
 
@@ -57,7 +60,8 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
   void didUpdateWidget(TlNavigateScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.task.status != widget.task.status &&
-        _status == _NavStatus.ready) {
+        _status == _NavStatus.ready &&
+        TlNavigationSession.isNavigationPhase(widget.task.status)) {
       _setDestination();
     }
   }
@@ -95,12 +99,11 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
         }
       }
 
-      await GoogleMapsNavigator.initializeNavigationSession(
-        taskRemovedBehavior: TaskRemovedBehavior.continueService,
+      final started = await TlNavigationSession.runFor(
+        this,
+        TlNavigationSession.initializeNative,
       );
-      _sessionInitialized = true;
-
-      if (!mounted) return;
+      if (!started || !mounted) return;
       setState(() => _status = _NavStatus.ready);
     } on SessionInitializationException catch (e) {
       if (!mounted) return;
@@ -138,28 +141,36 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
     if (_viewController == null) return;
     if (_destinationKeyStarted == _destinationKey) return;
 
-    final label = _destinationLabel;
-    try {
-      final status = await GoogleMapsNavigator.setDestinations(
-        Destinations(
-          waypoints: [
-            NavigationWaypoint.withLatLngTarget(
-              title: label,
-              target: _destinationPoint,
-            ),
-          ],
-          displayOptions: NavigationDisplayOptions(
-            showDestinationMarkers: true,
-            showStopSigns: true,
-            showTrafficLights: true,
-          ),
-        ),
-      );
+    if (!TlNavigationSession.isNavigationPhase(widget.task.status)) return;
 
-      if (!mounted) return;
+    final label = _destinationLabel;
+    final key = _destinationKey;
+    try {
+      NavigationRouteStatus? status;
+      await TlNavigationSession.runFor(this, () async {
+        status = await GoogleMapsNavigator.setDestinations(
+          Destinations(
+            waypoints: [
+              NavigationWaypoint.withLatLngTarget(
+                title: label,
+                target: _destinationPoint,
+              ),
+            ],
+            displayOptions: NavigationDisplayOptions(
+              showDestinationMarkers: true,
+              showStopSigns: true,
+              showTrafficLights: true,
+            ),
+          ),
+        );
+        if (status == NavigationRouteStatus.statusOk && mounted) {
+          _destinationKeyStarted = key;
+          await GoogleMapsNavigator.startGuidance();
+        }
+      });
+
+      if (!mounted || status == null) return;
       if (status == NavigationRouteStatus.statusOk) {
-        _destinationKeyStarted = _destinationKey;
-        await GoogleMapsNavigator.startGuidance();
         _navInfoSub ??= GoogleMapsNavigator.setNavInfoListener(
           _onNavInfo,
           numNextStepsToPreview: 0,
@@ -191,9 +202,9 @@ class _TlNavigateScreenState extends State<TlNavigateScreen> {
   @override
   void dispose() {
     _navInfoSub?.cancel();
-    if (_sessionInitialized) {
-      GoogleMapsNavigator.cleanup();
-    }
+    _navInfoSub = null;
+    // Queued behind any in-flight start, so guidance can't resume after this.
+    TlNavigationSession.release(this);
     super.dispose();
   }
 
