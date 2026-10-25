@@ -1,0 +1,36 @@
+name: Dependency audit
+
+on:
+  pull_request:
+    paths:
+      - composer.lock
+      - package-lock.json
+      - .github/workflows/**
+  schedule:
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  composer-audit:
+    name: Composer audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      # Fails the job when a locked PHP package has a published security advisory.
+      - run: composer audit --locked --no-interaction
+
+  npm-audit:
+    name: npm audit (build tooling, informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      # Every npm package here is a build-time (dev) dependency; findings are reported but do not block,
+      # until the Vite/PostCSS/axios upgrade is planned and tested.
+      - run: npm audit || true
