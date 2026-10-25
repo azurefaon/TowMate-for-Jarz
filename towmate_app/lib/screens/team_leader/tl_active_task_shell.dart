@@ -60,6 +60,7 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
   bool _navOpen = false;
   bool _navLegKnown = false;
   String? _navLeg;
+  String? _navKey; // booking + leg: a different task never inherits an open navigation
 
   @override
   void initState() {
@@ -152,9 +153,11 @@ class _TlActiveTaskShellState extends State<TlActiveTaskShell>
   // a previous app run, which no mounted screen would otherwise stop.
   void _syncNavigationLeg(TaskModel? task) {
     final leg = task == null ? null : TlNavigationSession.legFor(task.status);
-    if (_navLegKnown && leg == _navLeg) return;
+    final key = leg == null ? null : '${task!.bookingCode}:$leg';
+    if (_navLegKnown && key == _navKey) return;
     _navLegKnown = true;
     _navLeg = leg;
+    _navKey = key;
     _navOpen = false;
     _tabIndex = 0;
     TlNavigationSession.ensureStopped();

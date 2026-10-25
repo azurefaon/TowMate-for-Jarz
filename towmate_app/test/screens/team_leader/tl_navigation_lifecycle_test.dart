@@ -54,10 +54,12 @@ void main() {
 
   late FakeNavigationDriver driver;
   late Map<String, dynamic> current;
+  Map<String, dynamic>? offer;
 
   final client = MockClient((r) async {
     final p = r.url.path;
     if (p.endsWith('/v1/team-leader/task')) return _json({'success': true, 'data': current});
+    if (p.endsWith('/next-offer')) return _json({'success': true, 'data': offer});
     if (p.contains('/presence/') || p.endsWith('/location')) return _json({'success': true});
     return _json({'success': false}, status: 404);
   });
@@ -92,6 +94,7 @@ void main() {
   void tlTest(String name, Future<void> Function(WidgetTester) body) {
     testWidgets(name, (t) async {
       TlNavigationSession.resetForTest();
+      offer = null;
       driver = FakeNavigationDriver(initialized: false, termsAccepted: true);
       TlNavigationSession.driver = driver;
       try {
@@ -250,6 +253,68 @@ void main() {
       expect(find.byType(TlNavigateScreen), findsNothing);
       expect(driver.calls, contains('stop'));
       expect(driver.initialized, isFalse);
+    });
+  });
+
+  group('next-task offer (PR #19) and the next task', () {
+    final nextOffer = <String, dynamic>{
+      'id': 9,
+      'status': 'offered',
+      'seconds_left': 480,
+      'current_booking_code': 'TM-0800',
+      'booking': {
+        'booking_code': 'TM-0801',
+        'pickup_address': '12 Sample St',
+        'tow_class': 'Light Duty',
+        'is_scheduled': false,
+      },
+    };
+
+    tlTest('Step 5 stops navigation and still shows the next-task offer with Accept', (t) async {
+      offer = nextOffer;
+      current = _task('on_job');
+      await pumpShell(t);
+      await tapNavigateTab(t);
+      expect(find.byType(TlNavigateScreen), findsOneWidget);
+      driver.calls.clear();
+      driver.initialized = true;
+
+      await serverMovesTo(t, 'waiting_verification');
+
+      expect(find.byType(TlNavigateScreen), findsNothing);
+      expect(driver.initialized, isFalse, reason: 'guidance stopped at Step 5');
+      expect(find.byKey(const Key('nextTaskOfferCard')), findsOneWidget);
+      expect(find.byKey(const Key('nextTaskAccept')), findsOneWidget);
+    });
+
+    tlTest('a different next task on the same leg does not inherit an open navigation', (t) async {
+      current = _task('on_the_way');
+      await pumpShell(t);
+      await tapNavigateTab(t);
+      expect(find.byType(TlNavigateScreen), findsOneWidget);
+      driver.calls.clear();
+      driver.initialized = true;
+
+      // The poll jumps straight to the next booking, same pickup leg, no gap.
+      current = _task('accepted', code: 'TM-0801');
+      await t.pump(const Duration(seconds: 20));
+      await settle(t);
+
+      expect(find.byType(TlNavigateScreen), findsNothing);
+      expect(driver.initialized, isFalse);
+      expect(find.text('Navigate'), findsOneWidget);
+    });
+
+    tlTest('an accepted next task keeps navigation inactive until Navigate is pressed', (t) async {
+      driver.initialized = true; // guidance left over from the previous task
+      current = _task('accepted', code: 'TM-0801');
+      await pumpShell(t);
+
+      expect(find.byType(TlNavigateScreen), findsNothing);
+      expect(driver.initialized, isFalse);
+
+      await tapNavigateTab(t);
+      expect(find.byType(TlNavigateScreen), findsOneWidget);
     });
   });
 
