@@ -16,7 +16,9 @@ Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    // Public sign-up creates Customer accounts only; cap it per IP so it cannot be used to mass-create accounts.
+    Route::post('register', [RegisteredUserController::class, 'store'])
+        ->middleware('throttle:10,60');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
