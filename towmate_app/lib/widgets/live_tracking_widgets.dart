@@ -10,7 +10,18 @@ import '../services/live_tracking_controller.dart';
 /// Route used to open the dedicated Live Tracking map for one booking_code.
 const String kLiveTrackingRoute = '/live-tracking';
 
+/// Customer-facing Live Tracking is switched off: no "Track live" button, no
+/// tracking card or map, no tracking polling, and the route redirects to the
+/// booking details. Dispatcher Live Map and Team Leader GPS reporting are
+/// separate and unaffected. Tests flip this to keep the shared code covered.
+class CustomerLiveTracking {
+  CustomerLiveTracking._();
+
+  static bool enabled = false;
+}
+
 void openLiveTracking(BuildContext context, String bookingCode) {
+  if (!CustomerLiveTracking.enabled) return;
   Navigator.pushNamed(context, kLiveTrackingRoute, arguments: bookingCode);
 }
 
@@ -54,10 +65,12 @@ class _LiveTrackingScopeState extends State<LiveTrackingScope> with RouteAware {
 
   LiveTrackingController? get _controller => _handle?.controller;
 
+  bool get _enabled => CustomerLiveTracking.enabled && widget.enabled;
+
   @override
   void initState() {
     super.initState();
-    if (widget.enabled) _acquire();
+    if (_enabled) _acquire();
   }
 
   @override
@@ -76,8 +89,8 @@ class _LiveTrackingScopeState extends State<LiveTrackingScope> with RouteAware {
     super.didUpdateWidget(old);
     if (old.bookingCode != widget.bookingCode || old.enabled != widget.enabled) {
       _releaseHandle();
-      if (widget.enabled) _acquire();
-    } else if (widget.enabled && old.status != widget.status) {
+      if (_enabled) _acquire();
+    } else if (_enabled && old.status != widget.status) {
       // Host data moved (e.g. on_the_way -> on_job): re-check right away.
       _controller?.start();
     }

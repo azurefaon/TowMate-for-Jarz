@@ -34,6 +34,7 @@ import 'screens/team_leader/tl_profile_screen.dart';
 import 'services/api_service.dart';
 import 'services/push_notification_service.dart';
 import 'services/tl_presence_controller.dart';
+import 'widgets/live_tracking_widgets.dart';
 
 final themeModeNotifier = AppPrefs.themeModeNotifier;
 
@@ -82,9 +83,13 @@ class MyApp extends StatelessWidget {
             }
           } else if (settings.name == '/live-tracking') {
             // Customer Live Tracking v1: exactly one booking_code.
+            // While customer tracking is off, any stale link (old notification,
+            // saved route) lands on the booking details instead of the map.
             final code = settings.arguments;
             page = code is String && code.isNotEmpty
-                ? LiveTrackingScreen(bookingCode: code)
+                ? (CustomerLiveTracking.enabled
+                    ? LiveTrackingScreen(bookingCode: code)
+                    : BookingDetailScreen(bookingCode: code))
                 : const MyBookingsScreen();
           } else if (settings.name == '/booking-success') {
             final bookings = settings.arguments;

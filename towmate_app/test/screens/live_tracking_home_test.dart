@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:towmate_app/core/route_observer.dart';
 import 'package:towmate_app/screens/customer/home_screen.dart';
 import 'package:towmate_app/services/live_tracking_controller.dart';
+import 'package:towmate_app/widgets/live_tracking_widgets.dart';
 
 http.Response _json(Object body, {int status = 200}) =>
     http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json'});
@@ -137,7 +138,60 @@ void main() {
     (call) async => null,
   );
 
-  tearDown(() => LiveTrackingRegistry.instance.resetForTest());
+  // Customer Live Tracking ships switched off; the groups below still cover
+  // the shared tracking code with it switched on.
+  setUp(() => CustomerLiveTracking.enabled = true);
+  tearDown(() {
+    CustomerLiveTracking.enabled = false;
+    LiveTrackingRegistry.instance.resetForTest();
+  });
+
+  group('Home — customer Live Tracking switched off (shipping default)', () {
+    setUp(() => CustomerLiveTracking.enabled = false);
+
+    testWidgets('on_the_way shows no Track live, no live block and never polls tracking', (tester) async {
+      final backend = _Backend(current: _booking(), trackingByCode: {'TM-0001': tracking('TM-0001')});
+      String? route;
+      Object? args;
+      await _pumpHome(tester, backend, onNavigate: (r, a) {
+        route = r;
+        args = a;
+      });
+
+      expect(find.text('Track live'), findsNothing);
+      expect(find.byKey(const ValueKey('home-live-tracking-block')), findsNothing);
+      expect(find.text('ETA TO PICKUP'), findsNothing);
+      expect(backend.trackingRequests, isEmpty);
+
+      // The regular Track action still opens the booking details.
+      await tester.tap(find.text('Track'));
+      await _settle(tester);
+      expect(route, '/booking-detail');
+      expect(args, 'TM-0001');
+    });
+
+    testWidgets('grouped on_job rows show no Track live and never poll tracking', (tester) async {
+      final backend = _Backend(
+        current: _booking(code: 'TM-0001', status: 'on_job', extra: {
+          'group_code': 'GRP-1',
+          'group_vehicle_count': 2,
+          'group_siblings': [
+            {'booking_code': 'TM-0002', 'vehicle_type_name': 'Sedan', 'service_type': 'book_now', 'status': 'on_the_way'},
+          ],
+        }),
+        trackingByCode: {
+          'TM-0001': tracking('TM-0001', status: 'on_job'),
+          'TM-0002': tracking('TM-0002'),
+        },
+      );
+      await _pumpHome(tester, backend);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('GRP-1'), findsOneWidget);
+      expect(find.text('Track live'), findsNothing);
+      expect(backend.trackingRequests, isEmpty);
+    });
+  });
 
   group('Home — single booking live tracking', () {
     testWidgets('on_the_way shows ETA TO PICKUP, distance, Live and a Track live action', (tester) async {
