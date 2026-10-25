@@ -1572,6 +1572,10 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
 
+        // A unit only shows here while it has a Team Leader. Signing out releases the Team Leader from
+        // their unit, so an empty list usually means nobody is assigned, not that GPS or class is wrong.
+        var NO_LEADER_NOTE = "No unit has a Team Leader assigned right now. A Team Leader who signs out is released from their unit — assign one in Units & Leaders, then reopen this map.";
+
         function renderAssignRoster() {
             var roster = document.getElementById("trackingRoster");
             if (!roster) return;
@@ -1604,8 +1608,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (!list.length) {
                 roster.innerHTML = '<div class="trk-empty">' + (assignFilter === "selectable"
-                    ? "No selectable units right now. Switch to All units to see who is busy, finishing or offline."
-                    : "No units to show.") + "</div>";
+                    ? (units.length ? "No selectable units right now. Switch to All units to see who is busy, finishing or offline." : NO_LEADER_NOTE)
+                    : (units.length ? "No units to show." : NO_LEADER_NOTE)) + "</div>";
             } else {
                 roster.innerHTML = list.map(function (u) {
                     var gps = assignGps(u);

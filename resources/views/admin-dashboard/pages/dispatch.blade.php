@@ -1611,6 +1611,54 @@
             .rtn-map-modal-card.is-assign .trk-side { grid-column: 1; grid-row: 4; }
         }
 
+        /* ── Booking drawer + Assign Unit map: readable text ───────────────────────────
+           Scoped to the drawer (.rb-drawer) and the Assign Unit map only, so other modules keep
+           their own palette. Primary #111827, secondary #374151, muted #4B5563 on white. */
+        .rb-drawer { color: #111827; }
+        .rb-drawer .rb-grid dt, .rb-drawer .rb-grid-row dt { color: #374151; font-size: 11.5px; font-weight: 600; letter-spacing: .02em; }
+        .rb-drawer .rb-grid dd, .rb-drawer .rb-grid-row dd { color: #111827; font-weight: 600; }
+        .rb-drawer .rb-sub-label, .rb-drawer .rb-vnav-label, .rb-drawer .rb-filter-bar label { color: #374151; }
+        .rb-drawer .rb-drawer-head .rb-sub, .rb-drawer .rb-unit-card-row { color: #374151; }
+        .rb-drawer .rb-breakdown .rb-b-row { color: #1F2937; }
+        .rb-drawer .rb-breakdown .rb-b-row .rb-mono { color: #111827; font-weight: 600; }
+        .rb-drawer .rb-breakdown .rb-b-row.rb-b-final { color: #111827; }
+        .rb-drawer .rb-route-meta, .rb-drawer .rb-adj-empty, .rb-drawer .rb-adj-row .rb-adj-time, .rb-drawer .rb-adj-reverted-badge,
+        .rb-drawer .rb-t-note, .rb-drawer .rb-t-time, .rb-drawer .rb-unit-expand-toggle, .rb-drawer .rb-unit-star,
+        .rb-drawer .rb-unit-empty-note, .rb-drawer .rb-currency-ic, .rb-drawer .rb-search-wrap .rb-search-ic, .rb-drawer .rb-inline-note { color: #4B5563; }
+        .rb-drawer .rb-history-latest-label { color: #374151; font-weight: 600; }
+        .rb-drawer .rb-adj-row .rb-adj-reason, .rb-drawer .rb-note-box { color: #111827; }
+        .rb-drawer input::placeholder, .rb-drawer textarea::placeholder { color: #4B5563; opacity: 1; }
+        .rb-drawer [style*="color:#5B6472"], .rb-drawer [style*="color: #5B6472"],
+        .rb-drawer [style*="color:#8A93A3"], .rb-drawer [style*="color: #8A93A3"] { color: #374151 !important; }
+        .rb-drawer .rb-btn:disabled { background: #E5E7EB; color: #374151; border-color: #D1D5DB; }
+        /* Customer risk: compact status, controls tucked into "Manage risk" */
+        .rb-risk { gap: 8px; }
+        .rb-risk-manage { border: 1px solid #E3E6EB; border-radius: 9px; padding: 0 12px; background: #fff; }
+        .rb-risk-manage > summary { cursor: pointer; padding: 9px 0; font-size: 12.5px; font-weight: 700; color: #111827; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+        .rb-risk-manage > summary::-webkit-details-marker { display: none; }
+        .rb-risk-manage > summary::after { content: "+"; font-size: 16px; line-height: 1; color: #374151; }
+        .rb-risk-manage[open] > summary::after { content: "-"; }
+        .rb-risk-manage[open] { padding-bottom: 12px; }
+        .rb-risk-manage select, .rb-risk-manage textarea { border: 1px solid #9CA3AF; border-radius: 8px; padding: 8px 10px; font: inherit; color: #111827; background: #fff; box-sizing: border-box; }
+        .rb-risk-manage .rb-inline-note { margin: 0 0 8px; }
+        /* Layout: consistent section rhythm, contained photos */
+        .rb-drawer .rb-two-col > div { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+        .rb-drawer .rb-section > h4 { padding-bottom: 6px; border-bottom: 1px solid #E5E7EB; }
+        .rb-drawer .rb-section-head { padding-bottom: 6px; border-bottom: 1px solid #E5E7EB; }
+        .rb-drawer .rb-section-head > h4 { padding-bottom: 0; border-bottom: none; }
+        .rb-drawer img { max-width: 100%; }
+        .rb-drawer .rb-photo-box, .rb-drawer .rb-photo-fallback-text { color: #374151; }
+        /* Assign Unit live map: details, statuses and descriptions */
+        .rtn-map-modal-card.is-assign .trk-det-sub, .rtn-map-modal-card.is-assign .trk-det-grid small,
+        .rtn-map-modal-card.is-assign .trk-empty, .rtn-map-modal-card.is-assign .trk-side small,
+        .rtn-map-modal-card.is-assign .urc-distance { color: #374151; }
+        .rtn-map-modal-card.is-assign .trk-det-why { color: #1F2937; background: #F3F4F6; }
+        .rtn-map-modal-card.is-assign .urc-assign .urc-tl, .rtn-map-modal-card.is-assign .urc-assign .urc-tl span { color: #374151; }
+        .rtn-map-modal-card.is-assign .urc-assign.is-off .urc-name { color: #111827; }
+        .rtn-map-modal-card.is-assign .urc-badge--stale, .rtn-map-modal-card.is-assign .urc-badge--nogps, .rtn-map-modal-card.is-assign .urc-badge--unavail { color: #1F2937; }
+        .rtn-map-modal-card.is-assign .urc-gps--old { color: #7C2D12; }
+        .rtn-map-modal-card.is-assign .urc-gps--recent, .rtn-map-modal-card.is-assign .urc-gps--none { color: #374151; }
+
         @media (max-width: 900px) {
             .rb-two-col { grid-template-columns: 1fr; }
         }
