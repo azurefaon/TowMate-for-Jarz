@@ -1437,6 +1437,14 @@
             s.quotationStatus === "accepted" &&
             (s.status === "confirmed" || s.status === "scheduled_confirmed");
         if (!groupAccepted) {
+            // A booking already confirmed but with no quotation record at all cannot be verified here:
+            // never unlock assignment from the booking status alone, tell the dispatcher what is wrong.
+            if (
+                (s.status === "confirmed" || s.status === "scheduled_confirmed") &&
+                !s.quotationStatus
+            ) {
+                return '<div class="rb-section"><h4>Assignment</h4><div class="rb-inline-note">Quotation record could not be verified for this confirmed booking, so unit assignment is blocked. Do not resend the quotation — contact the system administrator.</div></div>';
+            }
             return '<div class="rb-section"><h4>Assignment</h4><div class="rb-inline-note">Unit assignment available after customer acceptance.</div></div>';
         }
         if (isGrouped(s)) {
