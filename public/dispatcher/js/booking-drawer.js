@@ -492,7 +492,13 @@
 
     function mergeQuotationDetailsIntoState(data) {
         if (!data) return;
-        if (Array.isArray(data.group_vehicles)) {
+        // A quotation created at booking time lists only the extra vehicles (not the anchor), so its
+        // group_vehicles can hold a single entry. That must never replace an already-known multi-vehicle
+        // roster, or the Vehicle 1 / Vehicle 2 tabs vanish.
+        if (
+            Array.isArray(data.group_vehicles) &&
+            (data.group_vehicles.length > 1 || !isGrouped(state))
+        ) {
             state.groupVehicles = sortGroupVehiclesCanonical(
                 data.group_vehicles.map(enrichGroupVehicle),
             );
