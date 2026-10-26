@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SystemAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Services\ProfileImageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,13 +40,13 @@ class ProfileController extends Controller
         $user->last_name = $validated['last_name'];
 
         if ($request->hasFile('profile_image')) {
-            $user->profile_image = $request->file('profile_image')->store('avatars', 'public');
+            $user->profile_image = app(ProfileImageService::class)->storeUploadedFile($user, $request->file('profile_image'));
         }
 
         $user->save();
 
         if ($request->hasFile('profile_image') && $oldImage) {
-            Storage::disk('public')->delete($oldImage);
+            app(ProfileImageService::class)->deleteAnywhere($oldImage);
         }
 
         AuditLog::create([

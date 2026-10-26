@@ -47,6 +47,7 @@ use App\Http\Controllers\SystemAdmin\AuditLogController as SystemAdminAuditLogCo
 use App\Http\Controllers\SystemAdmin\DashboardController as SystemAdminDashboardController;
 use App\Http\Controllers\SystemAdmin\DataProtectionController;
 use App\Http\Controllers\SystemAdmin\ProfileController as SystemAdminProfileController;
+use App\Http\Controllers\SystemAdmin\UserAvatarController;
 use App\Http\Controllers\SystemAdmin\SecurityMonitorController;
 use App\Http\Controllers\SystemAdmin\SystemSettingsController as SystemAdminSystemSettingsController;
 use App\Http\Controllers\SystemAdmin\UserManagementController;
@@ -380,6 +381,7 @@ Route::prefix('system-admin')
         Route::get('/profile/password', [SystemAdminProfileController::class, 'editPassword'])->name('profile.password.edit');
         Route::put('/profile/password', [SystemAdminProfileController::class, 'updatePassword'])->name('profile.password.update');
 
+        Route::get('users/{user}/avatar', [UserAvatarController::class, 'show'])->whereNumber('user')->name('users.avatar');
         Route::get('users/archived', [UserManagementController::class, 'archived'])->name('users.archived');
         Route::get('users/deleted', [UserManagementController::class, 'deleted'])->name('users.deleted');
         Route::patch('users/{user}/archive', [UserManagementController::class, 'archive'])->name('users.archive');

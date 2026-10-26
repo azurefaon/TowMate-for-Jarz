@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\GeneratesPublicCode;
+use App\Services\ProfileImageService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -90,6 +91,19 @@ class User extends Authenticatable
                 $user->tokens()->delete();
             }
         });
+    }
+
+    /**
+     * Same-origin URL of this user's photo for System Admin pages, or null when there is no readable file
+     * (the views then show the default avatar). Never exposes the storage path.
+     */
+    public function systemAdminAvatarUrl(): ?string
+    {
+        if (! app(ProfileImageService::class)->locate($this->profile_image)) {
+            return null;
+        }
+
+        return route('system-admin.users.avatar', ['user' => $this->id, 'v' => substr(md5((string) $this->profile_image), 0, 8)], false);
     }
 
     /** Columns whose change can take an account out of service. */

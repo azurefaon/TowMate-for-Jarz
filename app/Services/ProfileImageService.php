@@ -28,10 +28,38 @@ class ProfileImageService
         return $path;
     }
 
+    /**
+     * Where a stored profile_image value really lives. Mobile/Google photos are on the private
+     * profile_images disk; photos uploaded from the System Admin web form before this fix are on the
+     * public disk (avatars/...). Returns [disk, path], or null when the file is missing.
+     */
+    public function locate(?string $path): ?array
+    {
+        if (blank($path)) {
+            return null;
+        }
+
+        foreach ([self::DISK, 'public'] as $disk) {
+            if (Storage::disk($disk)->exists($path)) {
+                return [$disk, $path];
+            }
+        }
+
+        return null;
+    }
+
     public function delete(?string $path): void
     {
         if ($path) {
             Storage::disk(self::DISK)->delete($path);
+        }
+    }
+
+    /** Delete a stored photo from whichever disk holds it. */
+    public function deleteAnywhere(?string $path): void
+    {
+        if ($found = $this->locate($path)) {
+            Storage::disk($found[0])->delete($found[1]);
         }
     }
 }
