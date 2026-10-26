@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\GeneratesPublicCode;
+use App\Services\ProfileImageService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -98,7 +99,7 @@ class User extends Authenticatable
      */
     public function systemAdminAvatarUrl(): ?string
     {
-        if (! app(AppServicesProfileImageService::class)->locate($this->profile_image)) {
+        if (! app(ProfileImageService::class)->locate($this->profile_image)) {
             return null;
         }
 
