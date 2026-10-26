@@ -13,8 +13,8 @@
                 <p class="sa-form-section-title">Profile Photo</p>
                 <div class="sa-profile-photo-row">
                     <span class="sa-profile-photo-preview" id="saProfilePhotoPreview">
-                        @if ($user->profile_image)
-                            <img src="{{ Storage::url($user->profile_image) }}" alt="">
+                        @if ($avatarUrl = $user->systemAdminAvatarUrl())
+                            <img src="{{ $avatarUrl }}" alt="">
                         @else
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4" /><path d="M5.5 20 L6.8 14.8 L17.2 14.8 L18.5 20" /></svg>
                         @endif

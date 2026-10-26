@@ -92,6 +92,19 @@ class User extends Authenticatable
         });
     }
 
+    /**
+     * Same-origin URL of this user's photo for System Admin pages, or null when there is no readable file
+     * (the views then show the default avatar). Never exposes the storage path.
+     */
+    public function systemAdminAvatarUrl(): ?string
+    {
+        if (! app(AppServicesProfileImageService::class)->locate($this->profile_image)) {
+            return null;
+        }
+
+        return route('system-admin.users.avatar', ['user' => $this->id, 'v' => substr(md5((string) $this->profile_image), 0, 8)], false);
+    }
+
     /** Columns whose change can take an account out of service. */
     public const ACCOUNT_STATE_COLUMNS = ['status', 'archived_at', 'pending_delete_at', 'anonymized_at'];
 

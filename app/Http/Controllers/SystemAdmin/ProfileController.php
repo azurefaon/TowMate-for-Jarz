@@ -39,13 +39,13 @@ class ProfileController extends Controller
         $user->last_name = $validated['last_name'];
 
         if ($request->hasFile('profile_image')) {
-            $user->profile_image = $request->file('profile_image')->store('avatars', 'public');
+            $user->profile_image = app(AppServicesProfileImageService::class)->storeUploadedFile($user, $request->file('profile_image'));
         }
 
         $user->save();
 
         if ($request->hasFile('profile_image') && $oldImage) {
-            Storage::disk('public')->delete($oldImage);
+            app(AppServicesProfileImageService::class)->deleteAnywhere($oldImage);
         }
 
         AuditLog::create([

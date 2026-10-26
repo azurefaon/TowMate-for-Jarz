@@ -31,8 +31,8 @@
                     <td data-label="User">
                         <div class="user-info">
                             <div class="ua-avatar">
-                                @if ($user->profile_image)
-                                    <img src="{{ Storage::url($user->profile_image) }}" alt="">
+                                @if ($avatarUrl = $user->systemAdminAvatarUrl())
+                                    <img src="{{ $avatarUrl }}" alt="">
                                 @else
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
                                         <circle cx="12" cy="8.5" r="3.2"/>

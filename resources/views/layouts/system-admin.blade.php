@@ -53,10 +53,6 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1h-.2a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5v-.2a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1Z" /></svg>
                 <span>System Settings</span>
             </a>
-            <a href="{{ route('system-admin.maintenance.index') }}" class="sa-nav-link {{ request()->routeIs('system-admin.maintenance.*') ? 'is-active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5c4.7 0 8.5 1.3 8.5 3v11c0 1.7-3.8 3-8.5 3s-8.5-1.3-8.5-3v-11c0-1.7 3.8-3 8.5-3Z" /><path d="M3.5 6.5c0 1.7 3.8 3 8.5 3s8.5-1.3 8.5-3" /><path d="M3.5 12c0 1.7 3.8 3 8.5 3s8.5-1.3 8.5-3" /></svg>
-                <span>System Maintenance</span>
-            </a>
         </nav>
     </div>
 
@@ -77,8 +73,8 @@
             <div class="sa-account" id="saAccountMenu">
                 <button type="button" class="sa-account-trigger" id="saAccountTrigger" aria-haspopup="menu" aria-expanded="false">
                     <span class="sa-account-avatar">
-                        @if ($saUser->profile_image)
-                            <img src="{{ Storage::url($saUser->profile_image) }}" alt="">
+                        @if ($saAvatarUrl = $saUser->systemAdminAvatarUrl())
+                            <img src="{{ $saAvatarUrl }}" alt="">
                         @else
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4" /><path d="M5.5 20 L6.8 14.8 L17.2 14.8 L18.5 20" /></svg>
                         @endif
