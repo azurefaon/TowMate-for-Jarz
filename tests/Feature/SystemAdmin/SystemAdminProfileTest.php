@@ -64,7 +64,7 @@ it('updates the allowed name fields', function () {
 });
 
 it('uploads a valid profile image', function () {
-    Storage::fake('public');
+    Storage::fake('profile_images');
     $admin = profileAdmin();
 
     $response = $this->actingAs($admin)->patch(route('system-admin.profile.update'), [
@@ -77,7 +77,7 @@ it('uploads a valid profile image', function () {
 
     $admin->refresh();
     expect($admin->profile_image)->not->toBeNull();
-    Storage::disk('public')->assertExists($admin->profile_image);
+    Storage::disk('profile_images')->assertExists($admin->profile_image);
 });
 
 it('rejects an invalid non image file as profile image', function () {
