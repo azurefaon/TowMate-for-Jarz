@@ -131,11 +131,18 @@ class DispatchController extends Controller
             ->get(['id', 'status', 'source_booking_id', 'quotation_number', 'estimated_price', 'counter_offer_amount', 'price_change_log', 'additional_fee'])
             ->unique('source_booking_id')
             ->keyBy('source_booking_id');
-        $bookNowRequests = $bookNowRequests->map(function ($b) use ($bookNowQuotationMap) {
+        $cancelledAnchorQuotations = $this->cancelledAnchorQuotationMap(
+            $bookNowRequests->reject(fn($b) => $bookNowQuotationMap->has($b->id))
+        );
+        $bookNowRequests = $bookNowRequests->map(function ($b) use ($bookNowQuotationMap, $cancelledAnchorQuotations) {
             $q = $bookNowQuotationMap->get($b->id);
+            // The group's quotation is stored on its first (anchor) booking. When that anchor was cancelled the
+            // remaining vehicle has no quotation of its own: take only the verified status and number from the
+            // anchor's real quotation (never its group-wide price or id) so the accepted state is not lost.
+            $anchorQuotation = $q ? null : $cancelledAnchorQuotations->get($b->id);
             $b->active_quotation_id     = $q?->id;
-            $b->active_quotation_number = $q?->quotation_number;
-            $b->active_quotation_status = $q?->status;
+            $b->active_quotation_number = $q?->quotation_number ?? $anchorQuotation?->quotation_number;
+            $b->active_quotation_status = $q?->status ?? $anchorQuotation?->status;
             $b->active_quotation_price   = $q?->estimated_price;
             $b->active_quotation_counter = $q?->counter_offer_amount;
             $b->active_quotation_price_change_log = $q?->price_change_log ?? [];
@@ -412,6 +419,58 @@ class DispatchController extends Controller
     }
 
     
+    /**
+     * For grouped bookings whose anchor (first booking of the same group and route) was cancelled, finds the
+     * anchor's current quotation so a surviving vehicle keeps its quotation state. Only a real quotation row
+     * that explicitly lists the vehicle in extra_vehicles counts; otherwise nothing is returned.
+     *
+     * @return Collection<int, Quotation> keyed by the surviving booking's id
+     */
+    protected function cancelledAnchorQuotationMap(Collection $bookings): Collection
+    {
+        $grouped = $bookings->filter(fn(Booking $b) => filled($b->group_code));
+        if ($grouped->isEmpty()) {
+            return collect();
+        }
+
+        $anchors = Booking::whereIn('group_code', $grouped->pluck('group_code')->unique())
+            ->orderBy('id')
+            ->get(['id', 'group_code', 'pickup_address', 'dropoff_address', 'status']);
+
+        $anchorIdFor = [];
+        foreach ($grouped as $booking) {
+            $anchor = $anchors->first(fn(Booking $a) => $a->group_code === $booking->group_code
+                && $a->pickup_address === $booking->pickup_address
+                && $a->dropoff_address === $booking->dropoff_address);
+            if ($anchor && $anchor->id !== $booking->id && $anchor->status === 'cancelled') {
+                $anchorIdFor[$booking->id] = $anchor->id;
+            }
+        }
+        if ($anchorIdFor === []) {
+            return collect();
+        }
+
+        $quotations = Quotation::whereIn('source_booking_id', array_unique(array_values($anchorIdFor)))
+            ->current()
+            ->whereIn('status', ['pending', 'draft', 'sent', 'negotiating', 'accepted', 'expired', 'price_review_requested'])
+            ->orderByDesc('id')
+            ->get(['id', 'status', 'source_booking_id', 'quotation_number', 'extra_vehicles'])
+            ->unique('source_booking_id')
+            ->keyBy('source_booking_id');
+
+        $result = collect();
+        foreach ($anchorIdFor as $bookingId => $anchorId) {
+            $quotation = $quotations->get($anchorId);
+            $covers = $quotation && collect($quotation->extra_vehicles ?? [])
+                ->contains(fn($ev) => (int) ($ev['booking_id'] ?? 0) === (int) $bookingId);
+            if ($covers) {
+                $result->put($bookingId, $quotation);
+            }
+        }
+
+        return $result;
+    }
+
     protected function buildFloatingQuotationsData(): array
     {
         $this->quotationService->expireOldQuotations();
