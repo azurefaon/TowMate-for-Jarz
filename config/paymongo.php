@@ -45,13 +45,14 @@ return [
     'base_url' => rtrim((string) env('PAYMONGO_API_BASE_URL', 'https://api.paymongo.com'), '/'),
     'http_timeout_seconds' => 15,
 
-    // TowMate method => PayMongo payment_method_types value. Only GCash is wired.
-    // `bank_transfer` (Online Banking) is intentionally absent: PayMongo documents `dob`
-    // for the Payment Intent flow only, not for Checkout Sessions. Add it only after a
-    // test-mode Checkout Session with that channel is confirmed to work.
-    'channels' => [
+    // TowMate method => PayMongo payment_method_types value.
+    // `bank_transfer` (Online Banking) is OFF unless PAYMONGO_ONLINE_BANKING_CHANNEL names a PayMongo channel
+    // (e.g. `dob`). The TEST account accepts Checkout Sessions for dob / dob_ubp / brankas_* (probed 2026-11-02), but no
+    // sandbox bank payment has been completed end to end yet, so it stays off until one is.
+    'channels' => array_filter([
         'gcash' => 'gcash',
-    ],
+        'bank_transfer' => env('PAYMONGO_ONLINE_BANKING_CHANNEL') ?: null,
+    ]),
 
     // PayMongo sessions stay `active` until expired through the API, so TowMate owns the deadline.
     'session_ttl_minutes' => (int) env('PAYMONGO_SESSION_TTL_MINUTES', 30),

@@ -33,27 +33,51 @@ class BookingStatusPush
         'completed'       => ['Towing complete', 'Your towing request is complete.'],
     ];
 
+    /**
+     * Customer events that are not a single status value. `submitted` is sent once a booking really exists for
+     * dispatch: right after a Cash request is created, or only after a verified online payment (`submitted_paid`).
+     */
+    public const EVENT_MESSAGES = [
+        'submitted'      => ['Booking submitted', 'We received your towing request. We will notify you when a team is assigned.'],
+        'submitted_paid' => ['Booking submitted', 'Payment received (TEST / DEMO — no real money). Your towing request is submitted.'],
+    ];
+
     public function __construct(private readonly FcmClient $fcm) {}
 
     public function notify(Booking $booking, ?string $oldStatus = null): void
     {
+        $status = (string) $booking->status;
+        if ($oldStatus === $status) {
+            return;
+        }
+
+        $this->safely($booking, $status, self::MESSAGES[$status] ?? null);
+    }
+
+    /** Sends one of EVENT_MESSAGES (deduplicated per booking/group like status pushes). */
+    public function notifyEvent(Booking $booking, string $event): void
+    {
+        $this->safely($booking, $event, self::EVENT_MESSAGES[$event] ?? null);
+    }
+
+    /** @param  array{0: string, 1: string}|null  $message */
+    private function safely(Booking $booking, string $status, ?array $message): void
+    {
         try {
-            $this->dispatch($booking, $oldStatus);
+            $this->dispatch($booking, $status, $message);
         } catch (\Throwable $e) {
             Log::warning('Booking status push failed', [
                 'booking_id' => $booking->id,
-                'status'     => $booking->status,
+                'status'     => $status,
                 'error'      => class_basename($e),
             ]);
         }
     }
 
-    private function dispatch(Booking $booking, ?string $oldStatus): void
+    /** @param  array{0: string, 1: string}|null  $message */
+    private function dispatch(Booking $booking, string $status, ?array $message): void
     {
-        $status = (string) $booking->status;
-        $message = self::MESSAGES[$status] ?? null;
-
-        if ($message === null || $oldStatus === $status) {
+        if ($message === null) {
             return;
         }
 

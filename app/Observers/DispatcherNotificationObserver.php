@@ -18,6 +18,11 @@ class DispatcherNotificationObserver
 {
     public function created(Booking $booking): void
     {
+        // A pay-at-booking request is announced when its payment is verified (OnlinePaymentService::finalizePrepaid).
+        if ($booking->isUnsubmitted()) {
+            return;
+        }
+
         $type = match ($booking->service_type) {
             'book_now' => DispatcherNotification::TYPE_NEW_BOOK_NOW,
             'schedule' => DispatcherNotification::TYPE_NEW_SCHEDULED,

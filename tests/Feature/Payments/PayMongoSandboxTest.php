@@ -86,7 +86,8 @@ function pmsBookingFor(User $user, array $overrides = []): Booking
         'vat_amount' => 252.35,
         'final_total' => 2352.35,
         'service_type' => 'book_now',
-        'status' => 'arrived_dropoff',
+        // Pay at booking (Step 3 "Pay & Submit"): online checkout only exists while the request awaits payment.
+        'status' => Booking::STATUS_AWAITING_PAYMENT,
         'preferred_payment_method' => 'gcash',
     ], $overrides));
 }
@@ -387,9 +388,9 @@ it('creates a GCash checkout from the server-side amount and leaves the booking 
     $body = $response->getContent();
     expect($body)->not->toContain(PMS_SECRET_KEY)->not->toContain(PMS_WEBHOOK_SECRET)->not->toContain('cs_test_session_1\"');
 
-    // The booking is exactly as it was: not paid, same status, same preference.
+    // Opening a checkout submits nothing: the booking is still hidden, unpaid, with the same preference.
     $booking->refresh();
-    expect($booking->status)->toBe('arrived_dropoff');
+    expect($booking->status)->toBe(Booking::STATUS_AWAITING_PAYMENT);
     expect($booking->payment_method)->toBeNull();
     expect($booking->payment_submitted_at)->toBeNull();
     expect($booking->cash_received)->toBeNull();
@@ -420,15 +421,25 @@ it('says Online Banking is not available yet and contacts nobody', function () {
     expect(PaymentTransaction::count())->toBe(0);
 });
 
-it('refuses checkout until the tow has reached the drop-off', function (string $status) {
+it('never opens a checkout for a booking that is already submitted: no pay-after-towing step', function (string $status) {
     $user = pmsCustomerUser();
     pmsEnable($user);
     Http::fake();
 
-    pmsCheckout($this, $user, pmsBookingFor($user, ['status' => $status]))->assertStatus(409)->assertJsonPath('reason', 'not_ready');
+    pmsCheckout($this, $user, pmsBookingFor($user, ['status' => $status]))->assertStatus(409)->assertJsonPath('reason', 'not_awaiting_payment');
 
     Http::assertNothingSent();
-})->with(['requested', 'accepted', 'on_the_way', 'in_progress', 'waiting_verification', 'completed']);
+})->with(['requested', 'confirmed', 'accepted', 'on_the_way', 'in_progress', 'arrived_dropoff', 'waiting_verification', 'completed']);
+
+it('never opens a checkout for an abandoned pay-at-booking attempt', function () {
+    $user = pmsCustomerUser();
+    pmsEnable($user);
+    Http::fake();
+
+    pmsCheckout($this, $user, pmsBookingFor($user, ['status' => Booking::STATUS_PAYMENT_ABANDONED]))->assertStatus(409);
+
+    Http::assertNothingSent();
+});
 
 it('refuses checkout for a cancelled booking', function () {
     $user = pmsCustomerUser();
@@ -987,7 +998,7 @@ it('is not ready until the allow-listed customer really exists and has a payable
     $booking->update(['status' => 'in_progress']);
 
     $this->artisan('online-payments:check')
-        ->expectsOutputToContain('no synthetic booking at arrived_dropoff')
+        ->expectsOutputToContain('no synthetic booking awaiting payment')
         ->assertFailed();
 
     config(['paymongo.test_user_ids' => [999999]]);
@@ -1006,16 +1017,16 @@ it('treats a database that is not clearly isolated as a blocker', function () {
 });
 
 it('creates a synthetic payable fixture on an isolated database and nothing else', function () {
-    $bookingsBefore = Booking::count();
+    $bookingsBefore = Booking::includingUnsubmitted()->count();
 
     $this->artisan('online-payments:make-pilot-fixture', ['--amount' => '100.00'])
         ->expectsOutputToContain('Synthetic pilot fixture created')
         ->expectsOutputToContain('10000 centavos')
         ->assertSuccessful();
 
-    $booking = Booking::latest('id')->firstOrFail();
-    expect(Booking::count())->toBe($bookingsBefore + 1);
-    expect($booking->status)->toBe('arrived_dropoff');
+    $booking = Booking::includingUnsubmitted()->latest('id')->firstOrFail();
+    expect(Booking::includingUnsubmitted()->count())->toBe($bookingsBefore + 1);
+    expect($booking->status)->toBe(Booking::STATUS_AWAITING_PAYMENT);
     expect((float) $booking->final_total)->toBe(100.0);
     expect($booking->payment_method)->toBeNull();
     expect($booking->payment_submitted_at)->toBeNull();
@@ -1031,7 +1042,7 @@ it('creates a synthetic payable fixture on an isolated database and nothing else
 
 it('lets the fixture customer, once allow-listed, open a checkout through the normal path', function () {
     $this->artisan('online-payments:make-pilot-fixture', ['--amount' => '250.50'])->assertSuccessful();
-    $booking = Booking::latest('id')->firstOrFail();
+    $booking = Booking::includingUnsubmitted()->latest('id')->firstOrFail();
     $user = User::findOrFail($booking->customer->user_id);
     pmsEnable($user);
     pmsFakeGateway();
@@ -1131,7 +1142,7 @@ it('opens a pilot checkout through the same guarded path when confirmed and full
         ->assertSuccessful();
 
     expect(PaymentTransaction::where('status', 'pending')->count())->toBe(1);
-    expect($booking->fresh()->status)->toBe('arrived_dropoff');
+    expect($booking->fresh()->status)->toBe(Booking::STATUS_AWAITING_PAYMENT);
 });
 
 it('will not run the pilot for a customer who is not on the test allow-list', function () {
@@ -1186,7 +1197,7 @@ it('answers malformed signed events with 400 and stores nothing', function () {
 
 // ───────────────────────── webhook: payment outcomes ─────────────────────────
 
-it('marks a transaction paid only from a verified paid event, and never touches the booking', function () {
+it('marks a transaction paid only from a verified paid event, and submits the booking without completing it', function () {
     [$transaction, $booking] = pmsOpenSession($this);
 
     pmsWebhook($this, pmsPaidEvent('evt_ok', 'cs_test_session_1', 'pay_ok', 235235))
@@ -1198,9 +1209,9 @@ it('marks a transaction paid only from a verified paid event, and never touches 
     expect($transaction->paid_at)->not->toBeNull();
     expect($transaction->flag)->toBeNull();
 
-    // A payment webhook must never complete a job or record a collected method.
+    // A verified payment submits the booking (confirmed, ready to assign); it never completes a job or records a collected method.
     $booking->refresh();
-    expect($booking->status)->toBe('arrived_dropoff');
+    expect($booking->status)->toBe('confirmed');
     expect($booking->payment_method)->toBeNull();
     expect($booking->payment_submitted_at)->toBeNull();
     expect($booking->completed_at)->toBeNull();
@@ -1476,7 +1487,7 @@ it('reconciliation never runs while the feature is off', function () {
     config(['paymongo.enabled' => false]);
     Http::fake();
 
-    expect(app(OnlinePaymentService::class)->reconcile())->toBe(['checked' => 0, 'paid' => 0, 'expired' => 0, 'unconfirmed' => 0]);
+    expect(app(OnlinePaymentService::class)->reconcile())->toBe(['checked' => 0, 'paid' => 0, 'expired' => 0, 'unconfirmed' => 0, 'submitted' => 0]);
     Http::assertNothingSent();
     $this->artisan('online-payments:reconcile')->assertSuccessful();
 });
@@ -1501,15 +1512,25 @@ it('does not allow a new checkout once the booking is paid online or under revie
     expect(PaymentTransaction::count())->toBe(1);
 })->with(['paid', 'review', 'duplicate']);
 
-// ───────────────────────── groups ─────────────────────────
+// ───────────────────────── groups (multi-vehicle Pay & Submit) ─────────────────────────
 
-it('charges a normalized group once, for the active vehicles plus the quotation adjustment', function () {
+/** Two vehicles requested together and paid at booking, as createBooking stores them: ₱2,352.35 + ₱1,000.00. */
+function pmsUnpaidGroupFor(User $user): array
+{
+    $first = pmsBookingFor($user, ['group_code' => 'GRP-PMS-' . uniqid()]);
+    $second = pmsBookingFor($user, ['group_code' => $first->group_code, 'final_total' => 1000.00]);
+    $first->update(['extra_vehicles' => [['booking_id' => $second->id, 'truck_type_id' => $second->truck_type_id, 'final_total' => 1000.00, 'estimated_price' => 1000.00]]]);
+
+    return [$first->fresh(), $second->fresh()];
+}
+
+it('charges a multi-vehicle request once, for every vehicle\'s server-priced total', function () {
     $user = pmsCustomerUser();
     pmsEnable($user);
     pmsFakeGateway();
-    [$first, $second] = pmsGroupFor($user);
+    [$first, $second] = pmsUnpaidGroupFor($user);
 
-    // Paying from the second vehicle's booking still opens ONE group session anchored on the quotation's source booking.
+    // Paying from either vehicle opens ONE session anchored on the first (primary) booking.
     pmsCheckout($this, $user, $second)->assertCreated();
     pmsCheckout($this, $user, $first)->assertOk();
 
@@ -1517,42 +1538,44 @@ it('charges a normalized group once, for the active vehicles plus the quotation 
     expect(PaymentTransaction::count())->toBe(1);
     expect($transaction->payable_type)->toBe('group');
     expect($transaction->payable_id)->toBe($first->id);
-    expect($transaction->amount_centavos)->toBe(340235); // 2352.35 + 1000.00 + 100 - 50
+    expect($transaction->amount_centavos)->toBe(335235); // 2352.35 + 1000.00
     expect($transaction->payable_snapshot['member_ids'])->toBe([$first->id, $second->id]);
     Http::assertSentCount(1);
 });
 
-it('leaves a cancelled vehicle out of the group total and refuses payment while any active one is not at the drop-off', function () {
+it('refuses a group checkout once any of its vehicles is already submitted', function () {
     $user = pmsCustomerUser();
     pmsEnable($user);
-    pmsFakeGateway();
-    [$first, $second] = pmsGroupFor($user);
+    Http::fake();
+    [$first, $second] = pmsUnpaidGroupFor($user);
+    $second->update(['status' => 'requested']);
 
-    $second->update(['status' => 'in_progress']);
-    pmsCheckout($this, $user, $first)->assertStatus(409)->assertJsonPath('reason', 'not_ready');
-
-    $second->update(['status' => 'cancelled']);
-    pmsCheckout($this, $user, $first)->assertCreated();
-
-    expect(PaymentTransaction::firstOrFail()->amount_centavos)->toBe(240235); // 2352.35 + 100 - 50
+    pmsCheckout($this, $user, $first)->assertStatus(409)->assertJsonPath('reason', 'not_awaiting_payment');
+    Http::assertNothingSent();
 });
 
-it('treats a group payment as covering every vehicle for the dispatcher', function () {
+it('submits every vehicle of a paid group once, with one accepted quotation for exactly the amount paid', function () {
     $user = pmsCustomerUser();
     pmsEnable($user);
     pmsFakeGateway();
-    [$first, $second] = pmsGroupFor($user);
+    [$first, $second] = pmsUnpaidGroupFor($user);
     pmsCheckout($this, $user, $first)->assertCreated();
 
-    pmsWebhook($this, pmsPaidEvent('evt_grp', 'cs_test_session_1', 'pay_grp', 340235))->assertJsonPath('outcome', 'paid');
+    pmsWebhook($this, pmsPaidEvent('evt_grp', 'cs_test_session_1', 'pay_grp', 335235))->assertJsonPath('outcome', 'paid');
+    pmsWebhook($this, pmsPaidEvent('evt_grp_again', 'cs_test_session_1', 'pay_grp', 335235))->assertJsonPath('outcome', 'already_paid');
 
+    $first->refresh();
+    $second->refresh();
+    expect([$first->status, $second->status])->toBe(['confirmed', 'confirmed']);
+    expect($first->quotation_id)->not->toBeNull()->toBe($second->quotation_id);
+    expect(Quotation::count())->toBe(1);
+    $quotation = Quotation::firstOrFail();
+    expect($quotation->status)->toBe('accepted');
+    expect((float) $quotation->estimated_price)->toBe(3352.35);
+    expect(collect($quotation->extra_vehicles)->pluck('booking_id')->all())->toBe([$second->id]);
     expect(PaymentTransaction::verifiedPaidFor($second)?->payable_type)->toBe('group');
-    expect(PaymentTransaction::dispatcherNote($second))->toContain('Paid online (sandbox) P3,402.35');
-    foreach ([$first, $second] as $booking) {
-        $booking->refresh();
-        expect($booking->status)->toBe('arrived_dropoff');
-        expect($booking->payment_method)->toBeNull();
-    }
+    expect(PaymentTransaction::dispatcherNote($second))->toContain('Paid online (sandbox) P3,352.35');
+    expect($first->payment_method)->toBeNull();
 });
 
 it('keeps unrelated bookings of the same customer as separate payables', function () {
@@ -1569,48 +1592,7 @@ it('keeps unrelated bookings of the same customer as separate payables', functio
 });
 
 // ───────────────────────── interaction with the existing flows ─────────────────────────
-
-it('leaves the Team Leader signature, proof and dispatcher confirmation fully in charge', function () {
-    Mail::fake();
-    pmsRole(3, 'Team Leader');
-    pmsRole(2, 'Dispatcher');
-    $teamLeader = User::factory()->create(['role_id' => 3, 'must_change_password' => false]);
-    $dispatcher = User::factory()->create(['role_id' => 2, 'status' => 'active', 'must_change_password' => false]);
-    [$transaction, $booking, $user] = pmsOpenSession($this);
-
-    $unit = Unit::create([
-        'name' => 'PMS Unit', 'plate_number' => 'PMS-' . random_int(1000, 9999),
-        'truck_type_id' => $booking->truck_type_id, 'team_leader_id' => $teamLeader->id, 'status' => 'available',
-    ]);
-    $booking->update(['assigned_unit_id' => $unit->id, 'assigned_team_leader_id' => $teamLeader->id, 'assigned_at' => now()]);
-
-    // The customer pays online and it is verified...
-    pmsWebhook($this, pmsPaidEvent('evt_tl', 'cs_test_session_1', 'pay_tl', 235235))->assertJsonPath('outcome', 'paid');
-    expect($booking->fresh()->status)->toBe('arrived_dropoff');
-
-    // ...but the Team Leader still has to complete the task the usual way: signature and proof are not waived.
-    Sanctum::actingAs($teamLeader, ['*']);
-    $completeUrl = "/api/v1/team-leader/task/{$booking->booking_code}/complete";
-
-    $this->post($completeUrl, ['payment_method' => 'gcash'])->assertStatus(422); // no signature
-    $this->post($completeUrl, ['payment_method' => 'gcash', 'signature' => UploadedFile::fake()->image('sig.jpg')])->assertStatus(422); // no proof
-    expect($booking->fresh()->status)->toBe('arrived_dropoff');
-
-    $booking->update(['payment_proof_path' => 'task-photos/fake-proof.jpg']);
-    $this->post($completeUrl, ['payment_method' => 'gcash', 'signature' => UploadedFile::fake()->image('sig.jpg')])->assertOk();
-
-    $booking->refresh();
-    expect($booking->status)->toBe('waiting_verification');
-    expect($booking->payment_method)->toBe('gcash');            // collected method, written by the Team Leader flow
-    expect($booking->preferred_payment_method)->toBe('gcash');  // customer's earlier choice, independent
-    expect(PaymentTransaction::dispatcherNote($booking))->toContain('Paid online (sandbox)');
-
-    // The dispatcher is still the only one who completes the job.
-    $this->actingAs($dispatcher)->post(route('admin.jobs.confirm-payment', $booking))->assertOk();
-    expect($booking->fresh()->status)->toBe('completed');
-    expect($transaction->fresh()->status)->toBe('paid');
-    expect(PaymentTransaction::where('status', 'paid')->count())->toBe(1);
-});
+// Team Leader completion of prepaid and cash bookings is covered in PrepaidBookingFlowTest.
 
 it('adds no queries and shows nothing to the dispatcher while the feature is off', function () {
     $user = pmsCustomerUser();
@@ -1631,6 +1613,7 @@ it('exposes exactly the approved PayMongo routes, all protected as intended', fu
 
     expect($routes->map(fn ($r) => $r->methods()[0] . ' ' . $r->uri())->sort()->values()->all())->toBe([
         'GET api/v1/bookings/{code}/online-payment',
+        'GET api/v1/online-payment/availability',
         'POST api/v1/bookings/{code}/online-payment/cancel',
         'POST api/v1/bookings/{code}/online-payment/checkout',
         'POST api/webhooks/paymongo',
@@ -1750,128 +1733,99 @@ it('describes lists by their first element without doubled index paths', functio
     expect($output)->toContain('errors: list(1)')->toContain('errors[0].code: string(len 17)')->not->toContain('errors[0].0');
 });
 
-// ───────────────────────── customer app: "Pay Now" offer on the booking detail ─────────────────────────
+// ───────────────────────── customer app: online payment on the booking detail ─────────────────────────
+// Online payment happens only at Step 3 "Pay & Submit". A submitted booking is never offered Pay Now afterwards; its
+// detail only reports a payment that was made when booking.
 
 function pmsDetail($test, User $user, Booking $booking): array
 {
-    Sanctum::actingAs($user, ['*']);
+    Sanctum::actingAs($user, ["*"]);
 
-    return $test->getJson("/api/v1/bookings/{$booking->booking_code}/detail")->assertOk()->json('data');
+    return $test->getJson("/api/v1/bookings/{$booking->booking_code}/detail")->assertOk()->json("data");
 }
 
-it('offers Pay Now with the server-calculated final amount and the chosen method', function () {
-    $user = pmsCustomerUser();
-    pmsEnable($user);
-    $booking = pmsBookingFor($user);
-
-    $offer = pmsDetail($this, $user, $booking)['online_payment'];
-
-    expect($offer)->toMatchArray([
-        'available' => true,
-        'eligible' => true,
-        'reason' => null,
-        'amount' => '2352.35',
-        'currency' => 'PHP',
-        'method' => 'gcash',
-        'method_label' => 'GCash',
-        'is_group' => false,
-        'transaction' => null,
-    ]);
-});
-
-it('says nothing about online payment to anyone outside the sandbox allow-list, or while it is disabled', function () {
-    $tester = pmsCustomerUser();
-    $ordinary = pmsCustomerUser();
-    $booking = pmsBookingFor($ordinary);
-
-    // Feature off (the default): no block at all, and the detail endpoint still works as before.
-    expect(pmsDetail($this, $ordinary, $booking))->toHaveKey('online_payment')->and(pmsDetail($this, $ordinary, $booking)['online_payment'])->toBeNull();
-
-    pmsEnable($tester); // on, but this customer is not allow-listed
-    expect(pmsDetail($this, $ordinary, $booking)['online_payment'])->toBeNull();
-
-    pmsEnable($tester, $ordinary);
-    config(['paymongo.secret_key' => '']); // allow-listed but not configured: still nothing to show
-    expect(pmsDetail($this, $ordinary, $booking)['online_payment'])->toBeNull();
-});
-
-it('explains with a stable reason why Pay Now is not offered', function (array $booking, string $reason) {
+it("never offers Pay Now on a submitted booking: online payment is only made when booking", function (array $booking) {
     $user = pmsCustomerUser();
     pmsEnable($user);
 
-    $offer = pmsDetail($this, $user, pmsBookingFor($user, $booking))['online_payment'];
+    $offer = pmsDetail($this, $user, pmsBookingFor($user, $booking))["online_payment"];
 
-    expect($offer['eligible'])->toBeFalse();
-    expect($offer['reason'])->toBe($reason);
+    expect($offer)->toMatchArray(["available" => true, "eligible" => false, "reason" => "pay_at_booking_only", "transaction" => null]);
 })->with([
-    'cash preference' => [['preferred_payment_method' => 'cash'], 'preference_not_online'],
-    'no preference (older booking)' => [['preferred_payment_method' => null], 'preference_not_online'],
-    'online banking (not wired yet)' => [['preferred_payment_method' => 'bank_transfer'], 'channel_unavailable'],
-    'tow not yet at the drop-off' => [['status' => 'on_the_way'], 'not_ready'],
-    'cash already recorded' => [['payment_method' => 'cash', 'cash_received' => 2400], 'payment_already_recorded'],
-    'payment already submitted by the team leader' => [['payment_submitted_at' => '2026-11-01 10:00:00'], 'payment_already_recorded'],
+    "cash booking" => [["status" => "requested", "preferred_payment_method" => "cash"]],
+    "gcash preference on a submitted booking" => [["status" => "arrived_dropoff", "preferred_payment_method" => "gcash"]],
+    "online banking preference" => [["status" => "on_the_way", "preferred_payment_method" => "bank_transfer"]],
 ]);
 
-it('reflects the verified transaction in the offer, and never exposes links, provider ids or secrets', function () {
-    $user = pmsCustomerUser();
-    pmsEnable($user);
-    pmsFakeGateway();
-    $booking = pmsBookingFor($user);
-    Sanctum::actingAs($user, ['*']);
-    $this->postJson("/api/v1/bookings/{$booking->booking_code}/online-payment/checkout", ['method' => 'gcash'])->assertCreated();
+it("says nothing about online payment to anyone outside the sandbox allow-list, or while it is disabled", function () {
+    $tester = pmsCustomerUser();
+    $ordinary = pmsCustomerUser();
+    $booking = pmsBookingFor($ordinary, ["status" => "requested"]);
 
-    // An open session: Pay Now resumes it (still eligible), and the detail carries no link.
-    $offer = pmsDetail($this, $user, $booking)['online_payment'];
-    expect($offer['eligible'])->toBeTrue();
-    expect($offer['transaction']['status'])->toBe('pending');
-    expect(json_encode($offer))->not->toContain('checkout_url')->not->toContain('cs_test_session_1')->not->toContain(PMS_SECRET_KEY)->not->toContain('paymongo.test');
+    // Feature off (the default): no block at all, and the detail endpoint still works as before.
+    expect(pmsDetail($this, $ordinary, $booking))->toHaveKey("online_payment")->and(pmsDetail($this, $ordinary, $booking)["online_payment"])->toBeNull();
 
-    // Verified paid: no longer offered, and the booking itself is untouched.
-    pmsWebhook($this, pmsPaidEvent('evt_offer', 'cs_test_session_1', 'pay_offer', 235235))->assertJsonPath('outcome', 'paid');
+    pmsEnable($tester); // on, but this customer is not allow-listed
+    expect(pmsDetail($this, $ordinary, $booking)["online_payment"])->toBeNull();
+
+    pmsEnable($tester, $ordinary);
+    config(["paymongo.secret_key" => ""]); // allow-listed but not configured: still nothing to show
+    expect(pmsDetail($this, $ordinary, $booking)["online_payment"])->toBeNull();
+});
+
+it("keeps a booking that is still awaiting payment out of the customer booking detail", function () {
+    [, $booking, $user] = pmsOpenSession($this);
+    Sanctum::actingAs($user, ["*"]);
+
+    $this->getJson("/api/v1/bookings/{$booking->booking_code}/detail")->assertNotFound();
+});
+
+it("reports the verified pay-at-booking payment on the submitted booking, never links, provider ids or secrets", function () {
+    [, $booking, $user] = pmsOpenSession($this);
+
+    pmsWebhook($this, pmsPaidEvent("evt_offer", "cs_test_session_1", "pay_offer", 235235))->assertJsonPath("outcome", "paid");
     $detail = pmsDetail($this, $user, $booking);
-    expect($detail['online_payment'])->toMatchArray(['eligible' => false, 'reason' => 'already_paid']);
-    expect($detail['online_payment']['transaction']['status'])->toBe('paid');
-    expect($detail['status'])->toBe('arrived_dropoff');
-    expect($detail['payment_method'])->toBeNull(); // collected method is still the Team Leader's to record
+
+    expect($detail["online_payment"])->toMatchArray(["eligible" => false, "reason" => "already_paid"]);
+    expect($detail["online_payment"]["transaction"]["status"])->toBe("paid");
+    expect($detail["status"])->toBe("confirmed");
+    expect($detail["payment_method"])->toBeNull(); // set only when the Team Leader completes the task
+    expect(json_encode($detail["online_payment"]))->not->toContain("checkout_url")->not->toContain("cs_test_session_1")->not->toContain(PMS_SECRET_KEY)->not->toContain("paymongo.test");
 });
 
-it('marks a payment awaiting review as under review rather than payable again', function () {
+it("keeps a payment awaiting review unsubmitted and reports it as under review", function () {
     [$transaction, $booking, $user] = pmsOpenSession($this);
-    $transaction->update(['status' => 'review', 'flag' => 'amount_mismatch']);
-
-    $offer = pmsDetail($this, $user, $booking)['online_payment'];
-
-    expect($offer['eligible'])->toBeFalse();
-    expect($offer['reason'])->toBe('under_review');
-    expect($offer['transaction']['status'])->toBe('review');
-});
-
-it('offers one group amount for a multi-vehicle booking', function () {
-    $user = pmsCustomerUser();
-    pmsEnable($user);
-    [$first, $second] = pmsGroupFor($user);
-
-    $offer = pmsDetail($this, $user, $second)['online_payment'];
-
-    expect($offer['eligible'])->toBeTrue();
-    expect($offer['is_group'])->toBeTrue();
-    expect($offer['amount'])->toBe('3402.35');
-});
-
-it('reports gateway success and booking completion as two separate facts on the status endpoint', function () {
-    [$transaction, $booking, $user] = pmsOpenSession($this);
-    pmsWebhook($this, pmsPaidEvent('evt_two', 'cs_test_session_1', 'pay_two', 235235))->assertJsonPath('outcome', 'paid');
-    Sanctum::actingAs($user, ['*']);
+    $transaction->update(["status" => "review", "flag" => "amount_mismatch"]);
+    Sanctum::actingAs($user, ["*"]);
 
     $this->getJson("/api/v1/bookings/{$booking->booking_code}/online-payment")->assertOk()
-        ->assertJsonPath('data.status', 'paid')
-        ->assertJsonPath('data.booking_status', 'arrived_dropoff')
-        ->assertJsonPath('data.booking_completed', false);
+        ->assertJsonPath("data.status", "review")
+        ->assertJsonPath("data.booking_submitted", false);
+    expect(Booking::includingUnsubmitted()->find($booking->id)->status)->toBe(Booking::STATUS_AWAITING_PAYMENT);
+});
 
-    $booking->update(['status' => 'completed']); // only the dispatcher's confirmation does this
+it("reports payment, submission and completion as separate facts on the status endpoint", function () {
+    [, $booking, $user] = pmsOpenSession($this);
+    Sanctum::actingAs($user, ["*"]);
 
     $this->getJson("/api/v1/bookings/{$booking->booking_code}/online-payment")->assertOk()
-        ->assertJsonPath('data.booking_completed', true);
+        ->assertJsonPath("data.status", "pending")
+        ->assertJsonPath("data.booking_submitted", false)
+        ->assertJsonPath("data.pay_at_booking", true);
+
+    pmsWebhook($this, pmsPaidEvent("evt_two", "cs_test_session_1", "pay_two", 235235))->assertJsonPath("outcome", "paid");
+
+    $this->getJson("/api/v1/bookings/{$booking->booking_code}/online-payment")->assertOk()
+        ->assertJsonPath("data.status", "paid")
+        ->assertJsonPath("data.booking_status", "confirmed")
+        ->assertJsonPath("data.booking_submitted", true)
+        ->assertJsonPath("data.booking_completed", false)
+        ->assertJsonPath("data.bookings.0.booking_code", $booking->booking_code);
+
+    $booking->update(["status" => "completed"]);
+
+    $this->getJson("/api/v1/bookings/{$booking->booking_code}/online-payment")->assertOk()
+        ->assertJsonPath("data.booking_completed", true);
 });
 
 // ── Production refusal: the sandbox can never run in production, whatever the environment variables say ──
@@ -1916,7 +1870,7 @@ it('lets no request reach PayMongo from production: checkout, status, cancel and
         $this->postJson("/api/v1/bookings/{$booking->booking_code}/online-payment/cancel")->assertNotFound();
         pmsWebhook($this, pmsPaidEvent('evt_prod_1', 'cs_test_session_1', 'pay_prod_1', 100000))->assertNotFound();
 
-        expect(pmsDetail($this, $user, $booking)['online_payment'])->toBeNull();
+        expect(pmsDetail($this, $user, pmsBookingFor($user, ['status' => 'requested']))['online_payment'])->toBeNull();
     });
 
     Http::assertNothingSent();
@@ -1979,7 +1933,7 @@ it('always rejects a live key in production, even with the opt-in', function () 
         $guard = new \App\Services\OnlinePayments\SandboxGuard();
         expect($guard->credentialsProblem())->toBe('live_or_unknown_key_rejected');
         expect(fn () => $guard->secretKey())->toThrow(\App\Services\OnlinePayments\GatewayException::class);
-        expect(pmsDetail($this, $user, $booking)['online_payment'])->toBeNull();
+        expect(pmsDetail($this, $user, pmsBookingFor($user, ['status' => 'requested']))['online_payment'])->toBeNull();
         expect(pmsCheckout($this, $user, $booking)->status())->not->toBeIn([200, 201]);
     });
 
@@ -1993,7 +1947,7 @@ it('requires the test webhook secret in production', function () {
     config(['paymongo.webhook_secret' => '']);
     $booking = pmsBookingFor($user);
 
-    pmsAsEnvironment($this, 'production', fn () => expect(pmsDetail($this, $user, $booking)['online_payment'])->toBeNull());
+    pmsAsEnvironment($this, 'production', fn () => expect(pmsDetail($this, $user, pmsBookingFor($user, ['status' => 'requested']))['online_payment'])->toBeNull());
 });
 
 it('never lets a normal customer start a sandbox payment in production', function () {
@@ -2004,7 +1958,7 @@ it('never lets a normal customer start a sandbox payment in production', functio
     $booking = pmsBookingFor($normal);
 
     pmsAsEnvironment($this, 'production', function () use ($normal, $booking) {
-        expect(pmsDetail($this, $normal, $booking)['online_payment'])->toBeNull();
+        expect(pmsDetail($this, $normal, pmsBookingFor($normal, ['status' => 'requested']))['online_payment'])->toBeNull();
         pmsCheckout($this, $normal, $booking)->assertNotFound();
     });
 
@@ -2012,7 +1966,7 @@ it('never lets a normal customer start a sandbox payment in production', functio
     expect($booking->fresh()->is_demo)->toBeFalse();
 });
 
-it('completes a GCash test payment in production through the signed webhook, leaving the booking for the dispatcher', function () {
+it('completes a GCash test payment in production through the signed webhook and submits the booking once', function () {
     $user = pmsCustomerUser();
     pmsEnableProduction($user);
     pmsFakeGateway();
@@ -2031,7 +1985,7 @@ it('completes a GCash test payment in production through the signed webhook, lea
         expect($transaction->fresh()->status)->toBe('paid');
         expect($transaction->fresh()->livemode)->toBeFalse();
         expect(\App\Models\PaymentWebhookEvent::count())->toBe(1);
-        expect($booking->fresh()->status)->toBe('arrived_dropoff');
+        expect($booking->fresh()->status)->toBe('confirmed');
         expect($booking->fresh()->payment_method)->toBeNull();
     });
 });
@@ -2070,7 +2024,6 @@ it('refuses a sandbox payment on a booking that is not a demo booking, even for 
     pmsFakeGateway();
 
     expect($booking->fresh()->is_demo)->toBeFalse();
-    expect(pmsDetail($this, $user, $booking)['online_payment']['reason'])->toBe('not_demo_booking');
     pmsCheckout($this, $user, $booking)->assertStatus(409)->assertJsonPath('reason', 'not_demo_booking');
     Http::assertNothingSent();
 });

@@ -76,6 +76,7 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::post('bookings/{code}/follow-up', [CustomerBookingController::class, 'followUp']);
 
         // PayMongo SANDBOX checkout: feature-flagged, allow-listed test users only (404 otherwise).
+        Route::get('online-payment/availability', [\App\Http\Controllers\Api\OnlinePaymentController::class, 'availability']);
         Route::post('bookings/{code}/online-payment/checkout', [\App\Http\Controllers\Api\OnlinePaymentController::class, 'checkout'])->middleware('throttle:online-payment');
         Route::get('bookings/{code}/online-payment', [\App\Http\Controllers\Api\OnlinePaymentController::class, 'show']);
         Route::post('bookings/{code}/online-payment/cancel', [\App\Http\Controllers\Api\OnlinePaymentController::class, 'cancel'])->middleware('throttle:online-payment');

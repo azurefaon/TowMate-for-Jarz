@@ -409,11 +409,36 @@ class TLTaskController extends Controller
             return response()->json(['success' => false, 'message' => 'This task is not assigned to you.'], 403);
         }
 
+        // Which collection path applies is decided by the server from verified payment records only, never by what
+        // the app sends: a booking paid online at booking time is completed directly; otherwise only cash is collected.
+        $collection = app(\App\Services\OnlinePayments\OnlinePaymentService::class)->collectionStateFor($booking);
+
+        if ($collection['mode'] === 'online_prepaid') {
+            return $this->completePrepaid($booking, $request);
+        }
+
+        if ($collection['mode'] === 'online_review') {
+            return response()->json(['success' => false, 'reason' => 'online_payment_review', 'message' => $collection['message']], 409);
+        }
+
+        // A retry of a payment that was already submitted (e.g. the other Team Leader of a group) is answered as
+        // "already submitted" further down; it must not be refused for what it repeats.
+        $alreadySubmitted = $booking->status === 'waiting_verification' && $booking->payment_submitted_at !== null;
+
         $validated = $request->validate([
             'signature'      => 'required|file|mimes:jpg,jpeg,png|max:2048',
-            'payment_method' => 'required|string|in:cash,gcash,bank_transfer',
-            'cash_received'  => ['required_if:payment_method,cash', 'nullable', 'numeric', 'min:0'],
+            'payment_method' => 'nullable|string|in:cash,gcash,bank_transfer',
+            'cash_received'  => [Rule::requiredIf(! $alreadySubmitted), 'nullable', 'numeric', 'gt:0'],
         ]);
+
+        // GCash / Online Banking are paid by the customer in the app when booking, never collected by the Team Leader.
+        if (! $alreadySubmitted && ($validated['payment_method'] ?? 'cash') !== 'cash') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only cash is collected by the Team Leader. Online payments are made by the customer in the app when booking.',
+            ], 422);
+        }
+        $validated['payment_method'] = 'cash';
 
         $signaturePath = $request->file('signature')->store('signatures', 'local');
 
@@ -592,7 +617,6 @@ class TLTaskController extends Controller
                 return ['error' => ['message' => 'No quotation found for this group.', 'status' => 422]];
             }
 
-            $cancelledBookingIds = $groupBookings->where('status', 'cancelled')->pluck('id');
             $adjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
             // Always recomputed from the active members' own final_total, never
             // quotation.estimated_price — that snapshot is frozen at acceptance
@@ -617,44 +641,7 @@ class TLTaskController extends Controller
                 return ['error' => ['message' => 'Payment proof must be uploaded before completing this task.', 'status' => 422]];
             }
 
-            $anchor = $groupBookings->firstWhere('id', $quotation->source_booking_id) ?? $locked;
-
-            $currentInvoice = $anchor->currentInvoice()->first();
-            $invoiceAttributes = [
-                'quotation_id'   => $quotation->id,
-                'subtotal'       => round($activeGroupBookings->sum(fn($member) => (float) ($member->vat_exclusive_total ?? 0)), 2),
-                'additional_fee' => (float) ($quotation->additional_fee ?? 0),
-                'discount'       => (float) ($quotation->discount ?? 0),
-                'total'          => $groupTotal,
-            ];
-
-            if (! $currentInvoice) {
-                $invoiceToEmail = Invoice::create($invoiceAttributes + [
-                    'booking_id' => $anchor->id,
-                    'status'     => 'issued',
-                    'is_current' => true,
-                    'created_by' => $request->user()->id,
-                ]);
-            } elseif (abs((float) $currentInvoice->total - $groupTotal) > 0.005) {
-                $invoiceToEmail = $currentInvoice->voidAndReplace(
-                    'Superseded by consolidated group payment total.',
-                    $invoiceAttributes,
-                    $request->user()->id
-                );
-            } else {
-                $invoiceToEmail = $currentInvoice;
-            }
-
-            $groupVehicles = collect($quotation->extra_vehicles ?? [])
-                ->reject(fn($ev) => in_array($ev['booking_id'] ?? null, $cancelledBookingIds->all(), true))
-                ->map(function ($ev) {
-                    $truckTypeName = $ev['truck_type_name']
-                        ?? (\App\Models\TruckType::find($ev['truck_type_id'] ?? null)?->name);
-                    return [
-                        'truck_type_name' => $truckTypeName ?? 'Towing Service',
-                        'final_total'     => (float) ($ev['final_total'] ?? $ev['estimated_price'] ?? 0),
-                    ];
-                })->values()->all();
+            [$invoiceToEmail, $groupVehicles] = $this->consolidatedGroupInvoice($groupBookings, $activeGroupBookings, $quotation, $locked, $groupTotal, $request->user()->id);
             $groupAdjustment = $adjustment;
 
             $updates = [
@@ -722,6 +709,221 @@ class TLTaskController extends Controller
             'message'   => 'Group payment submitted for dispatcher confirmation.',
             'data'      => $this->formatTask($completed),
             'next_task' => null,
+        ]);
+    }
+
+    /**
+     * The one invoice for a normalized group, on its anchor booking: issued, kept, or replaced when the consolidated
+     * total moved. Returns the invoice and the per-vehicle lines for its PDF.
+     *
+     * @return array{0: Invoice, 1: array<int, array{truck_type_name: string, final_total: float}>}
+     */
+    private function consolidatedGroupInvoice($groupBookings, $activeGroupBookings, \App\Models\Quotation $quotation, Booking $locked, float $groupTotal, int $userId): array
+    {
+        $cancelledBookingIds = $groupBookings->where('status', 'cancelled')->pluck('id');
+        $anchor = $groupBookings->firstWhere('id', $quotation->source_booking_id) ?? $locked;
+
+        $currentInvoice = $anchor->currentInvoice()->first();
+        $invoiceAttributes = [
+            'quotation_id'   => $quotation->id,
+            'subtotal'       => round($activeGroupBookings->sum(fn($member) => (float) ($member->vat_exclusive_total ?? 0)), 2),
+            'additional_fee' => (float) ($quotation->additional_fee ?? 0),
+            'discount'       => (float) ($quotation->discount ?? 0),
+            'total'          => $groupTotal,
+        ];
+
+        if (! $currentInvoice) {
+            $invoice = Invoice::create($invoiceAttributes + [
+                'booking_id' => $anchor->id,
+                'status'     => 'issued',
+                'is_current' => true,
+                'created_by' => $userId,
+            ]);
+        } elseif (abs((float) $currentInvoice->total - $groupTotal) > 0.005) {
+            $invoice = $currentInvoice->voidAndReplace(
+                'Superseded by consolidated group payment total.',
+                $invoiceAttributes,
+                $userId
+            );
+        } else {
+            $invoice = $currentInvoice;
+        }
+
+        $groupVehicles = collect($quotation->extra_vehicles ?? [])
+            ->reject(fn($ev) => in_array($ev['booking_id'] ?? null, $cancelledBookingIds->all(), true))
+            ->map(function ($ev) {
+                $truckTypeName = $ev['truck_type_name']
+                    ?? (\App\Models\TruckType::find($ev['truck_type_id'] ?? null)?->name);
+                return [
+                    'truck_type_name' => $truckTypeName ?? 'Towing Service',
+                    'final_total'     => (float) ($ev['final_total'] ?? $ev['estimated_price'] ?? 0),
+                ];
+            })->values()->all();
+
+        return [$invoice, $groupVehicles];
+    }
+
+    /**
+     * Arrived at drop-off → Complete Task, for a booking the customer already paid online at booking time (verified
+     * PayMongo TEST payment covering the current total). No cash, photo, signature or dispatcher verification: the
+     * booking is completed here, once, with the same receipt/documents flow as a dispatcher-confirmed cash payment.
+     */
+    private function completePrepaid(Booking $booking, Request $request): JsonResponse
+    {
+        $payments = app(\App\Services\OnlinePayments\OnlinePaymentService::class);
+        $isGroup = $this->isNormalizedGroupBooking($booking);
+        $userId = $request->user()->id;
+
+        $outcome = DB::transaction(function () use ($booking, $payments, $isGroup, $userId) {
+            $members = $isGroup
+                ? Booking::where('group_code', $booking->group_code)
+                    ->where('pickup_address', $booking->pickup_address)
+                    ->where('dropoff_address', $booking->dropoff_address)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                : Booking::whereKey($booking->id)->lockForUpdate()->get();
+
+            $locked = $members->firstWhere('id', $booking->id);
+            if (! $locked) {
+                return ['error' => ['Task not found.', 404]];
+            }
+            if ($locked->status === 'completed') {
+                return ['already' => $locked];
+            }
+            if (in_array($locked->status, self::TERMINAL_STATUSES, true)) {
+                return ['error' => ['Task is already in a terminal state.', 422]];
+            }
+            if ($locked->status !== 'arrived_dropoff') {
+                return ['error' => ['Task is not yet ready for completion.', 422]];
+            }
+
+            $active = $members->reject(fn ($member) => $member->status === 'cancelled');
+            if ($isGroup && $active->contains(fn ($member) => ! in_array($member->status, ['arrived_dropoff', 'completed'], true))) {
+                return ['error' => ['Waiting for all vehicles in this group to reach drop-off before the task can be completed.', 422]];
+            }
+
+            // Re-checked under the lock: only a verified online payment that still covers the total skips collection.
+            $state = $payments->collectionStateFor($locked);
+            if ($state['mode'] !== 'online_prepaid') {
+                return ['error' => [$state['message'] ?? 'Online payment could not be verified for this booking. Contact the dispatcher.', 409]];
+            }
+
+            $groupInvoice = null;
+            if ($isGroup) {
+                $quotation = \App\Models\Quotation::find($locked->quotation_id);
+                $adjustment = (float) ($quotation?->additional_fee ?? 0) - (float) ($quotation?->discount ?? 0);
+                $groupTotal = max(round($active->sum(fn ($member) => (float) $member->final_total) + $adjustment, 2), 0);
+                if ($quotation) {
+                    [$invoice, $groupVehicles] = $this->consolidatedGroupInvoice($members, $active, $quotation, $locked, $groupTotal, $userId);
+                    $groupInvoice = ['id' => $invoice->id, 'vehicles' => $groupVehicles, 'adjustment' => $adjustment];
+                }
+            } elseif (! $locked->currentInvoice()->exists()) {
+                try {
+                    $this->issueInvoice($locked, $userId);
+                } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+                    // Another concurrent request already issued it.
+                }
+            }
+
+            $completed = collect();
+            foreach ($active->where('status', 'arrived_dropoff') as $member) {
+                $member->update([
+                    'status'                       => 'completed',
+                    'completed_at'                 => now(),
+                    'payment_method'               => $state['method'] ?? 'gcash',
+                    'payment_submitted_at'         => now(),
+                    'customer_verified_at'         => now(),
+                    'customer_verification_status' => 'verified',
+                    'completion_requested_at'      => $member->completion_requested_at ?? now(),
+                ]);
+                $completed->push($member);
+            }
+
+            // Same hand-over as a cash submission: an unclaimed vehicle of a non-normalized group goes to this team.
+            $sibling = null;
+            if (! $isGroup && $locked->group_code) {
+                $sibling = Booking::where('group_code', $locked->group_code)
+                    ->where('id', '!=', $locked->id)
+                    ->whereNull('assigned_team_leader_id')
+                    ->whereIn('status', ['requested', 'scheduled', 'scheduled_confirmed', 'confirmed'])
+                    ->lockForUpdate()
+                    ->first();
+                if ($sibling) {
+                    $sibling->update([
+                        'assigned_team_leader_id' => $locked->assigned_team_leader_id,
+                        'assigned_unit_id'        => $locked->assigned_unit_id,
+                        'status'                  => 'accepted',
+                        'assigned_at'             => now(),
+                    ]);
+                    $sibling->load(self::TASK_RELATIONS);
+                }
+            }
+
+            if (! $sibling) {
+                $unitIds = $completed->pluck('assigned_unit_id')->filter()->unique()->all();
+                if ($unitIds !== []) {
+                    Unit::whereIn('id', $unitIds)->where('status', 'on_job')->update(['status' => 'available']);
+                }
+            }
+
+            AuditLog::create([
+                'user_id'     => $userId,
+                'action'      => 'prepaid_task_completed',
+                'entity_type' => 'Booking',
+                'entity_id'   => $locked->id,
+                'reference'   => $locked->booking_code,
+                'description' => 'Team Leader completed the task. Payment was verified online at booking (PayMongo TEST, ' . $state['reference'] . '); no cash collected and no dispatcher verification needed.',
+            ]);
+
+            return ['booking' => $locked->fresh(self::TASK_RELATIONS), 'completed' => $completed, 'sibling' => $sibling, 'group_invoice' => $groupInvoice];
+        });
+
+        if (isset($outcome['error'])) {
+            return response()->json(['success' => false, 'message' => $outcome['error'][0]], $outcome['error'][1]);
+        }
+
+        if (isset($outcome['already'])) {
+            return response()->json([
+                'success'   => true,
+                'message'   => 'Task already completed.',
+                'data'      => $this->formatTask($outcome['already']->load(self::TASK_RELATIONS)),
+                'next_task' => null,
+            ]);
+        }
+
+        $completedBooking = $outcome['booking'];
+        foreach ($outcome['completed'] as $member) {
+            try { BookingStatusUpdated::safeFire($member->fresh(self::TASK_RELATIONS)); } catch (\Throwable) {}
+        }
+        if ($outcome['sibling']) {
+            try { BookingStatusUpdated::safeFire($outcome['sibling']); } catch (\Throwable) {}
+        }
+
+        if ($completedBooking->customer?->user_id) {
+            CustomerNotificationService::send(
+                userId: $completedBooking->customer->user_id,
+                type: 'booking_update',
+                title: 'Your booking is complete',
+                body: 'Booking ' . $completedBooking->booking_code . ' has been completed.',
+                bookingCode: $completedBooking->booking_code,
+            );
+        }
+        app(BookingStatusPush::class)->notify($completedBooking);
+
+        if ($outcome['group_invoice']) {
+            $invoice = Invoice::find($outcome['group_invoice']['id']);
+            if ($invoice) {
+                $this->generateInvoicePdf($invoice, $outcome['group_invoice']['vehicles'], $outcome['group_invoice']['adjustment']);
+            }
+        }
+        \App\Services\FinalPaymentDocumentsService::queueAfterResponse($completedBooking->id, $isGroup, $completedBooking->quotation_id);
+
+        return response()->json([
+            'success'   => true,
+            'message'   => 'Task completed. Payment was already made online.',
+            'data'      => $this->formatTask($completedBooking),
+            'next_task' => $outcome['sibling'] ? $this->formatTask($outcome['sibling']) : null,
         ]);
     }
 
@@ -881,6 +1083,9 @@ class TLTaskController extends Controller
             'arrival_photo'       => protected_file_url($booking->arrival_photo_path),
             'dropoff_photo'       => protected_file_url($booking->dropoff_photo_path),
             'payment_method'      => $booking->payment_method,
+            // Server-decided collection path at the drop-off: online_prepaid (complete directly), cash (amount +
+            // photo + signature → dispatcher), or online_review (blocked until the dispatcher resolves it).
+            'payment'             => $this->collectionState($booking),
             'group_code'          => $groupCode,
             'group_vehicle_count' => $groupVehicleCount,
             'group_position'      => $groupPosition,
@@ -895,6 +1100,18 @@ class TLTaskController extends Controller
             // dedicated endpoint re-checks everything independently.
             'demo_arrival_available' => TlDemoFixture::offerSimulator($booking, request()->user()),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function collectionState(Booking $booking): array
+    {
+        try {
+            $state = app(\App\Services\OnlinePayments\OnlinePaymentService::class)->collectionStateFor($booking);
+        } catch (\Throwable) {
+            $state = ['mode' => 'cash', 'amount_due' => number_format((float) $booking->final_total, 2, '.', ''), 'amount_paid' => null, 'method' => null, 'reference' => null, 'message' => null];
+        }
+
+        return $state + ['test_mode' => (bool) $booking->is_demo];
     }
 
     /**

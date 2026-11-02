@@ -71,7 +71,14 @@ class FcmClient
                 Cache::forget(self::TOKEN_CACHE_KEY);
             }
 
-            return $this->isStaleTokenResponse($response->status(), $response->json())
+            // Diagnosable without exposing anything: HTTP status and FCM's error code only (never the token).
+            $json = $response->json();
+            Log::warning('FCM send rejected', [
+                'http_status' => $response->status(),
+                'fcm_error'   => collect($json['error']['details'] ?? [])->pluck('errorCode')->filter()->first() ?? ($json['error']['status'] ?? null),
+            ]);
+
+            return $this->isStaleTokenResponse($response->status(), $json)
                 ? self::RESULT_INVALID_TOKEN
                 : self::RESULT_FAILED;
         } catch (\Throwable $e) {

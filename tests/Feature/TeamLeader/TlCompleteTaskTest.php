@@ -183,12 +183,13 @@ it('F: gcash without signature fails', function () {
     expect($booking->fresh()->status)->toBe('arrived_dropoff');
 });
 
-it('G: gcash without persisted proof fails', function () {
+it('G: cash without persisted proof fails', function () {
     [$teamLeader, $booking] = makeCompleteTaskScenario('arrived_dropoff');
     Sanctum::actingAs($teamLeader, ['*']);
 
     $this->post(completeTaskUrl($booking), [
-        'payment_method' => 'gcash',
+        'payment_method' => 'cash',
+        'cash_received' => 4536,
         'signature' => UploadedFile::fake()->image('sig.jpg'),
     ])->assertStatus(422)
         ->assertJsonPath('message', 'Payment proof must be uploaded before completing this task.');
@@ -196,17 +197,19 @@ it('G: gcash without persisted proof fails', function () {
     expect($booking->fresh()->status)->toBe('arrived_dropoff');
 });
 
-it('H: gcash with signature + persisted proof succeeds', function () {
+it('H: gcash is never collected by the Team Leader, even with signature and proof', function () {
     [$teamLeader, $booking] = makeCompleteTaskScenario('arrived_dropoff');
     $booking->update(['payment_proof_path' => 'task-photos/fake-proof.jpg']);
     Sanctum::actingAs($teamLeader, ['*']);
 
     $this->post(completeTaskUrl($booking), [
         'payment_method' => 'gcash',
+        'cash_received' => 4536,
         'signature' => UploadedFile::fake()->image('sig.jpg'),
-    ])->assertOk()->assertJsonPath('success', true);
+    ], ['Accept' => 'application/json'])->assertStatus(422)
+        ->assertJsonPath('message', 'Only cash is collected by the Team Leader. Online payments are made by the customer in the app when booking.');
 
-    expect($booking->fresh()->status)->toBe('waiting_verification');
+    expect($booking->fresh()->status)->toBe('arrived_dropoff');
 });
 
 it('I: bank_transfer without proof fails', function () {
@@ -221,17 +224,18 @@ it('I: bank_transfer without proof fails', function () {
     expect($booking->fresh()->status)->toBe('arrived_dropoff');
 });
 
-it('J: bank_transfer with signature + proof succeeds', function () {
+it('J: bank_transfer is never collected by the Team Leader, even with signature and proof', function () {
     [$teamLeader, $booking] = makeCompleteTaskScenario('arrived_dropoff');
     $booking->update(['payment_proof_path' => 'task-photos/fake-proof.jpg']);
     Sanctum::actingAs($teamLeader, ['*']);
 
     $this->post(completeTaskUrl($booking), [
         'payment_method' => 'bank_transfer',
+        'cash_received' => 4536,
         'signature' => UploadedFile::fake()->image('sig.jpg'),
-    ])->assertOk()->assertJsonPath('success', true);
+    ], ['Accept' => 'application/json'])->assertStatus(422);
 
-    expect($booking->fresh()->status)->toBe('waiting_verification');
+    expect($booking->fresh()->status)->toBe('arrived_dropoff');
 });
 
 it('K: complete() writes payment_submitted_at', function () {

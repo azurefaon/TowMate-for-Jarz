@@ -21,11 +21,12 @@ class ReconcileOnlinePayments extends Command
         $summary = $payments->reconcile();
 
         $this->info(sprintf(
-            'Checked %d, paid %d, expired %d, unconfirmed %d',
+            'Checked %d, paid %d, expired %d, unconfirmed %d, prepaid bookings submitted %d',
             $summary['checked'],
             $summary['paid'],
             $summary['expired'],
             $summary['unconfirmed'],
+            $summary['submitted'],
         ));
 
         return self::SUCCESS;

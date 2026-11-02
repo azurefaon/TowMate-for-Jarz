@@ -53,7 +53,7 @@ class CustomerBookingController extends Controller
         return 5;
     }
 
-    private function bookingSummary(Booking $b, ?string $currentCode = null): array
+    public function bookingSummary(Booking $b, ?string $currentCode = null): array
     {
         return [
             'booking_code'      => $b->booking_code,
@@ -371,7 +371,24 @@ class CustomerBookingController extends Controller
             'extra_vehicles'                   => 'nullable|string',
             // Optional so older app versions keep working; the current app always sends it.
             'preferred_payment_method'         => ['nullable', 'string', Rule::in(array_keys(Booking::PREFERRED_PAYMENT_METHODS))],
+            // Step 3 "Pay & Submit": pay online now; the booking is submitted only after the payment is verified.
+            'pay_online'                       => 'nullable|boolean',
         ]);
+
+        $payOnline = (bool) ($validated['pay_online'] ?? false);
+        $onlinePayments = app(\App\Services\OnlinePayments\OnlinePaymentService::class);
+
+        if ($payOnline) {
+            $refusal = match (true) {
+                ! $onlinePayments->canPayAtBooking($request->user()) => 'Online payment is not available for your account. Please choose Cash.',
+                ! $onlinePayments->channelAvailable($validated['preferred_payment_method'] ?? null) => 'That payment method is not available for online payment yet. Please choose GCash or Cash.',
+                ($validated['service_type'] ?? 'book_now') !== 'book_now' => 'Online payment is available for Book Now requests only. Please choose Cash for a scheduled booking.',
+                default => null,
+            };
+            if ($refusal !== null) {
+                return response()->json(['success' => false, 'message' => $refusal, 'reason' => 'online_payment_unavailable'], 422);
+            }
+        }
 
         if ($this->bookingService->estimateDirectDistanceKm(
             (float) $validated['pickup_lat'],
@@ -397,6 +414,22 @@ class CustomerBookingController extends Controller
 
         if (!$customer) {
             return response()->json(['message' => 'Customer profile not found.'], 422);
+        }
+
+        // An earlier Pay & Submit attempt the customer walked away from is closed first, so it can never be paid and
+        // submitted next to this booking. If it was actually paid, that booking is submitted instead of a new one.
+        try {
+            $alreadyPaidCode = $onlinePayments->closeUnpaidAttempts($customer);
+        } catch (\App\Services\OnlinePayments\OnlinePaymentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'reason' => $e->reason], $e->status);
+        }
+        if ($alreadyPaidCode !== null) {
+            return response()->json([
+                'success' => false,
+                'reason' => 'earlier_booking_paid',
+                'booking_code' => $alreadyPaidCode,
+                'message' => "Your online payment for booking {$alreadyPaidCode} was received, so that booking has been submitted. No new booking was created.",
+            ], 409);
         }
 
         try {
@@ -556,7 +589,7 @@ class CustomerBookingController extends Controller
                 'vat_exclusive_total'   => !empty($bookNowExtras) ? $primaryComputedTotal : $computedTotal,
                 'vat_amount'            => !empty($bookNowExtras) ? $primaryPricing['vat_amount'] : $vatAmount,
                 'additional_fee'        => 0,
-                'status'           => ($validated['service_type'] ?? 'book_now') === 'schedule' ? 'scheduled' : 'requested',
+                'status'           => $payOnline ? Booking::STATUS_AWAITING_PAYMENT : (($validated['service_type'] ?? 'book_now') === 'schedule' ? 'scheduled' : 'requested'),
                 'service_type'     => $validated['service_type'] ?? 'book_now',
                 'customer_type'    => $customer->customer_type ?? 'regular',
                 'confirmation_type' => 'mobile',
@@ -590,7 +623,8 @@ class CustomerBookingController extends Controller
                         $evTruckType,
                         $evPricing,
                         $requestServiceType,
-                        $groupCode
+                        $groupCode,
+                        $payOnline
                     ) {
                         return Booking::create([
                             'customer_id' => $customer->id,
@@ -610,7 +644,7 @@ class CustomerBookingController extends Controller
                             'vat_exclusive_total' => round($evPricing['base_rate'] + $evPricing['distance_fee'], 2),
                             'vat_amount' => $evPricing['vat_amount'],
                             'additional_fee' => 0,
-                            'status' => 'requested',
+                            'status' => $payOnline ? Booking::STATUS_AWAITING_PAYMENT : 'requested',
                             'service_type' => $requestServiceType,
                             'customer_type' => $customer->customer_type ?? 'regular',
                             'confirmation_type' => 'mobile',
@@ -620,6 +654,11 @@ class CustomerBookingController extends Controller
                         ]);
                     });
                     $sibling->update(['booking_code' => 'TM-' . str_pad($sibling->id, 5, '0', STR_PAD_LEFT)]);
+                    // Created without model events, so the demo marker is copied from the primary booking (demo revenue exclusion,
+                    // and Pay & Submit for a demo group).
+                    if ($booking->is_demo && ! $sibling->is_demo) {
+                        $sibling->forceFill(['is_demo' => true])->saveQuietly();
+                    }
                     $siblingIds[] = $sibling->id;
 
                     $siblingFiles = $extraFilesByIndex[$ev['_index']] ?? [];
@@ -720,6 +759,10 @@ class CustomerBookingController extends Controller
             return response()->json(['success' => false, 'message' => 'Failed to create booking. Please try again.'], 500);
         }
 
+        if ($payOnline) {
+            return $this->startPayAtBooking($request, $booking, 1 + count($siblingIds), $onlinePayments);
+        }
+
         if (($validated['service_type'] ?? 'book_now') !== 'schedule') {
             try {
                 $quotation = $this->quotationService->createQuotation([
@@ -768,6 +811,8 @@ class CustomerBookingController extends Controller
                 ->all();
         }
 
+        app(\App\Services\Push\BookingStatusPush::class)->notifyEvent($booking, 'submitted');
+
         return response()->json([
             'success'             => true,
             'booking_code'        => $booking->booking_code,
@@ -776,6 +821,43 @@ class CustomerBookingController extends Controller
             'group_siblings'      => $groupSiblingSummaries,
             'bookings'            => $createdBookings,
             'message'             => 'Booking submitted successfully.',
+        ], 201);
+    }
+
+    /**
+     * Pay & Submit, after the (hidden) awaiting_payment rows exist: opens the PayMongo TEST checkout. The booking is
+     * NOT submitted here; OnlinePaymentService::finalizePrepaid() submits it once the payment is verified. If the
+     * checkout cannot be opened, the rows stay hidden and the app retries with the same booking code.
+     */
+    private function startPayAtBooking(Request $request, Booking $booking, int $vehicleCount, \App\Services\OnlinePayments\OnlinePaymentService $onlinePayments): JsonResponse
+    {
+        $payment = null;
+        $message = 'Complete the payment to submit your booking.';
+
+        try {
+            $transaction = $onlinePayments->initiate($request->user(), $booking->booking_code, (string) $booking->preferred_payment_method)['transaction'];
+            $payment = [
+                'reference'    => $transaction->reference,
+                'status'       => $transaction->status,
+                'method'       => $transaction->method,
+                'amount'       => \App\Services\OnlinePayments\Money::centavosToPesos($transaction->amount_centavos),
+                'currency'     => $transaction->currency,
+                'expires_at'   => $transaction->expires_at?->toIso8601String(),
+                'checkout_url' => $transaction->isOpen() ? $transaction->checkout_url : null,
+            ];
+        } catch (\App\Services\OnlinePayments\OnlinePaymentException $e) {
+            $message = $e->getMessage();
+        }
+
+        return response()->json([
+            'success'             => true,
+            'payment_required'    => true,
+            'booking_submitted'   => false,
+            'booking_code'        => $booking->booking_code,
+            'group_vehicle_count' => $vehicleCount,
+            'payment'             => $payment,
+            'test_mode'           => true,
+            'message'             => $message,
         ], 201);
     }
 

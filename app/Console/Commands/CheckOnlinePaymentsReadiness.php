@@ -46,8 +46,8 @@ class CheckOnlinePaymentsReadiness extends Command
             ['Webhook secret (PAYMONGO_WEBHOOK_SECRET)', $webhookProblem ? 'missing' : 'present'],
             ['Allow-listed test customers configured', (string) (count((array) config('paymongo.test_user_ids')) + count((array) config('paymongo.test_user_emails')))],
             ['  ...of which exist in this database', $testUsers === null ? 'unknown (database unreachable)' : (string) $testUsers],
-            ['  ...synthetic bookings at arrived_dropoff for them', $payableBookings === null ? 'unknown' : (string) $payableBookings],
-            ['Enabled channels', implode(', ', array_keys((array) config('paymongo.channels'))) . ' (Online Banking is not wired)'],
+            ['  ...synthetic bookings awaiting payment for them', $payableBookings === null ? 'unknown' : (string) $payableBookings],
+            ['Enabled channels', implode(', ', array_keys((array) config('paymongo.channels'))) . (isset(config('paymongo.channels')['bank_transfer']) ? '' : ' (Online Banking is off: PAYMONGO_ONLINE_BANKING_CHANNEL not set)')],
             ['Webhook URL to register (from APP_URL)', $webhookUrl],
             ['APP_URL is a public https URL on a domain name', $yes($publicHttps)],
             ['Success / cancel return URLs', ($successUrl !== '' ? 'success set' : 'success unset') . ', ' . ($cancelUrl !== '' ? 'cancel set' : 'cancel unset') . '; https: ' . $yes($this->bothHttps($successUrl, $cancelUrl))],
@@ -77,7 +77,7 @@ class CheckOnlinePaymentsReadiness extends Command
         } elseif ($testUsers === 0) {
             $blockers[] = 'None of the allow-listed test customers exist in this database. Run online-payments:make-pilot-fixture.';
         } elseif ($payableBookings === 0) {
-            $blockers[] = 'The test customer has no synthetic booking at arrived_dropoff. Run online-payments:make-pilot-fixture.';
+            $blockers[] = 'The test customer has no synthetic booking awaiting payment. Run online-payments:make-pilot-fixture.';
         }
         if (! $publicHttps) {
             $blockers[] = 'PayMongo only accepts a public https:// webhook URL on a domain name. Point APP_URL at your tunnel URL for the pilot.';
@@ -115,7 +115,7 @@ class CheckOnlinePaymentsReadiness extends Command
         return str_starts_with($success, 'https://') && str_starts_with($cancel, 'https://');
     }
 
-    /** @return array{0: ?int, 1: ?int} allow-listed customers found, and their synthetic arrived_dropoff bookings */
+    /** @return array{0: ?int, 1: ?int} allow-listed customers found, and their synthetic bookings awaiting payment (pay at booking) */
     private function testFixtures(): array
     {
         try {
@@ -134,7 +134,7 @@ class CheckOnlinePaymentsReadiness extends Command
 
             return [
                 $userIds->count(),
-                Booking::whereIn('customer_id', $customerIds)->where('status', 'arrived_dropoff')->count(),
+                Booking::includingUnsubmitted()->whereIn('customer_id', $customerIds)->where('status', Booking::STATUS_AWAITING_PAYMENT)->count(),
             ];
         } catch (\Throwable) {
             return [null, null];

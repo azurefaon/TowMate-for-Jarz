@@ -54,6 +54,27 @@ class Booking extends Model
 
     public const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected'];
 
+    /**
+     * Pay-at-booking (PayMongo TEST mode): the rows exist while the customer pays, but the booking is not
+     * submitted until a verified payment arrives. `payment_abandoned` = the customer moved on without paying.
+     * Neither status is ever visible to dispatchers, Team Leaders, reports or the customer's booking lists.
+     */
+    public const STATUS_AWAITING_PAYMENT = 'awaiting_payment';
+    public const STATUS_PAYMENT_ABANDONED = 'payment_abandoned';
+    public const UNSUBMITTED_STATUSES = [self::STATUS_AWAITING_PAYMENT, self::STATUS_PAYMENT_ABANDONED];
+    public const SUBMITTED_SCOPE = 'submitted';
+
+    /** Every query that may need an unsubmitted (awaiting payment) booking: only the online-payment code uses this. */
+    public static function includingUnsubmitted(): \Illuminate\Database\Eloquent\Builder
+    {
+        return static::withoutGlobalScope(self::SUBMITTED_SCOPE);
+    }
+
+    public function isUnsubmitted(): bool
+    {
+        return in_array($this->status, self::UNSUBMITTED_STATUSES, true);
+    }
+
     protected $fillable = [
         'booking_code',
         'quotation_id',
@@ -146,6 +167,11 @@ class Booking extends Model
 
     protected static function booted(): void
     {
+        // A booking waiting for its online payment does not exist yet as far as the rest of the system is concerned.
+        static::addGlobalScope(self::SUBMITTED_SCOPE, function (\Illuminate\Database\Eloquent\Builder $query) {
+            $query->whereNotIn($query->qualifyColumn('status'), self::UNSUBMITTED_STATUSES);
+        });
+
         static::creating(function (Booking $booking) {
             if (blank($booking->booking_code)) {
                 $booking->booking_code = static::nextPublicCode('booking_code');
