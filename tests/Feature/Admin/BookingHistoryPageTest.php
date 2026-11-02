@@ -56,6 +56,8 @@ function bhTeamLeader(string $name): User
 
 function bhBooking(string $status, array $overrides = []): Booking
 {
+    static $plateSeq = 0;
+
     $truckType = $overrides['truck_type'] ?? bhTruckType();
     $customer = $overrides['customer'] ?? bhCustomer('BH Customer ' . uniqid());
     $teamLeader = $overrides['team_leader'] ?? null;
@@ -64,7 +66,8 @@ function bhBooking(string $status, array $overrides = []): Booking
     if (! array_key_exists('no_unit', $overrides)) {
         $unit = Unit::create([
             'name' => $overrides['unit_name'] ?? 'BH Unit ' . uniqid(),
-            'plate_number' => 'BH-' . rand(1000, 9999),
+            // Deterministic and unique per run (a random 4-digit plate occasionally collided on units_plate_number_unique).
+            'plate_number' => 'BH-' . str_pad((string) (++$plateSeq), 5, '0', STR_PAD_LEFT),
             'truck_type_id' => $truckType->id,
             'team_leader_id' => $teamLeader?->id,
             'status' => 'available',
