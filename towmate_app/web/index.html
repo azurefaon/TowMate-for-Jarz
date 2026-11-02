@@ -32,6 +32,14 @@
   <title>towmate_app</title>
   <link rel="manifest" href="manifest.json">
 
+  <!-- Web OAuth client ID for Google Sign-In (public, same value as
+       GOOGLE_CLIENT_ID in env/production.json). google_sign_in_web reads it
+       when the app is run without --dart-define GOOGLE_CLIENT_ID; without it
+       the Google button never leaves "Getting ready". Each dev origin (e.g.
+       http://localhost:5000) must be an Authorized JavaScript origin of this
+       client in Google Cloud Console. -->
+  <meta name="google-signin-client_id" content="191576105651-878s9u31fll8hj4rqetrhpv5tg77iujt.apps.googleusercontent.com">
+
   <!-- Required by google_maps_flutter's web implementation. Uses the same
        "Websites"-restricted browser key as the dispatcher dashboard — add
        your local dev origin (e.g. http://localhost/*) to that key's allowed
