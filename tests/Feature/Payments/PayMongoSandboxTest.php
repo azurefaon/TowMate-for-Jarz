@@ -812,15 +812,16 @@ it('sends the v2 create request exactly as PayMongo documents it', function () {
     });
 });
 
-it('omits success and cancel URLs when none are configured', function () {
+it('returns the customer to the verified app link when no explicit return URLs are configured', function () {
     $user = pmsCustomerUser();
     pmsEnable($user);
     pmsFakeGateway();
+    $booking = pmsBookingFor($user);
 
-    pmsCheckout($this, $user, pmsBookingFor($user))->assertCreated();
+    pmsCheckout($this, $user, $booking)->assertCreated();
 
-    Http::assertSent(fn ($request) => ! array_key_exists('success_url', $request['data']['attributes'])
-        && ! array_key_exists('cancel_url', $request['data']['attributes']));
+    Http::assertSent(fn ($request) => $request['data']['attributes']['success_url'] === 'https://www.jarztowing.com/pay/return/success?booking=' . $booking->booking_code
+        && $request['data']['attributes']['cancel_url'] === 'https://www.jarztowing.com/pay/return/cancelled?booking=' . $booking->booking_code);
 });
 
 it('reads the create response in either documented shape', function (array $data) {

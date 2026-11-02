@@ -54,6 +54,15 @@ use App\Http\Controllers\SystemAdmin\UserManagementController;
 
 Route::get('/', [PublicSiteController::class, 'index'])->name('landing');
 
+// Android App Links: ownership proof for the TowMate app, and the page the hosted checkout returns the customer to.
+Route::get('/.well-known/assetlinks.json', [\App\Http\Controllers\AppLinkController::class, 'assetLinks'])
+    ->name('app-links.assetlinks');
+
+Route::get('/pay/return/{outcome}', [\App\Http\Controllers\AppLinkController::class, 'paymentReturn'])
+    ->whereIn('outcome', \App\Http\Controllers\AppLinkController::OUTCOMES)
+    ->middleware('throttle:60,1')
+    ->name('app-links.payment-return');
+
 Route::get('/download/android', [AndroidDownloadController::class, 'show'])
     ->middleware('throttle:30,1')
     ->name('download.android');

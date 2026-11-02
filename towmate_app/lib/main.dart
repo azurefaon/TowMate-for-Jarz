@@ -31,12 +31,22 @@ import 'screens/team_leader/tl_force_password_screen.dart';
 import 'screens/team_leader/tl_history_screen.dart';
 import 'screens/team_leader/tl_home_screen.dart';
 import 'screens/team_leader/tl_profile_screen.dart';
+import 'package:app_links/app_links.dart';
 import 'services/api_service.dart';
+import 'services/payment_return_link.dart';
 import 'services/push_notification_service.dart';
 import 'services/tl_presence_controller.dart';
 import 'widgets/live_tracking_widgets.dart';
 
 final themeModeNotifier = AppPrefs.themeModeNotifier;
+
+/// Opens the payment status screen when the app is opened from a verified payment return link.
+final PaymentReturnLinkHandler paymentReturnLinks = PaymentReturnLinkHandler(
+  links: AppLinks().uriLinkStream,
+  initialLink: () => AppLinks().getInitialLink(),
+  navigatorKey: SessionCoordinator.navigatorKey,
+  isSignedInCustomer: () async => await ApiService.isLoggedIn() && await ApiService.getUserRole() == 'Customer',
+);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +57,7 @@ void main() async {
   };
   // Push is optional: never awaited, never allowed to block or crash startup.
   unawaited(PushNotificationService.instance.initialize());
+  unawaited(paymentReturnLinks.start());
   runApp(const MyApp());
 }
 
@@ -158,6 +169,7 @@ class _AuthGateState extends State<_AuthGate> {
   }
 
   Future<void> _routeToUnauthenticatedStart() async {
+    paymentReturnLinks.discardPending();
     AppPrefs.useGuestTheme();
     final onboardingComplete = await AppPrefs.getOnboardingComplete();
     if (!mounted) return;
@@ -188,6 +200,7 @@ class _AuthGateState extends State<_AuthGate> {
       await AppPrefs.restoreAuthenticatedTheme();
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/terms-acceptance');
+      paymentReturnLinks.discardPending();
       return;
     }
 
@@ -197,8 +210,11 @@ class _AuthGateState extends State<_AuthGate> {
         context,
         mustChange ? '/tl-force-password' : '/tl-home',
       );
+      paymentReturnLinks.discardPending();
     } else if (role != null) {
       Navigator.pushReplacementNamed(context, '/home');
+      // A payment return link that opened the app cold waits until the customer home is in place.
+      WidgetsBinding.instance.addPostFrameCallback((_) => paymentReturnLinks.markReady());
     } else {
       await ApiService.clearSession();
       await _routeToUnauthenticatedStart();

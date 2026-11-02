@@ -151,6 +151,16 @@ class OnlinePaymentService
         return ['transaction' => $this->openSession($transaction, $channel, $booking), 'created' => true];
     }
 
+    /**
+     * The verified App Link the hosted checkout returns to. Opens the TowMate app on the payment status screen; it
+     * carries only the booking code and is never evidence of payment.
+     */
+    protected function returnUrl(string $outcome, Booking $booking): string
+    {
+        return config('app_links.base_url') . config('app_links.payment_return_path') . '/' . $outcome
+            . '?booking=' . rawurlencode($booking->booking_code);
+    }
+
     protected function openSession(PaymentTransaction $transaction, string $channel, Booking $booking): PaymentTransaction
     {
         try {
@@ -165,8 +175,8 @@ class OnlinePaymentService
                     'payable_type' => $transaction->payable_type,
                     'payable_id' => (string) $transaction->payable_id,
                 ],
-                'success_url' => config('paymongo.success_url'),
-                'cancel_url' => config('paymongo.cancel_url'),
+                'success_url' => config('paymongo.success_url') ?: $this->returnUrl('success', $booking),
+                'cancel_url' => config('paymongo.cancel_url') ?: $this->returnUrl('cancelled', $booking),
             ]);
         } catch (GatewayException $e) {
             // Only our own coarse code is stored or logged: the provider's wording could echo anything.
