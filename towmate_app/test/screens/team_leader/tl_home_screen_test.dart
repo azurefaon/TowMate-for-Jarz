@@ -38,9 +38,24 @@ http.Client _buildClient({
   Object? task,
   bool slowTask = false,
   bool acceptSucceeds = true,
+  List<String>? requests,
+  bool returnSucceeds = true,
 }) {
   return MockClient((request) async {
     final path = request.url.path;
+    // The factory may build several clients, so "already returned" is derived
+    // from the shared request log rather than client-local state.
+    final returned = returnSucceeds && (requests?.any((r) => r.endsWith('/return')) ?? false);
+    requests?.add('${request.method} $path');
+    if (path.endsWith('/return')) {
+      if (!returnSucceeds) {
+        return _json({'success': false, 'message': 'Task is already in a terminal state.'}, status: 409);
+      }
+      return _json({'success': true, 'message': 'Task returned successfully.'});
+    }
+    if (returned && path.endsWith('/v1/team-leader/task')) {
+      return _json({'success': true, 'data': null});
+    }
     if (path.endsWith('/accept')) {
       if (!acceptSucceeds) {
         return _json({'success': false, 'message': 'Task is no longer available.'}, status: 409);
@@ -283,6 +298,107 @@ void main() {
       );
 
       expect(find.text('Task is no longer available.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    _tlTest('an assigned task shows both Accept Task and Return Task', (tester) async {
+      await _pumpTlHome(tester, task: _assignedTaskFixture);
+
+      expect(find.text('Accept Task'), findsOneWidget);
+      expect(find.text('Return Task'), findsOneWidget);
+    });
+
+    _tlTest('no Return Task button without a task or for an already accepted task', (tester) async {
+      await _pumpTlHome(tester);
+      expect(find.text('Return Task'), findsNothing);
+    });
+
+    _tlTest('Return Task submits the existing return endpoint without accepting, then goes idle', (tester) async {
+      final requests = <String>[];
+      SharedPreferences.setMockInitialValues(
+        {'auth_token': 'tl-token', 'user_name': 'Ariel Santos', 'duty_class': 'heavy'},
+      );
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(const MaterialApp(home: TlHomeScreen()));
+          await _settle(tester);
+
+          await tester.ensureVisible(find.text('Return Task'));
+          await _settle(tester);
+          await tester.tap(find.text('Return Task'));
+          await _settle(tester);
+
+          // Existing reason screen opens, with nothing sent yet.
+          expect(find.text('Reason for Return'), findsOneWidget);
+          expect(requests.where((r) => r.endsWith('/return')), isEmpty);
+
+          await tester.tap(find.text('Other'));
+          await _settle(tester);
+          await tester.ensureVisible(find.text('Confirm Return'));
+          await tester.tap(find.text('Confirm Return'));
+          // Let the route pop animation finish and the follow-up refresh land.
+          await _settle(tester);
+          await _settle(tester);
+          await _settle(tester);
+        },
+        () => _buildClient(task: _assignedTaskFixture, requests: requests),
+      );
+
+      expect(requests.where((r) => r == 'POST /api/v1/team-leader/task/TM-0501/return'), hasLength(1));
+      expect(requests.where((r) => r.endsWith('/accept') || r.endsWith('/status')), isEmpty);
+      // Task data was refreshed and the returned booking is no longer shown.
+      expect(find.text('No task assigned'), findsOneWidget);
+      expect(find.text('Accept Task'), findsNothing);
+      expect(find.text('Return Task'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    _tlTest('Return without a reason is blocked client-side and sends nothing', (tester) async {
+      final requests = <String>[];
+      SharedPreferences.setMockInitialValues(
+        {'auth_token': 'tl-token', 'user_name': 'Ariel Santos', 'duty_class': 'heavy'},
+      );
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(const MaterialApp(home: TlHomeScreen()));
+          await _settle(tester);
+          await tester.ensureVisible(find.text('Return Task'));
+          await tester.tap(find.text('Return Task'));
+          await _settle(tester);
+          await tester.ensureVisible(find.text('Confirm Return'));
+          await tester.tap(find.text('Confirm Return'));
+          await _settle(tester);
+        },
+        () => _buildClient(task: _assignedTaskFixture, requests: requests),
+      );
+
+      expect(find.text('Please select a reason.'), findsOneWidget);
+      expect(requests.where((r) => r.endsWith('/return')), isEmpty);
+    });
+
+    _tlTest('a failed Return shows the server message and keeps the task', (tester) async {
+      final requests = <String>[];
+      SharedPreferences.setMockInitialValues(
+        {'auth_token': 'tl-token', 'user_name': 'Ariel Santos', 'duty_class': 'heavy'},
+      );
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(const MaterialApp(home: TlHomeScreen()));
+          await _settle(tester);
+          await tester.ensureVisible(find.text('Return Task'));
+          await tester.tap(find.text('Return Task'));
+          await _settle(tester);
+          await tester.tap(find.text('Other'));
+          await _settle(tester);
+          await tester.ensureVisible(find.text('Confirm Return'));
+          await tester.tap(find.text('Confirm Return'));
+          await _settle(tester);
+        },
+        () => _buildClient(task: _assignedTaskFixture, requests: requests, returnSucceeds: false),
+      );
+
+      expect(find.text('Task is already in a terminal state.'), findsOneWidget);
+      expect(requests.where((r) => r.endsWith('/accept') || r.endsWith('/status')), isEmpty);
       expect(tester.takeException(), isNull);
     });
 

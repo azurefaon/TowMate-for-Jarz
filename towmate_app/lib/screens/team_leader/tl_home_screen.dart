@@ -12,6 +12,7 @@ import '../../services/tl_presence_controller.dart';
 import '../../widgets/tl_assigned_team_card.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/tl_bottom_nav.dart';
+import 'tl_return_screen.dart';
 
 class TlHomeScreen extends StatefulWidget {
   const TlHomeScreen({super.key});
@@ -25,6 +26,7 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   TaskModel? _task;
   bool _loadingTask = false;
   bool _accepting = false;
+  bool _returning = false;
   String? _name;
   String? _dutyClass;
   Timer? _pollTimer;
@@ -170,6 +172,34 @@ class _TlHomeScreenState extends State<TlHomeScreen>
     }
   }
 
+  /// Returns an assigned task to the dispatcher without accepting it. Reuses
+  /// the existing reason screen and POST .../return endpoint; never touches
+  /// accept or `on_the_way`.
+  Future<void> _return() async {
+    final task = _task;
+    if (task == null || _accepting || _returning) return;
+    setState(() => _returning = true);
+
+    final returned = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => TlReturnScreen(task: task)),
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _returning = false;
+      if (returned == true) _task = null;
+    });
+    if (returned == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Task returned to the dispatcher.')),
+      );
+    }
+    // Authoritative refresh either way: a failed/cancelled return may mean the
+    // dispatcher already changed the assignment.
+    await _fetchTask();
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -287,6 +317,10 @@ class _TlHomeScreenState extends State<TlHomeScreen>
                         ],
                         const SizedBox(height: 16),
                         _acceptButton(),
+                        if (_task!.status == 'assigned') ...[
+                          const SizedBox(height: 10),
+                          _returnButton(),
+                        ],
                       ],
                     ],
                   ),
@@ -600,12 +634,31 @@ class _TlHomeScreenState extends State<TlHomeScreen>
     return StatusBadge(status: status, label: _statusLabel(status));
   }
 
+  Widget _returnButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: (_accepting || _returning) ? null : _return,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: TmColors.error,
+          side: BorderSide(color: TmColors.error.withValues(alpha: 0.6)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        child: Text(
+          'Return Task',
+          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
   Widget _acceptButton() {
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: _accepting ? null : _accept,
+        onPressed: (_accepting || _returning) ? null : _accept,
         style: ElevatedButton.styleFrom(
           backgroundColor: TmColors.yellow,
           foregroundColor: TmColors.black,
