@@ -10,10 +10,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
+import '../../models/online_payment_model.dart';
 import '../../models/vehicle_category_model.dart';
 import '../../models/vehicle_type_model.dart';
 import '../../services/api_service.dart';
+import '../../services/checkout_launcher.dart';
 import '../../widgets/payment_method_selector.dart';
+import 'online_payment_status_screen.dart';
 import '../../widgets/quotation_price_cards.dart';
 import '../../widgets/skeleton_box.dart';
 import 'map_picker_screen.dart';
@@ -72,9 +75,14 @@ class _BookNowScreenState extends State<BookNowScreen> {
   bool _submitting = false;
   String? _bookingError;
 
-  // Customer's payment preference. Deliberately no default: the customer must pick one,
-  // and picking it never pays or redirects anywhere.
+  // Customer's payment method. Deliberately no default: the customer must pick one. Cash submits at once; GCash is
+  // "Pay & Submit" (PayMongo TEST checkout) and only when the server allows it for this account.
   String? _preferredPaymentMethod;
+  Set<String> _onlineChannels = const {};
+
+  // Pay & Submit attempt for the current draft: retried on the SAME booking (never a second one) until it is paid.
+  String? _pendingPaidBookingCode;
+  String? _pendingPaidDraftKey;
 
   bool _prefillApplied = false;
   String? _prefillPickupAddress;
@@ -99,7 +107,35 @@ class _BookNowScreenState extends State<BookNowScreen> {
     _notesCtrl.addListener(_scheduleDraftSave);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkForDraft());
     _recoverLostImageData();
+    _loadOnlinePayAvailability();
   }
+
+  Future<void> _loadOnlinePayAvailability() async {
+    final channels = await ApiService.fetchOnlinePaymentChannels();
+    if (!mounted) return;
+    setState(() {
+      _onlineChannels = channels;
+      if (_preferredPaymentMethod != 'cash' && !_canPayOnlineWith(_preferredPaymentMethod)) _preferredPaymentMethod = null;
+    });
+  }
+
+  /// "Pay & Submit" with this method: allowed by the server for this account, and for Book Now only.
+  bool _canPayOnlineWith(String? method) => _serviceType == 'book_now' && _onlineChannels.contains(method);
+
+  bool get _payOnline => _preferredPaymentMethod != 'cash' && _canPayOnlineWith(_preferredPaymentMethod);
+
+  /// Identifies the draft a Pay & Submit attempt belongs to: an edited draft is a different booking.
+  String get _draftKey => [
+        _serviceType,
+        _pickupLatLng?.latitude,
+        _pickupLatLng?.longitude,
+        _dropoffLatLng?.latitude,
+        _dropoffLatLng?.longitude,
+        _selectedVehicleType?.id,
+        _vehicleImages.map((x) => x.path).join(','),
+        _extraVehicles.map((v) => '${v.vehicle?.id}:${v.images.map((x) => x.path).join(',')}').join(';'),
+        _notesCtrl.text.trim(),
+      ].join('|');
 
   @override
   void didChangeDependencies() {
@@ -874,25 +910,33 @@ class _BookNowScreenState extends State<BookNowScreen> {
       extraVehicleImagePaths[i] = v.images.map((x) => x.path).toList();
     }
 
-    final result = await ApiService.createBooking(
-      truckTypeId: _selectedVehicleType!.requiredTruckTypeId ?? 0,
-      vehicleTypeId: _selectedVehicleType!.id,
-      pickupAddress: _pickupAddress,
-      pickupLat: _pickupLatLng!.latitude,
-      pickupLng: _pickupLatLng!.longitude,
-      dropoffAddress: _dropoffAddress,
-      dropoffLat: _dropoffLatLng!.latitude,
-      dropoffLng: _dropoffLatLng!.longitude,
-      distanceKm: _distanceKm!,
-      serviceType: _serviceType,
-      notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      scheduledDate: scheduledDateStr,
-      scheduledTime: scheduledTimeStr,
-      vehicleImagePaths: _vehicleImages.map((x) => x.path).toList(),
-      extraVehicles: extraList,
-      extraVehicleImagePaths: extraVehicleImagePaths,
-      preferredPaymentMethod: _preferredPaymentMethod,
-    );
+    Future<Map<String, dynamic>> create({bool payOnline = false}) => ApiService.createBooking(
+          truckTypeId: _selectedVehicleType!.requiredTruckTypeId ?? 0,
+          vehicleTypeId: _selectedVehicleType!.id,
+          pickupAddress: _pickupAddress,
+          pickupLat: _pickupLatLng!.latitude,
+          pickupLng: _pickupLatLng!.longitude,
+          dropoffAddress: _dropoffAddress,
+          dropoffLat: _dropoffLatLng!.latitude,
+          dropoffLng: _dropoffLatLng!.longitude,
+          distanceKm: _distanceKm!,
+          serviceType: _serviceType,
+          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+          scheduledDate: scheduledDateStr,
+          scheduledTime: scheduledTimeStr,
+          vehicleImagePaths: _vehicleImages.map((x) => x.path).toList(),
+          extraVehicles: extraList,
+          extraVehicleImagePaths: extraVehicleImagePaths,
+          preferredPaymentMethod: _preferredPaymentMethod,
+          payOnline: payOnline,
+        );
+
+    if (_payOnline) {
+      await _payAndSubmit(() => create(payOnline: true));
+      return;
+    }
+
+    final result = await create();
 
     if (!mounted) return;
 
@@ -913,6 +957,75 @@ class _BookNowScreenState extends State<BookNowScreen> {
             result['message'] as String? ?? 'Booking failed. Please try again.';
       });
     }
+  }
+
+  /// Step 3 "Pay & Submit": create the (unsubmitted) booking once per draft, open PayMongo's TEST checkout, then let
+  /// the server verify. The status screen shows "Verifying payment" and moves to BOOKING SUCCESSFUL only when the
+  /// server says the booking was submitted. Anything else comes back here with the draft intact.
+  Future<void> _payAndSubmit(Future<Map<String, dynamic>> Function() createUnsubmitted) async {
+    void fail(String message) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _bookingError = message;
+      });
+    }
+
+    String? code;
+    OnlinePaymentTransaction? transaction;
+
+    if (_pendingPaidBookingCode != null && _pendingPaidDraftKey == _draftKey) {
+      // Retry on the same booking: the server reuses an open session or opens a new one; never a second booking.
+      final started = await ApiService.startOnlineCheckout(_pendingPaidBookingCode!, method: _preferredPaymentMethod ?? 'gcash');
+      if (!mounted) return;
+      if (started['success'] != true && started['reason'] != 'already_paid') {
+        return fail((started['message'] as String?) ?? 'Could not start the payment. Please try again.');
+      }
+      code = _pendingPaidBookingCode;
+      transaction = started['transaction'] as OnlinePaymentTransaction?;
+    } else {
+      final result = await createUnsubmitted();
+      if (!mounted) return;
+      if (result['success'] != true) {
+        if (result['reason'] == 'earlier_booking_paid' && result['booking_code'] is String) {
+          // An earlier attempt was paid after all: that booking was submitted instead of a new one.
+          return _openPaymentStatus(result['booking_code'] as String);
+        }
+        return fail((result['message'] as String?) ?? 'Booking failed. Please try again.');
+      }
+      code = result['booking_code'] as String?;
+      transaction = result['transaction'] as OnlinePaymentTransaction?;
+      _pendingPaidBookingCode = code;
+      _pendingPaidDraftKey = _draftKey;
+    }
+
+    if (code == null) return fail('Booking failed. Please try again.');
+
+    final url = transaction?.checkoutUrl;
+    if (url != null) {
+      final launched = await const UrlLauncherCheckoutLauncher().open(url);
+      if (!mounted) return;
+      if (launched == CheckoutLaunchResult.rejected) {
+        return fail('Could not open the secure payment page. Please try again.');
+      }
+      // `failed` (e.g. a browser pop-up blocker): the status screen offers "Reopen payment page".
+    }
+
+    await _openPaymentStatus(code);
+  }
+
+  Future<void> _openPaymentStatus(String code) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OnlinePaymentStatusScreen(bookingCode: code, onSubmitted: _finalizeDraft),
+      ),
+    );
+    // Still here: the booking was not submitted (cancelled, failed, expired or still verifying).
+    if (!mounted) return;
+    setState(() {
+      _submitting = false;
+      _bookingError = 'Your booking has not been submitted yet. Pay & Submit to try again, or choose Cash.';
+    });
   }
 
   bool get _canProceedStep1 =>
@@ -1273,6 +1386,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
           child: PaymentMethodSelector(
             value: _preferredPaymentMethod,
             enabled: !_submitting,
+            onlinePayAvailable: _canPayOnlineWith('gcash'),
+            onlineBankingAvailable: _canPayOnlineWith('bank_transfer'),
+            onlineUnavailableReason: _onlineChannels.isNotEmpty && _serviceType != 'book_now'
+                ? 'Available for Book Now only'
+                : null,
             onChanged: (m) => setState(() => _preferredPaymentMethod = m),
           ),
         ),
@@ -1416,7 +1534,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
   Widget _buildBottomBar() {
     final bool loading = _step == 0 && (_loadingRoute || _checkingDuplicateRoute);
     final bool isConfirm = _step == 2;
-    final String label = isConfirm ? 'Confirm Booking' : 'Continue';
+    final String label = !isConfirm
+        ? 'Continue'
+        : _payOnline
+            ? 'Pay & Submit'
+            : 'Submit Booking';
 
     String? hint;
     VoidCallback? onTap;

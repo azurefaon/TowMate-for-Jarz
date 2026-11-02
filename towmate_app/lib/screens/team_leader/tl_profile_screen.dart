@@ -352,6 +352,8 @@ class _TlProfileScreenState extends State<TlProfileScreen> {
 
     await TeamLeaderService.goOffline();
     TlPresenceController.stop();
+    // Stop assignment pushes to this device for the account that is signing out.
+    await ApiService.unregisterDeviceToken();
     await ApiService.clearSession();
     AppPrefs.useGuestTheme();
     if (!mounted) return;

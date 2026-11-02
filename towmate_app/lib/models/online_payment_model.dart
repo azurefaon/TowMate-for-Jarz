@@ -2,6 +2,8 @@
 /// nothing is inferred from a browser redirect or from the checkout page having been opened.
 library;
 
+import 'booking_model.dart' show BookingGroupSibling;
+
 /// A transaction's verified state, as the backend reports it.
 enum OnlinePaymentStatus {
   pending,
@@ -48,6 +50,9 @@ class OnlinePaymentTransaction {
     this.checkoutUrl,
     this.bookingStatus,
     this.bookingCompleted = false,
+    this.bookingSubmitted = false,
+    this.payAtBooking = false,
+    this.bookings = const [],
   });
 
   final String reference;
@@ -67,6 +72,14 @@ class OnlinePaymentTransaction {
   final String? bookingStatus;
   final bool bookingCompleted;
 
+  /// Pay & Submit: true once the server has submitted the booking after the verified payment. Until then the booking
+  /// does not exist for dispatch, whatever the browser showed.
+  final bool bookingSubmitted;
+  final bool payAtBooking;
+
+  /// The submitted booking(s), for the "Booking successful" screen (empty until submitted).
+  final List<BookingGroupSibling> bookings;
+
   factory OnlinePaymentTransaction.fromJson(Map<String, dynamic> json) {
     return OnlinePaymentTransaction(
       reference: json['reference'] as String? ?? '',
@@ -79,6 +92,13 @@ class OnlinePaymentTransaction {
       checkoutUrl: json['checkout_url'] as String?,
       bookingStatus: json['booking_status'] as String?,
       bookingCompleted: json['booking_completed'] as bool? ?? false,
+      bookingSubmitted: json['booking_submitted'] as bool? ?? false,
+      payAtBooking: json['pay_at_booking'] as bool? ?? false,
+      bookings: (json['bookings'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(BookingGroupSibling.fromJson)
+              .toList() ??
+          const [],
     );
   }
 }

@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
+import '../../widgets/online_payment_card.dart' show TestPaymentBanner;
 import '../../widgets/payment_method_selector.dart';
 import '../../widgets/quotation_price_cards.dart';
 
 class BookingSuccessScreen extends StatelessWidget {
-  const BookingSuccessScreen({super.key, required this.bookings});
+  const BookingSuccessScreen({super.key, required this.bookings, this.paidOnline = false});
   final List<BookingGroupSibling> bookings;
+
+  /// Pay & Submit: shown only after the server verified the payment AND submitted the booking.
+  final bool paidOnline;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +35,8 @@ class BookingSuccessScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Booking Request Submitted',
+                  'Booking Successful',
+                  key: const Key('booking_success_title'),
                   style: GoogleFonts.inter(
                     color: context.textPrimary,
                     fontSize: 24,
@@ -52,10 +57,18 @@ class BookingSuccessScreen extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 14),
+                if (paidOnline) ...[
+                  const TestPaymentBanner(),
+                  const SizedBox(height: 12),
+                ],
                 Text(
-                  'This is not your final price yet. TowMate will review your '
-                  'request and send you a quotation — please wait for that '
-                  'review before the booking is confirmed.',
+                  paidOnline
+                      ? 'Payment received and your booking is submitted. Nothing will be '
+                          'collected after the tow. We will notify you when a team is assigned.'
+                      : 'Your booking is submitted. Pay the Team Leader in cash after the tow. '
+                          'This is not your final price yet: TowMate will review your request '
+                          'and send you a quotation before the booking is confirmed.',
+                  key: const Key('booking_success_message'),
                   style: GoogleFonts.inter(
                     color: secondaryTextColor(context),
                     fontSize: 13.5,
@@ -71,7 +84,7 @@ class BookingSuccessScreen extends StatelessWidget {
                       children: [
                         for (int i = 0; i < bookings.length; i++) ...[
                           if (i > 0) const SizedBox(height: 12),
-                          _SubmittedBookingCard(booking: bookings[i]),
+                          _SubmittedBookingCard(booking: bookings[i], paidOnline: paidOnline),
                         ],
                         if (isMulti) ...[
                           const SizedBox(height: 16),
@@ -127,8 +140,9 @@ class BookingSuccessScreen extends StatelessWidget {
 }
 
 class _SubmittedBookingCard extends StatelessWidget {
-  const _SubmittedBookingCard({required this.booking});
+  const _SubmittedBookingCard({required this.booking, this.paidOnline = false});
   final BookingGroupSibling booking;
+  final bool paidOnline;
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +201,9 @@ class _SubmittedBookingCard extends StatelessWidget {
           if (preferredPaymentLabel(booking.preferredPaymentMethod) != null) ...[
             const SizedBox(height: 8),
             Text(
-              'Preferred payment: ${preferredPaymentLabel(booking.preferredPaymentMethod)} · not paid yet',
+              paidOnline
+                  ? 'Paid online: ${preferredPaymentLabel(booking.preferredPaymentMethod)} (TEST / DEMO)'
+                  : 'Preferred payment: ${preferredPaymentLabel(booking.preferredPaymentMethod)} · not paid yet',
               key: const Key('success_preferred_payment'),
               style: GoogleFonts.inter(
                 color: secondaryTextColor(context),

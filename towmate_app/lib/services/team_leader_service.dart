@@ -278,6 +278,21 @@ class TeamLeaderService {
     }
   }
 
+  /// COMPLETE TASK for a booking the customer already paid online (verified by the server). Sends no payment data:
+  /// the server re-checks the verified payment and refuses if it does not cover the total.
+  static Future<Map<String, dynamic>> completePrepaidTask(String bookingCode) async {
+    try {
+      final response = await apiClient
+          .post(Uri.parse('$_base/task/$bookingCode/complete'), headers: await _authHeaders())
+          .timeout(const Duration(seconds: 30));
+      return _parseResult(response);
+    } catch (e) {
+      return _failure(e);
+    }
+  }
+
+  /// SUBMIT TO DISPATCHER for a cash collection: amount received + signature (the payment photo is uploaded first).
+  /// Only cash is ever collected by the Team Leader.
   static Future<Map<String, dynamic>> completeTask(
     String bookingCode,
     Uint8List? signatureBytes,

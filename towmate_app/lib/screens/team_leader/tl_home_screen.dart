@@ -7,6 +7,7 @@ import '../../widgets/status_badge.dart';
 import '../../models/task_model.dart';
 import '../../services/api_service.dart';
 import '../../services/location_tracker.dart';
+import '../../services/push_notification_service.dart';
 import '../../services/team_leader_service.dart';
 import '../../services/tl_presence_controller.dart';
 import '../../widgets/tl_assigned_team_card.dart';
@@ -53,6 +54,8 @@ class _TlHomeScreenState extends State<TlHomeScreen>
   Future<void> _init() async {
     _name = await ApiService.getUserName();
     _dutyClass = await ApiService.getUserDutyClass();
+    // Registers this device for "New Towing Assignment" pushes (and opens a tapped one).
+    unawaited(PushNotificationService.instance.startForTeamLeader());
     TlPresenceController.start();
     _gps.start();
     await _fetchTask();

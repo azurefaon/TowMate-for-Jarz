@@ -107,6 +107,9 @@ class TaskModel {
   /// Backend-decided: true only for the local/demo fixture at a simulatable stage.
   final bool demoArrivalAvailable;
 
+  /// Backend-decided collection path at the drop-off (from verified payment records only).
+  final TaskPaymentState payment;
+
   const TaskModel({
     required this.id,
     required this.bookingCode,
@@ -143,6 +146,7 @@ class TaskModel {
     this.hasClaimableSibling = false,
     this.assignedTeam,
     this.demoArrivalAvailable = false,
+    this.payment = const TaskPaymentState.cash(),
   });
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
@@ -191,6 +195,7 @@ class TaskModel {
           ? AssignedTeam.fromJson(json['assigned_team'] as Map<String, dynamic>)
           : null,
       demoArrivalAvailable: json['demo_arrival_available'] == true,
+      payment: TaskPaymentState.fromJson(json['payment']),
     );
   }
 
@@ -243,6 +248,7 @@ class TaskModel {
       hasClaimableSibling: hasClaimableSibling ?? this.hasClaimableSibling,
       assignedTeam: assignedTeam,
       demoArrivalAvailable: demoArrivalAvailable,
+      payment: payment,
     );
   }
 
@@ -256,4 +262,43 @@ class TaskModel {
 
   bool get isGpsPhase =>
       status == 'on_the_way' || status == 'on_job';
+}
+
+/// How payment is handled at the drop-off, as the server decided it. The app never infers it from the customer's
+/// preference or from anything it holds itself.
+class TaskPaymentState {
+  const TaskPaymentState({
+    required this.mode,
+    this.amountDue,
+    this.amountPaid,
+    this.message,
+    this.testMode = false,
+  });
+
+  const TaskPaymentState.cash() : this(mode: 'cash');
+
+  /// `online_prepaid`: verified online payment covers the total → COMPLETE TASK, nothing to collect.
+  /// `cash`: collect cash (amount + photo + signature) for dispatcher verification.
+  /// `online_review`: blocked; the dispatcher must resolve the online payment first.
+  final String mode;
+  final double? amountDue;
+  final double? amountPaid;
+  final String? message;
+  final bool testMode;
+
+  bool get isPrepaid => mode == 'online_prepaid';
+  bool get needsReview => mode == 'online_review';
+
+  static TaskPaymentState fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return const TaskPaymentState.cash();
+    final mode = json['mode'];
+    return TaskPaymentState(
+      // Anything unknown is treated as blocked, never as already paid.
+      mode: mode == 'cash' || mode == 'online_prepaid' ? mode as String : 'online_review',
+      amountDue: double.tryParse('${json['amount_due'] ?? ''}'),
+      amountPaid: double.tryParse('${json['amount_paid'] ?? ''}'),
+      message: json['message'] as String?,
+      testMode: json['test_mode'] == true,
+    );
+  }
 }

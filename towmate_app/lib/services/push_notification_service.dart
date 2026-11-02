@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding, WidgetsBindingObserver;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/session_coordinator.dart';
@@ -14,20 +15,25 @@ const pushChannelId = 'towmate_booking_updates';
 const pushChannelName = 'Booking updates';
 const pushChannelDescription = 'Updates about your active towing request.';
 
-/// Minimal, privacy-safe view of an FCM `data` payload.
+/// Minimal, privacy-safe view of an FCM `data` payload: a customer booking update (`booking_status`) or a Team
+/// Leader's new assignment (`tl_assignment`).
 class BookingPush {
-  const BookingPush({required this.bookingCode, required this.status});
+  const BookingPush({required this.bookingCode, required this.status, this.type = 'booking_status'});
 
   final String bookingCode;
   final String status;
+  final String type;
 
-  /// Returns null for anything that is not a well-formed booking_status push.
+  bool get isTeamLeaderAssignment => type == 'tl_assignment';
+
+  /// Returns null for anything that is not a well-formed TowMate push.
   static BookingPush? tryParse(Map<String, dynamic>? data) {
-    if (data == null || data['type'] != 'booking_status') return null;
+    final type = data?['type'];
+    if (data == null || (type != 'booking_status' && type != 'tl_assignment')) return null;
     final code = data['booking_code'];
     final status = data['status'];
     if (code is! String || code.trim().isEmpty || code.length > 64) return null;
-    return BookingPush(bookingCode: code.trim(), status: status is String ? status : '');
+    return BookingPush(bookingCode: code.trim(), status: status is String ? status : '', type: type as String);
   }
 }
 
@@ -160,24 +166,30 @@ class LocalNotificationPresenter implements SystemNotificationPresenter {
   }
 }
 
-/// Orchestrates FCM for the Customer app. Every entry point is failure
+/// Orchestrates FCM for the Customer and Team Leader app. Every entry point is failure
 /// isolated: push problems never reach login, booking or session logic.
-class PushNotificationService {
+class PushNotificationService with WidgetsBindingObserver {
   PushNotificationService({
     PushGateway? gateway,
     SystemNotificationPresenter? presenter,
     Future<bool> Function()? isCustomerSession,
+    Future<bool> Function()? isTeamLeaderSession,
     Future<bool> Function(String token)? registerToken,
     Future<bool> Function()? removeToken,
     bool Function(String bookingCode)? openBooking,
+    bool Function(String bookingCode)? openTeamLeaderTask,
     DateTime Function()? now,
+    bool? isWeb,
   })  : _gateway = gateway ?? FirebasePushGateway(),
         _presenter = presenter ?? LocalNotificationPresenter(),
         _isCustomerSession = isCustomerSession ?? _defaultIsCustomerSession,
+        _isTeamLeaderSession = isTeamLeaderSession ?? _defaultIsTeamLeaderSession,
         _registerToken = registerToken ?? ApiService.registerDeviceToken,
         _removeToken = removeToken ?? ApiService.removeDeviceToken,
         _openBooking = openBooking ?? _defaultOpenBooking,
-        _now = now ?? DateTime.now;
+        _openTeamLeaderTask = openTeamLeaderTask ?? _defaultOpenTeamLeaderTask,
+        _now = now ?? DateTime.now,
+        _isWeb = isWeb ?? kIsWeb;
 
   static final PushNotificationService instance = PushNotificationService();
 
@@ -188,15 +200,24 @@ class PushNotificationService {
   final PushGateway _gateway;
   final SystemNotificationPresenter _presenter;
   final Future<bool> Function() _isCustomerSession;
+  final Future<bool> Function() _isTeamLeaderSession;
   final Future<bool> Function(String token) _registerToken;
   final Future<bool> Function() _removeToken;
   final bool Function(String bookingCode) _openBooking;
+  final bool Function(String bookingCode) _openTeamLeaderTask;
   final DateTime Function() _now;
+  final bool _isWeb;
+
+  /// A registration is repeated after this long (and on every app resume after it), so a token the server dropped
+  /// (e.g. after FCM reported it stale) is registered again without the user doing anything.
+  static const _reRegisterAfter = Duration(minutes: 10);
 
   bool _initialized = false;
   Future<void>? _initFuture;
   String? _lastRegistered;
+  DateTime? _lastRegisteredAt;
   String? _pendingBookingCode;
+  bool _pendingIsTeamLeader = false;
   DateTime? _pendingAt;
   final _subscriptions = <StreamSubscription<dynamic>>[];
 
@@ -207,11 +228,31 @@ class PushNotificationService {
     return await ApiService.getUserRole() != 'Team Leader';
   }
 
+  static Future<bool> _defaultIsTeamLeaderSession() async {
+    if (!await ApiService.isLoggedIn()) return false;
+    return await ApiService.getUserRole() == 'Team Leader';
+  }
+
+  Future<bool> _isSignedIn() async => await _isCustomerSession() || await _isTeamLeaderSession();
+
   static bool _defaultOpenBooking(String bookingCode) {
     final navigator = SessionCoordinator.navigatorKey.currentState;
     if (navigator == null) return false;
     navigator.pushNamed('/booking-detail', arguments: bookingCode);
     return true;
+  }
+
+  /// The Team Leader home shows the assigned task with ACCEPT TASK / RETURN TASK.
+  static bool _defaultOpenTeamLeaderTask(String bookingCode) {
+    final navigator = SessionCoordinator.navigatorKey.currentState;
+    if (navigator == null) return false;
+    navigator.pushNamedAndRemoveUntil('/tl-home', (_) => false);
+    return true;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(reconcileRegistration());
   }
 
   /// Preference and registration state belong to the signed-in account, so a
@@ -232,7 +273,7 @@ class PushNotificationService {
     try {
       await _initFuture;
       if (!_initialized || !await isPreferenceEnabled()) return;
-      if (!await _gateway.isPermissionGranted() || !await _isCustomerSession()) return;
+      if (!await _gateway.isPermissionGranted() || !await _isSignedIn()) return;
       final token = await _gateway.getToken();
       if (token != null && token.isNotEmpty) await _register(token);
     } catch (e) {
@@ -294,7 +335,10 @@ class PushNotificationService {
     final scoped = _scoped(await SharedPreferences.getInstance(), token);
     if (scoped == _lastRegistered) return true;
     final ok = await _registerToken(token);
-    if (ok) _lastRegistered = scoped;
+    if (ok) {
+      _lastRegistered = scoped;
+      _lastRegisteredAt = _now();
+    }
     return ok;
   }
 
@@ -302,6 +346,12 @@ class PushNotificationService {
   Future<void> initialize() => _initFuture ??= _initialize();
 
   Future<void> _initialize() async {
+    // Browser push would need a Firebase web app config, a VAPID key and a service worker, none of which TowMate has.
+    // The web build therefore relies on in-app notifications only; Android gets real system pushes.
+    if (_isWeb) {
+      _log('web push not configured; skipped');
+      return;
+    }
     try {
       await _gateway.initialize();
       await _presenter.initialize(_onLocalTap);
@@ -311,6 +361,11 @@ class PushNotificationService {
         ..add(_gateway.onMessageOpenedApp.listen((m) => _onTap(m.data), onError: _ignore))
         ..add(_gateway.onTokenRefresh.listen(_onTokenRefresh, onError: _ignore));
       _initialized = true;
+      try {
+        WidgetsBinding.instance.addObserver(this);
+      } catch (_) {
+        // No widgets binding (pure unit test): resume re-registration is simply not wired.
+      }
 
       final initial = await _gateway.getInitialMessage();
       if (initial != null) await _onTap(initial.data, deferNavigation: true);
@@ -320,6 +375,10 @@ class PushNotificationService {
       _log('init skipped: ${e.runtimeType}');
     }
   }
+
+  /// Called when a Team Leader session is active (TL Home): same as for a customer, so the assigned Team Leader
+  /// receives "New Towing Assignment" pushes. Idempotent.
+  Future<void> startForTeamLeader() => startForCustomer();
 
   /// Called when a Customer session is active (Home). Opens any pending
   /// notification target, asks for notification permission at most once, then
@@ -343,13 +402,19 @@ class PushNotificationService {
   Future<void> consumePendingNavigation() async {
     final code = _pendingBookingCode;
     final at = _pendingAt;
+    final forTeamLeader = _pendingIsTeamLeader;
     if (code == null) return;
     _pendingBookingCode = null;
     _pendingAt = null;
     if (at == null || _now().difference(at) > _pendingTtl) return;
-    if (!await _isCustomerSession()) return;
-    if (!_openBooking(code)) {
+
+    // Each push opens only for the role it was sent to: an assignment for the Team Leader, a booking for the customer.
+    final opened = forTeamLeader
+        ? (await _isTeamLeaderSession() ? _openTeamLeaderTask(code) : true)
+        : (await _isCustomerSession() ? _openBooking(code) : true);
+    if (!opened) {
       _pendingBookingCode = code;
+      _pendingIsTeamLeader = forTeamLeader;
       _pendingAt = at;
     }
   }
@@ -359,6 +424,9 @@ class PushNotificationService {
       await s.cancel();
     }
     _subscriptions.clear();
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {}
     _initialized = false;
     _initFuture = null;
   }
@@ -372,13 +440,17 @@ class PushNotificationService {
 
   Future<void> _register(String token) async {
     final scoped = _scoped(await SharedPreferences.getInstance(), token);
-    if (scoped == _lastRegistered) return;
-    if (await _registerToken(token)) _lastRegistered = scoped;
+    final recent = _lastRegisteredAt != null && _now().difference(_lastRegisteredAt!) < _reRegisterAfter;
+    if (scoped == _lastRegistered && recent) return;
+    if (await _registerToken(token)) {
+      _lastRegistered = scoped;
+      _lastRegisteredAt = _now();
+    }
   }
 
   Future<void> _onTokenRefresh(String token) async {
     try {
-      if (await isPreferenceEnabled() && await _isCustomerSession()) await _register(token);
+      if (await isPreferenceEnabled() && await _isSignedIn()) await _register(token);
     } catch (_) {}
   }
 
@@ -409,6 +481,7 @@ class PushNotificationService {
     final push = BookingPush.tryParse(data);
     if (push == null) return;
     _pendingBookingCode = push.bookingCode;
+    _pendingIsTeamLeader = push.isTeamLeaderAssignment;
     _pendingAt = _now();
     if (!deferNavigation) await consumePendingNavigation();
   }

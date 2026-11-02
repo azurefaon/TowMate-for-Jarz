@@ -127,10 +127,18 @@ class _TlArrivedDropoffScreenState extends State<TlArrivedDropoffScreen> {
               const SizedBox(height: 22),
               _actionContext(context, task, waitingOnGroup),
               const SizedBox(height: 18),
-              _primaryBtn(
-                waitingOnGroup ? 'Waiting for Other Vehicle' : 'Proceed to Verification',
-                (_loading || waitingOnGroup) ? null : _proceed,
-              ),
+              if (task.payment.needsReview)
+                _primaryBtn('Contact the Dispatcher', null)
+              else if (task.payment.isPrepaid)
+                _primaryBtn(
+                  waitingOnGroup ? 'Waiting for Other Vehicle' : 'Complete Task',
+                  (_loading || waitingOnGroup) ? null : _completePrepaid,
+                )
+              else
+                _primaryBtn(
+                  waitingOnGroup ? 'Waiting for Other Vehicle' : 'Collect Cash Payment',
+                  (_loading || waitingOnGroup) ? null : _proceed,
+                ),
               const SizedBox(height: 12),
               _secondaryBtn(context, 'Back', _back),
             ],
@@ -335,30 +343,76 @@ class _TlArrivedDropoffScreenState extends State<TlArrivedDropoffScreen> {
   }
 
   Widget _actionContext(BuildContext context, TaskModel task, bool waitingOnGroup) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Customer Verification',
-          style: GoogleFonts.inter(
-            color: context.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
+    final payment = task.payment;
+    final (title, detail) = switch (payment.mode) {
+      'online_prepaid' => (
+          'Payment Already Completed Online',
+          waitingOnGroup
+              ? 'Vehicle ${task.groupPosition} of ${task.groupVehicleCount} — waiting for the other vehicle in this group to reach drop-off.'
+              : 'The customer paid online when booking${payment.testMode ? ' (TEST / DEMO — no real money)' : ''}. Do not collect any payment. Complete the task.',
         ),
-        const SizedBox(height: 4),
-        Text(
+      'online_review' => (
+          'Do Not Collect Payment',
+          payment.message ?? 'An online payment for this booking needs dispatcher review. Contact the dispatcher.',
+        ),
+      _ => (
+          'Cash Payment',
           waitingOnGroup
               ? 'Vehicle ${task.groupPosition} of ${task.groupVehicleCount} — waiting for the other vehicle in this group to reach drop-off before payment can be collected.'
-              : 'Continue to payment and customer signature.',
-          style: GoogleFonts.inter(
-            color: context.textTertiary,
-            fontSize: 13,
-            height: 1.4,
-          ),
+              : 'Collect cash: amount received, payment photo and customer signature, then submit to the dispatcher.',
         ),
-      ],
+    };
+
+    return Container(
+      key: Key('dropoff_payment_${payment.mode}'),
+      width: double.infinity,
+      padding: payment.mode == 'cash' ? EdgeInsets.zero : const EdgeInsets.all(14),
+      decoration: payment.mode == 'cash'
+          ? null
+          : BoxDecoration(
+              color: (payment.isPrepaid ? TmColors.success : TmColors.error).withValues(alpha: 0.08),
+              border: Border.all(color: payment.isPrepaid ? TmColors.success : TmColors.error),
+              borderRadius: BorderRadius.circular(14),
+            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            detail,
+            style: GoogleFonts.inter(
+              color: payment.needsReview ? TmColors.error : context.textTertiary,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  /// COMPLETE TASK for a verified prepaid booking: no collection, no dispatcher verification.
+  Future<void> _completePrepaid() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    final res = await TeamLeaderService.completePrepaidTask(widget.task.bookingCode);
+    if (!mounted) return;
+    if (res['success'] == true) {
+      widget.onUpdate(res['task'] as TaskModel? ?? widget.task.copyWith(status: 'completed'));
+    } else {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] as String? ?? 'Could not complete the task.'),
+          backgroundColor: TmColors.error));
+    }
   }
 
   Widget _primaryBtn(String label, VoidCallback? onTap) {

@@ -1271,14 +1271,14 @@ class ApiService {
 
   /// Starts (or resumes) the booking's hosted checkout. Only the payment channel is sent, never an amount.
   /// On success, `transaction` carries the open session including the one-time `checkoutUrl`.
-  static Future<Map<String, dynamic>> startOnlineCheckout(String code) async {
+  static Future<Map<String, dynamic>> startOnlineCheckout(String code, {String method = 'gcash'}) async {
     try {
       final token = await getToken();
       final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/bookings/$code/online-payment/checkout'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
-            body: jsonEncode({'method': 'gcash'}),
+            body: jsonEncode({'method': method}),
           )
           .timeout(const Duration(seconds: 30));
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1293,6 +1293,31 @@ class ApiService {
       };
     } catch (e) {
       return _networkError(e);
+    }
+  }
+
+  /// Which payment methods Step 3 may offer as "Pay & Submit" for this account (server-decided; PayMongo TEST mode,
+  /// demo accounts only): a subset of {'gcash', 'bank_transfer'}. Any failure means none: Cash always works.
+  static Future<Set<String>> fetchOnlinePaymentChannels() async {
+    try {
+      final token = await getToken();
+      final response = await apiClient
+          .get(
+            Uri.parse('$baseUrl/v1/online-payment/availability'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return const {};
+      final data = (jsonDecode(response.body) as Map<String, dynamic>)['data'];
+      if (data is! Map<String, dynamic> || data['available'] != true) return const {};
+      final channels = data['channels'];
+      if (channels is! Map<String, dynamic>) return const {'gcash'};
+      return {
+        for (final method in const ['gcash', 'bank_transfer'])
+          if (channels[method] == true) method,
+      };
+    } catch (_) {
+      return const {};
     }
   }
 
@@ -1459,6 +1484,8 @@ class ApiService {
     List<Map<String, dynamic>> extraVehicles = const [],
     Map<int, List<String>> extraVehicleImagePaths = const {},
     String? preferredPaymentMethod,
+    // Step 3 "Pay & Submit": the booking stays unsubmitted until the payment is verified by the server.
+    bool payOnline = false,
   }) async {
     try {
       final token = await getToken();
@@ -1481,6 +1508,7 @@ class ApiService {
       if (preferredPaymentMethod != null) {
         req.fields['preferred_payment_method'] = preferredPaymentMethod;
       }
+      if (payOnline) req.fields['pay_online'] = '1';
       if (scheduledDate != null) req.fields['scheduled_date'] = scheduledDate;
       if (scheduledTime != null) req.fields['scheduled_time'] = scheduledTime;
       if (extraVehicles.isNotEmpty) {
@@ -1555,6 +1583,17 @@ class ApiService {
       }
 
       if (response.statusCode == 201 && body['success'] == true) {
+        if (body['payment_required'] == true) {
+          // Pay & Submit: NOT submitted yet. The checkout link (if it could be opened) is handed to the secure browser.
+          final payment = body['payment'];
+          return {
+            'success': true,
+            'payment_required': true,
+            'booking_code': body['booking_code'],
+            'transaction': payment is Map<String, dynamic> ? OnlinePaymentTransaction.fromJson(payment) : null,
+            'message': body['message'],
+          };
+        }
         final bookings =
             (body['bookings'] as List?)
                 ?.map(
@@ -1572,6 +1611,8 @@ class ApiService {
       }
       return {
         'success': false,
+        'reason': body['reason'],
+        'booking_code': body['booking_code'],
         'message':
             ApiMessages.forResponse(response.statusCode, body, fallback: 'Booking failed. Please try again.'),
       };

@@ -179,29 +179,28 @@ void main() {
     TlPresenceController.stop();
   }
 
+  /// The cash form: signature + amount received (the payment photo is uploaded separately).
   Future<void> signAndPay(
     WidgetTester tester, {
-    String method = 'cash',
     String? cashAmount,
   }) async {
-    final methodLabel = method == 'gcash' ? 'GCash' : method == 'bank_transfer' ? 'Bank Transfer' : 'Cash';
-    await tester.ensureVisible(find.text(methodLabel));
-    await tester.tap(find.text(methodLabel));
-    await tester.pump();
     await tester.ensureVisible(find.byType(Signature));
     await tester.drag(find.byType(Signature), const Offset(60, 0));
     await tester.pump();
-    if (method == 'cash' && cashAmount != null) {
+    if (cashAmount != null) {
       await tester.ensureVisible(find.byType(TextField));
       await tester.enterText(find.byType(TextField), cashAmount);
       await tester.pump();
     }
   }
 
+  ElevatedButton submitButton(WidgetTester tester) =>
+      tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Submit to Dispatcher'));
+
   group('TlAwaitingConfirmScreen (Step 5 of 6) — single booking', () {
     testWidgets('shows the step header title and progress', (tester) async {
       await pumpShell(tester, task: taskJson());
-      expect(find.text('Customer Verification'), findsOneWidget);
+      expect(find.text('Cash Payment Form'), findsOneWidget);
       expect(find.text('Step 5 of 6'), findsOneWidget);
       expect(find.text('5 / 6'), findsOneWidget);
     });
@@ -236,113 +235,61 @@ void main() {
       expect(find.text('Live'), findsNothing);
     });
 
-    testWidgets('Cash selection shows Cash Received and required Payment Proof', (tester) async {
+    testWidgets('shows ONLY amount received, payment photo and signature — no GCash or Bank Transfer choice', (tester) async {
       await pumpShell(tester, task: taskJson());
-      await tester.ensureVisible(find.text('Cash'));
-      await tester.tap(find.text('Cash'));
-      await settle(tester);
 
-      expect(find.text('Cash Received (₱)'), findsOneWidget);
-      expect(find.text('Must be at least ₱4,658.08.'), findsOneWidget);
-      expect(find.text('Payment Proof'), findsOneWidget);
+      expect(find.text('Amount Received (₱)'), findsOneWidget);
+      expect(find.text('Amount due ₱4,658.08.'), findsOneWidget);
+      expect(find.text('Payment Photo'), findsOneWidget);
       expect(find.text('Required'), findsOneWidget);
+      expect(find.byType(Signature), findsOneWidget);
+      expect(find.text('Payment Method'), findsNothing);
+      expect(find.text('GCash'), findsNothing);
+      expect(find.text('Bank Transfer'), findsNothing);
+      expect(find.text('Submit to Dispatcher'), findsOneWidget);
     });
 
-    testWidgets('GCash shows required Payment Proof and hides Cash Received', (tester) async {
+    testWidgets('Submit to Dispatcher stays disabled until signature, a covering amount and the payment photo are all provided', (tester) async {
       await pumpShell(tester, task: taskJson());
-      await tester.ensureVisible(find.text('GCash'));
-      await tester.tap(find.text('GCash'));
-      await settle(tester);
+      expect(submitButton(tester).onPressed, isNull);
 
-      expect(find.text('Payment Proof'), findsOneWidget);
-      expect(find.text('Required'), findsOneWidget);
-      expect(find.text('Cash Received (₱)'), findsNothing);
+      await signAndPay(tester);
+      expect(submitButton(tester).onPressed, isNull);
+
+      await signAndPay(tester, cashAmount: '5000');
+      expect(submitButton(tester).onPressed, isNull); // still no payment photo
     });
 
-    testWidgets('Bank Transfer shows required Payment Proof and hides Cash Received', (tester) async {
-      await pumpShell(tester, task: taskJson());
-      await tester.ensureVisible(find.text('Bank Transfer'));
-      await tester.tap(find.text('Bank Transfer'));
-      await settle(tester);
-
-      expect(find.text('Payment Proof'), findsOneWidget);
-      expect(find.text('Required'), findsOneWidget);
-      expect(find.text('Cash Received (₱)'), findsNothing);
-    });
-
-    testWidgets('Complete Task stays disabled until signature, payment method, and (for cash) a covering amount are all provided', (tester) async {
-      await pumpShell(tester, task: taskJson());
-
-      var button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Complete Task'));
-      expect(button.onPressed, isNull);
-
-      await tester.ensureVisible(find.byType(Signature));
-      await tester.drag(find.byType(Signature), const Offset(60, 0));
-      await tester.pump();
-      button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Complete Task'));
-      expect(button.onPressed, isNull);
-
-      await tester.ensureVisible(find.text('Cash'));
-      await tester.tap(find.text('Cash'));
-      await tester.pump();
-      await tester.ensureVisible(find.byType(TextField));
-      await tester.enterText(find.byType(TextField), '5000');
-      await tester.pump();
-      button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Complete Task'));
-      expect(button.onPressed, isNull);
-    });
-
-    testWidgets('Cash with a valid amount and signature, but NO proof, stays rejected', (tester) async {
+    testWidgets('Cash with a valid amount and signature, but NO payment photo, stays rejected', (tester) async {
       await pumpShell(tester, task: taskJson(finalTotal: 4658.08));
-      await signAndPay(tester, method: 'cash', cashAmount: '5000');
+      await signAndPay(tester, cashAmount: '5000');
       await settle(tester);
 
-      final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Complete Task'));
-      expect(button.onPressed, isNull);
+      expect(submitButton(tester).onPressed, isNull);
     });
 
-    testWidgets('Cash with an insufficient amount and signature stays rejected', (tester) async {
+    testWidgets('an amount below the amount due is flagged and cannot be submitted', (tester) async {
       await pumpShell(tester, task: taskJson(finalTotal: 4658.08));
-      await signAndPay(tester, method: 'cash', cashAmount: '100');
+      await signAndPay(tester, cashAmount: '100');
       await settle(tester);
 
-      expect(find.text('Must be at least ₱4,658.08.'), findsOneWidget);
-      final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Complete Task'));
-      expect(button.onPressed, isNull);
+      expect(find.text('Less than the amount due of ₱4,658.08. Collect the full amount.'), findsOneWidget);
+      expect(submitButton(tester).onPressed, isNull);
     });
 
-    testWidgets('Complete Task stays disabled for GCash without uploaded proof even with signature', (tester) async {
-      await pumpShell(tester, task: taskJson());
-      await tester.ensureVisible(find.byType(Signature));
-      await tester.drag(find.byType(Signature), const Offset(60, 0));
-      await tester.ensureVisible(find.text('GCash'));
-      await tester.tap(find.text('GCash'));
+    testWidgets('an amount above the amount due shows the change to give', (tester) async {
+      await pumpShell(tester, task: taskJson(finalTotal: 4658.08));
+      await signAndPay(tester, cashAmount: '5000');
       await settle(tester);
 
-      final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Complete Task'));
-      expect(button.onPressed, isNull);
+      expect(find.text('Amount due ₱4,658.08 · change to give ₱341.92'), findsOneWidget);
     });
 
-    testWidgets('Complete Task stays disabled for Bank Transfer without uploaded proof even with signature', (tester) async {
+    testWidgets('tapping the payment photo box opens the existing photo-source flow', (tester) async {
       await pumpShell(tester, task: taskJson());
-      await tester.ensureVisible(find.byType(Signature));
-      await tester.drag(find.byType(Signature), const Offset(60, 0));
-      await tester.ensureVisible(find.text('Bank Transfer'));
-      await tester.tap(find.text('Bank Transfer'));
-      await settle(tester);
 
-      final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Complete Task'));
-      expect(button.onPressed, isNull);
-    });
-
-    testWidgets('tapping the proof upload box opens the existing photo-source flow', (tester) async {
-      await pumpShell(tester, task: taskJson());
-      await tester.ensureVisible(find.text('GCash'));
-      await tester.tap(find.text('GCash'));
-      await settle(tester);
-
-      await tester.ensureVisible(find.text('Tap to upload proof'));
-      await tester.tap(find.text('Tap to upload proof'));
+      await tester.ensureVisible(find.text('Tap to upload the payment photo'));
+      await tester.tap(find.text('Tap to upload the payment photo'));
       await settle(tester);
 
       expect(find.text('Take Photo'), findsOneWidget);
@@ -373,18 +320,17 @@ void main() {
       expect(sigBorderColor(), isNot(TmColors.yellow));
     });
 
-    testWidgets('tapping a disabled Complete Task button is a no-op: no submission, no spinner', (tester) async {
+    testWidgets('tapping a disabled Submit to Dispatcher button is a no-op: no submission, no spinner', (tester) async {
       await pumpShell(
         tester,
         task: taskJson(bookingCode: 'TM-00100'),
         andThen: (tester) async {
-          await signAndPay(tester, method: 'cash', cashAmount: '5000');
+          await signAndPay(tester, cashAmount: '5000');
           await settle(tester);
 
-          final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Complete Task'));
-          expect(button.onPressed, isNull);
+          expect(submitButton(tester).onPressed, isNull);
 
-          await tester.tap(find.widgetWithText(ElevatedButton, 'Complete Task'), warnIfMissed: false);
+          await tester.tap(find.widgetWithText(ElevatedButton, 'Submit to Dispatcher'), warnIfMissed: false);
           await tester.pump();
 
           expect(find.byType(CircularProgressIndicator), findsNothing);
@@ -412,13 +358,13 @@ void main() {
     testWidgets('renders correctly in light mode', (tester) async {
       await pumpShell(tester, task: taskJson(), theme: AppTheme.light, themeMode: ThemeMode.light);
       expect(tester.takeException(), isNull);
-      expect(find.text('Customer Verification'), findsOneWidget);
+      expect(find.text('Cash Payment Form'), findsOneWidget);
     });
 
     testWidgets('renders correctly in dark mode', (tester) async {
       await pumpShell(tester, task: taskJson(), theme: AppTheme.dark, themeMode: ThemeMode.dark);
       expect(tester.takeException(), isNull);
-      expect(find.text('Customer Verification'), findsOneWidget);
+      expect(find.text('Cash Payment Form'), findsOneWidget);
     });
 
     for (final width in [320.0, 340.0, 360.0, 375.0, 390.0, 412.0]) {
@@ -433,8 +379,7 @@ void main() {
         });
 
         await pumpShell(tester, task: taskJson());
-        await tester.ensureVisible(find.text('GCash'));
-        await tester.tap(find.text('GCash'));
+        await signAndPay(tester, cashAmount: '5000');
         await settle(tester);
 
         expect(tester.takeException(), isNull);
@@ -529,7 +474,7 @@ void main() {
       });
     }
 
-    testWidgets('a consolidated group still shows exactly one payment method row, one proof box, and one signature canvas', (tester) async {
+    testWidgets('a consolidated group still shows exactly one amount field, one payment photo box, and one signature canvas', (tester) async {
       await pumpShell(
         tester,
         task: taskJson(
@@ -541,17 +486,13 @@ void main() {
         ),
       );
 
-      expect(find.text('Payment Method'), findsOneWidget);
-      expect(find.text('Cash'), findsOneWidget);
+      expect(find.text('Amount Received (₱)'), findsOneWidget);
+      expect(find.text('Payment Photo'), findsOneWidget);
       expect(find.byType(Signature), findsOneWidget);
-
-      await tester.ensureVisible(find.text('GCash'));
-      await tester.tap(find.text('GCash'));
-      await settle(tester);
-      expect(find.text('Payment Proof'), findsOneWidget);
+      expect(find.text('GCash'), findsNothing);
     });
 
-    testWidgets('grouped Cash with a valid amount, signature, and NO proof stays rejected', (tester) async {
+    testWidgets('grouped Cash with a valid amount, signature, and NO payment photo stays rejected', (tester) async {
       await pumpShell(
         tester,
         task: taskJson(
@@ -563,22 +504,13 @@ void main() {
         ),
       );
 
-      await tester.ensureVisible(find.text('Cash'));
-      await tester.tap(find.text('Cash'));
-      await tester.pump();
-      await tester.ensureVisible(find.byType(TextField));
-      await tester.enterText(find.byType(TextField), '9500');
-      await tester.pump();
-      await tester.ensureVisible(find.byType(Signature));
-      await tester.drag(find.byType(Signature), const Offset(60, 0));
+      await signAndPay(tester, cashAmount: '9500');
       await settle(tester);
 
-      final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Complete Task'));
-      expect(button.onPressed, isNull);
+      expect(submitButton(tester).onPressed, isNull);
     });
 
   });
-
   group('TlAwaitingConfirmScreen — group vehicle pricing breakdown', () {
     testWidgets('2 vehicles initially show only compact rows, not the breakdown', (tester) async {
       await pumpShell(

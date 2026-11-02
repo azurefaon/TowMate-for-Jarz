@@ -46,6 +46,26 @@ Future<void> _pumpScreen(
 }
 
 void main() {
+  group('BookingSuccessScreen after Pay & Submit', () {
+    testWidgets('says the payment was received (TEST / DEMO) and nothing will be collected, with no second Submit', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: BookingSuccessScreen(
+          paidOnline: true,
+          bookings: [_booking(code: 'TM-00401', vehicleTypeName: 'Sedan', status: 'confirmed', preferredPaymentMethod: 'gcash', isCurrent: true)],
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Booking Successful'), findsOneWidget);
+      expect(find.textContaining('Payment received and your booking is submitted'), findsOneWidget);
+      expect(find.textContaining('Nothing will be collected after the tow'), findsOneWidget);
+      expect(find.text('TEST PAYMENT — No real money will be charged.'), findsOneWidget);
+      expect(find.text('Paid online: GCash (TEST / DEMO)'), findsOneWidget);
+      expect(find.textContaining('not paid yet'), findsNothing);
+      expect(find.textContaining('Submit'), findsNothing);
+    });
+  });
+
   group('BookingSuccessScreen', () {
     testWidgets('shows the chosen payment preference as not yet paid, with Online Banking wording', (tester) async {
       await _pumpScreen(tester, [
@@ -67,7 +87,7 @@ void main() {
         _booking(code: 'TM-00225', vehicleTypeName: 'Sedan', isCurrent: true),
       ]);
 
-      expect(find.text('Booking Request Submitted'), findsOneWidget);
+      expect(find.text('Booking Successful'), findsOneWidget);
       expect(find.textContaining('not your final price'), findsOneWidget);
       expect(find.textContaining('TowMate will review your request'), findsOneWidget);
       expect(find.text('TM-00225'), findsOneWidget);

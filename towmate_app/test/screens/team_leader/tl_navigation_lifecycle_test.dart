@@ -244,10 +244,17 @@ void main() {
       driver.calls.clear();
       driver.initialized = true; // e.g. a service-held session
 
-      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      // The real Android sequence (the cash form's amount TextField listens to it and asserts it is valid).
+      for (final state in const [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        t.binding.handleAppLifecycleStateChanged(state);
+      }
       await settle(t);
 
       expect(find.byType(TlNavigateScreen), findsNothing);
